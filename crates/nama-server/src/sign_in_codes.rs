@@ -10,7 +10,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::users::{self, ApprovingDevice};
+use crate::{
+    codes::{code_in_groups, normalized_code, random_code, random_secret},
+    users::ApprovingDevice,
+};
 
 /// How long a Sign-in Code and its poll handle last.
 const LIFETIME: Duration = Duration::from_mins(10);
@@ -31,7 +34,7 @@ pub(crate) struct SignInCodes {
 }
 
 struct Pending {
-    /// As [`users::normalized_code`] makes it.
+    /// As [`normalized_code`] makes it.
     code: String,
     device_name: String,
     delivery: Delivery,
@@ -98,7 +101,7 @@ impl SignInCodes {
         delivery: Delivery,
         now: Instant,
     ) -> Result<Started, Error> {
-        let handle = users::random_secret()?;
+        let handle = random_secret()?;
         let mut pending = self.lock();
         // Kept a lifetime past expiry, so a Device polling late still hears it expired.
         pending.retain(|_, sign_in| now < sign_in.expires_at + LIFETIME);
@@ -106,13 +109,13 @@ impl SignInCodes {
             return Err(Error::TooManyPending);
         }
         let code = loop {
-            let code = users::random_code(CODE_LENGTH)?;
+            let code = random_code(CODE_LENGTH)?;
             if pending.values().all(|sign_in| sign_in.code != code) {
                 break code;
             }
         };
         let started = Started {
-            code: users::code_in_groups(&code),
+            code: code_in_groups(&code),
             handle: handle.clone(),
         };
         pending.insert(
@@ -185,7 +188,7 @@ fn awaiting_approval<'a>(
     entered: &str,
     now: Instant,
 ) -> Result<&'a mut Pending, Error> {
-    let code = users::normalized_code(entered);
+    let code = normalized_code(entered);
     let sign_in = pending
         .values_mut()
         .find(|sign_in| sign_in.code == code && now < sign_in.expires_at)
