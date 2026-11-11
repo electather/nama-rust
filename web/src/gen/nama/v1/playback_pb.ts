@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/playback.proto.
  */
 export const file_nama_v1_playback: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIiYKE1N0b3BQbGF5YmFja1JlcXVlc3QSDwoHcGxhbl9pZBgBIAEoBCIWChRTdG9wUGxheWJhY2tSZXNwb25zZSKxAgoTUGxhblBsYXliYWNrUmVxdWVzdBISCgp2ZXJzaW9uX2lkGAEgASgDEhkKEXN0YXJ0X3Bvc2l0aW9uX21zGAIgASgEEhgKC2F1ZGlvX3RyYWNrGAMgASgNSACIAQESGwoOc3VidGl0bGVfdHJhY2sYBCABKA1IAYgBARIuCg5wbGF5YmFja19saW1pdBgFIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIwCg9kZXZpY2VfZGVjb2RpbmcYBiABKAsyFy5uYW1hLnYxLkRldmljZURlY29kaW5nEi8KDmZhaWxlZF9tZXRob2RzGAcgAygOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIm0KDkRldmljZURlY29kaW5nEhUKDWNvbnRlbnRfdHlwZXMYASADKAkSCwoDaGRyGAIgASgIEhIKCm5hdGl2ZV9obHMYAyABKAgSCwoDbXNlGAQgASgIEhYKDmF1ZGlvX2NoYW5uZWxzGAUgASgNIjsKFFBsYW5QbGF5YmFja1Jlc3BvbnNlEiMKBHBsYW4YASABKAsyFS5uYW1hLnYxLlBsYXliYWNrUGxhbiLfAQoMUGxheWJhY2tQbGFuEicKBm1ldGhvZBgBIAEoDjIXLm5hbWEudjEuUGxheWJhY2tNZXRob2QSCwoDdXJsGAIgASgJEh4KBnRyYWNrcxgDIAMoCzIOLm5hbWEudjEuVHJhY2sSDwoHcmVhc29ucxgEIAMoCRIsCglzdWJ0aXRsZXMYBSADKAsyGS5uYW1hLnYxLlBsYXliYWNrU3VidGl0bGUSCgoCaWQYBiABKAQSLgoOcGxheWJhY2tfbGltaXQYByABKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXQiPgoQUGxheWJhY2tTdWJ0aXRsZRIdCgV0cmFjaxgBIAEoCzIOLm5hbWEudjEuVHJhY2sSCwoDdXJsGAIgASgJKpgBCg1QbGF5YmFja0xpbWl0Eh4KGlBMQVlCQUNLX0xJTUlUX1VOU1BFQ0lGSUVEEAASGwoXUExBWUJBQ0tfTElNSVRfT1JJR0lOQUwQARIYChRQTEFZQkFDS19MSU1JVF8xMDgwUBACEhcKE1BMQVlCQUNLX0xJTUlUXzcyMFAQAxIXChNQTEFZQkFDS19MSU1JVF80ODBQEAQqjAEKDlBsYXliYWNrTWV0aG9kEh8KG1BMQVlCQUNLX01FVEhPRF9VTlNQRUNJRklFRBAAEh8KG1BMQVlCQUNLX01FVEhPRF9ESVJFQ1RfUExBWRABEhkKFVBMQVlCQUNLX01FVEhPRF9SRU1VWBACEh0KGVBMQVlCQUNLX01FVEhPRF9UUkFOU0NPREUQAzK1AQoPUGxheWJhY2tTZXJ2aWNlElAKDFBsYW5QbGF5YmFjaxIcLm5hbWEudjEuUGxhblBsYXliYWNrUmVxdWVzdBodLm5hbWEudjEuUGxhblBsYXliYWNrUmVzcG9uc2UiA5ACAhJQCgxTdG9wUGxheWJhY2sSHC5uYW1hLnYxLlN0b3BQbGF5YmFja1JlcXVlc3QaHS5uYW1hLnYxLlN0b3BQbGF5YmFja1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_browse]);
+  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIiYKE1N0b3BQbGF5YmFja1JlcXVlc3QSDwoHcGxhbl9pZBgBIAEoBCIWChRTdG9wUGxheWJhY2tSZXNwb25zZSKxAgoTUGxhblBsYXliYWNrUmVxdWVzdBISCgp2ZXJzaW9uX2lkGAEgASgDEhkKEXN0YXJ0X3Bvc2l0aW9uX21zGAIgASgEEhgKC2F1ZGlvX3RyYWNrGAMgASgNSACIAQESGwoOc3VidGl0bGVfdHJhY2sYBCABKA1IAYgBARIuCg5wbGF5YmFja19saW1pdBgFIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIwCg9kZXZpY2VfZGVjb2RpbmcYBiABKAsyFy5uYW1hLnYxLkRldmljZURlY29kaW5nEi8KDmZhaWxlZF9tZXRob2RzGAcgAygOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIm0KDkRldmljZURlY29kaW5nEhUKDWNvbnRlbnRfdHlwZXMYASADKAkSCwoDaGRyGAIgASgIEhIKCm5hdGl2ZV9obHMYAyABKAgSCwoDbXNlGAQgASgIEhYKDmF1ZGlvX2NoYW5uZWxzGAUgASgNIjsKFFBsYW5QbGF5YmFja1Jlc3BvbnNlEiMKBHBsYW4YASABKAsyFS5uYW1hLnYxLlBsYXliYWNrUGxhbiKYAwoMUGxheWJhY2tQbGFuEicKBm1ldGhvZBgBIAEoDjIXLm5hbWEudjEuUGxheWJhY2tNZXRob2QSCwoDdXJsGAIgASgJEh4KBnRyYWNrcxgDIAMoCzIOLm5hbWEudjEuVHJhY2sSDwoHcmVhc29ucxgEIAMoCRIsCglzdWJ0aXRsZXMYBSADKAsyGS5uYW1hLnYxLlBsYXliYWNrU3VidGl0bGUSCgoCaWQYBiABKAQSLgoOcGxheWJhY2tfbGltaXQYByABKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXQSGAoLYXVkaW9fdHJhY2sYCCABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgJIAEoDUgBiAEBEhQKDGF1ZGlvX3RyYWNrcxgKIAMoDRIWCg5idXJuX2luX3RyYWNrcxgLIAMoDRIvCg9wbGF5YmFja19saW1pdHMYDCADKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXRCDgoMX2F1ZGlvX3RyYWNrQhEKD19zdWJ0aXRsZV90cmFjayI+ChBQbGF5YmFja1N1YnRpdGxlEh0KBXRyYWNrGAEgASgLMg4ubmFtYS52MS5UcmFjaxILCgN1cmwYAiABKAkqmAEKDVBsYXliYWNrTGltaXQSHgoaUExBWUJBQ0tfTElNSVRfVU5TUEVDSUZJRUQQABIbChdQTEFZQkFDS19MSU1JVF9PUklHSU5BTBABEhgKFFBMQVlCQUNLX0xJTUlUXzEwODBQEAISFwoTUExBWUJBQ0tfTElNSVRfNzIwUBADEhcKE1BMQVlCQUNLX0xJTUlUXzQ4MFAQBCqMAQoOUGxheWJhY2tNZXRob2QSHwobUExBWUJBQ0tfTUVUSE9EX1VOU1BFQ0lGSUVEEAASHwobUExBWUJBQ0tfTUVUSE9EX0RJUkVDVF9QTEFZEAESGQoVUExBWUJBQ0tfTUVUSE9EX1JFTVVYEAISHQoZUExBWUJBQ0tfTUVUSE9EX1RSQU5TQ09ERRADMrUBCg9QbGF5YmFja1NlcnZpY2USUAoMUGxhblBsYXliYWNrEhwubmFtYS52MS5QbGFuUGxheWJhY2tSZXF1ZXN0Gh0ubmFtYS52MS5QbGFuUGxheWJhY2tSZXNwb25zZSIDkAICElAKDFN0b3BQbGF5YmFjaxIcLm5hbWEudjEuU3RvcFBsYXliYWNrUmVxdWVzdBodLm5hbWEudjEuU3RvcFBsYXliYWNrUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_browse]);
 
 /**
  * @generated from message nama.v1.StopPlaybackRequest
@@ -233,11 +233,52 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
 
   /**
    * The Playback Limit it keeps to: the one asked for, or else the Server's default for remote
-   * playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`.
+   * playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`, as when it
+   * can't keep to the one that applies.
    *
    * @generated from field: nama.v1.PlaybackLimit playback_limit = 7;
    */
   playbackLimit: PlaybackLimit;
+
+  /**
+   * The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
+   * asked for, or else the one the Version plays by default. Unset when it has no audio or its
+   * Tracks aren't known.
+   *
+   * @generated from field: optional uint32 audio_track = 8;
+   */
+  audioTrack?: number | undefined;
+
+  /**
+   * The subtitle Track it burns into the picture, by its place in the Version's `tracks`. Unset
+   * for none, as when the one asked for can't be burned in.
+   *
+   * @generated from field: optional uint32 subtitle_track = 9;
+   */
+  subtitleTrack?: number | undefined;
+
+  /**
+   * The choices a plan for this Version can ever honour on this Server and Device, whatever a
+   * busy Server or a method that failed on the Device rules out for now: the audio Tracks it can
+   * play, by their place in the Version's `tracks`, in that order.
+   *
+   * @generated from field: repeated uint32 audio_tracks = 10;
+   */
+  audioTracks: number[];
+
+  /**
+   * The subtitle Tracks it can burn into the picture, likewise.
+   *
+   * @generated from field: repeated uint32 burn_in_tracks = 11;
+   */
+  burnInTracks: number[];
+
+  /**
+   * The Playback Limits below Original it can scale the picture down to, largest first.
+   *
+   * @generated from field: repeated nama.v1.PlaybackLimit playback_limits = 12;
+   */
+  playbackLimits: PlaybackLimit[];
 };
 
 /**
@@ -385,10 +426,12 @@ export const PlaybackMethodSchema: GenEnum<PlaybackMethod> = /*@__PURE__*/
 export const PlaybackService: GenService<{
   /**
    * Returns a Playback Plan for playing a Version on the caller's Device, probing the Version
-   * first if the Server has no current Tracks for it. Fails with `not_found` if there is no such
-   * Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when only a Transcode would play it
-   * and the Server is already running as many as it may; one of the caller's own Device's doesn't
-   * count, as a new plan replaces the one it plays.
+   * first if the Server has no current Tracks for it. A choice the caller asks for that the plan
+   * can't honour here is dropped, and its `reasons` say why (ADR 0031). Fails with `not_found` if
+   * there is no such Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when the Device
+   * itself needs a Transcode to play it, never for a choice, and the Server is already running as
+   * many as it may; one of the caller's own Device's doesn't count, as a new plan replaces the one
+   * it plays.
    *
    * @generated from rpc nama.v1.PlaybackService.PlanPlayback
    */
