@@ -247,6 +247,8 @@ jobs:
             exit 1
           }
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # Without --all-targets, nama-server's `testing` stays off, as in a release build.
+      - run: cargo clippy --workspace --locked -- -D warnings
       # The test Plugin and the bundled ones for wasm32, as Installed Plugins are built: with
       # nama-pdk, and nama-proto's messages without its ConnectRPC stubs.
       - run: cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --package nama-servarr --target wasm32-unknown-unknown --locked -- -D warnings
