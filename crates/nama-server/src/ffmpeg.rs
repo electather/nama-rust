@@ -541,8 +541,7 @@ pub(crate) struct CanDo {
 }
 
 impl CanDo {
-    /// Whether a Transcode runs at all: it needs ffmpeg and ffprobe, and libx264 even on hardware,
-    /// which falls back to software when it fails partway.
+    /// Whether a Transcode runs at all: it needs ffmpeg and ffprobe, and libx264 even on hardware.
     pub(crate) const fn transcodes(&self) -> bool {
         // ponytail: a Transcode on hardware needs no libx264, but its fallback to software does;
         // allow one once a failed hardware run can stop instead of falling back, and change

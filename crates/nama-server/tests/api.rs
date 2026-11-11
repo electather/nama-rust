@@ -295,12 +295,19 @@ async fn the_playback_status_says_what_tone_maps_on_each_hardware_and_which_auto
         automatic,
         ..Default::default()
     };
-    let encoders = ["libx264", "h264_videotoolbox", "h264_qsv"];
     let cases = [
-        ("zscale", ToneMapping::TONE_MAPPING_SOFTWARE),
-        ("scale", ToneMapping::TONE_MAPPING_NONE),
+        (
+            ["libx264", "h264_videotoolbox", "h264_qsv"],
+            "zscale",
+            ToneMapping::TONE_MAPPING_SOFTWARE,
+        ),
+        (
+            ["libopenh264", "h264_videotoolbox", "h264_qsv"],
+            "scale",
+            ToneMapping::TONE_MAPPING_NONE,
+        ),
     ];
-    for (filter, without_gpu) in cases {
+    for (encoders, filter, without_gpu) in cases {
         let bin = tempfile::tempdir().unwrap();
 
         let status = playback_status_listing(bin.path(), &encoders, filter).await;

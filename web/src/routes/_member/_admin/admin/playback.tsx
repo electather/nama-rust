@@ -114,13 +114,14 @@ function hardwareIntro(status: GetPlaybackStatusResponse) {
 }
 
 function whyNoTranscodeRunsOnHardware({ ffprobe, hasLibx264 }: GetPlaybackStatusResponse) {
-  // Hardware is listed only if the Server found ffmpeg, so ffprobe or libx264 is what's missing.
-  if (ffprobe !== undefined) {
-    return "The hardware below passed its test, but no Transcode runs on it, or in software, until the Server’s ffmpeg has libx264.";
+  if (ffprobe === undefined) {
+    return hasLibx264
+      ? "The hardware below passed its test, but no Transcode runs on it until the Server finds ffprobe."
+      : "The hardware below passed its test, but no Transcode runs on it until the Server finds ffprobe and its ffmpeg has libx264.";
   }
   return hasLibx264
-    ? "The hardware below passed its test, but no Transcode runs on it until the Server finds ffprobe."
-    : "The hardware below passed its test, but no Transcode runs on it until the Server finds ffprobe and its ffmpeg has libx264.";
+    ? "The hardware below passed its test, but no Transcode runs on it."
+    : "The hardware below passed its test, but no Transcode runs on it, or in software, until the Server’s ffmpeg has libx264.";
 }
 
 function ProgramRow({
