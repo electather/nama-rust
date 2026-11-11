@@ -16,6 +16,7 @@ import { Route as MemberIndexRouteImport } from './routes/_member/index'
 import { Route as MemberSplatRouteImport } from './routes/_member/$'
 import { Route as MemberAdminRouteImport } from './routes/_member/_admin'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
+import { Route as MemberSearchRouteImport } from './routes/_member/search'
 import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
 import { Route as MemberMoviesMovieIdRouteImport } from './routes/_member/movies/$movieId'
 import { Route as MemberRequestsIndexRouteImport } from './routes/_member/requests/index'
@@ -66,6 +67,11 @@ const MemberAdminRoute = MemberAdminRouteImport.update({
 const MemberCodeRoute = MemberCodeRouteImport.update({
   id: '/code',
   path: '/code',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberSearchRoute = MemberSearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => MemberRoute,
 } as any)
 const MemberSettingsRoute = MemberSettingsRouteImport.update({
@@ -178,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof SignInRoute
   '/$': typeof MemberSplatRoute
   '/code': typeof MemberCodeRoute
+  '/search': typeof MemberSearchRoute
   '/settings': typeof MemberSettingsRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
   '/requests/$requestId': typeof MemberRequestsRequestIdRoute
@@ -203,6 +210,7 @@ export interface FileRoutesByTo {
   '/$': typeof MemberSplatRoute
   '/': typeof MemberIndexRoute
   '/code': typeof MemberCodeRoute
+  '/search': typeof MemberSearchRoute
   '/settings': typeof MemberSettingsRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
   '/requests/$requestId': typeof MemberRequestsRequestIdRoute
@@ -230,6 +238,7 @@ export interface FileRoutesById {
   '/_member/$': typeof MemberSplatRoute
   '/_member/_admin': typeof MemberAdminRouteWithChildren
   '/_member/code': typeof MemberCodeRoute
+  '/_member/search': typeof MemberSearchRoute
   '/_member/settings': typeof MemberSettingsRoute
   '/_member/': typeof MemberIndexRoute
   '/_member/movies/$movieId': typeof MemberMoviesMovieIdRoute
@@ -258,6 +267,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/$'
     | '/code'
+    | '/search'
     | '/settings'
     | '/movies/$movieId'
     | '/requests/$requestId'
@@ -283,6 +293,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/'
     | '/code'
+    | '/search'
     | '/settings'
     | '/movies/$movieId'
     | '/requests/$requestId'
@@ -309,6 +320,7 @@ export interface FileRouteTypes {
     | '/_member/$'
     | '/_member/_admin'
     | '/_member/code'
+    | '/_member/search'
     | '/_member/settings'
     | '/_member/'
     | '/_member/movies/$movieId'
@@ -385,6 +397,13 @@ declare module '@tanstack/react-router' {
       path: '/code'
       fullPath: '/code'
       preLoaderRoute: typeof MemberCodeRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/search': {
+      id: '/_member/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof MemberSearchRouteImport
       parentRoute: typeof MemberRoute
     }
     '/_member/settings': {
@@ -547,6 +566,7 @@ interface MemberRouteChildren {
   MemberSplatRoute: typeof MemberSplatRoute
   MemberAdminRoute: typeof MemberAdminRouteWithChildren
   MemberCodeRoute: typeof MemberCodeRoute
+  MemberSearchRoute: typeof MemberSearchRoute
   MemberSettingsRoute: typeof MemberSettingsRoute
   MemberIndexRoute: typeof MemberIndexRoute
   MemberMoviesMovieIdRoute: typeof MemberMoviesMovieIdRoute
@@ -564,6 +584,7 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberSplatRoute: MemberSplatRoute,
   MemberAdminRoute: MemberAdminRouteWithChildren,
   MemberCodeRoute: MemberCodeRoute,
+  MemberSearchRoute: MemberSearchRoute,
   MemberSettingsRoute: MemberSettingsRoute,
   MemberIndexRoute: MemberIndexRoute,
   MemberMoviesMovieIdRoute: MemberMoviesMovieIdRoute,

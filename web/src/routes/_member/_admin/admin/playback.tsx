@@ -11,7 +11,12 @@ import {
   playbackStatusQuery,
 } from "@/components/playback-settings";
 import { StateLabel } from "@/components/state-label";
-import { type FoundHardware, type FoundProgram, ServerService } from "@/gen/nama/v1/server_pb";
+import {
+  type FoundHardware,
+  type FoundProgram,
+  type GetPlaybackStatusResponse,
+  ServerService,
+} from "@/gen/nama/v1/server_pb";
 
 export const Route = createFileRoute("/_member/_admin/admin/playback")({
   loader: ({ context: { queryClient, transport } }) =>
@@ -23,10 +28,8 @@ export const Route = createFileRoute("/_member/_admin/admin/playback")({
 });
 
 function Playback() {
-  const { ffmpeg, ffprobe, ffmpegProblem, ffprobeProblem, hardware } = useSuspenseQuery(
-    ServerService.method.getPlaybackStatus,
-    {},
-  ).data;
+  const status = useSuspenseQuery(ServerService.method.getPlaybackStatus, {}).data;
+  const { ffmpeg, ffprobe, ffmpegProblem, ffprobeProblem } = status;
   return (
     <Page heading="Playback">
       <p className="mt-2 max-w-prose text-pretty text-muted-foreground">
@@ -34,38 +37,77 @@ function Playback() {
         can’t play it, it needs ffmpeg and ffprobe, which it looks for when it starts: at the paths
         set in its config file, or else on the PATH.
       </p>
-      {(ffmpeg === undefined || ffprobe === undefined) && (
+      {ffmpeg === undefined || ffprobe === undefined ? (
         <p className="mt-4 max-w-prose text-pretty">
           Without them it can only Direct Play. Install ffmpeg, which comes with ffprobe, or set
           their paths in the config file, then restart the Server.
         </p>
+      ) : (
+        <MissingFromFfmpeg status={status} />
       )}
       <AdminList>
         <ProgramRow name="ffmpeg" found={ffmpeg} problem={ffmpegProblem} />
         <ProgramRow name="ffprobe" found={ffprobe} problem={ffprobeProblem} />
       </AdminList>
-      <section aria-labelledby="hardware" className="mt-12">
-        <h2 id="hardware" className="font-medium">
-          Hardware acceleration
-        </h2>
-        <p className="mt-2 max-w-prose text-pretty text-muted-foreground">
-          What Transcodes can run on besides software. The Server tests VAAPI, Intel QSV, NVIDIA
-          NVENC and Apple VideoToolbox when it starts, so restart it after adding a GPU.
-        </p>
-        {hardware.length === 0 ? (
-          <p className="mt-4 max-w-prose text-pretty">
-            None passed its test, so Transcodes run in software.
-          </p>
-        ) : (
-          <AdminList>
-            {hardware.map((found, index) => (
-              <HardwareRow key={found.api} found={found} automatic={index === 0} />
-            ))}
-          </AdminList>
-        )}
-      </section>
+      <HardwareSection status={status} />
       <PlaybackSettingsForm />
     </Page>
+  );
+}
+
+/** What the Server's ffmpeg lacks that a Transcode needs, if anything. */
+function MissingFromFfmpeg({ status }: { status: GetPlaybackStatusResponse }) {
+  if (!status.hasLibx264) {
+    return (
+      <p className="mt-4 max-w-prose text-pretty">
+        This Server’s ffmpeg lacks libx264, so it can’t Transcode, only Direct Play and Remux.
+        Install an ffmpeg built with libx264, such as jellyfin-ffmpeg, which the Docker image comes
+        with, then restart the Server.
+      </p>
+    );
+  }
+  if (!status.hasZscale) {
+    return (
+      <p className="mt-4 max-w-prose text-pretty">
+        This Server’s ffmpeg lacks zscale, so a Transcode can’t tone-map HDR to SDR in software, and
+        HDR looks washed out on an SDR screen unless the GPU tone-maps it. Install an ffmpeg built
+        with zscale, such as jellyfin-ffmpeg, then restart the Server.
+      </p>
+    );
+  }
+  return null;
+}
+
+function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
+  const { hardware, ffprobe, hasLibx264, hasZscale } = status;
+  return (
+    <section aria-labelledby="hardware" className="mt-12">
+      <h2 id="hardware" className="font-medium">
+        Hardware acceleration
+      </h2>
+      <p className="mt-2 max-w-prose text-pretty text-muted-foreground">
+        What Transcodes can run on besides software. The Server tests VAAPI, Intel QSV, NVIDIA NVENC
+        and Apple VideoToolbox when it starts, so restart it after adding a GPU.
+      </p>
+      {hardware.length === 0 ? (
+        <p className="mt-4 max-w-prose text-pretty">
+          {hasLibx264 && ffprobe !== undefined
+            ? "None passed its test, so Transcodes run in software."
+            : "None passed its test."}
+        </p>
+      ) : (
+        <AdminList>
+          {hardware.map((found, index) => (
+            <HardwareRow
+              key={found.api}
+              found={found}
+              automatic={index === 0}
+              hasZscale={hasZscale}
+            />
+          ))}
+        </AdminList>
+      )}
+    </section>
   );
 }
 
@@ -101,17 +143,36 @@ function ProgramRow({
   );
 }
 
-/** A hardware acceleration API that passed its test encode, `automatic` if Automatic picks it. */
-function HardwareRow({ found, automatic }: { found: FoundHardware; automatic: boolean }) {
+/**
+ * A hardware acceleration API that passed its test encode, `automatic` if Automatic picks it.
+ * Without the GPU, a Transcode tone-maps HDR only if ffmpeg `hasZscale`.
+ */
+function HardwareRow({
+  found,
+  automatic,
+  hasZscale,
+}: {
+  found: FoundHardware;
+  automatic: boolean;
+  hasZscale: boolean;
+}) {
   return (
     <AdminRow end={<StateLabel label="Passed" Icon={CircleCheck} />}>
       <h3 className="font-medium">{hardwareName(found.api)}</h3>
       <p className="text-sm text-pretty text-muted-foreground">
-        {found.toneMaps
-          ? "Tone-maps HDR to SDR on the GPU too."
-          : "Tone-maps HDR to SDR in software, between decoding and encoding on the GPU."}
+        {toneMapping(found.toneMaps, hasZscale)}
         {automatic && " Automatic picks this one."}
       </p>
     </AdminRow>
   );
+}
+
+/** What tone-maps HDR to SDR in a Transcode on hardware whose test says it `toneMaps` or not. */
+function toneMapping(toneMaps: boolean, hasZscale: boolean) {
+  if (toneMaps) {
+    return "Tone-maps HDR to SDR on the GPU too.";
+  }
+  return hasZscale
+    ? "Tone-maps HDR to SDR in software, between decoding and encoding on the GPU."
+    : "Can’t tone-map HDR to SDR, on the GPU or in software.";
 }

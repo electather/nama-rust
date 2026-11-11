@@ -88,6 +88,12 @@ message GetPlaybackStatusResponse {
   // The hardware acceleration APIs that passed a test encode at startup, the one Automatic picks
   // first. Empty without ffmpeg, a GPU, or an ffmpeg built for one.
   repeated FoundHardware hardware = 5;
+  // Whether ffmpeg has libx264, which a Transcode encodes with in software. Without it no
+  // Transcode runs, even on hardware. False when the Server can't use ffmpeg.
+  bool has_libx264 = 6;
+  // Whether ffmpeg has zscale, which tone-maps HDR to SDR in software. Without it, a Transcode
+  // tone-maps only on hardware whose `tone_maps` is set. False when the Server can't use ffmpeg.
+  bool has_zscale = 7;
 }
 
 // A hardware acceleration API that passed its test encode at startup.
