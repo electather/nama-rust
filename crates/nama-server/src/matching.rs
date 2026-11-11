@@ -694,7 +694,6 @@ mod tests {
         db::Database,
         events::{EventBus, Filter, event},
         libraries::{Kind, Libraries},
-        playback::subtitles,
         plugins::Registry,
         scanner::Scanner,
         server_settings::ServerUrl,
@@ -761,13 +760,7 @@ mod tests {
             let plugins = Registry::new();
             let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
             Self {
-                scanner: Scanner::new(
-                    Arc::clone(&db),
-                    plugins.clone(),
-                    events.clone(),
-                    Arc::default(),
-                    subtitles::Cache::new(data.path()),
-                ),
+                scanner: Scanner::new(Arc::clone(&db), plugins.clone(), events.clone(), None),
                 matcher: Matcher::new(Arc::clone(&db), plugins.clone(), events.clone()),
                 contents: Contents::new(db),
                 plugins,
