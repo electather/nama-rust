@@ -724,8 +724,8 @@ impl Requests {
         token: &str,
     ) -> Result<ListRequestsResponse, Error> {
         let after = read_page_token(token, state)?;
-        // ponytail: reads every row `viewer` may see to list one page; page in the queries once a
-        // Server's Requests number in the thousands.
+        // ponytail: reads every Request and Followed Show, whoever `viewer` is, to list one page;
+        // page and filter in the queries once a Server's Requests number in the thousands.
         let mut rows: Vec<Listed> = self
             .listed(viewer)
             .await?
@@ -758,8 +758,8 @@ impl Requests {
     /// How many of the Requests and Followed Shows `viewer` may see are Pending, as many as
     /// [`Self::list`] shows them, counting a Followed Show apart from its Season Requests.
     pub(crate) async fn count_pending(&self, viewer: &User) -> Result<u32, sqlx::Error> {
-        // ponytail: reads every row `viewer` may see to count the Pending ones, so the count is
-        // what `list` shows; count in SQL once a Server's Requests number in the thousands.
+        // ponytail: reads every Request and Followed Show to count the Pending ones, so the count
+        // is what `list` shows; count in SQL once a Server's Requests number in the thousands.
         let rows = self.listed(viewer).await?;
         let pending = rows
             .iter()
@@ -2135,11 +2135,11 @@ async fn withdraw_followed(
 }
 
 /// The Followed Shows, newest first: only the one with the ID `id` if given, and only those the
-/// viewer `visible` gives may see.
+/// User `requester` is a Requester of if given.
 async fn load_followed(
     conn: &mut SqliteConnection,
     id: Option<i64>,
-    visible: Option<i64>,
+    requester: Option<i64>,
 ) -> Result<Vec<FollowedShow>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", tmdb_id, title, state, created_at, decline_reason, quality_id,
@@ -2166,7 +2166,7 @@ async fn load_followed(
                 .into(),
             ..Default::default()
         })
-        .filter(|followed| asked::may_see(visible, &followed.requesters))
+        .filter(|followed| asked::may_see(requester, &followed.requesters))
         .collect())
 }
 
@@ -2174,12 +2174,12 @@ async fn load_one(conn: &mut SqliteConnection, id: i64) -> Result<Option<Request
     Ok(load(conn, Some(id), None).await?.into_iter().next())
 }
 
-/// The Requests, newest first: only the one with the ID `id` if given, and only those the viewer
-/// `visible` gives may see.
+/// The Requests, newest first: only the one with the ID `id` if given, and only those the User
+/// `requester` is a Requester of if given.
 async fn load(
     conn: &mut SqliteConnection,
     id: Option<i64>,
-    visible: Option<i64>,
+    requester: Option<i64>,
 ) -> Result<Vec<Request>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, show_imdb_id,
@@ -2252,7 +2252,7 @@ async fn load(
             }
             request
         })
-        .filter(|request| asked::may_see(visible, &request.requesters))
+        .filter(|request| asked::may_see(requester, &request.requesters))
         .collect())
 }
 
@@ -3798,7 +3798,6 @@ mod tests {
 
     const KINDS: [asked::Asked; 2] = [asked::Asked::Request, asked::Asked::FollowedShow];
 
-    /// The User `id`, holding `permissions`.
     fn user(id: i64, permissions: Permissions) -> User {
         User {
             id,

@@ -76,8 +76,8 @@ pub(super) async fn requesters(
     Ok(requesters)
 }
 
-/// Whether the viewer [`super::visible_to`] gives as `viewer` may see something `requesters` asked
-/// for: they may see everyone's (`None`), or they are among its Requesters.
+/// Whether `viewer`, as [`super::visible_to`] gives one, may see something `requesters` asked
+/// for: everyone's if `None`, else only what that User is among the Requesters of.
 pub(super) fn may_see(viewer: Option<i64>, requesters: &[Requester]) -> bool {
     viewer.is_none_or(|user| requesters.iter().any(|requester| requester.user_id == user))
 }
