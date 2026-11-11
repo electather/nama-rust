@@ -99,7 +99,7 @@ pub const PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC: ::connectrpc::Spec = ::connectrpc
 /// How the signed-in caller's Device plays a Version.
 ///
 /// The Server builds a Playback Plan by running separate steps in a fixed order, each of which can
-/// only narrow what the plan may be, and records why (ADR 0027).
+/// only narrow what the plan may be (ADR 0027), and gives the Playback Reasons for it (ADR 0034).
 ///
 /// # Implementing handlers
 ///
@@ -152,7 +152,7 @@ pub const PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC: ::connectrpc::Spec = ::connectrpc
 pub trait PlaybackService: Send + Sync + 'static {
     /// Returns a Playback Plan for playing a Version on the caller's Device, probing the Version
     /// first if the Server has no current Tracks for it. A choice the caller asks for that the plan
-    /// can't honour here is dropped, and its `reasons` say why (ADR 0031). Fails with `not_found` if
+    /// can't honour here is dropped, and a reason says so (ADR 0031). Fails with `not_found` if
     /// there is no such Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when the Device
     /// itself needs a Transcode to play it, never for a choice, and the Server is already running as
     /// many as it may; one of the caller's own Device's doesn't count, as a new plan replaces the one

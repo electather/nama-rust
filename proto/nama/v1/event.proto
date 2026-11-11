@@ -290,7 +290,8 @@ message PlaybackEnded {
 }
 
 // A plan that `PlaybackStarted` told of changed how it plays while playing: its Transcode's
-// hardware acceleration failed, so the rest of it Transcodes in software, as a reason it adds says.
+// hardware acceleration failed, so the rest of it Transcodes in software. Its reasons are the
+// software fallback's, which say so.
 message PlaybackChanged {
   // As it plays now.
   Playback playback = 1;
@@ -308,6 +309,7 @@ message Playback {
   PlaybackMethod method = 4;
   // The Tracks it plays, as its plan lists them.
   repeated Track tracks = 5;
+  reserved 6;
   // Why it plays this way, as its plan says.
-  repeated string reasons = 6;
+  repeated PlaybackReason reasons = 7;
 }

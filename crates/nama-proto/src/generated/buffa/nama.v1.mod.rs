@@ -119,6 +119,7 @@ pub mod __buffa {
         reg.register_json_any(super::__PLAN_PLAYBACK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_PLAN_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_SUBTITLE_JSON_ANY);
+        reg.register_json_any(super::__PLAYBACK_REASON_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_PLUGIN_REQUEST_JSON_ANY);
@@ -191,11 +192,13 @@ pub mod __buffa {
         reg.register_json_any(super::__WITHDRAW_FOLLOWED_SHOW_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_OFFERED_QUALITIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_OFFERED_QUALITIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_HIT_JSON_ANY);
         reg.register_json_any(super::__FOUND_MOVIE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_MOVIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LOOK_UP_MOVIE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SHOW_HIT_JSON_ANY);
         reg.register_json_any(super::__FOUND_SHOW_JSON_ANY);
         reg.register_json_any(super::__FOUND_SEASON_JSON_ANY);
         reg.register_json_any(super::__SEARCH_SHOWS_REQUEST_JSON_ANY);
@@ -255,6 +258,7 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_PLAYBACK_STATUS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_STATUS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_HARDWARE_JSON_ANY);
+        reg.register_json_any(super::__GPU_JSON_ANY);
         reg.register_json_any(super::__FOUND_PROGRAM_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_PLAYBACK_SETTINGS_RESPONSE_JSON_ANY);
@@ -522,6 +526,10 @@ pub use self::__buffa::view::PlaybackPlanOwnedView;
 pub use self::__buffa::view::PlaybackSubtitleView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackSubtitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackReasonView;
+#[doc(inline)]
+pub use self::__buffa::view::PlaybackReasonOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPluginsRequestView;
 #[doc(inline)]
@@ -811,6 +819,10 @@ pub use self::__buffa::view::ListOfferedQualitiesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListOfferedQualitiesResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::MovieHitView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieHitOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::FoundMovieView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundMovieOwnedView;
@@ -830,6 +842,10 @@ pub use self::__buffa::view::LookUpMovieRequestOwnedView;
 pub use self::__buffa::view::LookUpMovieResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::LookUpMovieResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowHitView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowHitOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundShowView;
 #[doc(inline)]
@@ -1066,6 +1082,10 @@ pub use self::__buffa::view::GetPlaybackStatusResponseOwnedView;
 pub use self::__buffa::view::FoundHardwareView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundHardwareOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GpuView;
+#[doc(inline)]
+pub use self::__buffa::view::GpuOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::FoundProgramView;
 #[doc(inline)]

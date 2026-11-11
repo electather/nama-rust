@@ -17,15 +17,12 @@ use nama_proto::nama::v1::{
 
 use crate::{
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
+    playback::{accel_to_proto, limit_to_proto},
     server_settings::{self, HardwareChoice, Invalid, PlaybackChange, PlaybackValues},
     users::Users,
 };
 
-use super::{
-    database_failed,
-    playback::{limit_from_proto, limit_to_proto},
-    refuse,
-};
+use super::{database_failed, playback::limit_from_proto, refuse};
 
 /// `nama.v1.ServerService`: facts about this Server, its settings, and the ffmpeg it found.
 pub(super) struct ServerServiceHandler {
@@ -100,8 +97,15 @@ impl ServerService for ServerServiceHandler {
         let can_do = self.abilities.can_do().await;
         let automatic = can_do.automatic();
         let hardware = (can_do.hardware.iter())
-            .map(|&hardware| FoundHardware {
+            .map(|hardware| FoundHardware {
                 api: hardware_choice_to_proto(HardwareChoice::Api(hardware.accel)).into(),
+                gpu: (hardware.gpu.as_ref())
+                    .map(|gpu| proto::Gpu {
+                        id: gpu.id().to_owned(),
+                        name: gpu.name(),
+                        ..Default::default()
+                    })
+                    .into(),
                 tone_maps: hardware.tone_maps,
                 tone_mapping: tone_mapping_to_proto(can_do.tone_mapper(Some(hardware))).into(),
                 automatic: automatic == Some(hardware),
@@ -223,10 +227,7 @@ const fn hardware_choice_to_proto(choice: HardwareChoice) -> HardwareAcceleratio
     match choice {
         HardwareChoice::Automatic => P::HARDWARE_ACCELERATION_UNSPECIFIED,
         HardwareChoice::Off => P::HARDWARE_ACCELERATION_OFF,
-        HardwareChoice::Api(Accel::Vaapi) => P::HARDWARE_ACCELERATION_VAAPI,
-        HardwareChoice::Api(Accel::Qsv) => P::HARDWARE_ACCELERATION_QSV,
-        HardwareChoice::Api(Accel::Nvenc) => P::HARDWARE_ACCELERATION_NVENC,
-        HardwareChoice::Api(Accel::VideoToolbox) => P::HARDWARE_ACCELERATION_VIDEOTOOLBOX,
+        HardwareChoice::Api(accel) => accel_to_proto(accel),
     }
 }
 

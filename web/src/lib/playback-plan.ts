@@ -8,6 +8,7 @@ import {
   type PlaybackMethod,
   type PlaybackPlan,
   PlaybackPlanSchema,
+  PlaybackReasonKind,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
@@ -39,8 +40,8 @@ interface Asking {
 }
 
 /**
- * A subtitle the User chose: a text one by the URL the player shows it from, one to burn in by its
- * place in the Version's Tracks, or `undefined` for none.
+ * A subtitle the User chose: one the Device shows itself by the URL it's fetched from, one to burn
+ * in by its place in the Version's Tracks, or `undefined` for none.
  */
 export type SubtitleChoice = string | number | undefined;
 
@@ -51,9 +52,9 @@ export type SubtitleChoice = string | number | undefined;
  * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't
  * make the player ask forever. `chooseAudio` asks for a new plan from there with the audio Track
  * at a place in the Version's Tracks, and `chooseLimit` with a Playback Limit. `chooseSubtitle`
- * shows a text subtitle, which `shownSubtitle` then holds, or asks for a new plan from there with a
- * subtitle Track burned in. The plan says which of these it honoured, which may drop
- * `justChose` (ADR 0031).
+ * shows a subtitle the Device shows itself, which `shownSubtitle` then holds, or asks for a new
+ * plan from there with a subtitle Track burned in. The plan says which of these it honoured, which
+ * may drop `justChose` (ADR 0031).
  */
 export function usePlaybackPlan({
   versionId,
@@ -185,9 +186,9 @@ function choosers(askFromHere: ReturnType<typeof asker>) {
 }
 
 /**
- * The text subtitle shown, by URL, kept here so the `<video>` a new plan plays in shows it too,
- * and `chooseSubtitle`, which shows one, and will `askFromHere` when what's burned in changes from
- * `subtitleTrack`.
+ * The subtitle the Device shows itself, by URL, kept here so the `<video>` a new plan plays in
+ * shows it too, and `chooseSubtitle`, which shows one, and will `askFromHere` when what's burned
+ * in changes from `subtitleTrack`.
  */
 function useSubtitleChoice(
   askFromHere: ReturnType<typeof asker>,
@@ -240,7 +241,16 @@ function usePlan(versionId: bigint, asking: Asking) {
       } catch (error) {
         const { reason, params } = refusalOf(error);
         if (reason !== RefusalReason.SERVER_BUSY) throw error;
-        return create(PlaybackPlanSchema, { reasons: [serverBusy(params["maxTranscodes"])] });
+        return create(PlaybackPlanSchema, {
+          reasons: [
+            {
+              kind: PlaybackReasonKind.SERVER_BUSY,
+              params,
+              text: serverBusy(params["maxTranscodes"]),
+              decided: true,
+            },
+          ],
+        });
       }
     },
     staleTime: "static",

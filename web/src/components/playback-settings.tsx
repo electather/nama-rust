@@ -116,7 +116,8 @@ function HardwareField({ saved }: { saved: HardwareAcceleration }) {
   const choices = [
     HardwareAcceleration.UNSPECIFIED,
     HardwareAcceleration.OFF,
-    ...hardware.map(({ api }) => api),
+    // An API that passed on two GPUs is one choice: Automatic's order picks the GPU.
+    ...new Set(hardware.map(({ api }) => api)),
   ];
   // A saved API that didn't pass its test this time stays offered, so saving doesn't change it.
   if (!choices.includes(saved)) choices.push(saved);

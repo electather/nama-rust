@@ -12,12 +12,12 @@ use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     FoundHardware, FoundProgram, GetPlaybackSettingsRequest, GetPlaybackStatusRequest,
     GetPlaybackStatusResponse, GetServerInfoRequest, GetServerInfoResponse,
-    GetServerSettingsRequest, HardwareAcceleration, PlaybackLimit, PlaybackSettings, RefusalReason,
-    ServerServiceClient, ServerSettings, ToneMapping, UpdatePlaybackSettingsRequest,
+    GetServerSettingsRequest, Gpu, HardwareAcceleration, PlaybackLimit, PlaybackSettings,
+    RefusalReason, ServerServiceClient, ServerSettings, ToneMapping, UpdatePlaybackSettingsRequest,
     UpdateServerSettingsRequest,
 };
 #[cfg(unix)]
-use nama_server::ffmpeg::fake::script;
+use nama_server::ffmpeg::{fake, fake::script, find_gpus};
 use nama_server::{config::Config, ffmpeg::Ffmpeg};
 use refused::assert_refused;
 use server::TestServer;
@@ -226,6 +226,7 @@ async fn the_playback_status_shows_the_path_and_version_of_the_ffmpeg_and_ffprob
     let status = playback_status(Ffmpeg {
         ffmpeg: Ok(found("ffmpeg")),
         ffprobe: Ok(found("ffprobe")),
+        gpus: vec![],
     })
     .await;
 
@@ -254,6 +255,7 @@ async fn playback_status_listing(
     playback_status(Ffmpeg {
         ffmpeg: Ok(script(bin, "ffmpeg", &ffmpeg)),
         ffprobe: Ok(script(bin, "ffprobe", "#!/bin/sh\n")),
+        gpus: vec![],
     })
     .await
 }
@@ -328,11 +330,82 @@ async fn the_playback_status_says_what_tone_maps_on_each_hardware_and_which_auto
     }
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn the_playback_status_lists_each_api_on_each_gpu_with_its_id_and_name() {
+    let root = tempfile::tempdir().unwrap();
+    let (sys, dri) = (root.path().join("sys"), root.path().join("dri"));
+    fake::gpu(&sys, &dri, "renderD128", "0000:00:02.0", "0x8086");
+    fake::gpu(&sys, &dri, "renderD129", "0000:03:00.0", "0x1002");
+    let ffmpeg = "#!/bin/sh\ncase \"$*\" in \
+                  *-v\\ verbose*renderD129*) echo 'VAAPI driver: Mesa Gallium driver 26.2.6 for \
+                                               AMD Radeon RX 9070 XT (radeonsi)' >&2 ;; \
+                  *-encoders*) printf ' V....D %s  H.264\\n' libx264 h264_qsv h264_vaapi ;; \
+                  *-filters*) echo ' ... zscale  V->V  A filter' ;; esac\n";
+    let found = |api: HardwareAcceleration, id: &str, name: &str, tone_maps, automatic| {
+        let tone_mapping = if tone_maps {
+            ToneMapping::TONE_MAPPING_GPU
+        } else {
+            ToneMapping::TONE_MAPPING_SOFTWARE
+        };
+        FoundHardware {
+            api: api.into(),
+            gpu: Gpu {
+                id: id.to_owned(),
+                name: name.to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            tone_maps,
+            tone_mapping: tone_mapping.into(),
+            automatic,
+            ..Default::default()
+        }
+    };
+
+    let status = playback_status(Ffmpeg {
+        ffmpeg: Ok(script(root.path(), "ffmpeg", ffmpeg)),
+        ffprobe: Ok(script(root.path(), "ffprobe", "#!/bin/sh\n")),
+        gpus: find_gpus(&dri, &sys.join("class/drm")),
+    })
+    .await;
+
+    let amd = "AMD Radeon RX 9070 XT";
+    let intel = "Intel integrated GPU";
+    assert_eq!(
+        status.hardware,
+        [
+            found(
+                HardwareAcceleration::HARDWARE_ACCELERATION_VAAPI,
+                "0000:03:00.0",
+                amd,
+                true,
+                true
+            ),
+            found(
+                HardwareAcceleration::HARDWARE_ACCELERATION_QSV,
+                "0000:00:02.0",
+                intel,
+                true,
+                false
+            ),
+            found(
+                HardwareAcceleration::HARDWARE_ACCELERATION_VAAPI,
+                "0000:00:02.0",
+                intel,
+                true,
+                false
+            ),
+        ]
+    );
+}
+
 #[tokio::test]
 async fn without_ffmpeg_the_playback_status_says_it_has_neither_libx264_nor_zscale() {
     let status = playback_status(Ffmpeg {
         ffmpeg: Err("ffmpeg wasn't found on PATH".to_owned()),
         ffprobe: Err("ffprobe wasn't found on PATH".to_owned()),
+        gpus: vec![],
     })
     .await;
 
@@ -346,6 +419,7 @@ async fn the_playback_status_says_why_the_server_cant_use_ffmpeg_or_ffprobe() {
     let status = playback_status(Ffmpeg {
         ffmpeg: Err("ffmpeg wasn't found at the configured path /opt/ffmpeg".to_owned()),
         ffprobe: Err("ffprobe wasn't found on PATH".to_owned()),
+        gpus: vec![],
     })
     .await;
 

@@ -12,7 +12,7 @@ import { inspect, parseEnv, promisify } from "node:util";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
-import { mergeStep } from "./merge.ts";
+import { mainVerdict, mergeStep } from "./merge.ts";
 import { slotPool } from "./slots.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
 
@@ -239,6 +239,7 @@ const ahead = (branch: string) =>
 type ListedIssue = {
   number: number;
   title: string;
+  author: { login: string };
   parent: { number: number } | null;
   subIssuesSummary: { total: number; completed: number };
   blockedBy: { nodes: { number: number; state: string }[] };
@@ -255,6 +256,9 @@ type OpenPr = {
 };
 const [OWNER, REPO] = gh("repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner").split("/");
 const ME = gh("api", "user", "--jq", ".login");
+// Whose issues an agent may act on: it runs with ME's token, so a stranger's issue body mustn't steer it, even though
+// only people with triage rights can set the labels. The flaky-test reporter files through GitHub Actions.
+const trustedAuthor = (login: string) => login === ME || login === "app/github-actions";
 const inRepo = (i: IssueRef) => i.repository.owner.login === OWNER && i.repository.name === REPO;
 const openPrs = (): OpenPr[] =>
   JSON.parse(gh("pr", "list", "--state", "open", "--limit", "100",
@@ -277,7 +281,7 @@ function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
   const issues: ListedIssue[] = JSON.parse(
     gh("issue", "list", "--label", READY, "--state", "open", "--limit", "100",
       // blockedBy, not issue_dependencies_summary: the summary lags seconds behind closes/edits
-      "--json", "number,title,parent,subIssuesSummary,blockedBy"),
+      "--json", "number,title,author,parent,subIssuesSummary,blockedBy"),
   );
   const withPr = prsByIssue(prs);
   const ready: Issue[] = [];
@@ -287,7 +291,8 @@ function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
     const s = i.subIssuesSummary;
     const blockers = i.blockedBy.nodes.filter((b) => b.state === "OPEN").map((b) => `#${b.number}`);
     if (withPr.has(i.number)) continue; // the babysitter's, or a person's
-    if (s.total > 0) waiting.push({ issue: i.number, queue: "build", why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
+    if (!trustedAuthor(i.author.login)) waiting.push({ issue: i.number, queue: "build", why: `written by ${i.author.login}, not you: never built` });
+    else if (s.total > 0) waiting.push({ issue: i.number, queue: "build", why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
     else if (blockers.length) waiting.push({ issue: i.number, queue: "build", why: `blocked by ${blockers.join(", ")} (open)` });
     else ready.push({ number: i.number, title: i.title, parent: i.parent?.number, branch: `agent/issue-${i.number}` });
   }
@@ -296,7 +301,7 @@ function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
 
 type Job = { pr: string; issue: Issue; box?: Box };
 // PRs to see through to merge: open, not a draft, opened by ME from a branch of this repo (a fork's PR would run
-// its code in a sandbox, then merge), closing an open issue ME wrote that carries READY.
+// its code in a sandbox, then merge), closing an open issue by a trustedAuthor that carries READY.
 function babysittable(prs = openPrs()): Job[] {
   const jobs: Job[] = [];
   for (const pr of prs.sort((a, b) => a.number - b.number)) {
@@ -304,7 +309,7 @@ function babysittable(prs = openPrs()): Job[] {
     for (const ref of pr.closingIssuesReferences.filter(inRepo)) {
       const i: { title: string; state: string; author: { login: string }; labels: { name: string }[]; parent: { number: number } | null } =
         JSON.parse(gh("issue", "view", String(ref.number), "--json", "title,state,author,labels,parent"));
-      if (i.state !== "OPEN" || i.author.login !== ME || !i.labels.some((l) => l.name === READY)) continue;
+      if (i.state !== "OPEN" || !trustedAuthor(i.author.login) || !i.labels.some((l) => l.name === READY)) continue;
       // One issue stands for the PR: the one reported on, and handed back if the PR can't be made green.
       jobs.push({ pr: String(pr.number), issue: { number: ref.number, title: i.title, parent: i.parent?.number, branch: pr.headRefName } });
       break;
@@ -313,14 +318,13 @@ function babysittable(prs = openPrs()): Job[] {
   return jobs;
 }
 
-// Issues to triage, oldest first. Only ME's and the flaky-test reporter's: the agent acts with ME's token, so a
-// stranger's issue body mustn't steer it, even though only collaborators and the reporter can set the label.
+// Issues to triage, oldest first, by a trustedAuthor.
 function triageable(): Issue[] {
   const issues: { number: number; title: string; author: { login: string } }[] = JSON.parse(
     gh("issue", "list", "--label", TRIAGE, "--state", "open", "--limit", "100", "--json", "number,title,author"),
   );
   return issues
-    .filter((i) => i.author.login === ME || i.author.login === "app/github-actions")
+    .filter((i) => trustedAuthor(i.author.login))
     .sort((a, b) => a.number - b.number)
     .map((i) => ({ number: i.number, title: i.title, branch: `agent/triage-${i.number}` }));
 }
@@ -550,10 +554,16 @@ async function updateBranch(job: Job) {
   await job.box?.exec(`git reset --hard origin/${branchOf(job.issue)}`);
 }
 
-// Whether main's latest finished push run failed (a superseded run is cancelled, so it doesn't count).
-const mainRed = () =>
-  gh("run", "list", "--branch", BASE, "--workflow", "CI", "--event", "push", "--limit", "10", "--json", "conclusion",
-    "--jq", '[.[] | select(.conclusion != "" and .conclusion != "cancelled")][0].conclusion // empty') === "failure";
+// Whether main's newest push run with a verdict (see mainVerdict) is red.
+const mainRed = () => {
+  const runs = gh("run", "list", "--branch", BASE, "--workflow", "CI", "--event", "push", "--limit", "10",
+    "--json", "databaseId", "--jq", ".[].databaseId").split("\n").filter(Boolean);
+  for (const run of runs) {
+    const verdict = mainVerdict(JSON.parse(gh("run", "view", run, "--json", "jobs", "--jq", "[.jobs[] | {name, conclusion}]")));
+    if (verdict !== "unknown") return verdict === "red";
+  }
+  return false;
+};
 
 // A red main fails every PR's run. A fix agent would mend main in each PR, and those PRs would then conflict,
 // so the PR holds no slot and waits until main's own fix has landed. Triage files that fix.
