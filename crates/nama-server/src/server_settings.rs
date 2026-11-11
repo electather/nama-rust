@@ -1,7 +1,7 @@
 //! What an admin sets about the Server as a whole, kept in the one `server_settings` row: its
 //! URL, which notifications link to the web app with, and the Playback settings: the folder
-//! playback writes segment files to, the most Transcodes it runs at once, what they run on, and
-//! the default Playback Limit for remote playback.
+//! playback writes segment files to, how far behind playback it keeps them, the most Transcodes it
+//! runs at once, what they run on, and the default Playback Limit for remote playback.
 //!
 //! [`Settings`] owns the table (see the crate's `AGENTS.md`).
 
@@ -20,6 +20,10 @@ use crate::{
     ffmpeg::{Accel, Hardware},
     playback::PlaybackLimit,
 };
+
+/// How many minutes behind playback a running plan keeps its files while none is set: about 1 GB
+/// behind a 4K Remux, which a small tmpfs holds (#671).
+pub(crate) const DEFAULT_KEEP_BEHIND_MINUTES: u32 = 5;
 
 /// The Server settings: reads them once at start, checks and stores each change, and hands each
 /// reader a view of the values in use. Clones share them.
@@ -47,6 +51,9 @@ pub(crate) struct PlaybackValues {
     /// The most Transcodes at once, or `None` for the default, which depends on what they run on
     /// (`playback::plan`).
     pub(crate) max_transcodes: Option<NonZeroU32>,
+    /// How many minutes behind playback a running plan keeps its files, or `None` for
+    /// [`DEFAULT_KEEP_BEHIND_MINUTES`].
+    pub(crate) keep_behind_minutes: Option<NonZeroU32>,
     pub(crate) hardware: HardwareChoice,
     /// The Playback Limit for a Device outside the local network until its User picks one,
     /// `None` being Original.
@@ -60,6 +67,8 @@ pub(crate) struct PlaybackChange<'a> {
     pub(crate) segment_folder: &'a str,
     /// `None` for the default; 0 is refused.
     pub(crate) max_transcodes: Option<u32>,
+    /// `None` for the default; 0 is refused.
+    pub(crate) keep_behind_minutes: Option<u32>,
     /// A picked GPU's name is ignored: the Server names it.
     pub(crate) hardware: HardwareChoice,
     pub(crate) remote_limit: Option<PlaybackLimit>,
@@ -94,6 +103,10 @@ pub(crate) enum Invalid {
     /// by leaving it out.
     #[error("the most Transcodes at once must be at least 1")]
     NoTranscodes,
+    /// The time kept for skipping back is 0, which would delete what's just been played; a client
+    /// asks for the default by leaving it out.
+    #[error("the time kept for skipping back must be at least 1 minute")]
+    NothingKeptBehind,
     /// The GPU picked isn't one its API passed its test on at startup, nor the one stored with
     /// it, or was sent with Automatic or Off, which take none.
     #[error("GPU {id} isn't one its hardware acceleration passed its test on")]
@@ -122,8 +135,8 @@ impl Settings {
     /// If reading fails, leaving the settings as they were.
     pub(crate) async fn load(&self) -> Result<(), sqlx::Error> {
         let stored = sqlx::query!(
-            "SELECT url, segment_folder, max_transcodes, hardware_acceleration, hardware_gpu,
-                    hardware_gpu_name, remote_playback_limit
+            "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,
+                    hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit
              FROM server_settings"
         )
         .fetch_optional(self.db.reader())
@@ -132,9 +145,8 @@ impl Settings {
             url: stored.url,
             playback: PlaybackValues {
                 segment_folder: stored.segment_folder,
-                max_transcodes: (stored.max_transcodes)
-                    .and_then(|max| u32::try_from(max).ok())
-                    .and_then(NonZeroU32::new),
+                max_transcodes: stored.max_transcodes.and_then(non_zero),
+                keep_behind_minutes: stored.keep_behind_minutes.and_then(non_zero),
                 hardware: HardwareChoice::from_stored(
                     &stored.hardware_acceleration,
                     stored.hardware_gpu,
@@ -197,13 +209,13 @@ impl Settings {
     }
 
     /// Stores every Playback setting `change` gives, or none, and uses them for plans made and
-    /// started from now on. A GPU it picks must be one `passed`, the hardware that passed its test
+    /// started from now on, and the time kept for skipping back for running plans too. A GPU it picks must be one `passed`, the hardware that passed its test
     /// at startup, has with its API, or the one stored with it.
     ///
     /// # Errors
     ///
-    /// [`Invalid::FolderNotAbsolute`], [`Invalid::NoTranscodes`] or [`Invalid::GpuNotOffered`],
-    /// in that order, or if storing them fails.
+    /// [`Invalid::FolderNotAbsolute`], [`Invalid::NoTranscodes`], [`Invalid::NothingKeptBehind`]
+    /// or [`Invalid::GpuNotOffered`], in that order, or if storing them fails.
     pub(crate) async fn change_playback(
         &self,
         change: PlaybackChange<'_>,
@@ -220,6 +232,10 @@ impl Settings {
             Some(max) => Some(NonZeroU32::new(max).ok_or(Invalid::NoTranscodes)?),
             None => None,
         };
+        let keep_behind_minutes = match change.keep_behind_minutes {
+            Some(minutes) => Some(NonZeroU32::new(minutes).ok_or(Invalid::NothingKeptBehind)?),
+            None => None,
+        };
         let mut hardware = change.hardware;
         if let HardwareChoice::Api(accel, Some(gpu)) = &mut hardware {
             *gpu = self.offered_gpu(*accel, &gpu.id, passed)?;
@@ -227,11 +243,13 @@ impl Settings {
         let playback = PlaybackValues {
             segment_folder: folder.to_owned(),
             max_transcodes,
+            keep_behind_minutes,
             hardware,
             remote_limit: change.remote_limit,
         };
         let stored_folder = playback.segment_folder.clone();
         let max = max_transcodes.map(NonZeroU32::get);
+        let keep_behind = keep_behind_minutes.map(NonZeroU32::get);
         let api = playback.hardware.stored();
         let (gpu, gpu_name) = playback
             .hardware
@@ -244,18 +262,21 @@ impl Settings {
                 Box::pin(async move {
                     sqlx::query!(
                         "INSERT INTO server_settings
-                             (id, url, segment_folder, max_transcodes, hardware_acceleration,
-                              hardware_gpu, hardware_gpu_name, remote_playback_limit)
-                         VALUES (1, '', ?, ?, ?, ?, ?, ?)
+                             (id, url, segment_folder, max_transcodes, keep_behind_minutes,
+                              hardware_acceleration, hardware_gpu, hardware_gpu_name,
+                              remote_playback_limit)
+                         VALUES (1, '', ?, ?, ?, ?, ?, ?, ?)
                          ON CONFLICT (id) DO UPDATE SET
                              segment_folder = excluded.segment_folder,
                              max_transcodes = excluded.max_transcodes,
+                             keep_behind_minutes = excluded.keep_behind_minutes,
                              hardware_acceleration = excluded.hardware_acceleration,
                              hardware_gpu = excluded.hardware_gpu,
                              hardware_gpu_name = excluded.hardware_gpu_name,
                              remote_playback_limit = excluded.remote_playback_limit",
                         stored_folder,
                         max,
+                        keep_behind,
                         api,
                         gpu,
                         gpu_name,
@@ -330,6 +351,11 @@ fn is_server_url(url: &str) -> bool {
         || (SettingValue::Text(url.to_owned()).is(SettingKind::Url) && !url.contains(['?', '#']))
 }
 
+/// A stored count this Server can read, `None` for one out of range.
+fn non_zero(stored: i64) -> Option<NonZeroU32> {
+    u32::try_from(stored).ok().and_then(NonZeroU32::new)
+}
+
 fn read(values: &RwLock<Values>) -> std::sync::RwLockReadGuard<'_, Values> {
     values.read().unwrap_or_else(PoisonError::into_inner)
 }
@@ -369,6 +395,14 @@ impl PlaybackSettings {
         } else {
             set.into()
         }
+    }
+
+    /// How far behind playback a running plan keeps its files now, in milliseconds: the time set,
+    /// or else the default.
+    pub(crate) fn keep_behind_ms(&self) -> i64 {
+        let minutes = (read(&self.values).playback.keep_behind_minutes)
+            .map_or(DEFAULT_KEEP_BEHIND_MINUTES, NonZeroU32::get);
+        i64::from(minutes) * 60_000
     }
 
     /// The folders an earlier run may have left segment files in that this one can know of: the
@@ -476,6 +510,7 @@ mod tests {
         PlaybackChange {
             segment_folder: folder,
             max_transcodes: None,
+            keep_behind_minutes: None,
             hardware: HardwareChoice::Automatic,
             remote_limit: None,
         }
@@ -553,6 +588,7 @@ mod tests {
                 PlaybackChange {
                     segment_folder: " /tmp/nama ",
                     max_transcodes: Some(5),
+                    keep_behind_minutes: Some(12),
                     hardware: HardwareChoice::Api(Accel::Vaapi, None),
                     remote_limit: Some(PlaybackLimit::P720),
                 },
@@ -564,12 +600,14 @@ mod tests {
         let expected = PlaybackValues {
             segment_folder: "/tmp/nama".to_owned(),
             max_transcodes: NonZeroU32::new(5),
+            keep_behind_minutes: NonZeroU32::new(12),
             hardware: HardwareChoice::Api(Accel::Vaapi, None),
             remote_limit: Some(PlaybackLimit::P720),
         };
         assert_eq!(stored, expected);
         assert_eq!(playback.now(), expected);
         assert_eq!(playback.path(), Path::new("/tmp/nama"));
+        assert_eq!(playback.keep_behind_ms(), 720_000);
         assert_eq!(
             playback.leftover_paths(),
             [PathBuf::from("/tmp/nama"), DEFAULT_FOLDER.into()]
@@ -585,6 +623,7 @@ mod tests {
                 PlaybackChange {
                     segment_folder: "/tmp/nama",
                     max_transcodes: Some(5),
+                    keep_behind_minutes: Some(12),
                     hardware: HardwareChoice::Off,
                     remote_limit: Some(PlaybackLimit::P720),
                 },
@@ -598,6 +637,7 @@ mod tests {
         let restarted = restarted(&settings).await.playback();
         assert_eq!(restarted.now(), PlaybackValues::default());
         assert_eq!(restarted.path(), Path::new(DEFAULT_FOLDER));
+        assert_eq!(restarted.keep_behind_ms(), 300_000);
     }
 
     #[tokio::test]
@@ -629,6 +669,27 @@ mod tests {
 
         assert_eq!(invalid(refused), Invalid::NoTranscodes);
         assert_eq!(settings.playback().now(), PlaybackValues::default());
+        assert_eq!(
+            restarted(&settings).await.playback().now(),
+            PlaybackValues::default()
+        );
+    }
+
+    #[tokio::test]
+    async fn keeping_0_minutes_behind_is_refused_and_leaves_every_playback_setting_as_it_was() {
+        let (_data_dir, settings) = fresh().await;
+
+        let refused = settings
+            .change_playback(
+                PlaybackChange {
+                    keep_behind_minutes: Some(0),
+                    ..change("/tmp/nama")
+                },
+                &[],
+            )
+            .await;
+
+        assert_eq!(invalid(refused), Invalid::NothingKeptBehind);
         assert_eq!(
             restarted(&settings).await.playback().now(),
             PlaybackValues::default()
