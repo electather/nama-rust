@@ -77,7 +77,8 @@ pub(crate) enum Started {
     },
 }
 
-/// What a User marks played or unplayed: see [`Browse::mark`].
+/// A title of a Library, which a User marks played or unplayed ([`Browse::mark`]) or deletes
+/// ([`ToDelete::Title`]).
 #[derive(Debug)]
 pub(crate) enum Target {
     Movie(ExternalId),
