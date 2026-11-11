@@ -345,11 +345,13 @@ pub enum ProvidePoint {
     /// `nama.v1.Request` and returns `Fulfilled`, and its `progress` export takes `ProgressAsked` and
     /// returns `Progress`.
     PROVIDE_POINT_MOVIE_FULFILLER = 1i32,
-    /// The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER. A
-    /// Plugin providing both tells a Movie Request from a Season one by which it holds.
+    /// The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER and
+    /// an `unfollow` export, which takes a Season Request of a Followed Show that ended as a
+    /// `nama.v1.Request`, stops following the Show and returns nothing. A Plugin providing both tells a
+    /// Movie Request from a Season one by which it holds.
     PROVIDE_POINT_SHOW_FULFILLER = 2i32,
     /// A Notifier. The Plugin's `deliver` export takes each notification as `Delivery` and returns
-    /// nothing, or fails with why the service didn't take it, which the Server logs.
+    /// `Delivered`, or fails with why the service didn't take it, which the Server logs.
     PROVIDE_POINT_NOTIFIER = 3i32,
     /// A Connector, which connects Users to the outside service. The Plugin's `start_connection`
     /// export takes `ConnectionStart` and returns `ConnectionStarted`, and its `poll_connection` export
@@ -581,7 +583,8 @@ pub struct Manifest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub allowed_hosts: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
-    /// The Extension Points the Plugin registers an Observer at.
+    /// The Extension Points the Plugin registers an Observer at. A Server refuses a Plugin naming
+    /// one it doesn't know, or lacking an export one needs.
     ///
     /// Field 6: `observers`
     #[serde(
@@ -590,7 +593,8 @@ pub struct Manifest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub observers: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ObservePoint>>,
-    /// The capabilities the Plugin registers a Provider for.
+    /// The capabilities the Plugin registers a Provider for. A Server refuses a Plugin naming one it
+    /// doesn't know, or lacking an export one needs.
     ///
     /// Field 7: `providers`
     #[serde(
