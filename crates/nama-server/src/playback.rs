@@ -412,11 +412,10 @@ fn candidate_tone_mapper(candidates: Option<&Candidates>) -> Option<ToneMapper> 
 }
 
 // The steps run in ADR 0027's order, split by ADR 0031. A new input is a new step in one of these.
-// `server_encoders` runs right after the lasting steps, and only while they allow a Transcode,
-// since saying where a Transcode runs would contradict a step that ruled it out.
 
 /// The steps for what the Version, Device and Server allow that lasts, so what they allow is what
-/// the User's choices can ever have.
+/// the User's choices can ever have. [`server_encoders`] speaks right after them, and only while
+/// they allow a Transcode, since saying where one runs would contradict a step that ruled it out.
 const LASTING_STEPS: [Step; 3] = [version_tracks, device_decoding, server_ffmpeg];
 
 /// The steps for what rules a method out only for now.
@@ -445,7 +444,7 @@ fn build(facts: &mut Facts) -> Plan {
         &mut reasons,
     );
     if lasting.contains(&Method::Transcode) {
-        reasons.push(server_encoders(facts, candidates).reason);
+        reasons.push(server_encoders(facts, candidates));
     }
     let mut allowed = narrowed(facts, candidates, &NOW_STEPS, lasting.clone(), &mut reasons);
     for (choice, step) in CHOICE_STEPS {
@@ -678,12 +677,12 @@ fn tone_mapper(facts: &Facts) -> Option<ToneMapper> {
     }
 }
 
-/// The step for the Server's encoders: what a Transcode decodes, scales, tone-maps and encodes on,
-/// which the admin chooses. It rules nothing out.
+/// The reason for the Server's encoders: what a Transcode decodes, scales, tone-maps and encodes
+/// on, which the admin chooses. It rules nothing out, so it isn't a [`Step`].
 // ponytail: Dolby Vision profile 5 stays out of reach: none of these APIs' ffmpeg filters reshape
 // its colours, which only libplacebo does.
-fn server_encoders(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
-    let reason = match transcodes_on(facts) {
+fn server_encoders(facts: &Facts, candidates: Option<&Candidates>) -> String {
+    match transcodes_on(facts) {
         Err(why) => format!("{why}, so a Transcode runs in software"),
         Ok(Hardware { accel, .. }) => {
             let on = format!("A Transcode runs on the GPU with {}", accel.name());
@@ -698,10 +697,6 @@ fn server_encoders(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
                 _ => on,
             }
         }
-    };
-    Narrowing {
-        allows: BTreeSet::from(Method::ALL),
-        reason,
     }
 }
 
