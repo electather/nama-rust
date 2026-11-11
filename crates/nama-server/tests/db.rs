@@ -319,3 +319,21 @@ async fn reader_connections_have_a_busy_timeout_and_foreign_keys_on_and_cannot_w
         "readers must not write; writes go through Database::write"
     );
 }
+
+// Two PRs that each add a migration with the same number don't conflict in git, since their files
+// differ (#561). Listing every file in one place makes both PRs append a different last line, which does.
+#[test]
+fn migrations_txt_lists_every_migration_in_order() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut files: Vec<String> = std::fs::read_dir(dir.join("migrations"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    files.sort();
+    let listed = std::fs::read_to_string(dir.join("migrations.txt")).unwrap();
+    let listed: Vec<&str> = listed.lines().collect();
+    assert_eq!(
+        listed, files,
+        "add the new migration's file name as the last line of crates/nama-server/migrations.txt"
+    );
+}
