@@ -14,15 +14,19 @@ import {
 import { HardwareAcceleration, HardwareAccelerationSchema } from "@/gen/nama/v1/server_pb";
 import { channelsName, codecName } from "@/lib/browse";
 
-// Playback Reasons are worded here, with the names their sentences use, so a translation library
-// plugs in here later (#690).
+// Playback Reasons, and the names of methods, Playback Limits and hardware their sentences use,
+// are worded here, so a translation library plugs in here later (#690).
 
-/** Each Playback Method by name. */
-export const methodNames = new Map<PlaybackMethod, string>([
+const methodNames = new Map<PlaybackMethod, string>([
   [PlaybackMethod.DIRECT_PLAY, "Direct Play"],
   [PlaybackMethod.REMUX, "Remux"],
   [PlaybackMethod.TRANSCODE, "Transcode"],
 ]);
+
+/** How a plan plays by `method`, by name, or that it can't play here. */
+export function methodName(method: PlaybackMethod) {
+  return methodNames.get(method) ?? "Can’t play here";
+}
 
 /** The Playback Limits below Original, largest first, by the names the player's menu shows. */
 export const belowOriginal = [
@@ -85,7 +89,7 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
   [PlaybackReasonKind.DEVICE_CANT_SHOW_HDR]: (param) =>
     `This Device can’t show ${param.hdr()}, so it can’t be Direct Played or Remuxed.`,
   [PlaybackReasonKind.DEVICE_CANT_PLAY_HLS]: () =>
-    "This Device can’t play HLS, which a Remux and a Transcode need.",
+    "This Device can’t play the stream a Remux or a Transcode sends.",
   [PlaybackReasonKind.SERVER_LACKS_FFMPEG]: () =>
     "The Server lacks ffmpeg or ffprobe, so it can only Direct Play.",
   [PlaybackReasonKind.SERVER_CANT_ENCODE_VIDEO]: () =>

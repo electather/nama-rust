@@ -194,3 +194,23 @@ test("a reason whose param names a value this app can't name shows the Server's 
 
   expect(screen.getByRole("listitem").textContent).toBe(serverText);
 });
+
+test("a plan that can't play lists the reasons that decided it, in this app's words where it has them", async () => {
+  const reasons = [
+    {
+      kind: PlaybackReasonKind.DEVICE_CANT_DECODE_VIDEO,
+      params: { codec: "hevc" },
+      text: serverText,
+      decided: true,
+    },
+    { kind: PlaybackReasonKind.UNSPECIFIED, text: "Something new stood in the way", decided: true },
+    { kind: PlaybackReasonKind.HARDWARE_ACCELERATION_OFF, text: serverText },
+  ];
+  openApp("/libraries/1/movies/tmdb-603/play", serverPlaying({ tracks, reasons }));
+
+  expect(await screen.findByText("This Version can’t play here")).toBeDefined();
+  expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+    "This Device can’t decode HEVC video, so it can’t be Direct Played or Remuxed.",
+    "Something new stood in the way",
+  ]);
+});

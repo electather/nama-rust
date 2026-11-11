@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { PlaybackPlan } from "@/gen/nama/v1/playback_pb";
 import { trackLine } from "@/lib/browse";
-import { methodNames, wordReasons } from "@/lib/playback-wording";
+import { methodName, wordReasons } from "@/lib/playback-wording";
 
 const trackKindNames: Record<NonNullable<Track["kind"]["case"]>, string> = {
   video: "Video",
@@ -51,7 +51,7 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
           aria-label="Playback info"
           className="absolute end-0 top-full mt-2 w-72 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-lg"
         >
-          <h2 className="font-medium">{methodNames.get(plan.method) ?? "Can’t play here"}</h2>
+          <h2 className="font-medium">{methodName(plan.method)}</h2>
           <Reasons texts={decided} />
           <MoreReasons texts={context} />
           {plan.tracks.length > 0 && <Tracks tracks={plan.tracks} />}
