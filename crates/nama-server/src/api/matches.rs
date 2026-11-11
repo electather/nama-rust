@@ -12,6 +12,7 @@ use crate::{
     contents::{Contents, Item, TiedTitle, Unmatched, UnmatchedReason},
     libraries::Libraries,
     matching::{ManualError, Matcher},
+    metadata::{self, MetadataSource},
     scanner::Scanner,
 };
 
@@ -23,6 +24,7 @@ use super::{
 /// [`require_access`](super::require_access) enforces.
 pub(super) struct MatchServiceHandler {
     pub(super) matcher: Matcher,
+    pub(super) metadata: MetadataSource,
     pub(super) contents: Contents,
     pub(super) libraries: Libraries,
     /// Where the scan lock a Match is fixed under comes from.
@@ -54,11 +56,15 @@ impl MatchService for MatchServiceHandler {
             title: request.title,
             year: request.year,
         };
-        let candidates = self.matcher.search_metadata(&query).await?;
+        let candidates = match self.metadata.search(&query).await {
+            Ok((_, candidates)) => candidates,
+            Err(metadata::Error::NotFound) => Vec::new(),
+            Err(metadata::Error::Unavailable) => return Err(ManualError::Unavailable.into()),
+        };
         Response::ok(SearchMetadataResponse {
             candidates: candidates
                 .into_iter()
-                .map(|(_, candidate)| title_to_proto(candidate.into()))
+                .map(|candidate| title_to_proto(candidate.into()))
                 .collect(),
             ..Default::default()
         })
