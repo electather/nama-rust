@@ -318,12 +318,16 @@ impl Tracks {
         ignore_removed(stored)
     }
 
-    /// When each keyframe of the Version `version`'s first video falls, in milliseconds, if
-    /// they've been kept since it was last probed.
-    pub(crate) async fn keyframes(&self, version: i64) -> Result<Option<Vec<i64>>, sqlx::Error> {
+    /// When each keyframe of the Version `file`'s first video falls, in milliseconds, if they've
+    /// been kept since it was last probed, at the size and modified time `Contents` stores for it
+    /// now.
+    pub(crate) async fn keyframes(&self, file: Stored) -> Result<Option<Vec<i64>>, sqlx::Error> {
         let keyframes = sqlx::query_scalar!(
-            "SELECT keyframes_ms FROM version_probes WHERE version_id = ?",
-            version
+            "SELECT keyframes_ms FROM version_probes
+             WHERE version_id = ? AND size = ? AND modified_ns = ?",
+            file.id,
+            file.size,
+            file.modified_ns
         )
         .fetch_optional(self.db.reader())
         .await?
@@ -332,11 +336,11 @@ impl Tracks {
         Ok(keyframes.and_then(|json| serde_json::from_str(&json).ok()))
     }
 
-    /// Keeps `keyframes` as the Version `version`'s until it's next probed. A Version not probed
-    /// keeps nothing.
+    /// Keeps `keyframes` as the Version `file`'s until it's next probed. A Version not last probed
+    /// at `file`'s size and modified time keeps nothing, as they may be the old file's.
     pub(crate) async fn store_keyframes(
         &self,
-        version: i64,
+        file: Stored,
         keyframes: &[i64],
     ) -> Result<(), sqlx::Error> {
         let keyframes = json_array(keyframes);
@@ -344,9 +348,12 @@ impl Tracks {
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "UPDATE version_probes SET keyframes_ms = ? WHERE version_id = ?",
+                        "UPDATE version_probes SET keyframes_ms = ?
+                         WHERE version_id = ? AND size = ? AND modified_ns = ?",
                         keyframes,
-                        version
+                        file.id,
+                        file.size,
+                        file.modified_ns
                     )
                     .execute(&mut **tx)
                     .await
