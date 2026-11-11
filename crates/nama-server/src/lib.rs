@@ -14,6 +14,7 @@ pub mod ffmpeg;
 mod forwarded;
 mod libraries;
 mod matching;
+mod metadata;
 mod playback;
 pub mod plugin_settings;
 pub mod plugins;
@@ -38,7 +39,7 @@ use tokio::net::TcpListener;
 
 use crate::{
     codes::SetupCode, config::Config, contents::Contents, db::Database, events::EventBus,
-    ffmpeg::Ffmpeg, matching::Matcher, playback::running::RunningPlans, playback::subtitles,
+    ffmpeg::Ffmpeg, playback::running::RunningPlans, playback::subtitles,
     plugin_settings::PluginSettings, probing::Probing, requests::Requests, scanner::Scanner,
     server_settings::Settings, tracks::Tracks,
 };
@@ -97,8 +98,7 @@ pub fn serve(
         events.clone(),
         Some(probing.clone()),
     );
-    let matcher = Matcher::new(Arc::clone(&db), registry.clone(), events.clone());
-    let requests = Requests::new(Arc::clone(&db), matcher, events.clone(), registry.clone());
+    let requests = Requests::new(Arc::clone(&db), events.clone(), registry.clone());
     let running = RunningPlans::new(
         settings.playback(),
         Arc::clone(&ffmpeg),
