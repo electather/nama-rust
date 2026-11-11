@@ -569,9 +569,10 @@ impl Users {
         }
     }
 
-    /// Signs `device`, whose name has been checked, in as whoever `proved` says. A Sign-in Code is
-    /// refused if its approving User was deleted or its approving Device signed out. The only
-    /// place sessions are issued.
+    /// Signs `device`, whose name has been checked, in as whoever `proved` says. A User deleted
+    /// since their password was checked is refused as a wrong name or password; a Sign-in Code is
+    /// refused if its approving User was deleted or its approving Device signed out. The only place
+    /// sessions are issued.
     pub(crate) async fn sign_in_as(
         &self,
         proved: Proved,
@@ -583,12 +584,7 @@ impl Users {
             .db
             .write(move |tx| {
                 Box::pin(async move {
-                    let (user, method) = match proved {
-                        Proved::Method { user, method } => (user, Some(method)),
-                        // In the write that inserts the Device, so a delete or sign-out just
-                        // before can't slip through.
-                        Proved::Code(approving) => (approving_user(tx, approving).await?, None),
-                    };
+                    let (user, method) = proved_user(tx, proved).await?;
                     let device = insert_device(tx, user.id, method, device, &token_hash).await?;
                     Ok::<_, Error>(Caller { user, device })
                 })
@@ -984,6 +980,44 @@ async fn user_exists(conn: &mut SqliteConnection, user: i64) -> Result<bool, sql
     )
     .fetch_one(conn)
     .await
+}
+
+/// The User `proved` signs a Device in as, and the Sign-in Method it proved, if any. Read in the
+/// write that inserts the Device, so a delete or sign-out since the proof was checked can't slip
+/// through.
+async fn proved_user(
+    conn: &mut SqliteConnection,
+    proved: Proved,
+) -> Result<(User, Option<i64>), Error> {
+    match proved {
+        Proved::Method { user, method } => {
+            ensure_method_exists(conn, user.id, method).await?;
+            Ok((user, Some(method)))
+        }
+        Proved::Code(approving) => Ok((approving_user(conn, approving).await?, None)),
+    }
+}
+
+/// Fails with [`Error::WrongNameOrPassword`] if the User `user` no longer has the Sign-in Method
+/// `method`, such as because the User was deleted, which deletes it too.
+async fn ensure_method_exists(
+    conn: &mut SqliteConnection,
+    user: i64,
+    method: i64,
+) -> Result<(), Error> {
+    let exists = sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM sign_in_methods WHERE id = ? AND user_id = ?)
+               AS "exists!: bool""#,
+        method,
+        user
+    )
+    .fetch_one(conn)
+    .await?;
+    if exists {
+        Ok(())
+    } else {
+        Err(Error::WrongNameOrPassword)
+    }
 }
 
 /// The User of `approving`, failing if they were deleted or it signed out or expired.
@@ -1744,6 +1778,27 @@ mod tests {
         assert!(
             (before..=now()).contains(&authenticated_at),
             "{authenticated_at}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_user_deleted_between_verify_and_sign_in_is_refused_as_a_wrong_name_or_password() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let users = users_with_local_auth(data_dir.path()).await;
+        let ada = users.create_first_admin("Ada", PASSWORD, laptop()).await;
+        let ada = ada.unwrap().caller.user;
+        let grace = users.create(&ada, "Grace", PASSWORD).await.unwrap();
+        let (user, method) = users.verify("Grace", PASSWORD).await.unwrap();
+        users.delete(&ada, grace).await.unwrap();
+
+        let refused = users
+            .sign_in_as(Proved::Method { user, method }, laptop())
+            .await;
+
+        assert!(
+            matches!(refused, Err(Error::WrongNameOrPassword)),
+            "{:?}",
+            refused.err()
         );
     }
 
