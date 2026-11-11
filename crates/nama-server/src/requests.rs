@@ -3304,6 +3304,7 @@ mod tests {
         assert_eq!(handed_off(&again), NOTHING);
     }
 
+    /// Dark's TMDB id.
     const DARK: i64 = 70523;
 
     /// Seasons 1 and 2 of Dark, as the metadata source gives them.
@@ -3375,8 +3376,8 @@ mod tests {
         contents.record(Decisions::from(decided)).await.unwrap();
     }
 
-    /// A scan that fetched each of the Seasons `numbers` of Dark, as [`dark_season`] gives them,
-    /// tells Requests in a Library's write. Returns the events for what it changed.
+    /// Tells Requests a scan fetched each of the Seasons `numbers` of Dark, as [`dark_season`]
+    /// gives them, as a Library's write does. Returns the events for what it changed.
     async fn scan_dark(db: &Database, numbers: &[u32]) -> Vec<Event> {
         let seasons = numbers
             .iter()
@@ -3916,9 +3917,10 @@ mod tests {
             .collect()
     }
 
-    /// Seasons 1 and 2 of Dark, as Ada following it Approved asks for them.
-    fn ada_follows_dark() -> [(u32, RequestState, Vec<i64>); 2] {
-        [1, 2].map(|season| (season, RequestState::Approved, vec![ADA]))
+    /// The Season Requests for Seasons 1 and 2 of Dark that Ada following it in `state` opens, as
+    /// [`dark_seasons`] reads them.
+    fn opened_by_ada_following_dark(state: RequestState) -> [(u32, RequestState, Vec<i64>); 2] {
+        [1, 2].map(|season| (season, state, vec![ADA]))
     }
 
     #[tokio::test]
@@ -3939,7 +3941,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_season_a_scan_opens_is_partially_available_until_every_aired_episode_is_matched() {
+    async fn a_season_a_scan_opens_is_partially_available_or_available_by_its_matched_aired_episodes()
+     {
         let (_data, db) = ada_and_bob().await;
         follow_as(&db, ADA, dark(), RequestState::Approved).await;
         match_dark_episodes(&db, 3, &[1]).await;
@@ -3964,7 +3967,10 @@ mod tests {
         let scanned = scan_dark(&db, &[3]).await;
 
         assert_eq!(said(&scanned), []);
-        assert_eq!(dark_seasons(&db).await, ada_follows_dark());
+        assert_eq!(
+            dark_seasons(&db).await,
+            opened_by_ada_following_dark(RequestState::Approved)
+        );
     }
 
     #[tokio::test]
@@ -3978,7 +3984,7 @@ mod tests {
         assert_eq!(said(&scanned), []);
         assert_eq!(
             dark_seasons(&db).await,
-            [1, 2].map(|season| (season, RequestState::Pending, vec![ADA]))
+            opened_by_ada_following_dark(RequestState::Pending)
         );
     }
 
@@ -3986,19 +3992,18 @@ mod tests {
     async fn a_scan_opens_no_season_the_followed_show_already_covers() {
         let (_data, db) = ada_and_bob().await;
         let followed = follow_as(&db, ADA, dark(), RequestState::Approved).await;
-        let season_2 = season_ids(&followed)[1];
-        db.write(move |tx| Box::pin(cancel(tx, season_2)))
-            .await
-            .unwrap();
+        for season in season_ids(&followed) {
+            db.write(move |tx| Box::pin(cancel(tx, season)))
+                .await
+                .unwrap();
+        }
+        match_dark_episodes(&db, 1, &[1, 2]).await;
         match_dark_episodes(&db, 2, &[1, 2]).await;
 
-        let scanned = scan_dark(&db, &[2]).await;
+        let scanned = scan_dark(&db, &[1, 2]).await;
 
         assert_eq!(said(&scanned), []);
-        assert_eq!(
-            dark_seasons(&db).await,
-            [(1, RequestState::Approved, vec![ADA])]
-        );
+        assert_eq!(dark_seasons(&db).await, []);
     }
 
     #[tokio::test]
@@ -4041,6 +4046,9 @@ mod tests {
         let scanned_again = scan_dark(&db, &[3]).await;
 
         assert_eq!(said(&scanned_again), []);
-        assert_eq!(dark_seasons(&db).await, ada_follows_dark());
+        assert_eq!(
+            dark_seasons(&db).await,
+            opened_by_ada_following_dark(RequestState::Approved)
+        );
     }
 }
