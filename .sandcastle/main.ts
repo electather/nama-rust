@@ -195,6 +195,11 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
 }
 
 const slots = slotPool(MAX_PARALLEL);
+// Triage has its own pool so it never holds up a build or a fix; it compiles little, so more fit at once.
+const TRIAGE_PARALLEL = Number(process.env.TRIAGE_PARALLEL ?? 10);
+const triageSlots = slotPool(TRIAGE_PARALLEL);
+// Every agent running, for the usage slow-down, which counts them all.
+const agentsBusy = () => slots.busy() + triageSlots.busy();
 
 // Makes the branch mergeable: Sonnet first, then Opus from the last commit if Sonnet gives up.
 async function fix(box: Box, issue: Issue, problem: string, what: string) {
@@ -656,7 +661,7 @@ const triagePending = () => TRIAGING && triageable().some((i) => !triaged.has(i.
 // By issue number: one issue is in at most one loop at a time.
 const inFlight = new Map<number, { issue: Issue; loop: Loop; claim: string }>();
 const claimedElsewhere = new Map<number, Waiting>(); // by issue
-const slotWaits = new Map<number, Waiting>(); // in flight, but blocked on a slot (a fix, or the next triage)
+const slotWaits = new Map<number, Waiting>(); // in flight, but its fix waits for a slot
 const outcomes: { issue: number; outcome: Outcome }[] = [];
 let crashed = "";
 
@@ -669,21 +674,21 @@ function finish(issue: Issue, outcome: Outcome, why?: string) {
 let lastWaiting = "";
 // Every loop's queue: what each would start next and why it hasn't yet.
 function noteWaiting(prs: OpenPr[], { ready, waiting } = readyIssues(prs)) {
-  const held = crashed ? "next run: this one crashed"
+  const held = (pool: typeof slots, size: number, what: string) =>
+    crashed ? "next run: this one crashed"
     : existsSync(STOP_FILE) ? "next run: STOP is set"
     : paused() ? "paused: Claude usage near its limit"
-    : slots.busy() >= MAX_PARALLEL ? `waits for a slot (${slots.busy()}/${MAX_PARALLEL} busy)`
-    : slowed() && slots.busy() >= SLOW_PARALLEL ? `slowed: at most ${SLOW_PARALLEL} busy near the usage limit`
+    : pool.busy() >= size ? `waits for a ${what} (${pool.busy()}/${size} busy)`
+    : slowed() && agentsBusy() >= SLOW_PARALLEL ? `slowed: at most ${SLOW_PARALLEL} agents near the usage limit`
     : "starts next";
-  const triaging = [...inFlight.values()].find((f) => f.loop === "triage");
   const fresh = (n: number) => !taken.has(n) && !inFlight.has(n) && !claimedElsewhere.has(n);
   const all: Waiting[] = [
-    ...ready.filter((i) => fresh(i.number)).map((i) => ({ issue: i.number, queue: "build" as const, why: held })),
+    ...ready.filter((i) => fresh(i.number)).map((i) => ({ issue: i.number, queue: "build" as const, why: held(slots, MAX_PARALLEL, "slot") })),
     ...waiting,
     ...(TRIAGING ? triageable() : []).filter((i) => !triaged.has(i.number) && fresh(i.number)).map((i) => ({
       issue: i.number,
       queue: "triage" as const,
-      why: triaging && held === "starts next" ? `after #${triaging.issue.number} (one triage at a time)` : held,
+      why: held(triageSlots, TRIAGE_PARALLEL, "triage slot"),
     })),
     ...slotWaits.values(),
     ...claimedElsewhere.values(),
@@ -817,7 +822,7 @@ async function dispatch() {
     }
     let issue: Issue | "wait" | "done" = "wait";
     // busy() includes the slot just taken, hence `>`.
-    if (!(await overUsage()) && !(slowed() && slots.busy() > SLOW_PARALLEL)) {
+    if (!(await overUsage()) && !(slowed() && agentsBusy() > SLOW_PARALLEL)) {
       try {
         issue = pickNext();
       } catch (e) {
@@ -896,12 +901,20 @@ async function babysitLoop() {
   await Promise.all(running);
 }
 
-// The triage loop: one issue at a time, each holding a slot like a build. Ends once the implement loop has ended
-// and nothing is left to triage; an issue parked meanwhile waits for the next run.
+// The triage loop: up to TRIAGE_PARALLEL issues at once, oldest first, each in a triage slot. Ends once the
+// implement loop has ended and nothing is left to triage; an issue parked meanwhile waits for the next run.
 async function triageLoop() {
-  while (TRIAGING && !crashed && !existsSync(STOP_FILE)) {
+  if (!TRIAGING) return;
+  const running = new Set<Promise<void>>();
+  for (;;) {
+    await triageSlots.acquire(); // released by track
+    if (crashed || existsSync(STOP_FILE)) {
+      triageSlots.release();
+      break;
+    }
     let issue: Issue | undefined;
-    if (!(await overUsage()) && !(slowed() && slots.busy() >= SLOW_PARALLEL)) {
+    // agentsBusy() includes the slot just taken, hence `>`.
+    if (!(await overUsage()) && !(slowed() && agentsBusy() > SLOW_PARALLEL)) {
       try {
         issue = triageable().find((i) => !triaged.has(i.number));
       } catch (e) {
@@ -909,26 +922,28 @@ async function triageLoop() {
         appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
         log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
         crashed ||= why;
+        triageSlots.release();
         break;
       }
     }
     if (!issue) {
+      triageSlots.release();
       if (implementDone) break;
-      await sleep(60_000); // paused, or nothing to triage until an agent parks something
+      await sleep(60_000); // paused, slowed, or nothing to triage until an agent parks something
       continue;
     }
     triaged.add(issue.number);
     const owner = claim(triageClaim(issue), `triage #${issue.number}`);
     if (owner) {
       log(`#${issue.number} triage skipped: claimed by ${owner}`);
+      triageSlots.release();
       continue;
     }
-    slotWaits.set(issue.number, { issue: issue.number, queue: "triage", why: "waits for a slot" });
-    await slots.acquire(); // released by track
-    slotWaits.delete(issue.number);
     const i = issue;
-    await track(i, "triage", triageClaim(i), () => triage(i));
+    const p: Promise<void> = track(i, "triage", triageClaim(i), () => triage(i)).finally(() => running.delete(p));
+    running.add(p);
   }
+  await Promise.all(running);
 }
 
 // "true" unless gh says the label is gone: only a definite answer stops work.
@@ -943,7 +958,7 @@ const prClosed = (issue: Issue) =>
 // cancelled or crashed instead.
 async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Promise<Outcome>) {
   inFlight.set(issue.number, { issue, loop, claim: claimRef });
-  log(`=== ${loop} #${issue.number} ${issue.title} (${slots.busy()}/${MAX_PARALLEL} slots busy, ${inFlight.size} in flight) ===`);
+  log(`=== ${loop} #${issue.number} ${issue.title} (${slots.busy()}/${MAX_PARALLEL} slots, ${triageSlots.busy()}/${TRIAGE_PARALLEL} triage slots busy, ${inFlight.size} in flight) ===`);
   stage(issue, "claimed");
   const started = Date.now();
   aborts.set(issue.number, new AbortController());
@@ -1003,7 +1018,8 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
     aborts.delete(issue.number);
     inFlight.delete(issue.number);
     stageOf.delete(issue.number);
-    if (loop !== "babysit") slots.release();
+    if (loop === "triage") triageSlots.release();
+    else if (loop === "implement") slots.release();
   }
 }
 
