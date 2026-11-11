@@ -122,6 +122,40 @@ test.each([
   expect(await screen.findByText(shown)).toBeDefined();
 });
 
+test("Needs a Match shows why once Matching finishes", async () => {
+  const events = eventFeed();
+  const item = { itemId: 7n, path: "/srv/films/Alien.1979.mkv", kind: TitleKind.MOVIE };
+  let reason: UnmatchedReason = UnmatchedReason.UNSPECIFIED;
+  let listed = 0;
+  openApp(
+    "/admin/needs-a-match",
+    adminServer(events.stream, (router) => {
+      router.service(MatchService, {
+        listUnmatchedItems: () => {
+          listed += 1;
+          return { items: [{ ...item, title: "Alien", reason }] };
+        },
+      });
+    }),
+  );
+  expect(await screen.findByText(item.path)).toBeDefined();
+  // The scan finished before Matching did. Its Event opens the stream, and the catch-up refetch
+  // that follows has to land first, or it would be the one to show the reason.
+  events.send({ event: { case: "scanFinished", value: { libraryId: 1n } } });
+  await waitFor(() => {
+    expect(listed).toBe(3);
+  });
+
+  reason = UnmatchedReason.NO_TITLE_FITS;
+  events.send({ event: { case: "matchingFinished", value: { libraryId: 1n, unmatched: 1n } } });
+
+  expect(
+    await screen.findByText(
+      "No title fits its name. Renaming the file or adding an ID Hint may help.",
+    ),
+  ).toBeDefined();
+});
+
 test("an Item Matched elsewhere leaves Needs a Match when its Event arrives", async () => {
   const events = eventFeed();
   const items = [
