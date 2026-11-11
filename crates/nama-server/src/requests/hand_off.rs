@@ -1,41 +1,29 @@
-//! Everything Requests does with a Fulfiller: the Hand-off of each Approved Request, asking how the
-//! ones it has that aren't Available yet are progressing, and telling the Shows Fulfiller to stop
-//! following a Show.
+//! What Requests does with a Fulfiller: the Hand-off of each Approved Request, and telling the
+//! Shows Fulfiller to stop following a Show. Asking how the Requests it took are progressing is
+//! [`super::progress`]'s.
 //!
-//! It holds no SQL, since [`super`] alone owns its tables: it calls Requests' functions to read
-//! Requests and to settle a Hand-off.
+//! It holds no SQL: it calls Requests' functions to read Requests and to settle a Hand-off.
 
 use std::{
     collections::{HashMap, hash_map::Entry},
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
-    time::Duration,
+    sync::{Arc, Mutex},
 };
 
 use nama_plugin_api::{
     PluginId,
-    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
+    fulfiller::{Fulfilled, Fulfiller, Movies, Shows},
 };
-use nama_proto::nama::v1::{Request, RequestProgress, RequestState};
+use nama_proto::nama::v1::{Request, RequestState};
 use sqlx::{Sqlite, Transaction};
-use tokio::{
-    sync::{Notify, mpsc::UnboundedReceiver},
-    time::error::Elapsed,
-};
+use tokio::sync::{Notify, mpsc::UnboundedReceiver};
 use tracing::{error, warn};
 
-use super::{
-    Applied, Error, Fulfilling, HandedBack, as_handed_off, detached, fulfilling, load, load_one,
-    settle,
-};
+use super::{Applied, Error, HandedBack, as_handed_off, detached, load, load_one, lock, settle};
 use crate::{
     db::{BoxFuture, Database},
-    events::{EventBus, event},
+    events::EventBus,
     plugins::Registry,
 };
-
-/// How often the Fulfillers are asked how the Requests they have that aren't Available yet are
-/// progressing, as Seerr asks (ADR 0012).
-pub(super) const PROGRESS_EVERY: Duration = Duration::from_secs(60);
 
 /// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled, which also
 /// publishes the changes its writes make.
@@ -47,23 +35,25 @@ pub(super) struct HandOff {
     /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
     /// skipped it meanwhile.
     handing: Arc<Mutex<HashMap<i64, bool>>>,
-    /// What each Request's Fulfiller said it is downloading for it when last asked, by Request id.
-    /// Kept in memory only (ADR 0012).
-    progress: Arc<Mutex<HashMap<i64, Vec<Download>>>>,
-    /// Wakes [`HandOff::follow_progress`] when a Request becomes Processing.
+    /// Wakes [`super::progress::Progress::follow`] when a Request becomes Processing.
     became_processing: Arc<Notify>,
 }
 
 impl HandOff {
-    /// Hands Requests in `db` to the Fulfillers in `plugins`, publishing on `events`.
-    pub(super) fn new(db: Arc<Database>, events: EventBus, plugins: Registry) -> Self {
+    /// Hands Requests in `db` to the Fulfillers in `plugins`, publishing on `events` and notifying
+    /// `became_processing` when one becomes Processing.
+    pub(super) fn new(
+        db: Arc<Database>,
+        events: EventBus,
+        plugins: Registry,
+        became_processing: Arc<Notify>,
+    ) -> Self {
         Self {
             db,
             events,
             plugins,
             handing: Arc::default(),
-            progress: Arc::default(),
-            became_processing: Arc::default(),
+            became_processing,
         }
     }
 
@@ -270,141 +260,6 @@ impl HandOff {
             );
         }
     }
-
-    /// Asks the Fulfillers how the Requests they have are progressing, every `interval` while any
-    /// of those isn't Available yet, and at once when one becomes Processing. Runs until dropped.
-    #[expect(
-        clippy::infinite_loop,
-        reason = "it follows progress for as long as the Server serves, which aborts it"
-    )]
-    pub(super) async fn follow_progress(&self, interval: Duration) {
-        loop {
-            let fulfilling = self.poll_progress().await.unwrap_or_else(|err| {
-                error!("reading which Requests the Fulfillers have failed: {err}");
-                true
-            });
-            // A Request that became Processing while the Fulfillers were asked left a permit, so
-            // this wakes at once for it.
-            let woken = self.became_processing.notified();
-            if fulfilling {
-                let _: Result<(), Elapsed> = tokio::time::timeout(interval, woken).await;
-            } else {
-                woken.await;
-            }
-        }
-    }
-
-    /// Asks each enabled Fulfiller once what it is downloading for the Requests it took that aren't
-    /// Available yet, keeps the answers in place of the last ones, and publishes each Request
-    /// whose downloads changed. Returns whether there are any such Requests.
-    pub(super) async fn poll_progress(&self) -> Result<bool, sqlx::Error> {
-        let fulfilling = fulfilling(&mut *self.db.reader().acquire().await?).await?;
-        let (movies, seasons): (Vec<_>, Vec<_>) =
-            fulfilling.into_iter().partition(|request| request.is_movie);
-        let any = !(movies.is_empty() && seasons.is_empty());
-        let mut polled = self.progress_of::<Movies>(movies).await;
-        polled.extend(self.progress_of::<Shows>(seasons).await);
-        let mut changed = self.changed_progress(&polled);
-        if changed.is_empty() {
-            *lock(&self.progress) = polled;
-            return Ok(any);
-        }
-        // Read before keeping `polled`, so if this fails the next poll sees the change again and
-        // publishes it then. ponytail: reads every Request to publish the changed ones; load them
-        // by id if there get many.
-        let all = load(&mut *self.db.reader().acquire().await?, None, None).await?;
-        *lock(&self.progress) = polled;
-        let events = all
-            .into_iter()
-            // One that became Available or Failed since it was asked about has no progress any more.
-            .filter(is_fulfilling)
-            .filter_map(|mut request| {
-                request.downloads = changed.remove(&request.id)?;
-                Some(event(RequestProgress {
-                    request: request.into(),
-                    ..Default::default()
-                }))
-            })
-            .collect();
-        self.events.publish(events);
-        Ok(any)
-    }
-
-    /// What `Kind`'s Fulfiller, if one is enabled, is downloading for each of `fulfilling`, by
-    /// Request id, asked in one batch. Each has nothing downloading if it couldn't say.
-    async fn progress_of<Kind: 'static>(
-        &self,
-        fulfilling: Vec<Fulfilling>,
-    ) -> HashMap<i64, Vec<Download>> {
-        if fulfilling.is_empty() {
-            return HashMap::new();
-        }
-        let references: Vec<String> = fulfilling
-            .iter()
-            .map(|request| request.reference.clone())
-            .collect();
-        let references = references.as_slice();
-        let answered = self
-            .plugins
-            .call_provider_blanking_secrets::<dyn Fulfiller<Kind>, _, _>(|fulfiller| async move {
-                // Bounded, so a Fulfiller that never answers can't stop every later poll. Inside
-                // the call, so formatting and dropping the Plugin's error are contained.
-                let asked = tokio::time::timeout(PROGRESS_EVERY, fulfiller.progress(references));
-                match asked.await {
-                    Ok(answered) => answered.map_err(|error| error.to_string()),
-                    Err(_) => Err("it didn't answer in time".to_owned()),
-                }
-            })
-            .await;
-        let by_reference = match answered {
-            Some(Ok(by_reference)) => by_reference,
-            Some(Err(reason)) => {
-                warn!(
-                    reason,
-                    "a Fulfiller couldn't say how its Requests are progressing"
-                );
-                HashMap::new()
-            }
-            None => HashMap::new(),
-        };
-        fulfilling
-            .into_iter()
-            .map(|request| {
-                let downloads = by_reference.get(&request.reference).cloned();
-                (request.id, downloads.unwrap_or_default())
-            })
-            .collect()
-    }
-
-    /// Those of `polled`, what each Request its Fulfiller has is downloading now, that differ from
-    /// what was kept.
-    fn changed_progress(
-        &self,
-        polled: &HashMap<i64, Vec<Download>>,
-    ) -> HashMap<i64, Vec<Download>> {
-        let kept = lock(&self.progress);
-        polled
-            .iter()
-            .filter(|&(id, now)| kept.get(id).map_or(&[][..], Vec::as_slice) != now.as_slice())
-            .map(|(&id, now)| (id, now.clone()))
-            .collect()
-    }
-
-    /// `request` with what its Fulfiller said it is downloading when last asked, if it is
-    /// Processing or Partially Available.
-    pub(super) fn with_progress(&self, mut request: Request) -> Request {
-        if is_fulfilling(&request) {
-            let kept = lock(&self.progress).get(&request.id).cloned();
-            request.downloads = kept.unwrap_or_default();
-        }
-        request
-    }
-}
-
-/// Whether `request` is one its Fulfiller has that isn't Available yet, as [`fulfilling`] reads
-/// them.
-fn is_fulfilling(request: &Request) -> bool {
-    request.state == RequestState::Processing || request.state == RequestState::PartiallyAvailable
 }
 
 /// A hand-off's hold on one Request in [`HandOff::handing`], let go however the hand-off ends, a
@@ -458,12 +313,6 @@ impl Drop for Claim {
             lock(&self.handing).remove(&self.id);
         }
     }
-}
-
-/// Locks `mutex`, taking its value even if poisoned: nothing panics while one is held, so it is
-/// still whole.
-pub(super) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[cfg(test)]

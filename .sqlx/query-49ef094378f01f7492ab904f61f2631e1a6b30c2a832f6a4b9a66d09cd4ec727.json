@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", season IS NULL AS \"is_movie!: bool\",\n                  fulfiller_reference AS \"reference!\"\n           FROM requests\n           WHERE state IN ('processing', 'partially_available')\n             AND fulfiller_reference IS NOT NULL",
+  "query": "SELECT id AS \"id!\", season IS NULL AS \"is_movie!: bool\",\n                  fulfiller_reference AS \"reference!\"\n           FROM requests\n           WHERE state IN (?, ?) AND fulfiller_reference IS NOT NULL",
   "describe": {
     "columns": [
       {
@@ -33,7 +33,7 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 2
     },
     "nullable": [
       false,
@@ -41,5 +41,5 @@
       true
     ]
   },
-  "hash": "52ffe94433bfce18efb81f70e8180537c70f2c707b0d669ff35f5c69034f69c1"
+  "hash": "49ef094378f01f7492ab904f61f2631e1a6b30c2a832f6a4b9a66d09cd4ec727"
 }

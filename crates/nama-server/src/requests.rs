@@ -12,7 +12,8 @@ use std::{
     cmp::Reverse,
     collections::{BTreeSet, HashSet},
     iter,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
 };
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -45,9 +46,11 @@ use crate::{
 
 mod asked;
 mod hand_off;
+mod progress;
 
 pub(crate) use asked::{Asked, may_see};
-use hand_off::{HandOff, PROGRESS_EVERY, lock};
+use hand_off::HandOff;
+use progress::Progress;
 
 /// Each Request state as `requests.state` stores it.
 const STATES: [(RequestState, &str); 7] = [
@@ -100,8 +103,10 @@ pub(crate) struct Requests {
     contents: Contents,
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
     metadata: MetadataSource,
-    /// Its only way to the Fulfillers, and what publishes the changes its writes make.
+    /// Its way to hand Requests to the Fulfillers, and what publishes the changes its writes make.
     hand_off: HandOff,
+    /// What the Fulfillers say they are downloading for the Requests they have.
+    progress: Progress,
     /// The loop [`Requests::start`] spawns to hand off as Fulfillers come up.
     handing_off: Arc<Mutex<Option<JoinHandle<()>>>>,
     /// The loop [`Requests::start`] spawns to ask the Fulfillers about progress.
@@ -278,10 +283,17 @@ impl Requests {
     /// The Requests in `db`, looking titles up through the metadata Provider and handing Approved
     /// ones to the Fulfillers in `plugins`, publishing on `events`.
     pub(crate) fn new(db: Arc<Database>, events: EventBus, plugins: Registry) -> Self {
+        let progress = Progress::new(Arc::clone(&db), events.clone(), plugins.clone());
         Self {
             contents: Contents::new(Arc::clone(&db)),
             metadata: MetadataSource::new(plugins.clone()),
-            hand_off: HandOff::new(Arc::clone(&db), events, plugins),
+            hand_off: HandOff::new(
+                Arc::clone(&db),
+                events,
+                plugins,
+                progress.became_processing(),
+            ),
+            progress,
             db,
             handing_off: Arc::default(),
             following: Arc::default(),
@@ -291,13 +303,13 @@ impl Requests {
     /// Starts, in the background so a slow Fulfiller doesn't hold up serving, handing each
     /// Approved Request, oldest first, to its Fulfiller whenever a Plugin `came_up` names provides
     /// one, and asking the Fulfillers how the Requests they have that aren't Available yet are
-    /// progressing, every [`PROGRESS_EVERY`] while there are any and at once when one becomes
+    /// progressing, every `progress_every` while there are any and at once when one becomes
     /// Processing. A failed hand-off is only logged, and leaves the rest waiting. Call it once.
-    pub(crate) fn start(&self, came_up: UnboundedReceiver<PluginId>) {
+    pub(crate) fn start(&self, came_up: UnboundedReceiver<PluginId>, progress_every: Duration) {
         let handing = self.hand_off.clone();
         let handing_off = tokio::spawn(async move { handing.as_fulfillers_come_up(came_up).await });
-        let asking = self.hand_off.clone();
-        let following = tokio::spawn(async move { asking.follow_progress(PROGRESS_EVERY).await });
+        let asking = self.progress.clone();
+        let following = tokio::spawn(async move { asking.follow(progress_every).await });
         *lock(&self.handing_off) = Some(handing_off);
         *lock(&self.following) = Some(following);
     }
@@ -734,9 +746,7 @@ impl Requests {
         };
         for row in rows {
             match row {
-                Listed::Request(request) => {
-                    page.requests.push(self.hand_off.with_progress(request));
-                }
+                Listed::Request(request) => page.requests.push(request),
                 Listed::Followed(show) => page.followed_shows.push(show),
             }
         }
@@ -759,7 +769,7 @@ impl Requests {
     /// Every Request and Followed Show `viewer` may see, unordered.
     async fn listed(&self, viewer: &User) -> Result<Vec<Listed>, sqlx::Error> {
         let mut conn = self.db.reader().acquire().await?;
-        let requests = load(&mut conn, None, visible_to(viewer)).await?;
+        let requests = self.visible(&mut conn, None, viewer).await?;
         let followed = load_followed(&mut conn, None, visible_to(viewer)).await?;
         Ok(requests
             .into_iter()
@@ -780,10 +790,9 @@ impl Requests {
         let mut found = Vec::with_capacity(candidates.len());
         // ponytail: two queries per Movie found, which a search caps at a page of 20.
         for (tmdb_id, plugin, candidate) in candidates {
-            let mut movie = look_around(&mut conn, viewer, tmdb_id, plugin, candidate).await?;
-            movie.request = movie
-                .request
-                .map(|request| self.hand_off.with_progress(request));
+            let movie = self
+                .look_around(&mut conn, viewer, tmdb_id, plugin, candidate)
+                .await?;
             found.push(movie);
         }
         Ok(found)
@@ -849,13 +858,9 @@ impl Requests {
             .map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?;
         let seasons = self.seasons(tmdb_id, &show).await?;
         let mut conn = self.db.reader().acquire().await?;
-        let mut seasons = look_around_seasons(&mut conn, viewer, tmdb_id, seasons).await?;
-        for season in &mut seasons {
-            let request = season.request.take();
-            season.request = request
-                .map(|request| self.hand_off.with_progress(request))
-                .into();
-        }
+        let seasons = self
+            .look_around_seasons(&mut conn, viewer, tmdb_id, seasons)
+            .await?;
         let followed_show = match open_followed_show(&mut conn, tmdb_id).await? {
             Some(id) => load_followed(&mut conn, Some(id), visible_to(viewer))
                 .await?
@@ -895,11 +900,9 @@ impl Requests {
         let movie = self.fetch(tmdb_id).await?;
         let mut conn = self.db.reader().acquire().await?;
         let plugin = movie.plugin.clone();
-        let mut found = look_around(&mut conn, viewer, tmdb_id, plugin, movie).await?;
-        found.request = found
-            .request
-            .map(|request| self.hand_off.with_progress(request));
-        Ok(found)
+        self.look_around(&mut conn, viewer, tmdb_id, plugin, movie)
+            .await
+            .map_err(Error::from)
     }
 
     async fn fetch(&self, tmdb_id: i64) -> Result<Metadata, Error> {
@@ -912,12 +915,101 @@ impl Requests {
     /// The Request `id`, if `viewer` may see it.
     pub(crate) async fn get(&self, viewer: &User, id: i64) -> Result<Request, Error> {
         let mut conn = self.db.reader().acquire().await?;
-        let found = load(&mut conn, Some(id), visible_to(viewer)).await?;
-        let request = found
+        let found = self.visible(&mut conn, Some(id), viewer).await?;
+        found
             .into_iter()
             .next()
-            .ok_or(Error::NoSuch(Asked::Request, id))?;
-        Ok(self.hand_off.with_progress(request))
+            .ok_or(Error::NoSuch(Asked::Request, id))
+    }
+
+    /// `movie`, the Movie `tmdb_id` as `plugin`'s Provider gave it, with the Library that has it and
+    /// its open Request, if `viewer` may see it.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "`Found` takes the Movie as a search or lookup gives it, in three parts"
+    )]
+    async fn look_around<M>(
+        &self,
+        conn: &mut SqliteConnection,
+        viewer: &User,
+        tmdb_id: i64,
+        plugin: PluginId,
+        movie: M,
+    ) -> Result<Found<M>, sqlx::Error> {
+        let library = contents::library_with_movie(conn, tmdb_id).await?;
+        let request = self
+            .visible_open_request(conn, viewer, tmdb_id, None)
+            .await?;
+        Ok(Found {
+            tmdb_id,
+            plugin,
+            movie,
+            library,
+            request,
+        })
+    }
+
+    /// Each of `seasons`, of the Show `show_tmdb_id`, as `viewer` sees it: whether a Library has it,
+    /// and its open Request.
+    async fn look_around_seasons(
+        &self,
+        conn: &mut SqliteConnection,
+        viewer: &User,
+        show_tmdb_id: i64,
+        seasons: Vec<Season>,
+    ) -> Result<Vec<FoundSeason>, sqlx::Error> {
+        let today = today(conn).await?;
+        let mut found = Vec::with_capacity(seasons.len());
+        // ponytail: two or three queries per Season, and a Show has a few dozen at most.
+        for season in seasons {
+            let matched =
+                contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
+            let request = self
+                .visible_open_request(conn, viewer, show_tmdb_id, Some(season.number))
+                .await?;
+            found.push(FoundSeason {
+                season_number: season.number,
+                in_library: availability(&season.episodes, &matched, &today)
+                    == Some(RequestState::Available),
+                air_date: season.air_date,
+                request: request.into(),
+                ..Default::default()
+            });
+        }
+        Ok(found)
+    }
+
+    /// The open Request for the Movie `tmdb_id`, or for its Season `season` if `tmdb_id` is a Show's,
+    /// if `viewer` may see it.
+    async fn visible_open_request(
+        &self,
+        conn: &mut SqliteConnection,
+        viewer: &User,
+        tmdb_id: i64,
+        season: Option<u32>,
+    ) -> Result<Option<Request>, sqlx::Error> {
+        let Some(id) = open_request(conn, tmdb_id, season).await? else {
+            return Ok(None);
+        };
+        let visible = self.visible(conn, Some(id), viewer).await?;
+        Ok(visible.into_iter().next())
+    }
+
+    /// The Requests `viewer` may see, newest first, only the one with the ID `id` if given, each
+    /// with what its Fulfiller is downloading for it.
+    ///
+    /// The one read of a Request for a viewer, so none misses its downloads.
+    async fn visible(
+        &self,
+        conn: &mut SqliteConnection,
+        id: Option<i64>,
+        viewer: &User,
+    ) -> Result<Vec<Request>, sqlx::Error> {
+        let requests = load(conn, id, visible_to(viewer)).await?;
+        Ok(requests
+            .into_iter()
+            .map(|request| self.progress.attach(request))
+            .collect())
     }
 }
 
@@ -1023,67 +1115,6 @@ fn opening_state(asker: &User, auto_approve: Permission) -> RequestState {
     } else {
         RequestState::Pending
     }
-}
-
-/// `movie`, the Movie `tmdb_id` as `plugin`'s Provider gave it, with the Library that has it and
-/// its open Request, if `viewer` may see it.
-async fn look_around<M>(
-    conn: &mut SqliteConnection,
-    viewer: &User,
-    tmdb_id: i64,
-    plugin: PluginId,
-    movie: M,
-) -> Result<Found<M>, sqlx::Error> {
-    let library = contents::library_with_movie(conn, tmdb_id).await?;
-    let request = visible_open_request(conn, viewer, tmdb_id, None).await?;
-    Ok(Found {
-        tmdb_id,
-        plugin,
-        movie,
-        library,
-        request,
-    })
-}
-
-/// Each of `seasons`, of the Show `show_tmdb_id`, as `viewer` sees it: whether a Library has it,
-/// and its open Request.
-async fn look_around_seasons(
-    conn: &mut SqliteConnection,
-    viewer: &User,
-    show_tmdb_id: i64,
-    seasons: Vec<Season>,
-) -> Result<Vec<FoundSeason>, sqlx::Error> {
-    let today = today(conn).await?;
-    let mut found = Vec::with_capacity(seasons.len());
-    // ponytail: two or three queries per Season, and a Show has a few dozen at most.
-    for season in seasons {
-        let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
-        let request = visible_open_request(conn, viewer, show_tmdb_id, Some(season.number)).await?;
-        found.push(FoundSeason {
-            season_number: season.number,
-            in_library: availability(&season.episodes, &matched, &today)
-                == Some(RequestState::Available),
-            air_date: season.air_date,
-            request: request.into(),
-            ..Default::default()
-        });
-    }
-    Ok(found)
-}
-
-/// The open Request for the Movie `tmdb_id`, or for its Season `season` if `tmdb_id` is a Show's,
-/// if `viewer` may see it.
-async fn visible_open_request(
-    conn: &mut SqliteConnection,
-    viewer: &User,
-    tmdb_id: i64,
-    season: Option<u32>,
-) -> Result<Option<Request>, sqlx::Error> {
-    let Some(id) = open_request(conn, tmdb_id, season).await? else {
-        return Ok(None);
-    };
-    let visible = load(conn, Some(id), visible_to(viewer)).await?;
-    Ok(visible.into_iter().next())
 }
 
 /// Today as `YYYY-MM-DD`, by SQLite's calendar, since `std` has none.
@@ -2384,29 +2415,6 @@ fn stored_quality(
     })
 }
 
-/// A Request its Fulfiller has that isn't Available yet, Processing or Partially Available, as
-/// [`hand_off::HandOff::poll_progress`] asks its Fulfiller about it.
-struct Fulfilling {
-    id: i64,
-    /// Whether it asks for a Movie, rather than a Season.
-    is_movie: bool,
-    /// What its Fulfiller gave when it took it.
-    reference: String,
-}
-
-async fn fulfilling(conn: &mut SqliteConnection) -> Result<Vec<Fulfilling>, sqlx::Error> {
-    sqlx::query_as!(
-        Fulfilling,
-        r#"SELECT id AS "id!", season IS NULL AS "is_movie!: bool",
-                  fulfiller_reference AS "reference!"
-           FROM requests
-           WHERE state IN ('processing', 'partially_available')
-             AND fulfiller_reference IS NOT NULL"#
-    )
-    .fetch_all(&mut *conn)
-    .await
-}
-
 /// The event saying `request` is now in the state it has.
 fn state_changed(request: Request) -> Event {
     event(RequestStateChanged {
@@ -2428,6 +2436,12 @@ fn read_state(stored: &str) -> RequestState {
         .iter()
         .find(|&&(_, name)| name == stored)
         .map_or(RequestState::REQUEST_STATE_UNSPECIFIED, |&(state, _)| state)
+}
+
+/// Locks `mutex`, taking its value even if poisoned: nothing panics while one is held, so it is
+/// still whole.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[cfg(test)]
@@ -2461,10 +2475,10 @@ mod tests {
     use tokio::sync::Notify;
 
     use super::{
-        Applied, Error, Requests, Wanted, WantedSeasons, approve, ask, ask_movie, ask_seasons,
-        asked, availability, cancel, cancel_followed, decide_followed, decline, follow, load,
-        load_one, make_seasons_available, opening_state, retry, settle, withdraw,
-        withdraw_followed,
+        Applied, Error, Requests, STATES, Wanted, WantedSeasons, approve, ask, ask_movie,
+        ask_seasons, asked, availability, cancel, cancel_followed, decide_followed, decline,
+        follow, load, load_one, make_seasons_available, opening_state, progress, retry, settle,
+        withdraw, withdraw_followed,
     };
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
@@ -2573,6 +2587,10 @@ mod tests {
             "asking again joins the Movie's Request"
         );
     }
+
+    /// The interval a test polls progress at: how long a poll waits for the fake Fulfillers, which
+    /// answer at once.
+    const INTERVAL: Duration = Duration::from_secs(5);
 
     /// A Movie Fulfiller that counts the Requests it is handed, and takes each only once `open`
     /// lets it.
@@ -2886,7 +2904,7 @@ mod tests {
         come_up(&requests, "gated").await;
         match_in_a_library(&requests.db, &[603]).await;
 
-        let any = requests.hand_off.poll_progress().await.unwrap();
+        let any = requests.progress.poll(INTERVAL).await.unwrap();
 
         assert!(any);
         assert_eq!(asked.batches().len(), 1);
@@ -2901,7 +2919,7 @@ mod tests {
         let (_data, requests) = approved_for(&[949, 438_631], fulfiller).await;
         let pending = ask_as(&requests, Permissions::NEW_USER, 603).await;
         let following = requests.clone();
-        let follow = tokio::spawn(async move { following.hand_off.follow_progress(EVERY).await });
+        let follow = tokio::spawn(async move { following.progress.follow(EVERY).await });
         let nothing_processing = asked_while(&asked, EVERY * 10).await;
 
         come_up(&requests, "gated").await;
@@ -2922,6 +2940,72 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn only_a_request_its_fulfiller_has_that_isnt_available_yet_is_asked_about_and_gets_downloads()
+     {
+        let asked = Arc::new(Asked::default());
+        let fulfiller = Arc::clone(&asked);
+        let (_data, requests) = approved_for(&[], fulfiller).await;
+        let inserted = requests
+            .db
+            .write(|tx| Box::pin(insert_in_each_state(tx)))
+            .await
+            .unwrap();
+
+        requests.progress.poll(INTERVAL).await.unwrap();
+
+        let admin = ada(Permissions::ADMIN);
+        let mut has_it = Vec::new();
+        for (id, state, reference) in inserted {
+            let not_available_yet = matches!(
+                state,
+                RequestState::Processing | RequestState::PartiallyAvailable
+            );
+            let expected = reference.is_some() && not_available_yet;
+            let request = requests.get(&admin, id).await.unwrap();
+            assert_eq!(
+                !request.downloads.is_empty(),
+                expected,
+                "{state:?} with the reference {reference:?}"
+            );
+            // Downloads alone can't catch the Rust check being wider than the SQL's: nothing is
+            // kept for the extra ones, so they'd attach none.
+            assert_eq!(
+                progress::is_fulfilling(&request),
+                not_available_yet,
+                "{state:?}"
+            );
+            has_it.extend(reference.filter(|_| expected));
+        }
+        has_it.sort();
+        assert_eq!(asked.last_asked_about(), has_it);
+    }
+
+    /// A Movie Request in each state, without and with a Fulfiller's reference. Returns each one's
+    /// id, state and reference.
+    async fn insert_in_each_state(
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<(i64, RequestState, Option<String>)>, sqlx::Error> {
+        let mut inserted = Vec::new();
+        for (tmdb_id, &(state, stored)) in (1..).zip(&STATES) {
+            for reference in [None, Some(format!("movie-{tmdb_id}"))] {
+                let id = sqlx::query_scalar(
+                    "INSERT INTO requests (tmdb_id, title, state, created_at, fulfiller_reference)
+                     VALUES (?, 'Movie', ?, 0, ?)
+                     RETURNING id",
+                )
+                // A Movie of its own each, as only one open Request per Movie may be stored.
+                .bind(tmdb_id * 2 + i64::from(reference.is_some()))
+                .bind(stored)
+                .bind(&reference)
+                .fetch_one(&mut *conn)
+                .await?;
+                inserted.push((id, state, reference));
+            }
+        }
+        Ok(inserted)
+    }
+
+    #[tokio::test]
     async fn a_handed_off_season_gets_progress_while_partially_available_but_not_once_available() {
         let asked = Arc::new(Asked::default());
         let (_data, db) = ada_and_bob().await;
@@ -2930,7 +3014,8 @@ mod tests {
         plugins
             .enable(Arc::new(FulfillerPlugin("sonarr", fulfiller)))
             .unwrap();
-        let requests = requests_on(Arc::clone(&db), plugins);
+        let bus = EventBus::new(Arc::clone(&db), plugins.clone(), ServerUrl::default());
+        let requests = Requests::new(Arc::clone(&db), bus.clone(), plugins);
         let season_1 = WantedSeasons {
             seasons: vec![dark_season(1)],
             ..dark()
@@ -2944,9 +3029,9 @@ mod tests {
         come_up(&requests, "sonarr").await;
         match_dark_episodes(&db, 1, &[1]).await;
         scan_dark(&db, &[1]).await;
-        let mut events = subscribe(&requests);
+        let mut events = Box::pin(bus.subscribe_as_admin(Filter::default()));
 
-        let any = requests.hand_off.poll_progress().await.unwrap();
+        let any = requests.progress.poll(INTERVAL).await.unwrap();
         let Happened::RequestProgress(progress) = next_happened(&mut events).await else {
             panic!("its progress was not published");
         };
@@ -2954,8 +3039,8 @@ mod tests {
         match_dark_episodes(&db, 1, &[2]).await;
         scan_dark(&db, &[1]).await;
         let batches = asked.batches().len();
-        let any_once_available = requests.hand_off.poll_progress().await.unwrap();
-        // `poll_progress` publishes before it returns, so anything it published is waiting here.
+        let any_once_available = requests.progress.poll(INTERVAL).await.unwrap();
+        // `poll` publishes before it returns, so anything it published is waiting here.
         let published_once_available =
             tokio::time::timeout(Duration::from_millis(100), events.next()).await;
         let available = requests.get(&ada(Permissions::ADMIN), id).await.unwrap();
