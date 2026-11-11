@@ -949,6 +949,9 @@ fn hls_output(mut command: tokio::process::Command, version: &str, dir: &Path, n
         .arg(dir.join("%d.m4s"))
         // The Server serves a playlist of its own, listing the whole Version up front.
         .arg(dir.join("ffmpeg.m3u8"))
+        // ffmpeg puts the init segment in the playlist's folder, which it finds by the last `/`
+        // alone, so on Windows it'd put it in its working folder instead.
+        .current_dir(dir)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())

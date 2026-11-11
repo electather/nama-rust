@@ -413,7 +413,12 @@ impl TestServer {
                 let path = Path::new(&added.path)
                     .strip_prefix(&library.folder)
                     .unwrap();
-                let relative = path.to_str().unwrap().to_owned();
+                // Joined with `/`, as the tests name files, whatever the OS's separator.
+                let relative = path
+                    .iter()
+                    .map(|part| part.to_str().unwrap())
+                    .collect::<Vec<_>>()
+                    .join("/");
                 items.entry(relative).or_insert(added.item_id);
             }
         }
