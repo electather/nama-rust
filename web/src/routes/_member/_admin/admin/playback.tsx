@@ -87,8 +87,8 @@ function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
         Hardware acceleration
       </h2>
       <p className="mt-2 max-w-prose text-pretty text-muted-foreground">
-        {whatHardwareIsFor(status)} The Server tests VAAPI, Intel QSV, NVIDIA NVENC and Apple
-        VideoToolbox when it starts, so restart it after adding a GPU.
+        {whatHardwareIsFor(status, canTranscode)} The Server tests VAAPI, Intel QSV, NVIDIA NVENC
+        and Apple VideoToolbox when it starts, so restart it after adding a GPU.
       </p>
       {hardware.length === 0 ? (
         <p className="mt-4 max-w-prose text-pretty">
@@ -125,14 +125,21 @@ function serverCanTranscode({ ffmpeg, ffprobe, hasLibx264 }: GetPlaybackStatusRe
   return ffmpeg !== undefined && ffprobe !== undefined && hasLibx264;
 }
 
-function whatHardwareIsFor(status: GetPlaybackStatusResponse) {
-  if (status.hardware.length === 0 || serverCanTranscode(status)) {
-    return "What Transcodes can run on besides software.";
-  }
+function whatHardwareIsFor(status: GetPlaybackStatusResponse, canTranscode: boolean) {
+  return status.hardware.length === 0 || canTranscode
+    ? "What Transcodes can run on besides software."
+    : `The hardware below passed its test, but no Transcode runs on it${untilTranscodesRun(status)}.`;
+}
+
+/** What the Server lacks before a Transcode runs, on hardware or in software. */
+function untilTranscodesRun({ ffprobe, hasLibx264 }: GetPlaybackStatusResponse) {
   // Hardware is listed only if the Server found ffmpeg, so ffprobe or libx264 is what's missing.
-  return status.ffprobe === undefined
-    ? "The hardware below passed its test, but no Transcode runs on it until the Server finds ffprobe."
-    : "The hardware below passed its test, but no Transcode runs on it, or in software, until the Server’s ffmpeg has libx264.";
+  if (ffprobe !== undefined) {
+    return ", or in software, until the Server’s ffmpeg has libx264";
+  }
+  return hasLibx264
+    ? " until the Server finds ffprobe"
+    : " until the Server finds ffprobe and its ffmpeg has libx264";
 }
 
 function ProgramRow({
