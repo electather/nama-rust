@@ -606,8 +606,8 @@ fn device_decoding(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
     }
 }
 
-/// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026), without libx264, no
-/// Transcode, and with it, a Transcode tone-maps HDR the Device can't show to SDR, if it can.
+/// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026); without libx264, no
+/// Transcode; and otherwise a Transcode tone-maps HDR the Device can't show to SDR, if it can.
 fn server_ffmpeg(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
     if !facts.ffmpeg {
         return Narrowing {
@@ -615,8 +615,8 @@ fn server_ffmpeg(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
             reason: "This Server lacks ffmpeg or ffprobe, so it can only Direct Play".to_owned(),
         };
     }
-    // ponytail: a Transcode on hardware needs no libx264, but its software fallback does; allow
-    // one there once a failed run there can't fall back to software.
+    // ponytail: a Transcode on hardware needs no libx264, but its fallback to software does;
+    // allow a Transcode on hardware once a failed hardware run can stop instead of falling back.
     if !facts.libx264 {
         return Narrowing {
             allows: BTreeSet::from([Method::DirectPlay, Method::Remux]),

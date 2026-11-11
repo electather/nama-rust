@@ -999,18 +999,18 @@ async fn serve(
     }
 }
 
-/// Whether ffmpeg has `named`, as `cell` keeps from `ask`'s first answer, or `false` while it
+/// Whether ffmpeg has `feature`, as `cell` keeps from `ask`'s first answer, or `false` while it
 /// can't say.
 async fn answered_once(
     cell: &tokio::sync::OnceCell<bool>,
-    named: &str,
+    feature: &str,
     ask: impl Future<Output = Result<bool, String>>,
 ) -> bool {
     // Only an answer is kept, so a check that timed out on a busy host is asked again.
     match cell.get_or_try_init(|| ask).await {
         Ok(&has) => has,
         Err(err) => {
-            tracing::warn!("could not ask ffmpeg whether it has {named}: {err}");
+            tracing::warn!("could not ask ffmpeg whether it has {feature}: {err}");
             false
         }
     }
