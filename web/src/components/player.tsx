@@ -61,9 +61,9 @@ export function Player(props: PlayerProps) {
     />
   );
   return (
-    // A plan at a new URL plays in a new `<video>`, so it starts where that plan does. ponytail: that one
+    // Each new plan plays in a new `<video>`, so it starts where that plan does. ponytail: that one
     // starts unmuted at full volume; carry those over if anyone minds.
-    <VideoPlayer key={plan.url} {...props} planned={planned} topBar={topBar} />
+    <VideoPlayer key={planned.asks} {...props} planned={planned} topBar={topBar} />
   );
 }
 

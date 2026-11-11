@@ -183,7 +183,8 @@ test("a remote default the Version already fits shows as Original", async () => 
 test("720p picked while the Server can’t Transcode keeps playing at Original, says so, and is forgotten", async () => {
   const asked: PlanPlaybackRequest[] = [];
   openApp(PLAYER, server(asked, { cantTranscode: true }));
-  await screen.findByLabelText("Alien");
+  const original = await screen.findByLabelText<HTMLVideoElement>("Alien");
+  playingAt(original, 754.25);
 
   openLimits();
   fireEvent.click(screen.getByRole("menuitemradio", { name: "720p" }));
@@ -191,6 +192,9 @@ test("720p picked while the Server can’t Transcode keeps playing at Original, 
   expect((await screen.findByRole("status")).textContent).toBe(
     "Can’t play at 720p here right now. Playback info says why.",
   );
+  // The ask paused the old `<video>`, and the plan Direct Plays from the same URL: a new one autoplays.
+  expect(screen.getByLabelText("Alien")).not.toBe(original);
+  expect(asked[1]?.startPositionMs).toBe(754_250n);
   expect(asked[1]?.playbackLimit).toBe(PLAYBACK_LIMIT_720P);
   expect(openLimits().map((item) => item.getAttribute("aria-checked"))).toEqual([
     "true",

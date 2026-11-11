@@ -31,6 +31,11 @@ interface Asking {
   subtitleTrack: number | undefined;
   /** What the User chose for this ask, which the plan may drop. */
   justChose: Choice;
+  /**
+   * How many times the player asked again, so each plan plays in a new `<video>`: one that keeps
+   * the last plan's URL, as Direct Play does when its choice is dropped, would stay paused.
+   */
+  asks: number;
 }
 
 /**
@@ -66,14 +71,23 @@ export function usePlaybackPlan({
     playbackLimit: PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED,
     subtitleTrack: undefined,
     justChose: {},
+    asks: 0,
   }));
   const { startPositionMs } = asking;
   const plan = usePlan(versionId, asking);
   const askFromHere = asker(setAsking, plan, startPositionMs);
   const subtitles = useSubtitleChoice(askFromHere, plan.subtitleTrack);
   const failing = useCantPlay(plan, asking, setAsking);
-  const { justChose } = asking;
-  return { plan, startPositionMs, justChose, ...failing, ...choosers(askFromHere), ...subtitles };
+  const { justChose, asks } = asking;
+  return {
+    plan,
+    startPositionMs,
+    justChose,
+    asks,
+    ...failing,
+    ...choosers(askFromHere),
+    ...subtitles,
+  };
 }
 
 /**
@@ -104,6 +118,7 @@ function useCantPlay(
                 ...honoured(plan, before),
                 failedMethods: [...before.failedMethods, plan.method],
                 startPositionMs: resumeFrom,
+                asks: before.asks + 1,
               },
         );
     },
@@ -152,6 +167,7 @@ function asker(
       ...choice,
       justChose: choice,
       startPositionMs: resumeFrom,
+      asks: before.asks + 1,
     }));
   };
 }
