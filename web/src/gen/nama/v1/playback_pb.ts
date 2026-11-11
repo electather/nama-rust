@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/playback.proto.
  */
 export const file_nama_v1_playback: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIiYKE1N0b3BQbGF5YmFja1JlcXVlc3QSDwoHcGxhbl9pZBgBIAEoBCIWChRTdG9wUGxheWJhY2tSZXNwb25zZSKxAgoTUGxhblBsYXliYWNrUmVxdWVzdBISCgp2ZXJzaW9uX2lkGAEgASgDEhkKEXN0YXJ0X3Bvc2l0aW9uX21zGAIgASgEEhgKC2F1ZGlvX3RyYWNrGAMgASgNSACIAQESGwoOc3VidGl0bGVfdHJhY2sYBCABKA1IAYgBARIuCg5wbGF5YmFja19saW1pdBgFIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIwCg9kZXZpY2VfZGVjb2RpbmcYBiABKAsyFy5uYW1hLnYxLkRldmljZURlY29kaW5nEi8KDmZhaWxlZF9tZXRob2RzGAcgAygOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIm0KDkRldmljZURlY29kaW5nEhUKDWNvbnRlbnRfdHlwZXMYASADKAkSCwoDaGRyGAIgASgIEhIKCm5hdGl2ZV9obHMYAyABKAgSCwoDbXNlGAQgASgIEhYKDmF1ZGlvX2NoYW5uZWxzGAUgASgNIjsKFFBsYW5QbGF5YmFja1Jlc3BvbnNlEiMKBHBsYW4YASABKAsyFS5uYW1hLnYxLlBsYXliYWNrUGxhbiKYAwoMUGxheWJhY2tQbGFuEicKBm1ldGhvZBgBIAEoDjIXLm5hbWEudjEuUGxheWJhY2tNZXRob2QSCwoDdXJsGAIgASgJEh4KBnRyYWNrcxgDIAMoCzIOLm5hbWEudjEuVHJhY2sSDwoHcmVhc29ucxgEIAMoCRIsCglzdWJ0aXRsZXMYBSADKAsyGS5uYW1hLnYxLlBsYXliYWNrU3VidGl0bGUSCgoCaWQYBiABKAQSLgoOcGxheWJhY2tfbGltaXQYByABKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXQSGAoLYXVkaW9fdHJhY2sYCCABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgJIAEoDUgBiAEBEhQKDGF1ZGlvX3RyYWNrcxgKIAMoDRIWCg5idXJuX2luX3RyYWNrcxgLIAMoDRIvCg9wbGF5YmFja19saW1pdHMYDCADKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXRCDgoMX2F1ZGlvX3RyYWNrQhEKD19zdWJ0aXRsZV90cmFjayI+ChBQbGF5YmFja1N1YnRpdGxlEh0KBXRyYWNrGAEgASgLMg4ubmFtYS52MS5UcmFjaxILCgN1cmwYAiABKAkqmAEKDVBsYXliYWNrTGltaXQSHgoaUExBWUJBQ0tfTElNSVRfVU5TUEVDSUZJRUQQABIbChdQTEFZQkFDS19MSU1JVF9PUklHSU5BTBABEhgKFFBMQVlCQUNLX0xJTUlUXzEwODBQEAISFwoTUExBWUJBQ0tfTElNSVRfNzIwUBADEhcKE1BMQVlCQUNLX0xJTUlUXzQ4MFAQBCqMAQoOUGxheWJhY2tNZXRob2QSHwobUExBWUJBQ0tfTUVUSE9EX1VOU1BFQ0lGSUVEEAASHwobUExBWUJBQ0tfTUVUSE9EX0RJUkVDVF9QTEFZEAESGQoVUExBWUJBQ0tfTUVUSE9EX1JFTVVYEAISHQoZUExBWUJBQ0tfTUVUSE9EX1RSQU5TQ09ERRADMrUBCg9QbGF5YmFja1NlcnZpY2USUAoMUGxhblBsYXliYWNrEhwubmFtYS52MS5QbGFuUGxheWJhY2tSZXF1ZXN0Gh0ubmFtYS52MS5QbGFuUGxheWJhY2tSZXNwb25zZSIDkAICElAKDFN0b3BQbGF5YmFjaxIcLm5hbWEudjEuU3RvcFBsYXliYWNrUmVxdWVzdBodLm5hbWEudjEuU3RvcFBsYXliYWNrUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_browse]);
+  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIiYKE1N0b3BQbGF5YmFja1JlcXVlc3QSDwoHcGxhbl9pZBgBIAEoBCIWChRTdG9wUGxheWJhY2tSZXNwb25zZSKxAgoTUGxhblBsYXliYWNrUmVxdWVzdBISCgp2ZXJzaW9uX2lkGAEgASgDEhkKEXN0YXJ0X3Bvc2l0aW9uX21zGAIgASgEEhgKC2F1ZGlvX3RyYWNrGAMgASgNSACIAQESGwoOc3VidGl0bGVfdHJhY2sYBCABKA1IAYgBARIuCg5wbGF5YmFja19saW1pdBgFIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIwCg9kZXZpY2VfZGVjb2RpbmcYBiABKAsyFy5uYW1hLnYxLkRldmljZURlY29kaW5nEi8KDmZhaWxlZF9tZXRob2RzGAcgAygOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIukBCg5EZXZpY2VEZWNvZGluZxImCgpjb250YWluZXJzGAYgAygOMhIubmFtYS52MS5Db250YWluZXISKQoMdmlkZW9fY29kZWNzGAcgAygOMhMubmFtYS52MS5WaWRlb0NvZGVjEikKDGF1ZGlvX2NvZGVjcxgIIAMoDjITLm5hbWEudjEuQXVkaW9Db2RlYxILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgSFgoOYXVkaW9fY2hhbm5lbHMYBSABKA1KBAgBEAJSDWNvbnRlbnRfdHlwZXMiOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuIpgDCgxQbGF5YmFja1BsYW4SJwoGbWV0aG9kGAEgASgOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZBILCgN1cmwYAiABKAkSHgoGdHJhY2tzGAMgAygLMg4ubmFtYS52MS5UcmFjaxIPCgdyZWFzb25zGAQgAygJEiwKCXN1YnRpdGxlcxgFIAMoCzIZLm5hbWEudjEuUGxheWJhY2tTdWJ0aXRsZRIKCgJpZBgGIAEoBBIuCg5wbGF5YmFja19saW1pdBgHIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIYCgthdWRpb190cmFjaxgIIAEoDUgAiAEBEhsKDnN1YnRpdGxlX3RyYWNrGAkgASgNSAGIAQESFAoMYXVkaW9fdHJhY2tzGAogAygNEhYKDmJ1cm5faW5fdHJhY2tzGAsgAygNEi8KD3BsYXliYWNrX2xpbWl0cxgMIAMoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIj4KEFBsYXliYWNrU3VidGl0bGUSHQoFdHJhY2sYASABKAsyDi5uYW1hLnYxLlRyYWNrEgsKA3VybBgCIAEoCSqYAQoNUGxheWJhY2tMaW1pdBIeChpQTEFZQkFDS19MSU1JVF9VTlNQRUNJRklFRBAAEhsKF1BMQVlCQUNLX0xJTUlUX09SSUdJTkFMEAESGAoUUExBWUJBQ0tfTElNSVRfMTA4MFAQAhIXChNQTEFZQkFDS19MSU1JVF83MjBQEAMSFwoTUExBWUJBQ0tfTElNSVRfNDgwUBAEKmUKCUNvbnRhaW5lchIZChVDT05UQUlORVJfVU5TUEVDSUZJRUQQABIRCg1DT05UQUlORVJfTVA0EAESEgoOQ09OVEFJTkVSX1dFQk0QAhIWChJDT05UQUlORVJfTUFUUk9TS0EQAyqUAQoKVmlkZW9Db2RlYxIbChdWSURFT19DT0RFQ19VTlNQRUNJRklFRBAAEhQKEFZJREVPX0NPREVDX0gyNjQQARIUChBWSURFT19DT0RFQ19IRVZDEAISEwoPVklERU9fQ09ERUNfVlA4EAMSEwoPVklERU9fQ09ERUNfVlA5EAQSEwoPVklERU9fQ09ERUNfQVYxEAUq7wEKCkF1ZGlvQ29kZWMSGwoXQVVESU9fQ09ERUNfVU5TUEVDSUZJRUQQABITCg9BVURJT19DT0RFQ19BQUMQARITCg9BVURJT19DT0RFQ19NUDMQAhITCg9BVURJT19DT0RFQ19BQzMQAxIUChBBVURJT19DT0RFQ19FQUMzEAQSFAoQQVVESU9fQ09ERUNfT1BVUxAFEhYKEkFVRElPX0NPREVDX1ZPUkJJUxAGEhQKEEFVRElPX0NPREVDX0ZMQUMQBxITCg9BVURJT19DT0RFQ19EVFMQCBIWChJBVURJT19DT0RFQ19UUlVFSEQQCSqMAQoOUGxheWJhY2tNZXRob2QSHwobUExBWUJBQ0tfTUVUSE9EX1VOU1BFQ0lGSUVEEAASHwobUExBWUJBQ0tfTUVUSE9EX0RJUkVDVF9QTEFZEAESGQoVUExBWUJBQ0tfTUVUSE9EX1JFTVVYEAISHQoZUExBWUJBQ0tfTUVUSE9EX1RSQU5TQ09ERRADMrUBCg9QbGF5YmFja1NlcnZpY2USUAoMUGxhblBsYXliYWNrEhwubmFtYS52MS5QbGFuUGxheWJhY2tSZXF1ZXN0Gh0ubmFtYS52MS5QbGFuUGxheWJhY2tSZXNwb25zZSIDkAICElAKDFN0b3BQbGF5YmFjaxIcLm5hbWEudjEuU3RvcFBsYXliYWNrUmVxdWVzdBodLm5hbWEudjEuU3RvcFBsYXliYWNrUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_browse]);
 
 /**
  * @generated from message nama.v1.StopPlaybackRequest
@@ -119,12 +119,25 @@ export const PlanPlaybackRequestSchema: GenMessage<PlanPlaybackRequest> = /*@__P
  */
 export type DeviceDecoding = Message<"nama.v1.DeviceDecoding"> & {
   /**
-   * The media types it can decode, with their codecs, such as
-   * `video/mp4; codecs="avc1.640028"`.
+   * The containers it can play.
    *
-   * @generated from field: repeated string content_types = 1;
+   * @generated from field: repeated nama.v1.Container containers = 6;
    */
-  contentTypes: string[];
+  containers: Container[];
+
+  /**
+   * The video codecs it can decode.
+   *
+   * @generated from field: repeated nama.v1.VideoCodec video_codecs = 7;
+   */
+  videoCodecs: VideoCodec[];
+
+  /**
+   * The audio codecs it can decode.
+   *
+   * @generated from field: repeated nama.v1.AudioCodec audio_codecs = 8;
+   */
+  audioCodecs: AudioCodec[];
 
   /**
    * Whether its display shows HDR.
@@ -367,6 +380,166 @@ export const PlaybackLimitSchema: GenEnum<PlaybackLimit> = /*@__PURE__*/
   enumDesc(file_nama_v1_playback, 0);
 
 /**
+ * A container the Server knows whether a Device plays.
+ *
+ * @generated from enum nama.v1.Container
+ */
+export const Container = {
+  /**
+   * @generated from enum value: CONTAINER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * @generated from enum value: CONTAINER_MP4 = 1;
+   */
+  MP4: 1,
+
+  /**
+   * @generated from enum value: CONTAINER_WEBM = 2;
+   */
+  WEBM: 2,
+
+  /**
+   * @generated from enum value: CONTAINER_MATROSKA = 3;
+   */
+  MATROSKA: 3,
+} as const;
+
+/**
+ * A container the Server knows whether a Device plays.
+ *
+ * @generated from enum nama.v1.Container
+ */
+export type Container = (typeof Container)[keyof typeof Container] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.Container.
+ */
+export const ContainerSchema: GenEnum<Container> = /*@__PURE__*/
+  enumDesc(file_nama_v1_playback, 1);
+
+/**
+ * A video codec the Server knows whether a Device decodes.
+ *
+ * @generated from enum nama.v1.VideoCodec
+ */
+export const VideoCodec = {
+  /**
+   * @generated from enum value: VIDEO_CODEC_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * @generated from enum value: VIDEO_CODEC_H264 = 1;
+   */
+  H264: 1,
+
+  /**
+   * @generated from enum value: VIDEO_CODEC_HEVC = 2;
+   */
+  HEVC: 2,
+
+  /**
+   * @generated from enum value: VIDEO_CODEC_VP8 = 3;
+   */
+  VP8: 3,
+
+  /**
+   * @generated from enum value: VIDEO_CODEC_VP9 = 4;
+   */
+  VP9: 4,
+
+  /**
+   * @generated from enum value: VIDEO_CODEC_AV1 = 5;
+   */
+  AV1: 5,
+} as const;
+
+/**
+ * A video codec the Server knows whether a Device decodes.
+ *
+ * @generated from enum nama.v1.VideoCodec
+ */
+export type VideoCodec = (typeof VideoCodec)[keyof typeof VideoCodec] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.VideoCodec.
+ */
+export const VideoCodecSchema: GenEnum<VideoCodec> = /*@__PURE__*/
+  enumDesc(file_nama_v1_playback, 2);
+
+/**
+ * An audio codec the Server knows whether a Device decodes.
+ *
+ * @generated from enum nama.v1.AudioCodec
+ */
+export const AudioCodec = {
+  /**
+   * @generated from enum value: AUDIO_CODEC_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_AAC = 1;
+   */
+  AAC: 1,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_MP3 = 2;
+   */
+  MP3: 2,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_AC3 = 3;
+   */
+  AC3: 3,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_EAC3 = 4;
+   */
+  EAC3: 4,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_OPUS = 5;
+   */
+  OPUS: 5,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_VORBIS = 6;
+   */
+  VORBIS: 6,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_FLAC = 7;
+   */
+  FLAC: 7,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_DTS = 8;
+   */
+  DTS: 8,
+
+  /**
+   * @generated from enum value: AUDIO_CODEC_TRUEHD = 9;
+   */
+  TRUEHD: 9,
+} as const;
+
+/**
+ * An audio codec the Server knows whether a Device decodes.
+ *
+ * @generated from enum nama.v1.AudioCodec
+ */
+export type AudioCodec = (typeof AudioCodec)[keyof typeof AudioCodec] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.AudioCodec.
+ */
+export const AudioCodecSchema: GenEnum<AudioCodec> = /*@__PURE__*/
+  enumDesc(file_nama_v1_playback, 3);
+
+/**
  * How a Playback Plan plays a Version.
  *
  * @generated from enum nama.v1.PlaybackMethod
@@ -413,7 +586,7 @@ export type PlaybackMethod = (typeof PlaybackMethod)[keyof typeof PlaybackMethod
  * Describes the enum nama.v1.PlaybackMethod.
  */
 export const PlaybackMethodSchema: GenEnum<PlaybackMethod> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 1);
+  enumDesc(file_nama_v1_playback, 4);
 
 /**
  * How the signed-in caller's Device plays a Version.

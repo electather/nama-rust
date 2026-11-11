@@ -1043,11 +1043,27 @@ impl ::serde::Serialize for PlanPlaybackRequestOwnedView {
 /// What a Device can decode.
 #[derive(Clone, Debug, Default)]
 pub struct DeviceDecodingView<'a> {
-    /// The media types it can decode, with their codecs, such as
-    /// `video/mp4; codecs="avc1.640028"`.
+    /// The containers it can play.
     ///
-    /// Field 1: `content_types`
-    pub content_types: ::buffa::RepeatedView<'a, &'a str>,
+    /// Field 6: `containers`
+    pub containers: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::Container>,
+    >,
+    /// The video codecs it can decode.
+    ///
+    /// Field 7: `video_codecs`
+    pub video_codecs: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::VideoCodec>,
+    >,
+    /// The audio codecs it can decode.
+    ///
+    /// Field 8: `audio_codecs`
+    pub audio_codecs: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::AudioCodec>,
+    >,
     /// Whether its display shows HDR.
     ///
     /// Field 2: `hdr`
@@ -1125,16 +1141,92 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
                 )?;
                 view.audio_channels = ::buffa::types::decode_uint32(&mut cur)?;
             }
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let __elem = ::buffa::types::borrow_str(&mut cur)?;
-                ctx.register_element_memory(
-                    ::buffa::__private::element_footprint(&__elem),
-                )?;
-                view.content_types.push(__elem);
+            6u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.containers.reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.containers
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.containers
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            7u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.video_codecs.reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.video_codecs
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.video_codecs
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            8u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.audio_codecs.reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.audio_codecs
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.audio_codecs
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -1158,7 +1250,9 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::DeviceDecoding {
-            content_types: self.content_types.iter().map(|s| s.to_string()).collect(),
+            containers: self.containers.to_vec(),
+            video_codecs: self.video_codecs.to_vec(),
+            audio_codecs: self.audio_codecs.to_vec(),
             hdr: self.hdr,
             native_hls: self.native_hls,
             mse: self.mse,
@@ -1174,9 +1268,6 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        for v in &self.content_types {
-            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
-        }
         if self.hdr {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
@@ -1190,6 +1281,30 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
             size
                 += 1u64 + ::buffa::types::uint32_encoded_len(self.audio_channels) as u64;
         }
+        if !self.containers.is_empty() {
+            let payload: u64 = self
+                .containers
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.video_codecs.is_empty() {
+            let payload: u64 = self
+                .video_codecs
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.audio_codecs.is_empty() {
+            let payload: u64 = self
+                .audio_codecs
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1201,9 +1316,6 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        for v in &self.content_types {
-            ::buffa::types::put_string_field(1u32, v, buf);
-        }
         if self.hdr {
             ::buffa::types::put_bool_field(2u32, self.hdr, buf);
         }
@@ -1215,6 +1327,39 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
         }
         if self.audio_channels != 0u32 {
             ::buffa::types::put_uint32_field(5u32, self.audio_channels, buf);
+        }
+        if !self.containers.is_empty() {
+            let payload: u64 = self
+                .containers
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(6u32, payload, buf);
+            for v in &self.containers {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if !self.video_codecs.is_empty() {
+            let payload: u64 = self
+                .video_codecs
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(7u32, payload, buf);
+            for v in &self.video_codecs {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if !self.audio_codecs.is_empty() {
+            let payload: u64 = self
+                .audio_codecs
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(8u32, payload, buf);
+            for v in &self.audio_codecs {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1237,8 +1382,26 @@ impl<'__a> ::serde::Serialize for DeviceDecodingView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
-        if !self.content_types.is_empty() {
-            __map.serialize_entry("contentTypes", &*self.content_types)?;
+        if !self.containers.is_empty() {
+            __map
+                .serialize_entry(
+                    "containers",
+                    &::buffa::json_helpers::EnumSeqJson(&self.containers),
+                )?;
+        }
+        if !self.video_codecs.is_empty() {
+            __map
+                .serialize_entry(
+                    "videoCodecs",
+                    &::buffa::json_helpers::EnumSeqJson(&self.video_codecs),
+                )?;
+        }
+        if !self.audio_codecs.is_empty() {
+            __map
+                .serialize_entry(
+                    "audioCodecs",
+                    &::buffa::json_helpers::EnumSeqJson(&self.audio_codecs),
+                )?;
         }
         if self.hdr {
             __map.serialize_entry("hdr", &self.hdr)?;
@@ -1349,13 +1512,32 @@ impl DeviceDecodingOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The media types it can decode, with their codecs, such as
-    /// `video/mp4; codecs="avc1.640028"`.
+    /// The containers it can play.
     ///
-    /// Field 1: `content_types`
+    /// Field 6: `containers`
     #[must_use]
-    pub fn content_types(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
-        &self.0.reborrow().content_types
+    pub fn containers(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::Container>> {
+        &self.0.reborrow().containers
+    }
+    /// The video codecs it can decode.
+    ///
+    /// Field 7: `video_codecs`
+    #[must_use]
+    pub fn video_codecs(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::VideoCodec>> {
+        &self.0.reborrow().video_codecs
+    }
+    /// The audio codecs it can decode.
+    ///
+    /// Field 8: `audio_codecs`
+    #[must_use]
+    pub fn audio_codecs(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::AudioCodec>> {
+        &self.0.reborrow().audio_codecs
     }
     /// Whether its display shows HDR.
     ///

@@ -28,16 +28,16 @@ use connectrpc::{
 };
 use http::{fetch, fetch_range};
 use nama_proto::nama::v1::{
-    AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry,
-    DeleteLibraryRequest, DeviceDecoding, Episode, EventType, ExternalId, GetMovieRequest,
-    GetShowRequest, GetShowResponse, HdrFormat, LibraryKind, LibraryServiceClient,
+    AudioCodec, AudioTrack, BrowseServiceClient, ClearMatchRequest, Container,
+    ContinueWatchingEntry, DeleteLibraryRequest, DeviceDecoding, Episode, EventType, ExternalId,
+    GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind, LibraryServiceClient,
     ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
     MatchServiceClient, Movie, PlanPlaybackRequest, Playback, PlaybackEnded, PlaybackLimit,
     PlaybackMethod, PlaybackPlan, PlaybackServiceClient, PlaybackSettings, PlaybackStarted,
     ProbingFinished, RefusalReason, ReportProgressRequest, SearchLibrariesRequest,
     SearchLibrariesResponse, Season, ServerServiceClient, SetMatchRequest, SetPlayedRequest, Show,
-    ShowSeason, StopPlaybackRequest, Track, UpdatePlaybackSettingsRequest, Version, VideoTrack,
-    WatchState, WatchStateServiceClient, continue_watching_entry, event, external_id,
+    ShowSeason, StopPlaybackRequest, Track, UpdatePlaybackSettingsRequest, Version, VideoCodec,
+    VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry, event, external_id,
     set_played_request::Target,
 };
 use nama_server::{
@@ -1467,13 +1467,10 @@ fn admins_playback(version: i64, plan: PlaybackPlan) -> Playback {
 /// What Chrome says it decodes, in part: H.264 and AAC in MP4, and HLS through Media Source
 /// Extensions.
 fn chrome() -> DeviceDecoding {
-    let content_types = [
-        "video/mp4",
-        r#"video/mp4; codecs="avc1.640028""#,
-        r#"audio/mp4; codecs="mp4a.40.2""#,
-    ];
     DeviceDecoding {
-        content_types: content_types.map(str::to_owned).to_vec(),
+        containers: vec![Container::CONTAINER_MP4.into()],
+        video_codecs: vec![VideoCodec::VIDEO_CODEC_H264.into()],
+        audio_codecs: vec![AudioCodec::AUDIO_CODEC_AAC.into()],
         mse: true,
         ..Default::default()
     }
