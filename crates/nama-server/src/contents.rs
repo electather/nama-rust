@@ -237,7 +237,7 @@ impl<V> Movie<V> {
 /// A stored file that a Movie or Episode is available in.
 #[derive(Debug, Clone)]
 pub(crate) struct Version {
-    /// Its file as stored now: its Tracks count only if probing read it at this size and time.
+    /// Its file as stored now.
     pub(crate) file: Stored,
     pub(crate) path: String,
 }

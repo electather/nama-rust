@@ -27,6 +27,7 @@ pub(crate) type Episode = contents::Episode<Version>;
 /// A stored file that a Movie or Episode is available in, with its Tracks.
 #[derive(Debug, Clone)]
 pub(crate) struct Version {
+    /// Its file as stored now: Tracks count only if probing read it at this size and time.
     pub(crate) file: Stored,
     pub(crate) path: String,
     /// What probing read from the file as it is now: none if it hasn't.
@@ -410,7 +411,6 @@ mod tests {
             .unwrap();
     }
 
-    /// TMDB's metadata of the title `title`, which has the id `tmdb`.
     fn tmdb_metadata(title: &str, tmdb: i64) -> Metadata {
         Metadata {
             plugin: PluginId::from_static("tmdb"),
@@ -450,7 +450,6 @@ mod tests {
         library
     }
 
-    /// The one file stored in `library`, as stored now.
     async fn only_file(db: &Arc<Database>, library: i64) -> Stored {
         let stored = Contents::new(Arc::clone(db)).stored(library).await.unwrap();
         *stored.values().next().unwrap()
