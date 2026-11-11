@@ -2190,6 +2190,16 @@ pub struct GetPlaybackStatusResponseView<'a> {
         'a,
         super::super::__buffa::view::FoundHardwareView<'a>,
     >,
+    /// Whether ffmpeg has libx264, which a Transcode encodes with in software. Without it no
+    /// Transcode runs, even on hardware. False when the Server can't use ffmpeg.
+    ///
+    /// Field 6: `has_libx264`
+    pub has_libx264: bool,
+    /// Whether ffmpeg has zscale, which tone-maps HDR to SDR in software. Without it, a Transcode
+    /// tone-maps only on hardware whose `tone_maps` is set. False when the Server can't use ffmpeg.
+    ///
+    /// Field 7: `has_zscale`
+    pub has_zscale: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetPlaybackStatusResponseView<'a> {
@@ -2278,6 +2288,20 @@ impl<'a> ::buffa::MessageView<'a> for GetPlaybackStatusResponseView<'a> {
                 )?;
                 view.ffprobe_problem = ::buffa::types::borrow_str(&mut cur)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.has_libx264 = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.has_zscale = ::buffa::types::decode_bool(&mut cur)?;
+            }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2351,6 +2375,8 @@ impl<'a> ::buffa::MessageView<'a> for GetPlaybackStatusResponseView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            has_libx264: self.has_libx264,
+            has_zscale: self.has_zscale,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2396,6 +2422,12 @@ impl<'a> ::buffa::ViewEncode<'a> for GetPlaybackStatusResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.has_libx264 {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.has_zscale {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2437,6 +2469,12 @@ impl<'a> ::buffa::ViewEncode<'a> for GetPlaybackStatusResponseView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        if self.has_libx264 {
+            ::buffa::types::put_bool_field(6u32, self.has_libx264, buf);
+        }
+        if self.has_zscale {
+            ::buffa::types::put_bool_field(7u32, self.has_zscale, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -2476,6 +2514,12 @@ impl<'__a> ::serde::Serialize for GetPlaybackStatusResponseView<'__a> {
         }
         if !self.hardware.is_empty() {
             __map.serialize_entry("hardware", &*self.hardware)?;
+        }
+        if self.has_libx264 {
+            __map.serialize_entry("hasLibx264", &self.has_libx264)?;
+        }
+        if self.has_zscale {
+            __map.serialize_entry("hasZscale", &self.has_zscale)?;
         }
         __map.end()
     }
@@ -2614,6 +2658,22 @@ impl GetPlaybackStatusResponseOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::FoundHardwareView<'_>> {
         &self.0.reborrow().hardware
+    }
+    /// Whether ffmpeg has libx264, which a Transcode encodes with in software. Without it no
+    /// Transcode runs, even on hardware. False when the Server can't use ffmpeg.
+    ///
+    /// Field 6: `has_libx264`
+    #[must_use]
+    pub fn has_libx264(&self) -> bool {
+        self.0.reborrow().has_libx264
+    }
+    /// Whether ffmpeg has zscale, which tone-maps HDR to SDR in software. Without it, a Transcode
+    /// tone-maps only on hardware whose `tone_maps` is set. False when the Server can't use ffmpeg.
+    ///
+    /// Field 7: `has_zscale`
+    #[must_use]
+    pub fn has_zscale(&self) -> bool {
+        self.0.reborrow().has_zscale
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetPlaybackStatusResponseView<'static>>>

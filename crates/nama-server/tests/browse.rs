@@ -6,6 +6,9 @@
 mod http;
 #[path = "support/refused.rs"]
 mod refused;
+#[cfg(unix)]
+#[path = "support/script.rs"]
+mod script;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
@@ -38,9 +41,11 @@ use nama_proto::nama::v1::{
 };
 use nama_server::{
     config::Config,
-    ffmpeg::{self, Ffmpeg, FoundProgram},
+    ffmpeg::{self, Ffmpeg},
 };
 use refused::assert_refused;
+#[cfg(unix)]
+use script::script;
 use server::{
     Builder, Library, SignedIn, TestServer, WAIT, subscribe,
     tmdb::{ALIEN, DARK, THE_OFFICE as THE_OFFICE_US},
@@ -1169,24 +1174,6 @@ EOF
     Ffmpeg {
         ffmpeg: Ok(script(bin, "ffmpeg", &ffmpeg)),
         ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
-    }
-}
-
-/// The program `name`, the shell script `body` written to `bin`.
-#[cfg(unix)]
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-fn script(bin: &Path, name: &str, body: &str) -> FoundProgram {
-    use std::os::unix::fs::PermissionsExt;
-
-    let path = bin.join(name);
-    fs::write(&path, body).unwrap();
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-    FoundProgram {
-        path,
-        version: "7.1.1".to_owned(),
     }
 }
 
