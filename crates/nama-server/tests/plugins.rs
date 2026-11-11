@@ -24,7 +24,7 @@ use tokio::sync::mpsc::{self, error::TryRecvError};
 
 const WAIT: Duration = Duration::from_secs(5);
 
-/// What `log` waits for, as the Server fixture it was written for has it.
+/// Stands in for `support/server.rs`, whose `WAIT` is the longest `log` waits.
 mod server {
     pub(crate) const WAIT: std::time::Duration = super::WAIT;
 }
@@ -966,16 +966,34 @@ async fn an_answer_names_the_plugin_that_gave_it_and_that_plugin_can_be_asked_ag
         .unwrap();
     let en = PluginId::from_static("en");
 
-    let providers = registry.providers::<dyn Greeter>();
     let first = registry.ask_first(greeting).await;
     let from_en = registry.ask(&en, greeting).await;
     registry.disable(&en);
     let from_disabled = registry.ask(&en, greeting).await;
 
-    assert_eq!(providers, [en, PluginId::from_static("fr")].into());
     assert_eq!(first, Some(greeted("fr", "bonjour")));
     assert_eq!(from_en, Some(greeted("en", "hello")));
     assert_eq!(from_disabled, None);
+}
+
+#[test]
+fn the_plugins_providing_a_capability_are_the_enabled_ones_that_provide_it() {
+    let registry = Registry::new();
+    registry
+        .enable(greeter("en", Priority::DEFAULT, Greeting("hello")))
+        .unwrap();
+    registry
+        .enable(greeter("fr", Priority::EARLY, Greeting("bonjour")))
+        .unwrap();
+    registry
+        .enable(failing("fetcher", || "unused".into()))
+        .unwrap();
+    registry.disable(&PluginId::from_static("fr"));
+
+    assert_eq!(
+        registry.providers::<dyn Greeter>(),
+        [PluginId::from_static("en")].into()
+    );
 }
 
 #[tokio::test(start_paused = true)]
