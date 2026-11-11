@@ -120,6 +120,8 @@ impl Scanner {
                 () = sleep_until(next_due) => {
                     let now = Instant::now();
                     for (library, _) in due.extract_if(|_, at| *at <= now) {
+                        #[cfg(test)]
+                        eprintln!("DEBUG {:?} queue {library}", std::time::SystemTime::now());
                         self.queue(library);
                     }
                 }
@@ -199,6 +201,8 @@ fn send_changed_libraries(
     changes: &mpsc::UnboundedSender<i64>,
     event: notify::Result<Event>,
 ) {
+    #[cfg(test)]
+    eprintln!("DEBUG {:?} event {event:?}", std::time::SystemTime::now());
     let event = match event {
         // Probing opens files, which changes nothing.
         Ok(event) if event.kind.is_access() => return,

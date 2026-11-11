@@ -1064,10 +1064,12 @@ mod tests {
         for _ in 0..5 {
             file.write_all(&[0; 1024]).unwrap();
             file.sync_all().unwrap();
+            eprintln!("DEBUG {:?} wrote", std::time::SystemTime::now());
             tokio::time::sleep(QUIET / 5).await;
         }
         drop(file);
         wait_for_files(&media, &["Alien (1979).mkv"]).await;
+        eprintln!("DEBUG {:?} found", std::time::SystemTime::now());
         tokio::time::sleep(QUIET * 2).await;
 
         let scans = super::lock(&media.scanner.inner.started)[&media.library];
