@@ -57,7 +57,7 @@ use super::{Method, Playing, StartedPlan, direct_play_url, method_to_proto, reas
 use crate::{
     contents::Contents,
     events::{EventBus, event},
-    ffmpeg::{Ffmpeg, FromCut, Keyframe, Remux, Transcode, hls_init},
+    ffmpeg::{Ffmpeg, FromCut, Keyframe, Remux, Transcode, hls_init, hls_init_from},
     probing::{self, ProbeError, Probing},
     server_settings::PlaybackSettings,
     tracks::track_to_proto,
@@ -720,7 +720,7 @@ impl Running {
                 Some(n) => {
                     n < still_writing_from && self.timeline.keyframe_ms(n + 1) < keep_from_ms
                 }
-                None => init_number(&name).is_some_and(|from| from != run.from),
+                None => hls_init_from(&name).is_some_and(|from| from != run.from),
             };
             // Going on past one, which Windows refuses while a request reads it.
             if behind && let Err(err) = tokio::fs::remove_file(entry.path()).await {
@@ -985,14 +985,6 @@ fn keyframe_number(name: &str) -> Option<usize> {
     name.strip_suffix(".m4s")?.parse().ok()
 }
 
-/// The keyframe the run whose init file is named `name` started at, if it's one.
-fn init_number(name: &str) -> Option<usize> {
-    name.strip_prefix("init-")?
-        .strip_suffix(".mp4")?
-        .parse()
-        .ok()
-}
-
 /// Logs why ffmpeg, running for the plan `plan`, failed, if it did, and says whether it did.
 fn log_failure(output: io::Result<Output>, plan: u64) -> bool {
     match output {
@@ -1078,8 +1070,8 @@ mod tests {
     };
 
     use super::{
-        FallbackRun, Method, POLL_EVERY, Running, RunningPlans, Runs, Timeline, lock,
-        sweep_leftovers,
+        FallbackRun, Method, POLL_EVERY, Running, RunningPlans, Runs, Timeline, keyframe_number,
+        lock, sweep_leftovers,
     };
     use crate::{
         contents::Contents,
@@ -1490,10 +1482,7 @@ mod tests {
     fn keyframes_left(data: &Path, id: u64) -> Vec<usize> {
         let dir = data.join("transcodes").join(format!("nama-plan-{id}"));
         let mut left: Vec<usize> = (fs::read_dir(dir).unwrap())
-            .filter_map(|entry| {
-                let name = entry.unwrap().file_name().into_string().unwrap();
-                name.strip_suffix(".m4s")?.parse().ok()
-            })
+            .filter_map(|entry| keyframe_number(&entry.unwrap().file_name().into_string().unwrap()))
             .collect();
         left.sort_unstable();
         left
