@@ -1,28 +1,35 @@
 //! The Server's Libraries: `nama.v1.LibraryService`.
 
+use std::path::Path;
+
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
     self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
-    DeleteLibraryResponse, GetLibraryRequest, GetLibraryResponse, LibraryKind, LibraryService,
-    ListLibrariesRequest, ListLibrariesResponse, Permission, RefusalReason, ScanLibraryRequest,
-    ScanLibraryResponse, UpdateLibraryRequest, UpdateLibraryResponse,
+    DeleteLibraryResponse, DeleteMediaRequest, DeleteMediaResponse, FileNotDeleted,
+    GetLibraryRequest, GetLibraryResponse, LibraryKind, LibraryService, ListLibrariesRequest,
+    ListLibrariesResponse, MediaFile, MediaToDelete, Permission, PreviewDeleteMediaRequest,
+    PreviewDeleteMediaResponse, RefusalReason, ScanLibraryRequest, ScanLibraryResponse,
+    UpdateLibraryRequest, UpdateLibraryResponse, media_to_delete,
 };
 
 use crate::{
+    browse::{Browse, ToDelete},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
-    scanner::Scanner,
+    scanner::{self, Deleted, Scanner},
 };
 
-use super::{caller, database_failed, refuse, unknown_enum_value};
+use super::{caller, database_failed, refuse, required_id, unknown_enum_value};
 
 /// `nama.v1.LibraryService`: managing the Server's Libraries. Needs `PERMISSION_MANAGE_LIBRARIES`,
 /// which [`require_access`](super::require_access) enforces, except listing them, which any
-/// signed-in User may do to browse.
+/// signed-in User may do to browse, and deleting media, which needs `PERMISSION_DELETE_MEDIA`.
 pub(super) struct LibraryServiceHandler {
     /// Only reads (see AGENTS.md, "One path for Library changes").
     pub(super) libraries: Libraries,
     pub(super) scanner: Scanner,
+    /// Finds the Versions a delete names.
+    pub(super) browse: Browse,
 }
 
 #[expect(
@@ -121,6 +128,97 @@ impl LibraryService for LibraryServiceHandler {
         self.scanner.start(request.id).await?;
         Response::ok(ScanLibraryResponse::default())
     }
+
+    async fn preview_delete_media(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, PreviewDeleteMediaRequest>,
+    ) -> ServiceResult<PreviewDeleteMediaResponse> {
+        let target = to_delete_from_proto(request.to_owned_message().target.into_option())?;
+        let doomed = self.browse.doomed(target).await?;
+        let planned = self.scanner.preview_delete(doomed).await;
+        let planned = planned.map_err(deleting_failed)?;
+        Response::ok(PreviewDeleteMediaResponse {
+            bytes_freed: planned.bytes_freed(),
+            files: planned.files.iter().map(file_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn delete_media(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, DeleteMediaRequest>,
+    ) -> ServiceResult<DeleteMediaResponse> {
+        let by = caller(&ctx)?.user.name.clone();
+        let target = to_delete_from_proto(request.to_owned_message().target.into_option())?;
+        let doomed = self.browse.doomed(target).await?;
+        let deleted = self.scanner.delete_media(doomed, by).await;
+        Response::ok(deleted_to_proto(deleted.map_err(deleting_failed)?))
+    }
+}
+
+fn to_delete_from_proto(target: Option<MediaToDelete>) -> Result<ToDelete, ConnectError> {
+    match target.and_then(|target| target.target) {
+        Some(media_to_delete::Target::Movie(movie)) => Ok(ToDelete::Movie {
+            library: movie.library_id,
+            id: required_id(
+                movie.movie_id.into_option(),
+                "target.movie.movie_id",
+                "Movie",
+            )?,
+        }),
+        Some(media_to_delete::Target::VersionId(version)) => Ok(ToDelete::Version(version)),
+        None => Err(refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            "say what to delete",
+        )
+        .field("target")
+        .into()),
+    }
+}
+
+fn deleted_to_proto(deleted: Deleted) -> DeleteMediaResponse {
+    DeleteMediaResponse {
+        bytes_freed: deleted.bytes_freed(),
+        deleted: deleted.files.iter().map(file_to_proto).collect(),
+        not_deleted: (deleted.failed.into_iter())
+            .map(|(path, err)| FileNotDeleted {
+                file_name: file_name(&path),
+                reason: err.to_string(),
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    }
+}
+
+fn file_to_proto(file: &scanner::deleting::File) -> MediaFile {
+    MediaFile {
+        file_name: file_name(&file.path),
+        size: file.size,
+        ..Default::default()
+    }
+}
+
+/// The name of the file at `path`, without the folders it is in, which are for those who manage
+/// Libraries (see AGENTS.md).
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// The Connect error for a delete or its preview that failed on the Server's side, which is
+/// logged, not sent.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "by value, so callers can write `.map_err(deleting_failed)`"
+)]
+fn deleting_failed(err: scanner::Error) -> ConnectError {
+    tracing::error!("deleting media failed: {err}");
+    ConnectError::internal("deleting failed on the Server")
 }
 
 fn kind_from_proto(kind: EnumValue<LibraryKind>) -> Result<Kind, ConnectError> {

@@ -113,6 +113,8 @@ enum Permission {
   // Picks the Quality a title is downloaded at when Requesting it, from its Fulfiller's list
   // (ADR 0025). About quality alone: never folders, tags or servers.
   PERMISSION_CHOOSE_QUALITY = 13;
+  // Deletes media from the Libraries' folders, for good (ADR 0038).
+  PERMISSION_DELETE_MEDIA = 14;
 }
 
 // A person's identity on one Server.
