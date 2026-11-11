@@ -35,7 +35,8 @@ export function TrackMenus({
     <>
       <AudioMenu
         tracks={tracks}
-        chosen={planned.audioTrack}
+        offered={planned.plan.audioTracks}
+        playing={planned.plan.audioTrack}
         choose={(place) => {
           if (videoRef.current) planned.chooseAudio(videoRef.current, place);
         }}
@@ -43,7 +44,7 @@ export function TrackMenus({
       />
       <SubtitlesMenu tracks={tracks} planned={planned} videoRef={videoRef} container={container} />
       <PlaybackLimitMenu
-        tracks={tracks}
+        offered={planned.plan.playbackLimits}
         chosen={planned.plan.playbackLimit}
         choose={(limit) => {
           if (videoRef.current) planned.chooseLimit(videoRef.current, limit);
@@ -55,26 +56,26 @@ export function TrackMenus({
 }
 
 /**
- * Picks which of the Version's audio Tracks plays, by its place in `tracks`, with `choose`. Absent
- * when there's only one to play.
+ * Picks which of the Version's audio Tracks plays, by its place in `tracks`, with `choose`, from
+ * those `offered`. Absent when there's only one to play.
  */
 function AudioMenu({
   tracks,
-  chosen,
+  offered: audio,
+  playing,
   choose,
   container,
 }: {
   tracks: Track[];
-  /** The place of the one chosen, `undefined` being the one the file plays by default. */
-  chosen: number | undefined;
+  /** The places of the audio Tracks the plan offers. */
+  offered: number[];
+  /** The place of the one the plan plays. */
+  playing: number | undefined;
   choose: (place: number) => void;
   /** Where the menu opens: inside the player, so it shows in full screen. */
   container: RefObject<HTMLDivElement | null>;
 }) {
-  const audio = tracks.flatMap((track, place) => (track.kind.case === "audio" ? [place] : []));
   if (audio.length < 2) return null;
-  // As the Server plays when none is chosen: the file's default, or else its first.
-  const playing = chosen ?? audio.find((place) => tracks[place]?.default === true) ?? audio[0];
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="overlay" size="icon" aria-label="Audio" />}>

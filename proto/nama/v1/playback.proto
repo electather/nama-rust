@@ -10,10 +10,12 @@ import "nama/v1/browse.proto";
 // only narrow what the plan may be, and records why (ADR 0027).
 service PlaybackService {
   // Returns a Playback Plan for playing a Version on the caller's Device, probing the Version
-  // first if the Server has no current Tracks for it. Fails with `not_found` if there is no such
-  // Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when only a Transcode would play it
-  // and the Server is already running as many as it may; one of the caller's own Device's doesn't
-  // count, as a new plan replaces the one it plays.
+  // first if the Server has no current Tracks for it. A choice the caller asks for that the plan
+  // can't honour here is dropped, and its `reasons` say why (ADR 0031). Fails with `not_found` if
+  // there is no such Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when the Device
+  // itself needs a Transcode to play it, never for a choice, and the Server is already running as
+  // many as it may; one of the caller's own Device's doesn't count, as a new plan replaces the one
+  // it plays.
   rpc PlanPlayback(PlanPlaybackRequest) returns (PlanPlaybackResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -116,8 +118,24 @@ message PlaybackPlan {
   // Names it to `StopPlayback`. 0 when it can't be played.
   uint64 id = 6;
   // The Playback Limit it keeps to: the one asked for, or else the Server's default for remote
-  // playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`.
+  // playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`, as when it
+  // can't keep to the one that applies.
   PlaybackLimit playback_limit = 7;
+  // The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
+  // asked for, or else the one the Version plays by default. Unset when it has no audio or its
+  // Tracks aren't known.
+  optional uint32 audio_track = 8;
+  // The subtitle Track it burns into the picture, by its place in the Version's `tracks`. Unset
+  // for none, as when the one asked for can't be burned in.
+  optional uint32 subtitle_track = 9;
+  // The choices a plan for this Version can ever honour on this Server and Device, whatever a
+  // busy Server or a method that failed on the Device rules out for now: the audio Tracks it can
+  // play, by their place in the Version's `tracks`, in that order.
+  repeated uint32 audio_tracks = 10;
+  // The subtitle Tracks it can burn into the picture, likewise.
+  repeated uint32 burn_in_tracks = 11;
+  // The Playback Limits below Original it can scale the picture down to, largest first.
+  repeated PlaybackLimit playback_limits = 12;
 }
 
 // A text subtitle a player shows as a WebVTT `<track>`.

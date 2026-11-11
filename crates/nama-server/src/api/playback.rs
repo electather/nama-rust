@@ -163,6 +163,9 @@ fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method>
 }
 
 fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
+    // A place past `u32::MAX` is in no file ffprobe reads.
+    let place = |place: usize| u32::try_from(place).ok();
+    let places = |places: Vec<usize>| places.into_iter().filter_map(place).collect();
     proto::PlaybackPlan {
         id: plan.id.unwrap_or_default(),
         method: method_to_proto(plan.method).into(),
@@ -170,6 +173,13 @@ fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
         reasons: plan.reasons,
         playback_limit: limit_to_proto(plan.limit).into(),
+        audio_track: plan.audio.and_then(place),
+        subtitle_track: plan.burn_in.and_then(place),
+        audio_tracks: places(plan.offers.audio),
+        burn_in_tracks: places(plan.offers.burn_in),
+        playback_limits: (plan.offers.limits.into_iter())
+            .map(|limit| limit_to_proto(Some(limit)).into())
+            .collect(),
         subtitles: (plan.subtitles.iter())
             .map(|subtitle| proto::PlaybackSubtitle {
                 track: track_to_proto(&subtitle.track).into(),
