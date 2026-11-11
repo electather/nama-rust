@@ -65,7 +65,7 @@ Run from the repo root:
     npm --prefix .sandcastle run factory                  # drain the queue (at most 60 issues), then exit
     MAX_ISSUES=1 npm --prefix .sandcastle run factory     # one issue, then stop
 
-Unattended, retrying hourly after an infra failure such as the Claude usage limit (one supervisor per machine, `flock`):
+Unattended (one supervisor per machine, `flock`). Once the queue is drained it reruns the factory every 5 minutes (`IDLE_SECS`), so issues labelled `ready-for-agent` later get built. After an infra failure such as the Claude usage limit it waits an hour instead (`RETRY_SECS`):
 
     systemd-run --user --unit nama-factory --setenv=MAX_PARALLEL=3 -p WorkingDirectory=$PWD \
       -p StandardOutput=append:$PWD/.sandcastle/logs/supervisor.log -p StandardError=inherit .sandcastle/supervise.sh
