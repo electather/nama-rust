@@ -23,12 +23,14 @@ use std::{collections::BTreeSet, net::IpAddr, num::NonZeroU32, sync::Arc};
 
 use axum::{
     Router,
+    body::Body,
     extract::{Path, Request, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
 };
 use buffa::Enumeration;
+use futures_util::StreamExt as _;
 use nama_proto::nama::v1 as proto;
 use proto::PlaybackReasonKind as Kind;
 use proto::SubtitleFormat::{SUBTITLE_FORMAT_ASS as ASS, SUBTITLE_FORMAT_WEBVTT as WEBVTT};
@@ -1867,11 +1869,17 @@ async fn serve(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
+    // Taken once the Version is known to be there, so asking for made-up ids keeps nothing.
+    let deleted = running.served(id);
     // `ServeFile` answers `Range` (206 and `Content-Range`), sets `Accept-Ranges`, `ETag` and
     // `Last-Modified`, takes the `Content-Type` from the extension, and is 404 for a file gone
     // since the last scan.
     match ServeFile::new(&path).try_call(request).await {
-        Ok(response) => response.into_response(),
+        Ok(response) => {
+            let (parts, body) = response.into_response().into_parts();
+            let cut_off = (body.into_data_stream()).take_until(deleted.cancelled_owned());
+            Response::from_parts(parts, Body::from_stream(cut_off))
+        }
         Err(err) => {
             tracing::error!("could not serve {path}: {err}");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()

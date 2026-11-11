@@ -2,7 +2,7 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { Player } from "@/components/player";
-import { NotFound } from "@/components/route-error";
+import { NotFound, TitleDeleted } from "@/components/route-error";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { loadMovie, versionSearch, versionToPlay } from "@/lib/browse";
 
@@ -18,8 +18,8 @@ function PlayMovie() {
   const { movie } = useSuspenseQuery(BrowseService.method.getMovie, Route.useLoaderData()).data;
   const { version } = Route.useSearch();
   const params = Route.useParams();
-  // An Event may have removed it since the loader ran.
-  if (!movie) return <NotFound />;
+  // An Event removed it since the loader ran.
+  if (!movie) return <TitleDeleted />;
   const { id, tracks } = versionToPlay(movie.versions, version);
   return (
     <Player

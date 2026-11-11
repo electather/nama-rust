@@ -2,7 +2,7 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { Player } from "@/components/player";
-import { NotFound } from "@/components/route-error";
+import { NotFound, TitleDeleted } from "@/components/route-error";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import {
   externalIdFromParam,
@@ -39,8 +39,8 @@ function PlayEpisode() {
   const episode = episodes.find((each) => each.episodeNumber === episodeNumber);
   const { version } = Route.useSearch();
   const { libraryId, showId } = Route.useParams();
-  // An Event may have removed it since the loader ran.
-  if (!episode) return <NotFound />;
+  // An Event removed it since the loader ran.
+  if (!episode) return <TitleDeleted />;
   const { id, tracks } = versionToPlay(episode.versions, version);
   return (
     <Player

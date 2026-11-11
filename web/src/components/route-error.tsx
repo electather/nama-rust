@@ -3,7 +3,9 @@ import { Link, type ErrorComponentProps, useRouter } from "@tanstack/react-route
 
 import { Page } from "@/components/page";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { isCode } from "@/lib/connect-errors";
+import { refusalOf } from "@/lib/forms";
 
 /** What a page shows instead when it fails, in plain words and never an error code. */
 export function RouteError({ error }: ErrorComponentProps) {
@@ -11,6 +13,8 @@ export function RouteError({ error }: ErrorComponentProps) {
   if (isCode(error, Code.PermissionDenied)) return <NotAllowed />;
   // The router is already rechecking the session, and sends a signed-out visitor to /sign-in.
   if (isCode(error, Code.Unauthenticated)) return null;
+  // Only the player names a Version, so one that's gone was deleted while it played.
+  if (refusalOf(error).reason === RefusalReason.VERSION_NOT_FOUND) return <TitleDeleted />;
   return (
     <Page heading="Something went wrong">
       <p className="mt-2 text-muted-foreground">
@@ -30,13 +34,31 @@ function NotAllowed() {
         It needs a Permission you don’t have. If you need something changed here, ask whoever runs
         the Server.
       </p>
-      {/* Pulled back by the button's own padding, so its words line up with the text above. */}
-      <div className="mt-6 -ms-4">
-        <Link to="/" className={buttonVariants({ variant: "ghost" })}>
-          Back to your Libraries
-        </Link>
-      </div>
+      <BackToLibraries />
     </Page>
+  );
+}
+
+/** What the player shows once what it plays was deleted from the Server. */
+export function TitleDeleted() {
+  return (
+    <Page heading="This title was deleted">
+      <p className="mt-2 max-w-prose text-muted-foreground">
+        Someone deleted it from the Server while it played, so it can’t play any more.
+      </p>
+      <BackToLibraries />
+    </Page>
+  );
+}
+
+function BackToLibraries() {
+  return (
+    // Pulled back by the button's own padding, so its words line up with the text above.
+    <div className="mt-6 -ms-4">
+      <Link to="/" className={buttonVariants({ variant: "ghost" })}>
+        Back to your Libraries
+      </Link>
+    </div>
   );
 }
 
