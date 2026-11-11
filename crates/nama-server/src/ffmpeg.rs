@@ -2224,7 +2224,7 @@ mod hls_tests {
     }
 
     #[tokio::test]
-    async fn hdr10_tagged_only_by_its_transfer_is_tone_mapped() {
+    async fn hdr10_tagged_only_by_its_transfer_is_tone_mapped_to_bt709() {
         let ffmpeg = system_ffmpeg();
         let work = tempfile::tempdir().unwrap();
         let file = work.path().join("hdr10.mkv");
@@ -2271,6 +2271,21 @@ mod hls_tests {
 
         let output = output.spawn().unwrap().wait_with_output().await.unwrap();
         assert!(output.status.success(), "{output:?}");
+        let init_and_first =
+            [dir.join("init-0.mp4"), dir.join("0.m4s")].map(|written| fs::read(written).unwrap());
+        let played = work.path().join("played.mp4");
+        fs::write(&played, init_and_first.concat()).unwrap();
+        let probed = std::process::Command::new("ffprobe")
+            .args(["-v", "error", "-select_streams", "v", "-of", "csv=p=0"])
+            .args(["-show_entries", "stream=color_transfer,color_primaries"])
+            .arg(&played)
+            .output()
+            .unwrap();
+        assert!(probed.status.success(), "{probed:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&probed.stdout).trim(),
+            "bt709,bt709"
+        );
     }
 
     /// Run by hand where there is a GPU: `cargo test -p nama-server --lib -- --ignored hardware`.
