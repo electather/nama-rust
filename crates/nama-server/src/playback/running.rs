@@ -1702,12 +1702,15 @@ mod tests {
         let before = start_sleeping(&plans, 7).await;
         let tmpfs = data.path().join("tmpfs");
         settings
-            .change_playback(PlaybackChange {
-                segment_folder: tmpfs.to_str().unwrap(),
-                max_transcodes: None,
-                hardware: HardwareChoice::Automatic,
-                remote_limit: None,
-            })
+            .change_playback(
+                PlaybackChange {
+                    segment_folder: tmpfs.to_str().unwrap(),
+                    max_transcodes: None,
+                    hardware: HardwareChoice::Automatic,
+                    remote_limit: None,
+                },
+                &[],
+            )
             .await
             .unwrap();
 
@@ -1737,12 +1740,15 @@ mod tests {
         let db = database(data.path()).await;
         let settings = settings(&db, default);
         settings
-            .change_playback(PlaybackChange {
-                segment_folder: set.to_str().unwrap(),
-                max_transcodes: None,
-                hardware: HardwareChoice::Automatic,
-                remote_limit: None,
-            })
+            .change_playback(
+                PlaybackChange {
+                    segment_folder: set.to_str().unwrap(),
+                    max_transcodes: None,
+                    hardware: HardwareChoice::Automatic,
+                    remote_limit: None,
+                },
+                &[],
+            )
             .await
             .unwrap();
 

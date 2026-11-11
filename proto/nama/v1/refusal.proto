@@ -201,4 +201,9 @@ enum RefusalReason {
   // `resource_exhausted`: only a Transcode would play the Version on this Device, and the Server
   // is already running as many as its Playback settings allow. Params: `maxTranscodes`.
   REFUSAL_REASON_SERVER_BUSY = 60;
+  // `invalid_argument`: the Playback settings name a GPU their hardware acceleration didn't pass
+  // its test on when the Server started and that isn't the one saved with it, or name one with
+  // Automatic, Off, NVENC or VideoToolbox, which take none. `field` is `settings.gpu`. Params:
+  // `gpuId`.
+  REFUSAL_REASON_GPU_NOT_OFFERED = 61;
 }

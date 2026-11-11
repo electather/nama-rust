@@ -19,6 +19,7 @@ export interface FormErrors {
   serverUrl?: string;
   segmentFolder?: string;
   maxTranscodes?: string;
+  hardwareAcceleration?: string;
 }
 
 /**

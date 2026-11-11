@@ -2886,6 +2886,18 @@ pub struct PlaybackSettings {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub hardware_acceleration: ::buffa::EnumValue<HardwareAcceleration>,
+    /// The GPU `hardware_acceleration` runs every Transcode on: one it passed its test on at startup,
+    /// as `GetPlaybackStatusResponse.hardware` lists them, or the one already saved. Unset for the
+    /// first GPU it passed on, and always for Automatic, Off, NVENC and VideoToolbox. A saved GPU
+    /// missing or failing its test at startup leaves Transcodes in software, and keeps its last
+    /// name. A save reads only its `id`.
+    ///
+    /// Field 5: `gpu`
+    #[serde(
+        rename = "gpu",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub gpu: ::buffa::MessageField<Gpu, ::buffa::Inline<Gpu>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2897,6 +2909,7 @@ impl ::core::fmt::Debug for PlaybackSettings {
             .field("max_transcodes", &self.max_transcodes)
             .field("remote_playback_limit", &self.remote_playback_limit)
             .field("hardware_acceleration", &self.hardware_acceleration)
+            .field("gpu", &self.gpu)
             .finish()
     }
 }
@@ -2932,7 +2945,7 @@ impl ::buffa::Message for PlaybackSettings {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -2956,12 +2969,20 @@ impl ::buffa::Message for PlaybackSettings {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if self.gpu.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.gpu.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -2983,6 +3004,14 @@ impl ::buffa::Message for PlaybackSettings {
             if val != 0 {
                 ::buffa::types::put_int32_field(4u32, val, buf);
             }
+        }
+        if self.gpu.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.gpu.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3031,6 +3060,17 @@ impl ::buffa::Message for PlaybackSettings {
                     ::buffa::types::decode_int32(buf)?,
                 );
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.gpu.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3043,6 +3083,7 @@ impl ::buffa::Message for PlaybackSettings {
         self.max_transcodes = ::core::option::Option::None;
         self.remote_playback_limit = ::buffa::EnumValue::from(0);
         self.hardware_acceleration = ::buffa::EnumValue::from(0);
+        self.gpu = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

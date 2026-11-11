@@ -126,7 +126,7 @@ test("an Admin sees a row for each API on each GPU that passed its test", async 
   const rows = await screen.findAllByRole("heading", { name: /· VAAPI$/u });
   expect(rows.map((row) => row.textContent)).toEqual([
     "AMD Radeon RX 9070 XT · VAAPI",
-    "integrated GPU (AMD Ryzen 9 7950X3D) · VAAPI",
+    "Integrated GPU (AMD Ryzen 9 7950X3D) · VAAPI",
   ]);
 });
 

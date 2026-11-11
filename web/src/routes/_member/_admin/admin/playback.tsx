@@ -5,7 +5,7 @@ import { CircleCheck, CircleSlash } from "lucide-react";
 import { AdminList, AdminRow } from "@/components/admin-list";
 import { Page } from "@/components/page";
 import {
-  hardwareName,
+  hardwareLabel,
   PlaybackSettingsForm,
   playbackSettingsQuery,
   playbackStatusQuery,
@@ -167,11 +167,7 @@ function ProgramRow({
 function HardwareRow({ found, canTranscode }: { found: FoundHardware; canTranscode: boolean }) {
   return (
     <AdminRow end={<StateLabel label="Passed" Icon={CircleCheck} />}>
-      <h3 className="font-medium first-letter:uppercase">
-        {found.gpu === undefined
-          ? hardwareName(found.api)
-          : `${found.gpu.name} · ${hardwareName(found.api)}`}
-      </h3>
+      <h3 className="font-medium">{hardwareLabel(found)}</h3>
       {canTranscode && (
         <p className="text-sm text-pretty text-muted-foreground">
           {toneMappings.get(found.toneMapping)}

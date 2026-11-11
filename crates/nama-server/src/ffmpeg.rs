@@ -496,6 +496,8 @@ pub(crate) struct CanDo {
     pub(crate) libx264: bool,
     /// The APIs on GPUs that passed their test, in the order Automatic picks.
     pub(crate) hardware: Vec<Hardware>,
+    /// The GPUs the Server found at startup, whether or not anything passed on them.
+    pub(crate) gpus: Vec<Gpu>,
 }
 
 impl CanDo {
@@ -592,6 +594,7 @@ impl Abilities {
             zscale,
             libx264,
             hardware: hardware.to_vec(),
+            gpus: ffmpeg.gpus.clone(),
         }
     }
 
@@ -1434,6 +1437,7 @@ pub(crate) mod tests {
                     gpu: None,
                     tone_maps: false,
                 }],
+                gpus: vec![],
             }
         );
     }
@@ -1457,6 +1461,7 @@ pub(crate) mod tests {
                 zscale: false,
                 libx264: false,
                 hardware: vec![],
+                gpus: vec![],
             }
         );
         assert_eq!(can_do(Ffmpeg::default()).await, can);

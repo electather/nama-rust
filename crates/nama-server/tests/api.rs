@@ -8,6 +8,7 @@ mod server;
 
 use std::net::SocketAddr;
 
+use buffa::EnumValue;
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     FoundHardware, FoundProgram, GetPlaybackSettingsRequest, GetPlaybackStatusRequest,
@@ -330,11 +331,12 @@ async fn the_playback_status_says_what_tone_maps_on_each_hardware_and_which_auto
     }
 }
 
+/// An ffmpeg, a shell script in `root` with a fake `/sys` and `/dev/dri` beside it, that passes
+/// VAAPI on an AMD Radeon RX 9070 XT at `0000:03:00.0`, and QSV and VAAPI on an Intel integrated
+/// GPU at `0000:00:02.0`.
 #[cfg(unix)]
-#[tokio::test]
-async fn the_playback_status_lists_each_api_on_each_gpu_with_its_id_and_name() {
-    let root = tempfile::tempdir().unwrap();
-    let (sys, dri) = (root.path().join("sys"), root.path().join("dri"));
+fn ffmpeg_on_two_gpus(root: &std::path::Path) -> Ffmpeg {
+    let (sys, dri) = (root.join("sys"), root.join("dri"));
     fake::gpu(&sys, &dri, "renderD128", "0000:00:02.0", "0x8086");
     fake::gpu(&sys, &dri, "renderD129", "0000:03:00.0", "0x1002");
     let ffmpeg = "#!/bin/sh\ncase \"$*\" in \
@@ -342,6 +344,17 @@ async fn the_playback_status_lists_each_api_on_each_gpu_with_its_id_and_name() {
                                                AMD Radeon RX 9070 XT (radeonsi)' >&2 ;; \
                   *-encoders*) printf ' V....D %s  H.264\\n' libx264 h264_qsv h264_vaapi ;; \
                   *-filters*) echo ' ... zscale  V->V  A filter' ;; esac\n";
+    Ffmpeg {
+        ffmpeg: Ok(script(root, "ffmpeg", ffmpeg)),
+        ffprobe: Ok(script(root, "ffprobe", "#!/bin/sh\n")),
+        gpus: find_gpus(&dri, &sys.join("class/drm")),
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_playback_status_lists_each_api_on_each_gpu_with_its_id_and_name() {
+    let root = tempfile::tempdir().unwrap();
     let found = |api: HardwareAcceleration, id: &str, name: &str, tone_maps, automatic| {
         let tone_mapping = if tone_maps {
             ToneMapping::TONE_MAPPING_GPU
@@ -363,12 +376,7 @@ async fn the_playback_status_lists_each_api_on_each_gpu_with_its_id_and_name() {
         }
     };
 
-    let status = playback_status(Ffmpeg {
-        ffmpeg: Ok(script(root.path(), "ffmpeg", ffmpeg)),
-        ffprobe: Ok(script(root.path(), "ffprobe", "#!/bin/sh\n")),
-        gpus: find_gpus(&dri, &sys.join("class/drm")),
-    })
-    .await;
+    let status = playback_status(ffmpeg_on_two_gpus(root.path())).await;
 
     let amd = "AMD Radeon RX 9070 XT";
     let intel = "Intel integrated GPU";
@@ -580,4 +588,116 @@ async fn a_segment_folder_that_isnt_an_absolute_path_is_refused_naming_it_and_no
     );
     assert_eq!(refusal.field, "settings.segment_folder");
     assert_eq!(segment_folder(&client).await, "/dev/shm/nama");
+}
+
+/// Saving the Playback settings with `api` on the GPU `id`, named `name` by the client, and the
+/// most Transcodes at once `max_transcodes`.
+fn pick_gpu(
+    api: HardwareAcceleration,
+    id: &str,
+    name: &str,
+    max_transcodes: Option<u32>,
+) -> UpdatePlaybackSettingsRequest {
+    UpdatePlaybackSettingsRequest {
+        settings: PlaybackSettings {
+            hardware_acceleration: api.into(),
+            gpu: gpu(id, name).into(),
+            max_transcodes,
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    }
+}
+
+fn gpu(id: &str, name: &str) -> Gpu {
+    Gpu {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        ..Default::default()
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_picked_gpu_is_saved_under_its_found_name_and_kept_when_another_field_changes() {
+    let root = tempfile::tempdir().unwrap();
+    let server = TestServer::builder()
+        .ffmpeg(ffmpeg_on_two_gpus(root.path()))
+        .start()
+        .await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let vaapi = HardwareAcceleration::HARDWARE_ACCELERATION_VAAPI;
+
+    let saved = client
+        .update_playback_settings(pick_gpu(vaapi, "0000:00:02.0", "made up", None))
+        .await
+        .unwrap()
+        .into_owned()
+        .settings;
+    client
+        .update_playback_settings(pick_gpu(vaapi, "0000:00:02.0", "", Some(3)))
+        .await
+        .unwrap();
+
+    let intel = gpu("0000:00:02.0", "Intel integrated GPU");
+    assert_eq!(saved.gpu.as_option(), Some(&intel));
+    let got = client
+        .get_playback_settings(GetPlaybackSettingsRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .settings;
+    assert_eq!(got.hardware_acceleration, EnumValue::from(vaapi));
+    assert_eq!(got.gpu.as_option(), Some(&intel));
+    assert_eq!(got.max_transcodes, Some(3));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_gpu_its_api_didnt_pass_on_or_with_an_api_that_takes_none_is_refused_naming_it() {
+    let root = tempfile::tempdir().unwrap();
+    let server = TestServer::builder()
+        .ffmpeg(ffmpeg_on_two_gpus(root.path()))
+        .start()
+        .await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let never_seen = "0000:0a:00.0";
+    let amd = "0000:03:00.0";
+
+    for (api, id) in [
+        (
+            HardwareAcceleration::HARDWARE_ACCELERATION_VAAPI,
+            never_seen,
+        ),
+        (HardwareAcceleration::HARDWARE_ACCELERATION_QSV, amd),
+        (HardwareAcceleration::HARDWARE_ACCELERATION_UNSPECIFIED, amd),
+        (HardwareAcceleration::HARDWARE_ACCELERATION_OFF, amd),
+        (HardwareAcceleration::HARDWARE_ACCELERATION_NVENC, amd),
+        (
+            HardwareAcceleration::HARDWARE_ACCELERATION_VIDEOTOOLBOX,
+            amd,
+        ),
+    ] {
+        let updated = client
+            .update_playback_settings(pick_gpu(api, id, "AMD Radeon RX 9070 XT", None))
+            .await;
+
+        let refusal = assert_refused(
+            updated,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_GPU_NOT_OFFERED,
+        );
+        assert_eq!(refusal.field, "settings.gpu", "{api:?}");
+        assert_eq!(refusal.params.get("gpuId").map(String::as_str), Some(id));
+    }
+    let got = client
+        .get_playback_settings(GetPlaybackSettingsRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .settings;
+    let automatic = HardwareAcceleration::HARDWARE_ACCELERATION_UNSPECIFIED;
+    assert_eq!(got.hardware_acceleration, EnumValue::from(automatic));
+    assert_eq!(got.gpu.as_option(), None);
 }
