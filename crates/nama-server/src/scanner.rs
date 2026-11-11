@@ -6,6 +6,7 @@
 //! and stored; a stored file that's gone is removed, except under a folder that couldn't be read,
 //! so a drive that isn't mounted doesn't empty the Library. A renamed file is a file gone and a
 //! file found. Changes are written in batches of [`BATCH_SIZE`] (see the crate's `AGENTS.md`).
+//! Once the Server is serving, a Library is also scanned when its folders change (see [`watch`]).
 //!
 //! Files are only listed and their metadata read, never opened: sidecars such as `.nfo` files
 //! are ignored.
@@ -23,6 +24,7 @@
 //! one whose Probing ends after a later scan of the Library started sends nothing.
 
 mod names;
+mod watch;
 
 pub(crate) use names::{PARSER_VERSION, country_tag};
 
@@ -125,6 +127,7 @@ struct Inner {
     started: Mutex<HashMap<i64, u64>>,
     /// Each Library's scan lock, handed out as a [`ScanLock`].
     running: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
+    watches: watch::Watches,
 }
 
 /// A Library's scan lock: while it's held, no scan of the Library runs or starts, so the
@@ -162,6 +165,7 @@ impl Scanner {
                 queued: Mutex::default(),
                 started: Mutex::default(),
                 running: Mutex::default(),
+                watches: watch::Watches::default(),
             }),
         }
     }
@@ -481,7 +485,7 @@ impl Scanner {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf, sync::Arc, time::Duration};
+    use std::{fs, io::Write as _, path::PathBuf, sync::Arc, time::Duration};
 
     use futures_util::StreamExt;
     use nama_plugin_api::metadata::ExternalId;
@@ -889,5 +893,129 @@ mod tests {
 
         assert_eq!(scanned, Ok(summary(1, 0, 0, 0)));
         media.probing.as_ref().unwrap().shutdown().await;
+    }
+
+    /// How long a watched Library's folders stay quiet in these tests before it's scanned.
+    const QUIET: Duration = Duration::from_secs(1);
+
+    /// The periodic scan's interval, so it never comes within a test.
+    const LONGER_THAN_A_TEST: Duration = Duration::from_secs(3600);
+
+    /// Starts watching, and waits up to 10 s for the Library's folder to be watched.
+    async fn watch(media: &Fixture) {
+        media.scanner.watch(QUIET, LONGER_THAN_A_TEST);
+        for _ in 0..200 {
+            if !media.scanner.watched().is_empty() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        panic!("the Library's folder was never watched");
+    }
+
+    /// Waits up to 10 s for the stored files to be `expected`.
+    async fn wait_for_files(media: &Fixture, expected: &[&str]) {
+        let names = async || -> Vec<String> {
+            media
+                .files()
+                .await
+                .into_iter()
+                .map(|(path, _)| path)
+                .collect()
+        };
+        for _ in 0..200 {
+            if names().await == expected {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert_eq!(names().await, expected);
+    }
+
+    #[tokio::test]
+    async fn a_watched_library_follows_files_added_renamed_and_deleted_without_being_asked() {
+        let media = Fixture::new(Kind::Movies).await;
+        watch(&media).await;
+
+        media.write("Alien (1979).mkv", 10);
+        wait_for_files(&media, &["Alien (1979).mkv"]).await;
+
+        fs::rename(
+            media.path("Alien (1979).mkv"),
+            media.path("Aliens (1986).mkv"),
+        )
+        .unwrap();
+        wait_for_files(&media, &["Aliens (1986).mkv"]).await;
+
+        fs::remove_file(media.path("Aliens (1986).mkv")).unwrap();
+        wait_for_files(&media, &[]).await;
+        media.scanner.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn a_file_written_in_chunks_is_scanned_once() {
+        let media = Fixture::new(Kind::Movies).await;
+        watch(&media).await;
+
+        let mut file = fs::File::create(media.path("Alien (1979).mkv")).unwrap();
+        for _ in 0..5 {
+            file.write_all(&[0; 1024]).unwrap();
+            file.sync_all().unwrap();
+            tokio::time::sleep(QUIET / 5).await;
+        }
+        drop(file);
+        wait_for_files(&media, &["Alien (1979).mkv"]).await;
+        tokio::time::sleep(QUIET * 2).await;
+
+        let scans = super::lock(&media.scanner.inner.started)[&media.library];
+        assert_eq!(scans, 1);
+        media.scanner.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn watches_follow_libraries_created_updated_and_deleted() {
+        let media = Fixture::new(Kind::Movies).await;
+        let watched = || media.scanner.watched();
+        let libraries = &media.scanner.inner.libraries;
+        let more = tempfile::tempdir().unwrap();
+        let (first, second) = (more.path().join("first"), more.path().join("second"));
+        fs::create_dir(&first).unwrap();
+        fs::create_dir(&second).unwrap();
+        let first = first.canonicalize().unwrap();
+        let second = second.canonicalize().unwrap();
+        watch(&media).await;
+
+        let created = libraries
+            .create(
+                "More",
+                Kind::Shows,
+                vec![first.to_str().unwrap().to_owned()],
+            )
+            .await
+            .unwrap();
+        media.scanner.rewatch().await;
+        assert_eq!(
+            watched(),
+            [(media.root.clone(), media.library), (first, created.id)]
+        );
+
+        libraries
+            .update(
+                created.id,
+                "More",
+                vec![second.to_str().unwrap().to_owned()],
+            )
+            .await
+            .unwrap();
+        media.scanner.rewatch().await;
+        assert_eq!(
+            watched(),
+            [(media.root.clone(), media.library), (second, created.id)]
+        );
+
+        libraries.delete(created.id).await.unwrap();
+        media.scanner.rewatch().await;
+        assert_eq!(watched(), [(media.root.clone(), media.library)]);
+        media.scanner.shutdown().await;
     }
 }

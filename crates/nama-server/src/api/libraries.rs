@@ -40,10 +40,16 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<CreateLibraryResponse> {
         let request = request.to_owned_message();
         let kind = kind_from_proto(request.kind)?;
-        let library = self
-            .libraries
-            .create(&request.name, kind, request.folders)
-            .await?;
+        let (libraries, scanner) = (self.libraries.clone(), self.scanner.clone());
+        // The create commits even if the caller stops waiting, so its watches follow (ADR 0029).
+        let library = detached(async move {
+            let library = libraries
+                .create(&request.name, kind, request.folders)
+                .await?;
+            scanner.rewatch().await;
+            Ok::<_, libraries::Error>(library)
+        })
+        .await?;
         Response::ok(CreateLibraryResponse {
             library: library_to_proto(library).into(),
             ..Default::default()
@@ -96,10 +102,16 @@ impl LibraryService for LibraryServiceHandler {
         request: ServiceRequest<'_, UpdateLibraryRequest>,
     ) -> ServiceResult<UpdateLibraryResponse> {
         let request = request.to_owned_message();
-        let library = self
-            .libraries
-            .update(request.id, &request.name, request.folders)
-            .await?;
+        let (libraries, scanner) = (self.libraries.clone(), self.scanner.clone());
+        // The update commits even if the caller stops waiting, so its watches follow (ADR 0029).
+        let library = detached(async move {
+            let library = libraries
+                .update(request.id, &request.name, request.folders)
+                .await?;
+            scanner.rewatch().await;
+            Ok::<_, libraries::Error>(library)
+        })
+        .await?;
         Response::ok(UpdateLibraryResponse {
             library: library_to_proto(library).into(),
             ..Default::default()
@@ -111,11 +123,17 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, DeleteLibraryRequest>,
     ) -> ServiceResult<DeleteLibraryResponse> {
-        let (libraries, probing, id) = (self.libraries.clone(), self.probing.clone(), request.id);
+        let (libraries, probing, scanner, id) = (
+            self.libraries.clone(),
+            self.probing.clone(),
+            self.scanner.clone(),
+            request.id,
+        );
         // The delete commits even if the caller stops waiting, so its cleanup must follow (ADR 0029).
         detached(async move {
             libraries.delete(id).await?;
             probing.clean_subtitles().await;
+            scanner.rewatch().await;
             Ok::<_, libraries::Error>(())
         })
         .await?;
