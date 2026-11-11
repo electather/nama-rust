@@ -162,3 +162,31 @@ pub(super) async fn decide(
     }
     Ok(per_kind!(asked, decide).rows_affected() > 0)
 }
+
+/// Adds `user` as a Requester of the `asked` with the ID `id`, as of `requested_at`, which orders
+/// them among its Requesters. Returns whether they joined: `false` if they already were one.
+pub(super) async fn join(
+    conn: &mut SqliteConnection,
+    asked: Asked,
+    id: i64,
+    user: i64,
+    requested_at: i64,
+) -> Result<bool, sqlx::Error> {
+    macro_rules! join {
+        ($table:literal, $requesters:literal, $asked_id:literal) => {
+            sqlx::query!(
+                "INSERT INTO "
+                    + $requesters
+                    + " ("
+                    + $asked_id
+                    + ", user_id, requested_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+                id,
+                user,
+                requested_at
+            )
+            .execute(&mut *conn)
+            .await?
+        };
+    }
+    Ok(per_kind!(asked, join).rows_affected() > 0)
+}

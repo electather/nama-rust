@@ -1457,17 +1457,14 @@ async fn ask_as(
     };
     let mut joined = Vec::new();
     for requester in requesters {
-        let added = sqlx::query!(
-            "INSERT INTO requesters (request_id, user_id, requested_at) VALUES (?, ?, ?)
-             ON CONFLICT DO NOTHING",
+        let added = asked::join(
+            conn,
+            Asked::Request,
             id,
             requester.user_id,
-            requester.requested_at
+            requester.requested_at,
         )
-        .execute(&mut *conn)
-        .await?
-        .rows_affected()
-            > 0;
+        .await?;
         if added {
             joined.push(requester.user_id);
         }
@@ -1995,17 +1992,7 @@ async fn follow(
     } else {
         open_followed(conn, &asking, state, now).await?
     };
-    let joined = sqlx::query!(
-        "INSERT INTO followed_show_requesters (followed_show_id, user_id, requested_at) VALUES (?, ?, ?)
-         ON CONFLICT DO NOTHING",
-        id,
-        user,
-        now
-    )
-    .execute(&mut *conn)
-    .await?
-    .rows_affected()
-        > 0;
+    let joined = asked::join(conn, Asked::FollowedShow, id, user, now).await?;
     let followed = load_followed(conn, Some(id), None).await?.pop();
     let followed = followed.ok_or(sqlx::Error::RowNotFound)?;
     let mut happened = Vec::new();
@@ -3373,17 +3360,6 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn asking_again_for_a_request_one_is_on_changes_nothing() {
-        let (_data, db) = ada_and_bob().await;
-        ask_for(&db, ADA, 949, RequestState::Pending).await;
-
-        let again = ask_for(&db, ADA, 949, RequestState::Pending).await;
-
-        assert_eq!(again.events.len(), 0);
-        assert_eq!(handed_off(&again), NOTHING);
-    }
-
     /// Dark's TMDB id.
     const DARK: i64 = 70523;
 
@@ -3883,16 +3859,36 @@ mod tests {
     }
 
     /// `user` asks for the Movie 949 or follows Dark, as `kind` says, joining it if it is open.
-    /// Returns its id.
-    async fn ask_kind(db: &Database, kind: asked::Asked, user: i64) -> i64 {
+    /// Returns what that applied, with the id of the one asked for as its value.
+    async fn ask_kind(db: &Database, kind: asked::Asked, user: i64) -> Applied<i64> {
         match kind {
-            asked::Asked::Request => ask_for(db, user, 949, RequestState::Pending).await.value.id,
+            asked::Asked::Request => {
+                let Applied {
+                    value,
+                    events,
+                    hand_off,
+                    unfollow,
+                } = ask_for(db, user, 949, RequestState::Pending).await;
+                Applied {
+                    value: value.id,
+                    events,
+                    hand_off,
+                    unfollow,
+                }
+            }
             asked::Asked::FollowedShow => {
-                follow_as(db, user, dark(), RequestState::Pending)
-                    .await
-                    .value
-                    .0
-                    .id
+                let Applied {
+                    value: (followed, _),
+                    events,
+                    hand_off,
+                    unfollow,
+                } = follow_as(db, user, dark(), RequestState::Pending).await;
+                Applied {
+                    value: followed.id,
+                    events,
+                    hand_off,
+                    unfollow,
+                }
             }
         }
     }
@@ -3929,7 +3925,7 @@ mod tests {
         let requests = requests_on(Arc::clone(&db), Registry::new());
 
         for kind in KINDS {
-            let id = ask_kind(&db, kind, BOB).await;
+            let id = ask_kind(&db, kind, BOB).await.value;
             ask_kind(&db, kind, ADA).await;
             let page = requests
                 .list(&ada(Permissions::ADMIN), None, 100, "")
@@ -3939,6 +3935,27 @@ mod tests {
             assert_eq!(
                 listed_requesters(&page, kind, id),
                 Some(vec![BOB, ADA]),
+                "{kind:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn asking_for_an_open_one_joins_it_and_says_so() {
+        let (_data, db) = ada_and_bob().await;
+
+        for kind in KINDS {
+            let opened = ask_kind(&db, kind, ADA).await.value;
+            let joined = ask_kind(&db, kind, BOB).await;
+            let says = match kind {
+                asked::Asked::Request => "joined",
+                asked::Asked::FollowedShow => "joined the Show",
+            };
+
+            assert_eq!(joined.value, opened, "{kind:?}");
+            assert_eq!(
+                said(&joined.events).first(),
+                Some(&(says, RequestState::Pending)),
                 "{kind:?}"
             );
         }
@@ -3958,13 +3975,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn joining_one_twice_changes_nothing() {
+        let (_data, db) = ada_and_bob().await;
+        let requests = requests_on(Arc::clone(&db), Registry::new());
+
+        for kind in KINDS {
+            let opened = ask_kind(&db, kind, ADA).await.value;
+            let again = ask_kind(&db, kind, ADA).await;
+            let page = requests
+                .list(&ada(Permissions::ADMIN), None, 100, "")
+                .await
+                .unwrap();
+
+            assert_eq!(again.value, opened, "{kind:?}");
+            assert_eq!(said(&again.events), [], "{kind:?}");
+            assert_eq!(handed_off(&again), NOTHING, "{kind:?}");
+            assert_eq!(
+                listed_requesters(&page, kind, again.value),
+                Some(vec![ADA]),
+                "{kind:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn a_requester_leaving_takes_only_them_off() {
         let (_data, db) = ada_and_bob().await;
         let requests = requests_on(Arc::clone(&db), Registry::new());
         let bob = user(BOB, Permissions::from_iter([Permission::ViewRequests]));
 
         for kind in KINDS {
-            let id = ask_kind(&db, kind, ADA).await;
+            let id = ask_kind(&db, kind, ADA).await.value;
             ask_kind(&db, kind, BOB).await;
             withdraw_kind(&requests, kind, &bob, id).await.unwrap();
             let again = withdraw_kind(&requests, kind, &bob, id).await;
@@ -3991,7 +4032,7 @@ mod tests {
         let requests = requests_on(Arc::clone(&db), Registry::new());
 
         for kind in KINDS {
-            let id = ask_kind(&db, kind, ADA).await;
+            let id = ask_kind(&db, kind, ADA).await.value;
             withdraw_kind(&requests, kind, &ada(Permissions::NEW_USER), id)
                 .await
                 .unwrap();
@@ -4041,11 +4082,11 @@ mod tests {
         let requests = requests_on(Arc::clone(&db), Registry::new());
 
         for kind in KINDS {
-            let declined = ask_kind(&db, kind, ADA).await;
+            let declined = ask_kind(&db, kind, ADA).await.value;
             let reason = decline_kind(&requests, kind, declined, " No. ")
                 .await
                 .unwrap();
-            let approved = ask_kind(&db, kind, ADA).await;
+            let approved = ask_kind(&db, kind, ADA).await.value;
             approve_kind(&requests, kind, approved).await.unwrap();
             let approved_again = approve_kind(&requests, kind, declined).await;
             let declined_again = decline_kind(&requests, kind, approved, "").await;
@@ -4076,7 +4117,7 @@ mod tests {
         let view_requests = Permissions::from_iter([Permission::ViewRequests]);
 
         for kind in KINDS {
-            let id = ask_kind(&db, kind, ADA).await;
+            let id = ask_kind(&db, kind, ADA).await.value;
             let seen = [
                 sees(&requests, &ada(nothing), kind, id).await,
                 sees(&requests, &user(BOB, nothing), kind, id).await,
