@@ -374,7 +374,8 @@ impl RunningPlans {
             })
         };
         let video = transcode.video;
-        // Kept once answered, so this is the answer the plan was built with unless that check failed.
+        // Kept once answered, so this is the answer the plan was built with, unless that check
+        // failed.
         let zscale =
             video.hardware.is_some() && video.tone_map.is_some() && self.can_tone_map().await;
         let fallback = video.hardware.map(|accel| {
