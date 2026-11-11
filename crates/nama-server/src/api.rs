@@ -415,11 +415,6 @@ fn title_kind_from_proto(kind: EnumValue<proto::TitleKind>) -> Result<TitleKind,
     }
 }
 
-/// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.
-fn int32(n: i64) -> Option<i32> {
-    i32::try_from(n).ok()
-}
-
 fn external_id_from_proto(id: external_id::Id) -> ExternalId {
     match id {
         external_id::Id::Tmdb(id) => ExternalId::Tmdb(id),

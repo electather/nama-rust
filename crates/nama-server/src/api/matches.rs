@@ -16,8 +16,7 @@ use crate::{
 };
 
 use super::{
-    database_failed, external_id_from_proto, external_id_to_proto, int32, refuse,
-    title_kind_from_proto,
+    database_failed, external_id_from_proto, external_id_to_proto, refuse, title_kind_from_proto,
 };
 
 /// `nama.v1.MatchService`: fixing Matches by hand. Needs `PERMISSION_MANAGE_LIBRARIES`, which
@@ -168,6 +167,11 @@ fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
         episode: numbers.and_then(|(_, episode)| int32(episode)),
         ..Default::default()
     }
+}
+
+/// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.
+fn int32(n: i64) -> Option<i32> {
+    i32::try_from(n).ok()
 }
 
 /// The Connect error a client gets for fixing a Match that failed. Database failures are logged,
