@@ -143,21 +143,19 @@ impl Progress {
         let references = references.as_slice();
         let answered = self
             .plugins
-            .call_provider_blanking_secrets::<dyn Fulfiller<Kind>, _, _>(|fulfiller| async move {
-                // Bounded, so a Fulfiller that never answers can't stop every later poll. Inside
-                // the call, so formatting and dropping the Plugin's error are contained.
+            .ask_first(|fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
+                // Bounded, so a Fulfiller that never answers can't stop every later poll.
                 let asked = tokio::time::timeout(every, fulfiller.progress(references));
-                match asked.await {
-                    Ok(answered) => answered.map_err(|error| error.to_string()),
-                    Err(_) => Err("it didn't answer in time".to_owned()),
-                }
+                asked
+                    .await
+                    .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
             })
             .await;
-        let by_reference = match answered {
+        let by_reference = match answered.map(|answer| answer.result) {
             Some(Ok(by_reference)) => by_reference,
-            Some(Err(reason)) => {
+            Some(Err(failure)) => {
                 warn!(
-                    reason,
+                    reason = failure.message,
                     "a Fulfiller couldn't say how its Requests are progressing"
                 );
                 HashMap::new()

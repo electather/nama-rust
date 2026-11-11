@@ -5,18 +5,29 @@
     reason = "test helpers and test Plugins panic to fail a test or to test panic containment"
 )]
 
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+#[path = "support/log.rs"]
+mod log;
 
+use std::{collections::BTreeMap, error::Error, fmt, sync::Arc, time::Duration};
+
+use log::Log;
 use nama_plugin_api::{
     BoxFuture, InterceptPoint, Interceptor, Manifest, ObservePoint, Observer, OnFailure, Plugin,
     PluginError, PluginId, PointKey, Priority, Registrar, Verdict,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use nama_plugin_test_choices as test_choices;
-use nama_server::plugins::{CheckError, EnableError, Outcome, Registry, SETTINGS_CHECK_TIMEOUT};
+use nama_server::plugins::{
+    Answer, CheckError, EnableError, Failure, Outcome, Registry, SETTINGS_CHECK_TIMEOUT,
+};
 use tokio::sync::mpsc::{self, error::TryRecvError};
 
 const WAIT: Duration = Duration::from_secs(5);
+
+/// What `log` waits for, as the Server fixture it was written for has it.
+mod server {
+    pub(crate) const WAIT: std::time::Duration = super::WAIT;
+}
 
 /// A test Plugin whose `register` is the given closure.
 struct TestPlugin<F> {
@@ -579,10 +590,20 @@ fn greeter(
     })
 }
 
+async fn greeting(greeter: Arc<dyn Greeter>) -> Result<&'static str, PluginError> {
+    Ok(greeter.greet())
+}
+
 async fn greet(registry: &Registry) -> Option<&'static str> {
-    registry
-        .call_provider::<dyn Greeter, _, _>(|greeter| async move { greeter.greet() })
-        .await
+    registry.ask_first(greeting).await?.result.ok()
+}
+
+/// The Plugin `plugin`'s Greeter answering `greeting`.
+fn greeted(plugin: &'static str, greeting: &'static str) -> Answer<&'static str> {
+    Answer {
+        plugin: PluginId::from_static(plugin),
+        result: Ok(greeting),
+    }
 }
 
 #[tokio::test]
@@ -637,7 +658,7 @@ async fn providers_are_looked_up_by_trait_in_priority_order_unless_the_admin_set
 }
 
 #[tokio::test]
-async fn a_panicking_provider_is_disabled_and_the_next_provider_answers() {
+async fn a_panicking_provider_is_disabled_and_the_answer_names_the_next_plugin_which_answered() {
     let registry = Registry::new();
     registry
         .enable(greeter("buggy", Priority::EARLY, PanickingGreeter))
@@ -646,7 +667,9 @@ async fn a_panicking_provider_is_disabled_and_the_next_provider_answers() {
         .enable(greeter("en", Priority::DEFAULT, Greeting("hello")))
         .unwrap();
 
-    assert_eq!(greet(&registry).await, Some("hello"));
+    let answer = registry.ask_first(greeting).await;
+
+    assert_eq!(answer, Some(greeted("en", "hello")));
     assert_eq!(registry.enabled(), [PluginId::from_static("en")]);
 }
 
@@ -725,17 +748,67 @@ async fn a_panic_from_a_stale_call_does_not_disable_the_plugin_enabled_since() {
 
 /// A Provider whose every call fails.
 trait Fetcher: Send + Sync {
-    fn fetch(&self) -> Result<(), String>;
+    fn fetch(&self) -> Result<(), PluginError>;
+}
+
+async fn fetch(fetcher: Arc<dyn Fetcher>) -> Result<(), PluginError> {
+    fetcher.fetch()
 }
 
 /// Fails quoting the URL it fetched, which holds an API key.
 struct QuotesItsUrl(String);
 
 impl Fetcher for QuotesItsUrl {
-    fn fetch(&self) -> Result<(), String> {
-        Err(format!("GET {} failed", self.0))
+    fn fetch(&self) -> Result<(), PluginError> {
+        Err(format!("GET {} failed", self.0).into())
     }
 }
+
+/// Fails with the error `.0` makes.
+struct FailsWith(fn() -> PluginError);
+
+impl Fetcher for FailsWith {
+    fn fetch(&self) -> Result<(), PluginError> {
+        Err(self.0())
+    }
+}
+
+/// A Plugin whose Fetcher fails with the error `error` makes.
+fn failing(id: &'static str, error: fn() -> PluginError) -> Arc<dyn Plugin> {
+    plugin(id, &[PointKey::provide::<dyn Fetcher>()], move |r| {
+        r.provide::<dyn Fetcher>(Priority::DEFAULT, Arc::new(FailsWith(error)));
+    })
+}
+
+/// An error that panics when shown.
+#[derive(Debug)]
+struct PanicsWhenShown;
+
+impl fmt::Display for PanicsWhenShown {
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+        panic!("display bug")
+    }
+}
+
+impl Error for PanicsWhenShown {}
+
+/// An error that panics when dropped.
+#[derive(Debug)]
+struct PanicsWhenDropped;
+
+impl fmt::Display for PanicsWhenDropped {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("fine until dropped")
+    }
+}
+
+impl Drop for PanicsWhenDropped {
+    fn drop(&mut self) {
+        panic!("drop bug")
+    }
+}
+
+impl Error for PanicsWhenDropped {}
 
 /// A Plugin taking a required `api_key` and a `language` that defaults to `en`, which tells the
 /// test the settings it was enabled with and provides a [`Fetcher`] that quotes them.
@@ -814,7 +887,8 @@ async fn a_plugin_is_enabled_with_its_settings_and_their_defaults() {
 }
 
 #[tokio::test]
-async fn a_providers_error_for_users_comes_without_its_plugins_secret_settings() {
+async fn a_providers_failure_comes_without_its_plugins_secret_settings_from_every_call() {
+    let log = Log::global();
     let registry = Registry::new();
     let (tx, _rx) = mpsc::unbounded_channel();
     registry
@@ -823,17 +897,39 @@ async fn a_providers_error_for_users_comes_without_its_plugins_secret_settings()
             settings(&[("api_key", SettingValue::Text("s3cr3t".to_owned()))]),
         )
         .unwrap();
+    let blanked = "GET /movies?key=…&language=en failed";
 
-    let fetched = registry
-        .call_provider_blanking_secrets::<dyn Fetcher, _, _>(
-            |fetcher| async move { fetcher.fetch() },
-        )
+    let first = registry.ask_first(fetch).await.unwrap();
+    let named = registry
+        .ask(&PluginId::from_static("configurable"), fetch)
+        .await
+        .unwrap();
+    registry.tell_each(|_, fetcher: Arc<dyn Fetcher>| fetch(fetcher));
+
+    let failed = Err(Failure {
+        kind: (),
+        message: blanked.to_owned(),
+    });
+    assert_eq!((first.result, named.result), (failed.clone(), failed));
+    log.wait_for(&["configurable", "provider failed", blanked], 1)
         .await;
+    assert!(!log.contents().contains("s3cr3t"), "{}", log.contents());
+}
 
-    assert_eq!(
-        fetched,
-        Some(Err("GET /movies?key=…&language=en failed".to_owned()))
-    );
+#[tokio::test]
+async fn a_provider_error_that_panics_when_shown_or_dropped_is_contained_and_disables_its_plugin() {
+    let registry = Registry::new();
+    registry
+        .enable(failing("shown", || Box::new(PanicsWhenShown)))
+        .unwrap();
+    registry
+        .enable(failing("dropped", || Box::new(PanicsWhenDropped)))
+        .unwrap();
+
+    let answer = registry.ask_first(fetch).await;
+
+    assert_eq!(answer, None);
+    assert_eq!(registry.enabled(), []);
 }
 
 #[test]
@@ -860,7 +956,7 @@ fn a_plugin_whose_settings_do_not_fit_its_schema_is_not_enabled() {
 }
 
 #[tokio::test]
-async fn a_caller_can_learn_which_plugin_provided_and_ask_that_plugin_again() {
+async fn an_answer_names_the_plugin_that_gave_it_and_that_plugin_can_be_asked_again() {
     let registry = Registry::new();
     registry
         .enable(greeter("en", Priority::DEFAULT, Greeting("hello")))
@@ -870,19 +966,15 @@ async fn a_caller_can_learn_which_plugin_provided_and_ask_that_plugin_again() {
         .unwrap();
     let en = PluginId::from_static("en");
 
-    let first = registry
-        .call_provider_with_id::<dyn Greeter, _, _>(|greeter| async move { greeter.greet() })
-        .await;
-    let from_en = registry
-        .call_provider_of::<dyn Greeter, _, _>(&en, |greeter| async move { greeter.greet() })
-        .await;
+    let providers = registry.providers::<dyn Greeter>();
+    let first = registry.ask_first(greeting).await;
+    let from_en = registry.ask(&en, greeting).await;
     registry.disable(&en);
-    let from_disabled = registry
-        .call_provider_of::<dyn Greeter, _, _>(&en, |greeter| async move { greeter.greet() })
-        .await;
+    let from_disabled = registry.ask(&en, greeting).await;
 
-    assert_eq!(first, Some((PluginId::from_static("fr"), "bonjour")));
-    assert_eq!(from_en, Some("hello"));
+    assert_eq!(providers, [en, PluginId::from_static("fr")].into());
+    assert_eq!(first, Some(greeted("fr", "bonjour")));
+    assert_eq!(from_en, Some(greeted("en", "hello")));
     assert_eq!(from_disabled, None);
 }
 

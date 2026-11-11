@@ -13,7 +13,10 @@ use nama_plugin_api::{
     },
 };
 
-use crate::{contents::Metadata, plugins::Registry};
+use crate::{
+    contents::Metadata,
+    plugins::{Answer, Failure, ProviderError, Registry},
+};
 
 /// Why the metadata Provider gave no answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -84,12 +87,12 @@ impl MetadataSource {
     pub(crate) async fn image(&self, plugin: &PluginId, path: &str) -> Result<Image, Error> {
         let answered = self
             .plugins
-            .call_provider_of::<dyn MetadataProvider, _, _>(plugin, |metadata| {
+            .ask(plugin, |metadata: Arc<dyn MetadataProvider>| {
                 let path = path.to_owned();
                 async move { metadata.image(&path).await }
             })
             .await;
-        meaning(answered.map(|answer| (plugin.clone(), answer))).map(|(_, image)| image)
+        meaning(answered).map(|(_, image)| image)
     }
 
     async fn ask<R, F>(
@@ -99,27 +102,39 @@ impl MetadataSource {
     where
         F: Future<Output = Result<R, MetadataError>>,
     {
-        meaning(
-            self.plugins
-                .call_provider_with_id::<dyn MetadataProvider, _, _>(call)
-                .await,
-        )
+        meaning(self.plugins.ask_first(call).await)
+    }
+}
+
+impl ProviderError<Error> for MetadataError {
+    fn failure(self) -> Failure<Error> {
+        let kind = match self {
+            Self::NotFound | Self::UnsupportedId(_) => Error::NotFound,
+            Self::Failed(_) => Error::Unavailable,
+        };
+        Failure {
+            kind,
+            message: self.to_string(),
+        }
     }
 }
 
 /// The answer in `answered`, or what its failure means; `answered` is `None` when no Provider
 /// could be asked.
-fn meaning<R>(
-    answered: Option<(PluginId, Result<R, MetadataError>)>,
-) -> Result<(PluginId, R), Error> {
+fn meaning<R>(answered: Option<Answer<R, Error>>) -> Result<(PluginId, R), Error> {
     match answered {
-        Some((plugin, Ok(answer))) => Ok((plugin, answer)),
-        Some((_, Err(MetadataError::NotFound | MetadataError::UnsupportedId(_)))) => {
-            Err(Error::NotFound)
-        }
-        Some((plugin, Err(MetadataError::Failed(error)))) => {
-            tracing::warn!(%plugin, %error, "the metadata provider failed");
-            Err(Error::Unavailable)
+        Some(Answer {
+            plugin,
+            result: Ok(answer),
+        }) => Ok((plugin, answer)),
+        Some(Answer {
+            plugin,
+            result: Err(failure),
+        }) => {
+            if failure.kind == Error::Unavailable {
+                tracing::warn!(%plugin, error = failure.message, "the metadata provider failed");
+            }
+            Err(failure.kind)
         }
         None => {
             tracing::debug!("no metadata provider could be asked");
@@ -156,11 +171,11 @@ mod tests {
             Candidate, Episode, ExternalId, Image, MetadataError, MetadataProvider, Movie,
             SearchQuery, Season, Show,
         },
-        settings::SettingsSchema,
+        settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
     };
 
     use super::{Error, MetadataSource};
-    use crate::plugins::Registry;
+    use crate::plugins::{Failure, Registry};
 
     /// A metadata Provider that answers every question with the error `.0` makes.
     struct Failing(fn() -> MetadataError);
@@ -212,7 +227,16 @@ mod tests {
                 name: String::new(),
                 description: String::new(),
                 version: "0.0.0".to_owned(),
-                settings: SettingsSchema::default(),
+                settings: SettingsSchema {
+                    fields: vec![SettingField {
+                        key: "api_key".to_owned(),
+                        label: String::new(),
+                        description: String::new(),
+                        kind: SettingKind::Secret,
+                        required: false,
+                        default: None,
+                    }],
+                },
                 extension_points: vec![PointKey::provide::<dyn MetadataProvider>()],
                 logo_svg: None,
             }
@@ -272,5 +296,29 @@ mod tests {
             asking(Some(failure)).await,
             (Error::Unavailable, Error::Unavailable)
         );
+    }
+
+    #[tokio::test]
+    async fn a_providers_failure_comes_without_its_plugins_secret_settings() {
+        let plugins = Registry::new();
+        let failure = || MetadataError::Failed("GET /tv/1399?api_key=s3cr3t failed".into());
+        let api_key = SettingValue::Text("s3cr3t".to_owned());
+        let settings = Settings::new([("api_key".to_owned(), api_key)].into());
+        plugins
+            .enable_with_settings(Arc::new(FailingPlugin(failure)), settings)
+            .unwrap();
+
+        let answer = plugins
+            .ask_first(|metadata: Arc<dyn MetadataProvider>| async move {
+                metadata.show(&ExternalId::Tmdb(1399)).await
+            })
+            .await
+            .unwrap();
+
+        let blanked = Failure {
+            kind: Error::Unavailable,
+            message: "GET /tv/1399?api_key=… failed".to_owned(),
+        };
+        assert_eq!(answer.result.unwrap_err(), blanked);
     }
 }

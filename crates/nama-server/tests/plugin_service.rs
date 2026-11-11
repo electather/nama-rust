@@ -160,16 +160,13 @@ impl Started {
     }
 
     /// Whether some enabled Plugin provides `T`, as Matching looks for a metadata Provider to call.
-    async fn provides<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
-        self.plugins
-            .call_provider(|_: Arc<T>| async {})
-            .await
-            .is_some()
+    fn provides<T: ?Sized + 'static>(&self) -> bool {
+        !self.plugins.providers::<T>().is_empty()
     }
 
     /// Whether Matching has a metadata Provider to call.
-    async fn can_match(&self) -> bool {
-        self.provides::<dyn MetadataProvider>().await
+    fn can_match(&self) -> bool {
+        self.provides::<dyn MetadataProvider>()
     }
 }
 
@@ -468,14 +465,14 @@ async fn a_secret_not_set_is_said_to_be_not_set() {
 #[tokio::test]
 async fn setting_the_tmdb_api_key_on_a_fresh_server_enables_it_without_a_restart() {
     let started = Started::with(&BTreeMap::new()).await;
-    assert!(!started.can_match().await);
+    assert!(!started.can_match());
 
     let updated = started.update("tmdb", [("api_key", text(TMDB_KEY))]).await;
 
     let plugin = updated.unwrap().plugin.into_option().unwrap();
     assert!(plugin.summary.enabled, "{plugin:?}");
     assert!(setting(&plugin, "api_key").secret_set);
-    assert!(started.can_match().await);
+    assert!(started.can_match());
 }
 
 #[tokio::test]
@@ -504,7 +501,7 @@ async fn new_settings_replace_the_running_ones_and_survive_a_restart() {
             ),
         ])
     );
-    assert!(started.can_match().await);
+    assert!(started.can_match());
     // A restart enables the Built-in Plugins with what is stored.
     assert!(
         started
@@ -532,7 +529,7 @@ async fn a_secret_left_blank_or_out_keeps_its_stored_value() {
         tmdb.settings.get("api_key"),
         Some(&SettingValue::Text(TMDB_KEY.to_owned()))
     );
-    assert!(started.can_match().await);
+    assert!(started.can_match());
 }
 
 #[tokio::test]
@@ -603,7 +600,7 @@ async fn a_disabled_plugins_new_settings_are_saved_but_it_stays_disabled() {
     let updated = started.update("tmdb", [("api_key", text(TMDB_KEY))]).await;
 
     assert!(!updated.unwrap().plugin.unwrap().summary.unwrap().enabled);
-    assert!(!started.can_match().await);
+    assert!(!started.can_match());
     let tmdb = started.stored().await.remove("tmdb").unwrap();
     assert!(!tmdb.enabled);
     assert!(tmdb.settings.contains_key("api_key"));
@@ -626,21 +623,21 @@ async fn an_unknown_plugin_is_refused() {
 #[tokio::test]
 async fn disabling_tmdb_stops_matching_from_calling_it_until_it_is_enabled_again() {
     let started = Started::with(&tmdb_with_key()).await;
-    assert!(started.can_match().await);
+    assert!(started.can_match());
 
     started
         .client()
         .disable_plugin(disable("tmdb"))
         .await
         .unwrap();
-    assert!(!started.can_match().await);
+    assert!(!started.can_match());
 
     started
         .client()
         .enable_plugin(enable("tmdb"))
         .await
         .unwrap();
-    assert!(started.can_match().await);
+    assert!(started.can_match());
 }
 
 #[tokio::test]
@@ -690,7 +687,7 @@ async fn disabling_the_only_authenticator_is_refused_and_it_stays_enabled() {
 
     assert_eq!(refusal.field, "id");
     assert_eq!(refusal.params["pluginId"], "local-auth");
-    assert!(started.provides::<dyn Authenticator>().await);
+    assert!(started.provides::<dyn Authenticator>());
     assert_eq!(
         plugin_settings::stored(started.server.db()).await.unwrap(),
         Some(BTreeMap::new())
@@ -709,7 +706,7 @@ async fn enabling_a_plugin_missing_a_required_setting_is_refused_naming_it() {
 
     assert_eq!(refusal.field, "settings.api_key");
     assert_eq!(refusal.params["settingKey"], "api_key");
-    assert!(!started.can_match().await);
+    assert!(!started.can_match());
     assert_eq!(
         plugin_settings::stored(started.server.db()).await.unwrap(),
         Some(BTreeMap::new())
@@ -732,7 +729,7 @@ async fn enabling_a_plugin_with_a_setting_of_the_wrong_kind_is_refused_naming_it
 
     assert_eq!(refusal.field, "settings.api_key");
     assert_eq!(refusal.params["settingKind"], "SETTING_KIND_SECRET");
-    assert!(!started.can_match().await);
+    assert!(!started.can_match());
 }
 
 #[tokio::test]

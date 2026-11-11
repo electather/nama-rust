@@ -24,7 +24,12 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 use crate::{
-    connections, db::Database, playback, plugins::Registry, requests, server_settings::ServerUrl,
+    connections,
+    db::Database,
+    playback,
+    plugins::{Failure, ProviderError, Registry},
+    requests,
+    server_settings::ServerUrl,
     users::User,
 };
 
@@ -143,7 +148,7 @@ impl EventBus {
         });
         let db = Arc::clone(&self.db);
         self.plugins
-            .call_each_provider(move |plugin, notifier: Arc<dyn Notifier>| {
+            .tell_each(move |plugin, notifier: Arc<dyn Notifier>| {
                 deliver(Arc::clone(&db), plugin, notifier, Arc::clone(&notification))
             });
     }
@@ -245,14 +250,14 @@ async fn next_message(
 ///
 /// # Errors
 ///
-/// Each recipient's that failed, together. Reading or deleting Plugin Connections failing is
-/// logged, and the others still told.
+/// Each recipient that failed, with the Notifier's error. Reading or deleting Plugin Connections
+/// failing is logged, and the others still told.
 async fn deliver(
     db: Arc<Database>,
     plugin: PluginId,
     notifier: Arc<dyn Notifier>,
     notification: Arc<Notification>,
-) -> Result<(), PluginError> {
+) -> Result<(), Undelivered> {
     let mut recipients = vec![(None, Recipient::Channel)];
     match connections::connected(&db, &plugin).await {
         Ok(connected) => recipients.extend(connections_to_tell(&notification.event, connected)),
@@ -270,13 +275,11 @@ async fn deliver(
                     disconnect(db, user, plugin, connection).await;
                     None
                 }
-                // By id, so that no log names a chat id.
-                (Err(error), Some(user), _) => Some(format!("to User {user}: {error}")),
-                (Err(error), None, _) => Some(format!("to the channel: {error}")),
+                (Err(error), user, _) => Some((user, error)),
             }
         }
     });
-    let failed: Vec<String> = stream::iter(deliveries)
+    let failed: Vec<_> = stream::iter(deliveries)
         .buffer_unordered(DELIVERING_AT_ONCE)
         .filter_map(future::ready)
         .collect()
@@ -284,7 +287,24 @@ async fn deliver(
     if failed.is_empty() {
         Ok(())
     } else {
-        Err(failed.join("; ").into())
+        Err(Undelivered(failed))
+    }
+}
+
+/// The recipients a Notifier didn't reach, each with its error: a User by id, or the channel.
+struct Undelivered(Vec<(Option<i64>, PluginError)>);
+
+impl ProviderError<()> for Undelivered {
+    fn failure(self) -> Failure {
+        let each = self.0.into_iter().map(|(user, error)| match user {
+            // By id, so that no log names a chat id.
+            Some(user) => format!("to User {user}: {error}"),
+            None => format!("to the channel: {error}"),
+        });
+        Failure {
+            kind: (),
+            message: each.collect::<Vec<_>>().join("; "),
+        }
     }
 }
 

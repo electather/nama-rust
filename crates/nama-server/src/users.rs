@@ -13,12 +13,12 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::Permission;
 use sha2::{Digest, Sha256};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
-use tokio::{sync::broadcast, task::JoinHandle};
+use tokio::sync::broadcast;
 
 use crate::{
     codes::random_secret,
     db::{BoxFuture, Database, now},
-    plugins::Registry,
+    plugins::{Failure, ProviderError, Registry},
     rate_limits::Attempt,
 };
 
@@ -762,22 +762,28 @@ impl Users {
         password: &str,
     ) -> Result<Credential, Error> {
         let password: Arc<str> = Arc::from(password);
-        let (plugin, hashed) = self
+        let hashed = self
             .plugins
-            .call_provider_with_id(|authenticator: Arc<dyn Authenticator>| {
+            .ask_first(|authenticator: Arc<dyn Authenticator>| {
                 let password = Arc::clone(&password);
-                // Hashing is meant to be slow, so it runs where blocking is fine.
-                tokio::task::spawn_blocking(move || authenticator.hash_password(&password))
+                async move {
+                    blocking(move || authenticator.hash_password(&password))
+                        .await
+                        .unwrap_or_else(|panicked| Err(PasswordError::Failed(panicked)))
+                }
             })
             .await
             .ok_or(Error::NoAuthenticator)?;
-        match hashed {
-            Ok(Ok(value)) => Ok(Credential { plugin, value }),
-            Ok(Err(PasswordError::Rejected(message))) => {
-                Err(Error::PasswordRejected { field, message })
-            }
-            Ok(Err(PasswordError::Failed(err))) => Err(Error::Authenticator(err.to_string())),
-            Err(panicked) => Err(Error::Authenticator(panicked.to_string())),
+        match hashed.result {
+            Ok(value) => Ok(Credential {
+                plugin: hashed.plugin,
+                value,
+            }),
+            Err(Failure {
+                kind: Hashing::Rejected,
+                message,
+            }) => Err(Error::PasswordRejected { field, message }),
+            Err(Failure { message, .. }) => Err(Error::Authenticator(message)),
         }
     }
 
@@ -831,18 +837,17 @@ impl Users {
         stored: Option<&StoredPassword>,
     ) -> Result<Option<i64>, Error> {
         if let Some(stored) = stored {
-            let value: Arc<str> = Arc::from(stored.credential.value.as_str());
+            let credential: Arc<str> = Arc::from(stored.credential.value.as_str());
             let verified = self
                 .plugins
-                .call_provider_of(&stored.credential.plugin, |authenticator| {
-                    verify_where_blocking_is_fine(authenticator, password, &value)
+                .ask(&stored.credential.plugin, |authenticator| {
+                    verify_where_blocking_is_fine(authenticator, password, &credential)
                 })
                 .await;
-            match verified {
+            match verified.map(|answer| answer.result) {
                 None => {}
-                Some(Ok(Ok(verified))) => return Ok(verified.then_some(stored.id)),
-                Some(Ok(Err(err))) => return Err(Error::Authenticator(err.to_string())),
-                Some(Err(panicked)) => return Err(Error::Authenticator(panicked.to_string())),
+                Some(Ok(verified)) => return Ok(verified.then_some(stored.id)),
+                Some(Err(failure)) => return Err(Error::Authenticator(failure.message)),
             }
         }
         self.verify_unknown_user(password).await?;
@@ -853,26 +858,58 @@ impl Users {
     /// would, for a name no User has.
     async fn verify_unknown_user(&self, password: &Arc<str>) -> Result<(), Error> {
         self.plugins
-            .call_provider(|authenticator: Arc<dyn Authenticator>| {
+            .ask_first(|authenticator: Arc<dyn Authenticator>| {
                 let password = Arc::clone(password);
-                tokio::task::spawn_blocking(move || authenticator.verify_unknown_user(&password))
+                blocking(move || authenticator.verify_unknown_user(&password))
             })
             .await
             .ok_or(Error::NoAuthenticator)?
-            .map_err(|panicked| Error::Authenticator(panicked.to_string()))
+            .result
+            .map_err(|failure| Error::Authenticator(failure.message))
     }
 }
 
 /// Has `authenticator` check `password` against `credential`, which is meant to be slow, where
 /// blocking is fine.
-fn verify_where_blocking_is_fine(
+async fn verify_where_blocking_is_fine(
     authenticator: Arc<dyn Authenticator>,
     password: &Arc<str>,
     credential: &Arc<str>,
-) -> JoinHandle<Result<bool, PluginError>> {
-    let password = Arc::clone(password);
-    let credential = Arc::clone(credential);
-    tokio::task::spawn_blocking(move || authenticator.verify_password(&password, &credential))
+) -> Result<bool, PluginError> {
+    let (password, credential) = (Arc::clone(password), Arc::clone(credential));
+    blocking(move || authenticator.verify_password(&password, &credential)).await?
+}
+
+/// Runs `work`, an Authenticator's on a password, which is meant to be slow, where blocking is
+/// fine.
+// A panic in it fails the call and leaves the Plugin enabled: see "Plugin code runs contained" in
+// `crates/nama-server/AGENTS.md`.
+async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, PluginError> {
+    Ok(tokio::task::spawn_blocking(work).await?)
+}
+
+/// What an Authenticator's failure to hash a password means for the User.
+enum Hashing {
+    /// The password breaks its rules, which the User is told.
+    Rejected,
+    Failed,
+}
+
+impl ProviderError<Hashing> for PasswordError {
+    fn failure(self) -> Failure<Hashing> {
+        match self {
+            Self::Rejected(message) => Failure {
+                kind: Hashing::Rejected,
+                message,
+            },
+            Self::Failed(error) => Failure {
+                kind: Hashing::Failed,
+                message: error.to_string(),
+            },
+        }
+    }
 }
 
 /// `name`, given as the request field `field`, trimmed, if it then has an allowed length. `what`
