@@ -202,7 +202,8 @@ struct Running {
     compiled: Arc<CompiledPlugin>,
     /// The values of its secret settings, which the failures it logs mustn't show.
     secrets: Arc<[String]>,
-    /// How many calls in a row crashed, counted apart for each Extension Point it takes part at.
+    /// How many calls in a row crashed, counted apart for its Observer, its Fulfiller, its
+    /// Notifier and its Connector.
     crashes: Arc<AtomicU32>,
 }
 
@@ -326,16 +327,25 @@ impl Plugin for Installed {
         // The Kernel refuses a Plugin registering at a point its Manifest doesn't name, so read
         // them from the same list the Kernel checks.
         let declared = &self.manifest.extension_points;
+        // Its Movie and Show Fulfillers call the same `fulfill` export, so they count as one.
+        let fulfiller_crashes = Arc::<AtomicU32>::default();
         for point in POINTS
             .iter()
             .filter(|point| declared.contains(&(point.key)()))
         {
             // Each counting its own crashes, so one point working between them doesn't hide them.
-            let with_own_crash_count = Running {
-                crashes: Arc::default(),
-                ..running.clone()
+            let crashes = if point.exports.contains(&FULFILL) {
+                Arc::clone(&fulfiller_crashes)
+            } else {
+                Arc::default()
             };
-            (point.register)(registrar, with_own_crash_count);
+            (point.register)(
+                registrar,
+                Running {
+                    crashes,
+                    ..running.clone()
+                },
+            );
         }
     }
 }
@@ -1115,7 +1125,7 @@ mod tests {
             providers: vec![named.into()],
             ..Default::default()
         };
-        let points = points(&package).ok()?;
+        let points = points(&package).unwrap();
         let refused = check_exports(&points, |exported| exported != export);
         refused.err().map(|refused| refused.to_string())
     }
@@ -1138,9 +1148,14 @@ mod tests {
             ]
             .map(|refusal| Some(refusal.to_owned()))
         );
-        // A Movie Fulfiller is never asked to unfollow.
-        let movies = refused_for_lacking(ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER, "unfollow");
-        assert_eq!(movies, None);
+    }
+
+    // The Kernel asks only a Show Fulfiller to unfollow.
+    #[test]
+    fn a_movie_fulfiller_needs_no_unfollow_export() {
+        let refused = refused_for_lacking(ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER, "unfollow");
+
+        assert_eq!(refused, None);
     }
 
     #[test]
