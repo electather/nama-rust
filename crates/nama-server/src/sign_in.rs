@@ -1,5 +1,6 @@
-//! Sign-in attempts: one place that names the signing-in Device, lets the attempt past the sign-in
-//! limits, checks its proof and has [`Users`] issue the session, in that order.
+//! Sign-in attempts, Setup included: one place that names the signing-in Device, lets the attempt
+//! past the sign-in limits, checks its proof or the Setup Code and has [`Users`] issue the session,
+//! in that order.
 
 use std::time::Instant;
 
@@ -101,7 +102,7 @@ impl SignIn {
 }
 
 /// `device` with its name checked, made from its `User-Agent` if it gave none.
-pub(crate) fn named(device: NewDevice) -> Result<NewDevice, users::Error> {
+fn named(device: NewDevice) -> Result<NewDevice, users::Error> {
     let name = if device.name.trim().is_empty() {
         device_names::from_user_agent(device.user_agent.as_deref())
     } else {
