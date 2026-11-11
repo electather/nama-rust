@@ -5,7 +5,8 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
 export type Stage = "claimed" | "triage" | "implement" | "review" | "pr" | "ci" | "merging";
 export type Outcome = "merged" | "pr opened" | "triaged" | "handed back" | "cancelled" | "crashed" | "interrupted";
-export type Waiting = { issue: number; why: string };
+export type Queue = "build" | "babysit" | "triage";
+export type Waiting = { issue: number; queue: Queue; why: string };
 
 export type Event = { t: string; run: string } & (
   | { kind: "run-start"; slots: number }
@@ -84,8 +85,12 @@ export function render(events: Event[], repoUrl: string, now: Date): string {
   for (const [n, tr] of inFlight) {
     out.push(`| ${link("issues", n)} | ${cell(tr.title)} | ${tr.stage} | ${hhmm(tr.since)} (${mins(tr.since, now)}) | ${tr.pr ? link("pull", tr.pr) : "—"} | ${tr.ci ? `[run](${tr.ci})` : "—"} |`);
   }
-  out.push("", "## Waiting", "| Issue | Why |", "|---|---|");
-  for (const w of waiting) out.push(`| ${link("issues", w.issue)} | ${cell(w.why)} |`);
+  out.push("", "## Waiting", "| Queue | Issue | Why |", "|---|---|---|");
+  const order: Queue[] = ["babysit", "build", "triage"]; // nearest to a merge first
+  // Events from before queues existed carry none; they were all builds.
+  const byQueue = waiting.map((w) => ({ ...w, queue: w.queue ?? "build" }))
+    .sort((a, b) => order.indexOf(a.queue) - order.indexOf(b.queue));
+  for (const w of byQueue) out.push(`| ${w.queue} | ${link("issues", w.issue)} | ${cell(w.why)} |`);
   out.push("", "## Done (last 20)", "| Issue | Outcome | PR | Took | Finished | Note |", "|---|---|---|---|---|---|");
   for (const d of done.slice(-20).reverse()) {
     const tr = d.track;

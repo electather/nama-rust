@@ -186,8 +186,6 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
     maxIterations: 3,
     signal: aborts.get(issue.number)?.signal, // aborting kills the agent and rejects with the reason (a Cancelled)
     idleTimeoutSeconds: 1800, // cold cargo builds are silent for a long time
-    // sandcastle's 10s default ran out on `git rev-parse` while five builds loaded the host, crashing the run.
-    timeouts: { gitSetupMs: 120_000 },
   });
   const reason = [...result.stdout.matchAll(/<blocked>(.*?)<\/blocked>/g)]
     .map((m) => m[1])
@@ -199,8 +197,9 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
 const slots = slotPool(MAX_PARALLEL);
 
 // Makes the branch mergeable: Sonnet first, then Opus from the last commit if Sonnet gives up.
-async function fix(box: Box, issue: Issue, problem: string) {
-  await slots.acquire(true);
+async function fix(box: Box, issue: Issue, problem: string, what: string) {
+  slotWaits.set(issue.number, { issue: issue.number, queue: "babysit", why: `${what} waits for a slot` });
+  await slots.acquire(true).finally(() => slotWaits.delete(issue.number));
   try {
     aborts.get(issue.number)?.signal.throwIfAborted(); // closed while it waited for a slot
     return await agent(box, issue, "fix", { PROBLEM: problem }, SONNET);
@@ -279,8 +278,8 @@ function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
     const s = i.subIssuesSummary;
     const blockers = i.blockedBy.nodes.filter((b) => b.state === "OPEN").map((b) => `#${b.number}`);
     if (withPr.has(i.number)) continue; // the babysitter's, or a person's
-    if (s.total > 0) waiting.push({ issue: i.number, why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
-    else if (blockers.length) waiting.push({ issue: i.number, why: `blocked by ${blockers.join(", ")} (open)` });
+    if (s.total > 0) waiting.push({ issue: i.number, queue: "build", why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
+    else if (blockers.length) waiting.push({ issue: i.number, queue: "build", why: `blocked by ${blockers.join(", ")} (open)` });
     else ready.push({ number: i.number, title: i.title, parent: i.parent?.number, branch: `agent/issue-${i.number}` });
   }
   return { ready, waiting };
@@ -402,15 +401,20 @@ function queue() {
 const serially = queue(); // merges
 // Concurrent `git worktree add`s race on .git/worktrees (one reads another's half-written commondir).
 const oneSandboxAtATime = queue();
-
-async function build(issue: Issue): Promise<{ box: Box; body: string }> {
-  const box = await oneSandboxAtATime(() =>
+const newBox = (branch: string) =>
+  oneSandboxAtATime(() =>
     sandcastle.createSandbox({
-      branch: branchOf(issue),
+      branch,
       baseBranch: `origin/${BASE}`,
       sandbox: sandbox(),
+      // Each box.run's git setup uses these, not run's own: the 10s default ran out on `git rev-parse` while five
+      // builds loaded the host, crashing the run.
+      timeouts: { gitSetupMs: 120_000 },
     }),
   );
+
+async function build(issue: Issue): Promise<{ box: Box; body: string }> {
+  const box = await newBox(branchOf(issue));
   try {
     stage(issue, "implement");
     await agent(box, issue, "implement");
@@ -452,9 +456,7 @@ async function implement(issue: Issue): Promise<Outcome> {
 async function boxFor(job: Job): Promise<Box> {
   if (!job.box) {
     const branch = branchOf(job.issue);
-    const box = await oneSandboxAtATime(() =>
-      sandcastle.createSandbox({ branch, baseBranch: `origin/${BASE}`, sandbox: sandbox() }),
-    );
+    const box = await newBox(branch);
     await box.exec(`git reset --hard origin/${branch}`);
     job.box = box;
   }
@@ -516,7 +518,7 @@ const conflicts = (ref: string) => !ok("git", "merge-tree", "--write-tree", `ori
 // Another PR's merge conflicts with this one: merge main in, then push.
 async function rebase(job: Job) {
   note(job.issue, "rebase");
-  await fix(await boxFor(job), job.issue, `It is behind origin/${BASE} (other issues merged first) and conflicts.`);
+  await fix(await boxFor(job), job.issue, `It is behind origin/${BASE} (other issues merged first) and conflicts.`, "rebase");
   push(job);
 }
 
@@ -533,7 +535,7 @@ async function greenCi(job: Job) {
     }
     if (fixed) throw new Blocked(`CI still failing on PR #${job.pr} after one fix attempt`);
     note(job.issue, "CI fix");
-    await fix(await boxFor(job), job.issue, `CI is failing on PR #${job.pr}.`);
+    await fix(await boxFor(job), job.issue, `CI is failing on PR #${job.pr}.`, "CI fix");
     push(job);
     fixed = true;
   }
@@ -569,9 +571,7 @@ async function babysit(job: Job): Promise<Outcome> {
 // The triage loop's whole job: one agent pass that relabels, closes or splits the issue itself. The sandbox is a
 // clean checkout of main to read and reproduce in; its branch never gets a commit.
 async function triage(issue: Issue): Promise<Outcome> {
-  const box = await oneSandboxAtATime(() =>
-    sandcastle.createSandbox({ branch: issue.branch, baseBranch: `origin/${BASE}`, sandbox: sandbox() }),
-  );
+  const box = await newBox(issue.branch);
   let out: string;
   try {
     stage(issue, "triage");
@@ -655,7 +655,8 @@ const triaged = new Set<number>(); // issues the triage loop tried this run, wha
 const triagePending = () => TRIAGING && triageable().some((i) => !triaged.has(i.number));
 // By issue number: one issue is in at most one loop at a time.
 const inFlight = new Map<number, { issue: Issue; loop: Loop; claim: string }>();
-const claimedElsewhere = new Map<number, string>(); // issue → why it waits
+const claimedElsewhere = new Map<number, Waiting>(); // by issue
+const slotWaits = new Map<number, Waiting>(); // in flight, but blocked on a slot (a fix, or the next triage)
 const outcomes: { issue: number; outcome: Outcome }[] = [];
 let crashed = "";
 
@@ -666,9 +667,28 @@ function finish(issue: Issue, outcome: Outcome, why?: string) {
 
 // Logged and recorded only when it changes, not on every 60s poll.
 let lastWaiting = "";
-function noteWaiting(waiting: Waiting[]) {
-  const all = [...waiting, ...[...claimedElsewhere].map(([issue, why]) => ({ issue, why }))];
-  const text = all.map((w) => `#${w.issue} ${w.why}`).join("; ");
+// Every loop's queue: what each would start next and why it hasn't yet.
+function noteWaiting(prs: OpenPr[], { ready, waiting } = readyIssues(prs)) {
+  const held = crashed ? "next run: this one crashed"
+    : existsSync(STOP_FILE) ? "next run: STOP is set"
+    : paused() ? "paused: Claude usage near its limit"
+    : slots.busy() >= MAX_PARALLEL ? `waits for a slot (${slots.busy()}/${MAX_PARALLEL} busy)`
+    : slowed() && slots.busy() >= SLOW_PARALLEL ? `slowed: at most ${SLOW_PARALLEL} busy near the usage limit`
+    : "starts next";
+  const triaging = [...inFlight.values()].find((f) => f.loop === "triage");
+  const fresh = (n: number) => !taken.has(n) && !inFlight.has(n) && !claimedElsewhere.has(n);
+  const all: Waiting[] = [
+    ...ready.filter((i) => fresh(i.number)).map((i) => ({ issue: i.number, queue: "build" as const, why: held })),
+    ...waiting,
+    ...(TRIAGING ? triageable() : []).filter((i) => !triaged.has(i.number) && fresh(i.number)).map((i) => ({
+      issue: i.number,
+      queue: "triage" as const,
+      why: triaging && held === "starts next" ? `after #${triaging.issue.number} (one triage at a time)` : held,
+    })),
+    ...slotWaits.values(),
+    ...claimedElsewhere.values(),
+  ];
+  const text = all.map((w) => `${w.queue} #${w.issue} ${w.why}`).join("; ");
   if (text === lastWaiting) return;
   lastWaiting = text;
   log(`waiting: ${text || "nothing"}`);
@@ -682,19 +702,22 @@ function pickNext(): Issue | "wait" | "done" {
     fetchOrigin();
     closeFinishedParents();
     const prs = openPrs();
-    const { ready, waiting } = readyIssues(prs);
-    noteWaiting(waiting);
+    const queued = readyIssues(prs);
+    const { ready } = queued;
     // Not one still in the triage loop, which labelled it ready a moment ago: its release would strip the build's
     // agent-working label.
     const issue = ready.find((i) => !taken.has(i.number) && !inFlight.has(i.number));
     // Done only when nothing anywhere can still unblock an issue: no build, no PR left to merge, and nothing left
     // to triage (it may come out ready-for-agent).
-    if (!issue) return inFlight.size === 0 && babysittable(prs).length === 0 && !triagePending() ? "done" : "wait";
+    if (!issue) {
+      noteWaiting(prs, queued);
+      return inFlight.size === 0 && babysittable(prs).length === 0 && !triagePending() ? "done" : "wait";
+    }
     taken.add(issue.number);
     const owner = claim(issueClaim(issue), `#${issue.number}`);
+    if (owner) claimedElsewhere.set(issue.number, { issue: issue.number, queue: "build", why: `claimed by ${owner}` });
+    noteWaiting(prs, queued);
     if (!owner) return issue;
-    claimedElsewhere.set(issue.number, `claimed by ${owner}`);
-    noteWaiting(waiting);
   }
 }
 
@@ -834,8 +857,10 @@ async function babysitLoop() {
   for (;;) {
     if (existsSync(STOP_FILE)) break;
     let jobs: Job[] = [];
+    let prs: OpenPr[] = [];
     try {
-      jobs = babysittable();
+      prs = openPrs();
+      jobs = babysittable(prs);
     } catch (e) {
       const why = `listing PRs to babysit failed: ${oneLine(e)}`;
       appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
@@ -849,7 +874,7 @@ async function babysitLoop() {
       if (watched.has(job.pr) || inFlight.has(job.issue.number)) continue;
       const owner = claim(prClaim(job.pr), `PR #${job.pr}`);
       if (owner) {
-        claimedElsewhere.set(job.issue.number, `PR #${job.pr} babysat by ${owner}`);
+        claimedElsewhere.set(job.issue.number, { issue: job.issue.number, queue: "babysit", why: `PR #${job.pr} babysat by ${owner}` });
         continue;
       }
       claimedElsewhere.delete(job.issue.number);
@@ -858,6 +883,12 @@ async function babysitLoop() {
       const p: Promise<void> = track(job.issue, "babysit", prClaim(job.pr), () => babysit(job))
         .finally(() => running.delete(p));
       running.add(p);
+    }
+    // The implement loop refreshes the queues only when it picks, and it can't while every slot is busy.
+    try {
+      noteWaiting(prs);
+    } catch (e) {
+      log(`couldn't refresh the waiting list: ${oneLine(e)}`); // status only: the next pass tries again
     }
     if (implementDone && running.size === 0 && started === 0) break;
     await sleep(60_000);
@@ -892,7 +923,9 @@ async function triageLoop() {
       log(`#${issue.number} triage skipped: claimed by ${owner}`);
       continue;
     }
+    slotWaits.set(issue.number, { issue: issue.number, queue: "triage", why: "waits for a slot" });
     await slots.acquire(); // released by track
+    slotWaits.delete(issue.number);
     const i = issue;
     await track(i, "triage", triageClaim(i), () => triage(i));
   }

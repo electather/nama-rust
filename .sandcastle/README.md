@@ -75,7 +75,7 @@ Unattended (one supervisor per machine, `flock`). Once the queue is drained it r
 
 Logs, all in `.sandcastle/logs/`:
 
-- `status.md`: what is in flight in either loop (stage, PR, CI run; an issue whose PR is open shows "→ pr opened" under Done, then comes back in flight while it's babysat), what is waiting and why (blocked, a parent, claimed by another factory), and the last 20 finished issues. It's rewritten on every change and covers this machine's factory only.
+- `status.md`: what is in flight in either loop (stage, PR, CI run; an issue whose PR is open shows "→ pr opened" under Done, then comes back in flight while it's babysat), what each queue (babysit, build, triage) is waiting on and why (a slot, a usage pause, a blocker, a parent, another factory's claim, a crash or STOP until the next run), and the last 20 finished issues. It's rewritten on every change, and the waiting list at least once a minute. It covers this machine's factory only.
 - `events.jsonl`: one JSON event per line, the record `status.md` is rendered from (`status.ts`). It keeps the history across runs.
 - `launchd.log`: one timestamped line per event, stage changes with timings, and a summary of why the run ended and what is still queued.
 - `crash-issue-N.log`: the full error behind a one-line crash in `launchd.log`.
