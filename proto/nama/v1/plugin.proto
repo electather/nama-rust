@@ -254,18 +254,23 @@ enum ExtensionPoint {
   EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8;
 }
 
-// What kind of value a setting takes.
+// What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
+// with it too (`nama.plugin.v1.SettingField`).
 enum SettingKind {
   SETTING_KIND_UNSPECIFIED = 0;
+  // Text.
   SETTING_KIND_TEXT = 1;
-  // Text that is never sent back, such as an API key.
+  // Text that is never sent back or logged, such as an API key.
   SETTING_KIND_SECRET = 2;
+  // On or off.
   SETTING_KIND_BOOL = 3;
+  // A whole number.
   SETTING_KIND_INTEGER = 4;
-  // Text picked from the choices the Plugin's settings check offers (`TestPluginSettings`).
+  // Text picked from the choices the Plugin's settings check offers (`TestPluginSettings`), which
+  // for an Installed Plugin is its `check_settings()` export.
   SETTING_KIND_CHOICE = 5;
   // An http or https URL, such as a Sonarr address. An Installed Plugin may send HTTP requests
-  // to its host.
+  // to its host, as if its Manifest's `allowed_hosts` named it.
   SETTING_KIND_URL = 6;
 }
 
@@ -291,8 +296,11 @@ message Setting {
 // A setting's value, of the setting's kind.
 message SettingValue {
   oneof value {
+    // Text, for SETTING_KIND_TEXT, SETTING_KIND_SECRET, SETTING_KIND_CHOICE and SETTING_KIND_URL.
     string text_value = 1;
+    // On or off, for SETTING_KIND_BOOL.
     bool bool_value = 2;
+    // A whole number, for SETTING_KIND_INTEGER.
     int64 integer_value = 3;
   }
 }

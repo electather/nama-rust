@@ -30,14 +30,12 @@ pub mod __buffa {
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
-            include!("nama.plugin.v1.manifest.__view_oneof.rs");
             include!("nama.plugin.v1.notifier.__view_oneof.rs");
         }
     }
     pub mod oneof {
         #[allow(unused_imports)]
         use super::*;
-        include!("nama.plugin.v1.manifest.__oneof.rs");
         include!("nama.plugin.v1.notifier.__oneof.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
@@ -53,7 +51,6 @@ pub mod __buffa {
         reg.register_json_any(super::__DOWNLOADS_JSON_ANY);
         reg.register_json_any(super::__MANIFEST_JSON_ANY);
         reg.register_json_any(super::__SETTING_FIELD_JSON_ANY);
-        reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
         reg.register_json_any(super::__CHECKED_SETTINGS_JSON_ANY);
         reg.register_json_any(super::__NOTIFICATION_JSON_ANY);
         reg.register_json_any(super::__DELIVERY_JSON_ANY);
@@ -105,10 +102,6 @@ pub use self::__buffa::view::ManifestOwnedView;
 pub use self::__buffa::view::SettingFieldView;
 #[doc(inline)]
 pub use self::__buffa::view::SettingFieldOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingValueView;
-#[doc(inline)]
-pub use self::__buffa::view::SettingValueOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::CheckedSettingsView;
 #[doc(inline)]

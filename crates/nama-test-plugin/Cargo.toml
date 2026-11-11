@@ -16,6 +16,9 @@ panic = []
 # Builds the Plugin naming the Connector Extension Point without its exports, so the Server
 # refuses it.
 unexported-connector = []
+# Builds the Plugin for Nama API 0.1, before `nama.plugin.v1` took `nama.v1`'s setting kinds, so
+# the Server refuses it.
+nama-api-0-1 = []
 
 [dependencies]
 nama-pdk = { version = "0.1.0", path = "../nama-pdk" }

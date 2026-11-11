@@ -20,7 +20,8 @@ pub struct ManifestView<'a> {
     /// Field 2: `version`
     pub version: &'a str,
     /// The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
-    /// such as "^0.1.0". A Server whose Nama API version doesn't match refuses the Plugin.
+    /// such as "^0.2.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
+    /// reads this field before the rest of the Manifest, so it keeps field number 3 in every version.
     ///
     /// Field 3: `nama_api`
     pub nama_api: &'a str,
@@ -550,7 +551,8 @@ impl ManifestOwnedView {
         self.0.reborrow().version
     }
     /// The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
-    /// such as "^0.1.0". A Server whose Nama API version doesn't match refuses the Plugin.
+    /// such as "^0.2.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
+    /// reads this field before the rest of the Manifest, so it keeps field number 3 in every version.
     ///
     /// Field 3: `nama_api`
     #[must_use]
@@ -670,7 +672,7 @@ pub struct SettingFieldView<'a> {
     /// What kind of value it takes.
     ///
     /// Field 4: `kind`
-    pub kind: ::buffa::EnumValue<super::super::SettingKind>,
+    pub kind: ::buffa::EnumValue<super::super::super::super::v1::SettingKind>,
     /// Whether the Plugin can't be enabled without it.
     ///
     /// Field 5: `required`
@@ -679,7 +681,7 @@ pub struct SettingFieldView<'a> {
     ///
     /// Field 6: `default_value`
     pub default_value: ::buffa::MessageFieldView<
-        super::super::__buffa::view::SettingValueView<'a>,
+        super::super::super::super::v1::__buffa::view::SettingValueView<'a>,
     >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
@@ -763,7 +765,7 @@ impl<'a> ::buffa::MessageView<'a> for SettingFieldView<'a> {
                     }
                     None => {
                         view.default_value = ::buffa::MessageFieldView::set(
-                            <super::super::__buffa::view::SettingValueView as ::buffa::MessageView>::decode_view_ctx(
+                            <super::super::super::super::v1::__buffa::view::SettingValueView as ::buffa::MessageView>::decode_view_ctx(
                                 sub,
                                 __sub_ctx,
                             )?,
@@ -801,8 +803,8 @@ impl<'a> ::buffa::MessageView<'a> for SettingFieldView<'a> {
             default_value: match self.default_value.as_option() {
                 Some(v) => {
                     ::buffa::MessageField::<
-                        super::super::SettingValue,
-                        ::buffa::Inline<super::super::SettingValue>,
+                        super::super::super::super::v1::SettingValue,
+                        ::buffa::Inline<super::super::super::super::v1::SettingValue>,
                     >::some(v.to_owned_from_source(__buffa_src)?)
                 }
                 None => ::buffa::MessageField::none(),
@@ -1038,7 +1040,9 @@ impl SettingFieldOwnedView {
     ///
     /// Field 4: `kind`
     #[must_use]
-    pub fn kind(&self) -> ::buffa::EnumValue<super::super::SettingKind> {
+    pub fn kind(
+        &self,
+    ) -> ::buffa::EnumValue<super::super::super::super::v1::SettingKind> {
         self.0.reborrow().kind
     }
     /// Whether the Plugin can't be enabled without it.
@@ -1054,7 +1058,9 @@ impl SettingFieldOwnedView {
     #[must_use]
     pub fn default_value(
         &self,
-    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::SettingValueView<'_>> {
+    ) -> &::buffa::MessageFieldView<
+        super::super::super::super::v1::__buffa::view::SettingValueView<'_>,
+    > {
         &self.0.reborrow().default_value
     }
 }
@@ -1081,332 +1087,6 @@ impl ::buffa::HasMessageView for super::super::SettingField {
     type ViewHandle = SettingFieldOwnedView;
 }
 impl ::serde::Serialize for SettingFieldOwnedView {
-    fn serialize<__S: ::serde::Serializer>(
-        &self,
-        __s: __S,
-    ) -> ::core::result::Result<__S::Ok, __S::Error> {
-        ::serde::Serialize::serialize(&self.0, __s)
-    }
-}
-/// A setting's value.
-#[derive(Clone, Debug, Default)]
-pub struct SettingValueView<'a> {
-    pub value: ::core::option::Option<
-        super::super::__buffa::view::oneof::setting_value::Value<'a>,
-    >,
-    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
-}
-impl<'a> ::buffa::MessageView<'a> for SettingValueView<'a> {
-    type Owned = super::super::SettingValue;
-    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
-        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
-        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
-        <Self as ::buffa::MessageView>::decode_view_ctx(
-            buf,
-            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
-                .with_element_memory(&__elem),
-        )
-    }
-    fn decode_view_with_ctx(
-        buf: &'a [u8],
-        ctx: ::buffa::DecodeContext<'_>,
-    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
-        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
-    }
-    #[inline]
-    fn merge_view_field(
-        &mut self,
-        tag: ::buffa::encoding::Tag,
-        cur: &'a [u8],
-        before_tag: &'a [u8],
-        ctx: ::buffa::DecodeContext<'_>,
-    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
-        let _ = ctx;
-        #[allow(unused_variables)]
-        let view = self;
-        let mut cur = cur;
-        match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                view.value = Some(
-                    super::super::__buffa::view::oneof::setting_value::Value::Bool(
-                        ::buffa::types::decode_bool(&mut cur)?,
-                    ),
-                );
-            }
-            2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                view.value = Some(
-                    super::super::__buffa::view::oneof::setting_value::Value::Integer(
-                        ::buffa::types::decode_int64(&mut cur)?,
-                    ),
-                );
-            }
-            3u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                view.value = Some(
-                    super::super::__buffa::view::oneof::setting_value::Value::Text(
-                        ::buffa::types::borrow_str(&mut cur)?,
-                    ),
-                );
-            }
-            _ => {
-                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
-                let span_len = before_tag.len() - cur.len();
-                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
-            }
-        }
-        ::core::result::Result::Ok(cur)
-    }
-    fn to_owned_message(
-        &self,
-    ) -> ::core::result::Result<super::super::SettingValue, ::buffa::DecodeError> {
-        self.to_owned_from_source(None)
-    }
-    #[allow(clippy::useless_conversion, clippy::needless_update)]
-    fn to_owned_from_source(
-        &self,
-        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
-    ) -> ::core::result::Result<super::super::SettingValue, ::buffa::DecodeError> {
-        #[allow(unused_imports)]
-        use ::buffa::alloc::string::ToString as _;
-        let _ = __buffa_src;
-        ::core::result::Result::Ok(super::super::SettingValue {
-            value: self
-                .value
-                .as_ref()
-                .map(|v| match v {
-                    super::super::__buffa::view::oneof::setting_value::Value::Bool(v) => {
-                        super::super::__buffa::oneof::setting_value::Value::Bool(*v)
-                    }
-                    super::super::__buffa::view::oneof::setting_value::Value::Integer(
-                        v,
-                    ) => super::super::__buffa::oneof::setting_value::Value::Integer(*v),
-                    super::super::__buffa::view::oneof::setting_value::Value::Text(v) => {
-                        super::super::__buffa::oneof::setting_value::Value::Text(
-                            v.to_string(),
-                        )
-                    }
-                }),
-            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
-            ..::core::default::Default::default()
-        })
-    }
-}
-impl<'a> ::buffa::ViewEncode<'a> for SettingValueView<'a> {
-    #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        let mut size = 0u64;
-        if let ::core::option::Option::Some(ref v) = self.value {
-            match v {
-                super::super::__buffa::view::oneof::setting_value::Value::Bool(_x) => {
-                    size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
-                }
-                super::super::__buffa::view::oneof::setting_value::Value::Integer(v) => {
-                    size += 1u64 + ::buffa::types::int64_encoded_len(*v) as u64;
-                }
-                super::super::__buffa::view::oneof::setting_value::Value::Text(x) => {
-                    size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
-                }
-            }
-        }
-        size += self.__buffa_unknown_fields.encoded_len() as u64;
-        ::buffa::saturate_size(size)
-    }
-    #[allow(clippy::needless_borrow)]
-    fn write_to(
-        &self,
-        _cache: &mut ::buffa::SizeCache,
-        buf: &mut impl ::buffa::EncodeSink,
-    ) {
-        #[allow(unused_imports)]
-        use ::buffa::Enumeration as _;
-        if let ::core::option::Option::Some(ref v) = self.value {
-            match v {
-                super::super::__buffa::view::oneof::setting_value::Value::Bool(x) => {
-                    ::buffa::types::put_bool_field(1u32, *x, buf);
-                }
-                super::super::__buffa::view::oneof::setting_value::Value::Integer(x) => {
-                    ::buffa::types::put_int64_field(2u32, *x, buf);
-                }
-                super::super::__buffa::view::oneof::setting_value::Value::Text(x) => {
-                    ::buffa::types::put_string_field(3u32, x, buf);
-                }
-            }
-        }
-        self.__buffa_unknown_fields.write_to(buf);
-    }
-}
-/// Serializes this view as protobuf JSON.
-///
-/// Implicit-presence fields with default values are omitted, `required`
-/// fields are always emitted, explicit-presence (`optional`) fields are
-/// emitted only when set, bytes fields are base64-encoded, and enum
-/// values are their proto name strings.
-///
-/// This impl uses `serialize_map(None)` because the number of emitted
-/// fields depends on default-omission rules; serializers that require
-/// known map lengths (e.g. `bincode`) will return a runtime error.
-/// Use the owned message type for those formats.
-impl<'__a> ::serde::Serialize for SettingValueView<'__a> {
-    fn serialize<__S: ::serde::Serializer>(
-        &self,
-        __s: __S,
-    ) -> ::core::result::Result<__S::Ok, __S::Error> {
-        use ::serde::ser::SerializeMap as _;
-        let mut __map = __s.serialize_map(::core::option::Option::None)?;
-        if let ::core::option::Option::Some(ref __ov) = self.value {
-            match __ov {
-                super::super::__buffa::view::oneof::setting_value::Value::Bool(v) => {
-                    __map.serialize_entry("bool", v)?;
-                }
-                super::super::__buffa::view::oneof::setting_value::Value::Integer(v) => {
-                    __map
-                        .serialize_entry(
-                            "integer",
-                            &::buffa::json_helpers::ProtoJson(v),
-                        )?;
-                }
-                super::super::__buffa::view::oneof::setting_value::Value::Text(v) => {
-                    __map.serialize_entry("text", v)?;
-                }
-            }
-        }
-        __map.end()
-    }
-}
-impl<'a> ::buffa::MessageName for SettingValueView<'a> {
-    const PACKAGE: &'static str = "nama.plugin.v1";
-    const NAME: &'static str = "SettingValue";
-    const FULL_NAME: &'static str = "nama.plugin.v1.SettingValue";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.SettingValue";
-}
-::buffa::impl_default_view_instance!(SettingValueView);
-::buffa::impl_view_reborrow!(SettingValueView);
-/** Self-contained, `'static` owned view of a `SettingValue` message.
-
- Wraps [`::buffa::OwnedView`]`<`[`SettingValueView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
-
- Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SettingValueView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
-#[derive(Clone, Debug)]
-pub struct SettingValueOwnedView(::buffa::OwnedView<SettingValueView<'static>>);
-impl SettingValueOwnedView {
-    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
-    ///
-    /// The view borrows directly from the buffer's data; the buffer is
-    /// retained inside the returned handle.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
-    /// protobuf data.
-    pub fn decode(
-        bytes: ::buffa::bytes::Bytes,
-    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
-        ::core::result::Result::Ok(
-            SettingValueOwnedView(::buffa::OwnedView::decode(bytes)?),
-        )
-    }
-    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
-    /// max message size).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
-    /// exceeds the configured limits.
-    pub fn decode_with_options(
-        bytes: ::buffa::bytes::Bytes,
-        opts: &::buffa::DecodeOptions,
-    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
-        ::core::result::Result::Ok(
-            SettingValueOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
-        )
-    }
-    /// Build from an owned message via an encode → decode round-trip.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
-    /// message's encoded size exceeds the 2 GiB protobuf limit, or
-    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
-    /// somehow invalid (should not happen for well-formed messages).
-    pub fn from_owned(
-        msg: &super::super::SettingValue,
-    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
-        ::core::result::Result::Ok(
-            SettingValueOwnedView(::buffa::OwnedView::from_owned(msg)?),
-        )
-    }
-    /// Borrow the full [`SettingValueView`] with its lifetime tied to `&self`.
-    #[must_use]
-    pub fn view(&self) -> &SettingValueView<'_> {
-        self.0.reborrow()
-    }
-    /// Convert to the owned message type.
-    ///
-    /// Infallible: this type's constructors wire-decode their
-    /// buffer, and a view produced by wire decoding always
-    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
-    /// whose contract also governs handles converted from a raw
-    /// [`::buffa::OwnedView`].
-    #[must_use]
-    pub fn to_owned_message(&self) -> super::super::SettingValue {
-        self.0.to_owned_message()
-    }
-    /// The underlying bytes buffer.
-    #[must_use]
-    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
-        self.0.bytes()
-    }
-    /// Consume the handle, returning the underlying bytes buffer.
-    #[must_use]
-    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
-        self.0.into_bytes()
-    }
-    /// Oneof `value`.
-    #[must_use]
-    pub fn value(
-        &self,
-    ) -> ::core::option::Option<
-        &super::super::__buffa::view::oneof::setting_value::Value<'_>,
-    > {
-        self.0.reborrow().value.as_ref()
-    }
-}
-impl ::core::convert::From<::buffa::OwnedView<SettingValueView<'static>>>
-for SettingValueOwnedView {
-    fn from(inner: ::buffa::OwnedView<SettingValueView<'static>>) -> Self {
-        SettingValueOwnedView(inner)
-    }
-}
-impl ::core::convert::From<SettingValueOwnedView>
-for ::buffa::OwnedView<SettingValueView<'static>> {
-    fn from(wrapper: SettingValueOwnedView) -> Self {
-        wrapper.0
-    }
-}
-impl ::core::convert::AsRef<::buffa::OwnedView<SettingValueView<'static>>>
-for SettingValueOwnedView {
-    fn as_ref(&self) -> &::buffa::OwnedView<SettingValueView<'static>> {
-        &self.0
-    }
-}
-impl ::buffa::HasMessageView for super::super::SettingValue {
-    type View<'a> = SettingValueView<'a>;
-    type ViewHandle = SettingValueOwnedView;
-}
-impl ::serde::Serialize for SettingValueOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,
