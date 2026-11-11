@@ -61,7 +61,7 @@ type Make = Arc<dyn Fn() -> Arc<dyn Plugin> + Send + Sync>;
 /// runs no Plugin code.
 struct Described {
     kind: PluginKind,
-    /// Makes the Plugin anew for each enablement, with its Manifest, or says why the Server
+    /// What makes the Plugin anew for each enablement, kept beside its Manifest, or why the Server
     /// refused it. Keeping one instance instead would hold it past disabling, so its `Drop` would
     /// run uncontained when the registry goes.
     plugin: Result<(Make, Manifest), String>,

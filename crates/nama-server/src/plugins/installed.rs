@@ -529,8 +529,8 @@ impl Registry {
             state.known.retain(|id, known| {
                 known.kind == PluginKind::PLUGIN_KIND_BUILT_IN || enabled.contains_key(id)
             });
-            for (id, plugin) in described {
-                state.known.entry(id).or_insert(plugin);
+            for (id, known) in described {
+                state.known.entry(id).or_insert(known);
             }
         });
     }
