@@ -786,6 +786,27 @@ EOF"#,
     // The fake ffprobe is a shell script.
     #[cfg(unix)]
     #[tokio::test]
+    async fn a_file_whose_packets_cant_be_read_keeps_its_tracks_without_a_length() {
+        let bin = tempfile::tempdir().unwrap();
+        let ffmpeg = fake_ffprobe(
+            bin.path(),
+            r#"case "$*" in *packet=*) echo 'Invalid data found when processing input' >&2; exit 1 ;; esac
+echo '{"format": {"format_name": "matroska,webm"}, "streams": [{"codec_type": "audio", "codec_name": "ac3", "channels": 2}]}'"#,
+        );
+        let media = Fixture::with_ffmpeg(ffmpeg).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10).await;
+        media.match_to_alien().await;
+
+        let probe = media.current(alien).await.unwrap();
+
+        assert_eq!((probe.tracks.len(), probe.duration_ms), (1, None));
+        assert_eq!(media.probe(alien).await, Some(probe));
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
     async fn shutting_down_stops_the_probes() {
         let bin = tempfile::tempdir().unwrap();
         let media = Fixture::with_ffmpeg(fake_ffprobe(bin.path(), "exec sleep 60")).await;

@@ -303,7 +303,12 @@ impl Ffmpeg {
         let output = self.run_ffprobe(&args, path, PROBE_TIMEOUT).await?;
         let mut probe = parse_probe(&output)?;
         if probe.duration_ms.is_none() {
-            probe.duration_ms = self.video_end(path).await?;
+            probe.duration_ms = match self.video_end(path).await {
+                // Its Tracks were read, so a packet it can't read, as in a damaged file, leaves
+                // only its length unknown rather than failing the probe for good.
+                Err(ProbeError::Failed(_)) => None,
+                end => end?,
+            };
         }
         Ok(probe)
     }
