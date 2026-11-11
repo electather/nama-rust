@@ -90,6 +90,8 @@ function drawPgs(
     if (!left) rendererFailed();
   };
   const start = async () => {
+    // Fetched afresh each time it's turned on, so what an earlier one came to no longer says.
+    settle("loading");
     const sup = await fetchSubtitle(url);
     if (left) return;
     if (sup === null) {

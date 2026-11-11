@@ -210,6 +210,35 @@ test("a PGS Track that can't be fetched says so, as a text one does", async () =
   expect(bitsub.drawn).toEqual([]);
 });
 
+test("a PGS Track turned on again says Loading… until it's fetched again", async () => {
+  let answer: ((response: Response) => void) | undefined;
+  const refetched = new Promise<Response>((resolve) => {
+    answer = resolve;
+  });
+  const fetched = vi
+    .fn<() => Promise<Response>>()
+    .mockResolvedValueOnce(new Response("", { status: 500 }))
+    .mockReturnValueOnce(refetched);
+  await playing([], fetched);
+  choose(/Signs/u);
+  const signs = screen.getByRole("menuitemradio", { name: /Signs/u });
+  await waitFor(() => {
+    expect(signs.textContent).toContain("Couldn’t load");
+  });
+
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "Off" }));
+  fireEvent.click(signs);
+
+  await waitFor(() => {
+    expect(signs.textContent).toContain("Loading…");
+  });
+  answer?.(new Response("PGS"));
+  await waitFor(() => {
+    expect(bitsub.drawn).toEqual(["PGS"]);
+  });
+  expect(signs.textContent).not.toMatch(/Loading…|Couldn’t load/u);
+});
+
 // Last: once the renderer fails, this page never lists PGS again, as after it a reload would.
 test("a renderer that won't start has the Track burned in by a plan that doesn't list PGS", async () => {
   const asked: PlanPlaybackRequest[] = [];
