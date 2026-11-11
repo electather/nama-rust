@@ -223,16 +223,16 @@ impl Browse {
                 let movies = self.contents.movies(library.id).await?;
                 let files = movies.iter().flat_map(|movie| &movie.versions);
                 let probes = self.probes(files).await?;
-                let with_tracks = |movie: contents::Movie| movie.map_versions(with_tracks(&probes));
-                Titles::Movies(movies.into_iter().map(with_tracks).collect())
+                let tracked = |movie: contents::Movie| movie.map_versions(with_tracks(&probes));
+                Titles::Movies(movies.into_iter().map(tracked).collect())
             }
             Kind::Shows => {
                 let shows = self.contents.shows(library.id).await?;
                 let files = (shows.iter().flat_map(contents::Show::episodes))
                     .flat_map(|episode| &episode.versions);
                 let probes = self.probes(files).await?;
-                let with_tracks = |show: contents::Show| show.map_versions(with_tracks(&probes));
-                Titles::Shows(shows.into_iter().map(with_tracks).collect())
+                let tracked = |show: contents::Show| show.map_versions(with_tracks(&probes));
+                Titles::Shows(shows.into_iter().map(tracked).collect())
             }
         })
     }
