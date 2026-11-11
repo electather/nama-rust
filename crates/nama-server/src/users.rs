@@ -176,15 +176,15 @@ pub(crate) struct Caller {
 /// the code signs a Device in.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ApprovingDevice {
-    pub(crate) user: i64,
-    pub(crate) device: i64,
+    pub(crate) user_id: i64,
+    pub(crate) device_id: i64,
 }
 
 impl From<&Caller> for ApprovingDevice {
     fn from(caller: &Caller) -> Self {
         Self {
-            user: caller.user.id,
-            device: caller.device.id,
+            user_id: caller.user.id,
+            device_id: caller.device.id,
         }
     }
 }
@@ -292,8 +292,8 @@ pub enum Error {
     /// The User who approved a Sign-in Code was deleted before it signed its Device in.
     #[error("the User who approved this code no longer exists")]
     ApprovingUserDeleted,
-    /// The Device a Sign-in Code was approved from signed out before the code signed its Device
-    /// in.
+    /// The Device a Sign-in Code was approved from signed out, or expired, before the code signed
+    /// its Device in.
     #[error("the Device that approved this code has since signed out")]
     ApprovingDeviceSignedOut,
     /// The change would leave the Server with no Admin.
@@ -998,9 +998,9 @@ async fn approving_user(
                   EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = u.id AND expires_at > ?)
                       AS "signed_in!: bool"
            FROM users u WHERE u.id = ?"#,
-        approving.device,
+        approving.device_id,
         now,
-        approving.user
+        approving.user_id
     )
     .fetch_optional(conn)
     .await?

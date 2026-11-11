@@ -570,8 +570,8 @@ mod tests {
         set_up(&sign_in, &setup_code, "Ada", now).await.unwrap();
     }
 
-    /// Ada's Device "Phone", signed in from [`LAPTOP_IP`] by a Sign-in Code, so it has no Recent
-    /// Authentication yet.
+    /// Ada's Device "Phone", signed in from [`LAPTOP_IP`] by a Sign-in Code approved from a Device
+    /// signed in first, so "Phone" has no Recent Authentication yet.
     async fn ada_without_recent_authentication(sign_in: &SignIn) -> Caller {
         let laptop = ada_on_a_new_device(sign_in, Instant::now()).await;
         let phone = device("Phone", LAPTOP_IP);

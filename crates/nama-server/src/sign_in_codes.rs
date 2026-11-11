@@ -205,7 +205,10 @@ mod tests {
 
     /// Ada's Device 2.
     fn ada() -> ApprovingDevice {
-        ApprovingDevice { user: 1, device: 2 }
+        ApprovingDevice {
+            user_id: 1,
+            device_id: 2,
+        }
     }
 
     /// A sign-in started at `now` for the Device "Living room TV", wanting a token.
@@ -251,8 +254,8 @@ mod tests {
         };
         assert_eq!(
             (
-                approving.user,
-                approving.device,
+                approving.user_id,
+                approving.device_id,
                 device_name.as_str(),
                 delivery
             ),
