@@ -81,6 +81,7 @@ pub(crate) fn router(
     requests: Requests,
     settings: server_settings::Settings,
     running: RunningPlans,
+    abilities: Abilities,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: crate::playback::subtitles::Cache,
@@ -101,7 +102,6 @@ pub(crate) fn router(
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let playback = settings.playback();
-    let abilities = Abilities::new(Arc::clone(&ffmpeg));
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),

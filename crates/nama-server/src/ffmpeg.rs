@@ -15,6 +15,7 @@ use std::{
 };
 
 use serde::Deserialize;
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 pub use self::hardware::{Accel, Hardware};
 use crate::{
@@ -540,7 +541,7 @@ pub(crate) struct CanDo {
 }
 
 /// Asks the Server's ffmpeg what it can do and remembers each answer, so planning and the
-/// Playback status read the same [`CanDo`].
+/// Playback status read the same [`CanDo`]. The only asker: see `AGENTS.md`, Playback.
 #[derive(Clone)]
 pub(crate) struct Abilities {
     inner: Arc<AbilitiesInner>,
@@ -551,11 +552,15 @@ struct AbilitiesInner {
     zscale: tokio::sync::OnceCell<bool>,
     libx264: tokio::sync::OnceCell<bool>,
     hardware: tokio::sync::OnceCell<Vec<Hardware>>,
+    /// The hardware test, so shutting down can wait for it.
+    tasks: TaskTracker,
+    /// Cancelled when the Server shuts down.
+    cancel: CancellationToken,
 }
 
 impl Abilities {
-    /// Asks `ffmpeg`, starting its hardware test in the background, as it takes a few seconds;
-    /// the first [`Self::can_do`] waits for it.
+    /// Starts testing `ffmpeg`'s hardware in the background, as it takes a few seconds; the first
+    /// [`Self::can_do`] waits for it.
     pub(crate) fn new(ffmpeg: Arc<Ffmpeg>) -> Self {
         let abilities = Self {
             inner: Arc::new(AbilitiesInner {
@@ -563,15 +568,28 @@ impl Abilities {
                 zscale: tokio::sync::OnceCell::new(),
                 libx264: tokio::sync::OnceCell::new(),
                 hardware: tokio::sync::OnceCell::new(),
+                tasks: TaskTracker::new(),
+                cancel: CancellationToken::new(),
             }),
         };
-        let testing = abilities.clone();
         // Holds nothing but ffmpeg, so the Server shutting down mid-test still closes the
-        // database cleanly (#554); the runtime's end kills its test encode.
-        tokio::spawn(async move {
-            testing.hardware().await;
+        // database cleanly (#554).
+        let testing = abilities.clone();
+        abilities.inner.tasks.spawn(async move {
+            // Only for testing once; what was found is kept, and a task's output must be owned.
+            let _: Option<usize> = (testing.inner.cancel)
+                .run_until_cancelled(async { testing.hardware().await.len() })
+                .await;
         });
         abilities
+    }
+
+    /// Cancels the hardware test if it still runs, killing its test encode, and waits for it to
+    /// stop.
+    pub(crate) async fn shutdown(&self) {
+        self.inner.cancel.cancel();
+        self.inner.tasks.close();
+        self.inner.tasks.wait().await;
     }
 
     /// What ffmpeg can do. An answer ffmpeg couldn't give, such as on a busy host whose listing
@@ -1399,6 +1417,7 @@ pub(crate) mod tests {
         os::unix::fs::PermissionsExt,
         path::Path,
         sync::{Arc, PoisonError, RwLock},
+        time::Duration,
     };
 
     use super::{Abilities, Accel, CanDo, Ffmpeg, FoundProgram, Hardware};
@@ -1709,6 +1728,39 @@ pub(crate) mod tests {
 
         assert!(!first.zscale);
         assert!(then.zscale);
+    }
+
+    #[tokio::test]
+    #[expect(
+        clippy::await_holding_lock,
+        reason = "the fakes' lock is held while the hardware test forks ffmpeg; a test waits on no other"
+    )]
+    async fn shutting_down_mid_hardware_test_stops_it() {
+        let bin = tempfile::tempdir().unwrap();
+        let started = bin.path().join("started");
+        let ffmpeg = fake_ffmpeg(
+            bin.path(),
+            &format!(
+                "*-encoders*) echo ' V....D h264_vaapi  H.264/AVC (VAAPI)' ;;
+                 *) touch '{}'; exec sleep 60 ;;",
+                started.display()
+            ),
+        );
+        let running_fakes = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
+        let abilities = Abilities::new(Arc::new(ffmpeg));
+        let waiting = tokio::time::Instant::now();
+        while !started.exists() {
+            assert!(
+                waiting.elapsed() < Duration::from_secs(5),
+                "no test encode started"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        drop(running_fakes);
+
+        tokio::time::timeout(Duration::from_secs(5), abilities.shutdown())
+            .await
+            .unwrap();
     }
 
     /// Writes a fake ffmpeg into `dir` that runs `script`, a shell `case` over its arguments, and
