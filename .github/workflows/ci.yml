@@ -67,8 +67,9 @@ jobs:
               - '.github/workflows/ci.yml'
 
   # The checks that build nothing: formatting, the schema in proto/ (ADR 0007: lint, no breaking
-  # changes against main, generated code in crates/nama-proto and web/src/gen is current), unused
-  # deps and cargo-deny. Runs on drafts too, as do `web` and `rust-check`.
+  # changes against main but those declared in proto/BREAKING.md, generated code in
+  # crates/nama-proto and web/src/gen is current), unused deps and cargo-deny. Runs on drafts too,
+  # as do `web` and `rust-check`.
   lint:
     needs: changes
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true'
@@ -94,19 +95,11 @@ jobs:
         run: |
           buf lint
           buf format --diff --exit-code
+      # HEAD^1 is the main this code sits on: a PR's merge ref's base, or main before this push.
+      # Not origin/main, which may have moved since the merge ref was made and would read as the
+      # PR deleting whatever landed in between.
       - name: buf breaking against main
-        working-directory: proto
-        run: |
-          # HEAD^1 is the main this code sits on: a PR's merge ref's base, or main before this push.
-          # Not origin/main, which may have moved since the merge ref was made and would read as
-          # the PR deleting whatever landed in between.
-          base=$(git rev-parse HEAD^1)
-          # Until the Buf module first lands on main there is nothing to compare against.
-          if git cat-file -e "$base:proto/buf.yaml" 2>/dev/null; then
-            buf breaking --against "../.git#ref=$base,subdir=proto"
-          else
-            echo "main has no Buf module yet; skipping"
-          fi
+        run: .github/scripts/buf-breaking.sh "$(git rev-parse HEAD^1)"
       # The generated code must compile against the connectrpc and buffa versions in
       # crates/nama-proto/Cargo.toml, so keep each plugin on the same minor version as its
       # runtime crate when bumping either (and update the README's install line).
