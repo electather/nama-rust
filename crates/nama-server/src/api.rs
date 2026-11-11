@@ -36,7 +36,6 @@ use crate::{
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie},
     tracks::Tracks,
     users::{Caller, Users},
-    watch_states::WatchStates,
 };
 
 mod browse;
@@ -121,11 +120,7 @@ pub(crate) fn router(
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
         }))
-        .add_service(Arc::new(WatchStateServiceHandler {
-            contents: Contents::new(Arc::clone(&db)),
-            watch_states: WatchStates::new(Arc::clone(&db)),
-            browse,
-        }))
+        .add_service(Arc::new(WatchStateServiceHandler { browse }))
         .add_service(Arc::new(PlaybackServiceHandler {
             probing,
             running,

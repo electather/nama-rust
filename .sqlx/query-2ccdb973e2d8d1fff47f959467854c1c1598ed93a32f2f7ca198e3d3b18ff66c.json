@@ -1,11 +1,22 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT title_id, position_ms, duration_ms, played AS \"played: bool\", updated_at\n               FROM watch_states\n               WHERE user_id = ? AND kind = ?",
+  "query": "SELECT kind, title_id, position_ms, duration_ms, played AS \"played: bool\", updated_at\n               FROM watch_states\n               WHERE user_id = ?",
   "describe": {
     "columns": [
       {
-        "name": "title_id",
+        "name": "kind",
         "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "title_id",
+        "ordinal": 1,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -16,7 +27,7 @@
       },
       {
         "name": "position_ms",
-        "ordinal": 1,
+        "ordinal": 2,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -27,7 +38,7 @@
       },
       {
         "name": "duration_ms",
-        "ordinal": 2,
+        "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -38,7 +49,7 @@
       },
       {
         "name": "played: bool",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -49,7 +60,7 @@
       },
       {
         "name": "updated_at",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -60,9 +71,10 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 1
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -70,5 +82,5 @@
       false
     ]
   },
-  "hash": "c948114a5f549ab317c916e35ee3dbf3de7c52e8947b8a1cc08c992e9e0163c2"
+  "hash": "2ccdb973e2d8d1fff47f959467854c1c1598ed93a32f2f7ca198e3d3b18ff66c"
 }

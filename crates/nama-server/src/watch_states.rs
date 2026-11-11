@@ -3,8 +3,8 @@
 //!
 //! [`WatchStates`] is the only code that reads or writes `watch_states`. It keeps Watch State
 //! against a Movie's or Episode's external id, never against an Item or file (ADR 0013), so it
-//! survives rescans, renames and new Versions. Which Movie or Episodes a Version is Matched to is
-//! for [`crate::contents::Contents`] to say.
+//! survives rescans, renames and new Versions. Which Movie or Episodes a Version or a marked title
+//! stands for is for [`crate::browse::Browse`] to work out.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -37,6 +37,23 @@ impl MovieOrEpisode {
 
     pub(crate) fn episode(id: &ExternalId) -> Self {
         Self::Episode(id.to_string())
+    }
+
+    /// The one stored in `watch_states` with `kind` and `title_id`.
+    fn stored(kind: &str, title_id: String) -> Self {
+        if kind == MOVIE {
+            Self::Movie(title_id)
+        } else {
+            Self::Episode(title_id)
+        }
+    }
+
+    /// Its key in `watch_states`, after the User: its kind and external id.
+    fn key(&self) -> (&'static str, &str) {
+        match self {
+            Self::Movie(id) => (MOVIE, id),
+            Self::Episode(id) => (EPISODE, id),
+        }
     }
 }
 
@@ -109,105 +126,70 @@ impl WatchStates {
         Self { db }
     }
 
-    /// Records, as of now, that the User `user` has got as far as `progress` through the Movie
-    /// with the id `movie`. A Movie once played stays played.
-    pub(crate) async fn report_movie(
-        &self,
-        user: i64,
-        movie: &ExternalId,
-        progress: Progress,
-    ) -> Result<(), sqlx::Error> {
-        self.store(user, MOVIE, vec![(movie.to_string(), progress)])
-            .await
-    }
-
     /// Records, as of now, that the User `user` has got as far as `progress` through a file
-    /// holding `episodes`, in episode order, `None` for one that isn't Matched. The file plays as
-    /// one, so its progress is split across them (ADR 0013), and an Episode it hasn't reached is
-    /// left alone, so rewinding keeps progress stored on a later one. An Episode once played
-    /// stays played.
-    pub(crate) async fn report_episodes(
+    /// holding `titles`, in order, `None` for an Item that isn't Matched. The file plays as one, so
+    /// its progress is split across them (ADR 0013), and one it hasn't reached is left alone, so
+    /// rewinding keeps progress stored on a later one. One once played stays played.
+    pub(crate) async fn report(
         &self,
         user: i64,
-        episodes: &[Option<ExternalId>],
+        titles: Vec<Option<MovieOrEpisode>>,
         progress: Progress,
     ) -> Result<(), sqlx::Error> {
-        let reached = episodes
-            .iter()
-            .zip(progress.split(episodes.len()))
-            .filter_map(|(episode, share)| Some((episode.as_ref()?.to_string(), share?)))
+        let shares = progress.split(titles.len());
+        let reached = titles
+            .into_iter()
+            .zip(shares)
+            .filter_map(|(title, share)| Some((title?, share?)))
             .collect();
-        self.store(user, EPISODE, reached).await
-    }
-
-    /// Stores, as of now, the User `user`'s progress through each Movie or Episode of `kind`, by
-    /// its external id, in one write.
-    async fn store(
-        &self,
-        user: i64,
-        kind: &'static str,
-        titles: Vec<(String, Progress)>,
-    ) -> Result<(), sqlx::Error> {
         self.db
-            .write(move |tx| Box::pin(upsert(tx, user, kind, titles)))
+            .write(move |tx| Box::pin(upsert(tx, user, reached)))
             .await
     }
 
-    /// Marks, as of now, the Movie with the id `movie` played or unplayed for the User `user`.
-    pub(crate) async fn mark_movie(
+    /// Marks, as of now, each of `titles` played or unplayed for the User `user`, in one write.
+    /// Played keeps the position; unplayed forgets the Watch State, so it starts from the
+    /// beginning.
+    pub(crate) async fn mark(
         &self,
         user: i64,
-        movie: &ExternalId,
+        titles: Vec<MovieOrEpisode>,
         played: bool,
     ) -> Result<(), sqlx::Error> {
-        self.mark(user, MOVIE, &[movie], played).await
-    }
-
-    /// Marks, as of now, each of the Episodes with the ids `episodes` played or unplayed for the
-    /// User `user`, in one write.
-    pub(crate) async fn mark_episodes(
-        &self,
-        user: i64,
-        episodes: &[&ExternalId],
-        played: bool,
-    ) -> Result<(), sqlx::Error> {
-        self.mark(user, EPISODE, episodes, played).await
-    }
-
-    /// Marks, as of now, each of the Movies or Episodes of `kind` with the external ids `titles`
-    /// played or unplayed for the User `user`, in one write. Played keeps the position; unplayed
-    /// forgets the Watch State, so it starts from the beginning.
-    async fn mark(
-        &self,
-        user: i64,
-        kind: &'static str,
-        titles: &[&ExternalId],
-        played: bool,
-    ) -> Result<(), sqlx::Error> {
-        let titles: Vec<String> = titles.iter().map(ToString::to_string).collect();
         self.db
-            .write(move |tx| Box::pin(mark_each(tx, user, kind, titles, played)))
+            .write(move |tx| Box::pin(mark_each(tx, user, titles, played)))
             .await
     }
 
-    /// The User `user`'s Watch State of each of the Movies with the ids `movies`, in the same
-    /// order: `None` for a Movie they haven't started.
-    pub(crate) async fn of_movies(
+    /// The User `user`'s Watch State of each of `titles`, in the same order: `None` for one they
+    /// haven't started.
+    // ponytail: reads all of a User's Watch States even for one; query by id if that gets big.
+    pub(crate) async fn of(
         &self,
         user: i64,
-        movies: &[&ExternalId],
+        titles: &[MovieOrEpisode],
     ) -> Result<Vec<Option<WatchState>>, sqlx::Error> {
-        self.of(user, MOVIE, movies).await
-    }
-
-    /// The User `user`'s Watch State of each of the Episodes with the ids `episodes`, in the same
-    /// order: `None` for an Episode they haven't started.
-    pub(crate) async fn of_episodes(
-        &self,
-        user: i64,
-        episodes: &[&ExternalId],
-    ) -> Result<Vec<Option<WatchState>>, sqlx::Error> {
-        self.of(user, EPISODE, episodes).await
+        let rows = sqlx::query!(
+            r#"SELECT kind, title_id, position_ms, duration_ms, played AS "played: bool", updated_at
+               FROM watch_states
+               WHERE user_id = ?"#,
+            user
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        let mut states: HashMap<MovieOrEpisode, WatchState> = rows
+            .into_iter()
+            .map(|row| {
+                let state = WatchState {
+                    position_ms: row.position_ms,
+                    duration_ms: row.duration_ms,
+                    played: row.played,
+                    updated_at: row.updated_at,
+                };
+                (MovieOrEpisode::stored(&row.kind, row.title_id), state)
+            })
+            .collect();
+        Ok(titles.iter().map(|title| states.remove(title)).collect())
     }
 
     /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
@@ -229,11 +211,7 @@ impl WatchStates {
         Ok(rows
             .into_iter()
             .map(|row| {
-                let watched = if row.kind == MOVIE {
-                    MovieOrEpisode::Movie(row.title_id)
-                } else {
-                    MovieOrEpisode::Episode(row.title_id)
-                };
+                let watched = MovieOrEpisode::stored(&row.kind, row.title_id);
                 let state = WatchState {
                     position_ms: row.position_ms,
                     duration_ms: row.duration_ms,
@@ -244,54 +222,17 @@ impl WatchStates {
             })
             .collect())
     }
-
-    /// The User `user`'s Watch State of each of the Movies or Episodes of `kind` with the external
-    /// ids `titles`, in the same order.
-    // ponytail: reads all of a User's Watch States of the kind even for one; query by id if that
-    // gets big.
-    async fn of(
-        &self,
-        user: i64,
-        kind: &'static str,
-        titles: &[&ExternalId],
-    ) -> Result<Vec<Option<WatchState>>, sqlx::Error> {
-        let rows = sqlx::query!(
-            r#"SELECT title_id, position_ms, duration_ms, played AS "played: bool", updated_at
-               FROM watch_states
-               WHERE user_id = ? AND kind = ?"#,
-            user,
-            kind
-        )
-        .fetch_all(self.db.reader())
-        .await?;
-        let mut states: HashMap<String, WatchState> = rows
-            .into_iter()
-            .map(|row| {
-                let state = WatchState {
-                    position_ms: row.position_ms,
-                    duration_ms: row.duration_ms,
-                    played: row.played,
-                    updated_at: row.updated_at,
-                };
-                (row.title_id, state)
-            })
-            .collect();
-        Ok(titles
-            .iter()
-            .map(|title| states.remove(&title.to_string()))
-            .collect())
-    }
 }
 
 /// One once played stays played.
 async fn upsert(
     conn: &mut SqliteConnection,
     user: i64,
-    kind: &'static str,
-    titles: Vec<(String, Progress)>,
+    titles: Vec<(MovieOrEpisode, Progress)>,
 ) -> Result<(), sqlx::Error> {
     let now = now();
     for (title, progress) in titles {
+        let (kind, title) = title.key();
         let played = progress.is_played();
         sqlx::query!(
             "INSERT INTO watch_states
@@ -319,16 +260,16 @@ async fn upsert(
 async fn mark_each(
     conn: &mut SqliteConnection,
     user: i64,
-    kind: &'static str,
-    titles: Vec<String>,
+    titles: Vec<MovieOrEpisode>,
     played: bool,
 ) -> Result<(), sqlx::Error> {
     let now = now();
     for title in titles {
+        let (kind, title) = title.key();
         if played {
-            mark_played(&mut *conn, user, kind, &title, now).await?;
+            mark_played(&mut *conn, user, kind, title, now).await?;
         } else {
-            forget(&mut *conn, user, kind, &title).await?;
+            forget(&mut *conn, user, kind, title).await?;
         }
     }
     Ok(())
@@ -378,7 +319,76 @@ async fn forget(
 
 #[cfg(test)]
 mod tests {
-    use super::Progress;
+    use std::sync::Arc;
+
+    use nama_plugin_api::metadata::ExternalId;
+
+    use super::{MovieOrEpisode, Progress, WatchStates};
+    use crate::{
+        db::Database,
+        plugins::Registry,
+        users::{Permissions, User, Users},
+    };
+
+    const ALIEN_TMDB_ID: i64 = 348;
+
+    /// Watch States on a database in a temp folder, and a User to keep them for.
+    async fn watch_states(data: &tempfile::TempDir) -> (WatchStates, i64) {
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let root = User {
+            id: 0,
+            name: "Root".to_owned(),
+            permissions: Permissions::ADMIN,
+            created_at: 0,
+        };
+        let plugins = Registry::new();
+        plugins
+            .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
+            .unwrap();
+        let user = Users::new(Arc::clone(&db), plugins)
+            .create(&root, "Ada", "correct horse battery staple")
+            .await
+            .unwrap();
+        (WatchStates::new(db), user)
+    }
+
+    fn alien() -> MovieOrEpisode {
+        MovieOrEpisode::movie(&ExternalId::Tmdb(ALIEN_TMDB_ID))
+    }
+
+    #[tokio::test]
+    async fn a_movie_once_played_stays_played_when_played_again_from_the_start() {
+        let data = tempfile::tempdir().unwrap();
+        let (watch_states, user) = watch_states(&data).await;
+        let near_the_end = Progress::new(1_950, 2_000).unwrap();
+        let near_the_start = Progress::new(100, 2_000).unwrap();
+
+        for progress in [near_the_end, near_the_start] {
+            watch_states
+                .report(user, vec![Some(alien())], progress)
+                .await
+                .unwrap();
+        }
+
+        let state = watch_states.of(user, &[alien()]).await.unwrap()[0].unwrap();
+        assert_eq!((state.position_ms, state.played), (100, true));
+    }
+
+    #[tokio::test]
+    async fn marking_a_movie_unplayed_forgets_its_position() {
+        let data = tempfile::tempdir().unwrap();
+        let (watch_states, user) = watch_states(&data).await;
+        let halfway = Progress::new(1_000, 2_000).unwrap();
+        watch_states
+            .report(user, vec![Some(alien())], halfway)
+            .await
+            .unwrap();
+        watch_states.mark(user, vec![alien()], true).await.unwrap();
+
+        watch_states.mark(user, vec![alien()], false).await.unwrap();
+
+        assert_eq!(watch_states.of(user, &[alien()]).await.unwrap(), [None]);
+    }
 
     fn shares(position_ms: u64, duration_ms: u64, episodes: usize) -> Vec<Option<(i64, i64)>> {
         let progress = Progress::new(position_ms, duration_ms).unwrap();
