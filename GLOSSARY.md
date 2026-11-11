@@ -204,6 +204,10 @@ _Avoid_: direct stream, repackage
 Playing a Version with its video re-encoded, such as when the client can't decode it, a Playback Limit asks for less, or subtitles are burned in.
 _Avoid_: convert, encode
 
+**GPU**:
+A graphics card, or graphics built into the CPU, that a Transcode can run on. The Server names each it finds, such as "AMD Radeon RX 9070 XT".
+_Avoid_: device (a Device is a client)
+
 **Playback Plan**:
 How the Server will play one Version on one Device: which Version, when the client didn't name one; by Direct Play, Remux or Transcode; with which Tracks; and the reasons for each choice. A new one is made whenever what it was based on changes.
 _Avoid_: decision, profile, stream info

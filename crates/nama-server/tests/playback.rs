@@ -377,6 +377,7 @@ EOF
     Ffmpeg {
         ffmpeg: Ok(script(bin, "ffmpeg", &ffmpeg)),
         ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
+        gpus: vec![],
     }
 }
 
@@ -536,6 +537,7 @@ async fn an_unprobed_version_whose_direct_play_failed_cant_be_played_and_starts_
     let ffmpeg = Ffmpeg {
         ffmpeg: Ok(script(bin.path(), "ffmpeg", ffmpeg_script)),
         ffprobe: Ok(script(bin.path(), "ffprobe", "#!/bin/sh\nexit 1\n")),
+        gpus: vec![],
     };
     let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
     fx.write(ALIEN_1080P, b"video");

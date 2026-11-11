@@ -50,3 +50,46 @@ pub fn script(bin: &Path, name: &str, body: &str) -> FoundProgram {
         version: "7.1.1".to_owned(),
     }
 }
+
+/// A GPU at the PCI `address` from `vendor`, such as `0x1002` for AMD, as a fake `/sys` in `sys`
+/// shows it, with the render node `node`, such as `renderD128`, in `dri`, a fake `/dev/dri`. Its
+/// `/sys/class/drm` is `sys/class/drm`.
+///
+/// # Panics
+///
+/// If writing it fails.
+#[cfg(unix)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+pub fn gpu(sys: &Path, dri: &Path, node: &str, address: &str, vendor: &str) {
+    let device = pci_function(sys, address, vendor);
+    let drm = sys.join("class/drm").join(node);
+    std::fs::create_dir_all(&drm).unwrap();
+    std::os::unix::fs::symlink(device, drm.join("device")).unwrap();
+    std::fs::create_dir_all(dri).unwrap();
+    std::fs::write(dri.join(node), "").unwrap();
+}
+
+/// A PCI function at `address` from `vendor`, in a fake `/sys` in `sys`, beside the others on its
+/// bus as the kernel puts them, and its folder.
+///
+/// # Panics
+///
+/// If writing it fails.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+#[expect(
+    clippy::must_use_candidate,
+    reason = "writing the function is the point; a caller may not need its folder"
+)]
+pub fn pci_function(sys: &Path, address: &str, vendor: &str) -> std::path::PathBuf {
+    let (bus, _) = address.rsplit_once(':').unwrap();
+    let device = sys.join("devices").join(bus).join(address);
+    std::fs::create_dir_all(&device).unwrap();
+    std::fs::write(device.join("vendor"), format!("{vendor}\n")).unwrap();
+    device
+}

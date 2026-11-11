@@ -17,7 +17,7 @@ use std::{
 
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
-pub use self::hardware::{Accel, Hardware};
+pub use self::hardware::{Accel, Gpu, Hardware, find_gpus};
 use crate::config::Config;
 
 /// The oldest ffmpeg and ffprobe the Server uses, as major and minor version. HLS with fMP4
@@ -109,33 +109,40 @@ pub struct FoundProgram {
     pub version: String,
 }
 
-/// The ffmpeg and ffprobe the Server found at startup. Without both it only Direct Plays.
+/// The ffmpeg and ffprobe the Server found at startup, and the GPUs ffmpeg may Transcode on.
+/// Without both programs it only Direct Plays.
 #[derive(Debug)]
 pub struct Ffmpeg {
     /// ffmpeg, or why the Server can't use one, in plain words.
     pub ffmpeg: Result<FoundProgram, String>,
     /// ffprobe, or why the Server can't use one, in plain words.
     pub ffprobe: Result<FoundProgram, String>,
+    /// The GPUs VAAPI and QSV are tested on, as [`find_gpus`] finds them. Without any, they are
+    /// tested on ffmpeg's default.
+    pub gpus: Vec<Gpu>,
 }
 
-/// Neither found on `PATH`.
+/// Neither found on `PATH`, and no GPU.
 impl Default for Ffmpeg {
     fn default() -> Self {
         Self {
             ffmpeg: Err(not_on_path("ffmpeg")),
             ffprobe: Err(not_on_path("ffprobe")),
+            gpus: vec![],
         }
     }
 }
 
 impl Ffmpeg {
     /// Runs ffmpeg and ffprobe at the paths `config` sets, or else the first of each in the
-    /// directories of `path`, a `PATH` value, to read their versions. Blocks while they run.
+    /// directories of `path`, a `PATH` value, to read their versions, and finds the GPUs in
+    /// `/dev/dri`. Blocks while they run.
     #[must_use]
     pub fn find(config: &Config, path: &OsStr) -> Self {
         Self {
             ffmpeg: find("ffmpeg", config.ffmpeg.as_deref(), path),
             ffprobe: find("ffprobe", config.ffprobe.as_deref(), path),
+            gpus: find_gpus(Path::new("/dev/dri"), Path::new("/sys/class/drm")),
         }
     }
 
@@ -204,43 +211,104 @@ impl Ffmpeg {
     }
 
     /// The hardware acceleration APIs that ffmpeg lists an encoder for and that pass a test
-    /// encode, as a Transcode would run it, in [`Accel::ALL`]'s order, each with whether it passes
-    /// a test tone-map too, or why ffmpeg couldn't list its encoders. Takes a few seconds while
-    /// each opens its device.
+    /// encode on each GPU they may run on, as a Transcode would run it, in the order Automatic
+    /// prefers them, each with whether it passes a test tone-map too, or why ffmpeg couldn't list
+    /// its encoders. Takes a few seconds while each opens its GPU.
     async fn find_hardware(&self) -> Result<Vec<Hardware>, String> {
         let encoders = self.listed("-encoders").await?;
         let mut found = vec![];
-        for accel in Accel::ALL {
+        for (accel, gpu) in self.pairs().await {
             if !encoders.iter().any(|encoder| encoder == accel.encoder()) {
                 continue;
             }
-            let scaled = VideoConversion {
-                hardware: Some(accel),
-                tone_map: None,
-                limit: Some(VideoLimit {
-                    size: Some((640, 360)),
-                    bits_per_second: 1_000_000,
-                }),
-                burn_in: None,
-                in_band_headers: true,
-            };
-            if let Err(err) = self.test_encode(TEST_CLIP, &scaled).await {
-                tracing::info!("{} didn't pass its test encode: {err}", accel.name());
-                continue;
-            }
-            let tone_mapped = VideoConversion {
-                tone_map: Some(ToneMapper::Hardware),
-                ..scaled
-            };
-            let tone_maps = accel.has_tone_map_filter()
-                && (self.test_encode(TEST_HDR_CLIP, &tone_mapped).await)
-                    .inspect_err(|err| {
-                        tracing::info!("{} didn't pass its test tone-map: {err}", accel.name());
-                    })
-                    .is_ok();
-            found.push(Hardware { accel, tone_maps });
+            found.extend(self.test_hardware(accel, gpu).await);
         }
         Ok(found)
+    }
+
+    /// Each API on each GPU it may run on, in the order Automatic prefers them: NVENC, each GPU's
+    /// in [`Self::gpus`]' order, QSV before VAAPI, then `VideoToolbox`. NVIDIA's GPUs aren't told
+    /// apart, so NVENC runs on its first.
+    async fn pairs(&self) -> Vec<(Accel, Option<Gpu>)> {
+        let mut pairs = vec![(Accel::Nvenc, None)];
+        if self.gpus.is_empty() {
+            pairs.extend([(Accel::Qsv, None), (Accel::Vaapi, None)]);
+        }
+        for gpu in &self.gpus {
+            let gpu = self.named(gpu).await;
+            if gpu.is_intel() {
+                pairs.push((Accel::Qsv, Some(gpu.clone())));
+            }
+            pairs.push((Accel::Vaapi, Some(gpu)));
+        }
+        pairs.push((Accel::VideoToolbox, None));
+        pairs
+    }
+
+    /// `gpu` with the model its driver names when ffmpeg opens it with VAAPI, if it does.
+    async fn named(&self, gpu: &Gpu) -> Gpu {
+        let Ok(ffmpeg) = &self.ffmpeg else {
+            return gpu.clone();
+        };
+        let input = Accel::Vaapi.input(Some(gpu), false);
+        // The test encode runs at `-v error`, which leaves out the line naming the driver.
+        let opened = tokio::process::Command::new(&ffmpeg.path)
+            .args(["-v", "verbose", "-nostdin"])
+            .args(input)
+            .args([
+                "-f",
+                "lavfi",
+                "-i",
+                "nullsrc",
+                "-frames:v",
+                "1",
+                "-f",
+                "null",
+                "-",
+            ])
+            .stdin(Stdio::null())
+            .kill_on_drop(true)
+            .output();
+        match tokio::time::timeout(HARDWARE_TEST_TIMEOUT, opened).await {
+            Ok(Ok(output)) => gpu
+                .clone()
+                .with_model(&String::from_utf8_lossy(&output.stderr)),
+            _ => gpu.clone(),
+        }
+    }
+
+    /// `accel` on `gpu`, if it passes a test encode, with whether it passes a test tone-map too.
+    async fn test_hardware(&self, accel: Accel, gpu: Option<Gpu>) -> Option<Hardware> {
+        let mut hardware = Hardware {
+            accel,
+            gpu,
+            tone_maps: false,
+        };
+        let scaled = VideoConversion {
+            hardware: Some(hardware.clone()),
+            tone_map: None,
+            limit: Some(VideoLimit {
+                size: Some((640, 360)),
+                bits_per_second: 1_000_000,
+            }),
+            burn_in: None,
+            in_band_headers: true,
+        };
+        if let Err(err) = self.test_encode(TEST_CLIP, &scaled).await {
+            tracing::info!("{} didn't pass its test encode: {err}", hardware.name());
+            return None;
+        }
+        let tone_mapped = VideoConversion {
+            tone_map: Some(ToneMapper::Hardware),
+            ..scaled
+        };
+        hardware.tone_maps = accel.has_tone_map_filter()
+            && (self.test_encode(TEST_HDR_CLIP, &tone_mapped).await)
+                .inspect_err(|err| {
+                    tracing::info!("{} didn't pass its test tone-map: {err}", hardware.name());
+                })
+                .is_ok();
+        Some(hardware)
     }
 
     /// Converts `clip`, a lavfi source, as `video` says, and throws it away, or says why it failed.
@@ -426,7 +494,7 @@ pub(crate) struct CanDo {
     pub(crate) zscale: bool,
     /// Whether ffmpeg has libx264, which a Transcode encodes its video with in software.
     pub(crate) libx264: bool,
-    /// The hardware acceleration that passed its test, in the order Automatic picks.
+    /// The APIs on GPUs that passed their test, in the order Automatic picks.
     pub(crate) hardware: Vec<Hardware>,
 }
 
@@ -440,13 +508,13 @@ impl CanDo {
     }
 
     /// The hardware Automatic picks, if any passed its test.
-    pub(crate) fn automatic(&self) -> Option<Hardware> {
-        self.hardware.first().copied()
+    pub(crate) fn automatic(&self) -> Option<&Hardware> {
+        self.hardware.first()
     }
 
     /// What tone-maps HDR to SDR in a Transcode on `gpu`, or in software for `None`: the GPU if
     /// it passed tone-mapping, or else zscale if ffmpeg has it.
-    pub(crate) const fn tone_mapper(&self, gpu: Option<Hardware>) -> Option<ToneMapper> {
+    pub(crate) const fn tone_mapper(&self, gpu: Option<&Hardware>) -> Option<ToneMapper> {
         match gpu {
             Some(Hardware {
                 tone_maps: true, ..
@@ -534,7 +602,7 @@ impl Abilities {
         let ffmpeg = &self.inner.ffmpeg;
         let tested = self.inner.hardware.get_or_try_init(|| async {
             let found = ffmpeg.find_hardware().await?;
-            let names: Vec<&str> = found.iter().map(|found| found.accel.name()).collect();
+            let names: Vec<String> = found.iter().map(Hardware::name).collect();
             tracing::info!(hardware = ?names, "tested hardware acceleration");
             Ok::<_, String>(found)
         });
@@ -583,7 +651,7 @@ pub(crate) struct RemuxAudio {
 }
 
 /// What a Transcode converts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Transcode {
     /// The audio Track it plays, or `None` when the Version has none.
     pub(crate) audio: Option<TranscodeAudio>,
@@ -715,10 +783,10 @@ fn filter_value(value: &str) -> String {
 }
 
 /// How a Transcode converts its video.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct VideoConversion {
-    /// The API it decodes, converts and encodes on, or `None` for software.
-    pub(crate) hardware: Option<Accel>,
+    /// The API, on its GPU, it decodes, converts and encodes on, or `None` for software.
+    pub(crate) hardware: Option<Hardware>,
     /// What tone-maps its HDR to SDR, if anything does.
     pub(crate) tone_map: Option<ToneMapper>,
     pub(crate) limit: Option<VideoLimit>,
@@ -752,7 +820,12 @@ struct VideoArgs {
 /// The arguments for ffmpeg that convert the first video of the file at `path` as `video` says.
 fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
     let size = video.limit.and_then(|limit| limit.size);
-    let mut codec = match video.hardware {
+    let accel = video.hardware.as_ref().map(|hardware| hardware.accel);
+    let gpu = video
+        .hardware
+        .as_ref()
+        .and_then(|hardware| hardware.gpu.as_ref());
+    let mut codec = match accel {
         None => ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"]
             .into_iter()
             // Keyframes only where forced, so each cut starts a file and nothing else does.
@@ -768,15 +841,15 @@ fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
     }
     // zscale and subtitles work on frames in memory, so with either the GPU only decodes and
     // encodes.
-    let on_gpu = (video.hardware)
+    let on_gpu = accel
         .filter(|_| video.tone_map != Some(ToneMapper::Software) && video.burn_in.is_none())
-        .and_then(|accel| {
+        .and_then(|on| {
             let tone_map = video.tone_map == Some(ToneMapper::Hardware);
-            Some((accel, accel.gpu_filters(tone_map, size)?))
+            Some((on, on.gpu_filters(tone_map, size)?))
         });
-    if let Some((accel, filters)) = on_gpu {
+    if let Some((on, filters)) = on_gpu {
         return VideoArgs {
-            input: accel.input(true),
+            input: on.input(gpu, true),
             video: ["-map", "0:V:0", "-vf", &filters].map(str::to_owned).into(),
             codec,
         };
@@ -787,12 +860,11 @@ fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
     // ponytail: the size is from the stored picture, so a rotated phone clip is stretched; swap
     // its sides once probing reads rotation.
     let scale = size.map(|(width, height)| format!("scale={width}:{height}"));
-    let upload = video.hardware.map(|accel| accel.upload().to_owned());
+    let upload = accel.map(|accel| accel.upload().to_owned());
     let after: Vec<String> = [scale, upload].into_iter().flatten().collect();
     VideoArgs {
-        input: video
-            .hardware
-            .map(|accel| accel.input(false))
+        input: accel
+            .map(|accel| accel.input(gpu, false))
             .unwrap_or_default(),
         video: transcoded_video(
             path,
@@ -1128,7 +1200,10 @@ fn write_test_media(
 pub(crate) mod tests {
     use std::{ffi::OsStr, fs, path::Path, sync::Arc, time::Duration};
 
-    use super::{Abilities, Accel, CanDo, Ffmpeg, FoundProgram, Hardware, fake::script};
+    use super::{
+        Abilities, Accel, CanDo, Ffmpeg, FoundProgram, Gpu, Hardware, VideoConversion, fake,
+        fake::script, find_gpus, video_args,
+    };
     use crate::config::Config;
 
     /// Writes a fake `name` into `dir` that prints `version_line` as `-version` does.
@@ -1356,6 +1431,7 @@ pub(crate) mod tests {
                 libx264: true,
                 hardware: vec![Hardware {
                     accel: Accel::Vaapi,
+                    gpu: None,
                     tone_maps: false,
                 }],
             }
@@ -1436,6 +1512,7 @@ pub(crate) mod tests {
             then.hardware,
             [Hardware {
                 accel: Accel::Vaapi,
+                gpu: None,
                 tone_maps: false,
             }]
         );
@@ -1500,6 +1577,7 @@ pub(crate) mod tests {
             found,
             Ok(vec![Hardware {
                 accel: Accel::Vaapi,
+                gpu: None,
                 tone_maps: false,
             }])
         );
@@ -1521,8 +1599,132 @@ pub(crate) mod tests {
             found,
             Ok(vec![Hardware {
                 accel: Accel::Qsv,
+                gpu: None,
                 tone_maps: true,
             }])
+        );
+    }
+
+    /// Where a Transcode on `hardware` opens its GPU: what follows each `-init_hw_device`.
+    fn opened(hardware: &Hardware) -> Vec<String> {
+        let video = VideoConversion {
+            hardware: Some(hardware.clone()),
+            tone_map: None,
+            limit: None,
+            burn_in: None,
+            in_band_headers: true,
+        };
+        let input = video_args("alien.mkv", &video).input;
+        (input.windows(2))
+            .filter_map(|pair| match pair {
+                [option, value] if option == "-init_hw_device" => Some(value.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// `ffmpeg` with the GPUs in `root`'s fake `/sys` and `/dev/dri`.
+    fn with_gpus(ffmpeg: Ffmpeg, root: &Path) -> Ffmpeg {
+        Ffmpeg {
+            gpus: find_gpus(&root.join("dri"), &root.join("sys/class/drm")),
+            ..ffmpeg
+        }
+    }
+
+    #[tokio::test]
+    async fn automatic_picks_the_dedicated_gpu_whichever_render_node_it_has() {
+        for (dedicated, integrated) in [("renderD128", "renderD129"), ("renderD129", "renderD128")]
+        {
+            let root = tempfile::tempdir().unwrap();
+            let (sys, dri) = (root.path().join("sys"), root.path().join("dri"));
+            fake::gpu(&sys, &dri, integrated, "0000:18:00.0", "0x1002");
+            fake::pci_function(&sys, "0000:18:00.2", "0x1022");
+            fake::gpu(&sys, &dri, dedicated, "0000:03:00.0", "0x1002");
+            let ffmpeg = fake_ffmpeg(
+                root.path(),
+                "*-encoders*) echo ' V....D h264_vaapi  H.264/AVC (VAAPI)' ;;
+                 *tonemap_vaapi*) exit 1 ;;
+                 *h264_vaapi*) exit 0 ;;
+                 *) exit 1 ;;",
+            );
+
+            let can = can_do(with_gpus(ffmpeg, root.path())).await;
+
+            let ids: Vec<_> = (can.hardware.iter())
+                .map(|hardware| hardware.gpu.as_ref().map(Gpu::id))
+                .collect();
+            assert_eq!(ids, [Some("0000:03:00.0"), Some("0000:18:00.0")]);
+            let node = dri.join(dedicated).display().to_string();
+            assert_eq!(
+                opened(can.automatic().unwrap()),
+                [format!("vaapi=nama:{node}")]
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn an_intel_gpu_is_tested_with_qsv_and_vaapi_and_an_amd_one_with_vaapi_alone() {
+        let root = tempfile::tempdir().unwrap();
+        let (sys, dri) = (root.path().join("sys"), root.path().join("dri"));
+        fake::gpu(&sys, &dri, "renderD128", "0000:00:02.0", "0x8086");
+        fake::gpu(&sys, &dri, "renderD129", "0000:03:00.0", "0x1002");
+        let runs = root.path().join("runs");
+        // VAAPI on the Intel GPU fails its test encode, and on the AMD one its tone-map.
+        let body = format!(
+            "#!/bin/sh
+echo \"$*\" >> '{runs}'
+case \"$*\" in
+             *-v\\ verbose*renderD129*) echo 'VAAPI driver: Mesa Gallium driver 26.2.6 for AMD Radeon \
+                                    RX 9070 XT (radeonsi, gfx1201)' >&2 ;;
+             *-encoders*) echo ' V....D h264_vaapi  H.264/AVC (VAAPI)'; \
+                          echo ' V..... h264_qsv  H.264 (Intel Quick Sync Video acceleration)' ;;
+             *vaapi=nama:*renderD128*) exit 1 ;;
+             *tonemap_vaapi*) exit 1 ;;
+             *) exit 0 ;;
+             esac\n",
+            runs = runs.display()
+        );
+        let ffmpeg = Ffmpeg {
+            ffmpeg: Ok(script(root.path(), "ffmpeg", &body)),
+            ..Ffmpeg::default()
+        };
+
+        let found = with_gpus(ffmpeg, root.path())
+            .find_hardware()
+            .await
+            .unwrap();
+
+        let found: Vec<_> = (found.iter())
+            .map(|hardware| (hardware.name(), hardware.tone_maps, opened(hardware)))
+            .collect();
+        let node = |node: &str| dri.join(node).display().to_string();
+        assert_eq!(
+            found,
+            [
+                (
+                    "VAAPI on the AMD Radeon RX 9070 XT".to_owned(),
+                    false,
+                    vec![format!("vaapi=nama:{}", node("renderD129"))]
+                ),
+                (
+                    "Intel QSV on the Intel integrated GPU".to_owned(),
+                    true,
+                    vec![
+                        format!("vaapi=va:{}", node("renderD128")),
+                        "qsv=nama@va".to_owned()
+                    ]
+                ),
+            ]
+        );
+        let runs = fs::read_to_string(&runs).unwrap();
+        let tested = |pattern: &str| runs.lines().any(|run| run.contains(pattern));
+        assert!(
+            tested(&format!("vaapi=nama:{} ", node("renderD128"))),
+            "{runs}"
+        );
+        assert!(
+            !tested(&format!("vaapi=va:{} ", node("renderD129"))),
+            "{runs}"
         );
     }
 
@@ -1537,8 +1739,8 @@ mod hls_run_tests {
     use std::path::Path;
 
     use super::{
-        Accel, BurnIn, Ffmpeg, FoundProgram, FromCut, HlsRun, Keyframe, Remux, RemuxAudio,
-        ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit,
+        Accel, BurnIn, Ffmpeg, FoundProgram, FromCut, Hardware, HlsRun, Keyframe, Remux,
+        RemuxAudio, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit,
     };
 
     /// An ffmpeg at `version` that isn't on this machine, which building arguments never runs.
@@ -1853,6 +2055,15 @@ mod hls_run_tests {
         );
     }
 
+    /// `accel` on the GPU ffmpeg picks.
+    const fn on_default_gpu(accel: Accel) -> Hardware {
+        Hardware {
+            accel,
+            gpu: None,
+            tone_maps: false,
+        }
+    }
+
     /// What a Transcode on `accel`, tone-mapping with `tone_map`, starts ffmpeg with up to the
     /// keyframes it forces, which the software tests pin from there on, as words split at spaces.
     /// `None` for tone-mapping on the GPU of an API with no filter for it, which the plan never
@@ -1948,7 +2159,7 @@ mod hls_run_tests {
                 continue;
             };
             let video = VideoConversion {
-                hardware: Some(accel),
+                hardware: Some(on_default_gpu(accel)),
                 tone_map,
                 // As the plan sets it on hardware, so software can carry on if the hardware fails.
                 in_band_headers: true,
@@ -1972,7 +2183,7 @@ mod hls_run_tests {
     fn a_playback_limit_on_hardware_scales_the_picture_on_its_gpu_if_it_can() {
         for accel in Accel::ALL {
             let limited = VideoConversion {
-                hardware: Some(accel),
+                hardware: Some(on_default_gpu(accel)),
                 limit: Some(VideoLimit {
                     size: Some((1280, 720)),
                     bits_per_second: 4_000_000,
@@ -2184,7 +2395,7 @@ mod hls_tests {
     async fn hardware_found_on_this_host_transcodes_cut_at_every_cut_and_tone_maps_hdr10() {
         let ffmpeg = system_ffmpeg();
         let found = ffmpeg.find_hardware().await.unwrap();
-        let hardware = *found.first().expect("no hardware passed its test encode");
+        let hardware = found.first().expect("no hardware passed its test encode");
         let work = tempfile::tempdir().unwrap();
         let file = work.path().join("hdr10.mkv");
         write_test_media(&file, |command| {
@@ -2202,7 +2413,7 @@ mod hls_tests {
             ToneMapper::Software
         };
         let video = VideoConversion {
-            hardware: Some(hardware.accel),
+            hardware: Some(hardware.clone()),
             tone_map: Some(tone_map),
             limit: Some(VideoLimit {
                 size: Some((1920, 1080)),

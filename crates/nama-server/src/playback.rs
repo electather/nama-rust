@@ -33,7 +33,7 @@ use tower_http::services::ServeFile;
 use crate::{
     contents::Contents,
     ffmpeg::{
-        Abilities, BurnIn, CanDo, Ffmpeg, Hardware, Remux, RemuxAudio, ToneMapper, Transcode,
+        Abilities, BurnIn, CanDo, Ffmpeg, Gpu, Hardware, Remux, RemuxAudio, ToneMapper, Transcode,
         TranscodeAudio, VideoConversion, VideoLimit,
     },
     probing::{self, ProbeError, Probing},
@@ -175,6 +175,10 @@ pub(crate) enum Planned {
 /// How a plan plays a Version, with what its method converts, for a Remux or a Transcode the
 /// Version's length, which their playlists list, and for a Transcode on hardware its fallback.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "a Server holds a plan per Device playing, a handful, so boxing saves nothing"
+)]
 pub(crate) enum Playing {
     DirectPlay,
     Remux {
@@ -475,9 +479,9 @@ fn build(facts: &mut Facts) -> Plan {
             duration_ms: duration_ms?,
         }),
         Method::Transcode => Some(Playing::Transcode {
-            transcode: candidates?.transcode,
+            transcode: candidates?.transcode.clone(),
             duration_ms: duration_ms?,
-            fallback: fallback(facts, candidates?.transcode),
+            fallback: fallback(facts, &candidates?.transcode),
         }),
     });
     let audio = candidates.and_then(|candidates| candidates.audio);
@@ -705,8 +709,8 @@ fn server_ffmpeg(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
 
 /// What `transcode` goes on with in software if it runs on hardware: the same conversion,
 /// tone-mapping only if ffmpeg has zscale.
-fn fallback(facts: &Facts, transcode: Transcode) -> Option<Fallback> {
-    let accel = transcode.video.hardware?;
+fn fallback(facts: &Facts, transcode: &Transcode) -> Option<Fallback> {
+    let accel = transcode.video.hardware.as_ref()?.accel;
     let tone_map = (transcode.video.tone_map).and_then(|_| facts.can_do.tone_mapper(None));
     let without_tone_mapping = if tone_map.is_none() && transcode.video.tone_map.is_some() {
         ", without tone-mapping its HDR, as this Server's ffmpeg lacks zscale"
@@ -720,7 +724,7 @@ fn fallback(facts: &Facts, transcode: Transcode) -> Option<Fallback> {
                 tone_map,
                 ..transcode.video
             },
-            ..transcode
+            ..*transcode
         },
         why: format!(
             "{} failed partway, so the rest of it Transcodes in software{without_tone_mapping}",
@@ -739,7 +743,7 @@ fn tone_mapper(facts: &Facts) -> Option<ToneMapper> {
     let gpu = transcodes_on(facts)
         .ok()
         .filter(|_| burn_in(facts).is_none());
-    facts.can_do.tone_mapper(gpu)
+    facts.can_do.tone_mapper(gpu.as_ref())
 }
 
 /// The reason for the Server's encoders: what a Transcode decodes, scales, tone-maps and encodes
@@ -749,8 +753,15 @@ fn tone_mapper(facts: &Facts) -> Option<ToneMapper> {
 fn server_encoders(facts: &Facts, candidates: Option<&Candidates>) -> String {
     match transcodes_on(facts) {
         Err(why) => format!("{why}, so a Transcode runs in software"),
-        Ok(Hardware { accel, .. }) => {
-            let on = format!("A Transcode runs on the GPU with {}", accel.name());
+        Ok(hardware) => {
+            let gpu = hardware
+                .gpu
+                .as_ref()
+                .map_or_else(|| "GPU".to_owned(), Gpu::name);
+            let on = format!(
+                "A Transcode runs on the {gpu} with {}",
+                hardware.accel.name()
+            );
             match (candidate_tone_mapper(candidates), played_hdr(facts)) {
                 (Some(ToneMapper::Hardware), Some(hdr)) => {
                     format!("{on}, which tone-maps its {} picture to SDR", hdr_name(hdr))
@@ -770,10 +781,11 @@ fn transcodes_on(facts: &Facts) -> Result<Hardware, String> {
     let found = |accel| (facts.can_do.hardware.iter()).find(|found| found.accel == accel);
     match facts.hardware_choice {
         HardwareChoice::Off => Err("Hardware acceleration is off".to_owned()),
-        HardwareChoice::Automatic => facts.can_do.automatic().ok_or_else(|| {
+        HardwareChoice::Automatic => facts.can_do.automatic().cloned().ok_or_else(|| {
             "No hardware acceleration passed its test when this Server started".to_owned()
         }),
-        HardwareChoice::Api(accel) => found(accel).copied().ok_or_else(|| {
+        // Stored before GPUs were told apart, it means the API on whichever GPU Automatic prefers.
+        HardwareChoice::Api(accel) => found(accel).cloned().ok_or_else(|| {
             format!(
                 "{} didn't pass its test when this Server started",
                 accel.name()
@@ -796,14 +808,14 @@ fn default_max_transcodes(facts: &Facts) -> u32 {
 
 /// How a Transcode for `facts` converts the played video.
 fn video_conversion(facts: &Facts) -> VideoConversion {
-    let hardware = transcodes_on(facts).ok().map(|hardware| hardware.accel);
+    let hardware = transcodes_on(facts).ok();
     VideoConversion {
+        // Hardware may fail, and software carry on after its init segment.
+        in_band_headers: hardware.is_some(),
         hardware,
         tone_map: tone_mapper(facts),
         limit: video_limit(facts),
         burn_in: burn_in(facts),
-        // Hardware may fail, and software carry on after its init segment.
-        in_band_headers: hardware.is_some(),
     }
 }
 
@@ -1585,9 +1597,9 @@ mod tests {
 
     /// What `plan` Transcodes, failing the test if it doesn't Transcode.
     fn transcoded(plan: &Plan) -> Transcode {
-        match plan.playing {
-            Some(Playing::Transcode { transcode, .. }) => transcode,
-            ref other => panic!("{other:?} isn't a Transcode"),
+        match &plan.playing {
+            Some(Playing::Transcode { transcode, .. }) => transcode.clone(),
+            other => panic!("{other:?} isn't a Transcode"),
         }
     }
 
@@ -2620,7 +2632,7 @@ mod tests {
         assert_eq!(
             transcoded(&plan).video,
             VideoConversion {
-                hardware: Some(Accel::Qsv),
+                hardware: Some(QSV),
                 tone_map: None,
                 limit: None,
                 burn_in: None,
@@ -2665,7 +2677,11 @@ mod tests {
             let plan = build(&mut facts);
 
             assert_eq!(plan.reasons[4], reason);
-            assert_eq!(transcoded(&plan).video.hardware, on, "{reason}");
+            let accel = transcoded(&plan)
+                .video
+                .hardware
+                .map(|hardware| hardware.accel);
+            assert_eq!(accel, on, "{reason}");
         }
     }
 
@@ -2688,12 +2704,71 @@ mod tests {
 
     const VAAPI: Hardware = Hardware {
         accel: Accel::Vaapi,
+        gpu: None,
         tone_maps: false,
     };
     const QSV: Hardware = Hardware {
         accel: Accel::Qsv,
+        gpu: None,
         tone_maps: true,
     };
+
+    /// VAAPI on a dedicated AMD Radeon RX 9070 XT, then on an integrated AMD GPU, as Automatic
+    /// orders them.
+    #[cfg(unix)]
+    fn vaapi_on_two_gpus(root: &std::path::Path) -> Vec<Hardware> {
+        use crate::ffmpeg::{fake, find_gpus};
+
+        let (sys, dri) = (root.join("sys"), root.join("dri"));
+        fake::gpu(&sys, &dri, "renderD128", "0000:18:00.0", "0x1002");
+        fake::pci_function(&sys, "0000:18:00.2", "0x1022");
+        fake::gpu(&sys, &dri, "renderD129", "0000:03:00.0", "0x1002");
+        let mesa = "VAAPI driver: Mesa Gallium driver 26.2.6 for AMD Radeon RX 9070 XT (radeonsi)";
+        find_gpus(&dri, &sys.join("class/drm"))
+            .into_iter()
+            .map(|gpu| Hardware {
+                gpu: Some(if gpu.id() == "0000:03:00.0" {
+                    gpu.with_model(mesa)
+                } else {
+                    gpu
+                }),
+                ..VAAPI
+            })
+            .collect()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_stored_api_runs_on_the_first_gpu_that_passed_with_it_and_the_plan_names_it() {
+        let root = tempfile::tempdir().unwrap();
+        let found = vaapi_on_two_gpus(root.path());
+        for choice in [HardwareChoice::Automatic, HardwareChoice::Api(Accel::Vaapi)] {
+            let mut facts = hevc_on(choice, found.clone(), None);
+
+            let plan = build(&mut facts);
+
+            assert_eq!(
+                plan.reasons[4], "A Transcode runs on the AMD Radeon RX 9070 XT with VAAPI",
+                "{choice:?}"
+            );
+            assert_eq!(transcoded(&plan).video.hardware.as_ref(), found.first());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_transcode_on_an_integrated_gpu_names_it_as_integrated() {
+        let root = tempfile::tempdir().unwrap();
+        let integrated = vaapi_on_two_gpus(root.path()).split_off(1);
+        let mut facts = hevc_on(HardwareChoice::Automatic, integrated, None);
+
+        let plan = build(&mut facts);
+
+        assert_eq!(
+            plan.reasons[4],
+            "A Transcode runs on the AMD integrated GPU with VAAPI"
+        );
+    }
 
     /// HEVC 4K that Firefox can't decode, on a Server whose ffmpeg found `found` and whose admin
     /// chose `choice`.
