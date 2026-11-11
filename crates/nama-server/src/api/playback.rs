@@ -12,7 +12,7 @@ use crate::{
         self, DeviceDecoding, Method, PickedLimit, Plan, PlaybackLimit, method_to_proto,
         running::{RunningPlans, StartError},
     },
-    scanner::Scanner,
+    probing::Probing,
     server_settings::PlaybackSettings,
     tracks::track_to_proto,
 };
@@ -21,7 +21,7 @@ use super::{caller, client_ip, database_failed, refuse, version_not_found};
 
 /// `nama.v1.PlaybackService`: how each signed-in User's Device plays a Version.
 pub(super) struct PlaybackServiceHandler {
-    pub(super) scanner: Scanner,
+    pub(super) probing: Probing,
     pub(super) running: RunningPlans,
     pub(super) settings: PlaybackSettings,
 }
@@ -54,7 +54,7 @@ impl PlaybackService for PlaybackServiceHandler {
             .filter_map(|method| method_from_proto(*method))
             .collect();
         let plan = playback::plan(
-            &self.scanner,
+            &self.probing,
             &self.running,
             caller,
             request.version_id,
