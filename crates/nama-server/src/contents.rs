@@ -2379,7 +2379,7 @@ mod tests {
         assert_eq!(fx.found_movies("heat").await, Vec::<String>::new());
         assert_eq!(fx.found_movies("ronin").await, ["Ronin"]);
         fx.contents
-            .record(vec![(item, Decided::Unmatched)])
+            .record(vec![(item, Decided::Unmatched(None))])
             .await
             .unwrap();
         assert_eq!(fx.found_movies("ronin").await, Vec::<String>::new());
