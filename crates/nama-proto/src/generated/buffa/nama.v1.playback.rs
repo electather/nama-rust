@@ -1038,6 +1038,711 @@ impl ::buffa::Enumeration for PlaybackMethod {
         ]
     }
 }
+/// The kinds of fact that shape a Playback Plan. A kind, its params and the methods it rules out
+/// are API contract: one is never renamed or reused. A param that names a schema enum carries
+/// that value's name (`PLAYBACK_LIMIT_1080P`), and a number is a plain decimal.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum PlaybackReasonKind {
+    /// A kind this client doesn't know; show the reason's `text`. The Server never sends it.
+    PLAYBACK_REASON_KIND_UNSPECIFIED = 0i32,
+    /// Rules out Remux and Transcode: the Version's Tracks aren't known.
+    PLAYBACK_REASON_KIND_TRACKS_UNKNOWN = 1i32,
+    /// Rules out Remux and Transcode: the Version's length isn't known.
+    PLAYBACK_REASON_KIND_LENGTH_UNKNOWN = 2i32,
+    /// Rules out Direct Play: the Device doesn't decode the container. Params: `container`, the
+    /// `Container` value's name (`CONTAINER_MATROSKA`), or else ffprobe's name for it (`avi`).
+    PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER = 3i32,
+    /// Rules out Direct Play and Remux: the Device doesn't decode the video Track. Params: `codec`,
+    /// as ffprobe names it (`hevc`), as in `Track.codec`.
+    PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO = 4i32,
+    /// Rules out Direct Play: the Device doesn't decode the audio Track the plan plays. Params:
+    /// `codec`, as for the video.
+    PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_AUDIO = 5i32,
+    /// Rules out Direct Play and Remux: the Device can't show the picture's HDR. Params:
+    /// `hdrFormat` (`HDR_FORMAT_HDR10`).
+    PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR = 6i32,
+    /// Rules out Remux and Transcode: the Device doesn't play HLS.
+    PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS = 7i32,
+    /// Rules out Remux and Transcode: the Server lacks ffmpeg or ffprobe.
+    PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG = 8i32,
+    /// Rules out Transcode: the Server's ffmpeg lacks libx264.
+    PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO = 9i32,
+    /// Rules out Transcode: the picture is Dolby Vision with no Base Layer, as in profile 5.
+    PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER = 10i32,
+    /// Rules out the method in `method` (`PLAYBACK_METHOD_REMUX`): it just failed on the Device.
+    /// One for each method that did.
+    PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE = 11i32,
+    /// Rules out Transcode: the Server runs as many Transcodes as it may. Params: `maxTranscodes`.
+    PLAYBACK_REASON_KIND_SERVER_BUSY = 12i32,
+    /// Rules out Direct Play: the audio Track chosen isn't the one browsers play from the file.
+    PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN = 13i32,
+    /// Rules out Direct Play and Remux: the picture is larger than the Playback Limit in effect, so
+    /// a Transcode scales it down. Params: `playbackLimit` (`PLAYBACK_LIMIT_720P`), and the size it
+    /// scales to, `widthPixels` and `heightPixels`.
+    PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN = 14i32,
+    /// Rules out Direct Play and Remux: the subtitles chosen need Burn-in.
+    PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN = 15i32,
+    /// The rest rule nothing out.
+    ///
+    /// The plan converts the audio to fewer channels because the Device says it plays fewer.
+    /// Params: `channels`, how many it converts to.
+    PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS = 16i32,
+    /// The same, because the Device doesn't say how many it plays. Params: `channels`.
+    PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN = 17i32,
+    /// The same, because that is the most the method makes. Params: `channels`.
+    PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED = 18i32,
+    /// The plan Transcodes and tone-maps the picture to SDR. Params: `hdrFormat`.
+    PLAYBACK_REASON_KIND_HDR_TONE_MAPPED = 19i32,
+    /// The plan Transcodes HDR the Device can't show, and nothing tone-maps it, so its colours look
+    /// washed out. Params: `hdrFormat`.
+    PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED = 20i32,
+    /// The default Playback Limit for remote playback chose the limit, as the Device is outside the
+    /// local network, and the limit scaled the picture down or was dropped. Params: `playbackLimit`.
+    PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT = 21i32,
+    /// A Playback Limit below Original is in effect and the picture's size isn't known, so it's
+    /// taken to fit. Params: `playbackLimit`.
+    PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN = 22i32,
+    /// The plan dropped the audio Track chosen for the file's own (ADR 0031). The reasons that ruled
+    /// out the methods that would play it are in the same list.
+    PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED = 23i32,
+    /// The plan dropped the Playback Limit for Original, likewise. Params: `playbackLimit`, the one
+    /// dropped.
+    PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED = 24i32,
+    /// The plan dropped the subtitles chosen, likewise.
+    PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED = 25i32,
+    /// The plan Transcodes on a GPU. Params: `hardwareAcceleration`
+    /// (`HARDWARE_ACCELERATION_VAAPI`).
+    PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE = 26i32,
+    /// The plan Transcodes in software because hardware acceleration is off.
+    PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF = 27i32,
+    /// The same, because none passed its test when the Server started.
+    PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED = 28i32,
+    /// The same, because the one the Admin picked didn't pass its test when the Server started.
+    /// Params: `hardwareAcceleration`.
+    PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST = 29i32,
+    /// The hardware the plan Transcoded on failed while playing, so the rest Transcodes in
+    /// software. Only in `PlaybackChanged`. Params: `hardwareAcceleration`.
+    PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY = 30i32,
+}
+impl PlaybackReasonKind {
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::PLAYBACK_REASON_KIND_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_TRACKS_UNKNOWN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const TracksUnknown: Self = Self::PLAYBACK_REASON_KIND_TRACKS_UNKNOWN;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_LENGTH_UNKNOWN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const LengthUnknown: Self = Self::PLAYBACK_REASON_KIND_LENGTH_UNKNOWN;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeviceCantDecodeContainer: Self = Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeviceCantDecodeVideo: Self = Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_AUDIO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeviceCantDecodeAudio: Self = Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_AUDIO;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeviceCantShowHdr: Self = Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeviceCantPlayHls: Self = Self::PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ServerLacksFfmpeg: Self = Self::PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ServerCantEncodeVideo: Self = Self::PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DolbyVisionNeedsBaseLayer: Self = Self::PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const MethodFailedOnDevice: Self = Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_SERVER_BUSY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ServerBusy: Self = Self::PLAYBACK_REASON_KIND_SERVER_BUSY;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ChosenAudioNotFilesOwn: Self = Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PictureScaledDown: Self = Self::PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SubtitlesBurnedIn: Self = Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DevicePlaysFewerChannels: Self = Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeviceChannelsUnknown: Self = Self::PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ConversionChannelsCapped: Self = Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const HdrToneMapped: Self = Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const HdrNotToneMapped: Self = Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RemoteDefaultLimit: Self = Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PictureSizeUnknown: Self = Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ChosenAudioDropped: Self = Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PlaybackLimitDropped: Self = Self::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ChosenSubtitlesDropped: Self = Self::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const TranscodesOnHardware: Self = Self::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const HardwareAccelerationOff: Self = Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NoHardwareAccelerationPassed: Self = Self::PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const HardwareAccelerationFailedTest: Self = Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const HardwareFailedPartway: Self = Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY;
+}
+impl ::core::default::Default for PlaybackReasonKind {
+    fn default() -> Self {
+        Self::PLAYBACK_REASON_KIND_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for PlaybackReasonKind {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlaybackReasonKind {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = PlaybackReasonKind;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!(
+                        "a string, integer, or null for ", stringify!(PlaybackReasonKind)
+                    ),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<PlaybackReasonKind, E> {
+                <PlaybackReasonKind as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<PlaybackReasonKind, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <PlaybackReasonKind as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<PlaybackReasonKind, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <PlaybackReasonKind as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<PlaybackReasonKind, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PlaybackReasonKind {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for PlaybackReasonKind {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_UNSPECIFIED),
+            1i32 => {
+                ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_TRACKS_UNKNOWN)
+            }
+            2i32 => {
+                ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_LENGTH_UNKNOWN)
+            }
+            3i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER,
+                )
+            }
+            4i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO,
+                )
+            }
+            5i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_AUDIO,
+                )
+            }
+            6i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR,
+                )
+            }
+            7i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS,
+                )
+            }
+            8i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG,
+                )
+            }
+            9i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO,
+                )
+            }
+            10i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER,
+                )
+            }
+            11i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE,
+                )
+            }
+            12i32 => ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_SERVER_BUSY),
+            13i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN,
+                )
+            }
+            14i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN,
+                )
+            }
+            15i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN,
+                )
+            }
+            16i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
+                )
+            }
+            17i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN,
+                )
+            }
+            18i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED,
+                )
+            }
+            19i32 => {
+                ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED)
+            }
+            20i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED,
+                )
+            }
+            21i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
+                )
+            }
+            22i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
+                )
+            }
+            23i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED,
+                )
+            }
+            24i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED,
+                )
+            }
+            25i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED,
+                )
+            }
+            26i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE,
+                )
+            }
+            27i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF,
+                )
+            }
+            28i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED,
+                )
+            }
+            29i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST,
+                )
+            }
+            30i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::PLAYBACK_REASON_KIND_UNSPECIFIED => "PLAYBACK_REASON_KIND_UNSPECIFIED",
+            Self::PLAYBACK_REASON_KIND_TRACKS_UNKNOWN => {
+                "PLAYBACK_REASON_KIND_TRACKS_UNKNOWN"
+            }
+            Self::PLAYBACK_REASON_KIND_LENGTH_UNKNOWN => {
+                "PLAYBACK_REASON_KIND_LENGTH_UNKNOWN"
+            }
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER => {
+                "PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER"
+            }
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO => {
+                "PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO"
+            }
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_AUDIO => {
+                "PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_AUDIO"
+            }
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR => {
+                "PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR"
+            }
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS => {
+                "PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS"
+            }
+            Self::PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG => {
+                "PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG"
+            }
+            Self::PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO => {
+                "PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO"
+            }
+            Self::PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER => {
+                "PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER"
+            }
+            Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE => {
+                "PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE"
+            }
+            Self::PLAYBACK_REASON_KIND_SERVER_BUSY => "PLAYBACK_REASON_KIND_SERVER_BUSY",
+            Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN => {
+                "PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN"
+            }
+            Self::PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN => {
+                "PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN"
+            }
+            Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN => {
+                "PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN"
+            }
+            Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS => {
+                "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS"
+            }
+            Self::PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN => {
+                "PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN"
+            }
+            Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED => {
+                "PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED"
+            }
+            Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED => {
+                "PLAYBACK_REASON_KIND_HDR_TONE_MAPPED"
+            }
+            Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED => {
+                "PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED"
+            }
+            Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT => {
+                "PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT"
+            }
+            Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN => {
+                "PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN"
+            }
+            Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED => {
+                "PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED"
+            }
+            Self::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED => {
+                "PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED"
+            }
+            Self::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED => {
+                "PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED"
+            }
+            Self::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE => {
+                "PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE"
+            }
+            Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF => {
+                "PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF"
+            }
+            Self::PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED => {
+                "PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED"
+            }
+            Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST => {
+                "PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST"
+            }
+            Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY => {
+                "PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY"
+            }
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "PLAYBACK_REASON_KIND_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_UNSPECIFIED)
+            }
+            "PLAYBACK_REASON_KIND_TRACKS_UNKNOWN" => {
+                ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_TRACKS_UNKNOWN)
+            }
+            "PLAYBACK_REASON_KIND_LENGTH_UNKNOWN" => {
+                ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_LENGTH_UNKNOWN)
+            }
+            "PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER,
+                )
+            }
+            "PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO,
+                )
+            }
+            "PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_AUDIO" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_AUDIO,
+                )
+            }
+            "PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR,
+                )
+            }
+            "PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS,
+                )
+            }
+            "PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG,
+                )
+            }
+            "PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO,
+                )
+            }
+            "PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER,
+                )
+            }
+            "PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE,
+                )
+            }
+            "PLAYBACK_REASON_KIND_SERVER_BUSY" => {
+                ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_SERVER_BUSY)
+            }
+            "PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN,
+                )
+            }
+            "PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN,
+                )
+            }
+            "PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN,
+                )
+            }
+            "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
+                )
+            }
+            "PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN,
+                )
+            }
+            "PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED,
+                )
+            }
+            "PLAYBACK_REASON_KIND_HDR_TONE_MAPPED" => {
+                ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED)
+            }
+            "PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED,
+                )
+            }
+            "PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
+                )
+            }
+            "PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
+                )
+            }
+            "PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED,
+                )
+            }
+            "PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED,
+                )
+            }
+            "PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED,
+                )
+            }
+            "PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE,
+                )
+            }
+            "PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF,
+                )
+            }
+            "PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED,
+                )
+            }
+            "PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST,
+                )
+            }
+            "PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
+                )
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::PLAYBACK_REASON_KIND_UNSPECIFIED,
+            Self::PLAYBACK_REASON_KIND_TRACKS_UNKNOWN,
+            Self::PLAYBACK_REASON_KIND_LENGTH_UNKNOWN,
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER,
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO,
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_AUDIO,
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR,
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS,
+            Self::PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG,
+            Self::PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO,
+            Self::PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER,
+            Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE,
+            Self::PLAYBACK_REASON_KIND_SERVER_BUSY,
+            Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN,
+            Self::PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN,
+            Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN,
+            Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
+            Self::PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN,
+            Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED,
+            Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED,
+            Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED,
+            Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
+            Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
+            Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED,
+            Self::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED,
+            Self::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED,
+            Self::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE,
+            Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF,
+            Self::PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED,
+            Self::PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST,
+            Self::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
+        ]
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -2294,15 +2999,16 @@ pub struct PlaybackPlan {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub tracks: ::buffa::alloc::vec::Vec<Track>,
-    /// Why it plays this way, in plain words, one for each step, in the order they ran.
+    /// The facts that shaped it, in the order the steps that found them ran. A step that changes
+    /// nothing gives none, so a Direct Play nothing stood in the way of has none.
     ///
-    /// Field 4: `reasons`
+    /// Field 13: `reasons`
     #[serde(
         rename = "reasons",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
-    pub reasons: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    pub reasons: ::buffa::alloc::vec::Vec<PlaybackReason>,
     /// The subtitles the Device shows itself, which the player turns on and off without a new plan,
     /// in the order the Version holds them: the text ones, and those in a format the Device draws
     /// (ADR 0033). A Track here in a format the Device draws isn't among `burn_in_tracks`.
@@ -2473,9 +3179,6 @@ impl ::buffa::Message for PlaybackPlan {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        for v in &self.reasons {
-            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
-        }
         for v in &self.subtitles {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
@@ -2523,6 +3226,14 @@ impl ::buffa::Message for PlaybackPlan {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        for v in &self.reasons {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2549,9 +3260,6 @@ impl ::buffa::Message for PlaybackPlan {
                 buf,
             );
             v.write_to(__cache, buf);
-        }
-        for v in &self.reasons {
-            ::buffa::types::put_string_field(4u32, v, buf);
         }
         for v in &self.subtitles {
             ::buffa::types::put_len_delimited_header(
@@ -2609,6 +3317,14 @@ impl ::buffa::Message for PlaybackPlan {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
+        for v in &self.reasons {
+            ::buffa::types::put_len_delimited_header(
+                13u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -2649,17 +3365,6 @@ impl ::buffa::Message for PlaybackPlan {
                 )?;
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.tracks.push(elem);
-            }
-            4u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let __elem = ::buffa::types::decode_string(buf)?;
-                ctx.register_element_memory(
-                    ::buffa::__private::element_footprint(&__elem),
-                )?;
-                self.reasons.push(__elem);
             }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -2825,6 +3530,18 @@ impl ::buffa::Message for PlaybackPlan {
                     );
                 }
             }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.reasons.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2836,7 +3553,6 @@ impl ::buffa::Message for PlaybackPlan {
         self.method = ::buffa::EnumValue::from(0);
         self.url.clear();
         self.tracks.clear();
-        self.reasons.clear();
         self.subtitles.clear();
         self.id = 0u64;
         self.playback_limit = ::buffa::EnumValue::from(0);
@@ -2845,6 +3561,7 @@ impl ::buffa::Message for PlaybackPlan {
         self.audio_tracks.clear();
         self.burn_in_tracks.clear();
         self.playback_limits.clear();
+        self.reasons.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3074,5 +3791,226 @@ pub const __PLAYBACK_SUBTITLE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
     type_url: "type.googleapis.com/nama.v1.PlaybackSubtitle",
     to_json: ::buffa::type_registry::any_to_json::<PlaybackSubtitle>,
     from_json: ::buffa::type_registry::any_from_json::<PlaybackSubtitle>,
+    is_wkt: false,
+};
+/// One fact that shaped a Playback Plan (ADR 0034).
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PlaybackReason {
+    /// Field 1: `kind`
+    #[serde(
+        rename = "kind",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub kind: ::buffa::EnumValue<PlaybackReasonKind>,
+    /// The values the reason mentions. Keys are lowerCamelCase with the unit in the key (AIP-193);
+    /// each kind lists its own.
+    ///
+    /// Field 2: `params`
+    #[serde(
+        rename = "params",
+        skip_serializing_if = "::buffa::__private::HashMap::is_empty",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub params: ::buffa::__private::HashMap<
+        ::buffa::alloc::string::String,
+        ::buffa::alloc::string::String,
+    >,
+    /// The Server's English sentence, for a client that doesn't know the kind. Not API contract.
+    ///
+    /// Field 3: `text`
+    #[serde(
+        rename = "text",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub text: ::buffa::alloc::string::String,
+    /// Whether it decided the plan, or is context. It decided the plan if it rules out a method the
+    /// plan would rather have used than the one it plays (Direct Play before Remux before
+    /// Transcode), or any method when the plan can't play, or if it says what the method it plays
+    /// changes or that a choice was dropped.
+    ///
+    /// Field 4: `decided`
+    #[serde(
+        rename = "decided",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub decided: bool,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PlaybackReason {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PlaybackReason")
+            .field("kind", &self.kind)
+            .field("params", &self.params)
+            .field("text", &self.text)
+            .field("decided", &self.decided)
+            .finish()
+    }
+}
+impl PlaybackReason {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PlaybackReason";
+}
+::buffa::impl_default_instance!(PlaybackReason);
+impl ::buffa::MessageName for PlaybackReason {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "PlaybackReason";
+    const FULL_NAME: &'static str = "nama.v1.PlaybackReason";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PlaybackReason";
+}
+impl ::buffa::Message for PlaybackReason {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size
+            += ::buffa::map_codec::field_len::<
+                ::buffa::map_codec::Str,
+                ::buffa::map_codec::Str,
+                _,
+            >(&self.params, 1u64);
+        if !self.text.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.text) as u64;
+        }
+        if self.decided {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        ::buffa::map_codec::write_field::<
+            ::buffa::map_codec::Str,
+            ::buffa::map_codec::Str,
+            _,
+        >(&self.params, 2u32, buf);
+        if !self.text.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.text, buf);
+        }
+        if self.decided {
+            ::buffa::types::put_bool_field(4u32, self.decided, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.kind = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::map_codec::merge_entry::<
+                    ::buffa::map_codec::Str,
+                    ::buffa::map_codec::Str,
+                    _,
+                >(&mut self.params, buf, ctx)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.text, buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.decided = ::buffa::types::decode_bool(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.kind = ::buffa::EnumValue::from(0);
+        self.params.clear();
+        self.text.clear();
+        self.decided = false;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PlaybackReason {
+    const PROTO_FQN: &'static str = "nama.v1.PlaybackReason";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PlaybackReason {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PLAYBACK_REASON_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.PlaybackReason",
+    to_json: ::buffa::type_registry::any_to_json::<PlaybackReason>,
+    from_json: ::buffa::type_registry::any_from_json::<PlaybackReason>,
     is_wkt: false,
 };
