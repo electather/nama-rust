@@ -95,7 +95,7 @@ pub(crate) enum Invalid {
     #[error("the most Transcodes at once must be at least 1")]
     NoTranscodes,
     /// The GPU picked isn't one its API passed its test on at startup, nor the one stored with
-    /// it.
+    /// it, or was sent with Automatic or Off, which take none.
     #[error("GPU {id} isn't one its hardware acceleration passed its test on")]
     GpuNotOffered {
         /// Its PCI address, as asked.
@@ -281,9 +281,8 @@ impl Settings {
         passed: &[Hardware],
     ) -> Result<PickedGpu, Invalid> {
         let found = (passed.iter())
-            .filter(|hardware| hardware.accel == accel)
-            .filter_map(|hardware| hardware.gpu.as_ref())
-            .find(|gpu| gpu.id() == id);
+            .find(|hardware| hardware.is_pair(accel, id))
+            .and_then(|hardware| hardware.gpu.as_ref());
         if let Some(gpu) = found {
             return Ok(PickedGpu {
                 id: id.to_owned(),

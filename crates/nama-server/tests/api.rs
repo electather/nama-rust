@@ -655,6 +655,53 @@ async fn a_picked_gpu_is_saved_under_its_found_name_and_kept_when_another_field_
 
 #[cfg(unix)]
 #[tokio::test]
+async fn a_picked_gpu_gone_after_a_restart_is_still_returned_and_kept_when_another_field_changes() {
+    let (before, after) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let server = TestServer::builder()
+        .ffmpeg(ffmpeg_on_two_gpus(before.path()))
+        .start()
+        .await;
+    let vaapi = HardwareAcceleration::HARDWARE_ACCELERATION_VAAPI;
+    let amd = "0000:03:00.0";
+    ServerServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .update_playback_settings(pick_gpu(vaapi, amd, "", None))
+        .await
+        .unwrap();
+    let only_intel = ffmpeg_on_two_gpus(after.path());
+    let server = TestServer::builder()
+        .ffmpeg(Ffmpeg {
+            gpus: (only_intel.gpus.iter())
+                .filter(|gpu| gpu.id() != amd)
+                .cloned()
+                .collect(),
+            ..only_intel
+        })
+        .restart(server)
+        .await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let got = client
+        .get_playback_settings(GetPlaybackSettingsRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .settings;
+    let saved = client
+        .update_playback_settings(pick_gpu(vaapi, amd, "", Some(3)))
+        .await
+        .unwrap()
+        .into_owned()
+        .settings;
+
+    let gone = gpu(amd, "AMD Radeon RX 9070 XT");
+    assert_eq!(got.hardware_acceleration, EnumValue::from(vaapi));
+    assert_eq!(got.gpu.as_option(), Some(&gone));
+    assert_eq!(saved.gpu.as_option(), Some(&gone));
+    assert_eq!(saved.max_transcodes, Some(3));
+}
+
+#[cfg(unix)]
+#[tokio::test]
 async fn a_gpu_its_api_didnt_pass_on_or_with_an_api_that_takes_none_is_refused_naming_it() {
     let root = tempfile::tempdir().unwrap();
     let server = TestServer::builder()

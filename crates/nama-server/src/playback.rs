@@ -779,7 +779,6 @@ fn server_encoders(facts: &Facts, candidates: Option<&Candidates>) -> String {
 /// The hardware a Transcode runs on, as the admin chose, or why it runs in software.
 fn transcodes_on(facts: &Facts) -> Result<Hardware, String> {
     let can_do = &facts.can_do;
-    let passed = |accel| (can_do.hardware.iter()).filter(move |found| found.accel == accel);
     match &facts.hardware_choice {
         HardwareChoice::Off => Err("Hardware acceleration is off".to_owned()),
         HardwareChoice::Automatic => can_do.automatic().cloned().ok_or_else(|| {
@@ -787,28 +786,40 @@ fn transcodes_on(facts: &Facts) -> Result<Hardware, String> {
         }),
         // Stored before GPUs could be picked, or where none was found, it means the API on
         // whichever GPU Automatic prefers.
-        HardwareChoice::Api(accel, None) => passed(*accel).next().cloned().ok_or_else(|| {
-            format!(
-                "{} didn't pass its test when this Server started",
-                accel.name()
-            )
-        }),
-        // Software, not Automatic's pick: an Admin may have picked this GPU to keep another free.
-        HardwareChoice::Api(accel, Some(picked)) => passed(*accel)
-            .find(|found| found.gpu.as_ref().is_some_and(|gpu| gpu.id() == picked.id))
+        HardwareChoice::Api(accel, None) => (can_do.hardware.iter())
+            .find(|found| found.accel == *accel)
             .cloned()
             .ok_or_else(|| {
+                format!(
+                    "{} didn't pass its test when this Server started",
+                    accel.name()
+                )
+            }),
+        // Software, not Automatic's pick: an Admin may have picked this GPU to keep another free.
+        HardwareChoice::Api(accel, Some(picked)) => (can_do.hardware.iter())
+            .find(|found| found.is_pair(*accel, &picked.id))
+            .cloned()
+            .ok_or_else(|| {
+                // The name leads the sentence, and an integrated GPU's starts lowercase.
+                let named = capitalised(&picked.name);
                 if can_do.gpus.iter().any(|gpu| gpu.id() == picked.id) {
                     format!(
-                        "{} didn't pass its {} test when this Server started",
-                        picked.name,
+                        "{named} didn't pass its {} test when this Server started",
                         accel.name()
                     )
                 } else {
-                    format!("{} wasn't found when this Server started", picked.name)
+                    format!("{named} wasn't found when this Server started")
                 }
             }),
     }
+}
+
+/// `text` with its first letter upper case.
+fn capitalised(text: &str) -> String {
+    let mut chars = text.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(chars).collect()
+    })
 }
 
 /// The most Transcodes the Server runs at once when the admin hasn't set it: no limit while they
@@ -2844,7 +2855,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let found = vaapi_on_two_gpus(root.path());
         let mut facts = hevc_on(
-            vaapi_picked("0000:0a:00.0", "AMD Radeon RX 6600"),
+            vaapi_picked("0000:0a:00.0", "integrated GPU (AMD Ryzen 7 7840U)"),
             found,
             None,
         );
@@ -2853,8 +2864,8 @@ mod tests {
 
         assert_eq!(
             plan.reasons[4],
-            "AMD Radeon RX 6600 wasn't found when this Server started, so a Transcode runs in \
-             software"
+            "Integrated GPU (AMD Ryzen 7 7840U) wasn't found when this Server started, so a \
+             Transcode runs in software"
         );
         assert_eq!(transcoded(&plan).video.hardware, None);
     }
