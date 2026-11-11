@@ -1701,23 +1701,31 @@ async fn was_available(
 }
 
 /// Moves the Request `id` to `state`, Available or Partially Available, and returns the event for
-/// it, or `None` if it didn't move. Only a Processing Request becomes Partially Available: one not
-/// yet handed off keeps its state, so it can still be decided, handed off or retried (ADR 0012).
+/// it, or `None` if it didn't move. Only a Request its Fulfiller has becomes Partially Available:
+/// one not yet handed off keeps its state, so it can still be decided, handed off or retried
+/// (ADR 0012).
 async fn change_state(
     conn: &mut SqliteConnection,
     id: i64,
     state: RequestState,
 ) -> Result<Option<Event>, sqlx::Error> {
     let state = stored(state);
-    let changed = sqlx::query!(
-        "UPDATE requests SET state = ?1, failure_reason = NULL
-         WHERE id = ?2 AND state != ?1 AND (?1 = 'available' OR state = 'processing')",
-        state,
-        id
-    )
-    .execute(&mut *conn)
-    .await?
-    .rows_affected()
+    macro_rules! change {
+        ($fulfilling:literal) => {
+            sqlx::query!(
+                "UPDATE requests SET state = ?1, failure_reason = NULL
+                 WHERE id = ?2 AND state != ?1 AND (?1 = 'available' OR "
+                    + $fulfilling
+                    + ")",
+                state,
+                id
+            )
+        };
+    }
+    let changed = progress::fulfilling_sql!(change)
+        .execute(&mut *conn)
+        .await?
+        .rows_affected()
         > 0;
     if !changed {
         return Ok(None);
@@ -1729,21 +1737,47 @@ async fn change_state(
     })))
 }
 
+// sqlx reads a query from string literals alone, so SQL that queries share is a literal a macro
+// hands to each query's local macro, as `asked::per_kind!` hands it a table's name.
+
+/// Hands `$query!` the SQL for whether a Request is open. It must match the
+/// `one_open_request_per_movie_or_season` index's.
+macro_rules! open_request_sql {
+    ($query:ident) => {
+        $query!("state NOT IN ('declined', 'available')")
+    };
+}
+
+/// Hands `$query!` the SQL for whether a Followed Show is open. It must match the
+/// `one_open_followed_show` index's.
+macro_rules! open_followed_show_sql {
+    ($query:ident) => {
+        $query!("state != 'declined'")
+    };
+}
+
+/// Whether a Request in `state` is open: Declined and Available ones are closed, and Cancelled or
+/// Withdrawn ones are gone.
+pub(crate) fn is_open(state: RequestState) -> bool {
+    !matches!(state, RequestState::Declined | RequestState::Available)
+}
+
 /// The open Request for the Movie `tmdb_id`, or for its Season `season` if `tmdb_id` is a Show's.
 async fn open_request(
     conn: &mut SqliteConnection,
     tmdb_id: i64,
     season: Option<u32>,
 ) -> Result<Option<i64>, sqlx::Error> {
-    // Open as `one_open_request_per_movie_or_season` has it.
-    sqlx::query_scalar!(
-        "SELECT id FROM requests
-         WHERE tmdb_id = ? AND season IS ? AND state NOT IN ('declined', 'available')",
-        tmdb_id,
-        season
-    )
-    .fetch_optional(&mut *conn)
-    .await
+    macro_rules! find {
+        ($open:literal) => {
+            sqlx::query_scalar!(
+                "SELECT id FROM requests WHERE tmdb_id = ? AND season IS ? AND " + $open,
+                tmdb_id,
+                season
+            )
+        };
+    }
+    open_request_sql!(find).fetch_optional(&mut *conn).await
 }
 
 /// Moves the Pending Request `id` to `state` with `reason`, and returns it as it is now.
@@ -1860,18 +1894,21 @@ async fn requality(
         .await?;
     }
     if followed {
-        // Open as `one_open_followed_show` has it.
-        sqlx::query!(
-            "UPDATE followed_shows
-             SET quality_id = ?, quality_name = ?, quality_profile_id = ?
-             WHERE tmdb_id = ? AND state != 'declined'",
-            quality.id,
-            quality.name,
-            quality.profile_id,
-            show
-        )
-        .execute(&mut *conn)
-        .await?;
+        macro_rules! change {
+            ($open:literal) => {
+                sqlx::query!(
+                    "UPDATE followed_shows
+                     SET quality_id = ?, quality_name = ?, quality_profile_id = ?
+                     WHERE tmdb_id = ? AND "
+                        + $open,
+                    quality.id,
+                    quality.name,
+                    quality.profile_id,
+                    show
+                )
+            };
+        }
+        open_followed_show_sql!(change).execute(&mut *conn).await?;
     }
     Ok(())
 }
@@ -1906,14 +1943,19 @@ async fn show_requests(
             handed_off: row.handed_off,
         })
         .collect();
-    // Open as `one_open_followed_show` has it.
-    let followed = sqlx::query!(
-        "SELECT quality_id, quality_name, quality_profile_id FROM followed_shows
-         WHERE tmdb_id = ? AND state != 'declined'",
-        show_tmdb_id
-    )
-    .fetch_optional(&mut *conn)
-    .await?;
+    macro_rules! followed {
+        ($open:literal) => {
+            sqlx::query!(
+                "SELECT quality_id, quality_name, quality_profile_id FROM followed_shows
+                 WHERE tmdb_id = ? AND "
+                    + $open,
+                show_tmdb_id
+            )
+        };
+    }
+    let followed = open_followed_show_sql!(followed)
+        .fetch_optional(&mut *conn)
+        .await?;
     Ok(qualities::ShowRequests {
         seasons,
         followed: followed.is_some(),
@@ -2136,13 +2178,17 @@ async fn open_followed_show(
     conn: &mut SqliteConnection,
     tmdb_id: i64,
 ) -> Result<Option<i64>, sqlx::Error> {
-    // Open as `one_open_followed_show` has it.
-    sqlx::query_scalar!(
-        "SELECT id FROM followed_shows WHERE tmdb_id = ? AND state != 'declined'",
-        tmdb_id
-    )
-    .fetch_optional(&mut *conn)
-    .await
+    macro_rules! find {
+        ($open:literal) => {
+            sqlx::query_scalar!(
+                "SELECT id FROM followed_shows WHERE tmdb_id = ? AND " + $open,
+                tmdb_id
+            )
+        };
+    }
+    open_followed_show_sql!(find)
+        .fetch_optional(&mut *conn)
+        .await
 }
 
 /// Moves the Pending Followed Show `id`, and each Pending Season Request it opened, to `state`
@@ -2508,8 +2554,8 @@ mod tests {
     use super::{
         Applied, Error, Requests, STATES, Wanted, WantedSeasons, approve, ask, ask_movie,
         ask_seasons, asked, availability, cancel, cancel_followed, decide_followed, decline,
-        follow, load, load_one, make_seasons_available, opening_state, progress, retry, settle,
-        withdraw, withdraw_followed,
+        follow, is_open, load, load_one, make_seasons_available, opening_state, progress, retry,
+        settle, withdraw, withdraw_followed,
     };
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
@@ -2997,13 +3043,6 @@ mod tests {
                 expected,
                 "{state:?} with the reference {reference:?}"
             );
-            // Downloads alone can't catch the Rust check being wider than the SQL's: nothing is
-            // kept for the extra ones, so they'd attach none.
-            assert_eq!(
-                progress::is_fulfilling(&request),
-                not_available_yet,
-                "{state:?}"
-            );
             has_it.extend(reference.filter(|_| expected));
         }
         has_it.sort();
@@ -3033,6 +3072,97 @@ mod tests {
             }
         }
         Ok(inserted)
+    }
+
+    #[tokio::test]
+    async fn sql_and_rust_agree_on_which_requests_are_open() {
+        let data = tempfile::tempdir().unwrap();
+        let db = Database::open(data.path()).await.unwrap();
+        let inserted = db
+            .write(|tx| Box::pin(insert_in_each_state(tx)))
+            .await
+            .unwrap();
+        macro_rules! read {
+            ($open:literal) => {
+                sqlx::query_scalar!(r#"SELECT id AS "id!" FROM requests WHERE "# + $open)
+            };
+        }
+        let open: HashSet<i64> = open_request_sql!(read)
+            .fetch_all(db.reader())
+            .await
+            .unwrap()
+            .into_iter()
+            .collect();
+
+        for (id, state, reference) in inserted {
+            let expected = is_open(state);
+            assert_eq!(open.contains(&id), expected, "{state:?} with {reference:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn sql_and_rust_agree_on_which_requests_their_fulfiller_has() {
+        let data = tempfile::tempdir().unwrap();
+        let db = Database::open(data.path()).await.unwrap();
+        let inserted = db
+            .write(|tx| Box::pin(insert_in_each_state(tx)))
+            .await
+            .unwrap();
+        macro_rules! read {
+            ($fulfilling:literal) => {
+                sqlx::query_scalar!(r#"SELECT id AS "id!" FROM requests WHERE "# + $fulfilling)
+            };
+        }
+        let fulfilling: HashSet<i64> = progress::fulfilling_sql!(read)
+            .fetch_all(db.reader())
+            .await
+            .unwrap()
+            .into_iter()
+            .collect();
+
+        for (id, state, reference) in inserted {
+            let request = Request {
+                state: state.into(),
+                ..Default::default()
+            };
+            let expected = progress::is_fulfilling(&request);
+            assert_eq!(
+                fulfilling.contains(&id),
+                expected,
+                "{state:?} with {reference:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn only_a_declined_followed_show_is_closed() {
+        let data = tempfile::tempdir().unwrap();
+        let db = Database::open(data.path()).await.unwrap();
+        db.write(|tx| {
+            Box::pin(
+                sqlx::query(
+                    "INSERT INTO followed_shows (id, tmdb_id, title, state, created_at)
+                     VALUES (1, 1, 'Show', 'pending', 0), (2, 2, 'Show', 'approved', 0),
+                            (3, 3, 'Show', 'declined', 0)",
+                )
+                .execute(&mut **tx),
+            )
+        })
+        .await
+        .unwrap();
+        macro_rules! read {
+            ($open:literal) => {
+                sqlx::query_scalar!(r#"SELECT id AS "id!" FROM followed_shows WHERE "# + $open)
+            };
+        }
+        let open: HashSet<i64> = open_followed_show_sql!(read)
+            .fetch_all(db.reader())
+            .await
+            .unwrap()
+            .into_iter()
+            .collect();
+
+        assert_eq!(open, HashSet::from([1, 2]));
     }
 
     #[tokio::test]

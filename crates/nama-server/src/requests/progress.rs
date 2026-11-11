@@ -14,16 +14,21 @@ use sqlx::SqliteConnection;
 use tokio::{sync::Notify, time::error::Elapsed};
 use tracing::{error, warn};
 
-use super::{load, lock, stored};
+use super::{load, lock};
 use crate::{
     db::Database,
     events::{EventBus, event},
     plugins::Registry,
 };
 
-/// The states of a Request its Fulfiller has that isn't Available yet. Its Fulfiller has it once
-/// it stored a reference, which only the read in [`fulfilling`] sees.
-const FULFILLING: [RequestState; 2] = [RequestState::Processing, RequestState::PartiallyAvailable];
+/// Hands `$query!` the SQL for whether a Request's Fulfiller has it and it isn't Available yet,
+/// as [`is_fulfilling`] has it.
+macro_rules! fulfilling_sql {
+    ($query:ident) => {
+        $query!("state IN ('processing', 'partially_available')")
+    };
+}
+pub(super) use fulfilling_sql;
 
 /// Asks the Fulfillers how the Requests they have are progressing, and keeps their answers.
 #[derive(Debug, Clone)]
@@ -185,10 +190,13 @@ impl Progress {
     }
 }
 
-/// Whether `request` is one its Fulfiller may have that isn't Available yet, as [`fulfilling`]
-/// reads them but blind to the reference, which a Request read for a viewer doesn't carry.
+/// Whether `request` is one its Fulfiller has that isn't Available yet, which it can be asked about
+/// only if it also gave a reference.
 pub(super) fn is_fulfilling(request: &Request) -> bool {
-    FULFILLING.iter().any(|&state| request.state == state)
+    matches!(
+        request.state.as_known(),
+        Some(RequestState::Processing | RequestState::PartiallyAvailable)
+    )
 }
 
 /// A Request its Fulfiller has that isn't Available yet, as [`Progress::poll`] asks its Fulfiller
@@ -202,16 +210,18 @@ struct Fulfilling {
 }
 
 async fn fulfilling(conn: &mut SqliteConnection) -> Result<Vec<Fulfilling>, sqlx::Error> {
-    let [processing, partially_available] = FULFILLING.map(stored);
-    sqlx::query_as!(
-        Fulfilling,
-        r#"SELECT id AS "id!", season IS NULL AS "is_movie!: bool",
-                  fulfiller_reference AS "reference!"
-           FROM requests
-           WHERE state IN (?, ?) AND fulfiller_reference IS NOT NULL"#,
-        processing,
-        partially_available
-    )
-    .fetch_all(&mut *conn)
-    .await
+    // Its Fulfiller is asked by reference, which a Season a scan opened for a Followed Show lacks.
+    macro_rules! read {
+        ($fulfilling:literal) => {
+            sqlx::query_as!(
+                Fulfilling,
+                r#"SELECT id AS "id!", season IS NULL AS "is_movie!: bool",
+                          fulfiller_reference AS "reference!"
+                   FROM requests
+                   WHERE fulfiller_reference IS NOT NULL AND "#
+                    + $fulfilling
+            )
+        };
+    }
+    fulfilling_sql!(read).fetch_all(&mut *conn).await
 }
