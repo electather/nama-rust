@@ -110,8 +110,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
-            setup_code,
-            sign_in: SignIn::new(users.clone()),
+            sign_in: SignIn::new(users.clone(), setup_code),
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),

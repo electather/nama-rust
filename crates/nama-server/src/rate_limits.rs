@@ -58,14 +58,9 @@ pub(crate) struct Blocked {
 }
 
 impl SignInLimits {
-    /// Lets an attempt from `ip`, signing in as `name` if it names a User, through unless too
-    /// many have failed recently, and counts it as failed until it succeeds.
-    pub(crate) fn admit(&self, ip: IpAddr, name: Option<&str>) -> Result<Attempt, Blocked> {
-        self.admit_at(ip, name, Instant::now())
-    }
-
-    /// [`SignInLimits::admit`], as of `now`.
-    pub(crate) fn admit_at(
+    /// Lets an attempt from `ip`, signing in as `name` if it names a User, through at `now` unless
+    /// too many have failed recently, and counts it as failed until it succeeds.
+    pub(crate) fn admit(
         &self,
         ip: IpAddr,
         name: Option<&str>,
@@ -240,13 +235,13 @@ mod tests {
         let start = Instant::now();
         for minute in 0..10 {
             let at = start + Duration::from_mins(minute);
-            limits.admit_at(IP, Some("Ada"), at).expect("admitted");
+            limits.admit(IP, Some("Ada"), at).expect("admitted");
         }
 
         let blocked = limits
-            .admit_at(IP, Some("Ada"), start + Duration::from_mins(14))
+            .admit(IP, Some("Ada"), start + Duration::from_mins(14))
             .expect_err("admitted at the limit");
-        let admitted = limits.admit_at(IP, Some("Ada"), start + WINDOW);
+        let admitted = limits.admit(IP, Some("Ada"), start + WINDOW);
 
         assert_eq!(blocked.retry_after_secs(), 60);
         assert!(admitted.is_ok(), "the first failure is still counted");
