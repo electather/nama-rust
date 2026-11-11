@@ -791,7 +791,7 @@ pub(crate) struct VideoConversion {
 /// What tone-maps a Transcode's HDR to SDR.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ToneMapper {
-    /// ffmpeg's zscale, which [`Ffmpeg::has_zscale`] says it has.
+    /// ffmpeg's zscale, which [`CanDo::zscale`] says it has.
     Software,
     /// The GPU of [`VideoConversion::hardware`], which [`Hardware::tone_maps`] says it can, while
     /// nothing is burned in.
@@ -1661,7 +1661,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn ffmpeg_without_zscale_or_libx264_or_ffprobe_can_only_direct_play() {
+    async fn ffmpeg_without_zscale_libx264_or_ffprobe_can_do_no_more_than_no_ffmpeg() {
         let bin = tempfile::tempdir().unwrap();
         // As Fedora's ffmpeg-free lists them.
         let ffmpeg = fake_ffmpeg(

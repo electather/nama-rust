@@ -273,8 +273,8 @@ pub(crate) struct Asked {
 /// the Server is running as many as it may.
 #[expect(
     clippy::too_many_arguments,
-    reason = "each is a separate handle or input planning reads; a struct bundling them would \
-              exist only for this call"
+    reason = "the handles are the PlaybackService handler's own, and the rest is the call; \
+              passing the handler would tie planning to the API"
 )]
 pub(crate) async fn plan(
     probing: &Probing,
