@@ -43,3 +43,4 @@
 0043_font_attachments.sql
 0044_hardware_gpu.sql
 0045_track_preferences.sql
+0046_audio_preferences.sql

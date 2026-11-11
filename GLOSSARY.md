@@ -236,6 +236,10 @@ _Avoid_: quality, bitrate, resolution
 What a User wants subtitles to start as when they play something: none, or a language, either full or forced-only, and SDH or not. A User sets one in Settings for everything; picking a subtitle, or turning subtitles off, while playing a Show or Movie keeps one for that Show or Movie, which wins.
 _Avoid_: default subtitle, remembered subtitle, sticky subtitle, subtitle choice (a pick in one playback)
 
+**Audio Preference**:
+What a User wants the audio to start as when they play something: a language, and the title of the Track they picked. A User sets a language in Settings for everything; picking an audio Track while playing a Show or Movie keeps one for that Show or Movie, which wins.
+_Avoid_: default audio, remembered audio, audio choice (a pick in one playback)
+
 **GPU**:
 A graphics processor in the Server's machine that a Transcode can run on, either dedicated or integrated into the CPU. An Admin picks one, or leaves the Server to prefer a dedicated one. The Server names each it finds, such as "AMD Radeon RX 9070 XT".
 _Avoid_: device (that's a client), card, adapter, render node

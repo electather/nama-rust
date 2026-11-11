@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 
-import { MayDownloadAgain } from "@/components/delete-movie";
+import { MayDownloadAgain } from "@/components/delete-media";
 import { Page } from "@/components/page";
 import { NotFound } from "@/components/route-error";
 import { Poster, PosterGrid, posterLink } from "@/components/poster";

@@ -12,5 +12,20 @@ pub mod media_to_delete {
             >,
         ),
         VersionId(i64),
+        Show(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ShowToDeleteView<'a>,
+            >,
+        ),
+        Season(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::SeasonToDeleteView<'a>,
+            >,
+        ),
+        Episode(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::EpisodeToDeleteView<'a>,
+            >,
+        ),
     }
 }

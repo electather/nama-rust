@@ -619,8 +619,8 @@ pub trait LibraryService: Send + Sync + 'static {
     /// Before deleting anything, it asks every enabled Fulfiller of its kind, such as Radarr, to stop
     /// monitoring the title, which it keeps; one that can't be told is listed, and doesn't stop it.
     /// Needs `PERMISSION_DELETE_MEDIA` and Recent Authentication. Fails with `invalid_argument` if
-    /// the target is missing, or names a Shows Library as a Movie's, and with `not_found` if there
-    /// is no such Library, Movie or Version.
+    /// the target is missing, or names a Library of the wrong kind, and with `not_found` if there is
+    /// no such Library, title, Season or Version.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

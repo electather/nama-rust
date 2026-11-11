@@ -1759,19 +1759,24 @@ async fn a_track_that_isnt_a_subtitle_is_not_found_as_one() {
 const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
 const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
 /// The place of the German subtitle in each of Dark's Episodes, as
-/// [`ffprobe_reading_english_and_german_subtitles`] reads them.
+/// [`ffprobe_reading_english_and_german_tracks`] reads them.
 const GERMAN: u32 = 3;
+/// The place of the German audio, after the subtitles.
+const GERMAN_AUDIO: u32 = 4;
 
-/// A Server whose ffprobe, a shell script in `bin`, reads every file as an H.264 + AAC MP4 with
-/// English, then German, SRT subtitles, tagged with ISO 639-2/B codes as files often are.
+/// A Server whose ffprobe, a shell script in `bin`, reads every file as an H.264 MP4 with English
+/// AAC audio played by default, English, then German, SRT subtitles, and a German AAC dub, tagged
+/// with ISO 639-2/B codes as files often are.
 #[cfg(unix)]
-fn ffprobe_reading_english_and_german_subtitles(bin: &Path) -> Ffmpeg {
+fn ffprobe_reading_english_and_german_tracks(bin: &Path) -> Ffmpeg {
     let ffprobe = r#"#!/bin/sh
 cat <<'EOF'
 {"streams": [{"codec_name": "h264", "codec_type": "video"},
-             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}},
+             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1},
+              "tags": {"language": "eng"}},
              {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"language": "eng"}},
-             {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"language": "ger"}}],
+             {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"language": "ger"}},
+             {"codec_name": "aac", "codec_type": "audio", "tags": {"language": "ger"}}],
  "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "1.000000"}}
 EOF
 "#;
@@ -1789,9 +1794,14 @@ EOF
 )]
 impl Fixture {
     /// Starts a Server with a Shows Library holding Dark's S01E01 and S02E01, each with English and
-    /// German subtitles, scanned and Matched, and gives the Versions of those two Episodes.
-    async fn subtitled_dark(bin: &Path) -> (Self, [i64; 2]) {
-        let ffmpeg = ffprobe_reading_english_and_german_subtitles(bin);
+    /// German subtitles and a German dub, scanned and Matched, and gives the Versions of those two
+    /// Episodes.
+    async fn dark_in_english_and_german(bin: &Path) -> (Self, [i64; 2]) {
+        Self::dark_probed_by(ffprobe_reading_english_and_german_tracks(bin)).await
+    }
+
+    /// [`Self::dark_in_english_and_german`], on a Server running `ffmpeg`.
+    async fn dark_probed_by(ffmpeg: Ffmpeg) -> (Self, [i64; 2]) {
         let mut fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_SHOWS, ffmpeg).await;
         fx.write(DARK_S01E01, b"video");
         fx.write(DARK_S02E01, b"video");
@@ -1820,10 +1830,22 @@ impl Fixture {
     /// Reports that the Admin, playing the Version `version`, picked the subtitle at `track`, or
     /// turned subtitles off.
     async fn pick_subtitle(&self, version: i64, track: Option<u32>) -> Result<(), ConnectError> {
+        self.pick(version, PickedTrackKind::PICKED_TRACK_KIND_SUBTITLE, track)
+            .await
+    }
+
+    /// Reports that the Admin, playing the Version `version`, picked the `kind` Track at `track`,
+    /// or turned that kind off.
+    async fn pick(
+        &self,
+        version: i64,
+        kind: PickedTrackKind,
+        track: Option<u32>,
+    ) -> Result<(), ConnectError> {
         PlaybackServiceClient::new(HttpClient::plaintext(), self.server.client_config())
             .report_track_pick(ReportTrackPickRequest {
                 version_id: version,
-                kind: PickedTrackKind::PICKED_TRACK_KIND_SUBTITLE.into(),
+                kind: kind.into(),
                 track,
                 ..Default::default()
             })
@@ -1837,7 +1859,7 @@ impl Fixture {
 #[tokio::test]
 async fn a_subtitle_picked_in_an_episode_starts_the_shows_next_episode_until_turned_off() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, second]) = Fixture::dark_in_english_and_german(bin.path()).await;
     let before = fx.plan(first).await.unwrap();
 
     fx.pick_subtitle(first, Some(GERMAN)).await.unwrap();
@@ -1864,7 +1886,7 @@ async fn a_subtitle_picked_in_an_episode_starts_the_shows_next_episode_until_tur
 #[tokio::test]
 async fn a_shows_subtitle_preference_is_its_users_alone_and_a_request_for_none_gets_none() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, second]) = Fixture::dark_in_english_and_german(bin.path()).await;
     let ripley = fx.server.user("Ripley", &[]).await;
     fx.pick_subtitle(first, Some(GERMAN)).await.unwrap();
 
@@ -1887,7 +1909,7 @@ async fn a_shows_subtitle_preference_is_its_users_alone_and_a_request_for_none_g
 #[tokio::test]
 async fn picking_a_track_that_isnt_a_subtitle_or_on_no_version_is_refused() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, _]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, _]) = Fixture::dark_in_english_and_german(bin.path()).await;
 
     let audio = fx.pick_subtitle(first, Some(1)).await;
     let past_the_end = fx.pick_subtitle(first, Some(9)).await;
@@ -1912,7 +1934,7 @@ async fn picking_a_track_that_isnt_a_subtitle_or_on_no_version_is_refused() {
 #[tokio::test]
 async fn a_subtitle_picked_in_one_version_of_a_movie_starts_its_other_versions() {
     let bin = tempfile::tempdir().unwrap();
-    let ffmpeg = ffprobe_reading_english_and_german_subtitles(bin.path());
+    let ffmpeg = ffprobe_reading_english_and_german_tracks(bin.path());
     let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
     fx.write(ALIEN_1080P, b"video");
     fx.write(ALIEN_2160P, b"video");
@@ -1930,7 +1952,7 @@ async fn a_subtitle_picked_in_one_version_of_a_movie_starts_its_other_versions()
 #[tokio::test]
 async fn a_plan_request_that_names_a_subtitle_is_no_pick() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, second]) = Fixture::dark_in_english_and_german(bin.path()).await;
 
     fx.ask_for_plan(PlanPlaybackRequest {
         version_id: first,
@@ -1948,7 +1970,7 @@ async fn a_plan_request_that_names_a_subtitle_is_no_pick() {
 #[tokio::test]
 async fn a_pick_in_a_version_of_an_unmatched_item_is_accepted_and_keeps_nothing() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, second]) = Fixture::dark_in_english_and_german(bin.path()).await;
     let item = fx.item(DARK_S01E01);
     fx.matches
         .clear_match(ClearMatchRequest {
@@ -1976,7 +1998,7 @@ async fn a_pick_in_a_version_of_an_unmatched_item_is_accepted_and_keeps_nothing(
 #[tokio::test]
 async fn a_user_with_a_subtitle_preference_can_be_deleted() {
     let bin = tempfile::tempdir().unwrap();
-    let (fx, [first, _]) = Fixture::subtitled_dark(bin.path()).await;
+    let (fx, [first, _]) = Fixture::dark_in_english_and_german(bin.path()).await;
     let ripley = fx.server.user("Ripley", &[]).await;
     PlaybackServiceClient::new(HttpClient::plaintext(), ripley.client_config())
         .report_track_pick(ReportTrackPickRequest {
@@ -1996,4 +2018,74 @@ async fn a_user_with_a_subtitle_preference_can_be_deleted() {
         .await;
 
     assert!(deleted.is_ok(), "{deleted:?}");
+}
+
+const AUDIO: PickedTrackKind = PickedTrackKind::PICKED_TRACK_KIND_AUDIO;
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_audio_track_picked_in_an_episode_is_chosen_for_the_shows_next_episode() {
+    let bin = tempfile::tempdir().unwrap();
+    let remuxing = Ffmpeg {
+        // Lists no encoders or filters, and Remuxes by writing nothing until it's stopped.
+        ffmpeg: Ok(script(
+            bin.path(),
+            "ffmpeg",
+            "#!/bin/sh\ncase \"$*\" in *-encoders*|*-filters*) ;; *) exec sleep 600 ;; esac\n",
+        )),
+        ..ffprobe_reading_english_and_german_tracks(bin.path())
+    };
+    let (fx, [first, second]) = Fixture::dark_probed_by(remuxing).await;
+    let ripley = fx.server.user("Ripley", &[]).await;
+    let before = fx.plan(second).await.unwrap();
+
+    fx.pick(first, AUDIO, Some(GERMAN_AUDIO)).await.unwrap();
+    let next = fx.plan(second).await.unwrap();
+    let ripleys = plan_as(&ripley, second).await.unwrap();
+
+    assert_eq!(before.audio_track, Some(1), "the file's own");
+    assert_eq!(next.audio_track, Some(GERMAN_AUDIO));
+    assert_eq!(next.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+    assert_eq!(ripleys.audio_track, Some(1), "it is the Admin's alone");
+}
+
+// With no ffmpeg on this Server, the dub, which the Device would need Remuxed, can't be played.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_audio_track_kept_for_a_show_is_dropped_with_the_reason_when_it_cant_be_played() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::dark_in_english_and_german(bin.path()).await;
+
+    fx.pick(first, AUDIO, Some(GERMAN_AUDIO)).await.unwrap();
+    let next = fx.plan(second).await.unwrap();
+
+    let dropped = PlaybackReasonKind::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED;
+    assert!(reason_of(&next, dropped).decided);
+    assert_eq!(next.audio_track, Some(1), "the file's own plays instead");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn picking_no_audio_track_or_one_that_isnt_audio_is_refused() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, _]) = Fixture::dark_in_english_and_german(bin.path()).await;
+
+    let none = fx.pick(first, AUDIO, None).await;
+    let subtitle = fx.pick(first, AUDIO, Some(GERMAN)).await;
+
+    let missing = assert_refused(
+        none,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    let not_audio = assert_refused(
+        subtitle,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_TRACK_NOT_FOUND,
+    );
+    assert_eq!(
+        (missing.field.as_str(), not_audio.field.as_str()),
+        ("track", "track")
+    );
 }

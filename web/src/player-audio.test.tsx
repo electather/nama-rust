@@ -4,9 +4,11 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
+  PickedTrackKind,
   type PlanPlaybackRequest,
   PlaybackMethod,
   PlaybackService,
+  type ReportTrackPickRequest,
 } from "@/gen/nama/v1/playback_pb";
 
 import { fakeServer, newUser, openApp } from "./test-app";
@@ -33,10 +35,14 @@ const audio = (channels: number) => ({ case: "audio", value: { channels } }) as 
 /**
  * A fake Server with Alien in Library 1, whose one Version holds English 5.1 audio, played by
  * default, a stereo commentary and a subtitle, offering the audio Tracks `audioTracks`, both
- * unless given. It Direct Plays the English and Remuxes any other audio Track, and each plan
- * request goes in `asked`.
+ * unless given. It Direct Plays the English and Remuxes any other audio Track, each plan request
+ * goes in `asked`, and each pick reported in `picked`.
  */
-function server(asked: PlanPlaybackRequest[], audioTracks = [2, 3]) {
+function server(
+  asked: PlanPlaybackRequest[],
+  audioTracks = [2, 3],
+  picked: ReportTrackPickRequest[] = [],
+) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const tracks = [
     { codec: "h264", kind: { case: "video", value: {} } },
@@ -63,6 +69,10 @@ function server(asked: PlanPlaybackRequest[], audioTracks = [2, 3]) {
             ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
             : { method: PlaybackMethod.REMUX, url: `/media/plans/${asked.length}/index.m3u8` };
         return { plan: { ...played, audioTrack, audioTracks } };
+      },
+      reportTrackPick: (request) => {
+        picked.push(request);
+        return {};
       },
     });
   });
@@ -118,4 +128,19 @@ test("choosing the commentary mid-play asks for a plan from where the video stan
   fireEvent(commentary, new Event("loadedmetadata"));
   expect(commentary.currentTime).toBe(754.25);
   expect(openAudio().map((item) => item.getAttribute("aria-checked"))).toEqual(["false", "true"]);
+});
+
+test("choosing an audio Track reports it as picked, for the Server to keep for the Movie", async () => {
+  const picked: ReportTrackPickRequest[] = [];
+  openApp(PLAYER, server([], [2, 3], picked));
+  await screen.findByLabelText("Alien");
+
+  openAudio();
+  fireEvent.click(screen.getByRole("menuitemradio", { name: /Commentary/u }));
+
+  await waitFor(() => {
+    expect(picked.map(({ versionId, kind, track }) => ({ versionId, kind, track }))).toEqual([
+      { versionId: 7n, kind: PickedTrackKind.AUDIO, track: 3 },
+    ]);
+  });
 });

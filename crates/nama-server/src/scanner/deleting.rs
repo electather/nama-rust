@@ -10,7 +10,10 @@ use std::{
 };
 
 use super::is_video;
-use crate::{contents::Version, libraries::Library};
+use crate::{
+    contents::{Episode, Version},
+    libraries::Library,
+};
 
 /// Versions of one title of a Library, which a delete removes, with the title, for its log.
 #[derive(Debug)]
@@ -20,7 +23,10 @@ pub(crate) struct Doomed {
     /// The Movie's TMDB id, which the Movies Fulfiller is asked to stop monitoring. `None` for a
     /// Movie Matched without one, which no Fulfiller knows.
     pub(crate) tmdb_id: Option<i64>,
+    /// Each file once.
     pub(crate) versions: Vec<Version>,
+    /// The Episodes the title isn't, that a file of `versions` holds too.
+    pub(crate) taken_along: Vec<Episode>,
 }
 
 /// A file on disk.
@@ -238,6 +244,7 @@ mod tests {
                 title: "Title".to_owned(),
                 tmdb_id: None,
                 versions: versions.collect(),
+                taken_along: Vec::new(),
             }
         }
 

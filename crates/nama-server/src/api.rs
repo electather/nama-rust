@@ -433,6 +433,12 @@ fn external_id_from_proto(id: external_id::Id) -> ExternalId {
     }
 }
 
+/// A season or episode number as a proto `uint32`. A scan parses them from digits, so they are
+/// never negative.
+fn proto_number(n: i64) -> u32 {
+    u32::try_from(n).unwrap_or_default()
+}
+
 /// The id of the title of kind `what` that a request names in `field`, which it must name.
 fn required_id(
     id: Option<proto::ExternalId>,

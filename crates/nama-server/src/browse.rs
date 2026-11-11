@@ -4,7 +4,10 @@
 //! `AGENTS.md`), and attaches their Versions' Tracks and the User's [`WatchState`]s. It writes only
 //! Watch State, for what a reported Version or a marked title stands for (ADR 0013).
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use nama_plugin_api::metadata::ExternalId;
 
@@ -74,7 +77,8 @@ pub(crate) enum Started {
     },
 }
 
-/// What a User marks played or unplayed: see [`Browse::mark`].
+/// A title of a Library, which a User marks played or unplayed ([`Browse::mark`]) or deletes
+/// ([`ToDelete::Title`]).
 #[derive(Debug)]
 pub(crate) enum Target {
     Movie(ExternalId),
@@ -86,10 +90,17 @@ pub(crate) enum Target {
 /// What a User deletes: see [`Browse::doomed`].
 #[derive(Debug)]
 pub(crate) enum ToDelete {
-    /// Every Version of a Movie of a Movies Library.
-    Movie { library: i64, id: ExternalId },
+    /// Every Version of a title of a Library: a Movie, or a Show's every Episode, a Season's or
+    /// one Episode.
+    Title { library: i64, title: Target },
     /// One Version of a Movie.
     Version(i64),
+    /// One Version of an Episode of a Shows Library.
+    EpisodeVersion {
+        library: i64,
+        episode: ExternalId,
+        version: i64,
+    },
 }
 
 /// A Library's titles, read whole, with Versions of the form `V`.
@@ -233,22 +244,32 @@ impl Browse {
         Ok(self.watch_states.mark(user, marked, played).await?)
     }
 
-    /// The Versions `target` names, with their Library and title. Fails as browsing to its Movie
-    /// does, or with [`Error::NoSuchVersion`] for a Version of no Movie.
+    /// The Versions `target` names, each file once, with their Library, their title and the
+    /// other Episodes those files hold. Fails as browsing to the title does, or with
+    /// [`Error::NoSuchVersion`] for a Version of no Movie, or not of the Episode named.
     pub(crate) async fn doomed(&self, target: ToDelete) -> Result<Doomed, Error> {
-        match target {
-            ToDelete::Movie { library, id } => {
-                let library = self.library(library).await?;
-                let movie = self.titles(&library).await?.movie(&id)?;
-                Ok(Doomed {
-                    library,
-                    tmdb_id: tmdb_id_of(&movie.id),
-                    title: movie.title,
-                    versions: movie.versions,
-                })
-            }
-            ToDelete::Version(version) => self.doomed_version(version).await,
+        let (library, title, only) = match target {
+            ToDelete::Version(version) => return self.doomed_version(version).await,
+            ToDelete::Title { library, title } => (library, title, None),
+            ToDelete::EpisodeVersion {
+                library,
+                episode,
+                version,
+            } => (library, Target::Episode(episode), Some(version)),
+        };
+        let library = self.library(library).await?;
+        let titles = self.titles(&library).await?;
+        if let Target::Movie(id) = title {
+            let movie = titles.movie(&id)?;
+            return Ok(Doomed {
+                library,
+                tmdb_id: tmdb_id_of(&movie.id),
+                title: movie.title,
+                versions: movie.versions,
+                taken_along: Vec::new(),
+            });
         }
+        doomed_episodes(library, &titles.shows()?, &title, only)
     }
 
     /// The Version `version` of a Movie, with its Library and the Movie's title.
@@ -269,6 +290,7 @@ impl Browse {
             tmdb_id,
             title,
             versions: vec![version],
+            taken_along: Vec::new(),
         })
     }
 
@@ -387,6 +409,76 @@ impl<V> Titles<V> {
             .flat_map(|season| season.episodes)
             .find(|episode| &episode.id == id)
             .ok_or(Error::NothingMatched)
+    }
+}
+
+/// The Versions of `shows`, a Shows Library's, that `title` names, or only its Version `only`, each
+/// file once, with the other Episodes those files hold.
+fn doomed_episodes(
+    library: Library,
+    shows: &[contents::Show],
+    title: &Target,
+    only: Option<i64>,
+) -> Result<Doomed, Error> {
+    let (title, named) = named_episodes(shows, title)?;
+    let mut versions: Vec<contents::Version> = (named.iter())
+        .flat_map(|episode| &episode.versions)
+        .filter(|version| only.is_none_or(|only| version.file.id == only))
+        .cloned()
+        .collect();
+    // A file holding two Episodes is a Version of each, and goes once.
+    versions.sort_unstable_by_key(|version| version.file.id);
+    versions.dedup_by_key(|version| version.file.id);
+    if versions.is_empty() {
+        return Err(Error::NoSuchVersion);
+    }
+    let files: HashSet<i64> = versions.iter().map(|version| version.file.id).collect();
+    let taken_along = (shows.iter().flat_map(contents::Show::episodes))
+        .filter(|episode| !named.iter().any(|named| named.id == episode.id))
+        .filter(|episode| (episode.versions.iter()).any(|v| files.contains(&v.file.id)))
+        .cloned()
+        .collect();
+    Ok(Doomed {
+        library,
+        tmdb_id: None,
+        title,
+        versions,
+        taken_along,
+    })
+}
+
+/// The Episodes of `shows` that `title` names, with its name for the log. A Movie is in no Shows
+/// Library.
+fn named_episodes<'a>(
+    shows: &'a [contents::Show],
+    title: &Target,
+) -> Result<(String, Vec<&'a contents::Episode>), Error> {
+    let show_of =
+        |id: &ExternalId| (shows.iter().find(|show| &show.id == id)).ok_or(Error::NothingMatched);
+    match title {
+        Target::Movie(_) => Err(Error::WrongKind {
+            wanted: Kind::Movies,
+        }),
+        Target::Show(id) => {
+            let show = show_of(id)?;
+            Ok((show.title.clone(), show.episodes().collect()))
+        }
+        Target::Season { show, number } => {
+            let show = show_of(show)?;
+            let season = show.seasons.get(number).ok_or(Error::NoSuchSeason)?;
+            let name = format!("{} Season {number}", show.title);
+            Ok((name, season.episodes.iter().collect()))
+        }
+        Target::Episode(id) => (shows.iter())
+            .find_map(|show| {
+                let episode = show.episodes().find(|episode| &episode.id == id)?;
+                let name = format!(
+                    "{} S{:02}E{:02}",
+                    show.title, episode.season, episode.number
+                );
+                Some((name, vec![episode]))
+            })
+            .ok_or(Error::NothingMatched),
     }
 }
 

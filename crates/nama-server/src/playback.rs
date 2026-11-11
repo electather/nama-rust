@@ -42,7 +42,7 @@ use crate::{
     },
     probing::{self, ProbeError, Probing},
     server_settings::{HardwareChoice, PlaybackValues},
-    track_preferences::{SubtitlePreference, same_language},
+    track_preferences::{Description, SubtitlePreference, same_language},
     tracks::{Hdr, Probe, Track, TrackKind, Tracks, hdr_to_proto},
     users::{Caller, User},
 };
@@ -329,12 +329,21 @@ pub(crate) struct Asked {
     pub(crate) decoding: DeviceDecoding,
     /// The methods that just failed to play it on the Device.
     pub(crate) failed: BTreeSet<Method>,
-    /// The audio Track chosen, by its place in the Version's Tracks, if one was.
-    pub(crate) audio: Option<usize>,
+    pub(crate) audio: AskedAudio,
     pub(crate) subtitle: AskedSubtitle,
     pub(crate) limit: PickedLimit,
     /// The Device's address, which says whether it's on the local network.
     pub(crate) client: IpAddr,
+}
+
+/// What a request for a plan asks of audio.
+#[derive(Debug)]
+pub(crate) enum AskedAudio {
+    /// The audio Track chosen, by its place in the Version's Tracks.
+    Chosen(usize),
+    /// The Server's choice, by the User's Audio Preference for what the Version is of, if they
+    /// have one, or else the file's own (ADR 0035).
+    Preferred(Option<Description>),
 }
 
 /// What a request for a plan asks of subtitles.
@@ -389,6 +398,7 @@ pub(crate) async fn plan(
         Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
         Err(probing::Error::Database(err)) => return Err(err.into()),
     };
+    let audio = audio_asked(audio, probe.as_ref(), &decoding);
     let (subtitle, shown_subtitle) = subtitles_asked(subtitle, probe.as_ref(), &decoding);
     let mut facts = Facts {
         version,
@@ -421,6 +431,16 @@ pub(crate) async fn plan(
     }
     let started = running.start(caller, plan).await?;
     Ok(started.map(Planned::Started))
+}
+
+/// The audio Track `asked` asks for, by its place in `probe`'s Tracks. One the Server chose by the
+/// User's Audio Preference is then as if they chose it, so a plan that can't play it drops it
+/// with the usual reason (ADR 0031).
+fn audio_asked(asked: AskedAudio, probe: Option<&Probe>, device: &DeviceDecoding) -> Option<usize> {
+    match asked {
+        AskedAudio::Chosen(place) => Some(place),
+        AskedAudio::Preferred(wanted) => preferred_audio(wanted.as_ref()?, probe?, device),
+    }
 }
 
 /// The subtitle Track `asked` asks to burn in and the one it asks the Device to show, each by its
@@ -522,7 +542,8 @@ struct Facts {
     can_do: CanDo,
     /// The methods that just failed to play it on the Device. The Server never stores them.
     failed: BTreeSet<Method>,
-    /// The audio Track the User chose, by its place in the Version's Tracks, if they chose one.
+    /// The audio Track the User chose, or the Server chose by their Audio Preference, by its place
+    /// in the Version's Tracks, if one was.
     audio: Option<usize>,
     /// The most Transcodes the Server may run at once, if other Devices already run that many.
     transcodes_full: Option<u32>,
@@ -1201,8 +1222,8 @@ fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
                 Kind::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
                 limit,
                 format!(
-                    "This Device is outside the local network, so the default Playback Limit for \
-                     remote playback, {}, applies",
+                    "This Device is outside the local network, so it asks for the default \
+                     Playback Limit for remote playback, {}",
                     limit.name
                 ),
             )]
@@ -1383,7 +1404,6 @@ fn preferred_subtitle(
     let SubtitlePreference::Like(wanted) = preference else {
         return None;
     };
-    let title = |title: Option<&str>| title.map(str::to_lowercase);
     (probe.tracks.iter().enumerate())
         .filter(|(_, track)| shown_as(device, probe, track).is_some() || burns_in(device, probe, track))
         .filter(|(_, track)| {
@@ -1394,11 +1414,37 @@ fn preferred_subtitle(
         .min_by_key(|(_, track)| {
             (
                 track.sdh != wanted.sdh,
-                title(track.title.as_deref()) != title(wanted.title.as_deref()),
+                !same_title(track, wanted),
                 shown_as(device, probe, track).is_none(),
             )
         })
         .map(|(place, _)| place)
+}
+
+/// The place in `probe`'s Tracks of the audio Track like `wanted` that playback starts with,
+/// `None` when none matches. A Track in its language matches; among those, the same title wins,
+/// since it tells a commentary from the main mix, then one `device` decodes without it being
+/// converted, then the one the file plays by default, then the first.
+fn preferred_audio(wanted: &Description, probe: &Probe, device: &DeviceDecoding) -> Option<usize> {
+    (probe.tracks.iter().enumerate())
+        .filter(|(_, track)| {
+            is_audio(track) && same_language(track.language.as_deref(), wanted.language.as_deref())
+        })
+        // `min_by_key` keeps the first of equals.
+        .min_by_key(|(_, track)| {
+            (
+                !same_title(track, wanted),
+                !undecodable(track, device).is_empty(),
+                !track.default,
+            )
+        })
+        .map(|(place, _)| place)
+}
+
+/// Whether `track` has the title `wanted` has, in any case, or neither has one.
+fn same_title(track: &Track, wanted: &Description) -> bool {
+    let lowercase = |title: &Option<String>| title.as_deref().map(str::to_lowercase);
+    lowercase(&track.title) == lowercase(&wanted.title)
 }
 
 /// Whether `track`, in the file `probe` read, is a subtitle `device` can't show as it should, so a
@@ -1842,9 +1888,10 @@ mod tests {
     };
 
     use super::{
-        AskedSubtitle, Candidates, DeviceDecoding, Facts, Fallback, Method, Network, Offers,
-        PickedLimit, Plan, PlaybackLimit, Playing, Reason, Subtitle, build, default_max_transcodes,
-        narrowed, on_local_network, preferred_subtitle, subtitles_asked, too_busy_to_play,
+        AskedAudio, AskedSubtitle, Candidates, DeviceDecoding, Facts, Fallback, Method, Network,
+        Offers, PickedLimit, Plan, PlaybackLimit, Playing, Reason, Subtitle, audio_asked, build,
+        default_max_transcodes, narrowed, on_local_network, preferred_subtitle, subtitles_asked,
+        too_busy_to_play,
     };
     use crate::{
         ffmpeg::{
@@ -3516,6 +3563,114 @@ mod tests {
         );
     }
 
+    /// A stereo audio Track of `codec` in `language`, titled `title`, played by default or not.
+    fn audio_in(codec: &str, language: &str, title: Option<&str>, default: bool) -> Track {
+        Track {
+            language: Some(language.to_owned()),
+            title: title.map(str::to_owned),
+            ..audio(codec, default)
+        }
+    }
+
+    /// The place [`audio_asked`] gives for an Audio Preference like `wanted` among `tracks`.
+    fn preferred_audio_among(wanted: &Track, tracks: &[Track]) -> Option<usize> {
+        let facts = facts(Some(tracks.to_vec()));
+        let asked = AskedAudio::Preferred(Some(Description::of(wanted)));
+        audio_asked(asked, facts.probe.as_ref(), &facts.device)
+    }
+
+    #[test]
+    fn a_preferred_audio_track_must_be_in_its_language_or_none_is_chosen() {
+        let japanese = audio_in("aac", "jpn", None, false);
+        let tracks = [
+            video("h264"),
+            audio_in("aac", "eng", None, true),
+            audio_in("aac", "ja", None, false),
+        ];
+
+        assert_eq!(preferred_audio_among(&japanese, &tracks), Some(2));
+        let french = audio_in("aac", "fre", None, false);
+        assert_eq!(preferred_audio_among(&french, &tracks), None);
+        let none = facts(Some(tracks.to_vec()));
+        let unset = audio_asked(
+            AskedAudio::Preferred(None),
+            none.probe.as_ref(),
+            &none.device,
+        );
+        assert_eq!(unset, None);
+    }
+
+    #[test]
+    fn a_preferred_audio_track_ranks_title_then_one_the_device_decodes_then_the_default_then_the_first()
+     {
+        let wanted = audio_in("aac", "eng", Some("Commentary"), false);
+        let cases = [
+            (
+                "the same title, in any case, beats one the Device decodes",
+                vec![
+                    audio_in("aac", "eng", None, true),
+                    audio_in("dts", "eng", Some("COMMENTARY"), false),
+                ],
+                Some(1),
+            ),
+            (
+                "one the Device decodes beats the default",
+                vec![
+                    audio_in("dts", "eng", None, true),
+                    audio_in("aac", "eng", None, false),
+                ],
+                Some(1),
+            ),
+            (
+                "the default beats the first",
+                vec![
+                    audio_in("aac", "eng", None, false),
+                    audio_in("aac", "eng", None, true),
+                ],
+                Some(1),
+            ),
+            (
+                "a tie goes to the first",
+                vec![
+                    audio_in("aac", "eng", None, false),
+                    audio_in("aac", "eng", None, false),
+                ],
+                Some(0),
+            ),
+        ];
+
+        for (case, tracks, place) in cases {
+            assert_eq!(preferred_audio_among(&wanted, &tracks), place, "{case}");
+        }
+    }
+
+    #[test]
+    fn a_preferred_audio_track_is_remuxed_or_dropped_as_a_chosen_one_is() {
+        let german = audio_in("aac", "ger", None, false);
+        let tracks = vec![
+            video("h264"),
+            audio_in("aac", "eng", None, true),
+            german.clone(),
+        ];
+        let preferred = || {
+            let mut facts = facts(Some(tracks.clone()));
+            let asked = AskedAudio::Preferred(Some(Description::of(&german)));
+            facts.audio = audio_asked(asked, facts.probe.as_ref(), &facts.device);
+            facts
+        };
+
+        let remuxed = build(&mut preferred());
+        let mut no_ffmpeg = preferred();
+        without_ffmpeg(&mut no_ffmpeg);
+        let dropped = build(&mut no_ffmpeg);
+
+        assert_eq!(remuxed.method(), Some(Method::Remux));
+        assert_eq!(remuxed.audio, Some(2));
+        assert_eq!(dropped.method(), Some(Method::DirectPlay));
+        assert_eq!(dropped.audio, Some(1));
+        assert!(reason_of(&dropped, Kind::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED).decided);
+    }
+
     #[test]
     fn a_subtitle_choice_that_isnt_an_image_or_ass_subtitle_burns_nothing_in() {
         let teletext = track("dvb_teletext", false, TrackKind::Subtitle { image: false });
@@ -3861,7 +4016,8 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             events::EventBus,
             ffmpeg::{Abilities, Ffmpeg},
             playback::{
-                Asked, AskedSubtitle, Planned, StartedPlan, plan, running::RunningPlans, subtitles,
+                Asked, AskedAudio, AskedSubtitle, Planned, StartedPlan, plan,
+                running::RunningPlans, subtitles,
             },
             plugins::ExtensionPoints,
             probing::Probing,
@@ -3894,7 +4050,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             version,
             decoding: DeviceDecoding::default(),
             failed: BTreeSet::new(),
-            audio: None,
+            audio: AskedAudio::Preferred(None),
             subtitle: AskedSubtitle::None,
             limit: PickedLimit::Unpicked,
             client: std::net::Ipv4Addr::LOCALHOST.into(),
@@ -4015,6 +4171,22 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
                 assert_eq!(too_busy_to_play(facts), None, "{case}");
             }
         }
+    }
+
+    #[test]
+    fn the_remote_default_reason_says_the_device_asks_for_it_when_it_is_dropped() {
+        let mut facts = direct_played();
+        remote_at_720p(&mut facts);
+        without_ffmpeg(&mut facts);
+
+        let plan = build(&mut facts);
+
+        assert!(kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED));
+        assert_eq!(
+            reason_of(&plan, Kind::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT).text,
+            "This Device is outside the local network, so it asks for the default Playback \
+             Limit for remote playback, 720p"
+        );
     }
 
     #[test]

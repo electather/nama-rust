@@ -1,6 +1,6 @@
 import { useNavigate, useRouteContext } from "@tanstack/react-router";
 
-import { DeleteMovie } from "@/components/delete-movie";
+import { DeleteMedia } from "@/components/delete-media";
 import { PlayedButton } from "@/components/watch-state";
 import type { Movie } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
@@ -33,11 +33,15 @@ export function MovieActions({
         }}
       />
       {may(signedIn.user, Permission.DELETE_MEDIA) && (
-        <DeleteMovie
-          libraryId={libraryId}
-          movieId={movieId}
+        <DeleteMedia
+          name={`Delete ${movie.title}`}
           title={movie.title}
           versions={movie.versions}
+          target={(versionId) =>
+            versionId === undefined
+              ? { target: { case: "movie", value: { libraryId, movieId } } }
+              : { target: { case: "versionId", value: versionId } }
+          }
           onDeletedEveryVersion={(notTold) =>
             navigate({
               to: "/libraries/$libraryId",

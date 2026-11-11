@@ -13,7 +13,9 @@
 //! A segment asked for waits for ffmpeg to write its files, and one whose files have gone since
 //! waits for them to be written again. One far past what ffmpeg has written restarts ffmpeg at it,
 //! and ffmpeg stops once it's [`RUN_AHEAD_MS`] past the last segment asked for, to start again at
-//! the next file asked for that it hasn't written.
+//! the next file asked for that it hasn't written. Every [`TIDY_EVERY`], files ending more than
+//! [`KEEP_BEHIND_MS`] before the last segment asked for are deleted, as are earlier runs' init
+//! files, so a plan's folder stops growing; one asked for again is written again.
 //!
 //! A Transcode on hardware that fails carries on in software from the first file it hadn't
 //! written, takes its software fallback's reasons and publishes `PlaybackChanged`.
@@ -55,7 +57,7 @@ use super::{Method, Playing, StartedPlan, direct_play_url, method_to_proto, reas
 use crate::{
     contents::Contents,
     events::{EventBus, event},
-    ffmpeg::{Ffmpeg, FromCut, Keyframe, Remux, Transcode, hls_init},
+    ffmpeg::{Ffmpeg, FromCut, Keyframe, Remux, Transcode, hls_init, hls_init_from},
     probing::{self, ProbeError, Probing},
     server_settings::PlaybackSettings,
     tracks::track_to_proto,
@@ -77,6 +79,10 @@ const RUN_AHEAD_MS: i64 = 120_000;
 /// second or two but a seek far ahead would wait for everything before it.
 const REMUX_WAIT_AHEAD_MS: i64 = 30_000;
 
+/// How far behind the start of the last segment asked for a running plan keeps its files, in
+/// milliseconds, so skipping back that far plays at once.
+const KEEP_BEHIND_MS: i64 = 300_000;
+
 /// What a plan's folder in the segment folder is named, before its id. The sweep deletes only
 /// folders named so, since the admin may set a segment folder that holds other files.
 const PLAN_FOLDER: &str = "nama-plan-";
@@ -85,7 +91,7 @@ const PLAN_FOLDER: &str = "nama-plan-";
 /// plan goes within about a minute.
 const STOP_UNUSED_AFTER: Duration = Duration::from_secs(60);
 
-const CHECK_UNUSED_EVERY: Duration = Duration::from_secs(10);
+const TIDY_EVERY: Duration = Duration::from_secs(10);
 
 /// How often a request for a file ffmpeg hasn't written yet looks for it again, and how often
 /// ffmpeg's progress is looked at.
@@ -136,7 +142,7 @@ struct Inner {
     events: EventBus,
     next_id: AtomicU64,
     plans: Mutex<HashMap<u64, Arc<Plan>>>,
-    /// [`stop_unused_plans`], so shutting down can wait for it.
+    /// [`tidy_plans`], so shutting down can wait for it.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
     cancel: CancellationToken,
@@ -227,10 +233,9 @@ impl RunningPlans {
             tasks: TaskTracker::new(),
             cancel: CancellationToken::new(),
         });
-        inner.tasks.spawn(stop_unused_plans(
-            Arc::downgrade(&inner),
-            inner.cancel.clone(),
-        ));
+        inner
+            .tasks
+            .spawn(tidy_plans(Arc::downgrade(&inner), inner.cancel.clone()));
         Self { inner }
     }
 
@@ -471,6 +476,22 @@ impl RunningPlans {
         }
     }
 
+    /// Deletes each running plan's files from well behind playback, as [`Running::delete_behind`]
+    /// says.
+    async fn delete_behind_playback(&self) {
+        let running: Vec<Arc<Running>> = (lock(&self.inner.plans).values())
+            .filter_map(|plan| plan.hls.clone())
+            .collect();
+        for hls in running {
+            if let Err(err) = hls.delete_behind().await {
+                tracing::warn!(
+                    plan = hls.id,
+                    "could not delete files behind playback: {err}"
+                );
+            }
+        }
+    }
+
     /// As the Server shuts down, stops its background tasks and waits for them, so none holds
     /// the database still, then stops every plan and deletes its files, so none is left in a
     /// segment folder the next run's sweep may not know of.
@@ -519,10 +540,12 @@ fn playlist_url(plan: u64) -> String {
     format!("/media/plans/{plan}/{PLAYLIST}")
 }
 
-/// Every [`CHECK_UNUSED_EVERY`], stops the plans unused for [`STOP_UNUSED_AFTER`], until `inner`
-/// is dropped or `cancel` is cancelled.
-async fn stop_unused_plans(inner: Weak<Inner>, cancel: CancellationToken) {
-    let mut every = tokio::time::interval(CHECK_UNUSED_EVERY);
+/// Every [`TIDY_EVERY`], stops the plans unused for [`STOP_UNUSED_AFTER`] and deletes the running
+/// ones' files from well behind playback, until `inner` is dropped or `cancel` is cancelled.
+async fn tidy_plans(inner: Weak<Inner>, cancel: CancellationToken) {
+    // Not at once, so a test's plans aren't tidied at whatever point its task first runs.
+    let first = tokio::time::Instant::now() + TIDY_EVERY;
+    let mut every = tokio::time::interval_at(first, TIDY_EVERY);
     loop {
         // Only between rounds: a plan a round took out isn't in `shutdown`'s drain, so ending
         // mid-round would leave its ffmpeg and files behind.
@@ -532,7 +555,9 @@ async fn stop_unused_plans(inner: Weak<Inner>, cancel: CancellationToken) {
         let Some(inner) = inner.upgrade() else {
             return;
         };
-        RunningPlans { inner }.stop_unused(STOP_UNUSED_AFTER).await;
+        let plans = RunningPlans { inner };
+        plans.stop_unused(STOP_UNUSED_AFTER).await;
+        plans.delete_behind_playback().await;
     }
 }
 
@@ -668,6 +693,47 @@ impl Running {
         }
     }
 
+    /// Deletes the files of keyframes ending more than [`KEEP_BEHIND_MS`] before the start of the
+    /// last segment asked for, and the init files of every run but the current one. Files ahead
+    /// of it, and those the current run may still be writing, are kept.
+    async fn delete_behind(&self) -> io::Result<()> {
+        // Under the lock a restart takes, so the current run is the one whose init is kept.
+        let ffmpeg = self.ffmpeg.lock().await;
+        // `stop` takes the run under it, so a stopped plan has none.
+        let Some((run, _)) = ffmpeg.as_ref() else {
+            return Ok(());
+        };
+        // A running run's walk in `note_written` stops at the first file gone, so what it may
+        // write after it last looked is kept.
+        let still_writing_from = if run.stopped.load(Ordering::Acquire) {
+            usize::MAX
+        } else {
+            self.note_written(run).await
+        };
+        let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
+        let keep_from_ms = asked - KEEP_BEHIND_MS;
+        let mut entries = tokio::fs::read_dir(&self.dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            let behind = match keyframe_number(&name) {
+                Some(n) => {
+                    n < still_writing_from && self.timeline.keyframe_ms(n + 1) < keep_from_ms
+                }
+                None => hls_init_from(&name).is_some_and(|from| from != run.from),
+            };
+            // Going on past one, which Windows refuses while a request reads it.
+            if behind && let Err(err) = tokio::fs::remove_file(entry.path()).await {
+                tracing::warn!(
+                    plan = self.id,
+                    "could not delete {}: {err}",
+                    entry.path().display()
+                );
+            }
+        }
+        Ok(())
+    }
+
     /// The number of the segment a request for `asked` gets, if the playlist lists it.
     fn segment_number(&self, asked: &str) -> Option<usize> {
         let n: usize = asked.strip_suffix(".m4s")?.parse().ok()?;
@@ -722,22 +788,20 @@ impl Running {
     /// wrote its first file, or `None` if it stopped first.
     async fn init(&self) -> io::Result<Option<Vec<u8>>> {
         loop {
-            let Some((from, stopped, written)) =
-                (self.ffmpeg.lock().await).as_ref().map(|(run, _)| {
-                    // `stopped` first, as a run notes what it wrote last before it's marked so.
-                    let stopped = run.stopped.load(Ordering::Acquire);
-                    let written = run.written_to.load(Ordering::Relaxed) > run.from;
-                    (run.from, stopped, written)
-                })
-            else {
+            let ffmpeg = self.ffmpeg.lock().await;
+            let Some((run, _)) = ffmpeg.as_ref() else {
                 return Ok(None);
             };
+            // `stopped` first, as a run notes what it wrote last before it's marked so.
+            let stopped = run.stopped.load(Ordering::Acquire);
             // Not whether its first file is there, which may be gone since.
-            if written {
-                return tokio::fs::read(self.dir.join(hls_init(from)))
+            if run.written_to.load(Ordering::Relaxed) > run.from {
+                // Read under the lock, as once a seek replaces this run a tick deletes its init.
+                return tokio::fs::read(self.dir.join(hls_init(run.from)))
                     .await
                     .map(Some);
             }
+            drop(ffmpeg);
             if stopped {
                 return Ok(None);
             }
@@ -899,7 +963,7 @@ impl Running {
 
     /// Notes in `run` how far it has written, and returns it. Walks on from where it last looked,
     /// not from where it started, whose files may be gone since.
-    // A file deleted before it's looked at stops the walk there, so deleting must keep behind it.
+    // A file deleted before it's looked at stops the walk there, so `delete_behind` keeps those.
     async fn note_written(&self, run: &FfmpegRun) -> usize {
         let mut written_to = run.written_to.load(Ordering::Relaxed);
         while written_to < self.timeline.keyframes.len()
@@ -909,9 +973,16 @@ impl Running {
         {
             written_to += 1;
         }
-        run.written_to.store(written_to, Ordering::Relaxed);
-        written_to
+        // The most, as the tick may walk alongside `watch` and delete what the slower walk is on.
+        run.written_to
+            .fetch_max(written_to, Ordering::Relaxed)
+            .max(written_to)
     }
+}
+
+/// The keyframe whose file is named `name`, if it's one.
+fn keyframe_number(name: &str) -> Option<usize> {
+    name.strip_suffix(".m4s")?.parse().ok()
 }
 
 /// Logs why ffmpeg, running for the plan `plan`, failed, if it did, and says whether it did.
@@ -999,14 +1070,14 @@ mod tests {
     };
 
     use super::{
-        FallbackRun, Method, POLL_EVERY, Running, RunningPlans, Runs, Timeline, lock,
-        sweep_leftovers,
+        FallbackRun, Method, POLL_EVERY, Running, RunningPlans, Runs, Timeline, keyframe_number,
+        lock, sweep_leftovers,
     };
     use crate::{
         contents::Contents,
         db::Database,
         events::{EventBus, Filter, event},
-        ffmpeg::{Ffmpeg, Keyframe},
+        ffmpeg::{Ffmpeg, Keyframe, hls_init},
         playback::subtitles,
         plugins::ExtensionPoints,
         probing::Probing,
@@ -1405,6 +1476,123 @@ mod tests {
         assert_eq!(until_started(&starts, 2).await, [0, 3]);
         write_keyframes(data.path(), id, 3..6);
         assert_eq!(answer(again).await.unwrap().unwrap(), b"345");
+    }
+
+    /// The keyframes whose files the plan `id` has, by number, in order.
+    fn keyframes_left(data: &Path, id: u64) -> Vec<usize> {
+        let dir = data.join("transcodes").join(format!("nama-plan-{id}"));
+        let mut left: Vec<usize> = (fs::read_dir(dir).unwrap())
+            .filter_map(|entry| keyframe_number(&entry.unwrap().file_name().into_string().unwrap()))
+            .collect();
+        left.sort_unstable();
+        left
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_tick_deletes_files_ending_more_than_five_minutes_behind_the_last_segment_asked_for()
+    {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, _) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        // To 400 seconds.
+        write_keyframes(data.path(), id, 0..200);
+
+        // At 360 seconds.
+        plan.segment(60).await.unwrap().unwrap();
+        plans.delete_behind_playback().await;
+
+        // Keyframe 29 ends at 60 seconds, 5 minutes before.
+        assert_eq!(
+            keyframes_left(data.path(), id),
+            (29..200).collect::<Vec<_>>()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_tick_after_a_seek_back_keeps_the_files_ahead_of_it() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, _) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        // To 600 seconds.
+        write_keyframes(data.path(), id, 0..300);
+        // At 540 seconds, then back to 360.
+        plan.segment(90).await.unwrap().unwrap();
+
+        plan.segment(60).await.unwrap().unwrap();
+        plans.delete_behind_playback().await;
+
+        assert_eq!(
+            keyframes_left(data.path(), id),
+            (29..300).collect::<Vec<_>>()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_tick_deletes_the_stretches_of_earlier_seeks_behind_playback_and_keeps_those_ahead() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, starts) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        for stretch in [0..20, 100..150, 400..420] {
+            write_keyframes(data.path(), id, stretch);
+        }
+        // The last seek, to 600 seconds.
+        let seeked = Arc::clone(&plan);
+        let seek = tokio::spawn(async move { seeked.segment(100).await });
+        assert_eq!(until_started(&starts, 2).await, [0, 300]);
+        write_keyframes(data.path(), id, 300..350);
+        answer(seek).await.unwrap().unwrap();
+
+        // At 660 seconds.
+        plan.segment(110).await.unwrap().unwrap();
+        plans.delete_behind_playback().await;
+
+        let ahead: Vec<usize> = (300..350).chain(400..420).collect();
+        assert_eq!(keyframes_left(data.path(), id), ahead);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_tick_deletes_the_init_files_of_earlier_runs_and_keeps_the_current_ones() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, starts) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        let dir = plan.dir.clone();
+        fs::write(dir.join(hls_init(0)), "init").unwrap();
+        let seeked = tokio::spawn(async move { plan.segment(133).await });
+        until_started(&starts, 2).await;
+        fs::write(dir.join(hls_init(399)), "init").unwrap();
+
+        plans.delete_behind_playback().await;
+
+        assert!(!dir.join(hls_init(0)).exists());
+        assert!(dir.join(hls_init(399)).exists());
+        write_keyframes(data.path(), id, 399..402);
+        answer(seeked).await.unwrap().unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn skipping_back_past_what_a_tick_kept_restarts_ffmpeg_there_and_is_served() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, starts) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        write_keyframes(data.path(), id, 0..200);
+        plan.segment(60).await.unwrap().unwrap();
+        plans.delete_behind_playback().await;
+
+        let back = tokio::spawn(async move { plan.segment(1).await });
+
+        assert_eq!(until_started(&starts, 2).await, [0, 3]);
+        write_keyframes(data.path(), id, 3..6);
+        assert_eq!(answer(back).await.unwrap().unwrap(), b"345");
     }
 
     // No lock spans finding a file and reading it, so the test can't pause between the two: it

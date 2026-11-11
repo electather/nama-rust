@@ -256,7 +256,8 @@ pub trait PlaybackService: Send + Sync + 'static {
     /// their Preference for the Show or Movie the Version is of, which later plans of any of its
     /// Versions start with (ADR 0035). A Version of an Unmatched Item keeps nothing. Fails with
     /// `not_found` if there is no such Version, and is refused with
-    /// `REFUSAL_REASON_TRACK_NOT_FOUND` if the Version has no Track of that kind at that place.
+    /// `REFUSAL_REASON_TRACK_NOT_FOUND` if the Version has no Track of that kind at that place, and
+    /// with `REFUSAL_REASON_FIELD_REQUIRED` for an audio pick that names no Track.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

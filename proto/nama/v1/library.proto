@@ -55,8 +55,8 @@ service LibraryService {
   // Before deleting anything, it asks every enabled Fulfiller of its kind, such as Radarr, to stop
   // monitoring the title, which it keeps; one that can't be told is listed, and doesn't stop it.
   // Needs `PERMISSION_DELETE_MEDIA` and Recent Authentication. Fails with `invalid_argument` if
-  // the target is missing, or names a Shows Library as a Movie's, and with `not_found` if there
-  // is no such Library, Movie or Version.
+  // the target is missing, or names a Library of the wrong kind, and with `not_found` if there is
+  // no such Library, title, Season or Version.
   rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
 }
 
@@ -148,6 +148,9 @@ message PreviewDeleteMediaResponse {
   repeated MediaFile files = 1;
   // What deleting `files` would free.
   uint64 bytes_freed = 2;
+  // The Episodes the target doesn't name that a file that would go holds too, by season and
+  // episode number. Each loses that Version, and with it goes if it has no other.
+  repeated EpisodeTakenAlong episodes_taken_along = 3;
 }
 
 message DeleteMediaRequest {
@@ -167,13 +170,21 @@ message DeleteMediaResponse {
   repeated string fulfillers_not_told = 4;
 }
 
-// What to delete: a title's every Version, or one Version.
+// What to delete: a title's every Version, or one Version. A file holding several Episodes goes
+// with each of them.
 message MediaToDelete {
   oneof target {
     // Every Version of a Movie.
     MovieToDelete movie = 1;
-    // One Version of a Movie, by its id as browsing gives it.
+    // One Version of a Movie, by its id as browsing gives it. One of an Episode's is named in
+    // `episode`.
     int64 version_id = 2;
+    // Every Version of every Episode of a Show.
+    ShowToDelete show = 3;
+    // Every Version of every Episode of one Season of a Show.
+    SeasonToDelete season = 4;
+    // Every Version of an Episode, or one of them.
+    EpisodeToDelete episode = 5;
   }
 }
 
@@ -183,6 +194,42 @@ message MovieToDelete {
   int64 library_id = 1;
   // The Movie's id, as `BrowseService.ListMovies` gave it.
   ExternalId movie_id = 2;
+}
+
+// A Show, named as `BrowseService.GetShow` names it.
+message ShowToDelete {
+  // The Shows Library the Show is in.
+  int64 library_id = 1;
+  // The Show's id, as `BrowseService.ListShows` gave it.
+  ExternalId show_id = 2;
+}
+
+// A Season of a Show, named as `BrowseService.ListEpisodes` names it.
+message SeasonToDelete {
+  // The Shows Library the Show is in.
+  int64 library_id = 1;
+  // The Show's id, as `BrowseService.ListShows` gave it.
+  ExternalId show_id = 2;
+  // The Season's number, as `BrowseService.GetShow` gave it.
+  uint32 season_number = 3;
+}
+
+// An Episode, or one of its Versions.
+message EpisodeToDelete {
+  // The Shows Library the Episode is in.
+  int64 library_id = 1;
+  // The Episode's id, as `BrowseService.ListEpisodes` gave it.
+  ExternalId episode_id = 2;
+  // Only this Version of the Episode, by its id as browsing gives it. Unset, every Version.
+  optional int64 version_id = 3;
+}
+
+// An Episode a delete takes along with a file that holds it too.
+message EpisodeTakenAlong {
+  uint32 season_number = 1;
+  uint32 episode_number = 2;
+  // The title, in the metadata Provider's language.
+  string title = 3;
 }
 
 // A file on the Server's disk.
