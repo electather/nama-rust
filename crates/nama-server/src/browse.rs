@@ -191,7 +191,8 @@ impl Browse {
             MatchedTo::NoSuchVersion => return Err(Error::NoSuchVersion),
             MatchedTo::Nothing => return Ok(()),
             MatchedTo::Movie(movie) => vec![Some(MovieOrEpisode::movie(&movie))],
-            // An unmatched Episode keeps its share of the file, so the others' shares don't move.
+            // An Item that isn't Matched keeps its share of the file, so the others' shares don't
+            // move.
             MatchedTo::Episodes(episodes) => (episodes.iter())
                 .map(|episode| episode.as_ref().map(MovieOrEpisode::episode))
                 .collect(),
