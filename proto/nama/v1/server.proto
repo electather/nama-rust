@@ -190,4 +190,10 @@ message PlaybackSettings {
   PlaybackLimit remote_playback_limit = 3;
   // What Transcodes run on. One that didn't pass its test at startup leaves them in software.
   HardwareAcceleration hardware_acceleration = 4;
+  // The GPU `hardware_acceleration` runs every Transcode on: one it passed its test on at startup,
+  // as `GetPlaybackStatusResponse.hardware` lists them, or the one already saved. Unset for the
+  // first GPU it passed on, and always for Automatic, Off, NVENC and VideoToolbox. A saved GPU
+  // missing or failing its test at startup leaves Transcodes in software, and keeps its last
+  // name. A save reads only its `id`.
+  Gpu gpu = 5;
 }

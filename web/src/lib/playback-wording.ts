@@ -106,6 +106,8 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
     `Its picture is larger than the ${param.limit()} Playback Limit, so a Transcode scales it down to ${param.count("widthPixels")}×${param.count("heightPixels")}.`,
   [PlaybackReasonKind.SUBTITLES_BURNED_IN]: () =>
     "This Device can’t draw the subtitles chosen, so a Transcode burns them into the picture.",
+  [PlaybackReasonKind.SUBTITLES_FILE_CARRIES_NO_FONTS]: () =>
+    "The subtitles chosen need fonts their file doesn’t carry, so a Transcode burns them into the picture.",
   [PlaybackReasonKind.DEVICE_PLAYS_FEWER_CHANNELS]: (param) =>
     `Its audio is converted to ${param.channels()}, as this Device doesn’t play 5.1.`,
   [PlaybackReasonKind.DEVICE_CHANNELS_UNKNOWN]: (param) =>

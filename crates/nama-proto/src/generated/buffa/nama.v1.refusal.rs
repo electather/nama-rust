@@ -169,9 +169,14 @@ pub enum RefusalReason {
     /// `resource_exhausted`: only a Transcode would play the Version on this Device, and the Server
     /// is already running as many as its Playback settings allow. Params: `maxTranscodes`.
     REFUSAL_REASON_SERVER_BUSY = 60i32,
+    /// `invalid_argument`: the Playback settings name a GPU their hardware acceleration didn't pass
+    /// its test on when the Server started and that isn't the one saved with it, or name one with
+    /// Automatic, Off, NVENC or VideoToolbox, which take none. `field` is `settings.gpu`. Params:
+    /// `gpuId`.
+    REFUSAL_REASON_GPU_NOT_OFFERED = 61i32,
     /// `not_found`: the Version has no Track of the kind picked at the place named. `field` is
     /// `track`.
-    REFUSAL_REASON_TRACK_NOT_FOUND = 61i32,
+    REFUSAL_REASON_TRACK_NOT_FOUND = 62i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -357,6 +362,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SERVER_BUSY`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ServerBusy: Self = Self::REFUSAL_REASON_SERVER_BUSY;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_GPU_NOT_OFFERED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const GpuNotOffered: Self = Self::REFUSAL_REASON_GPU_NOT_OFFERED;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_TRACK_NOT_FOUND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const TrackNotFound: Self = Self::REFUSAL_REASON_TRACK_NOT_FOUND;
@@ -584,7 +592,8 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             59i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SHOW_HAS_QUALITY),
             60i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_BUSY),
-            61i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_TRACK_NOT_FOUND),
+            61i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_GPU_NOT_OFFERED),
+            62i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_TRACK_NOT_FOUND),
             _ => ::core::option::Option::None,
         }
     }
@@ -708,6 +717,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_SHOW_HAS_QUALITY => "REFUSAL_REASON_SHOW_HAS_QUALITY",
             Self::REFUSAL_REASON_SERVER_BUSY => "REFUSAL_REASON_SERVER_BUSY",
+            Self::REFUSAL_REASON_GPU_NOT_OFFERED => "REFUSAL_REASON_GPU_NOT_OFFERED",
             Self::REFUSAL_REASON_TRACK_NOT_FOUND => "REFUSAL_REASON_TRACK_NOT_FOUND",
         }
     }
@@ -910,6 +920,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_SERVER_BUSY" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_BUSY)
             }
+            "REFUSAL_REASON_GPU_NOT_OFFERED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_GPU_NOT_OFFERED)
+            }
             "REFUSAL_REASON_TRACK_NOT_FOUND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_TRACK_NOT_FOUND)
             }
@@ -979,6 +992,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_PAGE_TOKEN_INVALID,
             Self::REFUSAL_REASON_SHOW_HAS_QUALITY,
             Self::REFUSAL_REASON_SERVER_BUSY,
+            Self::REFUSAL_REASON_GPU_NOT_OFFERED,
             Self::REFUSAL_REASON_TRACK_NOT_FOUND,
         ]
     }

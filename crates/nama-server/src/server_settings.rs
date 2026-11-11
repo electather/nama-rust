@@ -17,7 +17,7 @@ use thiserror::Error;
 
 use crate::{
     db::{BoxFuture, Database},
-    ffmpeg::Accel,
+    ffmpeg::{Accel, Hardware},
     playback::PlaybackLimit,
 };
 
@@ -54,12 +54,13 @@ pub(crate) struct PlaybackValues {
 }
 
 /// A change to the Playback settings, replacing all of them, as a client asked for it.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct PlaybackChange<'a> {
     /// Untrimmed, `""` for the default.
     pub(crate) segment_folder: &'a str,
     /// `None` for the default; 0 is refused.
     pub(crate) max_transcodes: Option<u32>,
+    /// A picked GPU's name is ignored: the Server names it.
     pub(crate) hardware: HardwareChoice,
     pub(crate) remote_limit: Option<PlaybackLimit>,
 }
@@ -93,6 +94,13 @@ pub(crate) enum Invalid {
     /// by leaving it out.
     #[error("the most Transcodes at once must be at least 1")]
     NoTranscodes,
+    /// The GPU picked isn't one its API passed its test on at startup, nor the one stored with
+    /// it, or was sent with Automatic or Off, which take none.
+    #[error("GPU {id} isn't one its hardware acceleration passed its test on")]
+    GpuNotOffered {
+        /// Its PCI address, as asked.
+        id: String,
+    },
 }
 
 impl Settings {
@@ -114,8 +122,8 @@ impl Settings {
     /// If reading fails, leaving the settings as they were.
     pub(crate) async fn load(&self) -> Result<(), sqlx::Error> {
         let stored = sqlx::query!(
-            "SELECT url, segment_folder, max_transcodes, hardware_acceleration,
-                    remote_playback_limit
+            "SELECT url, segment_folder, max_transcodes, hardware_acceleration, hardware_gpu,
+                    hardware_gpu_name, remote_playback_limit
              FROM server_settings"
         )
         .fetch_optional(self.db.reader())
@@ -127,7 +135,11 @@ impl Settings {
                 max_transcodes: (stored.max_transcodes)
                     .and_then(|max| u32::try_from(max).ok())
                     .and_then(NonZeroU32::new),
-                hardware: HardwareChoice::from_stored(&stored.hardware_acceleration),
+                hardware: HardwareChoice::from_stored(
+                    &stored.hardware_acceleration,
+                    stored.hardware_gpu,
+                    stored.hardware_gpu_name,
+                ),
                 remote_limit: PlaybackLimit::named(&stored.remote_playback_limit),
             },
         });
@@ -185,15 +197,17 @@ impl Settings {
     }
 
     /// Stores every Playback setting `change` gives, or none, and uses them for plans made and
-    /// started from now on.
+    /// started from now on. A GPU it picks must be one `passed`, the hardware that passed its test
+    /// at startup, has with its API, or the one stored with it.
     ///
     /// # Errors
     ///
-    /// [`Invalid::FolderNotAbsolute`] or [`Invalid::NoTranscodes`], in that order, or if storing
-    /// them fails.
+    /// [`Invalid::FolderNotAbsolute`], [`Invalid::NoTranscodes`] or [`Invalid::GpuNotOffered`],
+    /// in that order, or if storing them fails.
     pub(crate) async fn change_playback(
         &self,
         change: PlaybackChange<'_>,
+        passed: &[Hardware],
     ) -> Result<PlaybackValues, ChangeError> {
         let folder = change.segment_folder.trim();
         if !(folder.is_empty() || Path::new(folder).is_absolute()) {
@@ -206,15 +220,23 @@ impl Settings {
             Some(max) => Some(NonZeroU32::new(max).ok_or(Invalid::NoTranscodes)?),
             None => None,
         };
+        let mut hardware = change.hardware;
+        if let HardwareChoice::Api(accel, Some(gpu)) = &mut hardware {
+            *gpu = self.offered_gpu(*accel, &gpu.id, passed)?;
+        }
         let playback = PlaybackValues {
             segment_folder: folder.to_owned(),
             max_transcodes,
-            hardware: change.hardware,
+            hardware,
             remote_limit: change.remote_limit,
         };
         let stored_folder = playback.segment_folder.clone();
         let max = max_transcodes.map(NonZeroU32::get);
-        let hardware = playback.hardware.stored();
+        let api = playback.hardware.stored();
+        let (gpu, gpu_name) = playback
+            .hardware
+            .gpu()
+            .map_or_else(Default::default, |gpu| (gpu.id.clone(), gpu.name.clone()));
         let limit = playback.remote_limit.map_or("", PlaybackLimit::name);
         let in_use = playback.clone();
         self.store(
@@ -223,16 +245,20 @@ impl Settings {
                     sqlx::query!(
                         "INSERT INTO server_settings
                              (id, url, segment_folder, max_transcodes, hardware_acceleration,
-                              remote_playback_limit)
-                         VALUES (1, '', ?, ?, ?, ?)
+                              hardware_gpu, hardware_gpu_name, remote_playback_limit)
+                         VALUES (1, '', ?, ?, ?, ?, ?, ?)
                          ON CONFLICT (id) DO UPDATE SET
                              segment_folder = excluded.segment_folder,
                              max_transcodes = excluded.max_transcodes,
                              hardware_acceleration = excluded.hardware_acceleration,
+                             hardware_gpu = excluded.hardware_gpu,
+                             hardware_gpu_name = excluded.hardware_gpu_name,
                              remote_playback_limit = excluded.remote_playback_limit",
                         stored_folder,
                         max,
-                        hardware,
+                        api,
+                        gpu,
+                        gpu_name,
                         limit
                     )
                     .execute(&mut **tx)
@@ -244,6 +270,33 @@ impl Settings {
         )
         .await?;
         Ok(playback)
+    }
+
+    /// The GPU at the PCI address `id`, named as `passed` found it with `accel`, or else as
+    /// stored with `accel`, so saving another setting keeps a pick whose GPU is gone.
+    fn offered_gpu(
+        &self,
+        accel: Accel,
+        id: &str,
+        passed: &[Hardware],
+    ) -> Result<PickedGpu, Invalid> {
+        let found = (passed.iter())
+            .find(|hardware| hardware.is_pair(accel, id))
+            .and_then(|hardware| hardware.gpu.as_ref());
+        if let Some(gpu) = found {
+            return Ok(PickedGpu {
+                id: id.to_owned(),
+                name: gpu.name(),
+            });
+        }
+        match &read(&self.values).playback.hardware {
+            HardwareChoice::Api(stored, Some(gpu)) if *stored == accel && gpu.id == id => {
+                Ok(gpu.clone())
+            }
+            HardwareChoice::Automatic | HardwareChoice::Off | HardwareChoice::Api(..) => {
+                Err(Invalid::GpuNotOffered { id: id.to_owned() })
+            }
+        }
     }
 
     /// Runs `upsert`, which writes only its own group's columns, then `merge`s the same values
@@ -326,36 +379,63 @@ impl PlaybackSettings {
 }
 
 /// What an admin chose for Transcodes to run on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) enum HardwareChoice {
     /// The first API that passed its test at startup, or software without one.
     #[default]
     Automatic,
     /// Software only.
     Off,
-    /// This API, if it passed its test at startup, or else software.
-    Api(Accel),
+    /// This API on this GPU, if the pair passed its test at startup, or else software. With no
+    /// GPU, as stored before GPUs could be picked, the API on the first GPU it passed on.
+    Api(Accel, Option<PickedGpu>),
+}
+
+/// The GPU an admin picked for Transcodes to run on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PickedGpu {
+    /// Its PCI address, which finds it whatever render node it has.
+    pub(crate) id: String,
+    /// The name it was last found under, which still names it once it's gone.
+    pub(crate) name: String,
 }
 
 impl HardwareChoice {
     /// As the database stores it.
-    const fn stored(self) -> &'static str {
+    const fn stored(&self) -> &'static str {
         match self {
             Self::Automatic => "",
             Self::Off => "off",
-            Self::Api(Accel::Nvenc) => "nvenc",
-            Self::Api(Accel::Qsv) => "qsv",
-            Self::Api(Accel::Vaapi) => "vaapi",
-            Self::Api(Accel::VideoToolbox) => "videotoolbox",
+            Self::Api(Accel::Nvenc, _) => "nvenc",
+            Self::Api(Accel::Qsv, _) => "qsv",
+            Self::Api(Accel::Vaapi, _) => "vaapi",
+            Self::Api(Accel::VideoToolbox, _) => "videotoolbox",
         }
     }
 
-    /// The choice the database stores as `stored`, Automatic for one this Server doesn't know.
-    fn from_stored(stored: &str) -> Self {
-        std::iter::once(Self::Off)
-            .chain(Accel::ALL.map(Self::Api))
-            .find(|choice| choice.stored() == stored)
-            .unwrap_or_default()
+    /// The choice the database stores as `stored`, on the GPU at the PCI address `gpu` last found
+    /// as `gpu_name` unless `gpu` is empty, Automatic for one this Server doesn't know.
+    fn from_stored(stored: &str, gpu: String, gpu_name: String) -> Self {
+        let picked = (!gpu.is_empty()).then_some(PickedGpu {
+            id: gpu,
+            name: gpu_name,
+        });
+        match Accel::ALL
+            .into_iter()
+            .find(|&accel| Self::Api(accel, None).stored() == stored)
+        {
+            Some(accel) => Self::Api(accel, picked),
+            None if stored == Self::Off.stored() => Self::Off,
+            None => Self::Automatic,
+        }
+    }
+
+    /// The GPU picked, if one is.
+    pub(crate) const fn gpu(&self) -> Option<&PickedGpu> {
+        match self {
+            Self::Api(_, gpu) => gpu.as_ref(),
+            Self::Automatic | Self::Off => None,
+        }
     }
 }
 
@@ -368,8 +448,11 @@ mod tests {
     };
 
     use super::{
-        ChangeError, HardwareChoice, Invalid, PlaybackChange, PlaybackValues, Settings, Values,
+        ChangeError, HardwareChoice, Invalid, PickedGpu, PlaybackChange, PlaybackValues, Settings,
+        Values,
     };
+    #[cfg(unix)]
+    use crate::ffmpeg::{Hardware, fake, find_gpus};
     use crate::{db::Database, ffmpeg::Accel, playback::PlaybackLimit};
 
     const DEFAULT_FOLDER: &str = "/data/transcodes";
@@ -466,19 +549,22 @@ mod tests {
         let playback = settings.playback();
 
         let stored = settings
-            .change_playback(PlaybackChange {
-                segment_folder: " /tmp/nama ",
-                max_transcodes: Some(5),
-                hardware: HardwareChoice::Api(Accel::Vaapi),
-                remote_limit: Some(PlaybackLimit::P720),
-            })
+            .change_playback(
+                PlaybackChange {
+                    segment_folder: " /tmp/nama ",
+                    max_transcodes: Some(5),
+                    hardware: HardwareChoice::Api(Accel::Vaapi, None),
+                    remote_limit: Some(PlaybackLimit::P720),
+                },
+                &[],
+            )
             .await
             .unwrap();
 
         let expected = PlaybackValues {
             segment_folder: "/tmp/nama".to_owned(),
             max_transcodes: NonZeroU32::new(5),
-            hardware: HardwareChoice::Api(Accel::Vaapi),
+            hardware: HardwareChoice::Api(Accel::Vaapi, None),
             remote_limit: Some(PlaybackLimit::P720),
         };
         assert_eq!(stored, expected);
@@ -495,16 +581,19 @@ mod tests {
     async fn playback_settings_go_back_to_their_defaults_when_cleared() {
         let (_data_dir, settings) = fresh().await;
         settings
-            .change_playback(PlaybackChange {
-                segment_folder: "/tmp/nama",
-                max_transcodes: Some(5),
-                hardware: HardwareChoice::Off,
-                remote_limit: Some(PlaybackLimit::P720),
-            })
+            .change_playback(
+                PlaybackChange {
+                    segment_folder: "/tmp/nama",
+                    max_transcodes: Some(5),
+                    hardware: HardwareChoice::Off,
+                    remote_limit: Some(PlaybackLimit::P720),
+                },
+                &[],
+            )
             .await
             .unwrap();
 
-        settings.change_playback(change("")).await.unwrap();
+        settings.change_playback(change(""), &[]).await.unwrap();
 
         let restarted = restarted(&settings).await.playback();
         assert_eq!(restarted.now(), PlaybackValues::default());
@@ -516,7 +605,7 @@ mod tests {
         let (_data_dir, settings) = fresh().await;
 
         assert_eq!(
-            invalid(settings.change_playback(change(" tmp/nama ")).await),
+            invalid(settings.change_playback(change(" tmp/nama "), &[]).await),
             Invalid::FolderNotAbsolute {
                 folder: "tmp/nama".to_owned()
             }
@@ -528,11 +617,14 @@ mod tests {
         let (_data_dir, settings) = fresh().await;
 
         let refused = settings
-            .change_playback(PlaybackChange {
-                max_transcodes: Some(0),
-                hardware: HardwareChoice::Off,
-                ..change("/tmp/nama")
-            })
+            .change_playback(
+                PlaybackChange {
+                    max_transcodes: Some(0),
+                    hardware: HardwareChoice::Off,
+                    ..change("/tmp/nama")
+                },
+                &[],
+            )
             .await;
 
         assert_eq!(invalid(refused), Invalid::NoTranscodes);
@@ -548,10 +640,13 @@ mod tests {
         let (_data_dir, settings) = fresh().await;
 
         let refused = settings
-            .change_playback(PlaybackChange {
-                max_transcodes: Some(0),
-                ..change("tmp")
-            })
+            .change_playback(
+                PlaybackChange {
+                    max_transcodes: Some(0),
+                    ..change("tmp")
+                },
+                &[],
+            )
             .await;
 
         assert_eq!(
@@ -562,11 +657,125 @@ mod tests {
         );
     }
 
+    /// VAAPI on a dedicated AMD GPU at `0000:03:00.0`, then on an integrated one at
+    /// `0000:18:00.0`, as Automatic orders them.
+    #[cfg(unix)]
+    fn vaapi_on_two_gpus(root: &Path) -> Vec<Hardware> {
+        let (sys, dri) = (root.join("sys"), root.join("dri"));
+        fake::gpu(&sys, &dri, "renderD128", "0000:18:00.0", "0x1002");
+        fake::pci_function(&sys, "0000:18:00.2", "0x1022");
+        fake::gpu(&sys, &dri, "renderD129", "0000:03:00.0", "0x1002");
+        find_gpus(&dri, &sys.join("class/drm"))
+            .into_iter()
+            .map(|gpu| Hardware {
+                accel: Accel::Vaapi,
+                gpu: Some(gpu),
+                tone_maps: false,
+            })
+            .collect()
+    }
+
+    fn picked(accel: Accel, id: &str, name: &str) -> HardwareChoice {
+        let gpu = PickedGpu {
+            id: id.to_owned(),
+            name: name.to_owned(),
+        };
+        HardwareChoice::Api(accel, Some(gpu))
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_picked_gpu_is_stored_under_the_name_it_was_found_with_and_read_after_a_restart() {
+        let (data_dir, settings) = fresh().await;
+        let passed = vaapi_on_two_gpus(data_dir.path());
+
+        let stored = settings
+            .change_playback(
+                PlaybackChange {
+                    hardware: picked(Accel::Vaapi, "0000:18:00.0", "a name the client made up"),
+                    ..change("")
+                },
+                &passed,
+            )
+            .await
+            .unwrap();
+
+        let integrated = picked(Accel::Vaapi, "0000:18:00.0", "AMD integrated GPU");
+        assert_eq!(stored.hardware, integrated);
+        assert_eq!(settings.playback().now().hardware, integrated);
+        assert_eq!(
+            restarted(&settings).await.playback().now().hardware,
+            integrated
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_gpu_its_api_didnt_pass_on_or_one_with_an_api_that_takes_none_is_refused() {
+        let (data_dir, settings) = fresh().await;
+        let passed = vaapi_on_two_gpus(data_dir.path());
+
+        for (accel, id) in [
+            (Accel::Vaapi, "0000:0a:00.0"),
+            (Accel::Qsv, "0000:03:00.0"),
+            (Accel::Nvenc, "0000:03:00.0"),
+            (Accel::VideoToolbox, "0000:03:00.0"),
+        ] {
+            let refused = settings
+                .change_playback(
+                    PlaybackChange {
+                        hardware: picked(accel, id, "AMD Radeon RX 9070 XT"),
+                        ..change("")
+                    },
+                    &passed,
+                )
+                .await;
+
+            assert_eq!(
+                invalid(refused),
+                Invalid::GpuNotOffered { id: id.to_owned() },
+                "{accel:?}"
+            );
+        }
+        assert_eq!(settings.playback().now(), PlaybackValues::default());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn after_a_restart_without_its_gpu_a_pick_keeps_its_name_and_survives_another_save() {
+        let (data_dir, settings) = fresh().await;
+        let pick = |name| PlaybackChange {
+            hardware: picked(Accel::Vaapi, "0000:03:00.0", name),
+            ..change("")
+        };
+        let passed = vaapi_on_two_gpus(data_dir.path());
+        settings.change_playback(pick(""), &passed).await.unwrap();
+        let restarted = restarted(&settings).await;
+
+        let saved_again = restarted
+            .change_playback(
+                PlaybackChange {
+                    max_transcodes: Some(3),
+                    ..pick("another name")
+                },
+                &[],
+            )
+            .await
+            .unwrap();
+
+        let stored = picked(Accel::Vaapi, "0000:03:00.0", "AMD GPU at 0000:03:00.0");
+        assert_eq!(saved_again.hardware, stored);
+        assert_eq!(saved_again.max_transcodes, NonZeroU32::new(3));
+    }
+
     #[tokio::test]
     async fn changing_one_group_keeps_the_others_stored_values() {
         let (_data_dir, settings) = fresh().await;
         settings.set_url("https://nama.example.com").await.unwrap();
-        settings.change_playback(change("/tmp/nama")).await.unwrap();
+        settings
+            .change_playback(change("/tmp/nama"), &[])
+            .await
+            .unwrap();
         let after_playback = restarted(&settings).await.now();
         settings.set_url("https://other.example.com").await.unwrap();
         let after_url = restarted(&settings).await.now();
@@ -579,7 +788,10 @@ mod tests {
     async fn changing_the_playback_settings_first_stores_no_url() {
         let (_data_dir, settings) = fresh().await;
 
-        settings.change_playback(change("/tmp/nama")).await.unwrap();
+        settings
+            .change_playback(change("/tmp/nama"), &[])
+            .await
+            .unwrap();
 
         assert_eq!(restarted(&settings).await.now().url, "");
     }
