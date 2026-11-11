@@ -13,7 +13,7 @@
 //! 0007: media bytes are not RPC), to anyone with a session. A browser's `<video src>` presents
 //! that session in its cookie (ADR 0014). Range requests let a `<video>` seek. Only Versions,
 //! files a scan stored for a Library and Matched, are served, by id, so a client can never name a
-//! path. The text subtitles a plan offers are served beside it ([`subtitles`]).
+//! path. The subtitles a plan offers are served beside it ([`subtitles`]).
 
 pub(crate) mod running;
 pub(crate) mod subtitles;
@@ -33,7 +33,7 @@ use tower_http::services::ServeFile;
 use crate::{
     contents::Contents,
     ffmpeg::{
-        Abilities, BurnIn, CanDo, Ffmpeg, Hardware, Remux, RemuxAudio, ToneMapper, Transcode,
+        Abilities, BurnIn, CanDo, Ffmpeg, Gpu, Hardware, Remux, RemuxAudio, ToneMapper, Transcode,
         TranscodeAudio, VideoConversion, VideoLimit,
     },
     probing::{self, ProbeError, Probing},
@@ -132,7 +132,7 @@ pub(crate) struct Plan {
     pub(crate) tracks: Vec<Track>,
     /// Why, one for each step, in the order they ran.
     pub(crate) reasons: Vec<String>,
-    /// The text subtitles a player can turn on without a new plan.
+    /// The subtitles the Device shows itself, without a new plan.
     pub(crate) subtitles: Vec<Subtitle>,
     /// The Playback Limit it keeps to, `None` being Original.
     pub(crate) limit: Option<PlaybackLimit>,
@@ -179,6 +179,10 @@ pub(crate) enum Planned {
 /// How a plan plays a Version, with what its method converts, for a Remux or a Transcode the
 /// Version's length, which their playlists list, and for a Transcode on hardware its fallback.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "a Server holds a plan per Device playing, a handful, so boxing saves nothing"
+)]
 pub(crate) enum Playing {
     DirectPlay,
     Remux {
@@ -222,13 +226,14 @@ enum Choice {
     Subtitle,
 }
 
-/// A text subtitle a player shows as a WebVTT `<track>`.
+/// A subtitle the Device shows itself: a text one as WebVTT, or one in a format it draws.
 #[derive(Debug, PartialEq)]
 pub(crate) struct Subtitle {
     pub(crate) track: Track,
     /// Its Track's place in the Version's Tracks.
     pub(crate) place: usize,
-    /// Where it's served as WebVTT, on this Server.
+    pub(crate) format: proto::SubtitleFormat,
+    /// Where it's served in `format`, on this Server.
     pub(crate) url: String,
 }
 
@@ -248,6 +253,8 @@ pub(crate) struct DeviceDecoding {
     pub(crate) hls: bool,
     /// How many audio channels it plays out at once, such as 6 for 5.1; 0 when it doesn't say.
     pub(crate) audio_channels: u32,
+    /// The subtitle formats it draws itself, which never lists WebVTT, since every Device shows it.
+    pub(crate) subtitle_formats: Vec<proto::SubtitleFormat>,
 }
 
 /// What a request for a plan asks.
@@ -318,7 +325,7 @@ pub(crate) async fn plan(
         Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
         Err(probing::Error::Database(err)) => return Err(err.into()),
     };
-    let (subtitle, shown_subtitle) = subtitles_asked(subtitle, probe.as_ref());
+    let (subtitle, shown_subtitle) = subtitles_asked(subtitle, probe.as_ref(), &decoding);
     let mut facts = Facts {
         version,
         probe,
@@ -355,15 +362,19 @@ pub(crate) async fn plan(
 /// The subtitle Track `asked` asks to burn in and the one it asks the Device to show, each by its
 /// place in `probe`'s Tracks: a Track the Server chose by the User's Subtitle Preference is shown
 /// by the Device if it can, since that is no input to the plan (ADR 0033), and burned in if not.
-fn subtitles_asked(asked: AskedSubtitle, probe: Option<&Probe>) -> (Option<usize>, Option<usize>) {
+fn subtitles_asked(
+    asked: AskedSubtitle,
+    probe: Option<&Probe>,
+    device: &DeviceDecoding,
+) -> (Option<usize>, Option<usize>) {
     match asked {
         AskedSubtitle::BurnIn(place) => (Some(place), None),
         AskedSubtitle::None | AskedSubtitle::Preferred(None) => (None, None),
         AskedSubtitle::Preferred(Some(preference)) => {
             let tracks = probe.map_or(&[][..], |probe| &probe.tracks);
-            let place = preferred_subtitle(&preference, tracks);
+            let place = preferred_subtitle(&preference, tracks, device);
             match place.and_then(|place| tracks.get(place)) {
-                Some(track) if track.is_text_subtitle() => (None, place),
+                Some(track) if shown_as(device, track).is_some() => (None, place),
                 _ => (place, None),
             }
         }
@@ -514,9 +525,9 @@ fn build(facts: &mut Facts) -> Plan {
             duration_ms: duration_ms?,
         }),
         Method::Transcode => Some(Playing::Transcode {
-            transcode: candidates?.transcode,
+            transcode: candidates?.transcode.clone(),
             duration_ms: duration_ms?,
-            fallback: fallback(facts, candidates?.transcode),
+            fallback: fallback(facts, &candidates?.transcode),
         }),
     });
     let audio = candidates.and_then(|candidates| candidates.audio);
@@ -537,7 +548,7 @@ fn build(facts: &mut Facts) -> Plan {
         subtitles: facts
             .probe
             .as_ref()
-            .map(|probe| text_subtitles(facts.version, probe))
+            .map(|probe| shown_subtitles(facts.version, probe, &facts.device))
             .unwrap_or_default(),
         limit: limit_in_effect(facts),
         audio,
@@ -569,14 +580,15 @@ fn offers(facts: &Facts, lasting: &BTreeSet<Method>) -> Offers {
         return Offers::default();
     };
     let transcodes = lasting.contains(&Method::Transcode);
-    let places = |keep: fn(&Track) -> bool| {
+    let places = |keep: &dyn Fn(&Track) -> bool| {
         (probe.tracks.iter().enumerate())
-            .filter(move |(_, track)| keep(track))
+            .filter(|(_, track)| keep(track))
             .map(|(place, _)| place)
+            .collect()
     };
     // Only the file's own audio plays without a Remux or a Transcode.
     let audio = if transcodes || lasting.contains(&Method::Remux) {
-        places(is_audio).collect()
+        places(&is_audio)
     } else {
         file_audio(probe).into_iter().collect()
     };
@@ -589,7 +601,7 @@ fn offers(facts: &Facts, lasting: &BTreeSet<Method>) -> Offers {
     let picture = picture(facts);
     Offers {
         audio,
-        burn_in: places(burns_in).collect(),
+        burn_in: places(&|track| burns_in(&facts.device, track)),
         limits: (PlaybackLimit::ALL.into_iter())
             .filter(|&limit| picture.and_then(|picture| fitted(picture, limit)).is_some())
             .collect(),
@@ -747,8 +759,8 @@ fn server_ffmpeg(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
 
 /// What `transcode` goes on with in software if it runs on hardware: the same conversion,
 /// tone-mapping only if ffmpeg has zscale.
-fn fallback(facts: &Facts, transcode: Transcode) -> Option<Fallback> {
-    let accel = transcode.video.hardware?;
+fn fallback(facts: &Facts, transcode: &Transcode) -> Option<Fallback> {
+    let accel = transcode.video.hardware.as_ref()?.accel;
     let tone_map = (transcode.video.tone_map).and_then(|_| facts.can_do.tone_mapper(None));
     let without_tone_mapping = if tone_map.is_none() && transcode.video.tone_map.is_some() {
         ", without tone-mapping its HDR, as this Server's ffmpeg lacks zscale"
@@ -762,7 +774,7 @@ fn fallback(facts: &Facts, transcode: Transcode) -> Option<Fallback> {
                 tone_map,
                 ..transcode.video
             },
-            ..transcode
+            ..*transcode
         },
         why: format!(
             "{} failed partway, so the rest of it Transcodes in software{without_tone_mapping}",
@@ -781,7 +793,7 @@ fn tone_mapper(facts: &Facts) -> Option<ToneMapper> {
     let gpu = transcodes_on(facts)
         .ok()
         .filter(|_| burn_in(facts).is_none());
-    facts.can_do.tone_mapper(gpu)
+    facts.can_do.tone_mapper(gpu.as_ref())
 }
 
 /// The reason for the Server's encoders: what a Transcode decodes, scales, tone-maps and encodes
@@ -791,8 +803,15 @@ fn tone_mapper(facts: &Facts) -> Option<ToneMapper> {
 fn server_encoders(facts: &Facts, candidates: Option<&Candidates>) -> String {
     match transcodes_on(facts) {
         Err(why) => format!("{why}, so a Transcode runs in software"),
-        Ok(Hardware { accel, .. }) => {
-            let on = format!("A Transcode runs on the GPU with {}", accel.name());
+        Ok(hardware) => {
+            let gpu = hardware
+                .gpu
+                .as_ref()
+                .map_or_else(|| "GPU".to_owned(), Gpu::name);
+            let on = format!(
+                "A Transcode runs on the {gpu} with {}",
+                hardware.accel.name()
+            );
             match (candidate_tone_mapper(candidates), played_hdr(facts)) {
                 (Some(ToneMapper::Hardware), Some(hdr)) => {
                     format!("{on}, which tone-maps its {} picture to SDR", hdr_name(hdr))
@@ -812,10 +831,11 @@ fn transcodes_on(facts: &Facts) -> Result<Hardware, String> {
     let found = |accel| (facts.can_do.hardware.iter()).find(|found| found.accel == accel);
     match facts.hardware_choice {
         HardwareChoice::Off => Err("Hardware acceleration is off".to_owned()),
-        HardwareChoice::Automatic => facts.can_do.automatic().ok_or_else(|| {
+        HardwareChoice::Automatic => facts.can_do.automatic().cloned().ok_or_else(|| {
             "No hardware acceleration passed its test when this Server started".to_owned()
         }),
-        HardwareChoice::Api(accel) => found(accel).copied().ok_or_else(|| {
+        // Stored before GPUs were told apart, it means the API on whichever GPU Automatic prefers.
+        HardwareChoice::Api(accel) => found(accel).cloned().ok_or_else(|| {
             format!(
                 "{} didn't pass its test when this Server started",
                 accel.name()
@@ -838,14 +858,14 @@ fn default_max_transcodes(facts: &Facts) -> u32 {
 
 /// How a Transcode for `facts` converts the played video.
 fn video_conversion(facts: &Facts) -> VideoConversion {
-    let hardware = transcodes_on(facts).ok().map(|hardware| hardware.accel);
+    let hardware = transcodes_on(facts).ok();
     VideoConversion {
+        // Hardware may fail, and software carry on after its init segment.
+        in_band_headers: hardware.is_some(),
         hardware,
         tone_map: tone_mapper(facts),
         limit: video_limit(facts),
         burn_in: burn_in(facts),
-        // Hardware may fail, and software carry on after its init segment.
-        in_band_headers: hardware.is_some(),
     }
 }
 
@@ -1031,8 +1051,8 @@ fn playback_limit(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
     }
 }
 
-/// The step for the subtitle Track the User chose to burn in: only a Transcode draws it into the
-/// picture.
+/// The step for the subtitle Track the User chose to burn in, one the Device can't draw: only a
+/// Transcode draws it into the picture.
 fn chosen_subtitle(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
     if facts.dropped.contains(&Choice::Subtitle) {
         return Narrowing {
@@ -1042,11 +1062,16 @@ fn chosen_subtitle(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
                 .to_owned(),
         };
     }
-    if candidates.is_some_and(|candidates| candidates.transcode.video.burn_in.is_some()) {
+    let transcode_burns_in =
+        candidates.is_some_and(|candidates| candidates.transcode.video.burn_in.is_some());
+    if let Some(track) = chosen_subtitle_track(facts).filter(|_| transcode_burns_in) {
         return Narrowing {
             allows: BTreeSet::from([Method::Transcode]),
-            reason: "The subtitles chosen are burned into its picture, which only a Transcode does"
-                .to_owned(),
+            reason: format!(
+                "This Device can't draw {} subtitles, so the ones chosen are burned into its \
+                 picture, which only a Transcode does",
+                subtitle_format_name(&track.codec)
+            ),
         };
     }
     Narrowing {
@@ -1055,15 +1080,33 @@ fn chosen_subtitle(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
     }
 }
 
+/// The subtitle Track the User chose, if the Version has it.
+fn chosen_subtitle_track(facts: &Facts) -> Option<&Track> {
+    facts.probe.as_ref()?.tracks.get(facts.subtitle?)
+}
+
+/// What a subtitle format whose codec ffprobe names `codec` is called, such as PGS.
+fn subtitle_format_name(codec: &str) -> &str {
+    match codec {
+        "hdmv_pgs_subtitle" => "PGS",
+        "dvd_subtitle" => "VobSub",
+        "dvb_subtitle" => "DVB",
+        "xsub" => "XSUB",
+        "ass" => "ASS",
+        "ssa" => "SSA",
+        other => other,
+    }
+}
+
 /// How a Transcode burns in the subtitle Track the User chose, unless the plan dropped it, if it's
-/// one that [`burns_in`]. Any other choice, as when the Version changed since the User saw it, is
-/// the same as none.
+/// one that [`burns_in`] on the Device. Any other choice, such as one it draws itself, or one made
+/// before the Version changed, is the same as none.
 fn burn_in(facts: &Facts) -> Option<BurnIn> {
     let probe = facts.probe.as_ref()?;
     let place = facts
         .subtitle
         .filter(|_| !facts.dropped.contains(&Choice::Subtitle))?;
-    let track = probe.tracks.get(place).filter(|track| burns_in(track))?;
+    let track = (probe.tracks.get(place)).filter(|track| burns_in(&facts.device, track))?;
     let subtitle = probe.ffmpeg_index(place)?;
     Some(
         if matches!(track.kind, TrackKind::Subtitle { image: true }) {
@@ -1081,13 +1124,17 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
 /// when none matches. A Track in its language and as forced matches; among those, the same SDH
 /// wins, then the same title, then one the Device shows itself over one that needs Burn-in, then
 /// the first.
-fn preferred_subtitle(preference: &SubtitlePreference, tracks: &[Track]) -> Option<usize> {
+fn preferred_subtitle(
+    preference: &SubtitlePreference,
+    tracks: &[Track],
+    device: &DeviceDecoding,
+) -> Option<usize> {
     let SubtitlePreference::Like(wanted) = preference else {
         return None;
     };
     let title = |title: Option<&str>| title.map(str::to_lowercase);
     (tracks.iter().enumerate())
-        .filter(|(_, track)| track.is_text_subtitle() || burns_in(track))
+        .filter(|(_, track)| shown_as(device, track).is_some() || burns_in(device, track))
         .filter(|(_, track)| {
             track.forced == wanted.forced
                 && same_language(track.language.as_deref(), wanted.language.as_deref())
@@ -1097,19 +1144,30 @@ fn preferred_subtitle(preference: &SubtitlePreference, tracks: &[Track]) -> Opti
             (
                 track.sdh != wanted.sdh,
                 title(track.title.as_deref()) != title(wanted.title.as_deref()),
-                !track.is_text_subtitle(),
+                shown_as(device, track).is_none(),
             )
         })
         .map(|(place, _)| place)
 }
 
-/// Whether `track` is a subtitle a browser can't show as it should, so a Transcode burns it in:
-/// an image one, such as PGS, or ASS or SSA, with its styling.
-fn burns_in(track: &Track) -> bool {
+/// Whether `track` is a subtitle `device` can't show as it should, so a Transcode burns it in: an
+/// image one it doesn't draw, such as PGS, or ASS or SSA, whose styling its WebVTT drops.
+fn burns_in(device: &DeviceDecoding, track: &Track) -> bool {
     match track.kind {
-        TrackKind::Subtitle { image } => image || track.is_ass_subtitle(),
+        TrackKind::Subtitle { image } => {
+            (image && shown_as(device, track).is_none()) || track.is_ass_subtitle()
+        }
         TrackKind::Video { .. } | TrackKind::Audio { .. } => false,
     }
+}
+
+/// The format `device` shows `track` in itself, if it does: WebVTT for a text one, which every
+/// Device shows, or else the Track's own, if the Device draws it (ADR 0033).
+fn shown_as(device: &DeviceDecoding, track: &Track) -> Option<proto::SubtitleFormat> {
+    subtitles::served_as(track).filter(|&format| {
+        format == proto::SubtitleFormat::SUBTITLE_FORMAT_WEBVTT
+            || device.subtitle_formats.contains(&format)
+    })
 }
 
 /// How a Transcode keeps the played video within the Playback Limit in effect, if there's one.
@@ -1455,14 +1513,16 @@ const fn is_audio(track: &Track) -> bool {
     matches!(track.kind, TrackKind::Audio { .. })
 }
 
-/// The Version's text subtitle Tracks.
-fn text_subtitles(version: i64, probe: &Probe) -> Vec<Subtitle> {
+/// The Version's subtitle Tracks that `device` shows itself.
+fn shown_subtitles(version: i64, probe: &Probe, device: &DeviceDecoding) -> Vec<Subtitle> {
     (probe.tracks.iter().enumerate())
-        .filter(|(_, track)| track.is_text_subtitle())
-        .map(|(place, track)| Subtitle {
-            track: track.clone(),
-            place,
-            url: subtitles::url(version, place),
+        .filter_map(|(place, track)| {
+            Some(Subtitle {
+                track: track.clone(),
+                place,
+                format: shown_as(device, track)?,
+                url: subtitles::url(version, place),
+            })
         })
         .collect()
 }
@@ -1472,7 +1532,7 @@ fn direct_play_url(version: i64) -> String {
 }
 
 /// Serves `GET /media/versions/<id>` with the file of the Version `id` in `contents`, and 404 if
-/// there is none, marking the caller's Direct Plays of it in `running` asked for, and the text
+/// there is none, marking the caller's Direct Plays of it in `running` asked for, and the
 /// subtitles plans offer, read with `ffmpeg` and cached in `subtitles`. Whether the caller has a
 /// session is up to the layers the router is put behind.
 pub(crate) fn router(
@@ -1526,7 +1586,7 @@ async fn serve(
 mod tests {
     use std::collections::BTreeSet;
 
-    use nama_proto::nama::v1::{AudioCodec, Container, VideoCodec};
+    use nama_proto::nama::v1::{AudioCodec, Container, SubtitleFormat, VideoCodec};
 
     use super::{
         AskedSubtitle, Candidates, DeviceDecoding, Facts, Fallback, Method, Narrowing, Network,
@@ -1619,6 +1679,7 @@ mod tests {
             hdr: false,
             hls: true,
             audio_channels: 2,
+            subtitle_formats: vec![],
         }
     }
 
@@ -1656,9 +1717,9 @@ mod tests {
 
     /// What `plan` Transcodes, failing the test if it doesn't Transcode.
     fn transcoded(plan: &Plan) -> Transcode {
-        match plan.playing {
-            Some(Playing::Transcode { transcode, .. }) => transcode,
-            ref other => panic!("{other:?} isn't a Transcode"),
+        match &plan.playing {
+            Some(Playing::Transcode { transcode, .. }) => transcode.clone(),
+            other => panic!("{other:?} isn't a Transcode"),
         }
     }
 
@@ -2093,11 +2154,13 @@ mod tests {
             Subtitle {
                 track: english,
                 place: 1,
+                format: SubtitleFormat::SUBTITLE_FORMAT_WEBVTT,
                 url: "/media/versions/7/subtitles/1".to_owned(),
             },
             Subtitle {
                 track: french,
                 place: 5,
+                format: SubtitleFormat::SUBTITLE_FORMAT_WEBVTT,
                 url: "/media/versions/7/subtitles/5".to_owned(),
             },
         ];
@@ -2652,17 +2715,36 @@ mod tests {
         }
     }
 
+    fn pgs() -> Track {
+        image_subtitle("hdmv_pgs_subtitle")
+    }
+
+    fn image_subtitle(codec: &str) -> Track {
+        track(codec, false, TrackKind::Subtitle { image: true })
+    }
+
+    /// A Device that draws PGS subtitles itself.
+    fn drawing_pgs() -> DeviceDecoding {
+        DeviceDecoding {
+            subtitle_formats: vec![SubtitleFormat::SUBTITLE_FORMAT_PGS],
+            ..firefox()
+        }
+    }
+
     #[test]
-    fn a_chosen_image_or_text_subtitle_is_burned_in_by_a_transcode_and_the_plan_says_so() {
-        let pgs = track(
-            "hdmv_pgs_subtitle",
-            false,
-            TrackKind::Subtitle { image: true },
-        );
+    fn a_chosen_subtitle_the_device_cant_draw_is_burned_in_by_a_transcode_and_the_plan_names_it() {
         let ass = track("ass", false, TrackKind::Subtitle { image: false });
-        for chosen in [pgs, ass] {
+        let cases = [
+            (pgs(), firefox(), "PGS"),
+            (image_subtitle("dvd_subtitle"), drawing_pgs(), "VobSub"),
+            (image_subtitle("dvb_subtitle"), drawing_pgs(), "DVB"),
+            (image_subtitle("xsub"), drawing_pgs(), "XSUB"),
+            (ass, drawing_pgs(), "ASS"),
+        ];
+        for (chosen, device, name) in cases {
             let mut facts = Facts {
                 subtitle: Some(2),
+                device,
                 ..facts(Some(vec![
                     video("h264"),
                     audio("aac", true),
@@ -2672,13 +2754,66 @@ mod tests {
 
             let plan = build(&mut facts);
 
-            assert_eq!(plan.method(), Some(Method::Transcode), "{}", chosen.codec);
+            assert_eq!(plan.method(), Some(Method::Transcode), "{name}");
             assert_eq!(
                 plan.reasons[10],
-                "The subtitles chosen are burned into its picture, which only a Transcode does"
+                format!(
+                    "This Device can't draw {name} subtitles, so the ones chosen are burned into \
+                     its picture, which only a Transcode does"
+                )
             );
-            assert_eq!(plan.burn_in, Some(2), "{}", chosen.codec);
+            assert_eq!(plan.burn_in, Some(2), "{name}");
+            assert_eq!(plan.offers.burn_in, vec![2], "{name}");
         }
+    }
+
+    #[test]
+    fn a_device_that_draws_pgs_shows_each_pgs_track_itself_even_when_the_plan_transcodes() {
+        for (video_codec, method) in [("h264", Method::DirectPlay), ("hevc", Method::Transcode)] {
+            let tracks = vec![video(video_codec), audio("aac", true), pgs(), subtitle()];
+            let mut facts = Facts {
+                device: drawing_pgs(),
+                ..facts(Some(tracks))
+            };
+
+            let plan = build(&mut facts);
+
+            assert_eq!(plan.method(), Some(method), "{video_codec}");
+            assert_eq!(
+                plan.subtitles,
+                [
+                    Subtitle {
+                        track: pgs(),
+                        place: 2,
+                        format: SubtitleFormat::SUBTITLE_FORMAT_PGS,
+                        url: "/media/versions/7/subtitles/2".to_owned(),
+                    },
+                    Subtitle {
+                        track: subtitle(),
+                        place: 3,
+                        format: SubtitleFormat::SUBTITLE_FORMAT_WEBVTT,
+                        url: "/media/versions/7/subtitles/3".to_owned(),
+                    },
+                ],
+                "{video_codec}"
+            );
+            assert_eq!(plan.offers.burn_in, Vec::<usize>::new(), "{video_codec}");
+        }
+    }
+
+    #[test]
+    fn a_pgs_track_asked_to_burn_in_on_a_device_that_draws_it_burns_nothing_in() {
+        let mut facts = Facts {
+            subtitle: Some(2),
+            device: drawing_pgs(),
+            ..facts(Some(vec![video("h264"), audio("aac", true), pgs()]))
+        };
+
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), Some(Method::DirectPlay));
+        assert_eq!(plan.reasons[10], "No subtitles are burned into its picture");
+        assert_eq!(plan.burn_in, None);
     }
 
     #[test]
@@ -2694,7 +2829,7 @@ mod tests {
         assert_eq!(
             transcoded(&plan).video,
             VideoConversion {
-                hardware: Some(Accel::Qsv),
+                hardware: Some(QSV),
                 tone_map: None,
                 limit: None,
                 burn_in: None,
@@ -2739,7 +2874,11 @@ mod tests {
             let plan = build(&mut facts);
 
             assert_eq!(plan.reasons[4], reason);
-            assert_eq!(transcoded(&plan).video.hardware, on, "{reason}");
+            let accel = transcoded(&plan)
+                .video
+                .hardware
+                .map(|hardware| hardware.accel);
+            assert_eq!(accel, on, "{reason}");
         }
     }
 
@@ -2769,6 +2908,7 @@ mod tests {
 
     #[test]
     fn a_preferred_subtitle_must_be_in_its_language_and_as_forced() {
+        let device = firefox();
         let english = subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, None);
         let tracks = [
             video("h264"),
@@ -2778,16 +2918,26 @@ mod tests {
             subtitle_in("subrip", None, NOT_FORCED_OR_SDH, None),
         ];
 
-        assert_eq!(preferred_subtitle(&like(&english), &tracks), Some(3));
+        assert_eq!(
+            preferred_subtitle(&like(&english), &tracks, &device),
+            Some(3)
+        );
         let unlabelled = subtitle_in("subrip", None, NOT_FORCED_OR_SDH, None);
-        assert_eq!(preferred_subtitle(&like(&unlabelled), &tracks), Some(4));
+        assert_eq!(
+            preferred_subtitle(&like(&unlabelled), &tracks, &device),
+            Some(4)
+        );
         let french = subtitle_in("subrip", Some("fre"), NOT_FORCED_OR_SDH, None);
-        assert_eq!(preferred_subtitle(&like(&french), &tracks), None);
-        assert_eq!(preferred_subtitle(&SubtitlePreference::Off, &tracks), None);
+        assert_eq!(preferred_subtitle(&like(&french), &tracks, &device), None);
+        assert_eq!(
+            preferred_subtitle(&SubtitlePreference::Off, &tracks, &device),
+            None
+        );
     }
 
     #[test]
     fn a_preferred_subtitle_ranks_sdh_then_title_then_one_the_device_shows_then_the_first() {
+        let device = firefox();
         let wanted = subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, Some("Full"));
         let cases = [
             (
@@ -2845,7 +2995,7 @@ mod tests {
         ];
 
         for (case, tracks, place) in cases {
-            let preferred = preferred_subtitle(&like(&wanted), &tracks);
+            let preferred = preferred_subtitle(&like(&wanted), &tracks, &device);
             assert_eq!(preferred, place, "{case}");
         }
     }
@@ -2856,7 +3006,8 @@ mod tests {
         let tracks = vec![video("h264"), audio("aac", true), english.clone()];
         let mut facts = facts(Some(tracks));
         let asked = AskedSubtitle::Preferred(Some(like(&english)));
-        (facts.subtitle, facts.shown_subtitle) = subtitles_asked(asked, facts.probe.as_ref());
+        (facts.subtitle, facts.shown_subtitle) =
+            subtitles_asked(asked, facts.probe.as_ref(), &facts.device);
 
         let plan = build(&mut facts);
 
@@ -2871,7 +3022,8 @@ mod tests {
         let preferred = || {
             let mut facts = facts(Some(tracks.clone()));
             let asked = AskedSubtitle::Preferred(Some(like(&pgs)));
-            (facts.subtitle, facts.shown_subtitle) = subtitles_asked(asked, facts.probe.as_ref());
+            (facts.subtitle, facts.shown_subtitle) =
+                subtitles_asked(asked, facts.probe.as_ref(), &facts.device);
             facts
         };
 
@@ -2915,12 +3067,71 @@ mod tests {
 
     const VAAPI: Hardware = Hardware {
         accel: Accel::Vaapi,
+        gpu: None,
         tone_maps: false,
     };
     const QSV: Hardware = Hardware {
         accel: Accel::Qsv,
+        gpu: None,
         tone_maps: true,
     };
+
+    /// VAAPI on a dedicated AMD Radeon RX 9070 XT, then on an integrated AMD GPU, as Automatic
+    /// orders them.
+    #[cfg(unix)]
+    fn vaapi_on_two_gpus(root: &std::path::Path) -> Vec<Hardware> {
+        use crate::ffmpeg::{fake, find_gpus};
+
+        let (sys, dri) = (root.join("sys"), root.join("dri"));
+        fake::gpu(&sys, &dri, "renderD128", "0000:18:00.0", "0x1002");
+        fake::pci_function(&sys, "0000:18:00.2", "0x1022");
+        fake::gpu(&sys, &dri, "renderD129", "0000:03:00.0", "0x1002");
+        let mesa = "VAAPI driver: Mesa Gallium driver 26.2.6 for AMD Radeon RX 9070 XT (radeonsi)";
+        find_gpus(&dri, &sys.join("class/drm"))
+            .into_iter()
+            .map(|gpu| Hardware {
+                gpu: Some(if gpu.id() == "0000:03:00.0" {
+                    gpu.with_model(mesa)
+                } else {
+                    gpu
+                }),
+                ..VAAPI
+            })
+            .collect()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_stored_api_runs_on_the_first_gpu_that_passed_with_it_and_the_plan_names_it() {
+        let root = tempfile::tempdir().unwrap();
+        let found = vaapi_on_two_gpus(root.path());
+        for choice in [HardwareChoice::Automatic, HardwareChoice::Api(Accel::Vaapi)] {
+            let mut facts = hevc_on(choice, found.clone(), None);
+
+            let plan = build(&mut facts);
+
+            assert_eq!(
+                plan.reasons[4], "A Transcode runs on the AMD Radeon RX 9070 XT with VAAPI",
+                "{choice:?}"
+            );
+            assert_eq!(transcoded(&plan).video.hardware.as_ref(), found.first());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_transcode_on_an_integrated_gpu_names_it_as_integrated() {
+        let root = tempfile::tempdir().unwrap();
+        let integrated = vaapi_on_two_gpus(root.path()).split_off(1);
+        let mut facts = hevc_on(HardwareChoice::Automatic, integrated, None);
+
+        let plan = build(&mut facts);
+
+        assert_eq!(
+            plan.reasons[4],
+            "A Transcode runs on the AMD integrated GPU with VAAPI"
+        );
+    }
 
     /// HEVC 4K that Firefox can't decode, on a Server whose ffmpeg found `found` and whose admin
     /// chose `choice`.

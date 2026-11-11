@@ -566,8 +566,26 @@ message ListOfferedQualitiesResponse {
   repeated Quality qualities = 1;
 }
 
-// A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
-// for in a Request, or neither, in which case `CreateRequest` asks for it.
+// A Movie a search found, and how close it is to being on the Server: in a Library, asked for in
+// a Request, or neither, in which case `CreateRequest` asks for it. Numbered as `FoundMovie`, so a
+// client built when searches gave `FoundMovie`s still decodes it.
+message MovieHit {
+  // The Movie's TMDB id.
+  int64 tmdb_id = 1;
+  // The title, in the metadata Provider's language.
+  string title = 2;
+  // The year it was released, if known.
+  optional int32 year = 3;
+  // The poster's URL, under `/media/artwork/` on this Server.
+  optional string poster_url = 6;
+  // The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
+  // by `tmdb_id`.
+  optional int64 library_id = 8;
+  // The Movie's open Request, if it has one the caller may see.
+  Request request = 9;
+}
+
+// A Movie looked up in the metadata source: all a `MovieHit` has, and what only a look-up fetches.
 message FoundMovie {
   // The Movie's TMDB id.
   int64 tmdb_id = 1;
@@ -575,13 +593,12 @@ message FoundMovie {
   string title = 2;
   // The year it was released, if known.
   optional int32 year = 3;
-  // Only `LookUpMovie` gives it.
+  // What it is about, in the metadata Provider's language.
   optional string overview = 4;
-  // Only `LookUpMovie` gives it.
   optional uint32 runtime_minutes = 5;
   // The poster's URL, under `/media/artwork/` on this Server.
   optional string poster_url = 6;
-  // The backdrop's URL, under `/media/artwork/` on this Server. Only `LookUpMovie` gives it.
+  // The backdrop's URL, under `/media/artwork/` on this Server.
   optional string backdrop_url = 7;
   // The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
   // by `tmdb_id`.
@@ -596,7 +613,7 @@ message SearchMoviesRequest {
 }
 
 message SearchMoviesResponse {
-  repeated FoundMovie movies = 1;
+  repeated MovieHit movies = 1;
 }
 
 message LookUpMovieRequest {
@@ -608,7 +625,20 @@ message LookUpMovieResponse {
   FoundMovie movie = 1;
 }
 
-// A Show in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
+// A Show a search found. Numbered as `FoundShow`, so a client built when searches gave
+// `FoundShow`s still decodes it.
+message ShowHit {
+  // The Show's TMDB id.
+  int64 tmdb_id = 1;
+  // The title, in the metadata Provider's language.
+  string title = 2;
+  // The year it first aired, if known.
+  optional int32 year = 3;
+  // The poster's URL, under `/media/artwork/` on this Server.
+  optional string poster_url = 5;
+}
+
+// A Show looked up in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
 message FoundShow {
   // The Show's TMDB id.
   int64 tmdb_id = 1;
@@ -616,20 +646,20 @@ message FoundShow {
   string title = 2;
   // The year it first aired, if known.
   optional int32 year = 3;
-  // Only `LookUpShow` gives it.
+  // What it is about, in the metadata Provider's language.
   optional string overview = 4;
   // The poster's URL, under `/media/artwork/` on this Server.
   optional string poster_url = 5;
-  // The backdrop's URL, under `/media/artwork/` on this Server. Only `LookUpShow` gives it.
+  // The backdrop's URL, under `/media/artwork/` on this Server.
   optional string backdrop_url = 6;
-  // Its Seasons, in order. Only `LookUpShow` gives them.
+  // Its Seasons, in order.
   repeated FoundSeason seasons = 7;
-  // The Show's open Followed Show, if it has one the caller may see. Only `LookUpShow` gives it.
+  // The Show's open Followed Show, if it has one the caller may see.
   FollowedShow followed_show = 8;
   // The Show's Quality, which each of its Season Requests takes, as Sonarr keeps one profile per
   // series (ADR 0025): that of its earliest Season Request that has one and is open or was handed
   // off, else that of its open Followed Show. Unset if it has none, so a new Season Request or
-  // Followed Show may pick one. Only `LookUpShow` gives it.
+  // Followed Show may pick one.
   RequestedQuality quality = 9;
 }
 
@@ -653,7 +683,7 @@ message SearchShowsRequest {
 }
 
 message SearchShowsResponse {
-  repeated FoundShow shows = 1;
+  repeated ShowHit shows = 1;
 }
 
 message LookUpShowRequest {

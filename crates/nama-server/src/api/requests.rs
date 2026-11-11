@@ -27,7 +27,7 @@ use crate::{
     artwork::Artwork,
     contents::Metadata,
     qualities,
-    requests::{self, Asked, Found, FoundShow, Requests},
+    requests::{self, Asked, Found, FoundShow, Hit, Requests},
 };
 
 use super::{Refused, caller, database_failed, refuse, title_kind_from_proto};
@@ -413,7 +413,7 @@ impl RequestService for RequestServiceHandler {
 
 impl RequestServiceHandler {
     /// A Movie a search found, as clients see it, with its poster offered to them.
-    fn searched_to_proto(&self, found: Found<Candidate>) -> proto::FoundMovie {
+    fn searched_to_proto(&self, found: Found<Candidate>) -> proto::MovieHit {
         let Found {
             tmdb_id,
             plugin,
@@ -421,7 +421,7 @@ impl RequestServiceHandler {
             library,
             request,
         } = found;
-        proto::FoundMovie {
+        proto::MovieHit {
             tmdb_id,
             title: movie.title,
             year: movie.year,
@@ -457,14 +457,13 @@ impl RequestServiceHandler {
     }
 
     /// A Show a search found, as clients see it, with its poster offered to them.
-    fn searched_show_to_proto(&self, found: FoundShow<Candidate>) -> proto::FoundShow {
-        let FoundShow {
+    fn searched_show_to_proto(&self, hit: Hit) -> proto::ShowHit {
+        let Hit {
             tmdb_id,
             plugin,
-            show,
-            ..
-        } = found;
-        proto::FoundShow {
+            candidate: show,
+        } = hit;
+        proto::ShowHit {
             tmdb_id,
             title: show.title,
             year: show.year,
@@ -474,10 +473,7 @@ impl RequestServiceHandler {
     }
 
     /// A Show looked up, as clients see it, with its images offered to them.
-    fn looked_up_show_to_proto(
-        &self,
-        found: FoundShow<nama_plugin_api::metadata::Show>,
-    ) -> proto::FoundShow {
+    fn looked_up_show_to_proto(&self, found: FoundShow) -> proto::FoundShow {
         let FoundShow {
             tmdb_id,
             plugin,

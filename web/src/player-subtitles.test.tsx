@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { PlaybackMethod, PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { PlaybackMethod, PlaybackService, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
 
 import { fakeServer, newUser, openApp } from "./test-app";
 
@@ -102,10 +102,12 @@ function server(plan = directPlay) {
                   kind: subtitle,
                 },
                 url: ENGLISH,
+                format: SubtitleFormat.WEBVTT,
               },
               {
                 track: { codec: "subrip", language: "fre", forced: true, kind: subtitle },
                 url: FRENCH,
+                format: SubtitleFormat.WEBVTT,
               },
             ],
           },

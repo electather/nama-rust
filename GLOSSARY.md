@@ -109,7 +109,7 @@ A Plugin's implementation of a capability the Server needs, such as metadata, ch
 _Avoid_: driver, backend, adapter
 
 **Fulfiller**:
-A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, and reports how they're progressing.
+A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, reports how they're progressing, and has the service stop monitoring what's been deleted, so it doesn't download it again.
 _Avoid_: downloader, *arr, client
 
 **Notifier**:
@@ -159,7 +159,7 @@ The tall image that stands for a Movie, Show or Season.
 _Avoid_: cover, thumbnail, primary image
 
 **Backdrop**:
-The wide image shown behind a Movie's or Show's page.
+The wide image shown behind a Movie's or Show's page, and the one a Library is shown by. A Library's is that of the title most recently added to it.
 _Avoid_: fanart, art, background, banner
 
 **Custom Image**:
@@ -237,7 +237,7 @@ What a User wants subtitles to start as when they play something: none, or a lan
 _Avoid_: default subtitle, remembered subtitle, sticky subtitle, subtitle choice (a pick in one playback)
 
 **GPU**:
-A graphics processor in the Server's machine that a Transcode can run on, either dedicated or integrated into the CPU. An Admin picks one, or leaves the Server to prefer a dedicated one.
+A graphics processor in the Server's machine that a Transcode can run on, either dedicated or integrated into the CPU. An Admin picks one, or leaves the Server to prefer a dedicated one. The Server names each it finds, such as "AMD Radeon RX 9070 XT".
 _Avoid_: device (that's a client), card, adapter, render node
 
 ## Requests

@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-11, #623
+
+- `FIELD_SAME_TYPE`, `nama/v1/request.proto`: `SearchMoviesResponse.movies` (1) and `SearchShowsResponse.shows` (1).
+- A search now gives a `MovieHit` or a `ShowHit`, which hold only what a search fills; `LookUpMovie` and `LookUpShow` still give a `FoundMovie` and a `FoundShow`. Each hit keeps the numbers its fields had in the message it replaces, so the bytes and the JSON are unchanged.
+- A client built before still decodes a search; once it regenerates it reads a hit as a `MovieHit` or a `ShowHit`. No Installed Plugin sees a search.
+
 ## 2026-11-11, #622
 
 - `FIELD_SAME_ONEOF`, `nama/v1/request.proto`: `Request.movie` (2) and `Request.season` (7).

@@ -10,13 +10,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Track } from "@/gen/nama/v1/browse_pb";
-import type { PlaybackSubtitle } from "@/gen/nama/v1/playback_pb";
+import { type PlaybackSubtitle, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
 import type { SubtitleChoice, usePlaybackPlan } from "@/lib/playback-plan";
-import { type SubtitleState, trackLabel, usePickReporter, useSubtitles } from "@/lib/subtitles";
+import {
+  type SubtitleState,
+  trackLabel,
+  usePgsSubtitle,
+  usePickReporter,
+  useSubtitles,
+} from "@/lib/subtitles";
 
-/** The `<video>`'s `<track>`s, one per subtitle, which the browser fetches only once shown. */
+/**
+ * The `<video>`'s `<track>`s, one per text subtitle, which the browser fetches only once shown.
+ * Those it draws aren't among them.
+ */
 export function SubtitleTracks({ subtitles }: { subtitles: PlaybackSubtitle[] }) {
-  return subtitles.map(({ track, url }) => (
+  const text = subtitles.filter(({ format }) => format === SubtitleFormat.WEBVTT);
+  return text.map(({ track, url }) => (
     <track
       key={url}
       kind="subtitles"
@@ -34,15 +44,15 @@ function browserMenuLabel(track: Track | undefined) {
 }
 
 /**
- * Picks the subtitle shown, or none: one of the plan's text subtitles, which the `<video>` shows
- * itself, saying which is still being read out of the file, or one of the Version's `tracks` the
- * plan offers to burn into the picture, an image one or an ASS one with its styling. Each pick is
- * reported, so the Server keeps it for the Show or Movie the Version is of. Absent when there's
- * none to pick.
+ * Picks the subtitle shown, or none: one of the plan's subtitles, which the Device shows itself,
+ * saying which is still being read out of the file, or one of the Version's `tracks` the plan
+ * offers to burn into the picture, an image one it can't draw or an ASS one with its styling. Each
+ * pick is reported, so the Server keeps it for the Show or Movie the Version is of. Absent when
+ * there's none to pick.
  */
 export function SubtitlesMenu({
   tracks,
-  planned: { versionId, plan, shownSubtitle: shown, chooseSubtitle },
+  planned,
   videoRef,
   container,
 }: {
@@ -52,8 +62,9 @@ export function SubtitlesMenu({
   /** Where the menu opens: inside the player, so it shows in full screen. */
   container: RefObject<HTMLDivElement | null>;
 }) {
+  const { versionId, plan, shownSubtitle: shown, chooseSubtitle } = planned;
   const { subtitles, burnInTracks: burnable, subtitleTrack: burnedIn } = plan;
-  const states = useSubtitles(videoRef, shown);
+  const states = useShownSubtitles(planned, videoRef);
   const reportPick = usePickReporter(versionId);
   if (subtitles.length + burnable.length === 0) return null;
   return (
@@ -87,6 +98,29 @@ export function SubtitlesMenu({
 function pickedPlace(choice: SubtitleChoice, subtitles: PlaybackSubtitle[]) {
   if (typeof choice === "number") return choice;
   return subtitles.find(({ url }) => url === choice)?.place;
+}
+
+/**
+ * Shows the plan's subtitle at the URL `shownSubtitle`, as a `<track>` or drawn, and says how each
+ * shown so far is getting on. One drawn that fails to draw is chosen to burn in instead (ADR 0033).
+ */
+function useShownSubtitles(
+  {
+    plan,
+    shownSubtitle: shown,
+    chooseSubtitle,
+  }: Pick<ReturnType<typeof usePlaybackPlan>, "plan" | "shownSubtitle" | "chooseSubtitle">,
+  videoRef: RefObject<HTMLVideoElement | null>,
+) {
+  const drawn = plan.subtitles.find(
+    ({ url, format }) => url === shown && format === SubtitleFormat.PGS,
+  );
+  return {
+    ...useSubtitles(videoRef, shown),
+    ...usePgsSubtitle(videoRef, drawn?.url, () => {
+      if (videoRef.current && drawn) chooseSubtitle(videoRef.current, drawn.place);
+    }),
+  };
 }
 
 function isImageSubtitle(track: Track | undefined) {

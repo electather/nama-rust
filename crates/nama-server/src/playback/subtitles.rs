@@ -1,7 +1,8 @@
-//! Text subtitles, served as WebVTT for a player's `<track>`.
+//! Subtitles a Device shows itself: text ones served as WebVTT for a player's `<track>`, and PGS
+//! ones as the Track's own `.sup` for a Device that draws them (ADR 0033).
 //!
 //! Where a subtitle comes from is kept apart from how it's served. [`Embedded`] is the one source
-//! so far, a text subtitle Track inside a Version's file. [`Cache`] serves any source's WebVTT: it
+//! so far, a subtitle Track inside a Version's file. [`Cache`] serves any source's subtitle: it
 //! has the source make it the first time it's asked for, keeps it under `subtitles/` in the data
 //! directory, and answers from there after. Subtitle files next to a video would be another source
 //! served by the same [`Cache`].
@@ -25,6 +26,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+use nama_proto::nama::v1 as proto;
 
 mod ass;
 
@@ -32,7 +34,7 @@ use crate::{
     artwork::write_atomically,
     contents::{Contents, Stored},
     ffmpeg::{Ffmpeg, SubtitleError},
-    tracks::{PROBE_VERSION, Tracks},
+    tracks::{PROBE_VERSION, Track, Tracks},
 };
 
 /// The version of how a source makes WebVTT, part of every cache key so what an older one made is
@@ -40,9 +42,20 @@ use crate::{
 const WEBVTT_VERSION: u32 = 2;
 
 /// Where clients fetch the Version `version`'s Track `track`, by its place in the Version's
-/// Tracks, as WebVTT.
+/// Tracks, in the format it's [`served_as`].
 pub(super) fn url(version: i64, track: usize) -> String {
     format!("/media/versions/{version}/subtitles/{track}")
+}
+
+/// The format `track` is served in, if it's served: WebVTT for a text one, or a PGS one's own.
+pub(super) fn served_as(track: &Track) -> Option<proto::SubtitleFormat> {
+    if track.is_text_subtitle() {
+        Some(proto::SubtitleFormat::SUBTITLE_FORMAT_WEBVTT)
+    } else if track.is_pgs_subtitle() {
+        Some(proto::SubtitleFormat::SUBTITLE_FORMAT_PGS)
+    } else {
+        None
+    }
 }
 
 /// What serving a subtitle needs: what finds its source and what reads it.
@@ -54,8 +67,8 @@ pub(super) struct Subtitles {
     pub(super) cache: Cache,
 }
 
-/// Serves `GET` [`url`]s, 404 unless the Track is a text subtitle of a Version. Whether the caller
-/// has a session is up to the layers the router is put behind.
+/// Serves `GET` [`url`]s, 404 unless the Track is a subtitle of a Version it's [`served_as`].
+/// Whether the caller has a session is up to the layers the router is put behind.
 pub(super) fn router(subtitles: Subtitles) -> Router {
     Router::new()
         .route("/media/versions/{version}/subtitles/{track}", get(serve))
@@ -75,12 +88,12 @@ async fn serve(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let webvtt = subtitles
+    let served = subtitles
         .cache
-        .webvtt(&source.cache_key(), source.webvtt(&subtitles.ffmpeg))
+        .get_or_make(&source.cache_key(), source.read(&subtitles.ffmpeg))
         .await;
-    match webvtt {
-        Ok(webvtt) => ([(header::CONTENT_TYPE, "text/vtt; charset=utf-8")], webvtt).into_response(),
+    match served {
+        Ok(served) => ([(header::CONTENT_TYPE, source.content_type())], served).into_response(),
         Err(err) => {
             tracing::error!("could not serve the Version {version}'s Track {track}: {err}");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -97,7 +110,7 @@ enum Error {
     Read(#[from] SubtitleError),
 }
 
-/// A text subtitle Track inside a Version's file.
+/// A subtitle Track inside a Version's file.
 struct Embedded {
     /// The file as stored now, which its Tracks were read from.
     file: Stored,
@@ -106,13 +119,14 @@ struct Embedded {
     path: String,
     /// Its place among the file's subtitle Tracks, which is how ffmpeg picks it out.
     subtitle: usize,
+    served_as: proto::SubtitleFormat,
     /// ASS or SSA, whose dialogue ffmpeg would make WebVTT with their styling and drawings in.
     ass: bool,
 }
 
 impl Embedded {
     /// The Version `version`'s Track `track`, `None` if there's no such Version, its Tracks weren't
-    /// read from the file stored now, or the Track isn't a text subtitle.
+    /// read from the file stored now, or the Track isn't a subtitle it's [`served_as`].
     async fn find(
         contents: &Contents,
         tracks: &Tracks,
@@ -127,7 +141,10 @@ impl Embedded {
         let Some(probe) = tracks.of(&[file]).await?.remove(&version) else {
             return Ok(None);
         };
-        let Some(found) = (probe.tracks.get(track)).filter(|found| found.is_text_subtitle()) else {
+        let Some(found) = probe.tracks.get(track) else {
+            return Ok(None);
+        };
+        let Some(served_as) = served_as(found) else {
             return Ok(None);
         };
         let Some(subtitle) = probe.ffmpeg_index(track) else {
@@ -139,22 +156,48 @@ impl Embedded {
             track,
             path,
             subtitle,
+            served_as,
             ass,
         }))
     }
 
-    fn cache_key(&self) -> PathBuf {
-        Path::new("versions")
-            .join(cache_folder(self.file))
-            .join(format!("{}.v{WEBVTT_VERSION}.vtt", self.track))
+    const fn is_pgs(&self) -> bool {
+        matches!(self.served_as, proto::SubtitleFormat::SUBTITLE_FORMAT_PGS)
     }
 
-    async fn webvtt(&self, ffmpeg: &Ffmpeg) -> Result<Vec<u8>, Error> {
+    fn cache_key(&self) -> PathBuf {
+        // A PGS Track is copied unchanged, so how WebVTT is made doesn't change it.
+        let name = if self.is_pgs() {
+            format!("{}.sup", self.track)
+        } else {
+            format!("{}.v{WEBVTT_VERSION}.vtt", self.track)
+        };
+        Path::new("versions")
+            .join(cache_folder(self.file))
+            .join(name)
+    }
+
+    const fn content_type(&self) -> &'static str {
+        if self.is_pgs() {
+            // PGS has no registered media type.
+            "application/octet-stream"
+        } else {
+            "text/vtt; charset=utf-8"
+        }
+    }
+
+    /// Reads it out of the file: a PGS Track copied into `.sup`, the framing a Device's renderer
+    /// reads, and any other as WebVTT.
+    async fn read(&self, ffmpeg: &Ffmpeg) -> Result<Vec<u8>, Error> {
+        let (path, subtitle) = (&self.path, self.subtitle);
+        if self.is_pgs() {
+            return Ok(ffmpeg.subtitle(path, subtitle, "copy", "sup").await?);
+        }
         if self.ass {
-            let ass = ffmpeg.subtitle(&self.path, self.subtitle, "ass").await?;
+            let ass = ffmpeg.subtitle(path, subtitle, "ass", "ass").await?;
             return Ok(ass::to_webvtt(&String::from_utf8_lossy(&ass)).into_bytes());
         }
-        Ok(ffmpeg.subtitle(&self.path, self.subtitle, "webvtt").await?)
+        Ok(ffmpeg.subtitle(path, subtitle, "webvtt", "webvtt").await?)
     }
 }
 
@@ -167,7 +210,7 @@ fn cache_folder(file: Stored) -> String {
     )
 }
 
-/// WebVTT on disk, made by its source the first time it's asked for.
+/// Subtitles on disk, each made by its source the first time it's asked for. It has no size limit.
 #[derive(Debug, Clone)]
 pub(crate) struct Cache {
     dir: PathBuf,
@@ -185,34 +228,34 @@ impl Cache {
         }
     }
 
-    /// The WebVTT cached at `key`, or else what `make` makes, which is cached there from then on.
-    /// Of the requests for `key` at once, one makes it and the rest wait for it.
-    async fn webvtt<E: From<io::Error>>(
+    /// The subtitle cached at `key`, or else what `make` makes, which is cached there from then
+    /// on. Of the requests for `key` at once, one makes it and the rest wait for it.
+    async fn get_or_make<E: From<io::Error>>(
         &self,
         key: &Path,
         make: impl Future<Output = Result<Vec<u8>, E>>,
     ) -> Result<Vec<u8>, E> {
         let path = self.dir.join(key);
-        if let Some(webvtt) = cached(&path).await? {
-            return Ok(webvtt);
+        if let Some(subtitle) = cached(&path).await? {
+            return Ok(subtitle);
         }
         let making_lock = Arc::clone(self.making_locks().entry(path.clone()).or_default());
-        let webvtt = async {
+        let subtitle = async {
             let _making = making_lock.lock().await;
             // Whoever held the lock before may have made it.
-            if let Some(webvtt) = cached(&path).await? {
-                return Ok(webvtt);
+            if let Some(subtitle) = cached(&path).await? {
+                return Ok(subtitle);
             }
-            let webvtt = make.await?;
-            write_atomically(&path, &webvtt).await?;
-            Ok(webvtt)
+            let subtitle = make.await?;
+            write_atomically(&path, &subtitle).await?;
+            Ok(subtitle)
         }
         .await;
         drop(making_lock);
         // Also drops the locks of makings cancelled midway, which nothing holds any more.
         self.making_locks()
             .retain(|_, lock| Arc::strong_count(lock) > 1);
-        webvtt
+        subtitle
     }
 
     /// Throws away the subtitles cached for every Version but `stored`, at its file as stored
@@ -254,7 +297,7 @@ impl Cache {
 
 async fn cached(path: &Path) -> io::Result<Option<Vec<u8>>> {
     match tokio::fs::read(path).await {
-        Ok(webvtt) => Ok(Some(webvtt)),
+        Ok(subtitle) => Ok(Some(subtitle)),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(err) => Err(err),
     }
@@ -277,9 +320,9 @@ mod tests {
         let cache = Cache::new(dir.path());
         let key = Path::new("versions/7/2.vtt");
 
-        let made = cache.webvtt(key, async { Ok::<_, io::Error>(b"WEBVTT\n".to_vec()) });
+        let made = cache.get_or_make(key, async { Ok::<_, io::Error>(b"WEBVTT\n".to_vec()) });
         let made = made.await.unwrap();
-        let again = cache.webvtt(key, async { Err(io::Error::other("made again")) });
+        let again = cache.get_or_make(key, async { Err(io::Error::other("made again")) });
         let again = again.await.unwrap();
 
         assert_eq!(made, b"WEBVTT\n");
@@ -298,7 +341,10 @@ mod tests {
             Ok::<_, io::Error>(b"WEBVTT\n".to_vec())
         };
 
-        let (first, second) = tokio::join!(cache.webvtt(key, make()), cache.webvtt(key, make()));
+        let (first, second) = tokio::join!(
+            cache.get_or_make(key, make()),
+            cache.get_or_make(key, make())
+        );
 
         assert_eq!(first.unwrap(), b"WEBVTT\n");
         assert_eq!(second.unwrap(), b"WEBVTT\n");

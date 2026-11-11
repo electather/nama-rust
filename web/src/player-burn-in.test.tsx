@@ -7,6 +7,7 @@ import {
   type PlanPlaybackRequest,
   PlaybackMethod,
   PlaybackService,
+  SubtitleFormat,
 } from "@/gen/nama/v1/playback_pb";
 
 import { fakeServer, newUser, openApp } from "./test-app";
@@ -60,8 +61,8 @@ function server(asked: PlanPlaybackRequest[], burnInTracks = [2, 3], choosing: C
     { codec: "aac", default: true, kind: { case: "audio", value: { channels: 2 } } },
   ] as const;
   const subtitles = [
-    { track: tracks[1], url: ENGLISH, place: 1 },
-    { track: tracks[3], url: JAPANESE, place: 3 },
+    { track: tracks[1], url: ENGLISH, place: 1, format: SubtitleFormat.WEBVTT },
+    { track: tracks[3], url: JAPANESE, place: 3, format: SubtitleFormat.WEBVTT },
   ];
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {

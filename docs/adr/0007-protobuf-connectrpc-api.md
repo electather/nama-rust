@@ -1,6 +1,6 @@
 # Schema-first Protobuf + ConnectRPC for the API and Plugin messages
 
-The `.proto` files in `proto/` are the single source of truth. Buf generates the Rust server stubs (`connectrpc`, which plugs into axum), the TypeScript client (`connect-es` plus `connect-query`, which wraps TanStack Query), the Swift and Kotlin clients, and the messages passed to and from Installed Plugins. Nobody hand-writes a client for any platform. Connect runs over plain HTTP with JSON or binary bodies, so browsers need no gRPC proxy. Media bytes are not RPC: direct-play range requests, HLS playlists and segments, and images are plain HTTP under `/media/...`.
+The `.proto` files in `proto/` are the single source of truth. Buf generates the Rust server stubs (`connectrpc`, which plugs into axum), the TypeScript client (`connect-es` plus `connect-query`, which wraps TanStack Query), the Swift and Kotlin clients, and the messages passed to and from Installed Plugins. Nobody hand-writes a client for any platform. Connect runs over plain HTTP with JSON or binary bodies, so browsers need no gRPC proxy. Media bytes are not RPC: direct-play range requests, HLS playlists and segments, and images are plain HTTP under `/media/...`. An uploaded image goes the same way, as the body of one request: a unary RPC would hold the whole message in memory, and `connectrpc` refuses messages over 4 MiB by default.
 
 ## Considered Options
 
