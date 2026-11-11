@@ -38,13 +38,14 @@ pub const SETTINGS_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 ///
 /// Only Plugin settings and startup hold one (`crates/nama-server/AGENTS.md`, "One owner for
 /// Plugin changes"). Cloning a `Registry` gives another handle to the same one.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct Registry {
     points: ExtensionPoints,
 }
 
 /// How the Kernel calls the Plugins enabled in a [`Registry`]: observing, intercepting, asking
-/// Providers and who provides a capability. It can't enable or disable a Plugin.
+/// Providers and who provides a capability. It can't enable, disable or list Plugins; only a
+/// Provider that panics disables its own Plugin, as it would through the `Registry`.
 ///
 /// Cloning gives another handle to the same Plugins.
 #[derive(Clone, Default)]
@@ -1089,11 +1090,17 @@ fn panic_message(payload: &(dyn Any + Send)) -> String {
     }
 }
 
+impl fmt::Debug for Registry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Registry")
+            .field("enabled", &self.enabled())
+            .finish_non_exhaustive()
+    }
+}
+
+// Doesn't print the enabled Plugins, so a holder can't list them through `{:?}` either.
 impl fmt::Debug for ExtensionPoints {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let enabled: Vec<_> = self.read(|state| state.plugins.keys().cloned().collect());
-        f.debug_struct("ExtensionPoints")
-            .field("enabled", &enabled)
-            .finish_non_exhaustive()
+        f.debug_struct("ExtensionPoints").finish_non_exhaustive()
     }
 }
