@@ -7043,8 +7043,8 @@ impl ::serde::Serialize for RequestWithdrawnOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What a Processing Request's Fulfiller is downloading for it changed, or the Server couldn't ask
-/// it, which leaves it with none.
+/// What a Processing or Partially Available Request's Fulfiller is downloading for it changed, or
+/// the Server couldn't ask it, which leaves it with none.
 #[derive(Clone, Debug, Default)]
 pub struct RequestProgressView<'a> {
     /// The Request as it is now, with its `downloads`.
