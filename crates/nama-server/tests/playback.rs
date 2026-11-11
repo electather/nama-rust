@@ -1576,7 +1576,7 @@ async fn a_subtitle_without_a_session_is_refused() {
 }
 
 #[tokio::test]
-async fn a_track_that_isnt_a_text_subtitle_is_not_found_as_one() {
+async fn a_track_that_isnt_a_subtitle_is_not_found_as_one() {
     let fx = Fixture::subtitled_alien().await;
     let version = fx.version_ids(ALIEN).await[0];
     let token = Some(fx.server.admin_token.as_str());

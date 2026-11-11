@@ -1004,9 +1004,9 @@ fn chosen_subtitle(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
                 .to_owned(),
         };
     }
-    let burns_in =
+    let transcode_burns_in =
         candidates.is_some_and(|candidates| candidates.transcode.video.burn_in.is_some());
-    if let Some(track) = chosen_subtitle_track(facts).filter(|_| burns_in) {
+    if let Some(track) = chosen_subtitle_track(facts).filter(|_| transcode_burns_in) {
         return Narrowing {
             allows: BTreeSet::from([Method::Transcode]),
             reason: format!(

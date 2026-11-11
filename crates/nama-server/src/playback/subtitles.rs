@@ -51,7 +51,7 @@ pub(super) fn url(version: i64, track: usize) -> String {
 pub(super) fn served_as(track: &Track) -> Option<proto::SubtitleFormat> {
     if track.is_text_subtitle() {
         Some(proto::SubtitleFormat::SUBTITLE_FORMAT_WEBVTT)
-    } else if track.codec == "hdmv_pgs_subtitle" {
+    } else if track.is_pgs_subtitle() {
         Some(proto::SubtitleFormat::SUBTITLE_FORMAT_PGS)
     } else {
         None
