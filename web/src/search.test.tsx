@@ -103,3 +103,25 @@ test("a search that finds nothing says so", async () => {
 
   expect(await screen.findByText("Nothing found for “dune”.")).toBeDefined();
 });
+
+test("a number typed into the URL is searched for as words", async () => {
+  const searched: string[] = [];
+  openApp(
+    "/search?query=1917",
+    serverToSearch({
+      searchLibraries: ({ query }) => {
+        searched.push(query);
+        return {};
+      },
+    }),
+  );
+
+  expect(await screen.findByText("Nothing found for “1917”.")).toBeDefined();
+  expect(searched).toStrictEqual(["1917"]);
+});
+
+test("a blank query in the URL searches for nothing", async () => {
+  openApp("/search?query=%20%20", serverToSearch({ searchLibraries }));
+
+  expect(await screen.findByRole("heading", { name: "Search" })).toBeDefined();
+});

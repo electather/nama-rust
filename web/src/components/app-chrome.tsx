@@ -9,8 +9,9 @@ import { RequestService } from "@/gen/nama/v1/request_pb";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 
 /**
- * The bar above every signed-in page: where to go, searching your Libraries, and signing out. Admin shows only when the User
- * may open some Admin page, and the Pending count only to a Request manager.
+ * The bar above every signed-in page: where to go, searching your Libraries, and signing out.
+ * Admin shows only when the User may open some Admin page, and the Pending count only to a Request
+ * manager.
  */
 export function AppChrome({
   hasAdminPages,
@@ -87,7 +88,7 @@ function PendingBadge({ pending }: { pending: number }) {
 function SearchBox() {
   const navigate = useNavigate();
   const onSearchPage = useLocation({ select: ({ pathname }) => pathname === "/search" });
-  // Read once: the box is the only thing that changes the query once it's open.
+  // Only the search page has a `query`. Read once: after that, only the box changes it.
   const { query } = useSearch({ strict: false });
   return (
     // On phones it takes a row of its own under the links, its edge lined up with theirs.

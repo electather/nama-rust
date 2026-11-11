@@ -16,8 +16,13 @@ import { metadataLine, seasonName, titleParam, yearOf } from "@/lib/browse";
 
 /** What the nav's search box found in the signed-in User's Libraries for `?query=`. */
 export const Route = createFileRoute("/_member/search")({
-  validateSearch: (search): { query?: string } =>
-    typeof search["query"] === "string" && search["query"] !== "" ? { query: search["query"] } : {},
+  validateSearch: (search): { query?: string | undefined } => {
+    // The router parses `?query=1917` as JSON, so a number is words too.
+    const raw = search["query"];
+    const query = typeof raw === "string" || typeof raw === "number" ? String(raw).trim() : "";
+    // Set even when blank: the router keeps the raw value under any key this leaves out.
+    return { query: query === "" ? undefined : query };
+  },
   component: Search,
 });
 
@@ -60,23 +65,24 @@ function Found({ query, found }: { query: string; found: SearchLibrariesResponse
   if (movies.length + shows.length + episodes.length === 0) {
     return <p className="mt-8 text-muted-foreground">Nothing found for “{query}”.</p>;
   }
+  // A Movie, Show or Episode in two Libraries is found in each, so keys name the Library too.
   return (
     <>
-      <Kind heading="Movies" found={movies.length}>
+      <FoundSection heading="Movies" count={movies.length}>
         <PosterGrid empty={null}>
           {movies.map((movie) => (
             <MovieFound key={`${movie.libraryId}/${titleParam(movie.id)}`} movie={movie} />
           ))}
         </PosterGrid>
-      </Kind>
-      <Kind heading="Shows" found={shows.length}>
+      </FoundSection>
+      <FoundSection heading="Shows" count={shows.length}>
         <PosterGrid empty={null}>
           {shows.map((show) => (
             <ShowFound key={`${show.libraryId}/${titleParam(show.id)}`} show={show} />
           ))}
         </PosterGrid>
-      </Kind>
-      <Kind heading="Episodes" found={episodes.length}>
+      </FoundSection>
+      <FoundSection heading="Episodes" count={episodes.length}>
         <ul className="-mx-3 mt-4 max-w-3xl">
           {episodes.map((episode) => (
             <EpisodeFound
@@ -85,22 +91,22 @@ function Found({ query, found }: { query: string; found: SearchLibrariesResponse
             />
           ))}
         </ul>
-      </Kind>
+      </FoundSection>
     </>
   );
 }
 
-/** The `found` titles of one kind under their `heading`, or nothing when there are none. */
-function Kind({
+/** The titles of one kind found, under their `heading`, or nothing when `count` is none. */
+function FoundSection({
   heading,
-  found,
+  count,
   children,
 }: {
   heading: string;
-  found: number;
+  count: number;
   children: ReactNode;
 }) {
-  if (found === 0) return null;
+  if (count === 0) return null;
   return (
     <section aria-label={heading} className="mt-10">
       <h2 className="font-medium">{heading}</h2>
@@ -108,8 +114,6 @@ function Kind({
     </section>
   );
 }
-
-// A Movie, Show or Episode in two Libraries is found in each, so keys name the Library too.
 
 function MovieFound({ movie }: { movie: MovieInLibrary }) {
   return (
