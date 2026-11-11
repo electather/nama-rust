@@ -1301,6 +1301,44 @@ async fn when_a_transcodes_session_ends_its_slot_frees_up_for_the_next() {
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
 }
 
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_unprobed_version_whose_direct_play_failed_cant_be_played_and_starts_nothing() {
+    let bin = tempfile::tempdir().unwrap();
+    // With ffmpeg, the Server's own step would allow a Remux or Transcode, so only the Tracks'
+    // step keeps them out.
+    let ffmpeg = Ffmpeg {
+        ffmpeg: Ok(script(bin.path(), "ffmpeg", "#!/bin/sh\nexec sleep 600\n")),
+        ffprobe: Ok(script(bin.path(), "ffprobe", "#!/bin/sh\nexit 1\n")),
+    };
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    fx.write(ALIEN_1080P, b"video");
+    fx.scan_until_decided(1).await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let started = [EventType::EVENT_TYPE_PLAYBACK_STARTED];
+    let mut subscription = subscribe(&fx.server.client_config(), &started).await;
+    let direct_play = [PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY];
+
+    let unplayable = fx
+        .plan_on_device(version, &[], &direct_play, 0)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        unplayable.method,
+        PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED
+    );
+    assert_eq!((unplayable.id, unplayable.url.as_str()), (0, ""));
+    // The next event is the Direct Play's, so the unplayable plan published none.
+    let direct = fx.plan(version).await.unwrap();
+    let told = PlaybackStarted {
+        playback: admins_playback(version, direct).into(),
+        ..Default::default()
+    };
+    assert_eq!(subscription.next().await, told.into());
+}
+
 // ADR 0026.
 #[tokio::test]
 async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_arent_known() {
@@ -1315,7 +1353,8 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
     assert_eq!(
         plan.reasons,
         [
-            "Its Tracks aren't known, so they're taken to need no change",
+            "Its Tracks aren't known, so they're taken to need no change, and it can only be \
+             Direct Played",
             "Its Tracks aren't known, so this Device is taken to decode them",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "No hardware acceleration passed its test when this Server started, so a Transcode \

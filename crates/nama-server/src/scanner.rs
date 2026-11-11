@@ -792,7 +792,7 @@ mod tests {
         libraries::{self, Kind, Libraries},
         playback::{self, running::RunningPlans},
         plugins::Registry,
-        server_settings::{SegmentFolder, ServerUrl},
+        server_settings::{ServerUrl, Settings},
         tracks::{BaseLayer, Hdr, PROBE_ATTEMPTS, PROBE_VERSION, Probe, Track, TrackKind, Tracks},
         users::{Caller, Device, Permissions, User},
     };
@@ -1384,9 +1384,11 @@ EOF"#,
         media.match_to_alien().await;
         let version = media.file_id(alien).await;
 
-        let transcodes = tempfile::tempdir().unwrap();
+        let data = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let settings = Settings::new(db, data.path().join("transcodes"));
         let running = RunningPlans::new(
-            SegmentFolder::new(transcodes.path().to_owned()),
+            settings.playback(),
             Arc::new(Ffmpeg::default()),
             media.contents.clone(),
             media.tracks.clone(),
@@ -1419,7 +1421,7 @@ EOF"#,
             None,
             playback::PickedLimit::Unpicked,
             std::net::Ipv4Addr::LOCALHOST.into(),
-            None,
+            settings.playback().now(),
             None,
         )
         .await
