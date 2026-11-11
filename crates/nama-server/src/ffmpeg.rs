@@ -1611,7 +1611,6 @@ mod hls_run_tests {
         args.get(at + 1).map(String::as_str)
     }
 
-    /// The keyframe `n` of a Version's video, at `ms`, after one at `previous_ms` if any.
     const fn keyframe(n: usize, ms: i64, previous_ms: Option<i64>) -> Keyframe {
         Keyframe { n, ms, previous_ms }
     }
