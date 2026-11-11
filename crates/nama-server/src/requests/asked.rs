@@ -6,6 +6,8 @@ use std::{collections::HashMap, fmt};
 use nama_proto::nama::v1::{RequestState, Requester};
 use sqlx::SqliteConnection;
 
+use super::Error;
+
 /// Which kind of thing Users asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Asked {
@@ -98,9 +100,24 @@ pub(crate) fn may_see(viewer: Option<i64>, requesters: &[Requester]) -> bool {
     viewer.is_none_or(|user| is_requester(user, requesters))
 }
 
-/// Whether the User `user` is among `requesters`.
-pub(super) fn is_requester(user: i64, requesters: &[Requester]) -> bool {
+fn is_requester(user: i64, requesters: &[Requester]) -> bool {
     requesters.iter().any(|requester| requester.user_id == user)
+}
+
+/// The `asked` with the ID `id` that `found` holds, if `user` is among the `requesters` it has.
+/// Refuses with [`Error::NoSuch`] if `found` is `None`, else with [`Error::NotARequester`].
+pub(super) fn requested_by<T>(
+    asked: Asked,
+    id: i64,
+    user: i64,
+    found: Option<T>,
+    requesters: impl Fn(&T) -> &[Requester],
+) -> Result<T, Error> {
+    let found = found.ok_or(Error::NoSuch(asked, id))?;
+    if !is_requester(user, requesters(&found)) {
+        return Err(Error::NotARequester(asked, id));
+    }
+    Ok(found)
 }
 
 /// Takes `user` off the Requesters of the `asked` with the ID `id`. Returns whether they were its

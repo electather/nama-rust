@@ -3602,7 +3602,8 @@ pub struct LibraryItemAdded {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub item_id: i64,
-    /// The absolute path, on the Server, of the file holding the Item.
+    /// The absolute path, on the Server, of the file holding the Item. Empty unless the subscriber has
+    /// `PERMISSION_MANAGE_LIBRARIES`.
     ///
     /// Field 3: `path`
     #[serde(

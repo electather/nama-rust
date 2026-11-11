@@ -1090,7 +1090,7 @@ mod tests {
             types: vec![EventType::EVENT_TYPE_ITEM_MATCHED],
             ..Filter::default()
         };
-        let mut matches = Box::pin(media.events.subscribe(filter));
+        let mut matches = Box::pin(media.events.subscribe_as_admin(filter));
 
         media.scan(movies).await;
 

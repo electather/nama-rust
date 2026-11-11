@@ -148,8 +148,8 @@ impl Plan {
         match self.playing {
             None => None,
             Some(Playing::DirectPlay) => Some(Method::DirectPlay),
-            Some(Playing::Remux(_)) => Some(Method::Remux),
-            Some(Playing::Transcode(_)) => Some(Method::Transcode),
+            Some(Playing::Remux { .. }) => Some(Method::Remux),
+            Some(Playing::Transcode { .. }) => Some(Method::Transcode),
         }
     }
 }
@@ -172,12 +172,19 @@ pub(crate) enum Planned {
     Unplayable(Plan),
 }
 
-/// How a plan plays a Version, with what its method converts.
+/// How a plan plays a Version, with what its method converts and, for a Remux or a Transcode,
+/// the Version's length, which their playlists list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Playing {
     DirectPlay,
-    Remux(Remux),
-    Transcode(Transcode),
+    Remux {
+        remux: Remux,
+        duration_ms: i64,
+    },
+    Transcode {
+        transcode: Transcode,
+        duration_ms: i64,
+    },
 }
 
 /// The choices a plan for a Version can ever honour on a Server and Device: what the lasting
@@ -316,8 +323,7 @@ pub(crate) async fn plan(
             None => Ok(Some(Planned::Unplayable(plan))),
         };
     }
-    let duration_ms = facts.probe.and_then(|probed| probed.duration_ms);
-    let started = running.start(caller, plan, duration_ms).await?;
+    let started = running.start(caller, plan).await?;
     Ok(started.map(Planned::Started))
 }
 
@@ -398,7 +404,7 @@ fn candidates(facts: &Facts) -> Option<Candidates> {
     let probe = facts.probe.as_ref()?;
     let audio = played_audio_place(facts);
     let played =
-        audio.and_then(|place| Some((ffmpeg_audio_index(probe, place), probe.tracks.get(place)?)));
+        audio.and_then(|place| Some((probe.ffmpeg_index(place)?, probe.tracks.get(place)?)));
     Some(Candidates {
         audio,
         remux: remux(facts, played),
@@ -464,14 +470,25 @@ fn build(facts: &mut Facts) -> Plan {
         allowed.retain(|method| allows.contains(method));
         reasons.push(reason);
     }
+    // Never `None` once a Remux or Transcode is allowed: `version_length` rules both out first and
+    // says why.
+    let duration_ms = facts.probe.as_ref().and_then(|probe| probe.duration_ms);
     let playing = allowed.first().and_then(|method| match method {
         Method::DirectPlay => Some(Playing::DirectPlay),
-        Method::Remux => candidates.map(|candidates| Playing::Remux(candidates.remux)),
-        Method::Transcode => candidates.map(|candidates| Playing::Transcode(candidates.transcode)),
+        Method::Remux => Some(Playing::Remux {
+            remux: candidates?.remux,
+            duration_ms: duration_ms?,
+        }),
+        Method::Transcode => Some(Playing::Transcode {
+            transcode: candidates?.transcode,
+            duration_ms: duration_ms?,
+        }),
     });
     let audio = candidates.and_then(|candidates| candidates.audio);
-    let burns_in =
-        matches!(playing, Some(Playing::Transcode(transcode)) if transcode.video.burn_in.is_some());
+    let burns_in = matches!(
+        playing,
+        Some(Playing::Transcode { transcode, .. }) if transcode.video.burn_in.is_some()
+    );
     Plan {
         version: facts.version,
         playing,
@@ -986,7 +1003,7 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
         .subtitle
         .filter(|_| !facts.dropped.contains(&Choice::Subtitle))?;
     let track = probe.tracks.get(place).filter(|track| burns_in(track))?;
-    let subtitle = probe.subtitle_stream(place);
+    let subtitle = probe.ffmpeg_index(place)?;
     Some(
         if matches!(track.kind, TrackKind::Subtitle { image: true }) {
             BurnIn::Image {
@@ -1131,21 +1148,28 @@ fn transcode_in_words(
 /// converted, or as they are when it can't be played.
 fn played_by(playing: Option<&Playing>, tracks: Vec<Track>) -> Vec<Track> {
     match playing {
-        Some(Playing::Remux(Remux {
-            audio:
-                Some(RemuxAudio {
-                    aac_channels: Some(channels),
-                    ..
-                }),
-        })) => converted_to_aac(tracks, *channels),
-        Some(Playing::Transcode(Transcode { audio, video })) => {
+        Some(Playing::Remux {
+            remux:
+                Remux {
+                    audio:
+                        Some(RemuxAudio {
+                            aac_channels: Some(channels),
+                            ..
+                        }),
+                },
+            ..
+        }) => converted_to_aac(tracks, *channels),
+        Some(Playing::Transcode {
+            transcode: Transcode { audio, video },
+            ..
+        }) => {
             let tracks = match audio {
                 Some(audio) => converted_to_aac(tracks, audio.aac_channels),
                 None => tracks,
             };
             converted_to_h264(tracks, video)
         }
-        None | Some(Playing::DirectPlay | Playing::Remux(_)) => tracks,
+        None | Some(Playing::DirectPlay | Playing::Remux { .. }) => tracks,
     }
 }
 
@@ -1305,14 +1329,6 @@ fn transcoded_hdr(hdr: Hdr) -> Option<Hdr> {
     }
 }
 
-/// Which of `probe`'s audio Tracks the one at `place` in its Tracks is, counting only its audio
-/// from 0, as ffmpeg does.
-fn ffmpeg_audio_index(probe: &Probe, place: usize) -> usize {
-    (probe.tracks.iter().take(place))
-        .filter(|track| is_audio(track))
-        .count()
-}
-
 /// The place in the Version's Tracks of the audio Track the plan plays: the one chosen, unless the
 /// plan dropped it, or else [`file_audio`]. A choice that isn't an audio Track, as when the
 /// Version changed since the User saw it, is the same as none.
@@ -1420,6 +1436,9 @@ mod tests {
         tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
     };
 
+    /// How long the Version in [`facts`] is.
+    const LENGTH_MS: i64 = 7_200_000;
+
     fn track(codec: &str, default: bool, kind: TrackKind) -> Track {
         Track {
             codec: codec.to_owned(),
@@ -1505,7 +1524,7 @@ mod tests {
             version: 7,
             probe: tracks.map(|tracks| Probe {
                 container: container.to_owned(),
-                duration_ms: Some(7_200_000),
+                duration_ms: Some(LENGTH_MS),
                 bitrate: Some(5_000_000),
                 tracks,
             }),
@@ -1528,19 +1547,22 @@ mod tests {
     /// What `plan` Transcodes, failing the test if it doesn't Transcode.
     fn transcoded(plan: &Plan) -> Transcode {
         match plan.playing {
-            Some(Playing::Transcode(transcode)) => transcode,
+            Some(Playing::Transcode { transcode, .. }) => transcode,
             other => panic!("{other:?} isn't a Transcode"),
         }
     }
 
     /// A Remux playing the audio Track `track`, converting it to AAC with `aac_channels` if given.
     const fn remuxing(track: usize, aac_channels: Option<i64>) -> Playing {
-        Playing::Remux(Remux {
-            audio: Some(RemuxAudio {
-                track,
-                aac_channels,
-            }),
-        })
+        Playing::Remux {
+            remux: Remux {
+                audio: Some(RemuxAudio {
+                    track,
+                    aac_channels,
+                }),
+            },
+            duration_ms: LENGTH_MS,
+        }
     }
 
     fn subtitle() -> Track {
@@ -1709,6 +1731,38 @@ mod tests {
             mp4.method(),
             Some(Method::DirectPlay),
             "Direct Play needs no length"
+        );
+    }
+
+    #[test]
+    fn a_remux_and_a_transcode_carry_the_versions_length() {
+        let remux = build(&mut in_container(
+            MKV,
+            Some(vec![video("h264"), audio("aac", true)]),
+        ));
+        let transcode = build(&mut facts(Some(vec![video("hevc"), audio("aac", true)])));
+
+        assert!(
+            matches!(
+                remux.playing,
+                Some(Playing::Remux {
+                    duration_ms: LENGTH_MS,
+                    ..
+                })
+            ),
+            "{:?}",
+            remux.playing
+        );
+        assert!(
+            matches!(
+                transcode.playing,
+                Some(Playing::Transcode {
+                    duration_ms: LENGTH_MS,
+                    ..
+                })
+            ),
+            "{:?}",
+            transcode.playing
         );
     }
 
