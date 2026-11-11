@@ -201,6 +201,8 @@ pub mod __buffa {
         reg.register_json_any(super::__SCAN_STARTED_JSON_ANY);
         reg.register_json_any(super::__SCAN_PROGRESS_JSON_ANY);
         reg.register_json_any(super::__SCAN_FINISHED_JSON_ANY);
+        reg.register_json_any(super::__MATCHING_FINISHED_JSON_ANY);
+        reg.register_json_any(super::__PROBING_FINISHED_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_ITEM_ADDED_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_ITEM_REMOVED_JSON_ANY);
         reg.register_json_any(super::__ITEM_MATCHED_JSON_ANY);
@@ -848,6 +850,14 @@ pub use self::__buffa::view::ScanProgressOwnedView;
 pub use self::__buffa::view::ScanFinishedView;
 #[doc(inline)]
 pub use self::__buffa::view::ScanFinishedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MatchingFinishedView;
+#[doc(inline)]
+pub use self::__buffa::view::MatchingFinishedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ProbingFinishedView;
+#[doc(inline)]
+pub use self::__buffa::view::ProbingFinishedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LibraryItemAddedView;
 #[doc(inline)]

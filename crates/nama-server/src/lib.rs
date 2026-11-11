@@ -5,7 +5,7 @@ pub mod artwork;
 mod browse;
 pub mod config;
 mod connections;
-pub mod contents;
+mod contents;
 pub mod db;
 mod device_names;
 mod events;
@@ -34,20 +34,10 @@ use std::{future::Future, io, net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
 
 use crate::{
-    config::Config,
-    contents::Contents,
-    db::Database,
-    events::EventBus,
-    ffmpeg::Ffmpeg,
-    matching::Matcher,
-    playback::running::RunningPlans,
-    playback::subtitles,
-    plugin_settings::PluginSettings,
-    requests::{PROGRESS_EVERY, Requests},
-    scanner::Scanner,
-    server_settings::Settings,
-    tracks::Tracks,
-    users::SetupCode,
+    config::Config, contents::Contents, db::Database, events::EventBus, ffmpeg::Ffmpeg,
+    matching::Matcher, playback::running::RunningPlans, playback::subtitles,
+    plugin_settings::PluginSettings, requests::Requests, scanner::Scanner,
+    server_settings::Settings, tracks::Tracks, users::SetupCode,
 };
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins `plugins` started,
@@ -133,12 +123,7 @@ pub fn serve(
         // before serving, so the sweep deletes no plan's files but an earlier run's.
         load_settings.await;
         scanner.start_all().await;
-        // In the background, so a slow Fulfiller doesn't hold up serving.
-        let progress = requests.clone();
-        let following = tokio::spawn(async move { progress.follow_progress(PROGRESS_EVERY).await });
-        let came_up = plugins.take_came_up();
-        let handing_off =
-            tokio::spawn(async move { requests.hand_off_as_fulfillers_come_up(came_up).await });
+        requests.start(plugins.take_came_up());
         let served = axum::serve(
             listener,
             // The peer's address decides whose rate limit counts and which proxies are trusted.
@@ -152,24 +137,9 @@ pub fn serve(
         .await;
         running.stop_all().await;
         scanner.shutdown().await;
-        // The Requests not handed off yet stay Approved, so the next start hands them off. The one
-        // being handed off now runs on in a task of its own (`HandOff::request`), which nothing
-        // waits for: if the runtime stops first, a Request the Fulfiller took stays Approved and
-        // the next start hands it over again, as for an approval in flight.
-        handing_off.abort();
-        if let Err(err) = handing_off.await
-            && err.is_panic()
-        {
-            tracing::error!("handing the waiting Requests off panicked: {err}");
-        }
+        // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
+        requests.shutdown().await;
         plugins.shutdown().await;
-        // Progress is kept in memory only, so stopping mid-poll loses nothing.
-        following.abort();
-        if let Err(err) = following.await
-            && err.is_panic()
-        {
-            tracing::error!("asking the Fulfillers about progress panicked: {err}");
-        }
         served
     }
 }

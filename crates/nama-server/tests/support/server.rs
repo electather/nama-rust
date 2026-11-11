@@ -8,6 +8,7 @@ pub(crate) mod requests;
 pub(crate) mod tmdb;
 
 use std::{
+    collections::HashMap,
     fs,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -317,23 +318,10 @@ impl TestServer {
         library
     }
 
-    /// [`Self::library`], returning once one Item per file has Matched. Every file must Match:
-    /// an Unmatched decision sends no event, so a test expecting one waits for it on its own.
+    /// [`Self::library`], returning once Matching has finished.
     pub(crate) async fn matched_library(&self, kind: LibraryKind, files: &[&str]) -> Library {
         let library = self.create_library(kind, files).await;
-        let only = SubscribeRequest {
-            types: vec![EventType::EVENT_TYPE_ITEM_MATCHED.into()],
-            library_ids: vec![library.id],
-            ..Default::default()
-        };
-        // Matching runs after the scan's `ScanFinished`, so only its own events say it's done.
-        // ponytail: counts one event per file, so a file holding several Episodes returns early;
-        // count Items once a test needs every Episode of such a file Matched.
-        let mut matched = subscribe_with(&self.client_config(), only).await;
-        self.scan(library.id).await;
-        for _ in files {
-            matched.next().await;
-        }
+        self.scan_and_match(&library).await;
         library
     }
 
@@ -383,6 +371,57 @@ impl TestServer {
             })
             .await
             .unwrap();
+    }
+
+    /// Scans `library` as the Admin until Matching has finished, and returns the first Item the
+    /// scan stored for each file, by the file's path relative to the Library's folder.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn scan_and_match(&self, library: &Library) -> HashMap<String, i64> {
+        let events = self
+            .scan_until(library.id, |event| {
+                matches!(event, event::Event::MatchingFinished(_))
+            })
+            .await;
+        let mut items = HashMap::new();
+        for event in events {
+            if let event::Event::LibraryItemAdded(added) = event {
+                let path = Path::new(&added.path)
+                    .strip_prefix(&library.folder)
+                    .unwrap();
+                let relative = path.to_str().unwrap().to_owned();
+                items.entry(relative).or_insert(added.item_id);
+            }
+        }
+        items
+    }
+
+    /// Scans the Library `id` as the Admin, and returns the events about it from the scan's
+    /// `ScanStarted` on, up to and including the first that `last` picks, waiting as
+    /// `ScanLibrary` says to.
+    pub(crate) async fn scan_until(
+        &self,
+        id: i64,
+        last: fn(&event::Event) -> bool,
+    ) -> Vec<event::Event> {
+        let about = SubscribeRequest {
+            library_ids: vec![id],
+            ..Default::default()
+        };
+        let mut subscription = subscribe_with(&self.client_config(), about).await;
+        self.scan(id).await;
+        while !matches!(subscription.next().await, event::Event::ScanStarted(_)) {}
+        let mut events = Vec::new();
+        loop {
+            let next = subscription.next().await;
+            let done = last(&next);
+            events.push(next);
+            if done {
+                return events;
+            }
+        }
     }
 
     fn libraries(&self) -> LibraryServiceClient<HttpClient> {

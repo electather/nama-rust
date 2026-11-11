@@ -35,13 +35,13 @@ function browserMenuLabel(track: Track | undefined) {
 
 /**
  * Picks the subtitle shown, or none: one of the plan's text subtitles, which the `<video>` shows
- * itself, saying which is still being read out of the file, or one of the Version's `tracks` to
- * burn into the picture, an image one or an ASS one with its styling. Absent when there's none to
- * pick.
+ * itself, saying which is still being read out of the file, or one of the Version's `tracks` the
+ * plan offers to burn into the picture, an image one or an ASS one with its styling. Absent when
+ * there's none to pick.
  */
 export function SubtitlesMenu({
   tracks,
-  planned: { plan, shownSubtitle: shown, subtitleTrack: burnedIn, chooseSubtitle },
+  planned: { plan, shownSubtitle: shown, chooseSubtitle },
   videoRef,
   container,
 }: {
@@ -51,9 +51,8 @@ export function SubtitlesMenu({
   /** Where the menu opens: inside the player, so it shows in full screen. */
   container: RefObject<HTMLDivElement | null>;
 }) {
-  const { subtitles } = plan;
+  const { subtitles, burnInTracks: burnable, subtitleTrack: burnedIn } = plan;
   const states = useSubtitles(videoRef, shown);
-  const burnable = tracks.flatMap((track, place) => (burnsIn(track) ? [place] : []));
   if (subtitles.length + burnable.length === 0) return null;
   return (
     <DropdownMenu>
@@ -79,12 +78,6 @@ export function SubtitlesMenu({
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
-
-/** Whether `track` is a subtitle the Server burns in: an image one, such as PGS, or ASS or SSA. */
-function burnsIn(track: Track) {
-  const text = track.kind.case === "subtitle" && ["ass", "ssa"].includes(track.codec);
-  return text || isImageSubtitle(track);
 }
 
 function isImageSubtitle(track: Track | undefined) {

@@ -32,10 +32,11 @@ const audio = (channels: number) => ({ case: "audio", value: { channels } }) as 
 
 /**
  * A fake Server with Alien in Library 1, whose one Version holds English 5.1 audio, played by
- * default, a stereo commentary and a subtitle. It Direct Plays the English and Remuxes any other
- * audio Track, and each plan request goes in `asked`.
+ * default, a stereo commentary and a subtitle, offering the audio Tracks `audioTracks`, both
+ * unless given. It Direct Plays the English and Remuxes any other audio Track, and each plan
+ * request goes in `asked`.
  */
-function server(asked: PlanPlaybackRequest[]) {
+function server(asked: PlanPlaybackRequest[], audioTracks = [2, 3]) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const tracks = [
     { codec: "h264", kind: { case: "video", value: {} } },
@@ -56,12 +57,12 @@ function server(asked: PlanPlaybackRequest[]) {
     router.service(PlaybackService, {
       planPlayback: (request) => {
         asked.push(request);
-        const remux = request.audioTrack !== undefined && request.audioTrack !== 2;
-        return {
-          plan: remux
-            ? { method: PlaybackMethod.REMUX, url: `/media/plans/${asked.length}/index.m3u8` }
-            : { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" },
-        };
+        const audioTrack = request.audioTrack ?? 2;
+        const played =
+          audioTrack === 2
+            ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
+            : { method: PlaybackMethod.REMUX, url: `/media/plans/${asked.length}/index.m3u8` };
+        return { plan: { ...played, audioTrack, audioTracks } };
       },
     });
   });
@@ -83,6 +84,13 @@ test("the audio menu lists the Version's audio Tracks by language, title and cha
     "English Commentary · Stereo",
   ]);
   expect(items.map((item) => item.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+});
+
+test("a Server that can only play the file’s own audio has no audio menu", async () => {
+  openApp(PLAYER, server([], [2]));
+  await screen.findByLabelText("Alien");
+
+  expect(screen.queryByRole("button", { name: "Audio" })).toBeNull();
 });
 
 test("choosing the commentary mid-play asks for a plan from where the video stands with that audio Track", async () => {

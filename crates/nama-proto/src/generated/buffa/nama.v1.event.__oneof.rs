@@ -106,6 +106,12 @@ pub mod event {
         PlaybackChanged(
             ::buffa::alloc::boxed::Box<super::super::super::PlaybackChanged>,
         ),
+        MatchingFinished(
+            ::buffa::alloc::boxed::Box<super::super::super::MatchingFinished>,
+        ),
+        ProbingFinished(
+            ::buffa::alloc::boxed::Box<super::super::super::ProbingFinished>,
+        ),
     }
     impl ::buffa::Oneof for Event {}
     impl From<super::super::super::ScanStarted> for Event {
@@ -336,6 +342,26 @@ pub mod event {
             Self::Some(Event::from(v))
         }
     }
+    impl From<super::super::super::MatchingFinished> for Event {
+        fn from(v: super::super::super::MatchingFinished) -> Self {
+            Self::MatchingFinished(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::MatchingFinished> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::MatchingFinished) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::ProbingFinished> for Event {
+        fn from(v: super::super::super::ProbingFinished) -> Self {
+            Self::ProbingFinished(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ProbingFinished> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::ProbingFinished) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
     impl ::serde::Serialize for Event {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -409,6 +435,12 @@ pub mod event {
                 }
                 Self::PlaybackChanged(v) => {
                     map.serialize_entry("playbackChanged", &**v)?;
+                }
+                Self::MatchingFinished(v) => {
+                    map.serialize_entry("matchingFinished", &**v)?;
+                }
+                Self::ProbingFinished(v) => {
+                    map.serialize_entry("probingFinished", &**v)?;
                 }
             }
             map.end()

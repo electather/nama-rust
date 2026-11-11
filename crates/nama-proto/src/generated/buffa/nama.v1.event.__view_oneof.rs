@@ -139,5 +139,15 @@ pub mod event {
                 super::super::super::super::__buffa::view::PlaybackChangedView<'a>,
             >,
         ),
+        MatchingFinished(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::MatchingFinishedView<'a>,
+            >,
+        ),
+        ProbingFinished(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ProbingFinishedView<'a>,
+            >,
+        ),
     }
 }

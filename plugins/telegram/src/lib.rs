@@ -322,6 +322,8 @@ fn what_happened(notification: &Notification) -> Option<String> {
         | Event::LibraryItemAdded(_)
         | Event::LibraryItemRemoved(_)
         | Event::ItemMatched(_)
+        | Event::MatchingFinished(_)
+        | Event::ProbingFinished(_)
         | Event::FollowedShowCreated(_)
         | Event::FollowedShowRequesterAdded(_)
         | Event::FollowedShowStateChanged(_)
