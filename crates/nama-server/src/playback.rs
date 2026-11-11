@@ -3441,53 +3441,6 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         }
     }
 
-    /// Stores a file under `root` in the Library `library` in `contents` without probing it, and
-    /// Matches it to Alien, which makes it a Version. Returns its id.
-    async fn unprobed_version(
-        contents: &crate::contents::Contents,
-        library: i64,
-        root: &std::path::Path,
-    ) -> i64 {
-        use nama_plugin_api::{PluginId, metadata::ExternalIds};
-
-        use crate::contents::{Change, Decided, Item, Metadata};
-
-        let file = root.join("Alien (1979)").join("Alien (1979).mp4");
-        let alien = Change::Store {
-            path: file.to_str().unwrap().to_owned(),
-            size: 10,
-            modified_ns: 0,
-            items: vec![Item::Movie {
-                title: "Alien".to_owned(),
-                year: Some(1979),
-                hint: None,
-            }],
-        };
-        contents.apply(library, vec![alien]).await.unwrap();
-        let matched = Metadata {
-            plugin: PluginId::from_static("tmdb"),
-            ids: ExternalIds {
-                tmdb: Some(348),
-                ..ExternalIds::default()
-            },
-            show_ids: ExternalIds::default(),
-            title: "Alien".to_owned(),
-            original_title: None,
-            show_title: None,
-            overview: None,
-            release_date: None,
-            runtime_minutes: None,
-            poster: None,
-            backdrop: None,
-        };
-        let (item, _, _) = contents.undecided(library).await.unwrap().remove(0);
-        contents
-            .record(vec![(item, Decided::Matched(Box::new(matched)))])
-            .await
-            .unwrap();
-        contents.every_stored().await.unwrap()[0].id
-    }
-
     fn ripley_on_the_nostromo() -> crate::users::Caller {
         use crate::users::{Caller, Device, Permissions, User};
 
@@ -3516,11 +3469,13 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         use std::sync::Arc;
 
         use crate::{
-            contents::Contents,
+            contents::{
+                Contents,
+                fixture::{MatchedMovie, tmdb_movie},
+            },
             db::Database,
             events::EventBus,
             ffmpeg::{Abilities, Ffmpeg},
-            libraries::{Kind, Libraries},
             playback::{Asked, Planned, StartedPlan, plan, running::RunningPlans, subtitles},
             plugins::ExtensionPoints,
             probing::Probing,
@@ -3532,16 +3487,8 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         let root = media.path().canonicalize().unwrap().join("library");
         std::fs::create_dir(&root).unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let library = Libraries::new(Arc::clone(&db))
-            .create(
-                "Movies",
-                Kind::Movies,
-                vec![root.to_str().unwrap().to_owned()],
-            )
-            .await
-            .unwrap();
-        let contents = Contents::new(Arc::clone(&db));
-        let version = unprobed_version(&contents, library.id, &root).await;
+        let alien = tmdb_movie(348, "Alien");
+        let version = MatchedMovie::new(&db, &root, alien).await.version;
         let probing = Probing::new(
             Arc::clone(&db),
             Arc::new(h264_aac_ffprobe(data.path())),
@@ -3552,7 +3499,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         let running = RunningPlans::new(
             settings.playback(),
             Arc::clone(&ffmpeg),
-            contents,
+            Contents::new(Arc::clone(&db)),
             probing.clone(),
             EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
         );

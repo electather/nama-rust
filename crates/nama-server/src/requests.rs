@@ -2570,7 +2570,10 @@ mod tests {
         withdraw_followed,
     };
     use crate::{
-        contents::{Change, Contents, Decided, Decisions, Item, Metadata},
+        contents::{
+            Change, Contents, Decided, Decisions, Item, Metadata,
+            fixture::{MatchedMovie, movies_library, tmdb_movie},
+        },
         db::Database,
         events::{EventBus, Filter},
         libraries::{Kind, Libraries},
@@ -2982,51 +2985,17 @@ mod tests {
         applied.value.id
     }
 
-    /// A new Library Matches a file to each of the Movies `tmdb_ids`, as a scan does, which makes
-    /// their open Requests Available.
+    /// A new Library Matches a file to each of the Movies `tmdb_ids` in turn, which makes their
+    /// open Requests Available.
     async fn match_in_a_library(db: &Arc<Database>, tmdb_ids: &[i64]) {
         let folder = tempfile::tempdir().unwrap();
-        let root = folder.path().canonicalize().unwrap();
+        let library = movies_library(db, folder.path()).await;
         let contents = Contents::new(Arc::clone(db));
-        let library = Libraries::new(Arc::clone(db))
-            .create(
-                "Movies",
-                Kind::Movies,
-                vec![root.to_str().unwrap().to_owned()],
-            )
-            .await
-            .unwrap()
-            .id;
-        let stores = tmdb_ids
-            .iter()
-            .map(|&tmdb_id| Change::Store {
-                path: format!("/media/{tmdb_id}.mkv"),
-                size: 1,
-                modified_ns: 0,
-                items: vec![Item::Movie {
-                    title: format!("Movie {tmdb_id}"),
-                    year: None,
-                    hint: Some(ExternalId::Tmdb(tmdb_id)),
-                }],
-            })
-            .collect();
-        contents.apply(library, stores).await.unwrap();
-        let files = contents.files(library).await.unwrap();
-        let decided: Vec<_> = files
-            .into_iter()
-            .flat_map(|file| file.items)
-            .map(|stored| {
-                let Item::Movie {
-                    hint: Some(ExternalId::Tmdb(tmdb_id)),
-                    ..
-                } = stored.item
-                else {
-                    panic!("not a Movie stored above: {stored:?}");
-                };
-                (stored.id, matched(tmdb(tmdb_id), ExternalIds::default()))
-            })
-            .collect();
-        contents.record(Decisions::from(decided)).await.unwrap();
+        for &tmdb_id in tmdb_ids {
+            let path = format!("/media/{tmdb_id}.mkv");
+            let movie = tmdb_movie(tmdb_id, &format!("Movie {tmdb_id}"));
+            MatchedMovie::store(&contents, library, &path, movie).await;
+        }
     }
 
     #[tokio::test]
