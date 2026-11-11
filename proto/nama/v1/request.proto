@@ -203,9 +203,9 @@ message Request {
   optional int64 followed_show_id = 9;
   // What its Fulfiller's service is downloading for it, as the Server last heard, which it asks
   // every minute while any Request its Fulfiller has isn't Available yet. Only a Processing or
-  // Partially Available Request has any. The Server
-  // keeps them in memory only, so after it restarts a Request has none until it asks again, and
-  // `EventService` sends a `RequestProgress` whenever they change.
+  // Partially Available Request has any. The Server keeps them in memory only, so after it
+  // restarts a Request has none until it asks again, and `EventService` sends a `RequestProgress`
+  // whenever they change.
   repeated Download downloads = 10;
   // The Quality it is downloaded at, as its first Requester picked it or else as its Fulfiller's
   // default was when it opened (ADR 0025). Unset if no Fulfiller was enabled or it had no

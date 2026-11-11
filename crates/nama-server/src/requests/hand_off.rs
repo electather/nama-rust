@@ -33,8 +33,8 @@ use crate::{
     plugins::Registry,
 };
 
-/// How often the Fulfillers are asked how the Requests they have are progressing, as Seerr asks
-/// (ADR 0012).
+/// How often the Fulfillers are asked how the Requests they have that aren't Available yet are
+/// progressing, as Seerr asks (ADR 0012).
 pub(super) const PROGRESS_EVERY: Duration = Duration::from_secs(60);
 
 /// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled, which also
@@ -47,8 +47,8 @@ pub(super) struct HandOff {
     /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
     /// skipped it meanwhile.
     handing: Arc<Mutex<HashMap<i64, bool>>>,
-    /// What the Fulfiller of each Request it has said it is downloading when last asked, by Request
-    /// id. Kept in memory only (ADR 0012).
+    /// What each Request's Fulfiller said it is downloading for it when last asked, by Request id.
+    /// Kept in memory only (ADR 0012).
     progress: Arc<Mutex<HashMap<i64, Vec<Download>>>>,
     /// Wakes [`HandOff::follow_progress`] when a Request becomes Processing.
     became_processing: Arc<Notify>,
@@ -316,7 +316,7 @@ impl HandOff {
         let events = all
             .into_iter()
             // One that became Available or Failed since it was asked about has no progress any more.
-            .filter(has_progress)
+            .filter(is_fulfilling)
             .filter_map(|mut request| {
                 request.downloads = changed.remove(&request.id)?;
                 Some(event(RequestProgress {
@@ -392,7 +392,7 @@ impl HandOff {
     /// `request` with what its Fulfiller said it is downloading when last asked, if it is
     /// Processing or Partially Available.
     pub(super) fn with_progress(&self, mut request: Request) -> Request {
-        if has_progress(&request) {
+        if is_fulfilling(&request) {
             let kept = lock(&self.progress).get(&request.id).cloned();
             request.downloads = kept.unwrap_or_default();
         }
@@ -402,7 +402,7 @@ impl HandOff {
 
 /// Whether `request` is one its Fulfiller has that isn't Available yet, as [`fulfilling`] reads
 /// them.
-fn has_progress(request: &Request) -> bool {
+fn is_fulfilling(request: &Request) -> bool {
     request.state == RequestState::Processing || request.state == RequestState::PartiallyAvailable
 }
 

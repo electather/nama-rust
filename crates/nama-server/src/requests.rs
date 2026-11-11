@@ -298,8 +298,7 @@ impl Requests {
     /// Approved Request, oldest first, to its Fulfiller whenever a Plugin `came_up` names provides
     /// one, and asking the Fulfillers how the Requests they have that aren't Available yet are
     /// progressing, every [`PROGRESS_EVERY`] while there are any and at once when one becomes
-    /// Processing. A
-    /// failed hand-off is only logged, and leaves the rest waiting. Call it once.
+    /// Processing. A failed hand-off is only logged, and leaves the rest waiting. Call it once.
     pub(crate) fn start(&self, came_up: UnboundedReceiver<PluginId>) {
         let handing = self.hand_off.clone();
         let handing_off = tokio::spawn(async move { handing.as_fulfillers_come_up(came_up).await });
@@ -2940,6 +2939,7 @@ mod tests {
         scan_dark(&db, &[1]).await;
         let batches = asked.batches().len();
         let any_once_available = requests.hand_off.poll_progress().await.unwrap();
+        let available = requests.get(&ada(Permissions::ADMIN), id).await.unwrap();
 
         assert!(any);
         assert_eq!(asked.last_asked_about(), ["season-1"]);
@@ -2952,6 +2952,8 @@ mod tests {
         assert_eq!(partly.downloads, downloading("season-1"));
         assert!(!any_once_available);
         assert_eq!(asked.batches().len(), batches);
+        assert_eq!(available.state, RequestState::Available);
+        assert_eq!(available.downloads, []);
     }
 
     #[tokio::test]
