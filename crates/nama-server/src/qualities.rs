@@ -11,7 +11,9 @@ use nama_plugin_api::{
     fulfiller::Fulfilled,
     settings::{Choice, Choices},
 };
-use nama_proto::nama::v1::{Permission, Quality, RequestState, RequestedQuality};
+use nama_proto::nama::v1::{
+    DefaultQuality, ExtensionPoint, Permission, Quality, RequestState, RequestedQuality,
+};
 use sqlx::SqliteConnection;
 
 use crate::{db::Database, users::User};
@@ -171,9 +173,37 @@ pub(crate) async fn replace(
     .await
 }
 
-/// The Quality a new Request `asker` opens on the list of the Fulfiller from the Plugin
-/// `fulfiller` takes, and whether they chose it: the one they `named`, else their personal default
-/// if they may choose and the list still has it, else the list's default. `None` without a list.
+/// What an ask says about Quality, which [`for_request`] and [`ShowRequests`] make and Requests
+/// carries to the Requests it opens or joins.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct Ask {
+    /// The Quality a new Request for it takes, if its Fulfiller has any.
+    taken: Option<RequestedQuality>,
+    /// Whether the asker chose `taken`, by picking it or as their personal default, so it replaces
+    /// a Pending Request's when their ask approves it.
+    chosen: bool,
+    /// The id of the Quality the asker named, if they did, which must be the Show's if it has one.
+    named: Option<i64>,
+}
+
+impl Ask {
+    /// The Quality a new Request for it takes, if its Fulfiller has any.
+    pub(crate) fn taken(&self) -> Option<&RequestedQuality> {
+        self.taken.as_ref()
+    }
+
+    /// The Quality an auto-approved joiner's ask approves a Pending Request at: the one taken if
+    /// they chose it, by picking it or as a personal default still on the list, else `None`, so
+    /// the Request keeps its own and its earlier Requesters aren't moved to the default.
+    pub(crate) fn joiner_approves_at(&self) -> Option<RequestedQuality> {
+        self.taken.clone().filter(|_| self.chosen)
+    }
+}
+
+/// What the ask of `asker`, naming the Quality `named` if they did, says about Quality on the list
+/// of the Fulfiller from the Plugin `fulfiller`. A new Request takes the Quality they named, else
+/// their personal default if they may choose and the list still has it, both as chosen, else the
+/// list's default. None without a list.
 ///
 /// Refuses a `named` Quality from an `asker` without `CHOOSE_QUALITY`, or one not on the list.
 pub(crate) async fn for_request(
@@ -181,7 +211,7 @@ pub(crate) async fn for_request(
     asker: &User,
     fulfiller: Option<&PluginId>,
     named: Option<i64>,
-) -> Result<Result<(Option<RequestedQuality>, bool), Refused>, sqlx::Error> {
+) -> Result<Result<Ask, Refused>, sqlx::Error> {
     if named.is_some() && !may_choose(asker) {
         return Ok(Err(Refused::NotAllowed));
     }
@@ -197,17 +227,26 @@ fn pick(
     listed: &[Quality],
     named: Option<i64>,
     personal_default: Option<i64>,
-) -> Result<(Option<RequestedQuality>, bool), Refused> {
+) -> Result<Ask, Refused> {
     let find = |id| listed.iter().find(|quality| quality.id == id);
+    let as_chosen = |quality| Ask {
+        taken: Some(requested(quality)),
+        chosen: true,
+        named,
+    };
     if let Some(id) = named {
-        let quality = find(id).ok_or(Refused::NotOffered { id, field: ASKED })?;
-        return Ok((Some(requested(quality)), true));
+        return find(id)
+            .map(as_chosen)
+            .ok_or(Refused::NotOffered { id, field: ASKED });
     }
     if let Some(quality) = personal_default.and_then(find) {
-        return Ok((Some(requested(quality)), true));
+        return Ok(as_chosen(quality));
     }
     let default = listed.iter().find(|quality| quality.is_default);
-    Ok((default.map(requested), false))
+    Ok(Ask {
+        taken: default.map(requested),
+        ..Ask::default()
+    })
 }
 
 /// The Plugin `fulfiller`'s Qualities, in the order an admin listed them, with `asker`'s personal
@@ -228,10 +267,43 @@ pub(crate) async fn offered_to(
     Ok((listed, personal_default))
 }
 
+/// `user`'s default Quality for the Movies Fulfiller from the Plugin `movies` and the Shows one
+/// from `shows`, in that order, for each whose list has more than one, or has one left after an
+/// admin removed `user`'s, to flag it.
+pub(crate) async fn personal_defaults(
+    conn: &mut SqliteConnection,
+    user: i64,
+    movies: Option<&PluginId>,
+    shows: Option<&PluginId>,
+) -> Result<Vec<DefaultQuality>, sqlx::Error> {
+    let fulfillers = [
+        (movies, ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER),
+        (shows, ExtensionPoint::EXTENSION_POINT_SHOW_FULFILLER),
+    ];
+    let mut defaults = Vec::new();
+    for (plugin, fulfiller) in fulfillers {
+        let Some(plugin) = plugin else {
+            continue;
+        };
+        let qualities = list(conn, plugin).await?;
+        let quality = personal_default(conn, user, plugin).await?;
+        if shows_default(&qualities, quality) {
+            defaults.push(DefaultQuality {
+                quality,
+                plugin_id: plugin.to_string(),
+                fulfiller: fulfiller.into(),
+                qualities,
+                ..Default::default()
+            });
+        }
+    }
+    Ok(defaults)
+}
+
 /// Whether a User's settings show their default for a Fulfiller whose list is `listed`: to pick
 /// one when it has more than one, or to flag `theirs` once an admin removed it from a list that
 /// still has one.
-pub(crate) fn shows_default(listed: &[Quality], theirs: Option<i64>) -> bool {
+fn shows_default(listed: &[Quality], theirs: Option<i64>) -> bool {
     let removed = theirs.is_some_and(|id| listed.iter().all(|quality| quality.id != id));
     listed.len() > 1 || (removed && !listed.is_empty())
 }
@@ -270,7 +342,7 @@ fn requested(quality: &Quality) -> RequestedQuality {
 
 /// The id of the Quality `user` set as their default for the Plugin `plugin`, which its list may
 /// no longer have.
-pub(crate) async fn personal_default(
+async fn personal_default(
     conn: &mut SqliteConnection,
     user: i64,
     plugin: &PluginId,
@@ -398,22 +470,27 @@ impl ShowRequests {
         })
     }
 
-    /// The Quality new Season Requests of the Show take, and whether the asker chose it: the
-    /// Show's if it has one, else `taken`, as [`for_request`] gave it. Refuses another Quality
-    /// the asker `named`.
-    pub(crate) fn for_seasons(
-        &self,
-        taken: (Option<RequestedQuality>, bool),
-        named: Option<i64>,
-    ) -> Result<(Option<RequestedQuality>, bool), Refused> {
+    /// What `asked`, as [`for_request`] made it, says about Quality for new Season Requests of
+    /// the Show: as [`Self::for_scan`] says if the Show has a Quality, else `asked`. Refuses
+    /// another Quality the asker named.
+    pub(crate) fn for_seasons(&self, asked: Ask) -> Result<Ask, Refused> {
         let Some(shows) = self.quality() else {
-            return Ok(taken);
+            return Ok(asked);
         };
-        if let Some(named) = named.filter(|&id| id != shows.id) {
+        if let Some(named) = asked.named.filter(|&id| id != shows.id) {
             let shows = shows.clone();
             return Err(Refused::NotTheShows { named, shows });
         }
-        Ok((Some(shows.clone()), false))
+        Ok(self.for_scan())
+    }
+
+    /// What a scan's ask for a new Season of the Show says about Quality: it takes the Show's,
+    /// which nobody chose.
+    pub(crate) fn for_scan(&self) -> Ask {
+        Ask {
+            taken: self.quality().cloned(),
+            ..Ask::default()
+        }
     }
 
     /// What a Request manager changing the Show's Quality to `new` moves, so the Show keeps one
@@ -440,16 +517,6 @@ impl ShowRequests {
             followed: self.followed,
         })
     }
-}
-
-/// The Quality an auto-approved joiner's ask approves a Pending Request at: `theirs` if they
-/// `chose` it, by picking it or as a personal default still on the list, else `None`, so the
-/// Request keeps its own and its earlier Requesters aren't moved to the default.
-pub(crate) fn joiner_approves_at(
-    theirs: Option<RequestedQuality>,
-    chose: bool,
-) -> Option<RequestedQuality> {
-    theirs.filter(|_| chose)
 }
 
 /// The Quality the service downloads a Request asked at `asked` at, as its hand-off reported in
@@ -492,6 +559,7 @@ pub(crate) fn used(
 mod tests {
     use std::sync::Arc;
 
+    use buffa::EnumValue;
     use tempfile::TempDir;
 
     use super::*;
@@ -640,10 +708,26 @@ mod tests {
         ) -> Result<(Option<String>, bool), Refused> {
             let mut conn = self.db.reader().acquire().await.unwrap();
             let fulfiller = listed.then_some(&self.plugin);
-            let taken = for_request(&mut conn, asker, fulfiller, named)
+            let ask = for_request(&mut conn, asker, fulfiller, named)
                 .await
                 .unwrap()?;
-            Ok((taken.0.map(|quality| quality.name), taken.1))
+            Ok((ask.taken.map(|quality| quality.name), ask.chosen))
+        }
+
+        /// What [`personal_defaults`] lists for the User with the Movies Fulfiller from `movies`
+        /// and the Shows one from `shows`, by Fulfiller and the User's default.
+        async fn defaults(
+            &self,
+            movies: Option<&PluginId>,
+            shows: Option<&PluginId>,
+        ) -> Vec<(EnumValue<ExtensionPoint>, Option<i64>)> {
+            let mut conn = self.db.reader().acquire().await.unwrap();
+            personal_defaults(&mut conn, self.user, movies, shows)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|default| (default.fulfiller, default.quality))
+                .collect()
         }
     }
 
@@ -803,6 +887,41 @@ mod tests {
         assert!(!shows_default(&[], Some(2)));
     }
 
+    #[tokio::test]
+    async fn a_users_defaults_list_each_fulfiller_with_several_qualities_or_with_theirs_removed() {
+        let listed = Listed::new().await;
+        let plugin = Some(&listed.plugin);
+        let movies = ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER.into();
+        let shows = ExtensionPoint::EXTENSION_POINT_SHOW_FULFILLER.into();
+        let four_k = Some(listed.four_k);
+
+        let several = listed.defaults(plugin, plugin).await;
+        let no_fulfiller = listed.defaults(None, None).await;
+        let hd_only = vec![Quality {
+            id: listed.hd,
+            ..quality("4", "HD", true)
+        }];
+        replace(&listed.db, listed.plugin.clone(), hd_only)
+            .await
+            .unwrap();
+        let removed = listed.defaults(None, plugin).await;
+        set_personal_default(
+            &listed.db,
+            listed.user,
+            listed.plugin.clone(),
+            Some(listed.hd),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let one = listed.defaults(plugin, None).await;
+
+        assert_eq!(several, [(movies, four_k), (shows, four_k)]);
+        assert_eq!(no_fulfiller, []);
+        assert_eq!(removed, [(shows, four_k)]);
+        assert_eq!(one, []);
+    }
+
     fn requested_as(id: i64, name: &str) -> RequestedQuality {
         RequestedQuality {
             id,
@@ -925,13 +1044,23 @@ mod tests {
     #[test]
     fn new_seasons_take_the_shows_quality_and_refuse_another_named_one() {
         let shows = show(vec![season(1, FOUR_K, RequestState::Pending, false)], None);
-        let asked_hd = (Some(requested_as(HD, "HD")), true);
+        let asked_hd = |named| Ask {
+            taken: Some(requested_as(HD, "HD")),
+            chosen: true,
+            named,
+        };
 
-        let unnamed = shows.for_seasons(asked_hd.clone(), None);
-        let named = shows.for_seasons(asked_hd.clone(), Some(HD));
-        let without_one = show(Vec::new(), None).for_seasons(asked_hd.clone(), Some(HD));
+        let unnamed = shows.for_seasons(asked_hd(None));
+        let named = shows.for_seasons(asked_hd(Some(HD)));
+        let without_one = show(Vec::new(), None).for_seasons(asked_hd(Some(HD)));
 
-        assert_eq!(unnamed, Ok((Some(requested_as(FOUR_K, "2")), false)));
+        assert_eq!(
+            unnamed,
+            Ok(Ask {
+                taken: Some(requested_as(FOUR_K, "2")),
+                ..Ask::default()
+            })
+        );
         assert_eq!(
             named,
             Err(Refused::NotTheShows {
@@ -939,15 +1068,20 @@ mod tests {
                 shows: requested_as(FOUR_K, "2"),
             })
         );
-        assert_eq!(without_one, Ok(asked_hd));
+        assert_eq!(without_one, Ok(asked_hd(Some(HD))));
     }
 
     #[test]
     fn a_joiners_quality_replaces_a_pending_requests_only_if_they_chose_it() {
         let hd = Some(requested_as(HD, "HD"));
+        let asked_hd = |chosen| Ask {
+            taken: hd.clone(),
+            chosen,
+            named: None,
+        };
 
-        assert_eq!(joiner_approves_at(hd.clone(), true), hd);
-        assert_eq!(joiner_approves_at(hd, false), None);
+        assert_eq!(asked_hd(true).joiner_approves_at(), hd);
+        assert_eq!(asked_hd(false).joiner_approves_at(), None);
     }
 
     fn fulfilled(profile_id: &str, profile_name: &str) -> Fulfilled {
