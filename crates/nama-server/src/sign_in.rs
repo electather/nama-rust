@@ -9,7 +9,7 @@ use crate::{
     device_names,
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     sign_in_codes::{self, Delivery, Poll, SignInCodes, Started},
-    users::{self, Caller, NewDevice, SetupCode, SignedIn, Users},
+    users::{self, ApprovingDevice, Caller, NewDevice, Proved, SetupCode, SignedIn, Users},
 };
 
 /// Signs Devices in, with a proof or a Sign-in Code, under the sign-in limits.
@@ -126,7 +126,10 @@ impl SignIn {
         let attempt = self.limits.admit(device.ip_address, Some(&name), now)?;
         let (user, method) = self.users.verify(&name, &password).await?;
         self.limits.succeeded(&attempt);
-        Ok(self.users.sign_in_as(user, Some(method), device).await?)
+        Ok(self
+            .users
+            .sign_in_as(Proved::Method { user, method }, device)
+            .await?)
     }
 
     /// Starts signing in, with a Sign-in Code, the Device `device_name` that sent `user_agent`, at
@@ -161,7 +164,8 @@ impl SignIn {
         now: Instant,
     ) -> Result<(), Error> {
         self.counting_unknown_codes(caller, now, || {
-            self.codes.approve(entered, &caller.user, now)
+            self.codes
+                .approve(entered, ApprovingDevice::from(caller), now)
         })
     }
 
@@ -175,21 +179,24 @@ impl SignIn {
         user_agent: Option<String>,
         now: Instant,
     ) -> Result<Polled, Error> {
-        let (user, device_name, delivery) = match self.codes.poll(handle, now)? {
+        let (approving, device_name, delivery) = match self.codes.poll(handle, now)? {
             Poll::Waiting => return Ok(Polled::Waiting),
             Poll::Expired => return Ok(Polled::Expired),
             Poll::Approved {
-                user,
+                approving,
                 device_name,
                 delivery,
-            } => (user, device_name, delivery),
+            } => (approving, device_name, delivery),
         };
         let device = NewDevice {
             name: device_name,
             ip_address,
             user_agent,
         };
-        let signed_in = self.users.sign_in_as(user, None, device).await?;
+        let signed_in = self
+            .users
+            .sign_in_as(Proved::Code(approving), device)
+            .await?;
         Ok(Polled::SignedIn {
             signed_in,
             delivery,
@@ -566,11 +573,11 @@ mod tests {
     /// Ada's Device "Phone", signed in from [`LAPTOP_IP`] by a Sign-in Code, so it has no Recent
     /// Authentication yet.
     async fn ada_without_recent_authentication(sign_in: &SignIn) -> Caller {
-        let (ada, _) = sign_in.users.verify("Ada", PASSWORD).await.unwrap();
+        let laptop = ada_on_a_new_device(sign_in, Instant::now()).await;
         let phone = device("Phone", LAPTOP_IP);
         sign_in
             .users
-            .sign_in_as(ada, None, phone)
+            .sign_in_as(Proved::Code(ApprovingDevice::from(&laptop)), phone)
             .await
             .unwrap()
             .caller
@@ -764,6 +771,69 @@ mod tests {
             ),
             "the code signed in twice"
         );
+    }
+
+    /// Asserts that polling `handle` again at `now` finds no sign-in waiting.
+    async fn assert_used_up(sign_in: &SignIn, handle: &str, now: Instant) {
+        let again = poll_code(sign_in, handle, now).await;
+        assert!(
+            matches!(
+                again,
+                Err(Error::Code(sign_in_codes::Error::HandleNotFound))
+            ),
+            "the code wasn't used up"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_code_whose_approving_user_was_deleted_before_the_poll_is_refused_and_used_up() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let (sign_in, _) = sign_in_with_ada(data_dir.path()).await;
+        let now = Instant::now();
+        let ada = ada_on_a_new_device(&sign_in, now).await;
+        let grace = sign_in.users.create(&ada.user, "Grace", PASSWORD).await;
+        let grace = grace.unwrap();
+        let graces_laptop = attempt(&sign_in, "Grace", PASSWORD, now).await.unwrap();
+        let started = start_code(&sign_in, now);
+        sign_in
+            .approve_code(&graces_laptop.caller, &started.code, now)
+            .unwrap();
+        sign_in.users.delete(&ada.user, grace).await.unwrap();
+
+        let polled = poll_code(&sign_in, &started.handle, now).await;
+
+        assert!(
+            matches!(
+                polled,
+                Err(Error::Users(users::Error::ApprovingUserDeleted))
+            ),
+            "{:?}",
+            polled.as_ref().err()
+        );
+        assert_used_up(&sign_in, &started.handle, now).await;
+    }
+
+    #[tokio::test]
+    async fn a_code_whose_approving_device_signed_out_before_the_poll_is_refused_and_used_up() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let (sign_in, _) = sign_in_with_ada(data_dir.path()).await;
+        let now = Instant::now();
+        let ada = ada_on_a_new_device(&sign_in, now).await;
+        let started = start_code(&sign_in, now);
+        sign_in.approve_code(&ada, &started.code, now).unwrap();
+        sign_in.users.sign_out(ada.device.id).await.unwrap();
+
+        let polled = poll_code(&sign_in, &started.handle, now).await;
+
+        assert!(
+            matches!(
+                polled,
+                Err(Error::Users(users::Error::ApprovingDeviceSignedOut))
+            ),
+            "{:?}",
+            polled.as_ref().err()
+        );
+        assert_used_up(&sign_in, &started.handle, now).await;
     }
 
     #[tokio::test]

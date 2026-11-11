@@ -373,6 +373,8 @@ impl From<users::Error> for ConnectError {
             users::Error::NoSuchUser => {
                 refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message).field("user_id")
             }
+            // A polled Sign-in Code names no User.
+            users::Error::ApprovingUserDeleted => refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message),
             users::Error::AlreadySetUp => refuse(R::REFUSAL_REASON_ALREADY_SET_UP, message),
             users::Error::LastAdmin => refuse(R::REFUSAL_REASON_LAST_ADMIN, message),
             users::Error::AdminRequired => return permission_required(Permission::Admin),
@@ -382,7 +384,9 @@ impl From<users::Error> for ConnectError {
             users::Error::WrongPassword => {
                 refuse(R::REFUSAL_REASON_WRONG_PASSWORD, message).field("password")
             }
-            users::Error::SignedOut => refuse(R::REFUSAL_REASON_SIGNED_OUT, message),
+            users::Error::SignedOut | users::Error::ApprovingDeviceSignedOut => {
+                refuse(R::REFUSAL_REASON_SIGNED_OUT, message)
+            }
             users::Error::Database(err) => return database_failed(err),
             users::Error::NoAuthenticator
             | users::Error::Authenticator(_)

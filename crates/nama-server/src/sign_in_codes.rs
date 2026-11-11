@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::users::{self, User};
+use crate::users::{self, ApprovingDevice};
 
 /// How long a Sign-in Code and its poll handle last.
 const LIFETIME: Duration = Duration::from_mins(10);
@@ -36,7 +36,7 @@ struct Pending {
     device_name: String,
     delivery: Delivery,
     expires_at: Instant,
-    approved_by: Option<User>,
+    approved_by: Option<ApprovingDevice>,
 }
 
 pub(crate) struct Started {
@@ -60,10 +60,10 @@ pub(crate) enum Poll {
     Waiting,
     /// Not approved, or not polled once approved, within [`LIFETIME`].
     Expired,
-    /// Approved by `user`, so the Device `device_name` signs in as them, given its session by
-    /// `delivery`. Answered once: the sign-in is forgotten.
+    /// Approved from `approving`, so the Device `device_name` signs in as its User, given its
+    /// session by `delivery`. Answered once: the sign-in is forgotten.
     Approved {
-        user: User,
+        approving: ApprovingDevice,
         device_name: String,
         delivery: Delivery,
     },
@@ -136,10 +136,15 @@ impl SignInCodes {
             .clone())
     }
 
-    /// Approves the code `entered` at `now`, so its Device signs in as `user`.
-    pub(crate) fn approve(&self, entered: &str, user: &User, now: Instant) -> Result<(), Error> {
+    /// Approves the code `entered` from `approving` at `now`, so its Device signs in as their User.
+    pub(crate) fn approve(
+        &self,
+        entered: &str,
+        approving: ApprovingDevice,
+        now: Instant,
+    ) -> Result<(), Error> {
         let mut pending = self.lock();
-        awaiting_approval(&mut pending, entered, now)?.approved_by = Some(user.clone());
+        awaiting_approval(&mut pending, entered, now)?.approved_by = Some(approving);
         Ok(())
     }
 
@@ -154,7 +159,7 @@ impl SignInCodes {
             return Ok(Poll::Waiting);
         }
         let Some(Pending {
-            approved_by: Some(user),
+            approved_by: Some(approving),
             device_name,
             delivery,
             ..
@@ -163,7 +168,7 @@ impl SignInCodes {
             return Err(Error::HandleNotFound);
         };
         Ok(Poll::Approved {
-            user,
+            approving,
             device_name,
             delivery,
         })
@@ -194,18 +199,13 @@ fn awaiting_approval<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::users::Permissions;
 
     /// Ten minutes, counted independently of the code under test.
     const TEN_MINUTES: Duration = Duration::from_mins(10);
 
-    fn ada() -> User {
-        User {
-            id: 1,
-            name: "Ada".to_owned(),
-            permissions: Permissions::NEW_USER,
-            created_at: 0,
-        }
+    /// Ada's Device 2.
+    fn ada() -> ApprovingDevice {
+        ApprovingDevice { user: 1, device: 2 }
     }
 
     /// A sign-in started at `now` for the Device "Living room TV", wanting a token.
@@ -237,12 +237,12 @@ mod tests {
         let now = Instant::now();
         let started = start(&codes, now);
 
-        codes.approve(&started.code, &ada(), now).unwrap();
+        codes.approve(&started.code, ada(), now).unwrap();
         let first = codes.poll(&started.handle, now);
         let again = codes.poll(&started.handle, now);
 
         let Ok(Poll::Approved {
-            user,
+            approving,
             device_name,
             delivery,
         }) = first
@@ -250,8 +250,13 @@ mod tests {
             panic!("not approved: {first:?}");
         };
         assert_eq!(
-            (user.id, device_name.as_str(), delivery),
-            (1, "Living room TV", Delivery::Token)
+            (
+                approving.user,
+                approving.device,
+                device_name.as_str(),
+                delivery
+            ),
+            (1, 2, "Living room TV", Delivery::Token)
         );
         assert!(matches!(again, Err(Error::HandleNotFound)), "{again:?}");
     }
@@ -278,7 +283,7 @@ mod tests {
         let started = start(&codes, now);
         let typed = started.code.replace('-', "").to_lowercase();
 
-        codes.approve(&typed, &ada(), now).unwrap();
+        codes.approve(&typed, ada(), now).unwrap();
 
         assert!(matches!(
             codes.poll(&started.handle, now),
@@ -294,7 +299,7 @@ mod tests {
         let expired_at = started_at + TEN_MINUTES;
 
         let looked_up = codes.look_up(&started.code, expired_at);
-        let approved = codes.approve(&started.code, &ada(), expired_at);
+        let approved = codes.approve(&started.code, ada(), expired_at);
 
         assert!(matches!(looked_up, Err(Error::NotFound)), "{looked_up:?}");
         assert!(matches!(approved, Err(Error::NotFound)), "{approved:?}");
@@ -312,7 +317,7 @@ mod tests {
             .replace(last, if last == '0' { "1" } else { "0" });
 
         let looked_up = codes.look_up(&unknown, now);
-        let approved = codes.approve(&unknown, &ada(), now);
+        let approved = codes.approve(&unknown, ada(), now);
 
         assert!(matches!(looked_up, Err(Error::NotFound)), "{looked_up:?}");
         assert!(matches!(approved, Err(Error::NotFound)), "{approved:?}");
@@ -323,9 +328,9 @@ mod tests {
         let codes = SignInCodes::default();
         let now = Instant::now();
         let started = start(&codes, now);
-        codes.approve(&started.code, &ada(), now).unwrap();
+        codes.approve(&started.code, ada(), now).unwrap();
 
-        let again = codes.approve(&started.code, &ada(), now);
+        let again = codes.approve(&started.code, ada(), now);
 
         assert!(matches!(again, Err(Error::AlreadyApproved)), "{again:?}");
     }
@@ -349,7 +354,7 @@ mod tests {
         let codes = SignInCodes::default();
         let started_at = Instant::now();
         let started = start(&codes, started_at);
-        codes.approve(&started.code, &ada(), started_at).unwrap();
+        codes.approve(&started.code, ada(), started_at).unwrap();
 
         let polled = codes.poll(&started.handle, started_at + TEN_MINUTES);
 
