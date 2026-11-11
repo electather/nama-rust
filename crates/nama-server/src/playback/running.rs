@@ -52,10 +52,7 @@ use super::{Method, Playing, StartedPlan, direct_play_url, method_to_proto};
 use crate::{
     contents::Contents,
     events::{EventBus, event},
-    ffmpeg::{
-        Ffmpeg, FromCut, Hardware, Keyframe, ProbeError, Remux, ToneMapper, Transcode,
-        VideoConversion, hls_init,
-    },
+    ffmpeg::{Ffmpeg, FromCut, Hardware, Keyframe, ProbeError, Remux, Transcode, hls_init},
     server_settings::PlaybackSettings,
     tracks::{Tracks, track_to_proto},
     users::Caller,
@@ -110,11 +107,11 @@ type Run = dyn Fn(&Path, Keyframe) -> io::Result<Child> + Send + Sync;
 /// What starts ffmpeg writing a plan's files: `run`, or once a run on hardware fails, `fallback`.
 struct Runs {
     run: Box<Run>,
-    fallback: Option<Fallback>,
+    fallback: Option<FallbackRun>,
 }
 
 /// What a Transcode on hardware runs instead once a run there fails.
-struct Fallback {
+struct FallbackRun {
     run: Box<Run>,
     /// Why, as its plan's reasons then say.
     why: String,
@@ -171,7 +168,7 @@ struct Running {
     /// Whether the plan was stopped, so no ffmpeg is started again for requests still waiting.
     closed: AtomicBool,
     /// For a Transcode on hardware, what it runs once a run there fails.
-    fallback: Option<Fallback>,
+    fallback: Option<FallbackRun>,
     /// Whether a run on hardware failed, so `fallback` runs from then on.
     fell_back: AtomicBool,
     /// Tells Observers how the plan plays now, once it fell back.
@@ -310,7 +307,7 @@ impl RunningPlans {
         caller: &Caller,
         plan: super::Plan,
     ) -> Result<Option<StartedPlan>, StartError> {
-        let Some(playing) = plan.playing else {
+        let Some(playing) = plan.playing.clone() else {
             return Ok(None);
         };
         let playback = playback(caller, &plan);
@@ -324,7 +321,8 @@ impl RunningPlans {
             Playing::Transcode {
                 transcode,
                 duration_ms,
-            } => self.transcode(playback, transcode, duration_ms).await?,
+                fallback,
+            } => (self.transcode(playback, transcode, duration_ms, fallback)).await?,
         };
         Ok(started.map(|(id, url)| StartedPlan { id, url, plan }))
     }
@@ -358,14 +356,14 @@ impl RunningPlans {
 
     /// Starts Transcoding the Version `playback` plays, `duration_ms` long, for the Device it
     /// plays on, converting what `transcode` says, and returns its id and its playlist's URL. Its
-    /// segments are [`SEGMENT_MS`] each, as it forces a keyframe at each. On hardware, it falls
-    /// back to software, tone-mapping there only if [`Self::can_tone_map`]. `None` if there is no
-    /// such Version.
+    /// segments are [`SEGMENT_MS`] each, as it forces a keyframe at each. Once a run on hardware
+    /// fails, it goes on with `fallback`. `None` if there is no such Version.
     async fn transcode(
         &self,
         playback: Playback,
         transcode: Transcode,
         duration_ms: i64,
+        fallback: Option<super::Fallback>,
     ) -> Result<Option<(u64, String)>, StartError> {
         let Some((path, _)) = (self.inner.contents)
             .version_file(playback.version_id)
@@ -384,35 +382,15 @@ impl RunningPlans {
                 ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()
             })
         };
-        let video = transcode.video;
-        // Kept once answered, so this is the answer the plan was built with, unless that check
-        // failed.
-        let zscale =
-            video.hardware.is_some() && video.tone_map.is_some() && self.can_tone_map().await;
-        let fallback = video.hardware.map(|accel| {
-            let software = VideoConversion {
-                hardware: None,
-                tone_map: (video.tone_map)
-                    .filter(|_| zscale)
-                    .map(|_| ToneMapper::Software),
-                ..video
-            };
-            let untone_mapped = if software.tone_map.is_none() && video.tone_map.is_some() {
-                ", without tone-mapping its HDR, as this Server's ffmpeg lacks zscale"
-            } else {
-                ""
-            };
-            Fallback {
-                run: run(Transcode {
-                    video: software,
-                    ..transcode
-                }),
-                why: format!(
-                    "{} failed partway, so the rest of it Transcodes in software{untone_mapped}",
-                    accel.name()
-                ),
-            }
-        });
+        let fallback = fallback.map(
+            |super::Fallback {
+                 transcode: software,
+                 why,
+             }| FallbackRun {
+                run: run(software),
+                why,
+            },
+        );
         let runs = Runs {
             run: run(transcode),
             fallback,
@@ -860,7 +838,7 @@ impl Running {
     /// How it plays now: as it started, and why it fell back if it did.
     fn playback_now(&self) -> Playback {
         let mut playback = self.playback.clone();
-        if let Some(Fallback { why, .. }) =
+        if let Some(FallbackRun { why, .. }) =
             (self.fallback.as_ref()).filter(|_| self.fell_back.load(Ordering::Acquire))
         {
             playback.reasons.push(why.clone());
@@ -901,7 +879,7 @@ impl Running {
     /// Once `run`, the plan's current run of ffmpeg, failed on hardware, starts its fallback from
     /// the first file it hadn't written, and tells Observers so. Only the first failure does.
     async fn fall_back(self: &Arc<Self>, run: &Arc<FfmpegRun>) {
-        let Some(Fallback { why, .. }) = &self.fallback else {
+        let Some(FallbackRun { why, .. }) = &self.fallback else {
             return;
         };
         // Before waiting for the lock, so a seek that restarts ffmpeg meanwhile, aborting this
@@ -1064,7 +1042,8 @@ mod tests {
     };
 
     use super::{
-        Fallback, Method, POLL_EVERY, Running, RunningPlans, Runs, Timeline, lock, sweep_leftovers,
+        FallbackRun, Method, POLL_EVERY, Running, RunningPlans, Runs, Timeline, lock,
+        sweep_leftovers,
     };
     use crate::{
         contents::Contents,
@@ -1499,7 +1478,7 @@ mod tests {
                 every_two_seconds(),
                 Runs {
                     run: Box::new(hardware),
-                    fallback: Some(Fallback {
+                    fallback: Some(FallbackRun {
                         run: Box::new(software),
                         why: reason.to_owned(),
                     }),
