@@ -97,15 +97,25 @@ export function rowTitles() {
   return screen.getAllByRole("listitem").map((row) => row.querySelector("p")?.textContent);
 }
 
-/** Opens the app at `path`, talking to the fake Server behind `transport`. */
-export function openApp(path: string, transport: ReturnType<typeof createRouterTransport>) {
+/**
+ * Opens the app at `path`, talking to the fake Server behind `transport`, rendered inside `wrap`,
+ * such as the `StrictMode` TanStack Start's client entry renders it in.
+ */
+export function openApp(
+  path: string,
+  transport: ReturnType<typeof createRouterTransport>,
+  wrap: (app: Parameters<typeof render>[0]) => Parameters<typeof render>[0] = (app) => app,
+) {
   window.history.replaceState(null, "", path);
   const router = getRouter(transport);
   // A route's error page shows what it caught. React's own log of it would inspect the error's
   // `Headers`, which happy-dom can't. The shell renders `<html>` and `<body>`, so the app takes the
   // whole document, as in a browser: inside a `<div>` in the body React adopts, the first `focus()`
   // (a menu handing focus back) spins forever finding the event's root.
-  render(<RouterProvider router={router} />, { container: document, onCaughtError: () => {} });
+  render(wrap(<RouterProvider router={router} />), {
+    container: document,
+    onCaughtError: () => {},
+  });
   return router;
 }
 
