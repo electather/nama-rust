@@ -19,12 +19,22 @@ afterEach(() => {
 const sam = [{ userId: 1n, name: "Sam" }];
 
 function movie(id: bigint, title: string) {
-  return { id, movie: { tmdbId: id, title }, state: RequestState.PENDING, requesters: sam };
+  return {
+    id,
+    movieOrSeason: { case: "movie" as const, value: { tmdbId: id, title } },
+    state: RequestState.PENDING,
+    requesters: sam,
+  };
 }
 
 function darkSeason(id: bigint, seasonNumber: number) {
   const season = { showTmdbId: 70_523n, seasonNumber, showTitle: "Dark" };
-  return { id, season, state: RequestState.APPROVED, requesters: sam };
+  return {
+    id,
+    movieOrSeason: { case: "season" as const, value: season },
+    state: RequestState.APPROVED,
+    requesters: sam,
+  };
 }
 
 /**

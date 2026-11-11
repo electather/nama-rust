@@ -14,7 +14,7 @@ use nama_plugin_api::{
     PluginId,
     fulfiller::{Fulfilled, Fulfiller, Movies, Shows},
 };
-use nama_proto::nama::v1::{Request, RequestState};
+use nama_proto::nama::v1::{Request, RequestState, request::MovieOrSeason};
 use tokio::sync::{Notify, mpsc::UnboundedReceiver};
 use tracing::{error, warn};
 
@@ -160,10 +160,9 @@ impl HandOff {
     /// What the Fulfiller for `request`'s kind says to it, if one is enabled: what it reports once
     /// it takes it, or why it doesn't.
     async fn fulfill(&self, request: &Request) -> Option<Answer<Fulfilled>> {
-        let fulfilled = if request.movie.is_unset() {
-            self.fulfill_as::<Shows>(request).await
-        } else {
-            self.fulfill_as::<Movies>(request).await
+        let fulfilled = match request.movie_or_season.as_ref()? {
+            MovieOrSeason::Movie(_) => self.fulfill_as::<Movies>(request).await,
+            MovieOrSeason::Season(_) => self.fulfill_as::<Shows>(request).await,
         }?;
         if let Err(failure) = &fulfilled.result {
             warn!(
@@ -198,9 +197,10 @@ impl HandOff {
             result: Err(failure),
             ..
         }) = unfollowed
+            && let Some(MovieOrSeason::Season(asked)) = &season.movie_or_season
         {
             warn!(
-                show = season.season.show_tmdb_id,
+                show = asked.show_tmdb_id,
                 reason = failure.message,
                 "the Shows Fulfiller didn't stop following the Show"
             );

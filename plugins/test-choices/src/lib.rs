@@ -11,7 +11,7 @@ use nama_plugin_api::{
         Choice, Choices, SettingField, SettingKind, Settings, SettingsCheck, SettingsSchema,
     },
 };
-use nama_proto::nama::v1::Request;
+use nama_proto::nama::v1::{Request, request::MovieOrSeason};
 
 /// The test Plugin's id.
 pub const ID: &str = "test-choices";
@@ -96,11 +96,14 @@ impl Fulfiller<Movies> for TestChoices {
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        let reference = format!("movie-{}", request.movie.tmdb_id);
-        Box::pin(future::ready(Ok(Fulfilled {
-            reference,
-            ..Fulfilled::default()
-        })))
+        let fulfilled = match &request.movie_or_season {
+            Some(MovieOrSeason::Movie(movie)) => Ok(Fulfilled {
+                reference: format!("movie-{}", movie.tmdb_id),
+                ..Fulfilled::default()
+            }),
+            _ => Err("not a Movie Request".into()),
+        };
+        Box::pin(future::ready(fulfilled))
     }
 
     fn progress<'a>(
@@ -117,15 +120,17 @@ impl Fulfiller<Shows> for TestChoices {
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        let season = &request.season;
-        let reference = format!(
-            "show-{}-season-{}",
-            season.show_tmdb_id, season.season_number
-        );
-        Box::pin(future::ready(Ok(Fulfilled {
-            reference,
-            ..Fulfilled::default()
-        })))
+        let fulfilled = match &request.movie_or_season {
+            Some(MovieOrSeason::Season(season)) => Ok(Fulfilled {
+                reference: format!(
+                    "show-{}-season-{}",
+                    season.show_tmdb_id, season.season_number
+                ),
+                ..Fulfilled::default()
+            }),
+            _ => Err("not a Season Request".into()),
+        };
+        Box::pin(future::ready(fulfilled))
     }
 
     fn progress<'a>(

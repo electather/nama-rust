@@ -13,7 +13,7 @@ const you = { userId: 1n, name: "Sam" };
 
 const heat = {
   id: 2n,
-  movie: { tmdbId: 949n, title: "Heat" },
+  movieOrSeason: { case: "movie" as const, value: { tmdbId: 949n, title: "Heat" } },
   state: RequestState.PENDING,
   requesters: [you, ada],
 };
@@ -46,7 +46,12 @@ test("Withdraw is offered only on your own Pending Requests", async () => {
     "/requests",
     server(
       { ...heat, requesters: [ada] },
-      { ...heat, id: 1n, movie: { title: "Dune" }, state: RequestState.APPROVED },
+      {
+        ...heat,
+        id: 1n,
+        movieOrSeason: { case: "movie" as const, value: { title: "Dune" } },
+        state: RequestState.APPROVED,
+      },
     ),
   );
 

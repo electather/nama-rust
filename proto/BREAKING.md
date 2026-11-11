@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-11, #622
+
+- `FIELD_SAME_ONEOF`, `nama/v1/request.proto`: `Request.movie` (2) and `Request.season` (7).
+- `Request.movie` and `Request.season` are now the two arms of the oneof `movie_or_season`, keeping their names and numbers, so the bytes and the JSON are unchanged.
+- A client or an Installed Plugin built before still decodes a Request; once it regenerates it reads what the Request asks for from `movie_or_season` instead of testing which field is set.
+
 ## 2026-11-11, #624
 
 - `FIELD_SAME_TYPE`, `nama/v1/browse.proto`.

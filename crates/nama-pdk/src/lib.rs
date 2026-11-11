@@ -100,14 +100,20 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
 /// ```
 /// use std::collections::HashMap;
 ///
-/// use nama_pdk::{Download, Fulfilled, Fulfiller, Request, extism_pdk::Error};
+/// use nama_pdk::{
+///     Download, Fulfilled, Fulfiller, Request, extism_pdk::Error,
+///     nama_proto::nama::v1::request::MovieOrSeason,
+/// };
 ///
 /// struct Radarr;
 ///
 /// impl Fulfiller for Radarr {
 ///     fn fulfill(request: Request) -> Result<Fulfilled, Error> {
+///         let Some(MovieOrSeason::Movie(movie)) = request.movie_or_season else {
+///             return Err(Error::msg("Radarr takes only Movie Requests"));
+///         };
 ///         Ok(Fulfilled {
-///             reference: format!("radarr-{}", request.movie.tmdb_id),
+///             reference: format!("radarr-{}", movie.tmdb_id),
 ///             ..Fulfilled::default()
 ///         })
 ///     }

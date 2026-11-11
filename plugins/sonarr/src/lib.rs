@@ -13,7 +13,10 @@ mod exports {
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
         extism_pdk::{self, Error, HttpResponse},
-        nama_proto::nama::plugin::v1::ProvidePoint,
+        nama_proto::nama::{
+            plugin::v1::ProvidePoint,
+            v1::{RequestedSeason, request::MovieOrSeason},
+        },
         plugin_fn,
     };
     use nama_servarr::{QualityProfile, Queued, Servarr};
@@ -54,7 +57,7 @@ mod exports {
     impl Fulfiller for SonarrFulfiller {
         fn fulfill(request: Request) -> Result<Fulfilled, Error> {
             let tvdb_id = show_tvdb_id(&request)?;
-            let season_number = request.season.season_number;
+            let season_number = asked_season(&request)?.season_number;
             let asked = nama_servarr::quality_profile(&request)?;
             let sonarr = Sonarr::from_config()?;
             let profiles = sonarr.api.quality_profiles()?;
@@ -142,7 +145,7 @@ mod exports {
             let tvdb_id = show_tvdb_id(request)?;
             let follow = request.followed_show_id.is_some();
             let show = self.look_up(tvdb_id)?;
-            if self.add(show, request.season.season_number, follow, asked)? {
+            if self.add(show, asked_season(request)?.season_number, follow, asked)? {
                 return Ok(None);
             }
             // Another hand-off for the Show added it since `find`.
@@ -272,9 +275,16 @@ mod exports {
         nama_servarr::fulfilled(reference, Some(profile_id), profiles)
     }
 
+    /// The Season `request` asks for. The Server hands Sonarr only Season Requests.
+    fn asked_season(request: &Request) -> Result<&RequestedSeason, Error> {
+        match &request.movie_or_season {
+            Some(MovieOrSeason::Season(season)) => Ok(season),
+            _ => Err(Error::msg("Sonarr takes only Season Requests")),
+        }
+    }
+
     fn show_tvdb_id(request: &Request) -> Result<i64, Error> {
-        request
-            .season
+        asked_season(request)?
             .show_tvdb_id
             .ok_or_else(|| Error::msg("Sonarr needs the Show's TVDB id, and none is known for it"))
     }

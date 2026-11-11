@@ -178,7 +178,9 @@ type Show = Pick<ShowGroup, "showTmdbId" | "showTitle">;
 
 /** The Show a Followed Show or a Season Request is of; a Movie's Request has none. */
 function showOf(asked: Request | FollowedShow): Show | undefined {
-  return asked.$typeName === "nama.v1.FollowedShow" ? asked : asked.season;
+  if (asked.$typeName === "nama.v1.FollowedShow") return asked;
+  const { movieOrSeason } = asked;
+  return movieOrSeason.case === "season" ? movieOrSeason.value : undefined;
 }
 
 function newGroup({ showTmdbId, showTitle }: Show): ShowGroup {
@@ -191,5 +193,6 @@ function addTo(group: ShowGroup, asked: Request | FollowedShow) {
 }
 
 function seasonNumber(request: Request) {
-  return request.season?.seasonNumber ?? 0;
+  const { movieOrSeason } = request;
+  return movieOrSeason.case === "season" ? movieOrSeason.value.seasonNumber : 0;
 }

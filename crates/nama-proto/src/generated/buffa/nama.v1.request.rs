@@ -394,7 +394,7 @@ impl ::buffa::Enumeration for DownloadStatus {
 /// Users asking for one Movie, or one Season of a Show. Each has at most one open Request: one that
 /// is neither Declined nor Available.
 #[derive(Clone, PartialEq, Default)]
-#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[derive(::serde::Serialize)]
 #[serde(default)]
 pub struct Request {
     /// Field 1: `id`
@@ -404,14 +404,6 @@ pub struct Request {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub id: i64,
-    /// The Movie asked for, unless it asks for a Season.
-    ///
-    /// Field 2: `movie`
-    #[serde(
-        rename = "movie",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
-    )]
-    pub movie: ::buffa::MessageField<RequestedMovie, ::buffa::Inline<RequestedMovie>>,
     /// Field 3: `state`
     #[serde(
         rename = "state",
@@ -448,14 +440,6 @@ pub struct Request {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub decline_reason: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The Season asked for, unless it asks for a Movie.
-    ///
-    /// Field 7: `season`
-    #[serde(
-        rename = "season",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
-    )]
-    pub season: ::buffa::MessageField<RequestedSeason, ::buffa::Inline<RequestedSeason>>,
     /// Why the Fulfiller didn't take it, in the Fulfiller's own words. Only a Failed Request has one.
     ///
     /// Field 8: `failure_reason`
@@ -539,6 +523,8 @@ pub struct Request {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub fulfiller_plugin_id: ::core::option::Option<::buffa::alloc::string::String>,
+    #[serde(flatten)]
+    pub movie_or_season: ::core::option::Option<__buffa::oneof::request::MovieOrSeason>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -547,12 +533,10 @@ impl ::core::fmt::Debug for Request {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("Request")
             .field("id", &self.id)
-            .field("movie", &self.movie)
             .field("state", &self.state)
             .field("requesters", &self.requesters)
             .field("created_at", &self.created_at)
             .field("decline_reason", &self.decline_reason)
-            .field("season", &self.season)
             .field("failure_reason", &self.failure_reason)
             .field("followed_show_id", &self.followed_show_id)
             .field("downloads", &self.downloads)
@@ -560,6 +544,7 @@ impl ::core::fmt::Debug for Request {
             .field("quality_used", &self.quality_used)
             .field("quality_change", &self.quality_change)
             .field("fulfiller_plugin_id", &self.fulfiller_plugin_id)
+            .field("movie_or_season", &self.movie_or_season)
             .finish()
     }
 }
@@ -632,13 +617,25 @@ impl ::buffa::Message for Request {
         if self.id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.id) as u64;
         }
-        if self.movie.is_set() {
-            let __slot = __cache.reserve();
-            let inner_size = self.movie.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
+        if let ::core::option::Option::Some(ref v) = self.movie_or_season {
+            match v {
+                __buffa::oneof::request::MovieOrSeason::Movie(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::request::MovieOrSeason::Season(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
         }
         {
             let val = self.state.to_i32();
@@ -659,14 +656,6 @@ impl ::buffa::Message for Request {
         }
         if let Some(ref v) = self.decline_reason {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
-        }
-        if self.season.is_set() {
-            let __slot = __cache.reserve();
-            let inner_size = self.season.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
         }
         if let Some(ref v) = self.failure_reason {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
@@ -722,13 +711,25 @@ impl ::buffa::Message for Request {
         if self.id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.id, buf);
         }
-        if self.movie.is_set() {
-            ::buffa::types::put_len_delimited_header(
-                2u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            self.movie.write_to(__cache, buf);
+        if let ::core::option::Option::Some(ref v) = self.movie_or_season {
+            match v {
+                __buffa::oneof::request::MovieOrSeason::Movie(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::request::MovieOrSeason::Season(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
         }
         {
             let val = self.state.to_i32();
@@ -749,14 +750,6 @@ impl ::buffa::Message for Request {
         }
         if let Some(ref v) = self.decline_reason {
             ::buffa::types::put_string_field(6u32, v, buf);
-        }
-        if self.season.is_set() {
-            ::buffa::types::put_len_delimited_header(
-                7u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            self.season.write_to(__cache, buf);
         }
         if let Some(ref v) = self.failure_reason {
             ::buffa::types::put_string_field(8u32, v, buf);
@@ -824,11 +817,40 @@ impl ::buffa::Message for Request {
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                ::buffa::Message::merge_length_delimited(
-                    self.movie.get_or_insert_default(),
-                    buf,
-                    ctx,
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::request::MovieOrSeason::Movie(ref mut existing),
+                ) = self.movie_or_season
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.movie_or_season = ::core::option::Option::Some(
+                        __buffa::oneof::request::MovieOrSeason::Movie(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
                 )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::request::MovieOrSeason::Season(ref mut existing),
+                ) = self.movie_or_season
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.movie_or_season = ::core::option::Option::Some(
+                        __buffa::oneof::request::MovieOrSeason::Season(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -868,17 +890,6 @@ impl ::buffa::Message for Request {
                         .decline_reason
                         .get_or_insert_with(::buffa::alloc::string::String::new),
                     buf,
-                )?;
-            }
-            7u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                ::buffa::Message::merge_length_delimited(
-                    self.season.get_or_insert_default(),
-                    buf,
-                    ctx,
                 )?;
             }
             8u32 => {
@@ -968,12 +979,11 @@ impl ::buffa::Message for Request {
     }
     fn clear(&mut self) {
         self.id = 0i64;
-        self.movie = ::buffa::MessageField::none();
+        self.movie_or_season = ::core::option::Option::None;
         self.state = ::buffa::EnumValue::from(0);
         self.requesters.clear();
         self.created_at = 0i64;
         self.decline_reason = ::core::option::Option::None;
-        self.season = ::buffa::MessageField::none();
         self.failure_reason = ::core::option::Option::None;
         self.followed_show_id = ::core::option::Option::None;
         self.downloads.clear();
@@ -991,6 +1001,323 @@ impl ::buffa::ExtensionSet for Request {
     }
     fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
         &mut self.__buffa_unknown_fields
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for Request {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl<'de> ::serde::de::Visitor<'de> for _V {
+            type Value = Request;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str("struct Request")
+            }
+            #[allow(clippy::field_reassign_with_default)]
+            fn visit_map<A: ::serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> ::core::result::Result<Request, A::Error> {
+                let mut __f_id: ::core::option::Option<i64> = None;
+                let mut __f_state: ::core::option::Option<
+                    ::buffa::EnumValue<RequestState>,
+                > = None;
+                let mut __f_requesters: ::core::option::Option<
+                    ::buffa::alloc::vec::Vec<Requester>,
+                > = None;
+                let mut __f_created_at: ::core::option::Option<i64> = None;
+                let mut __f_decline_reason: ::core::option::Option<
+                    ::core::option::Option<::buffa::alloc::string::String>,
+                > = None;
+                let mut __f_failure_reason: ::core::option::Option<
+                    ::core::option::Option<::buffa::alloc::string::String>,
+                > = None;
+                let mut __f_followed_show_id: ::core::option::Option<
+                    ::core::option::Option<i64>,
+                > = None;
+                let mut __f_downloads: ::core::option::Option<
+                    ::buffa::alloc::vec::Vec<Download>,
+                > = None;
+                let mut __f_quality: ::core::option::Option<
+                    ::buffa::MessageField<
+                        RequestedQuality,
+                        ::buffa::Inline<RequestedQuality>,
+                    >,
+                > = None;
+                let mut __f_quality_used: ::core::option::Option<
+                    ::buffa::MessageField<
+                        RequestedQuality,
+                        ::buffa::Inline<RequestedQuality>,
+                    >,
+                > = None;
+                let mut __f_quality_change: ::core::option::Option<
+                    ::buffa::MessageField<QualityChange, ::buffa::Inline<QualityChange>>,
+                > = None;
+                let mut __f_fulfiller_plugin_id: ::core::option::Option<
+                    ::core::option::Option<::buffa::alloc::string::String>,
+                > = None;
+                let mut __oneof_movie_or_season: ::core::option::Option<
+                    __buffa::oneof::request::MovieOrSeason,
+                > = None;
+                while let Some(key) = map.next_key::<::buffa::alloc::string::String>()? {
+                    match key.as_str() {
+                        "id" => {
+                            __f_id = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = i64;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<i64, D::Error> {
+                                        ::buffa::json_helpers::int64::deserialize(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
+                        "state" => {
+                            __f_state = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = ::buffa::EnumValue<RequestState>;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<
+                                        ::buffa::EnumValue<RequestState>,
+                                        D::Error,
+                                    > {
+                                        ::buffa::json_helpers::proto_enum::deserialize(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
+                        "requesters" => {
+                            __f_requesters = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = ::buffa::alloc::vec::Vec<Requester>;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<
+                                        ::buffa::alloc::vec::Vec<Requester>,
+                                        D::Error,
+                                    > {
+                                        ::buffa::json_helpers::null_as_default(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
+                        "createdAt" | "created_at" => {
+                            __f_created_at = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = i64;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<i64, D::Error> {
+                                        ::buffa::json_helpers::int64::deserialize(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
+                        "declineReason" | "decline_reason" => {
+                            __f_decline_reason = Some(
+                                map
+                                    .next_value::<
+                                        ::core::option::Option<::buffa::alloc::string::String>,
+                                    >()?,
+                            );
+                        }
+                        "failureReason" | "failure_reason" => {
+                            __f_failure_reason = Some(
+                                map
+                                    .next_value::<
+                                        ::core::option::Option<::buffa::alloc::string::String>,
+                                    >()?,
+                            );
+                        }
+                        "followedShowId" | "followed_show_id" => {
+                            __f_followed_show_id = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = ::core::option::Option<i64>;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<
+                                        ::core::option::Option<i64>,
+                                        D::Error,
+                                    > {
+                                        ::buffa::json_helpers::opt_int64::deserialize(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
+                        "downloads" => {
+                            __f_downloads = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = ::buffa::alloc::vec::Vec<Download>;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<
+                                        ::buffa::alloc::vec::Vec<Download>,
+                                        D::Error,
+                                    > {
+                                        ::buffa::json_helpers::null_as_default(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
+                        "quality" => {
+                            __f_quality = Some(
+                                map
+                                    .next_value::<
+                                        ::buffa::MessageField<
+                                            RequestedQuality,
+                                            ::buffa::Inline<RequestedQuality>,
+                                        >,
+                                    >()?,
+                            );
+                        }
+                        "qualityUsed" | "quality_used" => {
+                            __f_quality_used = Some(
+                                map
+                                    .next_value::<
+                                        ::buffa::MessageField<
+                                            RequestedQuality,
+                                            ::buffa::Inline<RequestedQuality>,
+                                        >,
+                                    >()?,
+                            );
+                        }
+                        "qualityChange" | "quality_change" => {
+                            __f_quality_change = Some(
+                                map
+                                    .next_value::<
+                                        ::buffa::MessageField<
+                                            QualityChange,
+                                            ::buffa::Inline<QualityChange>,
+                                        >,
+                                    >()?,
+                            );
+                        }
+                        "fulfillerPluginId" | "fulfiller_plugin_id" => {
+                            __f_fulfiller_plugin_id = Some(
+                                map
+                                    .next_value::<
+                                        ::core::option::Option<::buffa::alloc::string::String>,
+                                    >()?,
+                            );
+                        }
+                        "movie" => {
+                            let v: ::core::option::Option<RequestedMovie> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            RequestedMovie,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_movie_or_season.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'movie_or_season'",
+                                        ),
+                                    );
+                                }
+                                __oneof_movie_or_season = Some(
+                                    __buffa::oneof::request::MovieOrSeason::Movie(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "season" => {
+                            let v: ::core::option::Option<RequestedSeason> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            RequestedSeason,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_movie_or_season.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'movie_or_season'",
+                                        ),
+                                    );
+                                }
+                                __oneof_movie_or_season = Some(
+                                    __buffa::oneof::request::MovieOrSeason::Season(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        _ => {
+                            map.next_value::<::serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                let mut __r = <Request as ::core::default::Default>::default();
+                if let ::core::option::Option::Some(v) = __f_id {
+                    __r.id = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_state {
+                    __r.state = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_requesters {
+                    __r.requesters = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_created_at {
+                    __r.created_at = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_decline_reason {
+                    __r.decline_reason = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_failure_reason {
+                    __r.failure_reason = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_followed_show_id {
+                    __r.followed_show_id = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_downloads {
+                    __r.downloads = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_quality {
+                    __r.quality = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_quality_used {
+                    __r.quality_used = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_quality_change {
+                    __r.quality_change = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_fulfiller_plugin_id {
+                    __r.fulfiller_plugin_id = v;
+                }
+                __r.movie_or_season = __oneof_movie_or_season;
+                Ok(__r)
+            }
+        }
+        d.deserialize_map(_V)
     }
 }
 impl ::buffa::json_helpers::ProtoElemJson for Request {
@@ -1013,6 +1340,14 @@ pub const __REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::ty
     from_json: ::buffa::type_registry::any_from_json::<Request>,
     is_wkt: false,
 };
+pub mod request {
+    #[allow(unused_imports)]
+    use super::*;
+    #[doc(inline)]
+    pub use super::__buffa::oneof::request::MovieOrSeason;
+    #[doc(inline)]
+    pub use super::__buffa::view::oneof::request::MovieOrSeason as MovieOrSeasonView;
+}
 /// A Request manager changing a Request's Quality, as `Request.quality` now has it.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]

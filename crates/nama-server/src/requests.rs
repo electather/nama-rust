@@ -28,6 +28,7 @@ use nama_proto::nama::v1::{
     FollowedShowWithdrawn, FoundSeason, ListRequestsResponse, Permission, Quality, QualityChange,
     Request, RequestCancelled, RequestCreated, RequestState, RequestStateChanged, RequestWithdrawn,
     RequestedMovie, RequestedQuality, RequestedSeason, Requester, RequesterAdded, RequesterRemoved,
+    request::MovieOrSeason,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
@@ -440,10 +441,9 @@ impl Requests {
 
     /// The enabled Plugin providing the Fulfiller for `request`'s kind, Movies or Shows, if any.
     fn fulfiller_of(&self, request: &Request) -> Option<PluginId> {
-        if request.movie.is_unset() {
-            self.fulfiller::<Shows>()
-        } else {
-            self.fulfiller::<Movies>()
+        match request.movie_or_season.as_ref()? {
+            MovieOrSeason::Movie(_) => self.fulfiller::<Movies>(),
+            MovieOrSeason::Season(_) => self.fulfiller::<Shows>(),
         }
     }
 
@@ -1827,10 +1827,10 @@ async fn change_quality(
     let request = load_one(conn, id)
         .await?
         .ok_or(Error::NoSuch(Asked::Request, id))?;
-    let show = request
-        .movie
-        .is_unset()
-        .then_some(request.season.show_tmdb_id);
+    let show = match &request.movie_or_season {
+        Some(MovieOrSeason::Season(season)) => Some(season.show_tmdb_id),
+        _ => None,
+    };
     requality(conn, Some(id), show, new_quality).await
 }
 
@@ -2401,59 +2401,52 @@ async fn load(
     let mut requesters = asked::requesters(conn, Asked::Request, id).await?;
     Ok(rows
         .into_iter()
-        .map(|row| {
-            let mut request = Request {
-                id: row.id,
-                state: read_state(&row.state).into(),
-                requesters: requesters.remove(&row.id).unwrap_or_default(),
-                created_at: row.created_at,
-                decline_reason: row.decline_reason,
-                failure_reason: row.failure_reason,
-                followed_show_id: row.followed_show_id,
-                fulfiller_plugin_id: row.fulfiller_plugin_id,
-                quality: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
-                    .into(),
-                quality_change: row
-                    .quality_changed_at
-                    .map(|changed_at| QualityChange {
-                        changed_by: row.quality_changed_by,
-                        previous_name: row.quality_changed_from,
-                        changed_at,
-                        ..Default::default()
-                    })
-                    .into(),
-                quality_used: stored_quality(
-                    row.quality_used_id,
-                    row.quality_used_name,
-                    row.quality_used_profile_id,
-                )
+        .map(|row| Request {
+            id: row.id,
+            movie_or_season: match row.season {
+                Some(season_number) => RequestedSeason {
+                    show_tmdb_id: row.tmdb_id,
+                    season_number,
+                    show_title: row.title,
+                    air_date: row.release_date,
+                    show_imdb_id: row.show_imdb_id,
+                    show_tvdb_id: row.show_tvdb_id,
+                    ..Default::default()
+                }
                 .into(),
-                ..Default::default()
-            };
-            match row.season {
-                Some(season_number) => {
-                    request.season = RequestedSeason {
-                        show_tmdb_id: row.tmdb_id,
-                        season_number,
-                        show_title: row.title,
-                        air_date: row.release_date,
-                        show_imdb_id: row.show_imdb_id,
-                        show_tvdb_id: row.show_tvdb_id,
-                        ..Default::default()
-                    }
-                    .into();
+                None => RequestedMovie {
+                    tmdb_id: row.tmdb_id,
+                    title: row.title,
+                    release_date: row.release_date,
+                    ..Default::default()
                 }
-                None => {
-                    request.movie = RequestedMovie {
-                        tmdb_id: row.tmdb_id,
-                        title: row.title,
-                        release_date: row.release_date,
-                        ..Default::default()
-                    }
-                    .into();
-                }
-            }
-            request
+                .into(),
+            },
+            state: read_state(&row.state).into(),
+            requesters: requesters.remove(&row.id).unwrap_or_default(),
+            created_at: row.created_at,
+            decline_reason: row.decline_reason,
+            failure_reason: row.failure_reason,
+            followed_show_id: row.followed_show_id,
+            fulfiller_plugin_id: row.fulfiller_plugin_id,
+            quality: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
+                .into(),
+            quality_change: row
+                .quality_changed_at
+                .map(|changed_at| QualityChange {
+                    changed_by: row.quality_changed_by,
+                    previous_name: row.quality_changed_from,
+                    changed_at,
+                    ..Default::default()
+                })
+                .into(),
+            quality_used: stored_quality(
+                row.quality_used_id,
+                row.quality_used_name,
+                row.quality_used_profile_id,
+            )
+            .into(),
+            ..Default::default()
         })
         .filter(|request| may_see(requester, &request.requesters))
         .collect())
@@ -2545,10 +2538,11 @@ mod tests {
     use tokio::sync::Notify;
 
     use super::{
-        Applied, Error, Requests, STATES, Wanted, WantedSeasons, approve, ask, ask_movie,
-        ask_seasons, asked, availability, cancel, cancel_followed, decide_followed, decline,
-        follow, is_open, load, load_one, make_seasons_available, opening_state, progress, retry,
-        settle, withdraw, withdraw_followed,
+        Applied, Error, MovieOrSeason, RequestedMovie, RequestedSeason, Requests, STATES, Wanted,
+        WantedSeasons, approve, ask, ask_movie, ask_seasons, asked, availability, cancel,
+        cancel_followed, decide_followed, decline, follow, is_open, load, load_one,
+        make_seasons_available, opening_state, progress, retry, settle, withdraw,
+        withdraw_followed,
     };
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
@@ -2563,6 +2557,22 @@ mod tests {
     };
 
     const TODAY: &str = "2026-11-08";
+
+    /// The Movie `request` asks for, panicking if it asks for a Season.
+    fn asked_movie(request: &Request) -> &RequestedMovie {
+        match &request.movie_or_season {
+            Some(MovieOrSeason::Movie(movie)) => movie,
+            other => panic!("not a Movie Request: {other:?}"),
+        }
+    }
+
+    /// The Season `request` asks for, panicking if it asks for a Movie.
+    fn asked_season(request: &Request) -> &RequestedSeason {
+        match &request.movie_or_season {
+            Some(MovieOrSeason::Season(season)) => season,
+            other => panic!("not a Season Request: {other:?}"),
+        }
+    }
 
     fn episode(number: u32, air_date: Option<&str>) -> Episode {
         Episode {
@@ -2701,7 +2711,7 @@ mod tests {
             &'a self,
             request: &'a Request,
         ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-            took(request.movie.tmdb_id.to_string())
+            took(asked_movie(request).tmdb_id.to_string())
         }
 
         fn progress<'a>(
@@ -2717,7 +2727,7 @@ mod tests {
             &'a self,
             request: &'a Request,
         ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-            took(format!("season-{}", request.season.season_number))
+            took(format!("season-{}", asked_season(request).season_number))
         }
 
         fn progress<'a>(
@@ -4572,7 +4582,10 @@ mod tests {
         }
 
         fn unfollow<'a>(&'a self, season: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
-            self.0.lock().unwrap().push(season.season.show_tmdb_id);
+            self.0
+                .lock()
+                .unwrap()
+                .push(asked_season(season).show_tmdb_id);
             Box::pin(async { Ok(()) })
         }
 
@@ -4707,7 +4720,7 @@ mod tests {
             .map(|request| {
                 let requesters = request.requesters.iter().map(|one| one.user_id).collect();
                 let state = request.state.as_known().unwrap_or_default();
-                (request.season.season_number, state, requesters)
+                (asked_season(&request).season_number, state, requesters)
             })
             .collect()
     }
@@ -4857,7 +4870,7 @@ mod tests {
         to_season_3.seasons.push(dark_season(3));
         let joined = follow_as(db, BOB, to_season_3, RequestState::Pending).await;
         let season_3 = joined.value.1.last().expect("Season 3's Request");
-        assert_eq!(season_3.season.season_number, 3);
+        assert_eq!(asked_season(season_3).season_number, 3);
         (joined.value.0.id, season_3.id)
     }
 
