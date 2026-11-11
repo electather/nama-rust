@@ -2901,12 +2901,14 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             ("720p", picking_720p),
         ];
         for (chosen, choose) in choices {
-            let mut facts = direct_played();
-            choose(&mut facts);
-            without_hls(&mut facts);
-            let mut after_a_failed_direct_play = direct_played();
-            choose(&mut after_a_failed_direct_play);
-            without_hls(&mut after_a_failed_direct_play);
+            let chosen_without_hls = || {
+                let mut facts = direct_played();
+                choose(&mut facts);
+                without_hls(&mut facts);
+                facts
+            };
+            let mut facts = chosen_without_hls();
+            let mut after_a_failed_direct_play = chosen_without_hls();
             after_a_failed_direct_play.failed = BTreeSet::from([Method::DirectPlay]);
 
             let played = build(&mut facts);
