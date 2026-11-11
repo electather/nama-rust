@@ -25,6 +25,32 @@ service PlaybackService {
   rpc StopPlayback(StopPlaybackRequest) returns (StopPlaybackResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Keeps the Track the caller picked while playing a Version, or that they turned it off, as
+  // their Preference for the Show or Movie the Version is of, which later plans of any of its
+  // Versions start with (ADR 0035). A Version of an Unmatched Item keeps nothing. Fails with
+  // `not_found` if there is no such Version, and is refused with
+  // `REFUSAL_REASON_TRACK_NOT_FOUND` if the Version has no Track of that kind at that place.
+  rpc ReportTrackPick(ReportTrackPickRequest) returns (ReportTrackPickResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+message ReportTrackPickRequest {
+  // The Version playing, as browsing gave it.
+  int64 version_id = 1;
+  // The kind of Track picked.
+  PickedTrackKind kind = 2;
+  // The Track picked, by its place in the Version's `tracks`, counting from 0. Unset when the
+  // User turned that kind off.
+  optional uint32 track = 3;
+}
+
+message ReportTrackPickResponse {}
+
+// The kind of Track a User picks while playing.
+enum PickedTrackKind {
+  PICKED_TRACK_KIND_UNSPECIFIED = 0;
+  PICKED_TRACK_KIND_SUBTITLE = 1;
 }
 
 message StopPlaybackRequest {
@@ -44,8 +70,8 @@ message PlanPlaybackRequest {
   optional uint32 audio_track = 3;
   // The subtitle Track the caller chose to burn into the picture, an image one such as PGS or an
   // ASS or SSA one with its styling, which makes the plan a Transcode, by its place in the
-  // Version's `tracks`, counting from 0. Unset for none, as when the player shows a text subtitle
-  // from `PlaybackPlan.subtitles` itself.
+  // Version's `tracks`, counting from 0. Unset, with `no_subtitles` unset too, for the Server to
+  // choose by the User's Subtitle Preference, which `PlaybackPlan.starting_subtitle` then says.
   optional uint32 subtitle_track = 4;
   // The Playback Limit the caller picked. Unset until they pick one, when a Device outside the
   // local network gets the Server's default for remote playback.
@@ -54,6 +80,9 @@ message PlanPlaybackRequest {
   DeviceDecoding device_decoding = 6;
   // The methods that just failed to play this Version on this Device.
   repeated PlaybackMethod failed_methods = 7;
+  // Set, with `subtitle_track` unset, for none burned in and none chosen, as when the player
+  // shows no subtitle or a text one from `PlaybackPlan.subtitles` itself.
+  bool no_subtitles = 8;
 }
 
 // The most a User asks playback to send.
@@ -173,12 +202,18 @@ message PlaybackPlan {
   repeated uint32 burn_in_tracks = 11;
   // The Playback Limits below Original it can scale the picture down to, largest first.
   repeated PlaybackLimit playback_limits = 12;
+  // The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
+  // burns in, or else, when the request left the choice to the Server, one of `subtitles` that
+  // the player shows itself. Unset for none.
+  optional uint32 starting_subtitle = 13;
 }
 
 // A text subtitle a player shows as a WebVTT `<track>`.
 message PlaybackSubtitle {
   // Its Track, for its language, title and whether it's Forced or SDH.
   Track track = 1;
+  // Its Track's place in the Version's `tracks`, counting from 0.
+  uint32 place = 3;
   // Where to fetch it as WebVTT, on this Server. The first fetch can take up to a minute while
   // the Server reads it out of the file; later ones are answered at once.
   string url = 2;

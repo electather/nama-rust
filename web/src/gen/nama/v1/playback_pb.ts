@@ -12,7 +12,54 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/playback.proto.
  */
 export const file_nama_v1_playback: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIiYKE1N0b3BQbGF5YmFja1JlcXVlc3QSDwoHcGxhbl9pZBgBIAEoBCIWChRTdG9wUGxheWJhY2tSZXNwb25zZSKxAgoTUGxhblBsYXliYWNrUmVxdWVzdBISCgp2ZXJzaW9uX2lkGAEgASgDEhkKEXN0YXJ0X3Bvc2l0aW9uX21zGAIgASgEEhgKC2F1ZGlvX3RyYWNrGAMgASgNSACIAQESGwoOc3VidGl0bGVfdHJhY2sYBCABKA1IAYgBARIuCg5wbGF5YmFja19saW1pdBgFIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIwCg9kZXZpY2VfZGVjb2RpbmcYBiABKAsyFy5uYW1hLnYxLkRldmljZURlY29kaW5nEi8KDmZhaWxlZF9tZXRob2RzGAcgAygOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIukBCg5EZXZpY2VEZWNvZGluZxImCgpjb250YWluZXJzGAYgAygOMhIubmFtYS52MS5Db250YWluZXISKQoMdmlkZW9fY29kZWNzGAcgAygOMhMubmFtYS52MS5WaWRlb0NvZGVjEikKDGF1ZGlvX2NvZGVjcxgIIAMoDjITLm5hbWEudjEuQXVkaW9Db2RlYxILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgSFgoOYXVkaW9fY2hhbm5lbHMYBSABKA1KBAgBEAJSDWNvbnRlbnRfdHlwZXMiOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuIpgDCgxQbGF5YmFja1BsYW4SJwoGbWV0aG9kGAEgASgOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZBILCgN1cmwYAiABKAkSHgoGdHJhY2tzGAMgAygLMg4ubmFtYS52MS5UcmFjaxIPCgdyZWFzb25zGAQgAygJEiwKCXN1YnRpdGxlcxgFIAMoCzIZLm5hbWEudjEuUGxheWJhY2tTdWJ0aXRsZRIKCgJpZBgGIAEoBBIuCg5wbGF5YmFja19saW1pdBgHIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIYCgthdWRpb190cmFjaxgIIAEoDUgAiAEBEhsKDnN1YnRpdGxlX3RyYWNrGAkgASgNSAGIAQESFAoMYXVkaW9fdHJhY2tzGAogAygNEhYKDmJ1cm5faW5fdHJhY2tzGAsgAygNEi8KD3BsYXliYWNrX2xpbWl0cxgMIAMoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIj4KEFBsYXliYWNrU3VidGl0bGUSHQoFdHJhY2sYASABKAsyDi5uYW1hLnYxLlRyYWNrEgsKA3VybBgCIAEoCSqYAQoNUGxheWJhY2tMaW1pdBIeChpQTEFZQkFDS19MSU1JVF9VTlNQRUNJRklFRBAAEhsKF1BMQVlCQUNLX0xJTUlUX09SSUdJTkFMEAESGAoUUExBWUJBQ0tfTElNSVRfMTA4MFAQAhIXChNQTEFZQkFDS19MSU1JVF83MjBQEAMSFwoTUExBWUJBQ0tfTElNSVRfNDgwUBAEKmUKCUNvbnRhaW5lchIZChVDT05UQUlORVJfVU5TUEVDSUZJRUQQABIRCg1DT05UQUlORVJfTVA0EAESEgoOQ09OVEFJTkVSX1dFQk0QAhIWChJDT05UQUlORVJfTUFUUk9TS0EQAyqUAQoKVmlkZW9Db2RlYxIbChdWSURFT19DT0RFQ19VTlNQRUNJRklFRBAAEhQKEFZJREVPX0NPREVDX0gyNjQQARIUChBWSURFT19DT0RFQ19IRVZDEAISEwoPVklERU9fQ09ERUNfVlA4EAMSEwoPVklERU9fQ09ERUNfVlA5EAQSEwoPVklERU9fQ09ERUNfQVYxEAUq7wEKCkF1ZGlvQ29kZWMSGwoXQVVESU9fQ09ERUNfVU5TUEVDSUZJRUQQABITCg9BVURJT19DT0RFQ19BQUMQARITCg9BVURJT19DT0RFQ19NUDMQAhITCg9BVURJT19DT0RFQ19BQzMQAxIUChBBVURJT19DT0RFQ19FQUMzEAQSFAoQQVVESU9fQ09ERUNfT1BVUxAFEhYKEkFVRElPX0NPREVDX1ZPUkJJUxAGEhQKEEFVRElPX0NPREVDX0ZMQUMQBxITCg9BVURJT19DT0RFQ19EVFMQCBIWChJBVURJT19DT0RFQ19UUlVFSEQQCSqMAQoOUGxheWJhY2tNZXRob2QSHwobUExBWUJBQ0tfTUVUSE9EX1VOU1BFQ0lGSUVEEAASHwobUExBWUJBQ0tfTUVUSE9EX0RJUkVDVF9QTEFZEAESGQoVUExBWUJBQ0tfTUVUSE9EX1JFTVVYEAISHQoZUExBWUJBQ0tfTUVUSE9EX1RSQU5TQ09ERRADMrUBCg9QbGF5YmFja1NlcnZpY2USUAoMUGxhblBsYXliYWNrEhwubmFtYS52MS5QbGFuUGxheWJhY2tSZXF1ZXN0Gh0ubmFtYS52MS5QbGFuUGxheWJhY2tSZXNwb25zZSIDkAICElAKDFN0b3BQbGF5YmFjaxIcLm5hbWEudjEuU3RvcFBsYXliYWNrUmVxdWVzdBodLm5hbWEudjEuU3RvcFBsYXliYWNrUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_browse]);
+  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxInIKFlJlcG9ydFRyYWNrUGlja1JlcXVlc3QSEgoKdmVyc2lvbl9pZBgBIAEoAxImCgRraW5kGAIgASgOMhgubmFtYS52MS5QaWNrZWRUcmFja0tpbmQSEgoFdHJhY2sYAyABKA1IAIgBAUIICgZfdHJhY2siGQoXUmVwb3J0VHJhY2tQaWNrUmVzcG9uc2UiJgoTU3RvcFBsYXliYWNrUmVxdWVzdBIPCgdwbGFuX2lkGAEgASgEIhYKFFN0b3BQbGF5YmFja1Jlc3BvbnNlIscCChNQbGFuUGxheWJhY2tSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSGQoRc3RhcnRfcG9zaXRpb25fbXMYAiABKAQSGAoLYXVkaW9fdHJhY2sYAyABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgEIAEoDUgBiAEBEi4KDnBsYXliYWNrX2xpbWl0GAUgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjAKD2RldmljZV9kZWNvZGluZxgGIAEoCzIXLm5hbWEudjEuRGV2aWNlRGVjb2RpbmcSLwoOZmFpbGVkX21ldGhvZHMYByADKA4yFy5uYW1hLnYxLlBsYXliYWNrTWV0aG9kEhQKDG5vX3N1YnRpdGxlcxgIIAEoCEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIukBCg5EZXZpY2VEZWNvZGluZxImCgpjb250YWluZXJzGAYgAygOMhIubmFtYS52MS5Db250YWluZXISKQoMdmlkZW9fY29kZWNzGAcgAygOMhMubmFtYS52MS5WaWRlb0NvZGVjEikKDGF1ZGlvX2NvZGVjcxgIIAMoDjITLm5hbWEudjEuQXVkaW9Db2RlYxILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgSFgoOYXVkaW9fY2hhbm5lbHMYBSABKA1KBAgBEAJSDWNvbnRlbnRfdHlwZXMiOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuIs4DCgxQbGF5YmFja1BsYW4SJwoGbWV0aG9kGAEgASgOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZBILCgN1cmwYAiABKAkSHgoGdHJhY2tzGAMgAygLMg4ubmFtYS52MS5UcmFjaxIPCgdyZWFzb25zGAQgAygJEiwKCXN1YnRpdGxlcxgFIAMoCzIZLm5hbWEudjEuUGxheWJhY2tTdWJ0aXRsZRIKCgJpZBgGIAEoBBIuCg5wbGF5YmFja19saW1pdBgHIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIYCgthdWRpb190cmFjaxgIIAEoDUgAiAEBEhsKDnN1YnRpdGxlX3RyYWNrGAkgASgNSAGIAQESFAoMYXVkaW9fdHJhY2tzGAogAygNEhYKDmJ1cm5faW5fdHJhY2tzGAsgAygNEi8KD3BsYXliYWNrX2xpbWl0cxgMIAMoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIeChFzdGFydGluZ19zdWJ0aXRsZRgNIAEoDUgCiAEBQg4KDF9hdWRpb190cmFja0IRCg9fc3VidGl0bGVfdHJhY2tCFAoSX3N0YXJ0aW5nX3N1YnRpdGxlIk0KEFBsYXliYWNrU3VidGl0bGUSHQoFdHJhY2sYASABKAsyDi5uYW1hLnYxLlRyYWNrEg0KBXBsYWNlGAMgASgNEgsKA3VybBgCIAEoCSpUCg9QaWNrZWRUcmFja0tpbmQSIQodUElDS0VEX1RSQUNLX0tJTkRfVU5TUEVDSUZJRUQQABIeChpQSUNLRURfVFJBQ0tfS0lORF9TVUJUSVRMRRABKpgBCg1QbGF5YmFja0xpbWl0Eh4KGlBMQVlCQUNLX0xJTUlUX1VOU1BFQ0lGSUVEEAASGwoXUExBWUJBQ0tfTElNSVRfT1JJR0lOQUwQARIYChRQTEFZQkFDS19MSU1JVF8xMDgwUBACEhcKE1BMQVlCQUNLX0xJTUlUXzcyMFAQAxIXChNQTEFZQkFDS19MSU1JVF80ODBQEAQqZQoJQ29udGFpbmVyEhkKFUNPTlRBSU5FUl9VTlNQRUNJRklFRBAAEhEKDUNPTlRBSU5FUl9NUDQQARISCg5DT05UQUlORVJfV0VCTRACEhYKEkNPTlRBSU5FUl9NQVRST1NLQRADKpQBCgpWaWRlb0NvZGVjEhsKF1ZJREVPX0NPREVDX1VOU1BFQ0lGSUVEEAASFAoQVklERU9fQ09ERUNfSDI2NBABEhQKEFZJREVPX0NPREVDX0hFVkMQAhITCg9WSURFT19DT0RFQ19WUDgQAxITCg9WSURFT19DT0RFQ19WUDkQBBITCg9WSURFT19DT0RFQ19BVjEQBSrvAQoKQXVkaW9Db2RlYxIbChdBVURJT19DT0RFQ19VTlNQRUNJRklFRBAAEhMKD0FVRElPX0NPREVDX0FBQxABEhMKD0FVRElPX0NPREVDX01QMxACEhMKD0FVRElPX0NPREVDX0FDMxADEhQKEEFVRElPX0NPREVDX0VBQzMQBBIUChBBVURJT19DT0RFQ19PUFVTEAUSFgoSQVVESU9fQ09ERUNfVk9SQklTEAYSFAoQQVVESU9fQ09ERUNfRkxBQxAHEhMKD0FVRElPX0NPREVDX0RUUxAIEhYKEkFVRElPX0NPREVDX1RSVUVIRBAJKowBCg5QbGF5YmFja01ldGhvZBIfChtQTEFZQkFDS19NRVRIT0RfVU5TUEVDSUZJRUQQABIfChtQTEFZQkFDS19NRVRIT0RfRElSRUNUX1BMQVkQARIZChVQTEFZQkFDS19NRVRIT0RfUkVNVVgQAhIdChlQTEFZQkFDS19NRVRIT0RfVFJBTlNDT0RFEAMykAIKD1BsYXliYWNrU2VydmljZRJQCgxQbGFuUGxheWJhY2sSHC5uYW1hLnYxLlBsYW5QbGF5YmFja1JlcXVlc3QaHS5uYW1hLnYxLlBsYW5QbGF5YmFja1Jlc3BvbnNlIgOQAgISUAoMU3RvcFBsYXliYWNrEhwubmFtYS52MS5TdG9wUGxheWJhY2tSZXF1ZXN0Gh0ubmFtYS52MS5TdG9wUGxheWJhY2tSZXNwb25zZSIDkAICElkKD1JlcG9ydFRyYWNrUGljaxIfLm5hbWEudjEuUmVwb3J0VHJhY2tQaWNrUmVxdWVzdBogLm5hbWEudjEuUmVwb3J0VHJhY2tQaWNrUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_browse]);
+
+/**
+ * @generated from message nama.v1.ReportTrackPickRequest
+ */
+export type ReportTrackPickRequest = Message<"nama.v1.ReportTrackPickRequest"> & {
+  /**
+   * The Version playing, as browsing gave it.
+   *
+   * @generated from field: int64 version_id = 1;
+   */
+  versionId: bigint;
+
+  /**
+   * The kind of Track picked.
+   *
+   * @generated from field: nama.v1.PickedTrackKind kind = 2;
+   */
+  kind: PickedTrackKind;
+
+  /**
+   * The Track picked, by its place in the Version's `tracks`, counting from 0. Unset when the
+   * User turned that kind off.
+   *
+   * @generated from field: optional uint32 track = 3;
+   */
+  track?: number | undefined;
+};
+
+/**
+ * Describes the message nama.v1.ReportTrackPickRequest.
+ * Use `create(ReportTrackPickRequestSchema)` to create a new message.
+ */
+export const ReportTrackPickRequestSchema: GenMessage<ReportTrackPickRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_playback, 0);
+
+/**
+ * @generated from message nama.v1.ReportTrackPickResponse
+ */
+export type ReportTrackPickResponse = Message<"nama.v1.ReportTrackPickResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.ReportTrackPickResponse.
+ * Use `create(ReportTrackPickResponseSchema)` to create a new message.
+ */
+export const ReportTrackPickResponseSchema: GenMessage<ReportTrackPickResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_playback, 1);
 
 /**
  * @generated from message nama.v1.StopPlaybackRequest
@@ -31,7 +78,7 @@ export type StopPlaybackRequest = Message<"nama.v1.StopPlaybackRequest"> & {
  * Use `create(StopPlaybackRequestSchema)` to create a new message.
  */
 export const StopPlaybackRequestSchema: GenMessage<StopPlaybackRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 0);
+  messageDesc(file_nama_v1_playback, 2);
 
 /**
  * @generated from message nama.v1.StopPlaybackResponse
@@ -44,7 +91,7 @@ export type StopPlaybackResponse = Message<"nama.v1.StopPlaybackResponse"> & {
  * Use `create(StopPlaybackResponseSchema)` to create a new message.
  */
 export const StopPlaybackResponseSchema: GenMessage<StopPlaybackResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 1);
+  messageDesc(file_nama_v1_playback, 3);
 
 /**
  * @generated from message nama.v1.PlanPlaybackRequest
@@ -75,8 +122,8 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
   /**
    * The subtitle Track the caller chose to burn into the picture, an image one such as PGS or an
    * ASS or SSA one with its styling, which makes the plan a Transcode, by its place in the
-   * Version's `tracks`, counting from 0. Unset for none, as when the player shows a text subtitle
-   * from `PlaybackPlan.subtitles` itself.
+   * Version's `tracks`, counting from 0. Unset, with `no_subtitles` unset too, for the Server to
+   * choose by the User's Subtitle Preference, which `PlaybackPlan.starting_subtitle` then says.
    *
    * @generated from field: optional uint32 subtitle_track = 4;
    */
@@ -103,6 +150,14 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
    * @generated from field: repeated nama.v1.PlaybackMethod failed_methods = 7;
    */
   failedMethods: PlaybackMethod[];
+
+  /**
+   * Set, with `subtitle_track` unset, for none burned in and none chosen, as when the player
+   * shows no subtitle or a text one from `PlaybackPlan.subtitles` itself.
+   *
+   * @generated from field: bool no_subtitles = 8;
+   */
+  noSubtitles: boolean;
 };
 
 /**
@@ -110,7 +165,7 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
  * Use `create(PlanPlaybackRequestSchema)` to create a new message.
  */
 export const PlanPlaybackRequestSchema: GenMessage<PlanPlaybackRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 2);
+  messageDesc(file_nama_v1_playback, 4);
 
 /**
  * What a Device can decode.
@@ -174,7 +229,7 @@ export type DeviceDecoding = Message<"nama.v1.DeviceDecoding"> & {
  * Use `create(DeviceDecodingSchema)` to create a new message.
  */
 export const DeviceDecodingSchema: GenMessage<DeviceDecoding> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 3);
+  messageDesc(file_nama_v1_playback, 5);
 
 /**
  * @generated from message nama.v1.PlanPlaybackResponse
@@ -191,7 +246,7 @@ export type PlanPlaybackResponse = Message<"nama.v1.PlanPlaybackResponse"> & {
  * Use `create(PlanPlaybackResponseSchema)` to create a new message.
  */
 export const PlanPlaybackResponseSchema: GenMessage<PlanPlaybackResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 4);
+  messageDesc(file_nama_v1_playback, 6);
 
 /**
  * How the Server will play one Version on one Device, and why.
@@ -292,6 +347,15 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
    * @generated from field: repeated nama.v1.PlaybackLimit playback_limits = 12;
    */
   playbackLimits: PlaybackLimit[];
+
+  /**
+   * The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
+   * burns in, or else, when the request left the choice to the Server, one of `subtitles` that
+   * the player shows itself. Unset for none.
+   *
+   * @generated from field: optional uint32 starting_subtitle = 13;
+   */
+  startingSubtitle?: number | undefined;
 };
 
 /**
@@ -299,7 +363,7 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
  * Use `create(PlaybackPlanSchema)` to create a new message.
  */
 export const PlaybackPlanSchema: GenMessage<PlaybackPlan> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 5);
+  messageDesc(file_nama_v1_playback, 7);
 
 /**
  * A text subtitle a player shows as a WebVTT `<track>`.
@@ -315,6 +379,13 @@ export type PlaybackSubtitle = Message<"nama.v1.PlaybackSubtitle"> & {
   track?: Track | undefined;
 
   /**
+   * Its Track's place in the Version's `tracks`, counting from 0.
+   *
+   * @generated from field: uint32 place = 3;
+   */
+  place: number;
+
+  /**
    * Where to fetch it as WebVTT, on this Server. The first fetch can take up to a minute while
    * the Server reads it out of the file; later ones are answered at once.
    *
@@ -328,7 +399,37 @@ export type PlaybackSubtitle = Message<"nama.v1.PlaybackSubtitle"> & {
  * Use `create(PlaybackSubtitleSchema)` to create a new message.
  */
 export const PlaybackSubtitleSchema: GenMessage<PlaybackSubtitle> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 6);
+  messageDesc(file_nama_v1_playback, 8);
+
+/**
+ * The kind of Track a User picks while playing.
+ *
+ * @generated from enum nama.v1.PickedTrackKind
+ */
+export const PickedTrackKind = {
+  /**
+   * @generated from enum value: PICKED_TRACK_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * @generated from enum value: PICKED_TRACK_KIND_SUBTITLE = 1;
+   */
+  SUBTITLE: 1,
+} as const;
+
+/**
+ * The kind of Track a User picks while playing.
+ *
+ * @generated from enum nama.v1.PickedTrackKind
+ */
+export type PickedTrackKind = (typeof PickedTrackKind)[keyof typeof PickedTrackKind] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.PickedTrackKind.
+ */
+export const PickedTrackKindSchema: GenEnum<PickedTrackKind> = /*@__PURE__*/
+  enumDesc(file_nama_v1_playback, 0);
 
 /**
  * The most a User asks playback to send.
@@ -377,7 +478,7 @@ export type PlaybackLimit = (typeof PlaybackLimit)[keyof typeof PlaybackLimit] |
  * Describes the enum nama.v1.PlaybackLimit.
  */
 export const PlaybackLimitSchema: GenEnum<PlaybackLimit> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 0);
+  enumDesc(file_nama_v1_playback, 1);
 
 /**
  * A container the Server knows whether a Device plays.
@@ -417,7 +518,7 @@ export type Container = (typeof Container)[keyof typeof Container] | UnknownEnum
  * Describes the enum nama.v1.Container.
  */
 export const ContainerSchema: GenEnum<Container> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 1);
+  enumDesc(file_nama_v1_playback, 2);
 
 /**
  * A video codec the Server knows whether a Device decodes.
@@ -467,7 +568,7 @@ export type VideoCodec = (typeof VideoCodec)[keyof typeof VideoCodec] | UnknownE
  * Describes the enum nama.v1.VideoCodec.
  */
 export const VideoCodecSchema: GenEnum<VideoCodec> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 2);
+  enumDesc(file_nama_v1_playback, 3);
 
 /**
  * An audio codec the Server knows whether a Device decodes.
@@ -537,7 +638,7 @@ export type AudioCodec = (typeof AudioCodec)[keyof typeof AudioCodec] | UnknownE
  * Describes the enum nama.v1.AudioCodec.
  */
 export const AudioCodecSchema: GenEnum<AudioCodec> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 3);
+  enumDesc(file_nama_v1_playback, 4);
 
 /**
  * How a Playback Plan plays a Version.
@@ -586,7 +687,7 @@ export type PlaybackMethod = (typeof PlaybackMethod)[keyof typeof PlaybackMethod
  * Describes the enum nama.v1.PlaybackMethod.
  */
 export const PlaybackMethodSchema: GenEnum<PlaybackMethod> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 4);
+  enumDesc(file_nama_v1_playback, 5);
 
 /**
  * How the signed-in caller's Device plays a Version.
@@ -624,6 +725,20 @@ export const PlaybackService: GenService<{
     methodKind: "unary";
     input: typeof StopPlaybackRequestSchema;
     output: typeof StopPlaybackResponseSchema;
+  },
+  /**
+   * Keeps the Track the caller picked while playing a Version, or that they turned it off, as
+   * their Preference for the Show or Movie the Version is of, which later plans of any of its
+   * Versions start with (ADR 0035). A Version of an Unmatched Item keeps nothing. Fails with
+   * `not_found` if there is no such Version, and is refused with
+   * `REFUSAL_REASON_TRACK_NOT_FOUND` if the Version has no Track of that kind at that place.
+   *
+   * @generated from rpc nama.v1.PlaybackService.ReportTrackPick
+   */
+  reportTrackPick: {
+    methodKind: "unary";
+    input: typeof ReportTrackPickRequestSchema;
+    output: typeof ReportTrackPickResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_playback, 0);

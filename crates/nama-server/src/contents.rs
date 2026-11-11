@@ -251,9 +251,15 @@ pub(crate) enum MatchedTo {
     Nothing,
     /// The Movie's id, as browsing identifies it: see [`primary_id`].
     Movie(ExternalId),
-    /// Each Episode the file holds, by season and episode number: its id, as browsing identifies
-    /// it, or `None` if its Item isn't Matched.
-    Episodes(Vec<Option<ExternalId>>),
+    /// The file holds Episodes.
+    Episodes {
+        /// The id of the Show its first Matched Episode is of, as browsing identifies it. `None`
+        /// if none is Matched.
+        show: Option<ExternalId>,
+        /// Each Episode the file holds, by season and episode number: its id, as browsing
+        /// identifies it, or `None` if its Item isn't Matched.
+        episodes: Vec<Option<ExternalId>>,
+    },
 }
 
 /// A Show some Items of a Library are Matched to Episodes of, with the metadata the Match of its
@@ -533,7 +539,8 @@ impl Contents {
     pub(crate) async fn matched_to(&self, version: i64) -> Result<MatchedTo, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_items.kind AS "kind?: ItemKind", item_matches.tmdb_id, item_matches.imdb_id,
-                      item_matches.tvdb_id
+                      item_matches.tvdb_id, item_matches.show_tmdb_id, item_matches.show_imdb_id,
+                      item_matches.show_tvdb_id
                FROM library_files
                LEFT JOIN library_items ON library_items.file_id = library_files.id
                LEFT JOIN item_matches ON item_matches.item_id = library_items.id
@@ -548,18 +555,29 @@ impl Contents {
             return Ok(MatchedTo::NoSuchVersion);
         };
         let holds_episodes = first.kind == Some(ItemKind::Episode);
-        let mut ids = rows.into_iter().map(|row| {
-            primary_id(ExternalIds {
-                tmdb: row.tmdb_id,
-                imdb: row.imdb_id,
-                tvdb: row.tvdb_id,
+        let ids: Vec<_> = (rows.into_iter())
+            .map(|row| {
+                let id = primary_id(ExternalIds {
+                    tmdb: row.tmdb_id,
+                    imdb: row.imdb_id,
+                    tvdb: row.tvdb_id,
+                });
+                let show = primary_id(ExternalIds {
+                    tmdb: row.show_tmdb_id,
+                    imdb: row.show_imdb_id,
+                    tvdb: row.show_tvdb_id,
+                });
+                (id, show)
             })
-        });
+            .collect();
         if holds_episodes {
-            return Ok(MatchedTo::Episodes(ids.collect()));
+            return Ok(MatchedTo::Episodes {
+                show: ids.iter().find_map(|(_, show)| show.clone()),
+                episodes: ids.into_iter().map(|(id, _)| id).collect(),
+            });
         }
-        Ok(ids
-            .find_map(|id| id)
+        Ok((ids.into_iter())
+            .find_map(|(id, _)| id)
             .map_or(MatchedTo::Nothing, MatchedTo::Movie))
     }
 

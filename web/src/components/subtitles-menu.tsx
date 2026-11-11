@@ -12,7 +12,7 @@ import {
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { PlaybackSubtitle } from "@/gen/nama/v1/playback_pb";
 import type { SubtitleChoice, usePlaybackPlan } from "@/lib/playback-plan";
-import { type SubtitleState, trackLabel, useSubtitles } from "@/lib/subtitles";
+import { type SubtitleState, trackLabel, usePickReporter, useSubtitles } from "@/lib/subtitles";
 
 /** The `<video>`'s `<track>`s, one per subtitle, which the browser fetches only once shown. */
 export function SubtitleTracks({ subtitles }: { subtitles: PlaybackSubtitle[] }) {
@@ -36,12 +36,13 @@ function browserMenuLabel(track: Track | undefined) {
 /**
  * Picks the subtitle shown, or none: one of the plan's text subtitles, which the `<video>` shows
  * itself, saying which is still being read out of the file, or one of the Version's `tracks` the
- * plan offers to burn into the picture, an image one or an ASS one with its styling. Absent when
- * there's none to pick.
+ * plan offers to burn into the picture, an image one or an ASS one with its styling. Each pick is
+ * reported, so the Server keeps it for the Show or Movie the Version is of. Absent when there's
+ * none to pick.
  */
 export function SubtitlesMenu({
   tracks,
-  planned: { plan, shownSubtitle: shown, chooseSubtitle },
+  planned: { versionId, plan, shownSubtitle: shown, chooseSubtitle },
   videoRef,
   container,
 }: {
@@ -53,6 +54,7 @@ export function SubtitlesMenu({
 }) {
   const { subtitles, burnInTracks: burnable, subtitleTrack: burnedIn } = plan;
   const states = useSubtitles(videoRef, shown);
+  const reportPick = usePickReporter(versionId);
   if (subtitles.length + burnable.length === 0) return null;
   return (
     <DropdownMenu>
@@ -62,9 +64,10 @@ export function SubtitlesMenu({
       <DropdownMenuContent container={container}>
         <DropdownMenuRadioGroup
           value={shown ?? burnedIn ?? ""}
-          onValueChange={(choice: SubtitleChoice) => {
-            if (videoRef.current)
-              chooseSubtitle(videoRef.current, choice === "" ? undefined : choice);
+          onValueChange={(value: SubtitleChoice) => {
+            const choice = value === "" ? undefined : value;
+            if (videoRef.current) chooseSubtitle(videoRef.current, choice);
+            reportPick(pickedPlace(choice, subtitles));
           }}
         >
           <DropdownMenuRadioItem value="">Off</DropdownMenuRadioItem>
@@ -78,6 +81,12 @@ export function SubtitlesMenu({
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/** The place in the Version's Tracks of the subtitle `choice` picks, `undefined` for Off. */
+function pickedPlace(choice: SubtitleChoice, subtitles: PlaybackSubtitle[]) {
+  if (typeof choice === "number") return choice;
+  return subtitles.find(({ url }) => url === choice)?.place;
 }
 
 function isImageSubtitle(track: Track | undefined) {

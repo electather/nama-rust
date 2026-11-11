@@ -34,6 +34,7 @@ use crate::{
     scanner::Scanner,
     server_settings,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie},
+    track_preferences::TrackPreferences,
     tracks::Tracks,
     users::{Caller, Users},
 };
@@ -127,6 +128,7 @@ pub(crate) fn router(
             abilities,
             running,
             settings: playback,
+            preferences: TrackPreferences::new(Arc::clone(&db)),
         }))
         .add_service(Arc::new(RequestServiceHandler { requests, artwork }))
         .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
@@ -224,6 +226,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::WATCH_STATE_SERVICE_SET_PLAYED_SPEC.procedure,        Access::SignedIn),
     (proto::PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC.procedure,        Access::SignedIn),
     (proto::PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC.procedure,        Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_REPORT_TRACK_PICK_SPEC.procedure,    Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
@@ -529,6 +532,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_NOTHING_MATCHED
         | R::REFUSAL_REASON_SEASON_NOT_FOUND
         | R::REFUSAL_REASON_VERSION_NOT_FOUND
+        | R::REFUSAL_REASON_TRACK_NOT_FOUND
         | R::REFUSAL_REASON_ITEM_NOT_FOUND
         | R::REFUSAL_REASON_REQUEST_NOT_FOUND
         | R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND

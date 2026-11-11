@@ -1,8 +1,11 @@
 import { type RefObject, useEffect, useState } from "react";
 
 import { create } from "@bufbuild/protobuf";
+import { useMutation } from "@connectrpc/connect-query";
 
 import { type Track, TrackSchema } from "@/gen/nama/v1/browse_pb";
+import { PickedTrackKind, PlaybackService } from "@/gen/nama/v1/playback_pb";
+import { retryIfUnreachable } from "@/lib/connect-errors";
 
 /** How a subtitle turned on is getting on: being read out of the file, shown, or not to be had. */
 export type SubtitleState = "loading" | "ready" | "failed";
@@ -92,4 +95,20 @@ function nameOf(code: string) {
     // A tag that isn't a language code at all is shown as it is.
     return code;
   }
+}
+
+/**
+ * Reports the subtitle Track the User picked while playing Version `versionId`, by its place in
+ * the Version's Tracks, or `undefined` for off. Reports go out in the background, in order, and a
+ * failed one is sent again, never shown.
+ */
+export function usePickReporter(versionId: bigint) {
+  const { mutate } = useMutation(PlaybackService.method.reportTrackPick, {
+    retry: retryIfUnreachable,
+    // One at a time, so a retried pick never lands after a newer one.
+    scope: { id: "report-track-pick" },
+  });
+  return (track: number | undefined) => {
+    mutate({ versionId, kind: PickedTrackKind.SUBTITLE, track });
+  };
 }

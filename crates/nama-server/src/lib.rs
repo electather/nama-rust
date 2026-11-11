@@ -27,6 +27,7 @@ mod server_settings;
 mod sessions;
 mod sign_in;
 mod sign_in_codes;
+mod track_preferences;
 mod tracks;
 pub mod users;
 mod watch_states;

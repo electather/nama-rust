@@ -201,4 +201,7 @@ enum RefusalReason {
   // `resource_exhausted`: only a Transcode would play the Version on this Device, and the Server
   // is already running as many as its Playback settings allow. Params: `maxTranscodes`.
   REFUSAL_REASON_SERVER_BUSY = 60;
+  // `not_found`: the Version has no Track of the kind picked at the place named. `field` is
+  // `track`.
+  REFUSAL_REASON_TRACK_NOT_FOUND = 61;
 }
