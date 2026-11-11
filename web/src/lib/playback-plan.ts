@@ -254,21 +254,19 @@ function usePlan(versionId: bigint, asking: Asking) {
       } catch (error) {
         const { reason, params } = refusalOf(error);
         if (reason !== RefusalReason.SERVER_BUSY) throw error;
-        return create(PlaybackPlanSchema, {
-          reasons: [
-            {
-              kind: PlaybackReasonKind.SERVER_BUSY,
-              params,
-              text: serverMessage(error),
-              decided: true,
-            },
-          ],
-        });
+        return serverBusyPlan(params, serverMessage(error));
       }
     },
     staleTime: "static",
     gcTime: 0,
   }).data;
+}
+
+/** A plan that can't play, as a Server too busy to Transcode gives. */
+function serverBusyPlan(params: Record<string, string>, text: string) {
+  return create(PlaybackPlanSchema, {
+    reasons: [{ kind: PlaybackReasonKind.SERVER_BUSY, params, text, decided: true }],
+  });
 }
 
 /**
