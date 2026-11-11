@@ -229,9 +229,12 @@ pub(crate) struct Subtitle {
 /// What a Device says it can decode, as it found out just now. The Server never stores it.
 #[derive(Debug, Default)]
 pub(crate) struct DeviceDecoding {
-    /// Those of the content types [`container`] and [`CODECS`] name that it decodes, such as
-    /// `video/mp4` for a container or `video/mp4; codecs="avc1.640028"` for a codec.
-    pub(crate) content_types: Vec<String>,
+    /// The containers it plays.
+    pub(crate) containers: Vec<proto::Container>,
+    /// The video codecs it decodes.
+    pub(crate) video_codecs: Vec<proto::VideoCodec>,
+    /// The audio codecs it decodes.
+    pub(crate) audio_codecs: Vec<proto::AudioCodec>,
     /// Whether its display shows HDR.
     pub(crate) hdr: bool,
     /// Whether it plays HLS, natively or through Media Source Extensions, which every method but
@@ -239,14 +242,6 @@ pub(crate) struct DeviceDecoding {
     pub(crate) hls: bool,
     /// How many audio channels it plays out at once, such as 6 for 5.1; 0 when it doesn't say.
     pub(crate) audio_channels: u32,
-}
-
-impl DeviceDecoding {
-    fn decodes(&self, content_type: &str) -> bool {
-        self.content_types
-            .iter()
-            .any(|listed| listed == content_type)
-    }
 }
 
 /// What a request for a plan asks.
@@ -1118,32 +1113,32 @@ fn fitted((width, height): (i64, i64), limit: PlaybackLimit) -> Option<(i64, i64
     Some((width / 2 * 2, height / 2 * 2))
 }
 
-/// Each codec a Device can say it decodes, as ffprobe names it, with the content type a Device
-/// lists for it and its name in plain words. `web/src/lib/device-decoding.ts` asks the browser
-/// about these same types.
-// ponytail: one common profile per codec, so a 10-bit or 4K Track may pass on a Device that
-// decodes only the 8-bit HD one; check the Track's own profile once probing reads it.
-const CODECS: [(&str, &str, &str); 14] = [
-    ("h264", r#"video/mp4; codecs="avc1.640028""#, "H.264"),
-    ("hevc", r#"video/mp4; codecs="hvc1.1.6.L120.90""#, "HEVC"),
-    ("vp8", r#"video/webm; codecs="vp8""#, "VP8"),
-    ("vp9", r#"video/webm; codecs="vp09.00.40.08""#, "VP9"),
-    ("av1", r#"video/mp4; codecs="av01.0.08M.08""#, "AV1"),
-    ("aac", r#"audio/mp4; codecs="mp4a.40.2""#, "AAC"),
-    ("mp3", "audio/mpeg", "MP3"),
-    ("ac3", r#"audio/mp4; codecs="ac-3""#, "AC-3"),
-    ("eac3", r#"audio/mp4; codecs="ec-3""#, "E-AC-3"),
-    ("opus", r#"audio/webm; codecs="opus""#, "Opus"),
-    ("vorbis", r#"audio/webm; codecs="vorbis""#, "Vorbis"),
-    ("flac", r#"audio/mp4; codecs="flac""#, "FLAC"),
-    ("dts", r#"audio/mp4; codecs="dtsc""#, "DTS"),
-    ("truehd", r#"audio/mp4; codecs="mlpa""#, "TrueHD"),
+/// Each video codec a Device can say it decodes, as ffprobe names it, with its name in plain words.
+const VIDEO_CODECS: [(&str, proto::VideoCodec, &str); 5] = [
+    ("h264", proto::VideoCodec::VIDEO_CODEC_H264, "H.264"),
+    ("hevc", proto::VideoCodec::VIDEO_CODEC_HEVC, "HEVC"),
+    ("vp8", proto::VideoCodec::VIDEO_CODEC_VP8, "VP8"),
+    ("vp9", proto::VideoCodec::VIDEO_CODEC_VP9, "VP9"),
+    ("av1", proto::VideoCodec::VIDEO_CODEC_AV1, "AV1"),
+];
+
+/// Each audio codec a Device can say it decodes, as ffprobe names it, with its name in plain words.
+const AUDIO_CODECS: [(&str, proto::AudioCodec, &str); 9] = [
+    ("aac", proto::AudioCodec::AUDIO_CODEC_AAC, "AAC"),
+    ("mp3", proto::AudioCodec::AUDIO_CODEC_MP3, "MP3"),
+    ("ac3", proto::AudioCodec::AUDIO_CODEC_AC3, "AC-3"),
+    ("eac3", proto::AudioCodec::AUDIO_CODEC_EAC3, "E-AC-3"),
+    ("opus", proto::AudioCodec::AUDIO_CODEC_OPUS, "Opus"),
+    ("vorbis", proto::AudioCodec::AUDIO_CODEC_VORBIS, "Vorbis"),
+    ("flac", proto::AudioCodec::AUDIO_CODEC_FLAC, "FLAC"),
+    ("dts", proto::AudioCodec::AUDIO_CODEC_DTS, "DTS"),
+    ("truehd", proto::AudioCodec::AUDIO_CODEC_TRUEHD, "TrueHD"),
 ];
 
 /// `probe`'s container in plain words, such as "Matroska container", if `device` can't decode it.
 fn undecodable_container(probe: &Probe, device: &DeviceDecoding) -> Option<String> {
     match container(probe) {
-        Some((content_type, _)) if device.decodes(content_type) => None,
+        Some((container, _)) if device.containers.contains(&container) => None,
         Some((_, name)) => Some(format!("{name} container")),
         None => Some(format!("{} container", probe.container)),
     }
@@ -1160,20 +1155,36 @@ fn undecodable_tracks(probe: &Probe, audio: Option<usize>, device: &DeviceDecodi
 /// What of `track` `device` can't decode, in plain words, such as "HEVC video" and "HDR10 picture".
 fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<String> {
     let mut cant = vec![];
-    let (kind, hdr) = match track.kind {
-        TrackKind::Video { hdr, .. } => ("video", hdr),
-        TrackKind::Audio { .. } => ("audio", None),
-        TrackKind::Subtitle { .. } => ("subtitle", None),
+    let (codec, hdr) = match track.kind {
+        TrackKind::Video { hdr, .. } => {
+            let codec = undecodable_codec(&track.codec, &VIDEO_CODECS, &device.video_codecs);
+            (codec.map(|name| format!("{name} video")), hdr)
+        }
+        TrackKind::Audio { .. } => {
+            let codec = undecodable_codec(&track.codec, &AUDIO_CODECS, &device.audio_codecs);
+            (codec.map(|name| format!("{name} audio")), None)
+        }
+        TrackKind::Subtitle { .. } => (Some(format!("{} subtitle", track.codec)), None),
     };
-    match CODECS.into_iter().find(|(codec, ..)| *codec == track.codec) {
-        Some((_, content_type, _)) if device.decodes(content_type) => {}
-        Some((_, _, name)) => cant.push(format!("{name} {kind}")),
-        None => cant.push(format!("{} {kind}", track.codec)),
-    }
+    cant.extend(codec);
     if let Some(hdr) = hdr.filter(|_| !device.hdr) {
         cant.push(format!("{} picture", hdr_name(hdr)));
     }
     cant
+}
+
+/// `codec`, as ffprobe names it, in plain words from `known` if it has it, unless `decoded` lists
+/// it.
+fn undecodable_codec<'a, C: PartialEq>(
+    codec: &'a str,
+    known: &[(&str, C, &'static str)],
+    decoded: &[C],
+) -> Option<&'a str> {
+    match known.iter().find(|(name, ..)| *name == codec) {
+        Some((_, codec, _)) if decoded.contains(codec) => None,
+        Some((_, _, name)) => Some(name),
+        None => Some(codec),
+    }
 }
 
 /// What `transcode` of the Version makes for `device`, in plain words, such as "H.264 and stereo
@@ -1315,16 +1326,15 @@ fn aac_in_words(
     format!("{name} AAC{why}")
 }
 
-/// The content type of `probe`'s container and its name in plain words, if a browser can play it
-/// at all. `web/src/lib/device-decoding.ts` asks the browser about these same types.
-fn container(probe: &Probe) -> Option<(&'static str, &'static str)> {
+/// `probe`'s container and its name in plain words, if a Device can play it at all.
+fn container(probe: &Probe) -> Option<(proto::Container, &'static str)> {
     // ffprobe names WebM and Matroska alike; WebM is Matroska holding only these codecs.
     const WEBM: [&str; 6] = ["vp8", "vp9", "av1", "opus", "vorbis", "webvtt"];
     let webm = (probe.tracks.iter()).all(|track| WEBM.contains(&track.codec.as_str()));
     match probe.container.as_str() {
-        "mov,mp4,m4a,3gp,3g2,mj2" => Some(("video/mp4", "MP4")),
-        "matroska,webm" if webm => Some(("video/webm", "WebM")),
-        "matroska,webm" => Some(("video/x-matroska", "Matroska")),
+        "mov,mp4,m4a,3gp,3g2,mj2" => Some((proto::Container::CONTAINER_MP4, "MP4")),
+        "matroska,webm" if webm => Some((proto::Container::CONTAINER_WEBM, "WebM")),
+        "matroska,webm" => Some((proto::Container::CONTAINER_MATROSKA, "Matroska")),
         _ => None,
     }
 }
@@ -1474,6 +1484,8 @@ async fn serve(
 mod tests {
     use std::collections::BTreeSet;
 
+    use nama_proto::nama::v1::{AudioCodec, Container, VideoCodec};
+
     use super::{
         Candidates, DeviceDecoding, Facts, Fallback, Method, Narrowing, Network, Offers,
         PickedLimit, Plan, PlaybackLimit, Playing, Subtitle, build, default_max_transcodes,
@@ -1545,21 +1557,21 @@ mod tests {
 
     /// What Firefox on an SDR display says it decodes.
     fn firefox() -> DeviceDecoding {
-        let content_types = [
-            "video/mp4",
-            "video/webm",
-            r#"video/mp4; codecs="avc1.640028""#,
-            r#"video/webm; codecs="vp8""#,
-            r#"video/webm; codecs="vp09.00.40.08""#,
-            r#"video/mp4; codecs="av01.0.08M.08""#,
-            r#"audio/mp4; codecs="mp4a.40.2""#,
-            "audio/mpeg",
-            r#"audio/webm; codecs="opus""#,
-            r#"audio/webm; codecs="vorbis""#,
-            r#"audio/mp4; codecs="flac""#,
-        ];
         DeviceDecoding {
-            content_types: content_types.map(str::to_owned).to_vec(),
+            containers: vec![Container::CONTAINER_MP4, Container::CONTAINER_WEBM],
+            video_codecs: vec![
+                VideoCodec::VIDEO_CODEC_H264,
+                VideoCodec::VIDEO_CODEC_VP8,
+                VideoCodec::VIDEO_CODEC_VP9,
+                VideoCodec::VIDEO_CODEC_AV1,
+            ],
+            audio_codecs: vec![
+                AudioCodec::AUDIO_CODEC_AAC,
+                AudioCodec::AUDIO_CODEC_MP3,
+                AudioCodec::AUDIO_CODEC_OPUS,
+                AudioCodec::AUDIO_CODEC_VORBIS,
+                AudioCodec::AUDIO_CODEC_FLAC,
+            ],
             hdr: false,
             hls: true,
             audio_channels: 2,
@@ -1702,7 +1714,7 @@ mod tests {
     }
 
     #[test]
-    fn a_device_decodes_what_its_content_types_and_display_say() {
+    fn a_device_decodes_what_its_codecs_and_display_say() {
         let mut hdr_display = firefox();
         hdr_display.hdr = true;
         let cases = [
