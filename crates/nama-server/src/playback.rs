@@ -283,13 +283,15 @@ pub(crate) async fn plan(
         Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
         Err(probing::Error::Database(err)) => return Err(err.into()),
     };
+    // Asked together, so a busy host's planning waits out one listing's timeout, not two.
+    let (zscale, libx264) = tokio::join!(running.can_tone_map(), running.can_encode_in_software());
     let mut facts = Facts {
         version,
         probe,
         device: decoding,
         ffmpeg: running.can_run(),
-        zscale: running.can_tone_map().await,
-        libx264: running.can_encode_h264().await,
+        zscale,
+        libx264,
         failed,
         audio,
         transcodes_full: None,

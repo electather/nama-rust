@@ -279,9 +279,9 @@ impl RunningPlans {
         answered_once(&self.inner.zscale, "zscale", self.inner.ffmpeg.has_zscale()).await
     }
 
-    /// Whether a Transcode can encode H.264 in software, as ffmpeg said the first time it
-    /// answered.
-    pub(crate) async fn can_encode_h264(&self) -> bool {
+    /// Whether a Transcode can encode its video in software, with libx264, as ffmpeg said the
+    /// first time it answered.
+    pub(crate) async fn can_encode_in_software(&self) -> bool {
         answered_once(
             &self.inner.libx264,
             "libx264",
