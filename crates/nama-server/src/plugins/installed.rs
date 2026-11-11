@@ -13,7 +13,11 @@ use std::{
     time::Duration,
 };
 
-use buffa::{Enumeration, Message};
+use buffa::{
+    DecodeError, Enumeration, Message,
+    encoding::{self, Tag, WireType},
+    types,
+};
 use extism::{CompiledPlugin, PluginBuilder, Wasm};
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
@@ -161,7 +165,7 @@ enum Refused {
     #[error("the Server panicked while loading it: {0}")]
     Panicked(String),
     #[error("its manifest() returned something that isn't a Manifest: {0}")]
-    Decode(buffa::DecodeError),
+    Decode(DecodeError),
     #[error("its nama-api requirement {wants:?} isn't a semver requirement: {error}")]
     BadRequirement { wants: String, error: semver::Error },
     #[error("it wants nama-api {wants}, and this Server has {}", NAMA_API_VERSION)]
@@ -799,7 +803,7 @@ fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
         Ok((bytes, exported))
     })
     .map_err(Refused::Panicked)??;
-    let mut package = wire::Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
+    let mut package = decode(&bytes)?;
     Ok(Installed {
         manifest: judge(&mut package, &exported)?,
         package: Arc::new(package),
@@ -809,11 +813,32 @@ fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
     })
 }
 
+/// `bytes` as a Manifest, once its Nama API requirement matches this Server's: a package built for
+/// another Nama API may encode the rest differently, so it is refused for that rather than found
+/// undecodable.
+fn decode(bytes: &[u8]) -> Result<wire::Manifest, Refused> {
+    check_nama_api(&nama_api(bytes).map_err(Refused::Decode)?)?;
+    wire::Manifest::decode_from_slice(bytes).map_err(Refused::Decode)
+}
+
+/// The `nama_api` of the encoded Manifest `bytes`, its field 3, read alone.
+fn nama_api(mut bytes: &[u8]) -> Result<String, DecodeError> {
+    let mut wants = String::new();
+    while !bytes.is_empty() {
+        let tag = Tag::decode(&mut bytes)?;
+        if tag.field_number() == 3 && tag.wire_type() == WireType::LengthDelimited {
+            wants = types::decode_string(&mut bytes)?;
+        } else {
+            encoding::skip_field(tag, &mut bytes)?;
+        }
+    }
+    Ok(wants)
+}
+
 /// What the Server makes of `package`, the Manifest of a Package with the exports `exported`: the
 /// Manifest the Kernel reads, or why it refuses the Plugin. Runs no Plugin code, so a test needs
 /// no Package.
 fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<Manifest, Refused> {
-    check_nama_api(&package.nama_api)?;
     check_allowed_hosts(&package.allowed_hosts)?;
     let points = points(package)?;
     check_exports(&points, |export| exported.contains(&export))?;
@@ -959,6 +984,8 @@ fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema, Refused> 
 mod tests {
     use std::sync::Arc;
 
+    use buffa::Message;
+
     use nama_plugin_api::{
         PluginId, PointKey,
         notifier::Notifier,
@@ -973,8 +1000,8 @@ mod tests {
     };
 
     use super::{
-        BUNDLED, allowed_hosts, check_allowed_hosts, check_exports, extism_config, is_crash, judge,
-        load, points, settings_schema, write_cache_config,
+        BUNDLED, allowed_hosts, check_allowed_hosts, check_exports, decode, extism_config,
+        is_crash, judge, load, points, settings_schema, write_cache_config,
     };
 
     // The errors as Extism 1.41 gives them for the test Plugin's Observer.
@@ -1228,20 +1255,40 @@ mod tests {
     }
 
     #[test]
+    fn a_manifest_for_another_nama_api_is_refused_for_that_before_the_rest_is_decoded() {
+        let wanting = |nama_api: &str| {
+            Manifest {
+                nama_api: nama_api.to_owned(),
+                ..notifier()
+            }
+            .encode_to_vec()
+        };
+        // A setting whose default is text, as Nama API 0.1 encoded it: its `SettingValue.text`
+        // was field 3, now the varint `integer_value`.
+        let mut built_for_0_1 = wanting("^0.1.0");
+        built_for_0_1.extend([0x22, 0x05, 0x32, 0x03, 0x1a, 0x01, b'x']);
+        Manifest::decode_from_slice(&built_for_0_1).unwrap_err();
+
+        let refusals = [built_for_0_1, wanting("one")]
+            .map(|bytes| decode(&bytes).err().map(|refused| refused.to_string()));
+
+        assert_eq!(
+            refusals,
+            [
+                format!("it wants nama-api ^0.1.0, and this Server has {NAMA_API_VERSION}"),
+                r#"its nama-api requirement "one" isn't a semver requirement: unexpected character 'o' while parsing major version number"#.to_owned(),
+            ]
+            .map(Some)
+        );
+    }
+
+    #[test]
     fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
         let text = |text: &str| proto::SettingValue {
             value: Some(setting_value::Value::TextValue(text.to_owned())),
             ..Default::default()
         };
         let wrong = [
-            Manifest {
-                nama_api: "<0.1".to_owned(),
-                ..notifier()
-            },
-            Manifest {
-                nama_api: "one".to_owned(),
-                ..notifier()
-            },
             Manifest {
                 allowed_hosts: vec!["sonarr.lan:8989".to_owned()],
                 ..notifier()
@@ -1277,8 +1324,6 @@ mod tests {
         assert_eq!(
             refusals,
             [
-                format!("it wants nama-api <0.1, and this Server has {NAMA_API_VERSION}"),
-                r#"its nama-api requirement "one" isn't a semver requirement: unexpected character 'o' while parsing major version number"#.to_owned(),
                 "its allowed host sonarr.lan:8989 has a port, and allowed hosts are matched without one".to_owned(),
                 "its Manifest names observer 99, an Extension Point this Server doesn't know".to_owned(),
                 "its Manifest names PROVIDE_POINT_CONNECTOR, and it has no start_connection export".to_owned(),
@@ -1353,31 +1398,25 @@ mod tests {
             ),
         ];
 
-        let declared = BUNDLED.iter().map(|(_, wasm)| {
-            let installed = load(wasm.to_vec(), &cache_config).unwrap();
-            installed
+        let expected = |file: &str| match file {
+            "radarr.wasm" | "sonarr.wasm" => &servarr[..],
+            "telegram.wasm" => &telegram[..],
+            _ => &[],
+        };
+
+        for (file, wasm) in BUNDLED {
+            let fields = load(wasm.to_vec(), &cache_config)
+                .unwrap()
                 .manifest
                 .settings
-                .fields
-                .into_iter()
-                .map(|field| (field.key, field.kind, field.default))
-                .collect::<Vec<_>>()
-        });
-
-        let declared_as = |settings: &[(&str, SettingKind, Option<SettingValue>)]| {
-            settings
+                .fields;
+            let declared: Vec<_> = fields
                 .iter()
-                .map(|(key, kind, default)| ((*key).to_owned(), *kind, default.clone()))
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(
-            declared.collect::<Vec<_>>(),
-            [
-                declared_as(&servarr),
-                declared_as(&servarr),
-                declared_as(&telegram)
-            ]
-        );
+                .map(|field| (field.key.as_str(), field.kind, field.default.clone()))
+                .collect();
+
+            assert_eq!(declared, expected(file), "{file}");
+        }
     }
 
     fn refused_for_lacking(named: ProvidePoint, export: &str) -> Option<String> {
