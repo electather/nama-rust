@@ -7413,6 +7413,8 @@ impl ::serde::Serialize for ContinueWatchingEntryOwnedView {
 pub struct ContinueWatchingEpisodeView<'a> {
     /// Field 1: `episode`
     pub episode: ::buffa::MessageFieldView<super::super::__buffa::view::EpisodeView<'a>>,
+    /// Always set.
+    ///
     /// Field 2: `show`
     pub show: ::buffa::MessageFieldView<super::super::__buffa::view::ShowView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
@@ -7722,6 +7724,8 @@ impl ContinueWatchingEpisodeOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::EpisodeView<'_>> {
         &self.0.reborrow().episode
     }
+    /// Always set.
+    ///
     /// Field 2: `show`
     #[must_use]
     pub fn show(

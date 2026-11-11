@@ -274,7 +274,8 @@ message ListEpisodesResponse {
 message ContinueWatchingEntry {
   // The Library it is in.
   int64 library_id = 1;
-  // It, with its Versions and the caller's Watch State, as browsing describes it.
+  // It, with its Versions and the caller's Watch State, as browsing describes it, and an Episode's
+  // Show.
   oneof movie_or_episode {
     Movie movie = 2;
     ContinueWatchingEpisode episode = 3;
@@ -286,6 +287,7 @@ message ContinueWatchingEntry {
 // An Episode in Continue Watching, with the Show it is of.
 message ContinueWatchingEpisode {
   Episode episode = 1;
+  // Always set.
   Show show = 2;
 }
 

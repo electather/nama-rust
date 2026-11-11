@@ -14,4 +14,4 @@ CI counts those headings, so a break passes only with one more than main has: ed
 
 - `FIELD_SAME_TYPE`, `nama/v1/browse.proto`.
 - `ContinueWatchingEntry.episode` (3) is now a `ContinueWatchingEpisode`, which holds the `Episode` and the `Show` it is of. `ContinueWatchingEntry.show` (4) is removed and reserved.
-- A client built before reads an Episode entry's field 3 as an `Episode` with wrong fields and finds no Show, so it must regenerate and read both from the Episode arm. No Installed Plugin sees Continue Watching.
+- A client built before misreads an Episode entry, or fails to decode the response, and finds no Show; it must regenerate and read both from the Episode arm. No Installed Plugin sees Continue Watching.

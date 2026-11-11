@@ -67,7 +67,8 @@ pub mod track {
 pub mod continue_watching_entry {
     #[allow(unused_imports)]
     use super::*;
-    /// It, with its Versions and the caller's Watch State, as browsing describes it.
+    /// It, with its Versions and the caller's Watch State, as browsing describes it, and an Episode's
+    /// Show.
     #[derive(Clone, PartialEq, Debug)]
     pub enum MovieOrEpisode {
         Movie(::buffa::alloc::boxed::Box<super::super::super::Movie>),

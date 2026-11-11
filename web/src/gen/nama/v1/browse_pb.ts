@@ -717,7 +717,8 @@ export type ContinueWatchingEntry = Message<"nama.v1.ContinueWatchingEntry"> & {
   libraryId: bigint;
 
   /**
-   * It, with its Versions and the caller's Watch State, as browsing describes it.
+   * It, with its Versions and the caller's Watch State, as browsing describes it, and an Episode's
+   * Show.
    *
    * @generated from oneof nama.v1.ContinueWatchingEntry.movie_or_episode
    */
@@ -755,6 +756,8 @@ export type ContinueWatchingEpisode = Message<"nama.v1.ContinueWatchingEpisode">
   episode?: Episode | undefined;
 
   /**
+   * Always set.
+   *
    * @generated from field: nama.v1.Show show = 2;
    */
   show?: Show | undefined;

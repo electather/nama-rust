@@ -4983,6 +4983,8 @@ pub struct ContinueWatchingEpisode {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub episode: ::buffa::MessageField<Episode, ::buffa::Inline<Episode>>,
+    /// Always set.
+    ///
     /// Field 2: `show`
     #[serde(
         rename = "show",

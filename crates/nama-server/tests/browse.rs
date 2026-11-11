@@ -2616,9 +2616,9 @@ fn listed(entries: &[ContinueWatchingEntry]) -> Vec<(i64, Listed<'_>, u64)> {
                     let id = movie.id.as_option().unwrap().clone();
                     (Listed::Movie(id), &movie.watch_state)
                 }
-                MovieOrEpisode::Episode(of_show) => {
-                    let show = of_show.show.as_option().unwrap().title.as_str();
-                    let episode = of_show.episode.as_option().unwrap();
+                MovieOrEpisode::Episode(started) => {
+                    let show = started.show.as_option().unwrap().title.as_str();
+                    let episode = started.episode.as_option().unwrap();
                     let numbers = (episode.season_number, episode.episode_number);
                     (
                         Listed::Episode(show, numbers.0, numbers.1),
