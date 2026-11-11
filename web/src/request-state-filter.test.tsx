@@ -19,14 +19,14 @@ const ada = [{ userId: 2n, name: "Ada" }];
 
 const pendingHeat = {
   id: 2n,
-  movie: { tmdbId: 949n, title: "Heat" },
+  movieOrSeason: { case: "movie" as const, value: { tmdbId: 949n, title: "Heat" } },
   state: RequestState.PENDING,
   requesters: ada,
 };
 
 const failedDune = {
   id: 1n,
-  movie: { tmdbId: 438_631n, title: "Dune" },
+  movieOrSeason: { case: "movie" as const, value: { tmdbId: 438_631n, title: "Dune" } },
   state: RequestState.FAILED,
   requesters: ada,
 };
@@ -115,7 +115,15 @@ test("a Failed Season Request shows under its Show's title without its Approved 
   openApp(
     "/requests?state=failed",
     filteringServer(
-      [{ id: 3n, season, state: RequestState.FAILED, requesters: ada, followedShowId: 7n }],
+      [
+        {
+          id: 3n,
+          movieOrSeason: { case: "season", value: season },
+          state: RequestState.FAILED,
+          requesters: ada,
+          followedShowId: 7n,
+        },
+      ],
       [
         {
           id: 7n,

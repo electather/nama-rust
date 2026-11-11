@@ -118,9 +118,10 @@ function targetOf(request: Request | FollowedShow): Target {
 }
 
 /** What `request` asks for, in words: a Movie's title, or a Show's with the Season's name. */
-function nameOf({ movie, season }: Request) {
-  if (season) return `${season.showTitle} ${seasonName(season.seasonNumber)}`;
-  return movie?.title ?? "this Movie";
+function nameOf({ movieOrSeason }: Request) {
+  if (movieOrSeason.case === "season")
+    return `${movieOrSeason.value.showTitle} ${seasonName(movieOrSeason.value.seasonNumber)}`;
+  return movieOrSeason.value?.title ?? "this Movie";
 }
 
 function Approve({ id, ...target }: Target) {

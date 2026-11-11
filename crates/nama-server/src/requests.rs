@@ -28,6 +28,7 @@ use nama_proto::nama::v1::{
     FollowedShowWithdrawn, FoundSeason, ListRequestsResponse, Permission, Quality, QualityChange,
     Request, RequestCancelled, RequestCreated, RequestState, RequestStateChanged, RequestWithdrawn,
     RequestedMovie, RequestedQuality, RequestedSeason, Requester, RequesterAdded, RequesterRemoved,
+    request::MovieOrSeason,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
@@ -38,7 +39,7 @@ use crate::{
     db::{BoxFuture, Database, detached, now},
     events::{EventBus, event},
     metadata::{self, MetadataSource},
-    plugins::{Answer, Registry},
+    plugins::{Answer, ExtensionPoints},
     qualities,
     users::User,
 };
@@ -105,7 +106,7 @@ pub(crate) struct Requests {
     /// What [`Self::apply`] publishes the changes its writes make on.
     events: EventBus,
     /// Where the Fulfillers are.
-    plugins: Registry,
+    plugins: ExtensionPoints,
     /// Its way to hand Requests to the Fulfillers.
     hand_off: HandOff,
     /// What the Fulfillers say they are downloading for the Requests they have.
@@ -278,7 +279,7 @@ pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
 impl Requests {
     /// The Requests in `db`, looking titles up through the metadata Provider and handing Approved
     /// ones to the Fulfillers in `plugins`, publishing on `events`.
-    pub(crate) fn new(db: Arc<Database>, events: EventBus, plugins: Registry) -> Self {
+    pub(crate) fn new(db: Arc<Database>, events: EventBus, plugins: ExtensionPoints) -> Self {
         let progress = Progress::new(Arc::clone(&db), events.clone(), plugins.clone());
         Self {
             contents: Contents::new(Arc::clone(&db)),
@@ -401,20 +402,50 @@ impl Requests {
             + Send
             + 'static,
     {
+        let claiming = self.hand_off.clone();
+        let (applied, claims) = self
+            .db
+            .write(move |tx| {
+                Box::pin(async move {
+                    let applied = write(tx).await?;
+                    // The came-up sweep reads only committed Requests, so claiming them before the
+                    // commit keeps it off this write's. A failed commit drops the claims.
+                    let claims: Vec<_> = applied
+                        .hand_off
+                        .iter()
+                        .map(|request| claiming.claim(request.id))
+                        .collect();
+                    Ok::<_, Error>((applied, claims))
+                })
+            })
+            .await?;
         let Applied {
             value,
             events,
             hand_off,
             unfollow,
-        } = self.db.write(write).await?;
+        } = applied;
         self.events.publish(events);
         if let Some(season) = unfollow {
             self.hand_off.unfollow(&season).await;
         }
         let mut handed = Vec::with_capacity(hand_off.len());
+        let mut failed = None;
         // ponytail: one Hand-off at a time, so a slow Fulfiller takes as long for each Season.
-        for request in hand_off {
-            handed.push(self.hand_off.request(self, request).await?);
+        for (request, claim) in hand_off.into_iter().zip(claims) {
+            let Some(claim) = claim else {
+                // Another hand-off has it, and looks at it again once it is done.
+                handed.push(request);
+                continue;
+            };
+            // On past a failure: a came-up sweep that found the rest claimed left them to this.
+            match self.hand_off.request(self, request, claim).await {
+                Ok(request) => handed.push(request),
+                Err(err) => _ = failed.get_or_insert(err),
+            }
+        }
+        if let Some(err) = failed {
+            return Err(err);
         }
         Ok(value.handed_back(&handed))
     }
@@ -440,10 +471,9 @@ impl Requests {
 
     /// The enabled Plugin providing the Fulfiller for `request`'s kind, Movies or Shows, if any.
     fn fulfiller_of(&self, request: &Request) -> Option<PluginId> {
-        if request.movie.is_unset() {
-            self.fulfiller::<Shows>()
-        } else {
-            self.fulfiller::<Movies>()
+        match request.movie_or_season.as_ref()? {
+            MovieOrSeason::Movie(_) => self.fulfiller::<Movies>(),
+            MovieOrSeason::Season(_) => self.fulfiller::<Shows>(),
         }
     }
 
@@ -1827,10 +1857,10 @@ async fn change_quality(
     let request = load_one(conn, id)
         .await?
         .ok_or(Error::NoSuch(Asked::Request, id))?;
-    let show = request
-        .movie
-        .is_unset()
-        .then_some(request.season.show_tmdb_id);
+    let show = match &request.movie_or_season {
+        Some(MovieOrSeason::Season(season)) => Some(season.show_tmdb_id),
+        _ => None,
+    };
     requality(conn, Some(id), show, new_quality).await
 }
 
@@ -2401,59 +2431,52 @@ async fn load(
     let mut requesters = asked::requesters(conn, Asked::Request, id).await?;
     Ok(rows
         .into_iter()
-        .map(|row| {
-            let mut request = Request {
-                id: row.id,
-                state: read_state(&row.state).into(),
-                requesters: requesters.remove(&row.id).unwrap_or_default(),
-                created_at: row.created_at,
-                decline_reason: row.decline_reason,
-                failure_reason: row.failure_reason,
-                followed_show_id: row.followed_show_id,
-                fulfiller_plugin_id: row.fulfiller_plugin_id,
-                quality: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
-                    .into(),
-                quality_change: row
-                    .quality_changed_at
-                    .map(|changed_at| QualityChange {
-                        changed_by: row.quality_changed_by,
-                        previous_name: row.quality_changed_from,
-                        changed_at,
-                        ..Default::default()
-                    })
-                    .into(),
-                quality_used: stored_quality(
-                    row.quality_used_id,
-                    row.quality_used_name,
-                    row.quality_used_profile_id,
-                )
+        .map(|row| Request {
+            id: row.id,
+            movie_or_season: match row.season {
+                Some(season_number) => RequestedSeason {
+                    show_tmdb_id: row.tmdb_id,
+                    season_number,
+                    show_title: row.title,
+                    air_date: row.release_date,
+                    show_imdb_id: row.show_imdb_id,
+                    show_tvdb_id: row.show_tvdb_id,
+                    ..Default::default()
+                }
                 .into(),
-                ..Default::default()
-            };
-            match row.season {
-                Some(season_number) => {
-                    request.season = RequestedSeason {
-                        show_tmdb_id: row.tmdb_id,
-                        season_number,
-                        show_title: row.title,
-                        air_date: row.release_date,
-                        show_imdb_id: row.show_imdb_id,
-                        show_tvdb_id: row.show_tvdb_id,
-                        ..Default::default()
-                    }
-                    .into();
+                None => RequestedMovie {
+                    tmdb_id: row.tmdb_id,
+                    title: row.title,
+                    release_date: row.release_date,
+                    ..Default::default()
                 }
-                None => {
-                    request.movie = RequestedMovie {
-                        tmdb_id: row.tmdb_id,
-                        title: row.title,
-                        release_date: row.release_date,
-                        ..Default::default()
-                    }
-                    .into();
-                }
-            }
-            request
+                .into(),
+            },
+            state: read_state(&row.state).into(),
+            requesters: requesters.remove(&row.id).unwrap_or_default(),
+            created_at: row.created_at,
+            decline_reason: row.decline_reason,
+            failure_reason: row.failure_reason,
+            followed_show_id: row.followed_show_id,
+            fulfiller_plugin_id: row.fulfiller_plugin_id,
+            quality: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
+                .into(),
+            quality_change: row
+                .quality_changed_at
+                .map(|changed_at| QualityChange {
+                    changed_by: row.quality_changed_by,
+                    previous_name: row.quality_changed_from,
+                    changed_at,
+                    ..Default::default()
+                })
+                .into(),
+            quality_used: stored_quality(
+                row.quality_used_id,
+                row.quality_used_name,
+                row.quality_used_profile_id,
+            )
+            .into(),
+            ..Default::default()
         })
         .filter(|request| may_see(requester, &request.requesters))
         .collect())
@@ -2519,10 +2542,7 @@ mod tests {
     use std::{
         collections::{BTreeMap, HashMap, HashSet},
         pin::Pin,
-        sync::{
-            Arc,
-            atomic::{AtomicUsize, Ordering},
-        },
+        sync::Arc,
         time::Duration,
     };
 
@@ -2545,17 +2565,18 @@ mod tests {
     use tokio::sync::Notify;
 
     use super::{
-        Applied, Error, Requests, STATES, Wanted, WantedSeasons, approve, ask, ask_movie,
-        ask_seasons, asked, availability, cancel, cancel_followed, decide_followed, decline,
-        follow, is_open, load, load_one, make_seasons_available, opening_state, progress, retry,
-        settle, withdraw, withdraw_followed,
+        Applied, Error, MovieOrSeason, RequestedMovie, RequestedSeason, Requests, STATES, Wanted,
+        WantedSeasons, approve, ask, ask_movie, ask_seasons, asked, availability, cancel,
+        cancel_followed, decide_followed, decline, follow, is_open, load, load_one,
+        make_seasons_available, opening_state, progress, retry, settle, withdraw,
+        withdraw_followed,
     };
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
         db::Database,
         events::{EventBus, Filter},
         libraries::{Kind, Libraries},
-        plugins::{Answer, Failure, Registry},
+        plugins::{Answer, ExtensionPoints, Failure, Registry},
         qualities,
         scanner::Scanner,
         server_settings::ServerUrl,
@@ -2563,6 +2584,22 @@ mod tests {
     };
 
     const TODAY: &str = "2026-11-08";
+
+    /// The Movie `request` asks for, panicking if it asks for a Season.
+    fn asked_movie(request: &Request) -> &RequestedMovie {
+        match &request.movie_or_season {
+            Some(MovieOrSeason::Movie(movie)) => movie,
+            other => panic!("not a Movie Request: {other:?}"),
+        }
+    }
+
+    /// The Season `request` asks for, panicking if it asks for a Movie.
+    fn asked_season(request: &Request) -> &RequestedSeason {
+        match &request.movie_or_season {
+            Some(MovieOrSeason::Season(season)) => season,
+            other => panic!("not a Season Request: {other:?}"),
+        }
+    }
 
     fn episode(number: u32, air_date: Option<&str>) -> Episode {
         Episode {
@@ -2662,17 +2699,21 @@ mod tests {
     /// answer at once.
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    /// A Movie Fulfiller that counts the Requests it is handed, and takes each only once `open`
-    /// lets it.
+    /// A Fulfiller for Movies and Shows that keeps the ids of the Requests it is handed, in order,
+    /// and takes each only once `open` lets it.
     #[derive(Default)]
     struct Gated {
-        handed: AtomicUsize,
+        handed: std::sync::Mutex<Vec<i64>>,
         open: Notify,
     }
 
-    impl Fulfiller<Movies> for Gated {
-        fn fulfill<'a>(&'a self, _: &'a Request) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-            self.handed.fetch_add(1, Ordering::SeqCst);
+    impl Gated {
+        fn handed(&self) -> Vec<i64> {
+            self.handed.lock().unwrap().clone()
+        }
+
+        fn take<'a>(&'a self, request: &Request) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+            self.handed.lock().unwrap().push(request.id);
             Box::pin(async {
                 self.open.notified().await;
                 Ok(Fulfilled {
@@ -2680,6 +2721,31 @@ mod tests {
                     ..Fulfilled::default()
                 })
             })
+        }
+    }
+
+    impl Fulfiller<Movies> for Gated {
+        fn fulfill<'a>(
+            &'a self,
+            request: &'a Request,
+        ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+            self.take(request)
+        }
+
+        fn progress<'a>(
+            &'a self,
+            _: &'a [String],
+        ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+            Box::pin(async { Ok(HashMap::new()) })
+        }
+    }
+
+    impl Fulfiller<Shows> for Gated {
+        fn fulfill<'a>(
+            &'a self,
+            request: &'a Request,
+        ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+            self.take(request)
         }
 
         fn progress<'a>(
@@ -2701,7 +2767,7 @@ mod tests {
             &'a self,
             request: &'a Request,
         ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-            took(request.movie.tmdb_id.to_string())
+            took(asked_movie(request).tmdb_id.to_string())
         }
 
         fn progress<'a>(
@@ -2717,7 +2783,7 @@ mod tests {
             &'a self,
             request: &'a Request,
         ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-            took(format!("season-{}", request.season.season_number))
+            took(format!("season-{}", asked_season(request).season_number))
         }
 
         fn progress<'a>(
@@ -2858,14 +2924,14 @@ mod tests {
         tmdb_ids: &[i64],
         fulfiller: Arc<dyn Fulfiller<Movies>>,
     ) -> (tempfile::TempDir, Requests) {
-        approved_on(Registry::new(), tmdb_ids, fulfiller).await
+        approved_on(&Registry::new(), tmdb_ids, fulfiller).await
     }
 
-    /// [`approved_for`], with `plugins` enabled too.
-    async fn approved_on(
-        plugins: Registry,
+    /// [`approved_for`], with `plugins` enabled too, and `fulfiller` as the Fulfiller of `Kind`.
+    async fn approved_on<Kind: 'static>(
+        plugins: &Registry,
         tmdb_ids: &[i64],
-        fulfiller: Arc<dyn Fulfiller<Movies>>,
+        fulfiller: Arc<dyn Fulfiller<Kind>>,
     ) -> (tempfile::TempDir, Requests) {
         let data = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
@@ -2873,7 +2939,7 @@ mod tests {
         plugins
             .enable(Arc::new(FulfillerPlugin("gated", fulfiller)))
             .unwrap();
-        let requests = requests_on(db, plugins);
+        let requests = requests_on(db, plugins.extension_points());
         for &tmdb_id in tmdb_ids {
             ask_as(&requests, Permissions::ADMIN, tmdb_id).await;
         }
@@ -2881,7 +2947,7 @@ mod tests {
     }
 
     /// Requests in `db`, handing off to the Fulfillers in `plugins`.
-    fn requests_on(db: Arc<Database>, plugins: Registry) -> Requests {
+    fn requests_on(db: Arc<Database>, plugins: ExtensionPoints) -> Requests {
         let events = EventBus::new(Arc::clone(&db), plugins.clone(), ServerUrl::default());
         Requests::new(db, events, plugins)
     }
@@ -3167,6 +3233,7 @@ mod tests {
         plugins
             .enable(Arc::new(FulfillerPlugin("sonarr", fulfiller)))
             .unwrap();
+        let plugins = plugins.extension_points();
         let bus = EventBus::new(Arc::clone(&db), plugins.clone(), ServerUrl::default());
         let requests = Requests::new(Arc::clone(&db), bus.clone(), plugins);
         let season_1 = WantedSeasons {
@@ -3219,7 +3286,7 @@ mod tests {
         let (_data, requests, gated) = approved_for_gated(&[949]).await;
         let handing_first = requests.clone();
         let first = tokio::spawn(async move { come_up(&handing_first, "gated").await });
-        while gated.handed.load(Ordering::SeqCst) == 0 {
+        while gated.handed().is_empty() {
             tokio::task::yield_now().await;
         }
 
@@ -3229,7 +3296,47 @@ mod tests {
         gated.open.notify_one();
         first.await.unwrap();
 
-        assert_eq!(gated.handed.load(Ordering::SeqCst), 1);
+        assert_eq!(gated.handed().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_fulfiller_coming_up_leaves_the_requests_an_ask_is_handing_off_to_it() {
+        let gated = Arc::new(Gated::default());
+        let fulfiller: Arc<dyn Fulfiller<Shows>> = Arc::<Gated>::clone(&gated);
+        let (_data, requests) = approved_on(&Registry::new(), &[], fulfiller).await;
+        let asking = requests.clone();
+        let ask = tokio::spawn(async move {
+            asking
+                .apply(|tx| Box::pin(ask_seasons(tx, ADA, dark(), RequestState::Approved)))
+                .await
+        });
+        while gated.handed().is_empty() {
+            tokio::task::yield_now().await;
+        }
+
+        tokio::time::timeout(Duration::from_secs(1), come_up(&requests, "gated"))
+            .await
+            .expect("the came-up hand-off waited on the Fulfiller");
+        assert_eq!(
+            gated.handed().len(),
+            1,
+            "the came-up hand-off took the second Request"
+        );
+        gated.open.notify_one();
+        while gated.handed().len() < 2 {
+            tokio::task::yield_now().await;
+        }
+        gated.open.notify_one();
+        let asked = ask.await.unwrap().unwrap();
+
+        let ids: Vec<i64> = asked.iter().map(|request| request.id).collect();
+        assert_eq!(gated.handed(), ids);
+        assert!(
+            asked
+                .iter()
+                .all(|request| request.state == RequestState::Processing),
+            "{asked:?}"
+        );
     }
 
     #[tokio::test]
@@ -3238,7 +3345,7 @@ mod tests {
 
         come_up(&requests, "tmdb").await;
 
-        assert_eq!(gated.handed.load(Ordering::SeqCst), 0);
+        assert_eq!(gated.handed(), NOTHING);
     }
 
     /// Tells `requests` the Plugin `plugin` came up, and waits until it has handed off what that
@@ -3291,14 +3398,13 @@ mod tests {
         holding.await.unwrap().unwrap();
     }
 
-    /// Enables `tmdb` as the metadata Provider of `requests`.
-    fn enable_tmdb(requests: &Requests, tmdb: &FakeTmdb) {
+    /// Enables `tmdb` as the metadata Provider in `plugins`.
+    fn enable_tmdb(plugins: &Registry, tmdb: &FakeTmdb) {
         let settings = Settings::new(BTreeMap::from([(
             "api_key".to_owned(),
             SettingValue::Text(API_KEY.to_owned()),
         )]));
-        requests
-            .plugins
+        plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
     }
@@ -3332,8 +3438,10 @@ mod tests {
     #[tokio::test]
     async fn an_auto_approved_movie_asked_for_by_a_caller_who_left_is_published_and_handed_off() {
         let tmdb = FakeTmdb::start().await;
-        let (_data, requests) = approved_for(&[], Arc::new(Asked::default())).await;
-        enable_tmdb(&requests, &tmdb);
+        let plugins = Registry::new();
+        enable_tmdb(&plugins, &tmdb);
+        let (_data, requests) =
+            approved_on::<Movies>(&plugins, &[], Arc::new(Asked::default())).await;
         let mut published = subscribe(&requests);
         let asking = requests.clone();
 
@@ -3406,8 +3514,10 @@ mod tests {
     async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_made_available() {
         let tmdb = FakeTmdb::start().await;
         let folder = tempfile::tempdir().unwrap();
-        let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
-        enable_tmdb(&requests, &tmdb);
+        let plugins = Registry::new();
+        enable_tmdb(&plugins, &tmdb);
+        let (_data, requests) =
+            approved_on::<Movies>(&plugins, &[949], Arc::new(Asked::default())).await;
         let root = folder.path().canonicalize().unwrap();
         let library = Libraries::new(Arc::clone(&requests.db))
             .create(
@@ -4301,7 +4411,7 @@ mod tests {
     #[tokio::test]
     async fn requesters_are_listed_in_the_order_they_asked() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
 
         for kind in KINDS {
             let id = ask_kind(&db, kind, BOB).await.value;
@@ -4356,7 +4466,7 @@ mod tests {
     #[tokio::test]
     async fn joining_one_twice_changes_nothing() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
 
         for kind in KINDS {
             let opened = ask_kind(&db, kind, ADA).await.value;
@@ -4380,7 +4490,7 @@ mod tests {
     #[tokio::test]
     async fn a_requester_leaving_takes_only_them_off() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
         let bob = user(BOB, Permissions::from_iter([Permission::ViewRequests]));
 
         for kind in KINDS {
@@ -4408,7 +4518,7 @@ mod tests {
     #[tokio::test]
     async fn the_last_requester_leaving_removes_it() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
 
         for kind in KINDS {
             let id = ask_kind(&db, kind, ADA).await.value;
@@ -4427,7 +4537,7 @@ mod tests {
     #[tokio::test]
     async fn a_non_requester_withdrawing_is_not_found_unless_they_may_see_it_even_once_approved() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
         let viewer = user(BOB, Permissions::from_iter([Permission::ViewRequests]));
         let non_viewer = user(BOB, Permissions::from_iter([]));
 
@@ -4482,7 +4592,7 @@ mod tests {
     #[tokio::test]
     async fn only_a_pending_one_is_decided_and_declining_keeps_its_reason() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
 
         for kind in KINDS {
             let declined = ask_kind(&db, kind, ADA).await.value;
@@ -4515,7 +4625,7 @@ mod tests {
     #[tokio::test]
     async fn only_its_requesters_and_those_who_may_view_requests_see_one() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
         let nothing = Permissions::from_iter([]);
         let view_requests = Permissions::from_iter([Permission::ViewRequests]);
 
@@ -4534,7 +4644,7 @@ mod tests {
     #[tokio::test]
     async fn the_pending_count_is_as_many_as_the_pending_list_shows() {
         let (_data, db) = ada_and_bob().await;
-        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
         ask_for(&db, ADA, 949, RequestState::Pending).await;
         ask_for(&db, ADA, 603, RequestState::Approved).await;
         follow_as(&db, ADA, dark(), RequestState::Pending).await;
@@ -4572,7 +4682,10 @@ mod tests {
         }
 
         fn unfollow<'a>(&'a self, season: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
-            self.0.lock().unwrap().push(season.season.show_tmdb_id);
+            self.0
+                .lock()
+                .unwrap()
+                .push(asked_season(season).show_tmdb_id);
             Box::pin(async { Ok(()) })
         }
 
@@ -4607,7 +4720,8 @@ mod tests {
         plugins
             .enable(Arc::new(FulfillerPlugin("shows", fulfiller)))
             .unwrap();
-        let (data, requests) = approved_on(plugins, &[], Arc::new(Asked::default())).await;
+        let (data, requests) =
+            approved_on::<Movies>(&plugins, &[], Arc::new(Asked::default())).await;
         let followed = follow_as(&requests.db, ADA, dark(), RequestState::Approved).await;
         let id = followed.value.0.id;
         (data, requests, unfollowing, id)
@@ -4707,7 +4821,7 @@ mod tests {
             .map(|request| {
                 let requesters = request.requesters.iter().map(|one| one.user_id).collect();
                 let state = request.state.as_known().unwrap_or_default();
-                (request.season.season_number, state, requesters)
+                (asked_season(&request).season_number, state, requesters)
             })
             .collect()
     }
@@ -4857,7 +4971,7 @@ mod tests {
         to_season_3.seasons.push(dark_season(3));
         let joined = follow_as(db, BOB, to_season_3, RequestState::Pending).await;
         let season_3 = joined.value.1.last().expect("Season 3's Request");
-        assert_eq!(season_3.season.season_number, 3);
+        assert_eq!(asked_season(season_3).season_number, 3);
         (joined.value.0.id, season_3.id)
     }
 

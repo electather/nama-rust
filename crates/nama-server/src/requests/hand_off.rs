@@ -14,21 +14,21 @@ use nama_plugin_api::{
     PluginId,
     fulfiller::{Fulfilled, Fulfiller, Movies, Shows},
 };
-use nama_proto::nama::v1::{Request, RequestState};
+use nama_proto::nama::v1::{Request, RequestState, request::MovieOrSeason};
 use tokio::sync::{Notify, mpsc::UnboundedReceiver};
 use tracing::{error, warn};
 
 use super::{Error, Requests, as_handed_off, load, load_one, lock};
 use crate::{
     db::{BoxFuture, Database, detached},
-    plugins::{Answer, Registry},
+    plugins::{Answer, ExtensionPoints},
 };
 
 /// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled.
 #[derive(Debug, Clone)]
 pub(super) struct HandOff {
     db: Arc<Database>,
-    plugins: Registry,
+    plugins: ExtensionPoints,
     /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
     /// skipped it meanwhile.
     handing: Arc<Mutex<HashMap<i64, bool>>>,
@@ -41,7 +41,7 @@ impl HandOff {
     /// becomes Processing.
     pub(super) fn new(
         db: Arc<Database>,
-        plugins: Registry,
+        plugins: ExtensionPoints,
         became_processing: Arc<Notify>,
     ) -> Self {
         Self {
@@ -52,11 +52,19 @@ impl HandOff {
         }
     }
 
-    /// Hands the Approved `request` to the Fulfiller for its kind, Movies or Shows, publishing that
-    /// its state changed: to Processing once it takes the Request, or to Failed, with its reason,
-    /// if it doesn't. Returns the Request as it is now. Without a Fulfiller for its kind the
-    /// Request waits in Approved, and one already being handed off is left to that hand-off. Settles
-    /// through `requests`' path.
+    /// Claims the Request `id` for a hand-off, unless another hand-off has it, which then looks at
+    /// it again once it is done.
+    ///
+    /// An approval and enabling the Fulfiller may hand the same Request off at once, which would
+    /// hand it to the Fulfiller twice.
+    pub(super) fn claim(&self, id: i64) -> Option<Claim> {
+        Claim::take(&self.handing, id)
+    }
+
+    /// Hands the Approved `request`, which `claim` holds, to the Fulfiller for its kind, Movies or
+    /// Shows, publishing that its state changed: to Processing once it takes the Request, or to
+    /// Failed, with its reason, if it doesn't. Returns the Request as it is now. Without a
+    /// Fulfiller for its kind the Request waits in Approved. Settles through `requests`' path.
     ///
     /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
     /// stored even if the caller stops waiting.
@@ -65,15 +73,11 @@ impl HandOff {
         &self,
         requests: &Requests,
         request: Request,
+        mut claim: Claim,
     ) -> BoxFuture<'static, Result<Request, Error>> {
         let hand_off = self.clone();
         let requests = requests.clone();
         Box::pin(detached(async move {
-            // An approval and enabling the Fulfiller may hand the same Request off at once, which
-            // would hand it to the Fulfiller twice.
-            let Some(mut claim) = Claim::take(&hand_off.handing, request.id) else {
-                return Ok(request);
-            };
             let mut request = request;
             loop {
                 request = hand_off.claimed(&requests, request).await?;
@@ -152,7 +156,9 @@ impl HandOff {
             .filter(|request| request.state == RequestState::Approved);
         // ponytail: one at a time, so a slow Fulfiller takes as long for each.
         for request in waiting {
-            self.request(requests, request).await?;
+            if let Some(claim) = self.claim(request.id) {
+                self.request(requests, request, claim).await?;
+            }
         }
         Ok(())
     }
@@ -160,10 +166,9 @@ impl HandOff {
     /// What the Fulfiller for `request`'s kind says to it, if one is enabled: what it reports once
     /// it takes it, or why it doesn't.
     async fn fulfill(&self, request: &Request) -> Option<Answer<Fulfilled>> {
-        let fulfilled = if request.movie.is_unset() {
-            self.fulfill_as::<Shows>(request).await
-        } else {
-            self.fulfill_as::<Movies>(request).await
+        let fulfilled = match request.movie_or_season.as_ref()? {
+            MovieOrSeason::Movie(_) => self.fulfill_as::<Movies>(request).await,
+            MovieOrSeason::Season(_) => self.fulfill_as::<Shows>(request).await,
         }?;
         if let Err(failure) = &fulfilled.result {
             warn!(
@@ -198,9 +203,10 @@ impl HandOff {
             result: Err(failure),
             ..
         }) = unfollowed
+            && let Some(MovieOrSeason::Season(asked)) = &season.movie_or_season
         {
             warn!(
-                show = season.season.show_tmdb_id,
+                show = asked.show_tmdb_id,
                 reason = failure.message,
                 "the Shows Fulfiller didn't stop following the Show"
             );
@@ -210,7 +216,7 @@ impl HandOff {
 
 /// A hand-off's hold on one Request in [`HandOff::handing`], let go however the hand-off ends, a
 /// panic included, so the Request can be handed off again.
-struct Claim {
+pub(super) struct Claim {
     handing: Arc<Mutex<HashMap<i64, bool>>>,
     id: i64,
     /// Whether [`Self::release`] has let go already, so dropping it mustn't.
@@ -276,6 +282,16 @@ mod tests {
         let kept = claim.release().expect("the skipped Request was let go");
 
         assert!(kept.release().is_none());
+        assert!(Claim::take(&handing, 1).is_some());
+    }
+
+    #[test]
+    fn a_dropped_claim_lets_the_request_be_claimed_again() {
+        let handing = Arc::default();
+        let claim = Claim::take(&handing, 1).unwrap();
+
+        drop(claim);
+
         assert!(Claim::take(&handing, 1).is_some());
     }
 }

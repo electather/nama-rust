@@ -48,7 +48,7 @@ use nama_proto::nama::v1::{
     LookUpShowRequest, Permission, PluginServiceClient, Quality, RefusalReason, Request,
     RequestServiceClient, RequestState, RetryRequestRequest, SearchMoviesRequest,
     SearchShowsRequest, SetDefaultQualityRequest, TitleKind, UpdatePluginSettingsRequest,
-    WithdrawFollowedShowRequest, event, setting_value,
+    WithdrawFollowedShowRequest, event, request::MovieOrSeason, setting_value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -317,8 +317,12 @@ fn season_request(show: i64, seasons: &[u32]) -> CreateSeasonRequestsRequest {
 
 /// The Show title and Season number `request` asks for, if it asks for a Season.
 fn season_of(request: &Request) -> Option<(&str, u32)> {
-    let season = request.season.as_option()?;
-    Some((season.show_title.as_str(), season.season_number))
+    match &request.movie_or_season {
+        Some(MovieOrSeason::Season(season)) => {
+            Some((season.show_title.as_str(), season.season_number))
+        }
+        _ => None,
+    }
 }
 
 /// [`Requester::list`], once none of the Requests is Approved, as after enabling their Fulfiller
@@ -385,8 +389,10 @@ async fn two_users_asking_for_the_same_movie_share_one_request_with_both_as_requ
     assert_eq!(second.state, RequestState::Pending);
     assert_eq!(requester_ids(&second), [ada, grace]);
     assert_eq!(again, second, "asking twice changes nothing");
-    let movie = second.movie.as_option().map(|movie| movie.title.as_str());
-    assert_eq!(movie, Some("Heat"), "{second:?}");
+    let Some(MovieOrSeason::Movie(movie)) = &second.movie_or_season else {
+        panic!("not a Movie Request: {second:?}");
+    };
+    assert_eq!(movie.title, "Heat");
     assert_eq!(second.requesters[1].name, "Grace");
     assert_eq!(requests(as_grace).list().await, [second]);
 }
@@ -2158,7 +2164,6 @@ async fn requesting_seasons_1_and_2_of_a_show_creates_two_requests() {
 
     let seasons: Vec<_> = asked.iter().map(season_of).collect();
     assert_eq!(seasons, [Some(("Dark", 1)), Some(("Dark", 2))]);
-    assert!(asked.iter().all(|request| request.movie.is_unset()));
     let mut listed = grace.list().await;
     listed.reverse();
     assert_eq!(listed, asked);

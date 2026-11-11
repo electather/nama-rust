@@ -24,7 +24,7 @@ export interface QualityTarget {
  * handed off.
  */
 export function qualityTargetOf(request: Request | FollowedShow): QualityTarget {
-  const isMovie = request.$typeName === "nama.v1.Request" && request.movie !== undefined;
+  const isMovie = request.$typeName === "nama.v1.Request" && request.movieOrSeason.case === "movie";
   return { kind: isMovie ? TitleKind.MOVIE : TitleKind.SHOW, id: request.quality?.id };
 }
 

@@ -21,21 +21,21 @@ afterEach(cleanup);
 
 const heat: MessageInitShape<typeof RequestSchema> = {
   id: 2n,
-  movie: { tmdbId: 949n, title: "Heat" },
+  movieOrSeason: { case: "movie", value: { tmdbId: 949n, title: "Heat" } },
   state: RequestState.PENDING,
   requesters: [{ userId: 2n, name: "Ada" }],
 };
 
 const dune: MessageInitShape<typeof RequestSchema> = {
   id: 1n,
-  movie: { tmdbId: 438_631n, title: "Dune" },
+  movieOrSeason: { case: "movie", value: { tmdbId: 438_631n, title: "Dune" } },
   state: RequestState.APPROVED,
   requesters: [{ userId: 3n, name: "Grace" }],
 };
 
 const alien: MessageInitShape<typeof RequestSchema> = {
   id: 4n,
-  movie: { tmdbId: 348n, title: "Alien" },
+  movieOrSeason: { case: "movie", value: { tmdbId: 348n, title: "Alien" } },
   state: RequestState.FAILED,
   failureReason: "Radarr is unreachable",
   fulfillerPluginId: "radarr",
@@ -161,7 +161,10 @@ test("approving a Pending Request shows it Approved", async () => {
 test("a Season Request's actions name its Show and Season, and approve it at another Quality", async () => {
   const specials = create(RequestSchema, {
     id: 3n,
-    season: { showTmdbId: 70_523n, seasonNumber: 0, showTitle: "Dark" },
+    movieOrSeason: {
+      case: "season",
+      value: { showTmdbId: 70_523n, seasonNumber: 0, showTitle: "Dark" },
+    },
     state: RequestState.PENDING,
   });
   openApp("/requests", managedServer(admin, specials));
@@ -258,7 +261,10 @@ test("a Request manager retries a Failed Request at another Quality", async () =
 test("approving a Season at another Quality than its Show's says each Season takes the Show's", async () => {
   const darkSeason2 = create(RequestSchema, {
     id: 5n,
-    season: { showTmdbId: 70_523n, seasonNumber: 2, showTitle: "Dark" },
+    movieOrSeason: {
+      case: "season",
+      value: { showTmdbId: 70_523n, seasonNumber: 2, showTitle: "Dark" },
+    },
     state: RequestState.PENDING,
     quality: requested("4K", 2n),
   });

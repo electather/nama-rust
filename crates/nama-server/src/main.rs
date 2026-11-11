@@ -97,7 +97,7 @@ async fn main() -> ExitCode {
     }
 
     plugins
-        .registry()
+        .extension_points()
         .notify::<ServerStarted>(ServerStartedEvent {
             name: config.name.clone(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -161,7 +161,7 @@ async fn setup_code(
     db: &Arc<Database>,
     plugins: &PluginSettings,
 ) -> Result<Option<SetupCode>, Box<dyn std::error::Error>> {
-    let users = Users::new(Arc::clone(db), plugins.registry().clone());
+    let users = Users::new(Arc::clone(db), plugins.extension_points());
     if users.any().await? {
         return Ok(None);
     }

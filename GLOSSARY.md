@@ -154,6 +154,18 @@ _Avoid_: chapter, part
 One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions.
 _Avoid_: copy, edition, file
 
+**Poster**:
+The tall image that stands for a Movie, Show or Season.
+_Avoid_: cover, thumbnail, primary image
+
+**Backdrop**:
+The wide image shown behind a Movie's or Show's page.
+_Avoid_: fanart, art, background, banner
+
+**Custom Image**:
+An image an admin uploaded to show in place of the one the Server would otherwise show, such as a Movie's Poster or a Plugin's logo. Everyone sees it until it is removed, which brings the other back. A title's stays with the title, whatever happens to its files.
+_Avoid_: override, variant, replacement
+
 **Match**:
 The link between an Item in a Library and a title in a metadata source. An Item without one is Unmatched.
 _Avoid_: identification, lookup
@@ -201,20 +213,32 @@ Playing a Version with its video copied untouched into a container the client ca
 _Avoid_: direct stream, repackage
 
 **Transcode**:
-Playing a Version with its video re-encoded, such as when the client can't decode it, a Playback Limit asks for less, or subtitles are burned in.
+Playing a Version with its video re-encoded, such as when the client can't decode it, a Playback Limit asks for less, or a subtitle needs Burn-in.
 _Avoid_: convert, encode
 
-**GPU**:
-A graphics card, or graphics built into the CPU, that a Transcode can run on. The Server names each it finds, such as "AMD Radeon RX 9070 XT".
-_Avoid_: device (a Device is a client)
+**Burn-in**:
+The Server drawing a subtitle Track into the picture as it Transcodes, for a Device that can't show that Track itself.
+_Avoid_: hardsub, hardcoded subtitles, overlay
 
 **Playback Plan**:
-How the Server will play one Version on one Device: which Version, when the client didn't name one; by Direct Play, Remux or Transcode; with which Tracks; and the reasons for each choice. A new one is made whenever what it was based on changes.
+How the Server will play one Version on one Device: which Version, when the client didn't name one; by Direct Play, Remux or Transcode; with which Tracks; and the Playback Reasons for it. A new one is made whenever what it was based on changes.
 _Avoid_: decision, profile, stream info
+
+**Playback Reason**:
+One fact that shaped a Playback Plan, such as a codec the Device can't decode or a Playback Limit the picture is larger than. It either decided the plan, by standing in the way of a method the plan would rather have used, changing what plays or dropping one of the User's choices, or is context.
+_Avoid_: explanation, note
 
 **Playback Limit**:
 The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback.
 _Avoid_: quality, bitrate, resolution
+
+**Subtitle Preference**:
+What a User wants subtitles to start as when they play something: none, or a language, either full or forced-only, and SDH or not. A User sets one in Settings for everything; picking a subtitle, or turning subtitles off, while playing a Show or Movie keeps one for that Show or Movie, which wins.
+_Avoid_: default subtitle, remembered subtitle, sticky subtitle, subtitle choice (a pick in one playback)
+
+**GPU**:
+A graphics processor in the Server's machine that a Transcode can run on, either dedicated or integrated into the CPU. An Admin picks one, or leaves the Server to prefer a dedicated one. The Server names each it finds, such as "AMD Radeon RX 9070 XT".
+_Avoid_: device (that's a client), card, adapter, render node
 
 ## Requests
 

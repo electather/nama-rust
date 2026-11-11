@@ -16,7 +16,7 @@ mod exports {
         extism_pdk::{self, Error, HttpRequest, config, http},
         nama_proto::nama::{
             plugin::v1::{ObservePoint, ObservedEvents, ProvidePoint, SettingField},
-            v1::{SettingKind, SettingValue, setting_value},
+            v1::{SettingKind, SettingValue, request::MovieOrSeason, setting_value},
         },
         plugin_fn,
     };
@@ -159,10 +159,13 @@ mod exports {
                 Some("loop") => loop_forever(),
                 #[expect(clippy::panic, reason = "it panics on purpose")]
                 Some("panic") => panic!("the test Plugin's Fulfiller was set to panic"),
-                _ => Ok(Fulfilled {
-                    reference: format!("test-{}", request.movie.tmdb_id),
-                    ..Fulfilled::default()
-                }),
+                _ => match request.movie_or_season {
+                    Some(MovieOrSeason::Movie(movie)) => Ok(Fulfilled {
+                        reference: format!("test-{}", movie.tmdb_id),
+                        ..Fulfilled::default()
+                    }),
+                    _ => Err(Error::msg("the test Plugin takes only Movie Requests")),
+                },
             }
         }
 

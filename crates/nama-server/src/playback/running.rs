@@ -974,13 +974,17 @@ mod tests {
         events::{EventBus, Filter, event},
         ffmpeg::{Ffmpeg, Keyframe},
         playback::subtitles,
-        plugins::Registry,
+        plugins::ExtensionPoints,
         probing::Probing,
         server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
     };
 
     fn plans_in(db: &Arc<Database>, settings: PlaybackSettings) -> RunningPlans {
-        let events = EventBus::new(Arc::clone(db), Registry::new(), ServerUrl::default());
+        let events = EventBus::new(
+            Arc::clone(db),
+            ExtensionPoints::default(),
+            ServerUrl::default(),
+        );
         plans_with(db, settings, &events)
     }
 
@@ -1372,7 +1376,11 @@ mod tests {
     async fn a_transcode_whose_hardware_fails_carries_on_in_software_and_says_so() {
         let data = tempfile::tempdir().unwrap();
         let db = database(data.path()).await;
-        let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
+        let events = EventBus::new(
+            Arc::clone(&db),
+            ExtensionPoints::default(),
+            ServerUrl::default(),
+        );
         let plans = plans_with(
             &db,
             settings(&db, data.path().join("transcodes")).playback(),
@@ -1574,7 +1582,11 @@ mod tests {
     async fn a_plan_gone_unused_tells_its_playback_ended() {
         let data = tempfile::tempdir().unwrap();
         let db = database(data.path()).await;
-        let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
+        let events = EventBus::new(
+            Arc::clone(&db),
+            ExtensionPoints::default(),
+            ServerUrl::default(),
+        );
         let plans = plans_with(
             &db,
             settings(&db, data.path().join("transcodes")).playback(),
@@ -1605,7 +1617,11 @@ mod tests {
     async fn a_plan_its_device_stops_ends_at_once_and_another_device_cant_stop_it() {
         let data = tempfile::tempdir().unwrap();
         let db = database(data.path()).await;
-        let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
+        let events = EventBus::new(
+            Arc::clone(&db),
+            ExtensionPoints::default(),
+            ServerUrl::default(),
+        );
         let plans = plans_with(
             &db,
             settings(&db, data.path().join("transcodes")).playback(),

@@ -27,11 +27,16 @@ function RequestPage() {
   const { request } = data;
   // Cancelling it refetches it, and the `not_found` that comes back leaves the old data in place.
   if (!request || isCode(error, Code.NotFound)) return <Removed />;
+  const { movieOrSeason } = request;
   return (
     <RequestLayout>
       <ul className="mt-8 flex max-w-2xl flex-col">
-        {request.season ? (
-          <ShowRequests showTitle={request.season.showTitle} followed={[]} seasons={[request]} />
+        {movieOrSeason.case === "season" ? (
+          <ShowRequests
+            showTitle={movieOrSeason.value.showTitle}
+            followed={[]}
+            seasons={[request]}
+          />
         ) : (
           <RequestRow request={request} />
         )}

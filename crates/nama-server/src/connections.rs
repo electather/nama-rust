@@ -18,7 +18,7 @@ use tracing::{error, warn};
 use crate::{
     codes,
     db::{Database, now},
-    plugins::Registry,
+    plugins::ExtensionPoints,
     users::{Permissions, User},
 };
 
@@ -35,7 +35,7 @@ type Waiter = (i64, PluginId);
 #[derive(Clone)]
 pub(crate) struct Connections {
     db: Arc<Database>,
-    plugins: Registry,
+    plugins: ExtensionPoints,
     /// The one-time code of each link a User is waiting on. A link's poll stops once its code is
     /// gone from here: expired, replaced or disconnected.
     waiting: Arc<Mutex<HashMap<Waiter, String>>>,
@@ -62,7 +62,7 @@ pub(crate) enum StartError {
 }
 
 impl Connections {
-    pub(crate) fn new(db: Arc<Database>, plugins: Registry) -> Self {
+    pub(crate) fn new(db: Arc<Database>, plugins: ExtensionPoints) -> Self {
         Self {
             db,
             plugins,
@@ -315,6 +315,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::plugins::Registry;
 
     /// A Plugin whose Connector counts its polls, and nobody ever finishes with its links.
     struct NeverConnected(Arc<AtomicUsize>);
@@ -366,7 +367,7 @@ mod tests {
         plugins
             .enable(Arc::new(NeverConnected(Arc::clone(&polls))))
             .unwrap();
-        let connections = Connections::new(db, plugins);
+        let connections = Connections::new(db, plugins.extension_points());
         let chat = PluginId::from_static("chat");
         // After opening the database, whose pool times out by the clock.
         tokio::time::pause();

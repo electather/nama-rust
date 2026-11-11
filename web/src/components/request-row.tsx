@@ -70,8 +70,10 @@ export function RequestRow({ request }: { request: Request | FollowedShow }) {
  */
 function titleOf(request: Request | FollowedShow) {
   if (request.$typeName === "nama.v1.FollowedShow") return "Followed Show";
-  const { movie, season } = request;
-  return season ? seasonName(season.seasonNumber) : movie?.title;
+  const { movieOrSeason } = request;
+  return movieOrSeason.case === "season"
+    ? seasonName(movieOrSeason.value.seasonNumber)
+    : movieOrSeason.value?.title;
 }
 
 /**
@@ -109,8 +111,10 @@ function changeText({ previousName, changedBy = "a Request manager", changedAt }
 }
 
 /** When a Request's Movie came out, or its Season first aired. */
-function releasedOf({ season, movie }: Request) {
-  return season?.airDate ?? movie?.releaseDate;
+function releasedOf({ movieOrSeason }: Request) {
+  return movieOrSeason.case === "season"
+    ? movieOrSeason.value.airDate
+    : movieOrSeason.value?.releaseDate;
 }
 
 /** Why it was Declined, or why a Request Failed, in the decliner's or the Fulfiller's words. */

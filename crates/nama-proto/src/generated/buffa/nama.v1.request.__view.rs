@@ -7,12 +7,6 @@
 pub struct RequestView<'a> {
     /// Field 1: `id`
     pub id: i64,
-    /// The Movie asked for, unless it asks for a Season.
-    ///
-    /// Field 2: `movie`
-    pub movie: ::buffa::MessageFieldView<
-        super::super::__buffa::view::RequestedMovieView<'a>,
-    >,
     /// Field 3: `state`
     pub state: ::buffa::EnumValue<super::super::RequestState>,
     /// Who asked for it, first asker first. There is at least one.
@@ -31,12 +25,6 @@ pub struct RequestView<'a> {
     ///
     /// Field 6: `decline_reason`
     pub decline_reason: ::core::option::Option<&'a str>,
-    /// The Season asked for, unless it asks for a Movie.
-    ///
-    /// Field 7: `season`
-    pub season: ::buffa::MessageFieldView<
-        super::super::__buffa::view::RequestedSeasonView<'a>,
-    >,
     /// Why the Fulfiller didn't take it, in the Fulfiller's own words. Only a Failed Request has one.
     ///
     /// Field 8: `failure_reason`
@@ -85,6 +73,9 @@ pub struct RequestView<'a> {
     ///
     /// Field 14: `fulfiller_plugin_id`
     pub fulfiller_plugin_id: ::core::option::Option<&'a str>,
+    pub movie_or_season: ::core::option::Option<
+        super::super::__buffa::view::oneof::request::MovieOrSeason<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
@@ -124,27 +115,6 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
                 )?;
                 view.id = ::buffa::types::decode_int64(&mut cur)?;
             }
-            2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let __sub_ctx = ctx.descend()?;
-                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
-                match view.movie.as_mut() {
-                    Some(existing) => {
-                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
-                    }
-                    None => {
-                        view.movie = ::buffa::MessageFieldView::set(
-                            <super::super::__buffa::view::RequestedMovieView as ::buffa::MessageView>::decode_view_ctx(
-                                sub,
-                                __sub_ctx,
-                            )?,
-                        );
-                    }
-                }
-            }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -167,27 +137,6 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.decline_reason = Some(::buffa::types::borrow_str(&mut cur)?);
-            }
-            7u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let __sub_ctx = ctx.descend()?;
-                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
-                match view.season.as_mut() {
-                    Some(existing) => {
-                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
-                    }
-                    None => {
-                        view.season = ::buffa::MessageFieldView::set(
-                            <super::super::__buffa::view::RequestedSeasonView as ::buffa::MessageView>::decode_view_ctx(
-                                sub,
-                                __sub_ctx,
-                            )?,
-                        );
-                    }
-                }
             }
             8u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -309,6 +258,68 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
                         )?,
                     );
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::request::MovieOrSeason::Movie(
+                        ref mut existing,
+                    ),
+                ) = view.movie_or_season
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.movie_or_season = Some(
+                        super::super::__buffa::view::oneof::request::MovieOrSeason::Movie(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::RequestedMovieView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::request::MovieOrSeason::Season(
+                        ref mut existing,
+                    ),
+                ) = view.movie_or_season
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.movie_or_season = Some(
+                        super::super::__buffa::view::oneof::request::MovieOrSeason::Season(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::RequestedSeasonView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -332,15 +343,6 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::Request {
             id: self.id,
-            movie: match self.movie.as_option() {
-                Some(v) => {
-                    ::buffa::MessageField::<
-                        super::super::RequestedMovie,
-                        ::buffa::Inline<super::super::RequestedMovie>,
-                    >::some(v.to_owned_from_source(__buffa_src)?)
-                }
-                None => ::buffa::MessageField::none(),
-            },
             state: self.state,
             requesters: self
                 .requesters
@@ -349,15 +351,6 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             created_at: self.created_at,
             decline_reason: self.decline_reason.map(|s| s.to_string()),
-            season: match self.season.as_option() {
-                Some(v) => {
-                    ::buffa::MessageField::<
-                        super::super::RequestedSeason,
-                        ::buffa::Inline<super::super::RequestedSeason>,
-                    >::some(v.to_owned_from_source(__buffa_src)?)
-                }
-                None => ::buffa::MessageField::none(),
-            },
             failure_reason: self.failure_reason.map(|s| s.to_string()),
             followed_show_id: self.followed_show_id,
             downloads: self
@@ -393,6 +386,33 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
                 None => ::buffa::MessageField::none(),
             },
             fulfiller_plugin_id: self.fulfiller_plugin_id.map(|s| s.to_string()),
+            movie_or_season: match self.movie_or_season.as_ref() {
+                ::core::option::Option::Some(v) => {
+                    ::core::option::Option::Some(
+                        match v {
+                            super::super::__buffa::view::oneof::request::MovieOrSeason::Movie(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::request::MovieOrSeason::Movie(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::request::MovieOrSeason::Season(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::request::MovieOrSeason::Season(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                        },
+                    )
+                }
+                ::core::option::Option::None => ::core::option::Option::None,
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -407,13 +427,27 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestView<'a> {
         if self.id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.id) as u64;
         }
-        if self.movie.is_set() {
-            let __slot = __cache.reserve();
-            let inner_size = self.movie.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
+        if let ::core::option::Option::Some(ref v) = self.movie_or_season {
+            match v {
+                super::super::__buffa::view::oneof::request::MovieOrSeason::Movie(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::request::MovieOrSeason::Season(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+            }
         }
         {
             let val = self.state.to_i32();
@@ -434,14 +468,6 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestView<'a> {
         }
         if let Some(ref v) = self.decline_reason {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
-        }
-        if self.season.is_set() {
-            let __slot = __cache.reserve();
-            let inner_size = self.season.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
         }
         if let Some(ref v) = self.failure_reason {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
@@ -498,13 +524,27 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestView<'a> {
         if self.id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.id, buf);
         }
-        if self.movie.is_set() {
-            ::buffa::types::put_len_delimited_header(
-                2u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            self.movie.write_to(__cache, buf);
+        if let ::core::option::Option::Some(ref v) = self.movie_or_season {
+            match v {
+                super::super::__buffa::view::oneof::request::MovieOrSeason::Movie(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::request::MovieOrSeason::Season(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        7u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+            }
         }
         {
             let val = self.state.to_i32();
@@ -525,14 +565,6 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestView<'a> {
         }
         if let Some(ref v) = self.decline_reason {
             ::buffa::types::put_string_field(6u32, v, buf);
-        }
-        if self.season.is_set() {
-            ::buffa::types::put_len_delimited_header(
-                7u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            self.season.write_to(__cache, buf);
         }
         if let Some(ref v) = self.failure_reason {
             ::buffa::types::put_string_field(8u32, v, buf);
@@ -599,11 +631,6 @@ impl<'__a> ::serde::Serialize for RequestView<'__a> {
         if !::buffa::json_helpers::skip_if::is_zero_i64(&self.id) {
             __map.serialize_entry("id", &::buffa::json_helpers::ProtoJson(&self.id))?;
         }
-        {
-            if let ::core::option::Option::Some(__v) = self.movie.as_option() {
-                __map.serialize_entry("movie", __v)?;
-            }
-        }
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.state) {
             __map.serialize_entry("state", &self.state)?;
         }
@@ -619,11 +646,6 @@ impl<'__a> ::serde::Serialize for RequestView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.decline_reason {
             __map.serialize_entry("declineReason", __v)?;
-        }
-        {
-            if let ::core::option::Option::Some(__v) = self.season.as_option() {
-                __map.serialize_entry("season", __v)?;
-            }
         }
         if let ::core::option::Option::Some(__v) = self.failure_reason {
             __map.serialize_entry("failureReason", __v)?;
@@ -655,6 +677,18 @@ impl<'__a> ::serde::Serialize for RequestView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.fulfiller_plugin_id {
             __map.serialize_entry("fulfillerPluginId", __v)?;
+        }
+        if let ::core::option::Option::Some(ref __ov) = self.movie_or_season {
+            match __ov {
+                super::super::__buffa::view::oneof::request::MovieOrSeason::Movie(v) => {
+                    __map.serialize_entry("movie", v)?;
+                }
+                super::super::__buffa::view::oneof::request::MovieOrSeason::Season(
+                    v,
+                ) => {
+                    __map.serialize_entry("season", v)?;
+                }
+            }
         }
         __map.end()
     }
@@ -750,17 +784,6 @@ impl RequestOwnedView {
     pub fn id(&self) -> i64 {
         self.0.reborrow().id
     }
-    /// The Movie asked for, unless it asks for a Season.
-    ///
-    /// Field 2: `movie`
-    #[must_use]
-    pub fn movie(
-        &self,
-    ) -> &::buffa::MessageFieldView<
-        super::super::__buffa::view::RequestedMovieView<'_>,
-    > {
-        &self.0.reborrow().movie
-    }
     /// Field 3: `state`
     #[must_use]
     pub fn state(&self) -> ::buffa::EnumValue<super::super::RequestState> {
@@ -789,17 +812,6 @@ impl RequestOwnedView {
     #[must_use]
     pub fn decline_reason(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().decline_reason
-    }
-    /// The Season asked for, unless it asks for a Movie.
-    ///
-    /// Field 7: `season`
-    #[must_use]
-    pub fn season(
-        &self,
-    ) -> &::buffa::MessageFieldView<
-        super::super::__buffa::view::RequestedSeasonView<'_>,
-    > {
-        &self.0.reborrow().season
     }
     /// Why the Fulfiller didn't take it, in the Fulfiller's own words. Only a Failed Request has one.
     ///
@@ -872,6 +884,15 @@ impl RequestOwnedView {
     #[must_use]
     pub fn fulfiller_plugin_id(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().fulfiller_plugin_id
+    }
+    /// Oneof `movie_or_season`.
+    #[must_use]
+    pub fn movie_or_season(
+        &self,
+    ) -> ::core::option::Option<
+        &super::super::__buffa::view::oneof::request::MovieOrSeason<'_>,
+    > {
+        self.0.reborrow().movie_or_season.as_ref()
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<RequestView<'static>>>
