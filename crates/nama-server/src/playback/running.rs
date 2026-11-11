@@ -1486,7 +1486,9 @@ mod tests {
                     run: Box::new(hardware),
                     fallback: Some(FallbackRun {
                         run: Box::new(software),
-                        why: "VAAPI failed partway".to_owned(),
+                        reasons: only_reason(
+                            PlaybackReasonKind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
+                        ),
                     }),
                 },
             )
