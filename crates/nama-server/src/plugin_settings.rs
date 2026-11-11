@@ -16,6 +16,7 @@ use tokio::{
     sync::{Mutex, MutexGuard, mpsc},
     task::{self, JoinError, JoinHandle},
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::{
@@ -47,6 +48,8 @@ pub struct PluginSettings {
     /// The task saving each Plugin disabled for crashing as disabled, until
     /// [`PluginSettings::shutdown`].
     saving_crashed: Arc<std::sync::Mutex<Option<JoinHandle<()>>>>,
+    /// Tells the task saving crashes to save those still queued and stop.
+    stop_saving_crashed: CancellationToken,
     /// Takes the id of each Plugin enabled, startup's included, so Requests can hand it the
     /// Approved Requests waiting for it without this module calling Requests (ADR 0028).
     came_up: mpsc::UnboundedSender<PluginId>,
@@ -190,6 +193,7 @@ impl PluginSettings {
             data_dir: config.data_dir.clone(),
             changing: Arc::default(),
             saving_crashed: Arc::default(),
+            stop_saving_crashed: CancellationToken::new(),
             came_up,
             came_up_reader: Arc::new(std::sync::Mutex::new(Some(came_up_reader))),
         };
@@ -222,33 +226,48 @@ impl PluginSettings {
         Ok(plugins)
     }
 
-    /// Stops saving the Plugins disabled for crashing. One disabled but not saved yet runs again
-    /// after a restart.
+    /// Stops saving the Plugins disabled for crashing, once those that crashed before it are
+    /// saved. One that crashes after those are saved may run again after a restart.
     pub async fn shutdown(&self) {
         let Some(saving_crashed) = lock_ignoring_poison(&self.saving_crashed).take() else {
             return;
         };
-        saving_crashed.abort();
-        if let Err(err) = saving_crashed.await
-            && err.is_panic()
-        {
+        self.stop_saving_crashed.cancel();
+        // The task is never aborted, so it only fails if it panicked.
+        if let Err(err) = saving_crashed.await {
             error!("saving the Plugins disabled for crashing panicked: {err}");
         }
     }
 
     /// Saves each Plugin the registry disables for crashing as disabled, as an admin's disable is,
-    /// so it stays disabled across a restart until an admin enables it again. Runs until aborted,
-    /// or until the registry hands a later caller of [`Registry::crashed`] the crashes instead.
+    /// so it stays disabled across a restart until an admin enables it again. Runs until
+    /// [`PluginSettings::shutdown`] and the crashes queued are saved, or until the registry hands a
+    /// later caller of [`Registry::crashed`] the crashes instead.
     async fn save_crashed(self, mut crashed: mpsc::UnboundedReceiver<PluginId>) {
-        while let Some(id) = crashed.recv().await {
-            let _changing = self.lock().await;
-            // An admin may have enabled it again since.
-            if self.registry.enabled().contains(&id) {
-                continue;
+        loop {
+            tokio::select! {
+                // Stopping first, so a stop always saves the queue through the one drain below.
+                biased;
+                () = self.stop_saving_crashed.cancelled() => break,
+                id = crashed.recv() => match id {
+                    Some(id) => self.save_crashed_plugin(&id).await,
+                    None => return,
+                },
             }
-            if let Err(err) = set_enabled(&self.db, id.as_str(), false).await {
-                error!(plugin = %id, "could not save that the crashed plugin is disabled: {err}");
-            }
+        }
+        while let Ok(id) = crashed.try_recv() {
+            self.save_crashed_plugin(&id).await;
+        }
+    }
+
+    async fn save_crashed_plugin(&self, id: &PluginId) {
+        let _changing = self.lock().await;
+        // An admin may have enabled it again since.
+        if self.registry.enabled().contains(id) {
+            return;
+        }
+        if let Err(err) = set_enabled(&self.db, id.as_str(), false).await {
+            error!(plugin = %id, "could not save that the crashed plugin is disabled: {err}");
         }
     }
 

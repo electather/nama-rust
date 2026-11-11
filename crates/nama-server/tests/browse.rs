@@ -1153,10 +1153,10 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
 }
 
 /// A Server whose ffmpeg and ffprobe are shell scripts in `bin`: ffprobe reads a file whose name
-/// says 2160p as an HEVC and AAC MKV and any other as an H.264 and AAC one, and ffmpeg writes
-/// nothing until it's stopped.
+/// says 2160p as an HEVC and AAC MKV and any other as an H.264 and AAC one, and ffmpeg lists
+/// `encoder` as its one encoder and no filters, at once, but writes nothing until it's stopped.
 #[cfg(unix)]
-fn ffmpeg_writing_nothing(bin: &Path) -> Ffmpeg {
+fn ffmpeg_writing_nothing(bin: &Path, encoder: &str) -> Ffmpeg {
     let ffprobe = r#"#!/bin/sh
 case "$*" in *2160p*) video=hevc ;; *) video=h264 ;; esac
 cat <<EOF
@@ -1165,8 +1165,12 @@ cat <<EOF
  "format": {"format_name": "matroska,webm"}}
 EOF
 "#;
+    let ffmpeg = format!(
+        "#!/bin/sh\ncase \"$*\" in *-encoders*) echo ' V....D {encoder}  H.264' ;; \
+         *-filters*) ;; *) exec sleep 600 ;; esac\n"
+    );
     Ffmpeg {
-        ffmpeg: Ok(script(bin, "ffmpeg", "#!/bin/sh\nexec sleep 600\n")),
+        ffmpeg: Ok(script(bin, "ffmpeg", &ffmpeg)),
         ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
     }
 }
@@ -1195,13 +1199,13 @@ fn script(bin: &Path, name: &str, body: &str) -> FoundProgram {
     reason = "a test helper fails its test by panicking"
 )]
 impl Fixture {
-    /// Starts a Server with [`ffmpeg_writing_nothing`] in `bin` that runs one Transcode at once,
+    /// Starts a Server with [`ffmpeg_writing_nothing`] listing libx264 in `bin` that runs one Transcode at once,
     /// and a Movies Library holding Alien in 1080p and 2160p, and returns it with the ids of those
     /// Versions, which Chrome Remuxes and Transcodes.
     async fn alien_with_room_for_one_transcode(bin: &Path) -> (Self, [i64; 2]) {
         let fx = Self::start_with_ffmpeg(
             LibraryKind::LIBRARY_KIND_MOVIES,
-            ffmpeg_writing_nothing(bin),
+            ffmpeg_writing_nothing(bin, "libx264"),
         )
         .await;
         fx.write(ALIEN_1080P, b"video");
@@ -1305,15 +1309,45 @@ async fn when_a_transcodes_session_ends_its_slot_frees_up_for_the_next() {
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
 }
 
+// ADR 0026. The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn with_an_ffmpeg_lacking_libx264_a_version_needing_a_transcode_cant_be_played_and_says_why()
+{
+    let bin = tempfile::tempdir().unwrap();
+    // As Fedora's ffmpeg-free lists it.
+    let ffmpeg = ffmpeg_writing_nothing(bin.path(), "libopenh264");
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    fx.write(ALIEN_1080P, b"video");
+    fx.write(ALIEN_2160P, b"video");
+    fx.scan_and_match().await;
+    let [h264, hevc] = fx.version_ids(ALIEN).await.try_into().unwrap();
+
+    let needs_transcode = fx.plan(hevc).await.unwrap();
+    let remux = fx.plan(h264).await.unwrap();
+
+    assert_eq!(
+        needs_transcode.method,
+        PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED
+    );
+    assert_eq!(
+        needs_transcode.reasons[2],
+        "This Server's ffmpeg lacks libx264, so it can't Transcode"
+    );
+    assert_eq!(remux.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
+}
+
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[tokio::test]
 async fn an_unprobed_version_whose_direct_play_failed_cant_be_played_and_starts_nothing() {
     let bin = tempfile::tempdir().unwrap();
-    // With ffmpeg, the Server's own step would allow a Remux or Transcode, so only the Tracks'
-    // step keeps them out.
+    // With ffmpeg, the Server's own step would allow a Remux, so only the Tracks' step keeps it
+    // out. Its filters and encoders are listed at once, as empty, so planning needn't wait.
+    let ffmpeg_script =
+        "#!/bin/sh\ncase \"$*\" in *-filters*|*-encoders*) ;; *) exec sleep 600 ;; esac\n";
     let ffmpeg = Ffmpeg {
-        ffmpeg: Ok(script(bin.path(), "ffmpeg", "#!/bin/sh\nexec sleep 600\n")),
+        ffmpeg: Ok(script(bin.path(), "ffmpeg", ffmpeg_script)),
         ffprobe: Ok(script(bin.path(), "ffprobe", "#!/bin/sh\nexit 1\n")),
     };
     let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;

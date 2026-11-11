@@ -283,12 +283,15 @@ pub(crate) async fn plan(
         Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
         Err(probing::Error::Database(err)) => return Err(err.into()),
     };
+    // Asked together, so a busy host's planning waits out one listing's timeout, not two.
+    let (zscale, libx264) = tokio::join!(running.can_tone_map(), running.can_encode_in_software());
     let mut facts = Facts {
         version,
         probe,
         device: decoding,
         ffmpeg: running.can_run(),
-        zscale: running.can_tone_map().await,
+        zscale,
+        libx264,
         failed,
         audio,
         transcodes_full: None,
@@ -334,6 +337,10 @@ pub(crate) const fn method_to_proto(method: Option<Method>) -> proto::PlaybackMe
 }
 
 /// What a plan is based on.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each is a separate fact a step reads, not a state"
+)]
 struct Facts {
     version: i64,
     /// What probing found in the Version, or `None` if it couldn't be probed.
@@ -345,6 +352,9 @@ struct Facts {
     /// Whether its ffmpeg has zscale, which tone-maps HDR to SDR in software and a system ffmpeg
     /// may lack (ADR 0026).
     zscale: bool,
+    /// Whether its ffmpeg has libx264, which a Transcode encodes with in software and a system
+    /// ffmpeg may lack (ADR 0026).
+    libx264: bool,
     /// The methods that just failed to play it on the Device. The Server never stores them.
     failed: BTreeSet<Method>,
     /// The audio Track the User chose, by its place in the Version's Tracks, if they chose one.
@@ -544,8 +554,9 @@ fn version_tracks(facts: &Facts, _: Option<&Candidates>) -> Narrowing {
 }
 
 /// The step for what the Device decodes: Direct Play only if it decodes the Version's container
-/// and the Tracks the plan plays, and its display shows their HDR, and a Remux only if it decodes
-/// the video, since a Remux converts only the audio.
+/// and the Tracks the plan plays, and its display shows their HDR, a Remux only if it decodes the
+/// video, since a Remux converts only the audio, and neither a Remux nor a Transcode unless it
+/// plays HLS.
 fn device_decoding(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
     let (Some(probe), Some(candidates)) = (&facts.probe, candidates) else {
         // `version_tracks` already leaves only Direct Play, so this step needn't rule anything out.
@@ -559,9 +570,17 @@ fn device_decoding(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
         .chain(undecodable_tracks(probe, candidates.audio, &facts.device))
         .collect();
     let Some(cant) = joined(&cant, "or") else {
-        return Narrowing {
-            allows: BTreeSet::from(Method::ALL),
-            reason: "This Device decodes its container and Tracks".to_owned(),
+        let reason = "This Device decodes its container and Tracks";
+        return if facts.device.hls {
+            Narrowing {
+                allows: BTreeSet::from(Method::ALL),
+                reason: reason.to_owned(),
+            }
+        } else {
+            Narrowing {
+                allows: BTreeSet::from([Method::DirectPlay]),
+                reason: format!("{reason}, but it can't play HLS, which anything else needs"),
+            }
         };
     };
     let reason = format!("This Device can't decode its {cant}, so it can't be Direct Played");
@@ -598,13 +617,21 @@ fn device_decoding(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
     }
 }
 
-/// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026), and with it, a
-/// Transcode tone-maps HDR the Device can't show to SDR, if it can.
+/// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026); without libx264, no
+/// Transcode; and otherwise a Transcode tone-maps HDR the Device can't show to SDR, if it can.
 fn server_ffmpeg(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
     if !facts.ffmpeg {
         return Narrowing {
             allows: BTreeSet::from([Method::DirectPlay]),
             reason: "This Server lacks ffmpeg or ffprobe, so it can only Direct Play".to_owned(),
+        };
+    }
+    // ponytail: a Transcode on hardware needs no libx264, but its fallback to software does;
+    // allow a Transcode on hardware once a failed hardware run can stop instead of falling back.
+    if !facts.libx264 {
+        return Narrowing {
+            allows: BTreeSet::from([Method::DirectPlay, Method::Remux]),
+            reason: "This Server's ffmpeg lacks libx264, so it can't Transcode".to_owned(),
         };
     }
     let reason = match played_hdr(facts) {
@@ -1461,6 +1488,7 @@ mod tests {
             device: firefox(),
             ffmpeg: true,
             zscale: true,
+            libx264: true,
             failed: BTreeSet::new(),
             audio: None,
             transcodes_full: None,
@@ -1877,6 +1905,27 @@ mod tests {
             "This Device can't decode its Matroska container, so it can't be Direct Played, \
              and it can't play HLS, which anything else needs"
         );
+    }
+
+    #[test]
+    fn without_libx264_on_the_server_a_version_isnt_transcoded_but_still_remuxes_or_direct_plays() {
+        let without_libx264 = |container, tracks| Facts {
+            libx264: false,
+            ..in_container(container, Some(tracks))
+        };
+        let mut transcode = without_libx264(MP4, vec![video("hevc"), audio("aac", true)]);
+        let mut remux = without_libx264(MKV, vec![video("h264"), audio("aac", true)]);
+        let mut direct_play = without_libx264(MP4, vec![video("h264"), audio("aac", true)]);
+
+        let transcode = build(&mut transcode);
+
+        assert_eq!(transcode.method(), None);
+        assert_eq!(
+            transcode.reasons[2],
+            "This Server's ffmpeg lacks libx264, so it can't Transcode"
+        );
+        assert_eq!(build(&mut remux).method(), Some(Method::Remux));
+        assert_eq!(build(&mut direct_play).method(), Some(Method::DirectPlay));
     }
 
     fn rules_out_direct_play(_: &Facts, _: Option<&Candidates>) -> Narrowing {
@@ -2877,6 +2926,47 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         }
     }
 
+    fn without_hls(facts: &mut Facts) {
+        facts.device.hls = false;
+    }
+
+    fn choosing_the_second_audio_track(facts: &mut Facts) {
+        facts.audio = Some(2);
+    }
+
+    #[test]
+    fn a_device_without_hls_that_decodes_everything_direct_plays_or_nothing_whatever_is_chosen() {
+        let choices: [(&str, Change); 2] = [
+            ("the second audio Track", choosing_the_second_audio_track),
+            ("720p", picking_720p),
+        ];
+        for (chosen, choose) in choices {
+            let chosen_without_hls = || {
+                let mut facts = direct_played();
+                choose(&mut facts);
+                without_hls(&mut facts);
+                facts
+            };
+            let mut facts = chosen_without_hls();
+            let mut after_a_failed_direct_play = chosen_without_hls();
+            after_a_failed_direct_play.failed = BTreeSet::from([Method::DirectPlay]);
+
+            let played = build(&mut facts);
+            let unplayable = build(&mut after_a_failed_direct_play);
+
+            assert_eq!(played.method(), Some(Method::DirectPlay), "{chosen}");
+            assert_eq!(unplayable.method(), None, "{chosen}");
+            for plan in [played, unplayable] {
+                assert_eq!(
+                    plan.reasons[1],
+                    "This Device decodes its container and Tracks, but it can't play HLS, which \
+                     anything else needs",
+                    "{chosen}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn a_plan_offers_the_choices_its_lasting_facts_allow_whatever_is_busy_or_failed() {
         let everything = || Offers {
@@ -2884,10 +2974,18 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             burn_in: vec![3],
             limits: vec![PlaybackLimit::P720, PlaybackLimit::P480],
         };
-        let cases: [(&str, Change, Offers); 4] = [
+        let cases: [(&str, Change, Offers); 5] = [
             (
                 "no ffmpeg",
                 without_ffmpeg,
+                Offers {
+                    audio: vec![1],
+                    ..Offers::default()
+                },
+            ),
+            (
+                "no HLS",
+                without_hls,
                 Offers {
                     audio: vec![1],
                     ..Offers::default()

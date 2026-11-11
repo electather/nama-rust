@@ -31,7 +31,7 @@ mod watch_states;
 #[cfg(feature = "web")]
 mod web;
 
-use std::{future::Future, io, net::SocketAddr, sync::Arc};
+use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 
 use tokio::net::TcpListener;
 
@@ -49,12 +49,13 @@ use crate::{
 /// What happens is published to clients subscribed through `EventService` and to Observers at
 /// [`nama_plugin_api::points::Events`]. Subscriptions end when `shutdown` resolves.
 ///
-/// Every Library is scanned, and its items Matched, in the background when serving starts. After
-/// each scan, `ffmpeg`'s ffprobe, if it found one, probes the files not probed yet. Scans and
-/// probes still running when `shutdown` resolves are cancelled, and the returned future waits for
-/// them to stop. The Approved Requests waiting for a Fulfiller are handed to it in the background
-/// whenever `plugins` enables one, startup's included, and the Fulfillers are asked how their
-/// Processing Requests are progressing, until `shutdown` resolves.
+/// Every Library is scanned, and its items Matched, in the background when serving starts, then
+/// again 30 s after its folders last changed, and every six hours for changes the OS doesn't
+/// report. After each scan, `ffmpeg`'s ffprobe, if it found one, probes the files not probed yet.
+/// Scans and probes still running when `shutdown` resolves are cancelled, and the returned future
+/// waits for them to stop. The Approved Requests waiting for a Fulfiller are handed to it in the
+/// background whenever `plugins` enables one, startup's included, and the Fulfillers are asked how
+/// their Processing Requests are progressing, until `shutdown` resolves.
 ///
 /// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
 /// Admins see the `ffmpeg` found at startup with `GetPlaybackStatus`. Plans running when
@@ -126,6 +127,9 @@ pub fn serve(
         // before serving, so the sweep deletes no plan's files but an earlier run's.
         load_settings.await;
         scanner.start_all().await;
+        // Quiet long enough that a file being copied in is scanned once it's whole; every six hours
+        // for the folders whose changes the OS doesn't report, such as network shares.
+        scanner.watch(Duration::from_secs(30), Duration::from_hours(6));
         requests.start(plugins.take_came_up());
         let served = axum::serve(
             listener,

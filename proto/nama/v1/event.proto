@@ -225,8 +225,8 @@ message RequestWithdrawn {
   Request request = 1;
 }
 
-// What a Processing Request's Fulfiller is downloading for it changed, or the Server couldn't ask
-// it, which leaves it with none.
+// What a Processing or Partially Available Request's Fulfiller is downloading for it changed, or
+// the Server couldn't ask it, which leaves it with none.
 message RequestProgress {
   // The Request as it is now, with its `downloads`.
   Request request = 1;

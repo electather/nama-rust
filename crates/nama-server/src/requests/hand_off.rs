@@ -1,5 +1,6 @@
 //! Everything Requests does with a Fulfiller: the Hand-off of each Approved Request, asking how the
-//! Processing ones are progressing, and telling the Shows Fulfiller to stop following a Show.
+//! ones it has that aren't Available yet are progressing, and telling the Shows Fulfiller to stop
+//! following a Show.
 //!
 //! It holds no SQL, since [`super`] alone owns its tables: it calls Requests' functions to read
 //! Requests and to settle a Hand-off.
@@ -23,7 +24,7 @@ use tokio::{
 use tracing::{error, warn};
 
 use super::{
-    Applied, Error, HandedBack, Processing, as_handed_off, detached, load, load_one, processing,
+    Applied, Error, Fulfilling, HandedBack, as_handed_off, detached, fulfilling, load, load_one,
     settle,
 };
 use crate::{
@@ -32,8 +33,8 @@ use crate::{
     plugins::Registry,
 };
 
-/// How often the Fulfillers are asked how their Processing Requests are progressing, as Seerr asks
-/// (ADR 0012).
+/// How often the Fulfillers are asked how the Requests they have that aren't Available yet are
+/// progressing, as Seerr asks (ADR 0012).
 pub(super) const PROGRESS_EVERY: Duration = Duration::from_secs(60);
 
 /// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled, which also
@@ -46,8 +47,8 @@ pub(super) struct HandOff {
     /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
     /// skipped it meanwhile.
     handing: Arc<Mutex<HashMap<i64, bool>>>,
-    /// What each Processing Request's Fulfiller said it is downloading when last asked, by Request
-    /// id. Kept in memory only (ADR 0012).
+    /// What each Request's Fulfiller said it is downloading for it when last asked, by Request id.
+    /// Kept in memory only (ADR 0012).
     progress: Arc<Mutex<HashMap<i64, Vec<Download>>>>,
     /// Wakes [`HandOff::follow_progress`] when a Request becomes Processing.
     became_processing: Arc<Notify>,
@@ -129,12 +130,13 @@ impl HandOff {
         };
         let handed = as_handed_off(&mut conn, current.clone()).await?;
         drop(conn);
+        // Before the call, so a Plugin disabled or swapped during it isn't the one the Request names.
+        let plugin = self.fulfiller_of(&current);
         let Some(fulfilled) = self.fulfill(&handed).await else {
             return Ok(current);
         };
         let took = fulfilled.is_ok();
         let asked = current.quality.as_option().cloned();
-        let plugin = self.fulfiller_of(&current);
         // Not detached again: this Hand-off already is.
         let settled = self
             .apply(move |tx| Box::pin(settle(tx, id, fulfilled, asked, plugin)))
@@ -269,22 +271,22 @@ impl HandOff {
         }
     }
 
-    /// Asks the Fulfillers how their Processing Requests are progressing, every `interval` while any
-    /// Request is Processing, and at once when one becomes Processing. Runs until dropped.
+    /// Asks the Fulfillers how the Requests they have are progressing, every `interval` while any
+    /// of those isn't Available yet, and at once when one becomes Processing. Runs until dropped.
     #[expect(
         clippy::infinite_loop,
         reason = "it follows progress for as long as the Server serves, which aborts it"
     )]
     pub(super) async fn follow_progress(&self, interval: Duration) {
         loop {
-            let processing = self.poll_progress().await.unwrap_or_else(|err| {
-                error!("reading the Processing Requests failed: {err}");
+            let fulfilling = self.poll_progress().await.unwrap_or_else(|err| {
+                error!("reading which Requests the Fulfillers have failed: {err}");
                 true
             });
             // A Request that became Processing while the Fulfillers were asked left a permit, so
             // this wakes at once for it.
             let woken = self.became_processing.notified();
-            if processing {
+            if fulfilling {
                 let _: Result<(), Elapsed> = tokio::time::timeout(interval, woken).await;
             } else {
                 woken.await;
@@ -292,13 +294,13 @@ impl HandOff {
         }
     }
 
-    /// Asks each enabled Fulfiller once what it is downloading for the Processing Requests it took,
-    /// keeps the answers in place of the last ones, and publishes each Request whose downloads
-    /// changed. Returns whether any Request is Processing.
+    /// Asks each enabled Fulfiller once what it is downloading for the Requests it took that aren't
+    /// Available yet, keeps the answers in place of the last ones, and publishes each Request
+    /// whose downloads changed. Returns whether there are any such Requests.
     pub(super) async fn poll_progress(&self) -> Result<bool, sqlx::Error> {
-        let processing = processing(&mut *self.db.reader().acquire().await?).await?;
+        let fulfilling = fulfilling(&mut *self.db.reader().acquire().await?).await?;
         let (movies, seasons): (Vec<_>, Vec<_>) =
-            processing.into_iter().partition(|request| request.is_movie);
+            fulfilling.into_iter().partition(|request| request.is_movie);
         let any = !(movies.is_empty() && seasons.is_empty());
         let mut polled = self.progress_of::<Movies>(movies).await;
         polled.extend(self.progress_of::<Shows>(seasons).await);
@@ -314,8 +316,8 @@ impl HandOff {
         *lock(&self.progress) = polled;
         let events = all
             .into_iter()
-            // One that left Processing since it was asked about has no progress any more.
-            .filter(|request| request.state == RequestState::Processing)
+            // One that became Available or Failed since it was asked about has no progress any more.
+            .filter(is_fulfilling)
             .filter_map(|mut request| {
                 request.downloads = changed.remove(&request.id)?;
                 Some(event(RequestProgress {
@@ -328,16 +330,16 @@ impl HandOff {
         Ok(any)
     }
 
-    /// What `Kind`'s Fulfiller, if one is enabled, is downloading for each of `processing`, by
+    /// What `Kind`'s Fulfiller, if one is enabled, is downloading for each of `fulfilling`, by
     /// Request id, asked in one batch. Each has nothing downloading if it couldn't say.
     async fn progress_of<Kind: 'static>(
         &self,
-        processing: Vec<Processing>,
+        fulfilling: Vec<Fulfilling>,
     ) -> HashMap<i64, Vec<Download>> {
-        if processing.is_empty() {
+        if fulfilling.is_empty() {
             return HashMap::new();
         }
-        let references: Vec<String> = processing
+        let references: Vec<String> = fulfilling
             .iter()
             .map(|request| request.reference.clone())
             .collect();
@@ -365,7 +367,7 @@ impl HandOff {
             }
             None => HashMap::new(),
         };
-        processing
+        fulfilling
             .into_iter()
             .map(|request| {
                 let downloads = by_reference.get(&request.reference).cloned();
@@ -374,8 +376,8 @@ impl HandOff {
             .collect()
     }
 
-    /// Those of `polled`, what each Processing Request is downloading now, that differ from what
-    /// was kept.
+    /// Those of `polled`, what each Request its Fulfiller has is downloading now, that differ from
+    /// what was kept.
     fn changed_progress(
         &self,
         polled: &HashMap<i64, Vec<Download>>,
@@ -389,14 +391,20 @@ impl HandOff {
     }
 
     /// `request` with what its Fulfiller said it is downloading when last asked, if it is
-    /// Processing.
+    /// Processing or Partially Available.
     pub(super) fn with_progress(&self, mut request: Request) -> Request {
-        if request.state == RequestState::Processing {
+        if is_fulfilling(&request) {
             let kept = lock(&self.progress).get(&request.id).cloned();
             request.downloads = kept.unwrap_or_default();
         }
         request
     }
+}
+
+/// Whether `request` is one its Fulfiller has that isn't Available yet, as [`fulfilling`] reads
+/// them.
+fn is_fulfilling(request: &Request) -> bool {
+    request.state == RequestState::Processing || request.state == RequestState::PartiallyAvailable
 }
 
 /// A hand-off's hold on one Request in [`HandOff::handing`], let go however the hand-off ends, a

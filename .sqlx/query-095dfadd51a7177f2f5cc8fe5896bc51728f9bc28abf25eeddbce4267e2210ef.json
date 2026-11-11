@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?,\n                             fulfiller_plugin_id = ?,\n                             quality_used_id = ?, quality_used_name = ?, quality_used_profile_id = ?\n         WHERE id = ? AND state = 'approved'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "095dfadd51a7177f2f5cc8fe5896bc51728f9bc28abf25eeddbce4267e2210ef"
+}
