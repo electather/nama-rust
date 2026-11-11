@@ -94,11 +94,16 @@ pub(super) async fn requesters(
 /// Whether `viewer`, as [`super::visible_to`] gives one, may see something `requesters` asked
 /// for: everyone's if `None`, else only what that User is among the Requesters of.
 pub(super) fn may_see(viewer: Option<i64>, requesters: &[Requester]) -> bool {
-    viewer.is_none_or(|user| requesters.iter().any(|requester| requester.user_id == user))
+    viewer.is_none_or(|user| is_requester(user, requesters))
 }
 
-/// Takes `user` off the Requesters of the `asked` with the ID `id`, removing it if nobody is left.
-/// Returns whether it was removed.
+/// Whether the User `user` is among `requesters`.
+pub(super) fn is_requester(user: i64, requesters: &[Requester]) -> bool {
+    requesters.iter().any(|requester| requester.user_id == user)
+}
+
+/// Takes `user` off the Requesters of the `asked` with the ID `id`. Returns whether they were its
+/// last Requester, in which case it is removed too.
 pub(super) async fn leave(
     conn: &mut SqliteConnection,
     asked: Asked,

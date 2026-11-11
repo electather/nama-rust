@@ -1832,13 +1832,14 @@ async fn withdraw(
         .into_iter()
         .next()
         .ok_or(Error::NoSuch(Asked::Request, id))?;
-    if !request.requesters.iter().any(|r| r.user_id == user) {
+    if !asked::is_requester(user, &request.requesters) {
         return Err(Error::NotARequester(Asked::Request, id));
     }
     if request.state != RequestState::Pending {
         return Err(Error::NotPending(Asked::Request, id));
     }
-    let left = if asked::leave(conn, Asked::Request, id, user).await? {
+    let was_last = asked::leave(conn, Asked::Request, id, user).await?;
+    let left = if was_last {
         event(RequestWithdrawn {
             request: request.into(),
             ..Default::default()
@@ -2080,11 +2081,12 @@ async fn withdraw_followed(
 ) -> Result<Applied<()>, Error> {
     let followed = load_followed(conn, Some(id), visible).await?.pop();
     let followed = followed.ok_or(Error::NoSuch(Asked::FollowedShow, id))?;
-    if !followed.requesters.iter().any(|r| r.user_id == user) {
+    if !asked::is_requester(user, &followed.requesters) {
         return Err(Error::NotARequester(Asked::FollowedShow, id));
     }
     let followed_season = followed_season(conn, id).await?;
-    if asked::leave(conn, Asked::FollowedShow, id, user).await? {
+    let was_last = asked::leave(conn, Asked::FollowedShow, id, user).await?;
+    if was_last {
         let withdrawn = event(FollowedShowWithdrawn {
             followed_show: followed.into(),
             ..Default::default()
