@@ -219,6 +219,9 @@ message Request {
   RequestedQuality quality_used = 12;
   // The latest change a Request manager made to its Quality, if any. Only the latest is kept.
   QualityChange quality_change = 13;
+  // The ID of the Plugin whose Fulfiller it was handed to at its latest Hand-off, whether or not
+  // it took it. Unset until it is handed off.
+  optional string fulfiller_plugin_id = 14;
 }
 
 // A Request manager changing a Request's Quality, as `Request.quality` now has it.

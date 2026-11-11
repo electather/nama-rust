@@ -1843,7 +1843,8 @@ async fn show_requests(
 
 /// Moves the Approved Request `id`, asked at the Quality `asked`, on as its Fulfiller, from the
 /// Plugin `plugin`, said: to Processing, keeping its reference and the Quality used, or to Failed,
-/// keeping why. Returns it as it is now, or `None` if it isn't Approved any more.
+/// keeping why. Either way it keeps `plugin`. Returns it as it is now, or `None` if it isn't
+/// Approved any more.
 async fn settle(
     conn: &mut SqliteConnection,
     id: i64,
@@ -1870,13 +1871,16 @@ async fn settle(
     };
     let state = stored(state);
     let (used_id, used_name, used_profile_id) = quality_columns(used.as_ref());
+    let plugin = plugin.as_ref().map(PluginId::as_str);
     let settled = sqlx::query!(
         "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?,
+                             fulfiller_plugin_id = ?,
                              quality_used_id = ?, quality_used_name = ?, quality_used_profile_id = ?
          WHERE id = ? AND state = 'approved'",
         state,
         reference,
         reason,
+        plugin,
         used_id,
         used_name,
         used_profile_id,
@@ -2265,6 +2269,7 @@ async fn load(
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, show_imdb_id,
                   show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id,
+                  fulfiller_plugin_id,
                   quality_id, quality_name, quality_profile_id, quality_changed_from,
                   quality_changed_at, quality_used_id, quality_used_name,
                   quality_used_profile_id,
@@ -2289,6 +2294,7 @@ async fn load(
                 decline_reason: row.decline_reason,
                 failure_reason: row.failure_reason,
                 followed_show_id: row.followed_show_id,
+                fulfiller_plugin_id: row.fulfiller_plugin_id,
                 quality: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
                     .into(),
                 quality_change: row
@@ -3634,6 +3640,25 @@ mod tests {
         assert_eq!(handed_off(&failed), NOTHING);
         assert!(again.value.is_none());
         assert_eq!(again.events.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn settling_a_request_names_the_plugin_whose_fulfiller_failed_it() {
+        let (_data, db) = ada_and_bob().await;
+        let id = ask_for(&db, ADA, 949, RequestState::Approved)
+            .await
+            .value
+            .id;
+        let radarr = Some(PluginId::from_static("radarr"));
+
+        let failed = db
+            .write(move |tx| Box::pin(settle(tx, id, Err("no space".to_owned()), None, radarr)))
+            .await
+            .unwrap()
+            .value
+            .unwrap();
+
+        assert_eq!(failed.fulfiller_plugin_id.as_deref(), Some("radarr"));
     }
 
     #[tokio::test]

@@ -80,6 +80,11 @@ pub struct RequestView<'a> {
     pub quality_change: ::buffa::MessageFieldView<
         super::super::__buffa::view::QualityChangeView<'a>,
     >,
+    /// The ID of the Plugin whose Fulfiller it was handed to at its latest Hand-off, whether or not
+    /// it took it. Unset until it is handed off.
+    ///
+    /// Field 14: `fulfiller_plugin_id`
+    pub fulfiller_plugin_id: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
@@ -261,6 +266,13 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
                     }
                 }
             }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.fulfiller_plugin_id = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -380,6 +392,7 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            fulfiller_plugin_id: self.fulfiller_plugin_id.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -467,6 +480,9 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestView<'a> {
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
+        }
+        if let Some(ref v) = self.fulfiller_plugin_id {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -556,6 +572,9 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestView<'a> {
             );
             self.quality_change.write_to(__cache, buf);
         }
+        if let Some(ref v) = self.fulfiller_plugin_id {
+            ::buffa::types::put_string_field(14u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -633,6 +652,9 @@ impl<'__a> ::serde::Serialize for RequestView<'__a> {
             if let ::core::option::Option::Some(__v) = self.quality_change.as_option() {
                 __map.serialize_entry("qualityChange", __v)?;
             }
+        }
+        if let ::core::option::Option::Some(__v) = self.fulfiller_plugin_id {
+            __map.serialize_entry("fulfillerPluginId", __v)?;
         }
         __map.end()
     }
@@ -842,6 +864,14 @@ impl RequestOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::QualityChangeView<'_>> {
         &self.0.reborrow().quality_change
+    }
+    /// The ID of the Plugin whose Fulfiller it was handed to at its latest Hand-off, whether or not
+    /// it took it. Unset until it is handed off.
+    ///
+    /// Field 14: `fulfiller_plugin_id`
+    #[must_use]
+    pub fn fulfiller_plugin_id(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().fulfiller_plugin_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<RequestView<'static>>>
