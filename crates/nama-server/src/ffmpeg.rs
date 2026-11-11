@@ -326,7 +326,7 @@ impl Ffmpeg {
     /// if it has none. Reads the whole file, for one such as a Matroska written to a pipe, which
     /// couldn't seek back to write its length.
     async fn video_end(&self, path: &str) -> Result<Option<i64>, ProbeError> {
-        let packets = "packet=pts_time,duration_time:format=start_time";
+        let packets = "packet=pts_time,dts_time,duration_time:format=start_time";
         let args = [
             "-select_streams",
             "V:0",
@@ -824,14 +824,17 @@ fn parse_keyframes(csv: &str) -> Vec<i64> {
 }
 
 /// When the video ends in what `ffprobe -show_entries
-/// packet=pts_time,duration_time:format=start_time -of csv=p=0` printed, packets such as
-/// `2.002000,0.041000` and then the file's start time: the latest end of a packet, in
+/// packet=pts_time,dts_time,duration_time:format=start_time -of csv=p=0` printed, packets such
+/// as `2.002000,1.960000,0.041000` and then the file's start time: the latest end of a packet, in
 /// milliseconds from that start, or `None` if there is none past it.
 fn parse_video_end(csv: &str) -> Option<i64> {
     let start = file_start(csv);
     let ends = csv.lines().filter_map(|line| {
-        let (pts, duration) = line.split_once(',')?;
-        Some(millis(pts)? + millis(duration).unwrap_or_default())
+        let mut times = line.split(',');
+        let (pts, dts, duration) = (times.next()?, times.next()?, times.next()?);
+        // An AVI's packets carry only when they decode.
+        let at = millis(pts).or_else(|| millis(dts))?;
+        Some(at + millis(duration).unwrap_or_default())
     });
     // Packets come in decoding order, so the last isn't always the latest.
     ends.max()
@@ -893,6 +896,7 @@ struct ProbedStream {
     #[serde(default)]
     side_data_list: Vec<ProbedSideData>,
     channels: Option<i64>,
+    nb_frames: Option<String>,
     #[serde(default)]
     disposition: HashMap<String, u8>,
     #[serde(default)]
@@ -910,16 +914,23 @@ struct ProbedSideData {
     dv_bl_signal_compatibility_id: Option<i64>,
 }
 
+/// The frame count ffmpeg's AVI muxer writes until it knows the real one, 2^30.
+const AVI_PLACEHOLDER_FRAMES: &str = "1073741824";
+
 /// The [`Probe`] ffprobe's JSON output describes.
 fn parse_probe(json: &[u8]) -> Result<Probe, serde_json::Error> {
     let output: ProbeOutput = serde_json::from_slice(json)?;
     let format = output.format;
+    // An AVI written to a pipe can't go back to fill in its header, which keeps ffmpeg's
+    // placeholder frame counts, and ffprobe works its duration out from those.
+    let header_unfilled = (output.streams.iter())
+        .any(|stream| stream.nb_frames.as_deref() == Some(AVI_PLACEHOLDER_FRAMES));
     Ok(Probe {
         container: format.format_name,
         // A playlist can't be cut from a length of 0, so it reads as unknown.
         duration_ms: (format.duration.as_deref())
             .and_then(millis)
-            .filter(|&ms| ms > 0),
+            .filter(|&ms| ms > 0 && !header_unfilled),
         bitrate: format.bit_rate.and_then(|bitrate| bitrate.parse().ok()),
         tracks: output.streams.into_iter().filter_map(track).collect(),
     })
@@ -2209,12 +2220,35 @@ mod probe_output_tests {
     }
 
     #[test]
+    fn an_avi_whose_streams_count_avis_placeholder_frames_has_no_known_duration() {
+        let avi_with = |nb_frames: &str| {
+            let json = format!(
+                r#"{{"format": {{"format_name": "avi", "duration": "2866.375000"}},
+                "streams": [{{"codec_type": "video", "nb_frames": "{nb_frames}"}}]}}"#
+            );
+            parse_probe(json.as_bytes()).unwrap().duration_ms
+        };
+
+        assert_eq!(avi_with("1073741824"), None);
+        assert_eq!(avi_with("68793"), Some(2_866_375));
+    }
+
+    #[test]
     fn video_ends_where_its_latest_packet_does_from_the_files_start() {
         // In decoding order, with a packet whose duration isn't known.
-        let csv = "1.523000,0.041000\n3.523000,0.041000\n3.481000,N/A\nN/A,0.041000\n1.500000\n";
+        let csv = "1.523000,1.440000,0.041000\n3.523000,3.440000,0.041000\n\
+                   3.481000,3.481000,N/A\nN/A,N/A,0.041000\n1.500000\n";
 
         assert_eq!(super::parse_video_end(csv), Some(2064));
         assert_eq!(super::parse_video_end("0.000000\n"), None);
+    }
+
+    #[test]
+    fn a_packet_without_a_presentation_time_ends_by_its_decoding_time() {
+        // As an AVI's packets have.
+        let csv = "N/A,0.000000,0.040000\nN/A,19.960000,0.040000\n0.000000\n";
+
+        assert_eq!(super::parse_video_end(csv), Some(20_000));
     }
 
     /// ffmpeg shifts a file that starts late to start at 0, and cuts its segments from there.
@@ -2453,6 +2487,33 @@ mod hls_tests {
             probe
                 .duration_ms
                 .is_some_and(|ms| (1958..=2042).contains(&ms)),
+            "{probe:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_avi_written_to_a_pipe_probes_to_its_real_length() {
+        let ffmpeg = system_ffmpeg();
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("piped.avi");
+        let status = std::process::Command::new("ffmpeg")
+            .args(["-v", "error", "-f", "lavfi"])
+            .args(["-i", "testsrc=duration=20:size=320x240:rate=24"])
+            .args(["-f", "lavfi", "-i", "sine=duration=20"])
+            .args(["-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac"])
+            .args(["-f", "avi", "pipe:1"])
+            .stdout(fs::File::create(&file).unwrap())
+            .status()
+            .unwrap();
+        assert!(status.success());
+
+        let probe = ffmpeg.probe(file.to_str().unwrap()).await.unwrap();
+
+        // Within a frame, a 24th of a second, of 20 seconds.
+        assert!(
+            probe
+                .duration_ms
+                .is_some_and(|ms| (19_958..=20_042).contains(&ms)),
             "{probe:?}"
         );
     }
