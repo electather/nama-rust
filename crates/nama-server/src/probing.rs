@@ -756,7 +756,7 @@ mod tests {
   "color_transfer": "smpte2084",
   "side_data_list": [{"side_data_type": "DOVI configuration record", "dv_profile": 8,
                       "dv_bl_signal_compatibility_id": 1}]}],
- "format": {"format_name": "matroska,webm"}}
+ "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
 EOF"#,
         );
         let media = Fixture::with_ffmpeg(ffmpeg).await;
@@ -786,6 +786,27 @@ EOF"#,
     // The fake ffprobe is a shell script.
     #[cfg(unix)]
     #[tokio::test]
+    async fn a_file_whose_packets_cant_be_read_keeps_its_tracks_without_a_length() {
+        let bin = tempfile::tempdir().unwrap();
+        let ffmpeg = fake_ffprobe(
+            bin.path(),
+            r#"case "$*" in *packet=*) echo 'Invalid data found when processing input' >&2; exit 1 ;; esac
+echo '{"format": {"format_name": "matroska,webm"}, "streams": [{"codec_type": "audio", "codec_name": "ac3", "channels": 2}]}'"#,
+        );
+        let media = Fixture::with_ffmpeg(ffmpeg).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10).await;
+        media.match_to_alien().await;
+
+        let probe = media.current(alien).await.unwrap();
+
+        assert_eq!((probe.tracks.len(), probe.duration_ms), (1, None));
+        assert_eq!(media.probe(alien).await, Some(probe));
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
     async fn shutting_down_stops_the_probes() {
         let bin = tempfile::tempdir().unwrap();
         let media = Fixture::with_ffmpeg(fake_ffprobe(bin.path(), "exec sleep 60")).await;
@@ -798,13 +819,13 @@ EOF"#,
     }
 
     /// An ffprobe in `bin` that adds a line to `runs` each time it runs, then takes a second to
-    /// find a Matroska file with no Tracks.
+    /// find a second-long Matroska file with no Tracks.
     #[cfg(unix)]
     fn slow_ffprobe(bin: &std::path::Path, runs: &std::path::Path) -> Ffmpeg {
         fake_ffprobe(
             bin,
             &format!(
-                "echo run >> '{}'\nsleep 1\necho '{{\"format\": {{\"format_name\": \"matroska,webm\"}}}}'",
+                "echo run >> '{}'\nsleep 1\necho '{{\"format\": {{\"format_name\": \"matroska,webm\", \"duration\": \"1.000000\"}}}}'",
                 runs.display()
             ),
         )
@@ -924,7 +945,7 @@ EOF"#,
             bin.path(),
             r#"for file; do :; done
 [ "$(wc -c < "$file")" -le 10 ] || exit 1
-echo '{"format": {"format_name": "matroska,webm"}}'"#,
+echo '{"format": {"format_name": "matroska,webm", "duration": "1.000000"}}'"#,
         );
         let media = Fixture::with_ffmpeg(ffmpeg).await;
         media.write("Alien (1979)/Alien (1979).mkv", 10).await;
@@ -1032,7 +1053,7 @@ echo '{"format": {"format_name": "matroska,webm"}}'"#,
             &format!(
                 r#"echo run >> '{}'
 for file; do :; done
-echo "{{\"format\": {{\"format_name\": \"matroska,webm\"}}, \"streams\": [{{\"codec_type\": \"audio\", \"codec_name\": \"ac3\", \"channels\": $(wc -c < "$file")}}]}}""#,
+echo "{{\"format\": {{\"format_name\": \"matroska,webm\", \"duration\": \"1.000000\"}}, \"streams\": [{{\"codec_type\": \"audio\", \"codec_name\": \"ac3\", \"channels\": $(wc -c < "$file")}}]}}""#,
                 runs.display()
             ),
         )
@@ -1062,7 +1083,7 @@ now=$(ls '{running}' | wc -l)
 [ "$now" -gt "$(cat '{most}' 2>/dev/null || echo 0)" ] && echo "$now" > '{most}'
 sleep 0.3
 rm "$me"
-echo '{{"format": {{"format_name": "matroska,webm"}}}}'"#,
+echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}}}'"#,
                 running = running.display(),
                 most = most.display()
             ),
@@ -1165,7 +1186,7 @@ echo '{{"format": {{"format_name": "matroska,webm"}}}}'"#,
             bin.path(),
             r#"for file; do :; done
 [ "$(wc -c < "$file")" -le 10 ] || exit 1
-echo '{"format": {"format_name": "matroska,webm"}, "streams": [{"codec_type": "audio", "codec_name": "ac3", "channels": 2}]}'"#,
+echo '{"format": {"format_name": "matroska,webm", "duration": "1.000000"}, "streams": [{"codec_type": "audio", "codec_name": "ac3", "channels": 2}]}'"#,
         );
         let media = Fixture::with_ffmpeg(ffmpeg).await;
         let alien = "Alien (1979)/Alien (1979).mkv";
@@ -1194,7 +1215,7 @@ echo '{"format": {"format_name": "matroska,webm"}, "streams": [{"codec_type": "a
                 r#"echo run >> '{}'
 for file; do :; done
 [ "$(wc -c < "$file")" -le 10 ] || exit 1
-echo '{{"format": {{"format_name": "matroska,webm"}}, "streams": [{{"codec_type": "audio", "codec_name": "ac3", "channels": 2}}]}}'"#,
+echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}, "streams": [{{"codec_type": "audio", "codec_name": "ac3", "channels": 2}}]}}'"#,
                 runs.display()
             ),
         );
@@ -1357,7 +1378,7 @@ echo '{{"format": {{"format_name": "matroska,webm"}}, "streams": [{{"codec_type"
             &format!(
                 r#"for file; do :; done
 if [ ! -e '{gone}' ]; then touch '{gone}'; mv "$file" "$file.away"; exit 1; fi
-echo "{{\"format\": {{\"format_name\": \"matroska,webm\"}}, \"streams\": [{{\"codec_type\": \"audio\", \"codec_name\": \"ac3\", \"channels\": $(wc -c < "$file")}}]}}""#,
+echo "{{\"format\": {{\"format_name\": \"matroska,webm\", \"duration\": \"1.000000\"}}, \"streams\": [{{\"codec_type\": \"audio\", \"codec_name\": \"ac3\", \"channels\": $(wc -c < "$file")}}]}}""#,
                 gone = gone.display()
             ),
         );

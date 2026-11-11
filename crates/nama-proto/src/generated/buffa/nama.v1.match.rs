@@ -145,6 +145,175 @@ impl ::buffa::Enumeration for TitleKind {
         &[Self::TITLE_KIND_UNSPECIFIED, Self::TITLE_KIND_MOVIE, Self::TITLE_KIND_SHOW]
     }
 }
+/// Why automatic Matching left an item Unmatched, which says how to fix it.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum UnmatchedReason {
+    /// Matching hasn't decided about the item yet, or left it Unmatched for another reason, such as
+    /// an Episode its Show doesn't have.
+    UNMATCHED_REASON_UNSPECIFIED = 0i32,
+    /// More than one title fits about as well, so picking one of `tied_titles` fixes it.
+    UNMATCHED_REASON_AMBIGUOUS = 1i32,
+    /// No title the search found fits well enough. A rename or an ID Hint may fix it.
+    UNMATCHED_REASON_NO_TITLE_FITS = 2i32,
+    /// The item's ID Hint names no title the metadata source has.
+    UNMATCHED_REASON_UNKNOWN_ID_HINT = 3i32,
+}
+impl UnmatchedReason {
+    ///Idiomatic alias for [`Self::UNMATCHED_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::UNMATCHED_REASON_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::UNMATCHED_REASON_AMBIGUOUS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ambiguous: Self = Self::UNMATCHED_REASON_AMBIGUOUS;
+    ///Idiomatic alias for [`Self::UNMATCHED_REASON_NO_TITLE_FITS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NoTitleFits: Self = Self::UNMATCHED_REASON_NO_TITLE_FITS;
+    ///Idiomatic alias for [`Self::UNMATCHED_REASON_UNKNOWN_ID_HINT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const UnknownIdHint: Self = Self::UNMATCHED_REASON_UNKNOWN_ID_HINT;
+}
+impl ::core::default::Default for UnmatchedReason {
+    fn default() -> Self {
+        Self::UNMATCHED_REASON_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for UnmatchedReason {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for UnmatchedReason {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = UnmatchedReason;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!(
+                        "a string, integer, or null for ", stringify!(UnmatchedReason)
+                    ),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<UnmatchedReason, E> {
+                <UnmatchedReason as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<UnmatchedReason, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <UnmatchedReason as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<UnmatchedReason, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <UnmatchedReason as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<UnmatchedReason, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for UnmatchedReason {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for UnmatchedReason {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::UNMATCHED_REASON_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::UNMATCHED_REASON_AMBIGUOUS),
+            2i32 => ::core::option::Option::Some(Self::UNMATCHED_REASON_NO_TITLE_FITS),
+            3i32 => ::core::option::Option::Some(Self::UNMATCHED_REASON_UNKNOWN_ID_HINT),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::UNMATCHED_REASON_UNSPECIFIED => "UNMATCHED_REASON_UNSPECIFIED",
+            Self::UNMATCHED_REASON_AMBIGUOUS => "UNMATCHED_REASON_AMBIGUOUS",
+            Self::UNMATCHED_REASON_NO_TITLE_FITS => "UNMATCHED_REASON_NO_TITLE_FITS",
+            Self::UNMATCHED_REASON_UNKNOWN_ID_HINT => "UNMATCHED_REASON_UNKNOWN_ID_HINT",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "UNMATCHED_REASON_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::UNMATCHED_REASON_UNSPECIFIED)
+            }
+            "UNMATCHED_REASON_AMBIGUOUS" => {
+                ::core::option::Option::Some(Self::UNMATCHED_REASON_AMBIGUOUS)
+            }
+            "UNMATCHED_REASON_NO_TITLE_FITS" => {
+                ::core::option::Option::Some(Self::UNMATCHED_REASON_NO_TITLE_FITS)
+            }
+            "UNMATCHED_REASON_UNKNOWN_ID_HINT" => {
+                ::core::option::Option::Some(Self::UNMATCHED_REASON_UNKNOWN_ID_HINT)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::UNMATCHED_REASON_UNSPECIFIED,
+            Self::UNMATCHED_REASON_AMBIGUOUS,
+            Self::UNMATCHED_REASON_NO_TITLE_FITS,
+            Self::UNMATCHED_REASON_UNKNOWN_ID_HINT,
+        ]
+    }
+}
 /// An id of a title in a metadata source. Movies and Shows have separate id spaces.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize)]
@@ -1946,6 +2115,26 @@ pub struct UnmatchedItem {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub episode: ::core::option::Option<i32>,
+    /// Why automatic Matching left the item Unmatched.
+    ///
+    /// Field 8: `reason`
+    #[serde(
+        rename = "reason",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub reason: ::buffa::EnumValue<UnmatchedReason>,
+    /// For `UNMATCHED_REASON_AMBIGUOUS`, the titles that fit about as well as each other, best fit
+    /// first, to pass to `SetMatch`.
+    ///
+    /// Field 9: `tied_titles`
+    #[serde(
+        rename = "tiedTitles",
+        alias = "tied_titles",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub tied_titles: ::buffa::alloc::vec::Vec<TitleCandidate>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1960,6 +2149,8 @@ impl ::core::fmt::Debug for UnmatchedItem {
             .field("year", &self.year)
             .field("season", &self.season)
             .field("episode", &self.episode)
+            .field("reason", &self.reason)
+            .field("tied_titles", &self.tied_titles)
             .finish()
     }
 }
@@ -2009,7 +2200,7 @@ impl ::buffa::Message for UnmatchedItem {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -2037,12 +2228,26 @@ impl ::buffa::Message for UnmatchedItem {
         if let Some(v) = self.episode {
             size += 1u64 + ::buffa::types::int32_encoded_len(v) as u64;
         }
+        {
+            let val = self.reason.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        for v in &self.tied_titles {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -2070,6 +2275,20 @@ impl ::buffa::Message for UnmatchedItem {
         }
         if let Some(v) = self.episode {
             ::buffa::types::put_int32_field(7u32, v, buf);
+        }
+        {
+            let val = self.reason.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(8u32, val, buf);
+            }
+        }
+        for v in &self.tied_titles {
+            ::buffa::types::put_len_delimited_header(
+                9u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2139,6 +2358,27 @@ impl ::buffa::Message for UnmatchedItem {
                     ::buffa::types::decode_int32(buf)?,
                 );
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.reason = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.tied_titles.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2154,6 +2394,8 @@ impl ::buffa::Message for UnmatchedItem {
         self.year = ::core::option::Option::None;
         self.season = ::core::option::Option::None;
         self.episode = ::core::option::Option::None;
+        self.reason = ::buffa::EnumValue::from(0);
+        self.tied_titles.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

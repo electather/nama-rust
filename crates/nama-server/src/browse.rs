@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 use nama_plugin_api::metadata::ExternalId;
 
 use crate::{
-    contents::{Contents, Episode, Movie, Season, Show, Stored, Version},
+    contents::{Contents, Episode, Found, Movie, Season, Show, Stored, Version},
     db::Database,
     libraries::{self, Kind, Libraries, Library},
     tracks::Tracks,
@@ -192,6 +192,12 @@ impl Browse {
         }))
         .await?;
         Ok(started)
+    }
+
+    /// The Movies, Shows and Episodes of every Library that a search for `query` finds: see
+    /// [`Contents::search`].
+    pub(crate) async fn search(&self, query: &str) -> Result<Found, Error> {
+        Ok(self.contents.search(query).await?)
     }
 
     /// Fills in the Tracks of each of `versions` that probing read from its file as it is now.

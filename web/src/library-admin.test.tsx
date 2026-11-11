@@ -5,7 +5,12 @@ import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
-import { MatchService, TitleKind, type UnmatchedItemSchema } from "@/gen/nama/v1/match_pb";
+import {
+  MatchService,
+  TitleKind,
+  type UnmatchedItemSchema,
+  UnmatchedReason,
+} from "@/gen/nama/v1/match_pb";
 
 import { admin, eventFeed, fakeServer, fill, openApp } from "./test-app";
 import { expectUnderField, refused } from "./test-refusal";
@@ -79,6 +84,76 @@ test("setting a Match takes the Item off Needs a Match", async () => {
   await waitFor(() => {
     expect(screen.queryByText(alien.path)).toBeNull();
   });
+});
+
+test.each([
+  [
+    "an Ambiguous Item names the titles that tied",
+    {
+      reason: UnmatchedReason.AMBIGUOUS,
+      tiedTitles: [
+        { title: "The Office", year: 2005 },
+        { title: "The Office", year: 2001 },
+      ],
+    },
+    "More than one title fits: The Office (2005) or The Office (2001).",
+  ],
+  [
+    "an Item no title fits says so",
+    { reason: UnmatchedReason.NO_TITLE_FITS },
+    "No title fits its name. Renaming the file or adding an ID Hint may help.",
+  ],
+  [
+    "an Item whose ID Hint names no title says so",
+    { reason: UnmatchedReason.UNKNOWN_ID_HINT },
+    "Its ID Hint names no title.",
+  ],
+])("%s on Needs a Match", async (_, why, shown) => {
+  const item = { itemId: 7n, path: "/srv/shows/The Office/S01E01.mkv", kind: TitleKind.SHOW };
+  openApp(
+    "/admin/needs-a-match",
+    adminServer(new ReadableStream(), (router) => {
+      router.service(MatchService, {
+        listUnmatchedItems: () => ({ items: [{ ...item, title: "The Office", ...why }] }),
+      });
+    }),
+  );
+
+  expect(await screen.findByText(shown)).toBeDefined();
+});
+
+test("Needs a Match shows why once Matching finishes", async () => {
+  const events = eventFeed();
+  const item = { itemId: 7n, path: "/srv/films/Alien.1979.mkv", kind: TitleKind.MOVIE };
+  let reason: UnmatchedReason = UnmatchedReason.UNSPECIFIED;
+  let listed = 0;
+  openApp(
+    "/admin/needs-a-match",
+    adminServer(events.stream, (router) => {
+      router.service(MatchService, {
+        listUnmatchedItems: () => {
+          listed += 1;
+          return { items: [{ ...item, title: "Alien", reason }] };
+        },
+      });
+    }),
+  );
+  expect(await screen.findByText(item.path)).toBeDefined();
+  // The scan finished before Matching did. Its Event opens the stream, and the catch-up refetch
+  // that follows has to land first, or it would be the one to show the reason.
+  events.send({ event: { case: "scanFinished", value: { libraryId: 1n } } });
+  await waitFor(() => {
+    expect(listed).toBe(3);
+  });
+
+  reason = UnmatchedReason.NO_TITLE_FITS;
+  events.send({ event: { case: "matchingFinished", value: { libraryId: 1n, unmatched: 1n } } });
+
+  expect(
+    await screen.findByText(
+      "No title fits its name. Renaming the file or adding an ID Hint may help.",
+    ),
+  ).toBeDefined();
 });
 
 test("an Item Matched elsewhere leaves Needs a Match when its Event arrives", async () => {

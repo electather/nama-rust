@@ -3048,6 +3048,18 @@ pub struct UnmatchedItemView<'a> {
     ///
     /// Field 7: `episode`
     pub episode: ::core::option::Option<i32>,
+    /// Why automatic Matching left the item Unmatched.
+    ///
+    /// Field 8: `reason`
+    pub reason: ::buffa::EnumValue<super::super::UnmatchedReason>,
+    /// For `UNMATCHED_REASON_AMBIGUOUS`, the titles that fit about as well as each other, best fit
+    /// first, to pass to `SetMatch`.
+    ///
+    /// Field 9: `tied_titles`
+    pub tied_titles: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TitleCandidateView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UnmatchedItemView<'a> {
@@ -3131,6 +3143,35 @@ impl<'a> ::buffa::MessageView<'a> for UnmatchedItemView<'a> {
                 )?;
                 view.episode = Some(::buffa::types::decode_int32(&mut cur)?);
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.reason = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::TitleCandidateView,
+                    >(),
+                )?;
+                view.tied_titles
+                    .push(
+                        <super::super::__buffa::view::TitleCandidateView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3160,6 +3201,12 @@ impl<'a> ::buffa::MessageView<'a> for UnmatchedItemView<'a> {
             year: self.year,
             season: self.season,
             episode: self.episode,
+            reason: self.reason,
+            tied_titles: self
+                .tied_titles
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3167,7 +3214,7 @@ impl<'a> ::buffa::MessageView<'a> for UnmatchedItemView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for UnmatchedItemView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -3195,13 +3242,27 @@ impl<'a> ::buffa::ViewEncode<'a> for UnmatchedItemView<'a> {
         if let Some(v) = self.episode {
             size += 1u64 + ::buffa::types::int32_encoded_len(v) as u64;
         }
+        {
+            let val = self.reason.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        for v in &self.tied_titles {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -3229,6 +3290,20 @@ impl<'a> ::buffa::ViewEncode<'a> for UnmatchedItemView<'a> {
         }
         if let Some(v) = self.episode {
             ::buffa::types::put_int32_field(7u32, v, buf);
+        }
+        {
+            let val = self.reason.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(8u32, val, buf);
+            }
+        }
+        for v in &self.tied_titles {
+            ::buffa::types::put_len_delimited_header(
+                9u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3275,6 +3350,12 @@ impl<'__a> ::serde::Serialize for UnmatchedItemView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.episode {
             __map.serialize_entry("episode", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.reason) {
+            __map.serialize_entry("reason", &self.reason)?;
+        }
+        if !self.tied_titles.is_empty() {
+            __map.serialize_entry("tiedTitles", &*self.tied_titles)?;
         }
         __map.end()
     }
@@ -3415,6 +3496,26 @@ impl UnmatchedItemOwnedView {
     #[must_use]
     pub fn episode(&self) -> ::core::option::Option<i32> {
         self.0.reborrow().episode
+    }
+    /// Why automatic Matching left the item Unmatched.
+    ///
+    /// Field 8: `reason`
+    #[must_use]
+    pub fn reason(&self) -> ::buffa::EnumValue<super::super::UnmatchedReason> {
+        self.0.reborrow().reason
+    }
+    /// For `UNMATCHED_REASON_AMBIGUOUS`, the titles that fit about as well as each other, best fit
+    /// first, to pass to `SetMatch`.
+    ///
+    /// Field 9: `tied_titles`
+    #[must_use]
+    pub fn tied_titles(
+        &self,
+    ) -> &::buffa::RepeatedView<
+        '_,
+        super::super::__buffa::view::TitleCandidateView<'_>,
+    > {
+        &self.0.reborrow().tied_titles
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<UnmatchedItemView<'static>>>
