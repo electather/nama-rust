@@ -53,8 +53,9 @@ use crate::{
     contents::Contents,
     events::{EventBus, event},
     ffmpeg::{Ffmpeg, FromCut, Keyframe, ProbeError, Remux, Transcode, hls_init},
+    probing::{self, Probing},
     server_settings::PlaybackSettings,
-    tracks::{Tracks, track_to_proto},
+    tracks::track_to_proto,
     users::Caller,
 };
 
@@ -93,7 +94,7 @@ pub(crate) enum StartError {
     #[error(transparent)]
     Database(#[from] sqlx::Error),
     #[error("the Version's keyframes couldn't be listed: {0}")]
-    Keyframes(#[from] ProbeError),
+    Keyframes(Arc<ProbeError>),
     #[error("ffmpeg couldn't be started: {0}")]
     Run(#[from] io::Error),
     /// Only a Transcode would play it, and the Server runs as many as it may at once, this many.
@@ -128,7 +129,7 @@ struct Inner {
     settings: PlaybackSettings,
     ffmpeg: Arc<Ffmpeg>,
     contents: Contents,
-    tracks: Tracks,
+    probing: Probing,
     events: EventBus,
     next_id: AtomicU64,
     plans: Mutex<HashMap<u64, Arc<Plan>>>,
@@ -199,21 +200,22 @@ struct Segment {
 }
 
 impl RunningPlans {
-    /// Runs plans with `ffmpeg`, writing their files to the segment folder in `settings` as it
-    /// is when each starts, and publishing on `events` when each stops. Until these are dropped
-    /// or shut down, stops the plans gone unused in the background.
+    /// Runs plans with `ffmpeg`, cutting a Remux at the keyframes `probing` lists, writing their
+    /// files to the segment folder in `settings` as it is when each starts, and publishing on
+    /// `events` when each stops. Until these are dropped or shut down, stops the plans gone unused
+    /// in the background.
     pub(crate) fn new(
         settings: PlaybackSettings,
         ffmpeg: Arc<Ffmpeg>,
         contents: Contents,
-        tracks: Tracks,
+        probing: Probing,
         events: EventBus,
     ) -> Self {
         let inner = Arc::new(Inner {
             settings,
             ffmpeg,
             contents,
-            tracks,
+            probing,
             events,
             // From 1, as the API's plan id 0 is no plan.
             next_id: AtomicU64::new(1),
@@ -275,8 +277,8 @@ impl RunningPlans {
     }
 
     /// Starts Remuxing the Version `playback` plays, `duration_ms` long, for the Device it plays
-    /// on, converting what `remux` says, and returns its id and its playlist's URL. Lists the
-    /// Version's keyframes the first time and keeps them. `None` if there is no such Version.
+    /// on, converting what `remux` says, and returns its id and its playlist's URL. `None` if
+    /// there is no such Version.
     async fn remux(
         &self,
         playback: Playback,
@@ -287,7 +289,12 @@ impl RunningPlans {
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
             return Ok(None);
         };
-        let keyframes = self.keyframes(version, &path).await?;
+        let keyframes = match self.inner.probing.keyframes(version).await {
+            Ok(keyframes) => keyframes,
+            Err(probing::Error::Probe(err)) => return Err(StartError::Keyframes(err)),
+            Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
+            Err(probing::Error::Database(err)) => return Err(err.into()),
+        };
         let timeline = Timeline::new(keyframes, duration_ms);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |dir: &Path, from| ffmpeg.remux(&path, &remux, dir, from)?.spawn();
@@ -353,20 +360,6 @@ impl RunningPlans {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         self.insert(id, playback, None);
         id
-    }
-
-    /// The Version `version`'s keyframes, as kept, or else listed from its file at `path` and
-    /// kept for next time.
-    async fn keyframes(&self, version: i64, path: &str) -> Result<Vec<i64>, StartError> {
-        if let Some(keyframes) = self.inner.tracks.keyframes(version).await? {
-            return Ok(keyframes);
-        }
-        let keyframes = self.inner.ffmpeg.keyframes(path).await?;
-        self.inner
-            .tracks
-            .store_keyframes(version, &keyframes)
-            .await?;
-        Ok(keyframes)
     }
 
     /// Starts a plan playing `playback`, cut as `timeline` says, whose files `runs` starts
@@ -980,9 +973,10 @@ mod tests {
         db::Database,
         events::{EventBus, Filter, event},
         ffmpeg::{Ffmpeg, Keyframe},
+        playback::subtitles,
         plugins::Registry,
+        probing::Probing,
         server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
-        tracks::Tracks,
     };
 
     fn plans_in(db: &Arc<Database>, settings: PlaybackSettings) -> RunningPlans {
@@ -995,11 +989,14 @@ mod tests {
         settings: PlaybackSettings,
         events: &EventBus,
     ) -> RunningPlans {
+        let ffmpeg = Arc::new(Ffmpeg::default());
+        // Nothing here cleans subtitles, so their cache's folder is never touched.
+        let subtitles = subtitles::Cache::new(&std::env::temp_dir());
         RunningPlans::new(
             settings,
-            Arc::new(Ffmpeg::default()),
+            Arc::clone(&ffmpeg),
             Contents::new(Arc::clone(db)),
-            Tracks::new(Arc::clone(db)),
+            Probing::new(Arc::clone(db), ffmpeg, subtitles),
             events.clone(),
         )
     }

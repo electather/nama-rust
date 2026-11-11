@@ -2954,7 +2954,6 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             plugins::Registry,
             probing::Probing,
             server_settings::{ServerUrl, Settings},
-            tracks::Tracks,
         };
 
         let data = tempfile::tempdir().unwrap();
@@ -2983,7 +2982,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             settings.playback(),
             Arc::clone(&ffmpeg),
             contents,
-            Tracks::new(Arc::clone(&db)),
+            probing.clone(),
             EventBus::new(db, Registry::new(), ServerUrl::default()),
         );
 

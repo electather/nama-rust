@@ -171,7 +171,7 @@ One pass over a Library: storing what changed in its folders, then Matching the 
 _Avoid_: pass, sync, refresh
 
 **Probing**:
-Reading a Version's file to learn its Tracks.
+Reading a Version's file to learn its Tracks and where its keyframes are.
 _Avoid_: analysis, inspection
 
 **Watch State**:
