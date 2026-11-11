@@ -968,6 +968,34 @@ pub(crate) fn log_not_enabled(id: &PluginId, err: &EnableError) {
     }
 }
 
+/// What the Plugin `make` makes says about itself, as [`asked`] gets it, or `None`, logged, if it
+/// panics being made.
+fn what_it_says(make: &dyn Fn() -> Arc<dyn Plugin>) -> Option<(Manifest, bool)> {
+    let plugin = contain_sync(make)
+        .inspect_err(|message| error!(message, "a plugin panicked while being made"))
+        .ok()?;
+    let said = asked(&*plugin);
+    // A panic dropping it is moot: what it said about itself is already read.
+    let _dropped = contain_sync(|| drop(plugin));
+    said
+}
+
+/// `plugin`'s Manifest and whether it has a settings check, or `None`, logged, if it panics
+/// giving them: both are Plugin code, so a panic in them is contained.
+fn asked(plugin: &dyn Plugin) -> Option<(Manifest, bool)> {
+    let manifest = contain_sync(|| plugin.manifest())
+        .inspect_err(|message| {
+            error!(message, "a plugin panicked while giving its manifest");
+        })
+        .ok()?;
+    let checks_settings = contain_sync(|| plugin.settings_check().is_some())
+        .inspect_err(|message| {
+            error!(plugin = %manifest.id, message, "a plugin panicked while describing itself");
+        })
+        .ok()?;
+    Some((manifest, checks_settings))
+}
+
 /// The Plugin's `logo` if the Server keeps it: at most [`MAX_LOGO_BYTES`] and an SVG document.
 /// Logs why it drops one, which leaves the Plugin without a logo but otherwise as it was. An empty
 /// one, as protobuf sends no logo, is none.

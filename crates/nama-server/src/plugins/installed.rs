@@ -651,7 +651,7 @@ impl Registry {
     fn made_as_installed(&self) -> Vec<(PathBuf, Result<Listable, Refused>)> {
         let plugins = self.read(|state| state.as_installed.clone());
         let listable = |make: fn() -> Arc<dyn Plugin>| {
-            let (manifest, checks_settings) = super::builtin::what_it_says(&make)?;
+            let (manifest, checks_settings) = super::what_it_says(&make)?;
             // Not the id itself, so one refused for its id taken is listed apart from the holder.
             let file = PathBuf::from(format!("{}.in-process", manifest.id));
             let make = Arc::new(make);
@@ -668,8 +668,9 @@ impl Registry {
     }
 }
 
-/// The Installed Plugin in `file` as the registry lists it: by its id, or by the file's name if
-/// the Server refused it, since it may not know the id. One whose id is `taken` is refused.
+/// The Installed Plugin found in `file`, or listed in-process under a made-up one, as the registry
+/// lists it: by its id, or by the file's name if the Server refused it, since it may not know the
+/// id. One whose id is `taken` is refused.
 fn describe(
     file: &Path,
     plugin: Result<Listable, Refused>,
@@ -1322,6 +1323,7 @@ mod tests {
             });
 
             assert_eq!(judged.map(|manifest| manifest.logo_svg), Ok(None), "{why}");
+            assert!(log.contains("test-plugin"), "{log}");
             assert!(log.contains("dropped its logo"), "{log}");
             assert!(log.contains(why), "{log}");
         }
