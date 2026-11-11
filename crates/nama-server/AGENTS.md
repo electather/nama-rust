@@ -5,7 +5,7 @@
 - **One database writer.** Every write goes through `Database::write` or `Database::write_then` in `src/db.rs`, on the one writable SQLite connection. Long jobs such as a scan write in small batches.
 - **One owner for a Library's contents.** Only `src/contents.rs` reads or writes `library_files`, `library_items`, `item_matches`, `match_pins` and `title_search`, tests included. Everything else goes through `Contents`.
 - **One owner for Tracks.** Only `src/tracks.rs` reads or writes `version_probes`, `tracks` and `probe_failures`, tests included. Browse attaches them to the Versions `Contents` reads.
-- **One owner for probing.** Only `src/probing.rs` runs ffprobe on stored files and decides what a probe failure means for trying it again (`ProbeFailure`); Tracks stores it.
+- **One owner for probing.** Only Probing (`src/probing.rs`, with its private `src/probing/ffprobe.rs`) runs ffprobe on stored files and decides what a probe failure means for trying it again (`ProbeFailure`); Tracks stores it.
 - **One owner for asking the metadata Provider.** Only `src/metadata.rs` (`MetadataSource`) calls a `MetadataProvider` and decides what its failures mean. Matching, Requests, Artwork and handlers ask it and read its `Error`.
 - **One owner for Quality rules.** Only `src/qualities.rs` reads or writes `qualities` and `default_qualities`, tests included, and decides which Quality a Request, Show or Followed Show takes (ADR 0025). Requests and handlers ask it.
 - **One owner for Server settings.** Only `src/server_settings.rs` reads or writes `server_settings`, tests included.

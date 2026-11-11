@@ -7,9 +7,8 @@ import { Poster, PosterGrid, posterLink } from "@/components/poster";
 import {
   BrowseService,
   type ContinueWatchingEntry,
-  type Episode,
+  type ContinueWatchingEpisode,
   type Movie,
-  type Show,
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
@@ -75,13 +74,10 @@ interface Card {
   poster: ComponentProps<typeof Poster>;
 }
 
-function entryCard({ libraryId, movieOrEpisode, show }: ContinueWatchingEntry): Card[] {
+function entryCard({ libraryId, movieOrEpisode }: ContinueWatchingEntry): Card[] {
   const library = String(libraryId);
   if (movieOrEpisode.case === "movie") return [movieCard(library, movieOrEpisode.value)];
-  // An Episode without its Show has no poster or page to show.
-  if (movieOrEpisode.case === "episode" && show) {
-    return [episodeCard(library, show, movieOrEpisode.value)];
-  }
+  if (movieOrEpisode.case === "episode") return episodeCard(library, movieOrEpisode.value);
   return [];
 }
 
@@ -103,23 +99,27 @@ function movieCard(libraryId: string, movie: Movie): Card {
 }
 
 /** An Episode shows its Show's poster, saying which Episode it is. */
-function episodeCard(libraryId: string, show: Show, episode: Episode): Card {
+function episodeCard(libraryId: string, { show, episode }: ContinueWatchingEpisode): Card[] {
+  // Protobuf message fields are always optional; the Server sets both.
+  if (!show || !episode) return [];
   const showId = titleParam(show.id);
   const season = String(episode.seasonNumber);
   const number = String(episode.episodeNumber);
-  return {
-    key: `${libraryId}/${showId}/${season}/${number}`,
-    link: {
-      to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
-      params: { libraryId, showId, season, episode: number },
+  return [
+    {
+      key: `${libraryId}/${showId}/${season}/${number}`,
+      link: {
+        to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
+        params: { libraryId, showId, season, episode: number },
+      },
+      poster: {
+        url: show.posterUrl,
+        title: show.title,
+        detail: metadataLine(seasonName(episode.seasonNumber), `Episode ${number}`),
+        watchState: episode.watchState,
+      },
     },
-    poster: {
-      url: show.posterUrl,
-      title: show.title,
-      detail: metadataLine(seasonName(episode.seasonNumber), `Episode ${number}`),
-      watchState: episode.watchState,
-    },
-  };
+  ];
 }
 
 function Libraries() {

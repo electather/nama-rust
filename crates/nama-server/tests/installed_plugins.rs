@@ -22,12 +22,15 @@ use std::{
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use log::Log;
 use nama_plugin_api::PluginId;
-use nama_proto::nama::v1::{
-    CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
-    GetPluginRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind,
-    PluginServiceClient, PluginSummary, RefusalReason, ScanLibraryRequest, SettingValue,
-    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
-    UpdatePluginSettingsResponse, setting_value::Value,
+use nama_proto::{
+    NAMA_API_VERSION,
+    nama::v1::{
+        CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
+        GetPluginRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest, Plugin,
+        PluginKind, PluginServiceClient, PluginSummary, RefusalReason, ScanLibraryRequest,
+        SettingValue, TestPluginSettingsRequest, TestPluginSettingsResponse,
+        UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, setting_value::Value,
+    },
 };
 use nama_server::{
     config::Config,
@@ -392,6 +395,19 @@ async fn a_plugin_naming_a_point_without_its_exports_is_refused_naming_the_expor
             .await,
         ErrorCode::FailedPrecondition,
         RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_built_for_nama_api_0_1_is_refused_naming_the_version() {
+    let started = Started::new().await;
+
+    started.drop_in("old.wasm", "nama-api-0-1");
+
+    let listed = started.listed("old.wasm").await.unwrap();
+    assert_eq!(
+        listed.refused_reason,
+        format!("it wants nama-api ^0.1.0, and this Server has {NAMA_API_VERSION}")
     );
 }
 

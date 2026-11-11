@@ -17,7 +17,7 @@
 //! The Plugin reads its settings with [`extism_pdk::config::get`], and sends HTTP requests with
 //! [`http_request`] to the hosts its Manifest's `allowed_hosts` and its URL settings name.
 //!
-//! A Plugin with [`SETTING_KIND_CHOICE`](nama_proto::nama::plugin::v1::SettingKind) settings exports `check_settings()`, which
+//! A Plugin with [`SETTING_KIND_CHOICE`](nama_proto::nama::v1::SettingKind) settings exports `check_settings()`, which
 //! checks its settings against the outside service and offers the choices for each, built with
 //! [`checked_settings`]. It runs only when an admin tests settings, which may be unsaved, and may
 //! reach the hosts of the URL settings tested:

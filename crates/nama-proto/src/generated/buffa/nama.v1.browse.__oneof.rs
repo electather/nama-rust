@@ -71,7 +71,9 @@ pub mod continue_watching_entry {
     #[derive(Clone, PartialEq, Debug)]
     pub enum MovieOrEpisode {
         Movie(::buffa::alloc::boxed::Box<super::super::super::Movie>),
-        Episode(::buffa::alloc::boxed::Box<super::super::super::Episode>),
+        Episode(
+            ::buffa::alloc::boxed::Box<super::super::super::ContinueWatchingEpisode>,
+        ),
     }
     impl ::buffa::Oneof for MovieOrEpisode {}
     impl From<super::super::super::Movie> for MovieOrEpisode {
@@ -84,13 +86,14 @@ pub mod continue_watching_entry {
             Self::Some(MovieOrEpisode::from(v))
         }
     }
-    impl From<super::super::super::Episode> for MovieOrEpisode {
-        fn from(v: super::super::super::Episode) -> Self {
+    impl From<super::super::super::ContinueWatchingEpisode> for MovieOrEpisode {
+        fn from(v: super::super::super::ContinueWatchingEpisode) -> Self {
             Self::Episode(::buffa::alloc::boxed::Box::new(v))
         }
     }
-    impl From<super::super::super::Episode> for ::core::option::Option<MovieOrEpisode> {
-        fn from(v: super::super::super::Episode) -> Self {
+    impl From<super::super::super::ContinueWatchingEpisode>
+    for ::core::option::Option<MovieOrEpisode> {
+        fn from(v: super::super::super::ContinueWatchingEpisode) -> Self {
             Self::Some(MovieOrEpisode::from(v))
         }
     }

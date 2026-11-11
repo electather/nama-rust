@@ -23,12 +23,11 @@ use nama_plugin_api::{
     metadata::{Candidate, Episode, ExternalId, ExternalIds, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
-    DefaultQuality, Event, ExtensionPoint, FollowedShow, FollowedShowCancelled,
-    FollowedShowCreated, FollowedShowRequesterAdded, FollowedShowRequesterRemoved,
-    FollowedShowStateChanged, FollowedShowWithdrawn, FoundSeason, ListRequestsResponse, Permission,
-    Quality, QualityChange, Request, RequestCancelled, RequestCreated, RequestState,
-    RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedQuality, RequestedSeason,
-    Requester, RequesterAdded, RequesterRemoved,
+    DefaultQuality, Event, FollowedShow, FollowedShowCancelled, FollowedShowCreated,
+    FollowedShowRequesterAdded, FollowedShowRequesterRemoved, FollowedShowStateChanged,
+    FollowedShowWithdrawn, FoundSeason, ListRequestsResponse, Permission, Quality, QualityChange,
+    Request, RequestCancelled, RequestCreated, RequestState, RequestStateChanged, RequestWithdrawn,
+    RequestedMovie, RequestedQuality, RequestedSeason, Requester, RequesterAdded, RequesterRemoved,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
@@ -161,11 +160,8 @@ struct Wanted {
     show_ids: ExternalIds,
     /// The Followed Show a new Request for it is opened for, if any.
     followed_show: Option<i64>,
-    /// The Quality a new Request for it takes, if its Fulfiller has any.
-    quality: Option<RequestedQuality>,
-    /// Whether the asker chose `quality`, by picking it or as their personal default, so it
-    /// replaces a Pending Request's when their ask approves it.
-    quality_chosen: bool,
+    /// What its asker's ask says about Quality.
+    quality: qualities::Ask,
 }
 
 /// A User changing a Request's Quality: a Request manager as they approve or retry it, or an
@@ -184,12 +180,8 @@ struct WantedSeasons {
     show_ids: ExternalIds,
     show_title: String,
     seasons: Vec<Season>,
-    /// The Quality their new Requests take, unless the Show has one.
-    quality: Option<RequestedQuality>,
-    /// Whether the asker chose `quality`, as [`Wanted::quality_chosen`] says.
-    quality_chosen: bool,
-    /// The id of the Quality the asker named, if they did, which must be the Show's if it has one.
-    chosen: Option<i64>,
+    /// What the asker's ask says about Quality, which gives way to the Show's if it has one.
+    quality: qualities::Ask,
 }
 
 /// What a write to Requests did: its `value`, the events it built for what happened, the Requests
@@ -358,7 +350,7 @@ impl Requests {
         if self.contents.library_with_movie(tmdb_id).await?.is_some() {
             return Err(Error::InLibrary(tmdb_id));
         }
-        let (quality, quality_chosen) = self.quality::<Movies>(asker, chosen).await?;
+        let quality = self.quality::<Movies>(asker, chosen).await?;
         // ponytail: looked up even to join an open Request, so the write has it if that Request
         // closes meanwhile. Look up only when opening one if TMDB's rate limit starts to bite.
         let movie = self.fetch(tmdb_id).await?;
@@ -370,7 +362,6 @@ impl Requests {
             show_ids: ExternalIds::default(),
             followed_show: None,
             quality,
-            quality_chosen,
         };
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
@@ -456,13 +447,13 @@ impl Requests {
         }
     }
 
-    /// The Quality a new Request `asker` opens on the enabled Fulfiller of `Kind` takes, and
-    /// whether they chose it, as [`qualities::for_request`] decides.
+    /// What the ask of `asker`, naming the Quality `chosen` if they did, says about Quality on the
+    /// enabled Fulfiller of `Kind`, as [`qualities::for_request`] decides.
     async fn quality<Kind: 'static>(
         &self,
         asker: &User,
         chosen: Option<i64>,
-    ) -> Result<(Option<RequestedQuality>, bool), Error> {
+    ) -> Result<qualities::Ask, Error> {
         let fulfiller = self.fulfiller::<Kind>();
         let mut conn = self.db.reader().acquire().await?;
         Ok(qualities::for_request(&mut conn, asker, fulfiller.as_ref(), chosen).await??)
@@ -482,41 +473,16 @@ impl Requests {
         qualities::offered_to(&mut conn, asker, &fulfiller).await
     }
 
-    /// `user`'s default Quality for each enabled Fulfiller, Movies first, whose list has more than
-    /// one, or has one left after an admin removed `user`'s, to flag it.
+    /// `user`'s default Quality for each enabled Fulfiller, as [`qualities::personal_defaults`]
+    /// lists them.
     pub(crate) async fn personal_defaults(
         &self,
         user: i64,
     ) -> Result<Vec<DefaultQuality>, sqlx::Error> {
-        let fulfillers = [
-            (
-                self.fulfiller::<Movies>(),
-                ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER,
-            ),
-            (
-                self.fulfiller::<Shows>(),
-                ExtensionPoint::EXTENSION_POINT_SHOW_FULFILLER,
-            ),
-        ];
+        let movies = self.fulfiller::<Movies>();
+        let shows = self.fulfiller::<Shows>();
         let mut conn = self.db.reader().acquire().await?;
-        let mut defaults = Vec::new();
-        for (plugin, fulfiller) in fulfillers {
-            let Some(plugin) = plugin else {
-                continue;
-            };
-            let qualities = qualities::list(&mut conn, &plugin).await?;
-            let quality = qualities::personal_default(&mut conn, user, &plugin).await?;
-            if qualities::shows_default(&qualities, quality) {
-                defaults.push(DefaultQuality {
-                    quality,
-                    plugin_id: plugin.to_string(),
-                    fulfiller: fulfiller.into(),
-                    qualities,
-                    ..Default::default()
-                });
-            }
-        }
-        Ok(defaults)
+        qualities::personal_defaults(&mut conn, user, movies.as_ref(), shows.as_ref()).await
     }
 
     /// Sets `user`'s default Quality for the Fulfiller from the Plugin `plugin` to `quality`, or
@@ -592,7 +558,7 @@ impl Requests {
         numbers: &BTreeSet<u32>,
         chosen: Option<i64>,
     ) -> Result<Vec<Request>, Error> {
-        let (quality, quality_chosen) = self.quality::<Shows>(asker, chosen).await?;
+        let quality = self.quality::<Shows>(asker, chosen).await?;
         let id = ExternalId::Tmdb(tmdb_id);
         let (_, show) = self
             .metadata
@@ -622,8 +588,6 @@ impl Requests {
             show_title: show.title,
             seasons,
             quality,
-            quality_chosen,
-            chosen,
         };
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
@@ -644,7 +608,7 @@ impl Requests {
         tmdb_id: i64,
         chosen: Option<i64>,
     ) -> Result<(FollowedShow, Vec<Request>), Error> {
-        let (quality, quality_chosen) = self.quality::<Shows>(asker, chosen).await?;
+        let quality = self.quality::<Shows>(asker, chosen).await?;
         let id = ExternalId::Tmdb(tmdb_id);
         let (_, show) = self
             .metadata
@@ -657,8 +621,6 @@ impl Requests {
             show_ids: show.ids,
             show_title: show.title,
             quality,
-            quality_chosen,
-            chosen,
         };
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
@@ -1392,9 +1354,7 @@ struct SeasonsToAsk {
     show_ids: Option<ExternalIds>,
     show_title: String,
     seasons: Vec<Season>,
-    quality: Option<RequestedQuality>,
-    /// Whether the asker chose `quality`, as [`Wanted::quality_chosen`] says.
-    quality_chosen: bool,
+    quality: qualities::Ask,
 }
 
 impl SeasonsToAsk {
@@ -1402,16 +1362,15 @@ impl SeasonsToAsk {
     async fn read(conn: &mut SqliteConnection, show: WantedSeasons) -> Result<Self, Error> {
         // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities
         // (ADR 0025).
-        let (quality, quality_chosen) = show_requests(conn, show.show_tmdb_id)
+        let quality = show_requests(conn, show.show_tmdb_id)
             .await?
-            .for_seasons((show.quality, show.quality_chosen), show.chosen)?;
+            .for_seasons(show.quality)?;
         Ok(Self {
             show_tmdb_id: show.show_tmdb_id,
             show_ids: Some(show.show_ids),
             show_title: show.show_title,
             seasons: show.seasons,
             quality,
-            quality_chosen,
         })
     }
 
@@ -1423,14 +1382,13 @@ impl SeasonsToAsk {
         season: Season,
     ) -> Result<Self, sqlx::Error> {
         let show_tmdb_id = followed_show.show_tmdb_id;
-        let quality = show_requests(conn, show_tmdb_id).await?.quality().cloned();
+        let quality = show_requests(conn, show_tmdb_id).await?.for_scan();
         Ok(Self {
             show_tmdb_id,
             show_ids: None,
             show_title: followed_show.show_title.clone(),
             seasons: vec![season],
             quality,
-            quality_chosen: false,
         })
     }
 
@@ -1470,21 +1428,22 @@ impl SeasonsToAsk {
             show_ids: self.show_ids.clone().unwrap_or_default(),
             followed_show,
             quality: self.quality.clone(),
-            quality_chosen: self.quality_chosen,
         }
     }
 }
 
 /// [`ask`]s for `wanted`, then approves the open Request `user` joined if it is Pending and `state`
 /// is Approved, since their ask would have opened it Approved, at the Quality
-/// [`qualities::joiner_approves_at`] gives.
+/// [`qualities::Ask::joiner_approves_at`] gives.
 async fn ask_approving(
     conn: &mut SqliteConnection,
     user: i64,
     wanted: Wanted,
     state: RequestState,
 ) -> Result<Applied<Request>, Error> {
-    let new_quality = qualities::joiner_approves_at(wanted.quality.clone(), wanted.quality_chosen)
+    let new_quality = wanted
+        .quality
+        .joiner_approves_at()
         .map(|quality| NewQuality { quality, by: user });
     let asked = ask(conn, user, wanted, state).await?;
     if state != RequestState::Approved || asked.value.state != RequestState::Pending {
@@ -1532,7 +1491,7 @@ async fn insert_request(
     state: &str,
     now: i64,
 ) -> Result<i64, sqlx::Error> {
-    let (quality_id, quality_name, quality_profile_id) = quality_columns(wanted.quality.as_ref());
+    let (quality_id, quality_name, quality_profile_id) = quality_columns(wanted.quality.taken());
     sqlx::query_scalar!(
         "INSERT INTO requests (tmdb_id, season, title, release_date, show_imdb_id, show_tvdb_id,
                                state, created_at, followed_show_id, quality_id, quality_name,
@@ -2146,7 +2105,7 @@ async fn open_followed(
     state: RequestState,
     now: i64,
 ) -> Result<i64, sqlx::Error> {
-    let (quality_id, quality_name, quality_profile_id) = quality_columns(show.quality.as_ref());
+    let (quality_id, quality_name, quality_profile_id) = quality_columns(show.quality.taken());
     sqlx::query_scalar!(
         "INSERT INTO followed_shows (tmdb_id, title, state, latest_season, created_at, quality_id,
                                      quality_name, quality_profile_id)
@@ -2551,6 +2510,7 @@ mod tests {
         events::{EventBus, Filter},
         libraries::{Kind, Libraries},
         plugins::{Answer, Failure, Registry},
+        qualities,
         scanner::Scanner,
         server_settings::ServerUrl,
         users::{Permissions, User},
@@ -2636,8 +2596,7 @@ mod tests {
             release_date: None,
             show_ids: ExternalIds::default(),
             followed_show: None,
-            quality: None,
-            quality_chosen: false,
+            quality: qualities::Ask::default(),
         });
 
         let ids = db
@@ -2843,8 +2802,7 @@ mod tests {
             release_date: None,
             show_ids: ExternalIds::default(),
             followed_show: None,
-            quality: None,
-            quality_chosen: false,
+            quality: qualities::Ask::default(),
         }
     }
 
@@ -3405,8 +3363,7 @@ mod tests {
             release_date: None,
             show_ids: ExternalIds::default(),
             followed_show: None,
-            quality: None,
-            quality_chosen: false,
+            quality: qualities::Ask::default(),
         };
         let request = db
             .write(move |tx| Box::pin(ask_each(tx, vec![wanted], RequestState::Pending)))
@@ -3651,9 +3608,7 @@ mod tests {
                     ..season_1("2019-06-21")
                 },
             ],
-            quality: None,
-            quality_chosen: false,
-            chosen: None,
+            quality: qualities::Ask::default(),
         }
     }
 
