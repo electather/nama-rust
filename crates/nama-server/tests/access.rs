@@ -68,7 +68,8 @@ const ADMIN: [&str; 3] = [
     "/nama.v1.ServerService/UpdatePlaybackSettings",
 ];
 
-/// Every RPC that manages every User's Requests, which needs `PERMISSION_MANAGE_REQUESTS`.
+/// Every RPC that manages every User's Requests and Followed Shows, which needs
+/// `PERMISSION_MANAGE_REQUESTS`.
 const MANAGE_REQUESTS: [&str; 9] = [
     "/nama.v1.RequestService/CountPendingRequests",
     "/nama.v1.RequestService/ApproveRequest",
@@ -465,6 +466,9 @@ async fn a_user_without_permissions_is_refused_exactly_the_listed_rpcs_naming_th
     for path in &rpcs {
         let reply = post_json(&server, path, Some(&token)).await;
 
+        // A lost session would refuse every later RPC before its Permission is checked, so one in
+        // no list would pass unchecked.
+        assert_ne!(reply.status, 401, "{path}: Grace's session ended");
         let needed = NEEDS_PERMISSION
             .iter()
             .find(|(_, paths)| paths.contains(&path.as_str()))
