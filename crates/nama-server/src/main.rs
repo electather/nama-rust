@@ -12,12 +12,13 @@ use std::{
 use clap::Parser;
 use nama_plugin_api::points::{ServerStarted, ServerStartedEvent};
 use nama_server::{
+    codes::SetupCode,
     config::{self, Config},
     db::{self, Database},
     ffmpeg::Ffmpeg,
     plugin_settings::PluginSettings,
     plugins::Registry,
-    users::{SetupCode, Users},
+    users::Users,
 };
 use tokio::{net::TcpListener, task};
 use tracing::{error, info, warn};

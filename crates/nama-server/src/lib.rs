@@ -3,6 +3,7 @@
 mod api;
 pub mod artwork;
 mod browse;
+pub mod codes;
 pub mod config;
 mod connections;
 mod contents;
@@ -37,10 +38,10 @@ use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::net::TcpListener;
 
 use crate::{
-    config::Config, contents::Contents, db::Database, events::EventBus, ffmpeg::Ffmpeg,
-    playback::running::RunningPlans, playback::subtitles, plugin_settings::PluginSettings,
-    probing::Probing, requests::Requests, scanner::Scanner, server_settings::Settings,
-    tracks::Tracks, users::SetupCode,
+    codes::SetupCode, config::Config, contents::Contents, db::Database, events::EventBus,
+    ffmpeg::Ffmpeg, playback::running::RunningPlans, playback::subtitles,
+    plugin_settings::PluginSettings, probing::Probing, requests::Requests, scanner::Scanner,
+    server_settings::Settings, tracks::Tracks,
 };
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins `plugins` started,

@@ -303,29 +303,28 @@ impl RunningPlans {
     }
 
     /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
-    /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file, whose
-    /// length is `duration_ms` if known. `None` if there is no such Version, or `plan` can't be
-    /// played, as a Remux or a Transcode can't without a length.
+    /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file. `None`
+    /// if there is no such Version, or `plan` can't be played.
     pub(crate) async fn start(
         &self,
         caller: &Caller,
         plan: super::Plan,
-        duration_ms: Option<i64>,
     ) -> Result<Option<StartedPlan>, StartError> {
         let Some(playing) = plan.playing else {
             return Ok(None);
         };
         let playback = playback(caller, &plan);
-        let started = match (playing, duration_ms) {
-            (Playing::DirectPlay, _) => {
+        let started = match playing {
+            Playing::DirectPlay => {
                 Some((self.direct_play(playback), direct_play_url(plan.version)))
             }
-            (Playing::Remux(remux), Some(ms)) => self.remux(playback, remux, ms).await?,
-            (Playing::Transcode(transcode), Some(ms)) => {
-                self.transcode(playback, transcode, ms).await?
+            Playing::Remux { remux, duration_ms } => {
+                self.remux(playback, remux, duration_ms).await?
             }
-            // The plan rules both out without a length, which their playlists list.
-            (Playing::Remux(_) | Playing::Transcode(_), None) => None,
+            Playing::Transcode {
+                transcode,
+                duration_ms,
+            } => self.transcode(playback, transcode, duration_ms).await?,
         };
         Ok(started.map(|(id, url)| StartedPlan { id, url, plan }))
     }
