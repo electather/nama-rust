@@ -9,7 +9,8 @@ use nama_proto::nama::v1::{
 
 use crate::{
     playback::{
-        self, DeviceDecoding, Method, PickedLimit, Plan, PlaybackLimit, method_to_proto,
+        self, Asked, DeviceDecoding, Method, PickedLimit, Planned, PlaybackLimit, StartedPlan,
+        method_to_proto,
         running::{RunningPlans, StartError},
     },
     probing::Probing,
@@ -41,30 +42,29 @@ impl PlaybackService for PlaybackServiceHandler {
         let client = client_ip(&ctx)?;
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
-        let audio = (request.audio_track).and_then(|place| usize::try_from(place).ok());
-        let subtitle = (request.subtitle_track).and_then(|place| usize::try_from(place).ok());
         let decoding = request.device_decoding.into_option().unwrap_or_default();
-        let decoding = DeviceDecoding {
-            content_types: decoding.content_types,
-            hdr: decoding.hdr,
-            hls: decoding.native_hls || decoding.mse,
-            audio_channels: decoding.audio_channels,
+        let asked = Asked {
+            version: request.version_id,
+            decoding: DeviceDecoding {
+                content_types: decoding.content_types,
+                hdr: decoding.hdr,
+                hls: decoding.native_hls || decoding.mse,
+                audio_channels: decoding.audio_channels,
+            },
+            failed: (request.failed_methods.iter())
+                .filter_map(|method| method_from_proto(*method))
+                .collect(),
+            audio: (request.audio_track).and_then(|place| usize::try_from(place).ok()),
+            subtitle: (request.subtitle_track).and_then(|place| usize::try_from(place).ok()),
+            limit: picked_limit(request.playback_limit),
+            client,
         };
-        let failed = (request.failed_methods.iter())
-            .filter_map(|method| method_from_proto(*method))
-            .collect();
         let plan = playback::plan(
             &self.probing,
             &self.running,
             caller,
-            request.version_id,
-            decoding,
-            failed,
-            audio,
-            picked_limit(request.playback_limit),
-            client,
+            asked,
             self.settings.now(),
-            subtitle,
         )
         .await
         .map_err(|err| match err {
@@ -162,14 +162,19 @@ fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method>
     }
 }
 
-fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
+fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
+    let (id, url, plan) = match planned {
+        Planned::Started(StartedPlan { id, url, plan }) => (id, url, plan),
+        // The API's plan id 0 is no plan.
+        Planned::Unplayable(plan) => (0, String::new(), plan),
+    };
     // A place past `u32::MAX` is in no file ffprobe reads.
     let place = |place: usize| u32::try_from(place).ok();
     let places = |places: Vec<usize>| places.into_iter().filter_map(place).collect();
     proto::PlaybackPlan {
-        id: plan.id.unwrap_or_default(),
+        id,
         method: method_to_proto(plan.method()).into(),
-        url: plan.url.unwrap_or_default(),
+        url,
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
         reasons: plan.reasons,
         playback_limit: limit_to_proto(plan.limit).into(),
