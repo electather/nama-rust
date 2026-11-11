@@ -188,7 +188,8 @@ enum PluginKind {
   PLUGIN_KIND_INSTALLED = 2;
 }
 
-// What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings.
+// What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings and whether it
+// has a settings check.
 message PluginSummary {
   // Its stable, unique name, such as `tmdb`.
   string id = 1;

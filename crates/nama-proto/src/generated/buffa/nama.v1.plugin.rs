@@ -3255,7 +3255,8 @@ pub const __REPLACE_QUALITIES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAny
     from_json: ::buffa::type_registry::any_from_json::<ReplaceQualitiesResponse>,
     is_wkt: false,
 };
-/// What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings.
+/// What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings and whether it
+/// has a settings check.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

@@ -5564,7 +5564,8 @@ impl ::serde::Serialize for ReplaceQualitiesResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings.
+/// What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings and whether it
+/// has a settings check.
 #[derive(Clone, Debug, Default)]
 pub struct PluginSummaryView<'a> {
     /// Its stable, unique name, such as `tmdb`.

@@ -415,7 +415,8 @@ export const ReplaceQualitiesResponseSchema: GenMessage<ReplaceQualitiesResponse
   messageDesc(file_nama_v1_plugin, 18);
 
 /**
- * What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings.
+ * What `ListPlugins` lists of a Plugin, and `Plugin` holds: all but its settings and whether it
+ * has a settings check.
  *
  * @generated from message nama.v1.PluginSummary
  */

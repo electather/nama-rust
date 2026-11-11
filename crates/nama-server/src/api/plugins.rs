@@ -351,16 +351,10 @@ fn plugin_to_proto(
     // A refused Plugin has no settings schema, so it comes with none.
     let settings = plugin
         .manifest
-        .as_ref()
-        .map(|manifest| {
-            manifest
-                .settings
-                .fields
-                .iter()
-                .map(|field| setting_to_proto(field, stored.get(&field.key)))
-                .collect()
-        })
-        .unwrap_or_default();
+        .iter()
+        .flat_map(|manifest| &manifest.settings.fields)
+        .map(|field| setting_to_proto(field, stored.get(&field.key)))
+        .collect();
     proto::Plugin {
         checks_settings: plugin.checks_settings,
         settings,
