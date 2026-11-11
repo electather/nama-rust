@@ -1,4 +1,6 @@
-// AI factory, two loops in one process:
+// AI factory, three loops in one process:
+// - triage: needs-triage issues, one at a time → an agent closes, specifies (ready-for-agent), splits, or asks
+//   (needs-decision).
 // - implement: ready-for-agent issues with no open PR → implement → review → push → PR, then lets go.
 // - babysit: qualifying PRs (see babysittable) → CI (rebase / one fix if needed) → squash-merge.
 // Run from the repo root: `npm --prefix .sandcastle run factory`  (the script cd's back to the root)
@@ -22,7 +24,11 @@ const OPUS = sandcastle.claudeCode("claude-opus-5-5", { effort: "high" });
 const SONNET = sandcastle.claudeCode("claude-sonnet-5-5", { effort: "medium" });
 const READY = "ready-for-agent";
 const HUMAN = "ready-for-human";
-const WORKING = "agent-working"; // on while either loop has the issue; off when that loop lets go of it
+const WORKING = "agent-working"; // on while a loop has the issue; off when that loop lets go of it
+const TRIAGE = "needs-triage";
+const DECISION = "needs-decision"; // triage's answer when only the maintainer can decide
+// TRIAGE=off: leave needs-triage issues to a person. ONLY_ISSUE (build just that one) doesn't triage either.
+const TRIAGING = process.env.TRIAGE !== "off" && !process.env.ONLY_ISSUE;
 const BASE = "main";
 
 type Issue = { number: number; title: string; parent?: number; branch: string };
@@ -189,10 +195,16 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
 }
 
 const slots = slotPool(MAX_PARALLEL);
+// Triage has its own pool so it never holds up a build or a fix; it compiles little, so more fit at once.
+const TRIAGE_PARALLEL = Number(process.env.TRIAGE_PARALLEL ?? 10);
+const triageSlots = slotPool(TRIAGE_PARALLEL);
+// Every agent running, for the usage slow-down, which counts them all.
+const agentsBusy = () => slots.busy() + triageSlots.busy();
 
 // Makes the branch mergeable: Sonnet first, then Opus from the last commit if Sonnet gives up.
-async function fix(box: Box, issue: Issue, problem: string) {
-  await slots.acquire(true);
+async function fix(box: Box, issue: Issue, problem: string, what: string) {
+  slotWaits.set(issue.number, { issue: issue.number, queue: "babysit", why: `${what} waits for a slot` });
+  await slots.acquire(true).finally(() => slotWaits.delete(issue.number));
   try {
     aborts.get(issue.number)?.signal.throwIfAborted(); // closed while it waited for a slot
     return await agent(box, issue, "fix", { PROBLEM: problem }, SONNET);
@@ -271,8 +283,8 @@ function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
     const s = i.subIssuesSummary;
     const blockers = i.blockedBy.nodes.filter((b) => b.state === "OPEN").map((b) => `#${b.number}`);
     if (withPr.has(i.number)) continue; // the babysitter's, or a person's
-    if (s.total > 0) waiting.push({ issue: i.number, why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
-    else if (blockers.length) waiting.push({ issue: i.number, why: `blocked by ${blockers.join(", ")} (open)` });
+    if (s.total > 0) waiting.push({ issue: i.number, queue: "build", why: `parent: waits for ${s.total - s.completed} of ${s.total} sub-issues` });
+    else if (blockers.length) waiting.push({ issue: i.number, queue: "build", why: `blocked by ${blockers.join(", ")} (open)` });
     else ready.push({ number: i.number, title: i.title, parent: i.parent?.number, branch: `agent/issue-${i.number}` });
   }
   return { ready, waiting };
@@ -295,6 +307,18 @@ function babysittable(prs = openPrs()): Job[] {
     }
   }
   return jobs;
+}
+
+// Issues to triage, oldest first. Only ME's and the flaky-test reporter's: the agent acts with ME's token, so a
+// stranger's issue body mustn't steer it, even though only collaborators and the reporter can set the label.
+function triageable(): Issue[] {
+  const issues: { number: number; title: string; author: { login: string } }[] = JSON.parse(
+    gh("issue", "list", "--label", TRIAGE, "--state", "open", "--limit", "100", "--json", "number,title,author"),
+  );
+  return issues
+    .filter((i) => i.author.login === ME || i.author.login === "app/github-actions")
+    .sort((a, b) => a.number - b.number)
+    .map((i) => ({ number: i.number, title: i.title, branch: `agent/triage-${i.number}` }));
 }
 
 // GitHub doesn't close a parent when its last sub-issue closes, and issues it blocks would wait forever.
@@ -382,15 +406,20 @@ function queue() {
 const serially = queue(); // merges
 // Concurrent `git worktree add`s race on .git/worktrees (one reads another's half-written commondir).
 const oneSandboxAtATime = queue();
-
-async function build(issue: Issue): Promise<{ box: Box; body: string }> {
-  const box = await oneSandboxAtATime(() =>
+const newBox = (branch: string) =>
+  oneSandboxAtATime(() =>
     sandcastle.createSandbox({
-      branch: branchOf(issue),
+      branch,
       baseBranch: `origin/${BASE}`,
       sandbox: sandbox(),
+      // Each box.run's git setup uses these, not run's own: the 10s default ran out on `git rev-parse` while five
+      // builds loaded the host, crashing the run.
+      timeouts: { gitSetupMs: 120_000 },
     }),
   );
+
+async function build(issue: Issue): Promise<{ box: Box; body: string }> {
+  const box = await newBox(branchOf(issue));
   try {
     stage(issue, "implement");
     await agent(box, issue, "implement");
@@ -432,9 +461,7 @@ async function implement(issue: Issue): Promise<Outcome> {
 async function boxFor(job: Job): Promise<Box> {
   if (!job.box) {
     const branch = branchOf(job.issue);
-    const box = await oneSandboxAtATime(() =>
-      sandcastle.createSandbox({ branch, baseBranch: `origin/${BASE}`, sandbox: sandbox() }),
-    );
+    const box = await newBox(branch);
     await box.exec(`git reset --hard origin/${branch}`);
     job.box = box;
   }
@@ -496,7 +523,7 @@ const conflicts = (ref: string) => !ok("git", "merge-tree", "--write-tree", `ori
 // Another PR's merge conflicts with this one: merge main in, then push.
 async function rebase(job: Job) {
   note(job.issue, "rebase");
-  await fix(await boxFor(job), job.issue, `It is behind origin/${BASE} (other issues merged first) and conflicts.`);
+  await fix(await boxFor(job), job.issue, `It is behind origin/${BASE} (other issues merged first) and conflicts.`, "rebase");
   push(job);
 }
 
@@ -513,7 +540,7 @@ async function greenCi(job: Job) {
     }
     if (fixed) throw new Blocked(`CI still failing on PR #${job.pr} after one fix attempt`);
     note(job.issue, "CI fix");
-    await fix(await boxFor(job), job.issue, `CI is failing on PR #${job.pr}.`);
+    await fix(await boxFor(job), job.issue, `CI is failing on PR #${job.pr}.`, "CI fix");
     push(job);
     fixed = true;
   }
@@ -546,6 +573,40 @@ async function babysit(job: Job): Promise<Outcome> {
   return "merged";
 }
 
+// The triage loop's whole job: one agent pass that relabels, closes or splits the issue itself. The sandbox is a
+// clean checkout of main to read and reproduce in; its branch never gets a commit.
+async function triage(issue: Issue): Promise<Outcome> {
+  const box = await newBox(issue.branch);
+  let out: string;
+  try {
+    stage(issue, "triage");
+    out = (await agent(box, issue, "triage", { ME })).stdout;
+  } finally {
+    await box.close();
+    ok("git", "branch", "-D", issue.branch);
+  }
+  const decision = [...out.matchAll(/<triage>(.*?)<\/triage>/g)]
+    .map((m) => m[1].trim())
+    .filter((d) => !d.startsWith("ready-for-agent: test hard-codes /media")) // the prompt's own example
+    .pop();
+  const after: { state: string; labels: { name: string }[] } =
+    JSON.parse(gh("issue", "view", String(issue.number), "--json", "state,labels"));
+  // Left as it was, it would be picked again on every run.
+  if (after.state === "OPEN" && after.labels.some((l) => l.name === TRIAGE)) {
+    throw new Blocked(`triage ended with ${TRIAGE} still on it${decision ? ` (${decision})` : ""}`);
+  }
+  note(issue, decision ?? "triaged");
+  return "triaged";
+}
+
+// Triage gave up: the maintainer decides instead.
+function undecided(issue: Issue, why: string) {
+  log(`⚠ #${issue.number} → ${DECISION}: ${why}`);
+  gh("issue", "edit", String(issue.number), "--remove-label", TRIAGE, "--add-label", DECISION);
+  gh("issue", "comment", String(issue.number), "--body",
+    `🏭 The factory couldn't triage this one, so it waits for your decision.\n\n**Why:** ${why}`);
+}
+
 // After the PR merged, by the factory or by hand. The local branch is deleted by the caller once the
 // sandbox's worktree is gone.
 async function afterMerge(issue: Issue) {
@@ -564,6 +625,7 @@ async function afterMerge(issue: Issue) {
 // The claim is a fresh commit each time: pushing a commit the ref already points at would "succeed" as up to date.
 const issueClaim = (i: Issue) => `refs/claims/issue-${i.number}`;
 const prClaim = (pr: string) => `refs/claims/pr-${pr}`;
+const triageClaim = (i: Issue) => `refs/claims/triage-${i.number}`;
 function tryClaim(ref: string, what: string): boolean {
   const commit = git("commit-tree", `origin/${BASE}^{tree}`, "-p", `origin/${BASE}`,
     "-m", `claim ${what} by ${process.pid}@${hostname()} ${Date.now()}`);
@@ -590,13 +652,16 @@ function release(issue: Issue, ref: string) {
   ok("git", "push", "origin", "--delete", ref);
 }
 
-type Loop = "implement" | "babysit";
+type Loop = "triage" | "implement" | "babysit";
 // Never shrinks: a merged issue stays open for a few seconds (`Closes #N` lags), so it mustn't be picked again.
 const taken = new Set<number>();
 const watched = new Set<string>(); // PRs, likewise
+const triaged = new Set<number>(); // issues the triage loop tried this run, whatever came of it
+const triagePending = () => TRIAGING && triageable().some((i) => !triaged.has(i.number));
 // By issue number: one issue is in at most one loop at a time.
 const inFlight = new Map<number, { issue: Issue; loop: Loop; claim: string }>();
-const claimedElsewhere = new Map<number, string>(); // issue → why it waits
+const claimedElsewhere = new Map<number, Waiting>(); // by issue
+const slotWaits = new Map<number, Waiting>(); // in flight, but its fix waits for a slot
 const outcomes: { issue: number; outcome: Outcome }[] = [];
 let crashed = "";
 
@@ -607,9 +672,28 @@ function finish(issue: Issue, outcome: Outcome, why?: string) {
 
 // Logged and recorded only when it changes, not on every 60s poll.
 let lastWaiting = "";
-function noteWaiting(waiting: Waiting[]) {
-  const all = [...waiting, ...[...claimedElsewhere].map(([issue, why]) => ({ issue, why }))];
-  const text = all.map((w) => `#${w.issue} ${w.why}`).join("; ");
+// Every loop's queue: what each would start next and why it hasn't yet.
+function noteWaiting(prs: OpenPr[], { ready, waiting } = readyIssues(prs)) {
+  const held = (pool: typeof slots, size: number, what: string) =>
+    crashed ? "next run: this one crashed"
+    : existsSync(STOP_FILE) ? "next run: STOP is set"
+    : paused() ? "paused: Claude usage near its limit"
+    : pool.busy() >= size ? `waits for a ${what} (${pool.busy()}/${size} busy)`
+    : slowed() && agentsBusy() >= SLOW_PARALLEL ? `slowed: at most ${SLOW_PARALLEL} agents near the usage limit`
+    : "starts next";
+  const fresh = (n: number) => !taken.has(n) && !inFlight.has(n) && !claimedElsewhere.has(n);
+  const all: Waiting[] = [
+    ...ready.filter((i) => fresh(i.number)).map((i) => ({ issue: i.number, queue: "build" as const, why: held(slots, MAX_PARALLEL, "slot") })),
+    ...waiting,
+    ...(TRIAGING ? triageable() : []).filter((i) => !triaged.has(i.number) && fresh(i.number)).map((i) => ({
+      issue: i.number,
+      queue: "triage" as const,
+      why: held(triageSlots, TRIAGE_PARALLEL, "triage slot"),
+    })),
+    ...slotWaits.values(),
+    ...claimedElsewhere.values(),
+  ];
+  const text = all.map((w) => `${w.queue} #${w.issue} ${w.why}`).join("; ");
   if (text === lastWaiting) return;
   lastWaiting = text;
   log(`waiting: ${text || "nothing"}`);
@@ -623,16 +707,22 @@ function pickNext(): Issue | "wait" | "done" {
     fetchOrigin();
     closeFinishedParents();
     const prs = openPrs();
-    const { ready, waiting } = readyIssues(prs);
-    noteWaiting(waiting);
-    const issue = ready.find((i) => !taken.has(i.number));
-    // Done only when nothing anywhere can still unblock an issue: no build, and no PR left to merge.
-    if (!issue) return inFlight.size === 0 && babysittable(prs).length === 0 ? "done" : "wait";
+    const queued = readyIssues(prs);
+    const { ready } = queued;
+    // Not one still in the triage loop, which labelled it ready a moment ago: its release would strip the build's
+    // agent-working label.
+    const issue = ready.find((i) => !taken.has(i.number) && !inFlight.has(i.number));
+    // Done only when nothing anywhere can still unblock an issue: no build, no PR left to merge, and nothing left
+    // to triage (it may come out ready-for-agent).
+    if (!issue) {
+      noteWaiting(prs, queued);
+      return inFlight.size === 0 && babysittable(prs).length === 0 && !triagePending() ? "done" : "wait";
+    }
     taken.add(issue.number);
     const owner = claim(issueClaim(issue), `#${issue.number}`);
+    if (owner) claimedElsewhere.set(issue.number, { issue: issue.number, queue: "build", why: `claimed by ${owner}` });
+    noteWaiting(prs, queued);
     if (!owner) return issue;
-    claimedElsewhere.set(issue.number, `claimed by ${owner}`);
-    noteWaiting(waiting);
   }
 }
 
@@ -732,7 +822,7 @@ async function dispatch() {
     }
     let issue: Issue | "wait" | "done" = "wait";
     // busy() includes the slot just taken, hence `>`.
-    if (!(await overUsage()) && !(slowed() && slots.busy() > SLOW_PARALLEL)) {
+    if (!(await overUsage()) && !(slowed() && agentsBusy() > SLOW_PARALLEL)) {
       try {
         issue = pickNext();
       } catch (e) {
@@ -764,15 +854,18 @@ async function dispatch() {
 
 // The babysit loop: every minute, takes every PR that qualifies (see babysittable). Waiting on CI holds no slot;
 // a rebase or CI fix takes one, ahead of new builds (see fix). Ends once the implement loop has ended and no PR is
-// left, since until then a new PR may still come.
+// left, since until then a new PR may still come. A crash elsewhere doesn't stop it: PRs opened after one would
+// otherwise sit until the next run, and a PR that crashes here isn't taken again this run (`watched`).
 let implementDone = false;
 async function babysitLoop() {
   const running = new Set<Promise<void>>();
   for (;;) {
-    if (crashed || existsSync(STOP_FILE)) break;
+    if (existsSync(STOP_FILE)) break;
     let jobs: Job[] = [];
+    let prs: OpenPr[] = [];
     try {
-      jobs = babysittable();
+      prs = openPrs();
+      jobs = babysittable(prs);
     } catch (e) {
       const why = `listing PRs to babysit failed: ${oneLine(e)}`;
       appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
@@ -786,7 +879,7 @@ async function babysitLoop() {
       if (watched.has(job.pr) || inFlight.has(job.issue.number)) continue;
       const owner = claim(prClaim(job.pr), `PR #${job.pr}`);
       if (owner) {
-        claimedElsewhere.set(job.issue.number, `PR #${job.pr} babysat by ${owner}`);
+        claimedElsewhere.set(job.issue.number, { issue: job.issue.number, queue: "babysit", why: `PR #${job.pr} babysat by ${owner}` });
         continue;
       }
       claimedElsewhere.delete(job.issue.number);
@@ -796,8 +889,59 @@ async function babysitLoop() {
         .finally(() => running.delete(p));
       running.add(p);
     }
+    // The implement loop refreshes the queues only when it picks, and it can't while every slot is busy.
+    try {
+      noteWaiting(prs);
+    } catch (e) {
+      log(`couldn't refresh the waiting list: ${oneLine(e)}`); // status only: the next pass tries again
+    }
     if (implementDone && running.size === 0 && started === 0) break;
     await sleep(60_000);
+  }
+  await Promise.all(running);
+}
+
+// The triage loop: up to TRIAGE_PARALLEL issues at once, oldest first, each in a triage slot. Ends once the
+// implement loop has ended and nothing is left to triage; an issue parked meanwhile waits for the next run.
+async function triageLoop() {
+  if (!TRIAGING) return;
+  const running = new Set<Promise<void>>();
+  for (;;) {
+    await triageSlots.acquire(); // released by track
+    if (crashed || existsSync(STOP_FILE)) {
+      triageSlots.release();
+      break;
+    }
+    let issue: Issue | undefined;
+    // agentsBusy() includes the slot just taken, hence `>`.
+    if (!(await overUsage()) && !(slowed() && agentsBusy() > SLOW_PARALLEL)) {
+      try {
+        issue = triageable().find((i) => !triaged.has(i.number));
+      } catch (e) {
+        const why = `listing issues to triage failed: ${oneLine(e)}`;
+        appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
+        log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
+        crashed ||= why;
+        triageSlots.release();
+        break;
+      }
+    }
+    if (!issue) {
+      triageSlots.release();
+      if (implementDone) break;
+      await sleep(60_000); // paused, slowed, or nothing to triage until an agent parks something
+      continue;
+    }
+    triaged.add(issue.number);
+    const owner = claim(triageClaim(issue), `triage #${issue.number}`);
+    if (owner) {
+      log(`#${issue.number} triage skipped: claimed by ${owner}`);
+      triageSlots.release();
+      continue;
+    }
+    const i = issue;
+    const p: Promise<void> = track(i, "triage", triageClaim(i), () => triage(i)).finally(() => running.delete(p));
+    running.add(p);
   }
   await Promise.all(running);
 }
@@ -814,16 +958,17 @@ const prClosed = (issue: Issue) =>
 // cancelled or crashed instead.
 async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Promise<Outcome>) {
   inFlight.set(issue.number, { issue, loop, claim: claimRef });
-  log(`=== ${loop} #${issue.number} ${issue.title} (${slots.busy()}/${MAX_PARALLEL} slots busy, ${inFlight.size} in flight) ===`);
+  log(`=== ${loop} #${issue.number} ${issue.title} (${slots.busy()}/${MAX_PARALLEL} slots, ${triageSlots.busy()}/${TRIAGE_PARALLEL} triage slots busy, ${inFlight.size} in flight) ===`);
   stage(issue, "claimed");
   const started = Date.now();
   aborts.set(issue.number, new AbortController());
   // Until the merge starts (the merge itself closes the issue), a closed issue stops its work. A merged PR stops
   // it at any stage; the catch below then records it as merged. The babysitter also lets go of a PR that's
   // closed, or whose issue a person took back (no READY label).
+  // Triage isn't watched: its agent closes and relabels the issue itself.
   const abort = aborts.get(issue.number)!;
   const watcher = setInterval(() => {
-    if (abort.signal.aborted) return;
+    if (abort.signal.aborted || loop === "triage") return;
     const merging = stageOf.get(issue.number)?.stage === "merging";
     const stop = (why: string) => {
       log(`#${issue.number} ${why}: stopping it`);
@@ -853,7 +998,8 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
       log(`⊘ #${issue.number} cancelled: ${why}`);
       finish(issue, "cancelled", why);
     } else if (e instanceof Blocked) {
-      handBack(issue, e.message);
+      if (loop === "triage") undecided(issue, e.message);
+      else handBack(issue, e.message);
       finish(issue, "handed back", e.message);
     } else {
       // Infra failure (docker, auth, Claude limit): don't relabel; let in-flight issues finish, pick nothing new.
@@ -872,13 +1018,14 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
     aborts.delete(issue.number);
     inFlight.delete(issue.number);
     stageOf.delete(issue.number);
-    if (loop === "implement") slots.release();
+    if (loop === "triage") triageSlots.release();
+    else if (loop === "implement") slots.release();
   }
 }
 
 function summary(reason: string) {
   log(`=== Run ended: ${reason} ===`);
-  for (const o of ["merged", "pr opened", "handed back", "cancelled", "crashed", "interrupted"] as const) {
+  for (const o of ["merged", "pr opened", "triaged", "handed back", "cancelled", "crashed", "interrupted"] as const) {
     const list = outcomes.filter((x) => x.outcome === o).map((x) => `#${x.issue}`);
     if (list.length) log(`  ${o}: ${list.join(", ")}`);
   }
@@ -908,9 +1055,10 @@ process.on("SIGINT", () => {
 log(`=== Factory ${RUN} started: ${MAX_PARALLEL} slots, at most ${MAX_ISSUES} issues, babysitting ${ME}'s PRs ===`);
 record({ kind: "run-start", slots: MAX_PARALLEL });
 const babysitting = babysitLoop();
+const triaging = triageLoop();
 await dispatch();
 implementDone = true;
-await babysitting;
+await Promise.all([babysitting, triaging]);
 summary(
   crashed ? `${crashed}; finished in-flight work, started nothing new`
   : existsSync(STOP_FILE) ? `${STOP_FILE} found`

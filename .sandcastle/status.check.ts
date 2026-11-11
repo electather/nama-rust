@@ -26,7 +26,11 @@ const events: Event[] = [
   { t: at(20), run, kind: "stage", issue: 105, title: "Auth schema", stage: "ci" },
   { t: at(21), run, kind: "pr", issue: 105, pr: "121" },
   { t: at(21), run, kind: "ci", issue: 105, url: `${repo}/actions/runs/9` },
-  { t: at(22), run, kind: "waiting", list: [{ issue: 108, why: "blocked by #105 (open)" }] },
+  { t: at(22), run, kind: "waiting", list: [
+    { issue: 108, queue: "build", why: "blocked by #105 (open)" },
+    { issue: 112, queue: "triage", why: "waits for a slot" },
+    { issue: 105, queue: "babysit", why: "CI fix waits for a slot" },
+  ] },
 ];
 
 const md = render(events, repo, new Date(at(30)));
@@ -35,7 +39,8 @@ assert.match(md, /\*\*Ended:\*\* —/);
 assert.match(md, /1 in flight · 3 slots/);
 assert.match(md, /\| \[#105\]\(https:\/\/github.com\/o\/r\/issues\/105\) \| Auth schema \| ci \| .* \(10m\) \| \[#121\]/);
 assert.doesNotMatch(md, /#80\]/, "a killed run's leftovers are not in flight");
-assert.match(md, /\| \[#108\]\(.*\) \| blocked by #105 \(open\) \|/);
+assert.match(md, /\| build \| \[#108\]\(.*\) \| blocked by #105 \(open\) \|/);
+assert.match(md, /\| babysit \| \[#105\][^\n]*\n\| build \| \[#108\][^\n]*\n\| triage \| \[#112\]/, "babysit first, triage last");
 assert.match(md, /\| \[#73\]\(.*\) \| ✗ crashed \| \[#116\]\(.*\) \| 8m \| .* \| crashed at ci: push rejected; 2× rebase \|/);
 
 assert.match(md, /\| \[#90\]\(.*\) \| → pr opened \| \[#130\]\(.*\) \| 3m \|/);

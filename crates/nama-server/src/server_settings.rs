@@ -247,7 +247,7 @@ impl Settings {
     }
 
     /// Runs `upsert`, which writes only its own group's columns, then `merge`s the same values
-    /// into the ones in use.
+    /// into the ones in use once they're committed.
     async fn store<U>(
         &self,
         upsert: U,
@@ -261,15 +261,10 @@ impl Settings {
             + 'static,
     {
         let values = Arc::clone(&self.values);
+        // Merged on the writer, so changes take effect in the order they're stored.
         self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    upsert(tx).await?;
-                    // Here on the one writer, not after `write` returns: changes then take effect
-                    // in the order they're stored, even if the caller stopped waiting.
-                    merge(&mut values.write().unwrap_or_else(PoisonError::into_inner));
-                    Ok(())
-                })
+            .write_then(upsert, move || {
+                merge(&mut values.write().unwrap_or_else(PoisonError::into_inner));
             })
             .await
     }
