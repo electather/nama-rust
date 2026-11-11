@@ -20,7 +20,7 @@ use crate::{
     watch_states::WatchState,
 };
 
-use super::{caller, database_failed, external_id_to_proto, refuse, required_id};
+use super::{caller, database_failed, external_id_to_proto, proto_number, refuse, required_id};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
@@ -282,12 +282,6 @@ fn episode_to_proto(episode: Episode, watch_state: Option<WatchState>) -> proto:
         watch_state: watch_state.map(watch_state_to_proto).into(),
         ..Default::default()
     }
-}
-
-/// A season or episode number as a proto `uint32`. A scan parses them from digits, so they are
-/// never negative.
-fn proto_number(n: i64) -> u32 {
-    u32::try_from(n).unwrap_or_default()
 }
 
 /// A Version as clients see it: its file's name, not the folders it is in.
