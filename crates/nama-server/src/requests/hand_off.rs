@@ -52,11 +52,19 @@ impl HandOff {
         }
     }
 
-    /// Hands the Approved `request` to the Fulfiller for its kind, Movies or Shows, publishing that
-    /// its state changed: to Processing once it takes the Request, or to Failed, with its reason,
-    /// if it doesn't. Returns the Request as it is now. Without a Fulfiller for its kind the
-    /// Request waits in Approved, and one already being handed off is left to that hand-off. Settles
-    /// through `requests`' path.
+    /// Claims the Request `id` for a hand-off, unless another hand-off has it, which then looks at
+    /// it again once it is done.
+    ///
+    /// An approval and enabling the Fulfiller may hand the same Request off at once, which would
+    /// hand it to the Fulfiller twice.
+    pub(super) fn claim(&self, id: i64) -> Option<Claim> {
+        Claim::take(&self.handing, id)
+    }
+
+    /// Hands the Approved `request`, which `claim` holds, to the Fulfiller for its kind, Movies or
+    /// Shows, publishing that its state changed: to Processing once it takes the Request, or to
+    /// Failed, with its reason, if it doesn't. Returns the Request as it is now. Without a
+    /// Fulfiller for its kind the Request waits in Approved. Settles through `requests`' path.
     ///
     /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
     /// stored even if the caller stops waiting.
@@ -65,15 +73,11 @@ impl HandOff {
         &self,
         requests: &Requests,
         request: Request,
+        mut claim: Claim,
     ) -> BoxFuture<'static, Result<Request, Error>> {
         let hand_off = self.clone();
         let requests = requests.clone();
         Box::pin(detached(async move {
-            // An approval and enabling the Fulfiller may hand the same Request off at once, which
-            // would hand it to the Fulfiller twice.
-            let Some(mut claim) = Claim::take(&hand_off.handing, request.id) else {
-                return Ok(request);
-            };
             let mut request = request;
             loop {
                 request = hand_off.claimed(&requests, request).await?;
@@ -156,7 +160,9 @@ impl HandOff {
             .filter(|request| request.state == RequestState::Approved);
         // ponytail: one at a time, so a slow Fulfiller takes as long for each.
         for request in waiting {
-            self.request(requests, request).await?;
+            if let Some(claim) = self.claim(request.id) {
+                self.request(requests, request, claim).await?;
+            }
         }
         Ok(())
     }
@@ -217,7 +223,7 @@ impl HandOff {
 
 /// A hand-off's hold on one Request in [`HandOff::handing`], let go however the hand-off ends, a
 /// panic included, so the Request can be handed off again.
-struct Claim {
+pub(super) struct Claim {
     handing: Arc<Mutex<HashMap<i64, bool>>>,
     id: i64,
     /// Whether [`Self::release`] has let go already, so dropping it mustn't.

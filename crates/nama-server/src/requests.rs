@@ -401,20 +401,50 @@ impl Requests {
             + Send
             + 'static,
     {
+        let claiming = self.hand_off.clone();
+        let (applied, claims) = self
+            .db
+            .write(move |tx| {
+                Box::pin(async move {
+                    let applied = write(tx).await?;
+                    // The came-up sweep reads only committed Requests, so claiming them before the
+                    // commit keeps it off this write's. A failed commit drops the claims.
+                    let claims: Vec<_> = applied
+                        .hand_off
+                        .iter()
+                        .map(|request| claiming.claim(request.id))
+                        .collect();
+                    Ok::<_, Error>((applied, claims))
+                })
+            })
+            .await?;
         let Applied {
             value,
             events,
             hand_off,
             unfollow,
-        } = self.db.write(write).await?;
+        } = applied;
         self.events.publish(events);
         if let Some(season) = unfollow {
             self.hand_off.unfollow(&season).await;
         }
         let mut handed = Vec::with_capacity(hand_off.len());
+        let mut failed = None;
         // ponytail: one Hand-off at a time, so a slow Fulfiller takes as long for each Season.
-        for request in hand_off {
-            handed.push(self.hand_off.request(self, request).await?);
+        for (request, claim) in hand_off.into_iter().zip(claims) {
+            let Some(claim) = claim else {
+                // Another hand-off has it, and looks at it again once it is done.
+                handed.push(request);
+                continue;
+            };
+            // On past a failure: a came-up sweep that found the rest claimed left them to this.
+            match self.hand_off.request(self, request, claim).await {
+                Ok(request) => handed.push(request),
+                Err(err) => _ = failed.get_or_insert(err),
+            }
+        }
+        if let Some(err) = failed {
+            return Err(err);
         }
         Ok(value.handed_back(&handed))
     }
@@ -2526,10 +2556,7 @@ mod tests {
     use std::{
         collections::{BTreeMap, HashMap, HashSet},
         pin::Pin,
-        sync::{
-            Arc,
-            atomic::{AtomicUsize, Ordering},
-        },
+        sync::Arc,
         time::Duration,
     };
 
@@ -2669,17 +2696,21 @@ mod tests {
     /// answer at once.
     const INTERVAL: Duration = Duration::from_secs(5);
 
-    /// A Movie Fulfiller that counts the Requests it is handed, and takes each only once `open`
-    /// lets it.
+    /// A Fulfiller for Movies and Shows that keeps the ids of the Requests it is handed, in order,
+    /// and takes each only once `open` lets it.
     #[derive(Default)]
     struct Gated {
-        handed: AtomicUsize,
+        handed: std::sync::Mutex<Vec<i64>>,
         open: Notify,
     }
 
-    impl Fulfiller<Movies> for Gated {
-        fn fulfill<'a>(&'a self, _: &'a Request) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-            self.handed.fetch_add(1, Ordering::SeqCst);
+    impl Gated {
+        fn handed(&self) -> Vec<i64> {
+            self.handed.lock().unwrap().clone()
+        }
+
+        fn take<'a>(&'a self, request: &Request) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+            self.handed.lock().unwrap().push(request.id);
             Box::pin(async {
                 self.open.notified().await;
                 Ok(Fulfilled {
@@ -2687,6 +2718,31 @@ mod tests {
                     ..Fulfilled::default()
                 })
             })
+        }
+    }
+
+    impl Fulfiller<Movies> for Gated {
+        fn fulfill<'a>(
+            &'a self,
+            request: &'a Request,
+        ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+            self.take(request)
+        }
+
+        fn progress<'a>(
+            &'a self,
+            _: &'a [String],
+        ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+            Box::pin(async { Ok(HashMap::new()) })
+        }
+    }
+
+    impl Fulfiller<Shows> for Gated {
+        fn fulfill<'a>(
+            &'a self,
+            request: &'a Request,
+        ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+            self.take(request)
         }
 
         fn progress<'a>(
@@ -2868,11 +2924,11 @@ mod tests {
         approved_on(Registry::new(), tmdb_ids, fulfiller).await
     }
 
-    /// [`approved_for`], with `plugins` enabled too.
-    async fn approved_on(
+    /// [`approved_for`], with `plugins` enabled too, and `fulfiller` as the Fulfiller of `Kind`.
+    async fn approved_on<Kind: 'static>(
         plugins: Registry,
         tmdb_ids: &[i64],
-        fulfiller: Arc<dyn Fulfiller<Movies>>,
+        fulfiller: Arc<dyn Fulfiller<Kind>>,
     ) -> (tempfile::TempDir, Requests) {
         let data = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
@@ -3226,7 +3282,7 @@ mod tests {
         let (_data, requests, gated) = approved_for_gated(&[949]).await;
         let handing_first = requests.clone();
         let first = tokio::spawn(async move { come_up(&handing_first, "gated").await });
-        while gated.handed.load(Ordering::SeqCst) == 0 {
+        while gated.handed().is_empty() {
             tokio::task::yield_now().await;
         }
 
@@ -3236,7 +3292,42 @@ mod tests {
         gated.open.notify_one();
         first.await.unwrap();
 
-        assert_eq!(gated.handed.load(Ordering::SeqCst), 1);
+        assert_eq!(gated.handed().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_fulfiller_coming_up_leaves_the_requests_an_ask_is_handing_off_to_it() {
+        let gated = Arc::new(Gated::default());
+        let fulfiller: Arc<dyn Fulfiller<Shows>> = Arc::<Gated>::clone(&gated);
+        let (_data, requests) = approved_on(Registry::new(), &[], fulfiller).await;
+        let asking = requests.clone();
+        let ask = tokio::spawn(async move {
+            asking
+                .apply(|tx| Box::pin(ask_seasons(tx, ADA, dark(), RequestState::Approved)))
+                .await
+        });
+        while gated.handed().is_empty() {
+            tokio::task::yield_now().await;
+        }
+
+        tokio::time::timeout(Duration::from_secs(1), come_up(&requests, "gated"))
+            .await
+            .expect("the came-up hand-off waited on the Fulfiller");
+        gated.open.notify_one();
+        while gated.handed().len() < 2 {
+            tokio::task::yield_now().await;
+        }
+        gated.open.notify_one();
+        let asked = ask.await.unwrap().unwrap();
+
+        let ids: Vec<i64> = asked.iter().map(|request| request.id).collect();
+        assert_eq!(gated.handed(), ids);
+        assert!(
+            asked
+                .iter()
+                .all(|request| request.state == RequestState::Processing),
+            "{asked:?}"
+        );
     }
 
     #[tokio::test]
@@ -3245,7 +3336,7 @@ mod tests {
 
         come_up(&requests, "tmdb").await;
 
-        assert_eq!(gated.handed.load(Ordering::SeqCst), 0);
+        assert_eq!(gated.handed(), NOTHING);
     }
 
     /// Tells `requests` the Plugin `plugin` came up, and waits until it has handed off what that
@@ -4605,7 +4696,8 @@ mod tests {
         plugins
             .enable(Arc::new(FulfillerPlugin("shows", fulfiller)))
             .unwrap();
-        let (data, requests) = approved_on(plugins, &[], Arc::new(Asked::default())).await;
+        let (data, requests) =
+            approved_on::<Movies>(plugins, &[], Arc::new(Asked::default())).await;
         let followed = follow_as(&requests.db, ADA, dark(), RequestState::Approved).await;
         let id = followed.value.0.id;
         (data, requests, unfollowing, id)
