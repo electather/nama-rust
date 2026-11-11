@@ -1,5 +1,5 @@
-//! A Server with one Library and TMDB on, for the tests that browse it and those that play its
-//! Versions.
+//! A Server with one Library and TMDB on, set up through the API, for tests of what that Library
+//! holds.
 
 use std::{collections::HashMap, path::PathBuf};
 
