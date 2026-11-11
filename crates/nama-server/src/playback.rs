@@ -2551,15 +2551,20 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         }
     }
 
-    /// Stores a file in the Library `library` in `contents` without probing it, and Matches it to
-    /// Alien, which makes it a Version. Returns its id.
-    async fn unprobed_version(contents: &crate::contents::Contents, library: i64) -> i64 {
+    /// Stores a file under `root` in the Library `library` in `contents` without probing it, and
+    /// Matches it to Alien, which makes it a Version. Returns its id.
+    async fn unprobed_version(
+        contents: &crate::contents::Contents,
+        library: i64,
+        root: &std::path::Path,
+    ) -> i64 {
         use nama_plugin_api::{PluginId, metadata::ExternalIds};
 
         use crate::contents::{Change, Decided, Item, Metadata};
 
+        let file = root.join("Alien (1979)").join("Alien (1979).mp4");
         let alien = Change::Store {
-            path: "/media/Alien (1979)/Alien (1979).mp4".to_owned(),
+            path: file.to_str().unwrap().to_owned(),
             size: 10,
             modified_ns: 0,
             items: vec![Item::Movie {
@@ -2634,13 +2639,20 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         };
 
         let data = tempfile::tempdir().unwrap();
+        let media = tempfile::tempdir().unwrap();
+        let root = media.path().canonicalize().unwrap().join("library");
+        std::fs::create_dir(&root).unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
         let library = Libraries::new(Arc::clone(&db))
-            .create("Movies", Kind::Movies, vec!["/media".to_owned()])
+            .create(
+                "Movies",
+                Kind::Movies,
+                vec![root.to_str().unwrap().to_owned()],
+            )
             .await
             .unwrap();
         let contents = Contents::new(Arc::clone(&db));
-        let version = unprobed_version(&contents, library.id).await;
+        let version = unprobed_version(&contents, library.id, &root).await;
         let probing = Probing::new(
             Arc::clone(&db),
             Arc::new(h264_aac_ffprobe(data.path())),
