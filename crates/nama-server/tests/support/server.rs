@@ -398,6 +398,15 @@ impl TestServer {
         items
     }
 
+    /// Scans the Library `library` until Probing has caught up, which is when Probing has thrown
+    /// away the subtitles cached for files gone or changed.
+    pub(crate) async fn scan_and_probe(&self, library: &Library) {
+        self.scan_until(library.id, |event| {
+            matches!(event, event::Event::ProbingFinished(_))
+        })
+        .await;
+    }
+
     /// Scans the Library `id` as the Admin, and returns the events about it from the scan's
     /// `ScanStarted` on, up to and including the first that `last` picks, waiting as
     /// `ScanLibrary` says to.
