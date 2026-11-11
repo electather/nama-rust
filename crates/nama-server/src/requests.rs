@@ -47,7 +47,7 @@ use crate::{
 mod asked;
 mod hand_off;
 
-use asked::Asked;
+pub(crate) use asked::Asked;
 use hand_off::{HandOff, PROGRESS_EVERY, lock};
 
 /// Each Request state as `requests.state` stores it.
@@ -64,15 +64,15 @@ const STATES: [(RequestState, &str); 7] = [
 /// Why a Request couldn't be made, found or changed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
-    /// There is no such Request, or none the caller may see.
-    #[error("there is no Request {0}")]
-    NoSuchRequest(i64),
-    #[error("the Request {0} isn't Pending")]
-    NotPending(i64),
+    /// There is no such Request or Followed Show, or none the caller may see.
+    #[error("there is no {0} {1}")]
+    NoSuch(Asked, i64),
+    #[error("the {0} {1} isn't Pending")]
+    NotPending(Asked, i64),
     #[error("the Request {0} isn't Failed")]
     NotFailed(i64),
-    #[error("you aren't a Requester of the Request {0}")]
-    NotARequester(i64),
+    #[error("you aren't a Requester of the {0} {1}")]
+    NotARequester(Asked, i64),
     #[error("a Library already has the Movie tmdb-{0}")]
     InLibrary(i64),
     #[error("every aired Episode of Season {season} of the Show tmdb-{show} is in a Library")]
@@ -86,13 +86,6 @@ pub(crate) enum Error {
     /// No metadata Provider is enabled, or it failed.
     #[error("no metadata Provider could answer")]
     Unavailable,
-    /// There is no such Followed Show, or none the caller may see.
-    #[error("there is no Followed Show {0}")]
-    NoSuchFollowedShow(i64),
-    #[error("the Followed Show {0} isn't Pending")]
-    FollowedShowNotPending(i64),
-    #[error("you aren't a Requester of the Followed Show {0}")]
-    NotAFollowedShowRequester(i64),
     #[error(transparent)]
     Quality(#[from] qualities::Refused),
     #[error("the page token isn't one this Server gave for listing in this state")]
@@ -490,7 +483,7 @@ impl Requests {
         };
         let request = load_one(&mut *self.db.reader().acquire().await?, id)
             .await?
-            .ok_or(Error::NoSuchRequest(id))?;
+            .ok_or(Error::NoSuch(Asked::Request, id))?;
         let fulfiller = self.hand_off.fulfiller_of(&request);
         self.offered_change(manager, fulfiller, quality_id)
             .await
@@ -932,7 +925,10 @@ impl Requests {
     pub(crate) async fn get(&self, viewer: &User, id: i64) -> Result<Request, Error> {
         let mut conn = self.db.reader().acquire().await?;
         let found = load(&mut conn, Some(id), visible_to(viewer)).await?;
-        let request = found.into_iter().next().ok_or(Error::NoSuchRequest(id))?;
+        let request = found
+            .into_iter()
+            .next()
+            .ok_or(Error::NoSuch(Asked::Request, id))?;
         Ok(self.hand_off.with_progress(request))
     }
 }
@@ -1678,20 +1674,12 @@ async fn decide(
     state: RequestState,
     reason: Option<String>,
 ) -> Result<Request, Error> {
-    let state = stored(state);
-    let decided = sqlx::query!(
-        "UPDATE requests SET state = ?, decline_reason = ? WHERE id = ? AND state = 'pending'",
-        state,
-        reason,
-        id
-    )
-    .execute(&mut *conn)
-    .await?
-    .rows_affected()
-        > 0;
-    let request = load_one(conn, id).await?.ok_or(Error::NoSuchRequest(id))?;
+    let decided = asked::decide(conn, Asked::Request, id, state, reason.as_deref()).await?;
+    let request = load_one(conn, id)
+        .await?
+        .ok_or(Error::NoSuch(Asked::Request, id))?;
     if !decided {
-        return Err(Error::NotPending(id));
+        return Err(Error::NotPending(Asked::Request, id));
     }
     Ok(request)
 }
@@ -1727,7 +1715,9 @@ async fn change_quality(
     let Some(new_quality) = new_quality else {
         return Ok(());
     };
-    let request = load_one(conn, id).await?.ok_or(Error::NoSuchRequest(id))?;
+    let request = load_one(conn, id)
+        .await?
+        .ok_or(Error::NoSuch(Asked::Request, id))?;
     let show = request
         .movie
         .is_unset()
@@ -1748,7 +1738,7 @@ async fn change_followed_quality(
     let show = sqlx::query_scalar!("SELECT tmdb_id FROM followed_shows WHERE id = ?", id)
         .fetch_optional(&mut *conn)
         .await?
-        .ok_or(Error::NoSuchFollowedShow(id))?;
+        .ok_or(Error::NoSuch(Asked::FollowedShow, id))?;
     requality(conn, None, Some(show), new_quality).await
 }
 
@@ -1902,7 +1892,9 @@ async fn settle(
     if !settled {
         return Ok(Applied::quiet(None));
     }
-    let request = load_one(conn, id).await?.ok_or(Error::NoSuchRequest(id))?;
+    let request = load_one(conn, id)
+        .await?
+        .ok_or(Error::NoSuch(Asked::Request, id))?;
     Ok(Applied::saying(
         Some(request.clone()),
         state_changed(request),
@@ -1927,7 +1919,9 @@ async fn retry(
     .await?
     .rows_affected()
         > 0;
-    let request = load_one(conn, id).await?.ok_or(Error::NoSuchRequest(id))?;
+    let request = load_one(conn, id)
+        .await?
+        .ok_or(Error::NoSuch(Asked::Request, id))?;
     if !retried {
         return Err(Error::NotFailed(id));
     }
@@ -1936,7 +1930,9 @@ async fn retry(
 
 /// Removes the Request `id`, and its Requesters with it.
 async fn cancel(conn: &mut SqliteConnection, id: i64) -> Result<Applied<()>, Error> {
-    let request = load_one(conn, id).await?.ok_or(Error::NoSuchRequest(id))?;
+    let request = load_one(conn, id)
+        .await?
+        .ok_or(Error::NoSuch(Asked::Request, id))?;
     sqlx::query!("DELETE FROM requests WHERE id = ?", id)
         .execute(&mut *conn)
         .await?;
@@ -1959,36 +1955,27 @@ async fn withdraw(
         .await?
         .into_iter()
         .next()
-        .ok_or(Error::NoSuchRequest(id))?;
-    if !request.requesters.iter().any(|r| r.user_id == user) {
-        return Err(Error::NotARequester(id));
+        .ok_or(Error::NoSuch(Asked::Request, id))?;
+    if !asked::is_requester(user, &request.requesters) {
+        return Err(Error::NotARequester(Asked::Request, id));
     }
     if request.state != RequestState::Pending {
-        return Err(Error::NotPending(id));
+        return Err(Error::NotPending(Asked::Request, id));
     }
-    if request.requesters.len() == 1 {
-        sqlx::query!("DELETE FROM requests WHERE id = ?", id)
-            .execute(&mut *conn)
-            .await?;
-        let withdrawn = event(RequestWithdrawn {
+    let was_last = asked::leave(conn, Asked::Request, id, user).await?;
+    let left = if was_last {
+        event(RequestWithdrawn {
             request: request.into(),
             ..Default::default()
-        });
-        return Ok(Applied::saying((), withdrawn));
-    }
-    sqlx::query!(
-        "DELETE FROM requesters WHERE request_id = ? AND user_id = ?",
-        id,
-        user
-    )
-    .execute(&mut *conn)
-    .await?;
-    let removed = event(RequesterRemoved {
-        request: request.into(),
-        user_id: user,
-        ..Default::default()
-    });
-    Ok(Applied::saying((), removed))
+        })
+    } else {
+        event(RequesterRemoved {
+            request: request.into(),
+            user_id: user,
+            ..Default::default()
+        })
+    };
+    Ok(Applied::saying((), left))
 }
 
 /// Adds `user` as a Requester of the open Followed Show for `show`, opening one in `state` if there
@@ -2102,21 +2089,11 @@ async fn decide_followed(
 ) -> Result<Applied<FollowedShow>, Error> {
     // Undone with the rest if the Followed Show can't be decided.
     change_followed_quality(conn, id, new_quality).await?;
-    let stored_state = stored(state);
-    let decided = sqlx::query!(
-        "UPDATE followed_shows SET state = ?, decline_reason = ? WHERE id = ? AND state = 'pending'",
-        stored_state,
-        reason,
-        id
-    )
-    .execute(&mut *conn)
-    .await?
-    .rows_affected()
-        > 0;
+    let decided = asked::decide(conn, Asked::FollowedShow, id, state, reason.as_deref()).await?;
     let followed = load_followed(conn, Some(id), None).await?.pop();
-    let followed = followed.ok_or(Error::NoSuchFollowedShow(id))?;
+    let followed = followed.ok_or(Error::NoSuch(Asked::FollowedShow, id))?;
     if !decided {
-        return Err(Error::FollowedShowNotPending(id));
+        return Err(Error::NotPending(Asked::FollowedShow, id));
     }
     let pending = sqlx::query_scalar!(
         "SELECT id FROM requests WHERE followed_show_id = ? AND state = 'pending'",
@@ -2176,12 +2153,15 @@ async fn followed_show_approved(conn: &mut SqliteConnection, id: i64) -> Result<
     .await
 }
 
-/// Removes the Followed Show `id` as [`remove_followed`] does, naming the Season Request that
-/// returns, if any, as the one whose Show to stop following.
+/// Removes the Followed Show `id`, and its Requesters with it, naming its [`followed_season`], if
+/// any, as the one whose Show to stop following.
 async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<Applied<()>, Error> {
     let followed = load_followed(conn, Some(id), None).await?.pop();
-    let followed = followed.ok_or(Error::NoSuchFollowedShow(id))?;
-    let followed_season = remove_followed(conn, id).await?;
+    let followed = followed.ok_or(Error::NoSuch(Asked::FollowedShow, id))?;
+    let followed_season = followed_season(conn, id).await?;
+    sqlx::query!("DELETE FROM followed_shows WHERE id = ?", id)
+        .execute(&mut *conn)
+        .await?;
     let cancelled = event(FollowedShowCancelled {
         followed_show: followed.into(),
         ..Default::default()
@@ -2192,34 +2172,27 @@ async fn cancel_followed(conn: &mut SqliteConnection, id: i64) -> Result<Applied
     })
 }
 
-/// Removes the Followed Show `id`, and its Requesters with it. Returns the first Season Request it
-/// opened, as it was, if it was Approved, so its Fulfiller was asked to follow the Show.
-///
-/// Doesn't check that `id` exists: callers load the Followed Show first, for its event.
-async fn remove_followed(
+/// The first Season Request the Followed Show `id` opened, if it is Approved, so its Fulfiller was
+/// asked to follow the Show. Removing the Followed Show unlinks it, so read it first.
+async fn followed_season(
     conn: &mut SqliteConnection,
     id: i64,
 ) -> Result<Option<Request>, sqlx::Error> {
-    let followed_season = if followed_show_approved(conn, id).await? {
-        // ponytail: a Followed Show stores no Show ids, so once every Season Request it opened is
-        // cancelled its Fulfiller isn't told to stop; store them if that bites.
-        let first = sqlx::query_scalar!(
-            "SELECT MIN(id) FROM requests WHERE followed_show_id = ?",
-            id
-        )
-        .fetch_one(&mut *conn)
-        .await?;
-        match first {
-            Some(first) => load_one(conn, first).await?,
-            None => None,
-        }
-    } else {
-        None
-    };
-    sqlx::query!("DELETE FROM followed_shows WHERE id = ?", id)
-        .execute(&mut *conn)
-        .await?;
-    Ok(followed_season)
+    if !followed_show_approved(conn, id).await? {
+        return Ok(None);
+    }
+    // ponytail: a Followed Show stores no Show ids, so once every Season Request it opened is
+    // cancelled its Fulfiller isn't told to stop; store them if that bites.
+    let first = sqlx::query_scalar!(
+        "SELECT MIN(id) FROM requests WHERE followed_show_id = ?",
+        id
+    )
+    .fetch_one(&mut *conn)
+    .await?;
+    match first {
+        Some(first) => load_one(conn, first).await,
+        None => Ok(None),
+    }
 }
 
 /// Takes `user` off the Followed Show `id`, among those `visible` lets them see. If they were its
@@ -2231,12 +2204,13 @@ async fn withdraw_followed(
     id: i64,
 ) -> Result<Applied<()>, Error> {
     let followed = load_followed(conn, Some(id), visible).await?.pop();
-    let followed = followed.ok_or(Error::NoSuchFollowedShow(id))?;
-    if !followed.requesters.iter().any(|r| r.user_id == user) {
-        return Err(Error::NotAFollowedShowRequester(id));
+    let followed = followed.ok_or(Error::NoSuch(Asked::FollowedShow, id))?;
+    if !asked::is_requester(user, &followed.requesters) {
+        return Err(Error::NotARequester(Asked::FollowedShow, id));
     }
-    if followed.requesters.len() == 1 {
-        let followed_season = remove_followed(conn, id).await?;
+    let followed_season = followed_season(conn, id).await?;
+    let was_last = asked::leave(conn, Asked::FollowedShow, id, user).await?;
+    if was_last {
         let withdrawn = event(FollowedShowWithdrawn {
             followed_show: followed.into(),
             ..Default::default()
@@ -2246,13 +2220,6 @@ async fn withdraw_followed(
             ..Applied::saying((), withdrawn)
         });
     }
-    sqlx::query!(
-        "DELETE FROM followed_show_requesters WHERE followed_show_id = ? AND user_id = ?",
-        id,
-        user
-    )
-    .execute(&mut *conn)
-    .await?;
     let removed = event(FollowedShowRequesterRemoved {
         followed_show: followed.into(),
         user_id: user,
@@ -3552,7 +3519,7 @@ mod tests {
 
         assert_eq!(happened(&approved), [("moved", RequestState::Approved)]);
         assert_eq!(handed_off(&approved), [id]);
-        assert!(matches!(again, Err(Error::NotPending(_))), "{again:?}");
+        assert!(matches!(again, Err(Error::NotPending(..))), "{again:?}");
     }
 
     #[tokio::test]
@@ -3569,7 +3536,7 @@ mod tests {
         assert_eq!(happened(&declined), [("moved", RequestState::Declined)]);
         assert_eq!(handed_off(&declined), NOTHING);
         assert_eq!(declined.value.decline_reason.as_deref(), Some("No."));
-        assert!(matches!(again, Err(Error::NotPending(_))), "{again:?}");
+        assert!(matches!(again, Err(Error::NotPending(..))), "{again:?}");
     }
 
     #[tokio::test]
@@ -3679,34 +3646,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn withdrawing_from_a_pending_request_removes_the_requester_then_the_request() {
+    async fn withdrawing_from_a_request_that_is_not_pending_is_refused() {
         let (_data, db) = ada_and_bob().await;
-        let id = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
-        ask_for(&db, BOB, 949, RequestState::Pending).await;
-        let approved = ask_for(&db, ADA, 603, RequestState::Approved)
+        let id = ask_for(&db, ADA, 603, RequestState::Approved)
             .await
             .value
             .id;
 
-        let bob_left = db
-            .write(move |tx| Box::pin(withdraw(tx, BOB, None, id)))
-            .await
-            .unwrap();
-        let ada_left = db
+        let refused = db
             .write(move |tx| Box::pin(withdraw(tx, ADA, None, id)))
-            .await
-            .unwrap();
-        let not_pending = db
-            .write(move |tx| Box::pin(withdraw(tx, ADA, None, approved)))
             .await;
 
-        assert_eq!(happened(&bob_left), [("left", RequestState::Pending)]);
-        assert_eq!(happened(&ada_left), [("withdrawn", RequestState::Pending)]);
-        assert_eq!(handed_off(&bob_left), NOTHING);
-        assert_eq!(handed_off(&ada_left), NOTHING);
         assert!(
-            matches!(not_pending, Err(Error::NotPending(_))),
-            "{not_pending:?}"
+            matches!(refused, Err(Error::NotPending(asked::Asked::Request, refused_id)) if refused_id == id),
+            "{refused:?}"
         );
     }
 
@@ -3800,10 +3753,7 @@ mod tests {
         );
         assert_eq!(handed_off(&approved), season_ids(&followed));
         assert_eq!(unfollowed(&approved), None);
-        assert!(
-            matches!(again, Err(Error::FollowedShowNotPending(_))),
-            "{again:?}"
-        );
+        assert!(matches!(again, Err(Error::NotPending(..))), "{again:?}");
     }
 
     #[tokio::test]
@@ -3877,28 +3827,21 @@ mod tests {
         assert_eq!(unfollowed(&cancelled_pending), None);
         assert_eq!(handed_off(&cancelled_approved), NOTHING);
         assert_eq!(handed_off(&cancelled_pending), NOTHING);
-        assert!(
-            matches!(again, Err(Error::NoSuchFollowedShow(_))),
-            "{again:?}"
-        );
+        assert!(matches!(again, Err(Error::NoSuch(..))), "{again:?}");
     }
 
     #[tokio::test]
-    async fn withdrawing_from_a_followed_show_removes_the_requester_then_unfollows_it() {
+    async fn withdrawing_from_a_followed_show_that_is_not_pending_is_allowed() {
         let (_data, db) = ada_and_bob().await;
-        let followed = follow_as(&db, ADA, dark(), RequestState::Approved).await;
+        let id = follow_as(&db, ADA, dark(), RequestState::Approved)
+            .await
+            .value
+            .0
+            .id;
         follow_as(&db, BOB, dark(), RequestState::Pending).await;
-        let id = followed.value.0.id;
 
         let bob_left = db
             .write(move |tx| Box::pin(withdraw_followed(tx, BOB, None, id)))
-            .await
-            .unwrap();
-        let bob_again = db
-            .write(move |tx| Box::pin(withdraw_followed(tx, BOB, None, id)))
-            .await;
-        let ada_left = db
-            .write(move |tx| Box::pin(withdraw_followed(tx, ADA, None, id)))
             .await
             .unwrap();
 
@@ -3907,10 +3850,19 @@ mod tests {
             [("left the Show", RequestState::Approved)]
         );
         assert_eq!(unfollowed(&bob_left), None);
-        assert!(
-            matches!(bob_again, Err(Error::NotAFollowedShowRequester(_))),
-            "{bob_again:?}"
-        );
+    }
+
+    #[tokio::test]
+    async fn the_last_requester_withdrawing_from_an_approved_followed_show_unfollows_it() {
+        let (_data, db) = ada_and_bob().await;
+        let followed = follow_as(&db, ADA, dark(), RequestState::Approved).await;
+        let id = followed.value.0.id;
+
+        let ada_left = db
+            .write(move |tx| Box::pin(withdraw_followed(tx, ADA, None, id)))
+            .await
+            .unwrap();
+
         assert_eq!(
             happened(&ada_left),
             [("withdrew the Show", RequestState::Approved)]
@@ -3919,8 +3871,6 @@ mod tests {
             unfollowed(&ada_left),
             season_ids(&followed).first().copied()
         );
-        assert_eq!(handed_off(&bob_left), NOTHING);
-        assert_eq!(handed_off(&ada_left), NOTHING);
     }
 
     const KINDS: [asked::Asked; 2] = [asked::Asked::Request, asked::Asked::FollowedShow];
@@ -3990,6 +3940,124 @@ mod tests {
                 listed_requesters(&page, kind, id),
                 Some(vec![BOB, ADA]),
                 "{kind:?}"
+            );
+        }
+    }
+
+    /// `requester` withdraws from the `kind` with the ID `id`.
+    async fn withdraw_kind(
+        requests: &Requests,
+        kind: asked::Asked,
+        requester: &User,
+        id: i64,
+    ) -> Result<(), Error> {
+        match kind {
+            asked::Asked::Request => requests.withdraw(requester, id).await,
+            asked::Asked::FollowedShow => requests.withdraw_followed(requester, id).await,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_requester_leaving_takes_only_them_off() {
+        let (_data, db) = ada_and_bob().await;
+        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let bob = user(BOB, Permissions::from_iter([Permission::ViewRequests]));
+
+        for kind in KINDS {
+            let id = ask_kind(&db, kind, ADA).await;
+            ask_kind(&db, kind, BOB).await;
+            withdraw_kind(&requests, kind, &bob, id).await.unwrap();
+            let again = withdraw_kind(&requests, kind, &bob, id).await;
+            let page = requests
+                .list(&ada(Permissions::ADMIN), None, 100, "")
+                .await
+                .unwrap();
+
+            assert_eq!(
+                listed_requesters(&page, kind, id),
+                Some(vec![ADA]),
+                "{kind:?}"
+            );
+            assert!(
+                matches!(again, Err(Error::NotARequester(k, i)) if k == kind && i == id),
+                "{again:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn the_last_requester_leaving_removes_it() {
+        let (_data, db) = ada_and_bob().await;
+        let requests = requests_on(Arc::clone(&db), Registry::new());
+
+        for kind in KINDS {
+            let id = ask_kind(&db, kind, ADA).await;
+            withdraw_kind(&requests, kind, &ada(Permissions::NEW_USER), id)
+                .await
+                .unwrap();
+            let page = requests
+                .list(&ada(Permissions::ADMIN), None, 100, "")
+                .await
+                .unwrap();
+
+            assert_eq!(listed_requesters(&page, kind, id), None, "{kind:?}");
+        }
+    }
+
+    /// A Request manager approves the `kind` with the ID `id`.
+    async fn approve_kind(requests: &Requests, kind: asked::Asked, id: i64) -> Result<(), Error> {
+        let manager = ada(Permissions::ADMIN);
+        match kind {
+            asked::Asked::Request => requests.approve(&manager, id, None).await.map(drop),
+            asked::Asked::FollowedShow => requests
+                .approve_followed(&manager, id, None)
+                .await
+                .map(drop),
+        }
+    }
+
+    /// Declines the `kind` with the ID `id`, giving `reason`. Returns the reason it keeps.
+    async fn decline_kind(
+        requests: &Requests,
+        kind: asked::Asked,
+        id: i64,
+        reason: &str,
+    ) -> Result<Option<String>, Error> {
+        match kind {
+            asked::Asked::Request => requests
+                .decline(id, reason)
+                .await
+                .map(|request| request.decline_reason),
+            asked::Asked::FollowedShow => requests
+                .decline_followed(id, reason)
+                .await
+                .map(|followed| followed.decline_reason),
+        }
+    }
+
+    #[tokio::test]
+    async fn only_a_pending_one_is_decided_and_declining_keeps_its_reason() {
+        let (_data, db) = ada_and_bob().await;
+        let requests = requests_on(Arc::clone(&db), Registry::new());
+
+        for kind in KINDS {
+            let declined = ask_kind(&db, kind, ADA).await;
+            let reason = decline_kind(&requests, kind, declined, " No. ")
+                .await
+                .unwrap();
+            let approved = ask_kind(&db, kind, ADA).await;
+            approve_kind(&requests, kind, approved).await.unwrap();
+            let approved_again = approve_kind(&requests, kind, declined).await;
+            let declined_again = decline_kind(&requests, kind, approved, "").await;
+
+            assert_eq!(reason.as_deref(), Some("No."), "{kind:?}");
+            assert!(
+                matches!(approved_again, Err(Error::NotPending(k, id)) if k == kind && id == declined),
+                "{approved_again:?}"
+            );
+            assert!(
+                matches!(declined_again, Err(Error::NotPending(k, id)) if k == kind && id == approved),
+                "{declined_again:?}"
             );
         }
     }
