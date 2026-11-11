@@ -79,9 +79,10 @@ pub(crate) fn hls_init(n: usize) -> String {
 }
 
 /// How long ffmpeg may take to read one subtitle out of a file. Matroska interleaves it with the
-/// video, so the whole file is read: about a minute from a slow disk, so this leaves room for a
-/// slower one.
-const SUBTITLE_TIMEOUT: Duration = Duration::from_secs(300);
+/// video, so the whole file is read. Raised rather than grown with the file's size: an hour reads
+/// 60 GB at 17 MB/s, slower than a spinning disk or a NAS on gigabit, so only a stuck read
+/// outlasts it.
+const SUBTITLE_TIMEOUT: Duration = Duration::from_hours(1);
 
 /// Subtitle codecs, as ffprobe names them, that are text the Server serves as WebVTT. Others that
 /// aren't images either, such as teletext, need a library ffmpeg may lack, or are unknown.
@@ -386,12 +387,14 @@ impl Ffmpeg {
     }
 
     /// The file at `path`'s subtitle stream `subtitle`, counting only its subtitle streams from 0,
-    /// in `format`, which names both ffmpeg's encoder and its muxer, such as `webvtt` or `ass`.
+    /// encoded with ffmpeg's `codec`, such as `webvtt`, or `copy` to keep it as it is, and written
+    /// by its `muxer`, such as `webvtt` or `sup`.
     pub(crate) async fn subtitle(
         &self,
         path: &str,
         subtitle: usize,
-        format: &str,
+        codec: &str,
+        muxer: &str,
     ) -> Result<Vec<u8>, SubtitleError> {
         let Ok(ffmpeg) = &self.ffmpeg else {
             return Err(SubtitleError::Unavailable);
@@ -400,7 +403,7 @@ impl Ffmpeg {
             .args(["-v", "error", "-nostdin", "-i"])
             .arg(path)
             .args(["-map", &format!("0:s:{subtitle}")])
-            .args(["-c:s", format, "-f", format, "-"])
+            .args(["-c:s", codec, "-f", muxer, "-"])
             // A fetch given up on, or cancelled at shutdown, stops ffmpeg too.
             .kill_on_drop(true)
             .output();

@@ -1,4 +1,4 @@
-import { AudioCodec, Container, VideoCodec } from "@/gen/nama/v1/playback_pb";
+import { AudioCodec, Container, SubtitleFormat, VideoCodec } from "@/gen/nama/v1/playback_pb";
 
 /** The values of the generated enum `E` but its unspecified one, so a table keyed by them needs
  * an entry for each value the schema adds. */
@@ -33,6 +33,17 @@ const AUDIO_CODECS: Record<Named<typeof AudioCodec>, string> = {
 /** A 1080p film's video, which `decodingInfo` needs to judge a video codec. */
 const FILM = { width: 1920, height: 1080, bitrate: 10_000_000, framerate: 24 };
 
+/** Whether this page still draws PGS subtitles: not once their renderer failed, until a reload. */
+let drawsPgs = true;
+
+/**
+ * Stops saying this Device draws PGS subtitles until the page is reloaded, as when their renderer
+ * failed, so the next plan burns them in or drops them (ADR 0033).
+ */
+export function stopDrawingPgs() {
+  drawsPgs = false;
+}
+
 /** What this Device decodes, found out afresh: the Server never stores it. */
 export async function findDeviceDecoding() {
   const video = document.createElement("video");
@@ -50,6 +61,8 @@ export async function findDeviceDecoding() {
     nativeHls: playsHlsNatively(),
     mse: "MediaSource" in window || "ManagedMediaSource" in window,
     audioChannels: audioChannels(),
+    // The PGS renderer is WebAssembly.
+    subtitleFormats: drawsPgs && "WebAssembly" in globalThis ? [SubtitleFormat.PGS] : [],
   };
 }
 

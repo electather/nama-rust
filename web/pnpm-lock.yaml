@@ -54,6 +54,9 @@ importers:
       hls.js:
         specifier: ^1.7.4
         version: 1.7.4
+      libbitsub:
+        specifier: 1.13.2
+        version: 1.13.2(hls.js@1.7.4)(react@19.3.1)
       lucide-react:
         specifier: ^1.70.0
         version: 1.70.0(@types/react@19.3.0)(react@19.3.1)
@@ -1488,6 +1491,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@webgpu/types@0.1.74':
+    resolution: {integrity: sha512-lgiI4hbuLcI9unnm2cL/tvCaQU45dp0xcLWJh5uB/9MBGvIA4F8XIk7nSiBeg+K4xWGYwgZKn80LmERI5CxoTA==}
+
   '@yuku-core/binding-android-arm64@0.19.0':
     resolution: {integrity: sha512-wdL2XmTiZixAOaHk9Z0JJZ8u9Qm8d333Zjpc6gaxXFX+UR5BlsfxZ7a2+2Rm71pamppsPYGUGFq2oVLbh6DISw==}
     cpu: [arm64]
@@ -2080,6 +2086,24 @@ packages:
   kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
+
+  libbitsub@1.13.2:
+    resolution: {integrity: sha512-Wp1hgTt/ujU0AWuBYKMHPrej2y6DKRbtctGY9JnUr2ZxkTOebEi4bjCsOZWuyJC89pILS/Hk0fu30yuWcck7LA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      hls.js: '>=1.0.0'
+      react: '>=18.0.0'
+      shaka-player: '>=4.0.0'
+      video.js: '>=7.0.0'
+    peerDependenciesMeta:
+      hls.js:
+        optional: true
+      react:
+        optional: true
+      shaka-player:
+        optional: true
+      video.js:
+        optional: true
 
   lightningcss-android-arm64@1.33.0:
     resolution: {integrity: sha512-gEpRTalKdosp4Bb8qWtc2iOgE5SeIHlpS1up9bFq2wAyYhl1UdTObYiHe98zEM9SQvSoqQZ1IQD0JNpg3Ml5pg==}
@@ -3974,6 +3998,8 @@ snapshots:
   '@voidzero-dev/vite-plus-win32-x64-msvc@1.5.0':
     optional: true
 
+  '@webgpu/types@0.1.74': {}
+
   '@yuku-core/binding-android-arm64@0.19.0':
     optional: true
 
@@ -4430,6 +4456,13 @@ snapshots:
   kleur@3.0.3: {}
 
   kleur@4.1.5: {}
+
+  libbitsub@1.13.2(hls.js@1.7.4)(react@19.3.1):
+    dependencies:
+      '@webgpu/types': 0.1.74
+    optionalDependencies:
+      hls.js: 1.7.4
+      react: 19.3.1
 
   lightningcss-android-arm64@1.33.0:
     optional: true
