@@ -1462,7 +1462,8 @@ echo "{{\"format\": {{\"format_name\": \"matroska,webm\", \"duration\": \"1.0000
 case "$*" in *packet=*)
     echo list >> '{}'
     sleep 1
-    printf '0.000000,K__\n%s.000000,K__\n' "$(wc -c < "$file")"
+    # macOS's wc pads the count with spaces.
+    printf '0.000000,K__\n%s.000000,K__\n' "$(wc -c < "$file" | tr -d ' ')"
     exit ;;
 esac
 echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}}}'"#,
