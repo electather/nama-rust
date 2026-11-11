@@ -91,6 +91,8 @@ pub(crate) struct Unmatched {
     pub(crate) id: i64,
     pub(crate) path: String,
     pub(crate) item: Item,
+    /// `None` while Matching hasn't decided, or for an Unmatched reason not stored.
+    pub(crate) reason: Option<UnmatchedReason>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -126,7 +128,38 @@ pub(crate) enum Change {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Decided {
     Matched(Box<Metadata>),
-    Unmatched,
+    Unmatched(Option<UnmatchedReason>),
+}
+
+/// Why automatic Matching left an Item Unmatched, which says how an admin fixes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum UnmatchedReason {
+    /// More than one title fits about as well: these, best fit first.
+    Ambiguous(Vec<TiedTitle>),
+    /// No title the search found fits well enough.
+    NoTitleFits,
+    /// The Item's ID Hint names no title the metadata source has.
+    UnknownIdHint,
+}
+
+/// A title that fit an Ambiguous Item about as well as the others.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TiedTitle {
+    pub(crate) id: ExternalId,
+    pub(crate) title: String,
+    pub(crate) original_title: Option<String>,
+    pub(crate) year: Option<i32>,
+}
+
+impl From<metadata::Candidate> for TiedTitle {
+    fn from(candidate: metadata::Candidate) -> Self {
+        Self {
+            id: candidate.id,
+            title: candidate.title,
+            original_title: candidate.original_title,
+            year: candidate.year,
+        }
+    }
 }
 
 /// What Matching decided about some Items, as one write stores it.
@@ -531,7 +564,9 @@ impl Contents {
             r#"SELECT library_items.id AS "id!", library_files.path,
                       library_items.kind AS "kind: ItemKind", library_items.title,
                       library_items.year, library_items.hint, library_items.season,
-                      library_items.episode
+                      library_items.episode,
+                      item_matches.unmatched_reason AS "unmatched_reason?: ReasonColumn",
+                      item_matches.tied_titles AS "tied_titles?"
                FROM library_items
                JOIN library_files ON library_files.id = library_items.file_id
                LEFT JOIN item_matches ON item_matches.item_id = library_items.id
@@ -551,9 +586,12 @@ impl Contents {
         )
         .fetch_all(self.db.reader())
         .await?;
-        Ok(rows
-            .into_iter()
+        rows.into_iter()
             .filter_map(|row| {
+                let reason = row
+                    .unmatched_reason
+                    .map(|column| column.reason(row.tied_titles.as_deref()))
+                    .transpose();
                 let item = ItemRow {
                     kind: row.kind,
                     title: Cow::Owned(row.title),
@@ -563,13 +601,14 @@ impl Contents {
                     episode: row.episode,
                 }
                 .into_item()?;
-                Some(Unmatched {
+                Some(reason.map(|reason| Unmatched {
                     id: row.id,
                     path: row.path,
                     item,
-                })
+                    reason,
+                }))
             })
-            .collect())
+            .collect()
     }
 
     /// Files whose names don't follow the naming conventions, so they hold no Items, by path.
@@ -1137,8 +1176,9 @@ async fn insert_decisions(
             "INSERT OR REPLACE INTO item_matches (
                  item_id, state, plugin, tmdb_id, imdb_id, tvdb_id,
                  show_tmdb_id, show_imdb_id, show_tvdb_id, title, original_title, show_title,
-                 overview, release_date, runtime_minutes, poster, backdrop, decided_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                 overview, release_date, runtime_minutes, poster, backdrop, unmatched_reason,
+                 tied_titles, decided_at)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
@@ -1157,6 +1197,8 @@ async fn insert_decisions(
             row.metadata.runtime_minutes,
             row.metadata.poster,
             row.metadata.backdrop,
+            row.unmatched_reason,
+            row.tied_titles,
             now,
             item,
         )
@@ -1256,6 +1298,60 @@ enum MatchState {
     Unmatched,
 }
 
+/// An [`UnmatchedReason`] as `item_matches.unmatched_reason`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[sqlx(rename_all = "snake_case")]
+enum ReasonColumn {
+    Ambiguous,
+    NoTitleFits,
+    UnknownIdHint,
+}
+
+impl ReasonColumn {
+    const fn of(reason: &UnmatchedReason) -> Self {
+        match reason {
+            UnmatchedReason::Ambiguous(_) => Self::Ambiguous,
+            UnmatchedReason::NoTitleFits => Self::NoTitleFits,
+            UnmatchedReason::UnknownIdHint => Self::UnknownIdHint,
+        }
+    }
+
+    /// The reason this column and `tied_titles`, the JSON the migration describes, store.
+    fn reason(self, tied_titles: Option<&str>) -> Result<UnmatchedReason, sqlx::Error> {
+        Ok(match self {
+            Self::Ambiguous => UnmatchedReason::Ambiguous(parse_tied(tied_titles.unwrap_or("[]"))?),
+            Self::NoTitleFits => UnmatchedReason::NoTitleFits,
+            Self::UnknownIdHint => UnmatchedReason::UnknownIdHint,
+        })
+    }
+}
+
+fn parse_tied(json: &str) -> Result<Vec<TiedTitle>, sqlx::Error> {
+    let decode = |err: Box<dyn std::error::Error + Send + Sync>| sqlx::Error::Decode(err);
+    let rows: Vec<(String, String, Option<String>, Option<i32>)> =
+        serde_json::from_str(json).map_err(|err| decode(err.into()))?;
+    rows.into_iter()
+        .map(|(id, title, original_title, year)| {
+            let id =
+                parse_hint(&id).ok_or_else(|| decode(format!("bad tied title id {id}").into()))?;
+            Ok(TiedTitle {
+                id,
+                title,
+                original_title,
+                year,
+            })
+        })
+        .collect()
+}
+
+fn tied_json(tied: &[TiedTitle]) -> String {
+    let rows: Vec<serde_json::Value> = tied
+        .iter()
+        .map(|t| serde_json::json!([t.id.to_string(), t.title, t.original_title, t.year]))
+        .collect();
+    serde_json::Value::from(rows).to_string()
+}
+
 #[derive(Debug)]
 struct MatchRow<'a> {
     state: MatchState,
@@ -1263,6 +1359,8 @@ struct MatchRow<'a> {
     ids: ExternalIds,
     show_ids: ExternalIds,
     metadata: MetadataColumns<'a>,
+    unmatched_reason: Option<ReasonColumn>,
+    tied_titles: Option<String>,
 }
 
 /// A Match's metadata as columns of `item_matches`; all empty for an Unmatched Item.
@@ -1281,12 +1379,19 @@ struct MetadataColumns<'a> {
 impl<'a> From<&'a Decided> for MatchRow<'a> {
     fn from(decided: &'a Decided) -> Self {
         match decided {
-            Decided::Unmatched => Self {
+            Decided::Unmatched(reason) => Self {
                 state: MatchState::Unmatched,
                 plugin: None,
                 ids: ExternalIds::default(),
                 show_ids: ExternalIds::default(),
                 metadata: MetadataColumns::default(),
+                unmatched_reason: reason.as_ref().map(ReasonColumn::of),
+                tied_titles: match reason {
+                    Some(UnmatchedReason::Ambiguous(tied)) => Some(tied_json(tied)),
+                    Some(UnmatchedReason::NoTitleFits | UnmatchedReason::UnknownIdHint) | None => {
+                        None
+                    }
+                },
             },
             Decided::Matched(metadata) => Self {
                 state: MatchState::Matched,
@@ -1303,6 +1408,8 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     poster: metadata.poster.as_deref(),
                     backdrop: metadata.backdrop.as_deref(),
                 },
+                unmatched_reason: None,
+                tied_titles: None,
             },
         }
     }
@@ -1551,7 +1658,7 @@ mod tests {
         fx.store(ALIEN, 10, movie("Alien", 1979)).await;
         let old = fx.item(ALIEN).await;
         fx.contents
-            .record(vec![(old, Decided::Unmatched)])
+            .record(vec![(old, Decided::Unmatched(None))])
             .await
             .unwrap();
 
@@ -1573,7 +1680,7 @@ mod tests {
         fx.store(ALIEN, 10, movie("Alien", 1979)).await;
         let item = fx.item(ALIEN).await;
         fx.contents
-            .record(vec![(item, Decided::Unmatched)])
+            .record(vec![(item, Decided::Unmatched(None))])
             .await
             .unwrap();
         let file = fx.contents.stored(fx.library).await.unwrap()[ALIEN].id;
@@ -1596,7 +1703,7 @@ mod tests {
         let heat = fx.item("/media/Heat (1995).mkv").await;
 
         fx.contents
-            .record(vec![(alien, Decided::Unmatched)])
+            .record(vec![(alien, Decided::Unmatched(None))])
             .await
             .unwrap();
 
@@ -1616,7 +1723,7 @@ mod tests {
             .contents
             .record(
                 read.iter()
-                    .map(|&id| (id, Decided::Unmatched))
+                    .map(|&id| (id, Decided::Unmatched(None)))
                     .collect::<Vec<_>>(),
             )
             .await;
@@ -1680,7 +1787,7 @@ mod tests {
         ];
         for (item, pin) in pins.clone() {
             let named = fx.contents.named_like(item).await.unwrap().unwrap();
-            let decided = vec![(item, Decided::Unmatched)];
+            let decided = vec![(item, Decided::Unmatched(None))];
             fx.contents
                 .pin(named.library, named.name, pin, decided)
                 .await
@@ -1841,7 +1948,10 @@ mod tests {
                 named.library,
                 named.name,
                 Pin::Unmatched,
-                vec![(item, Decided::Unmatched), (heat, Decided::Unmatched)],
+                vec![
+                    (item, Decided::Unmatched(None)),
+                    (heat, Decided::Unmatched(None)),
+                ],
             )
             .await;
 

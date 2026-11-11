@@ -139,4 +139,22 @@ message UnmatchedItem {
   optional int32 season = 6;
   // For an Episode, its number within the Season.
   optional int32 episode = 7;
+  // Why automatic Matching left the item Unmatched.
+  UnmatchedReason reason = 8;
+  // For `UNMATCHED_REASON_AMBIGUOUS`, the titles that fit about as well as each other, best fit
+  // first, to pass to `SetMatch`.
+  repeated TitleCandidate tied_titles = 9;
+}
+
+// Why automatic Matching left an item Unmatched, which says how to fix it.
+enum UnmatchedReason {
+  // Matching hasn't decided about the item yet, or left it Unmatched for another reason, such as
+  // an Episode its Show doesn't have.
+  UNMATCHED_REASON_UNSPECIFIED = 0;
+  // More than one title fits about as well, so picking one of `tied_titles` fixes it.
+  UNMATCHED_REASON_AMBIGUOUS = 1;
+  // No title the search found fits well enough. A rename or an ID Hint may fix it.
+  UNMATCHED_REASON_NO_TITLE_FITS = 2;
+  // The item's ID Hint names no title the metadata source has.
+  UNMATCHED_REASON_UNKNOWN_ID_HINT = 3;
 }
