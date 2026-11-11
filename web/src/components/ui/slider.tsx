@@ -41,7 +41,7 @@ function Slider({
           data-slot="slider-thumb"
           aria-label={label}
           aria-valuetext={valueText}
-          className="relative block size-3.5 shrink-0 rounded-full bg-foreground ring-ring/50 data-disabled:pointer-events-none data-disabled:bg-muted-foreground transition-shadow select-none after:absolute after:-inset-2 hover:ring-3 has-focus-visible:ring-3 has-focus-visible:ring-ring motion-reduce:transition-none"
+          className="relative block size-3.5 shrink-0 rounded-full bg-foreground ring-ring/50 transition-shadow select-none after:absolute after:-inset-2 hover:ring-3 has-focus-visible:ring-3 has-focus-visible:ring-ring motion-reduce:transition-none data-disabled:pointer-events-none data-disabled:bg-muted-foreground"
         />
       </SliderPrimitive.Control>
     </SliderPrimitive.Root>
