@@ -14,7 +14,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    browse::{Browse, ToDelete},
+    browse::{self, Browse, ToDelete},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     scanner::{self, Deleted, Scanner},
 };
@@ -135,7 +135,7 @@ impl LibraryService for LibraryServiceHandler {
         request: ServiceRequest<'_, PreviewDeleteMediaRequest>,
     ) -> ServiceResult<PreviewDeleteMediaResponse> {
         let target = to_delete_from_proto(request.to_owned_message().target.into_option())?;
-        let doomed = self.browse.doomed(target).await?;
+        let doomed = self.browse.doomed(target).await.map_err(target_refused)?;
         let planned = self.scanner.preview_delete(doomed).await;
         let planned = planned.map_err(deleting_failed)?;
         Response::ok(PreviewDeleteMediaResponse {
@@ -152,7 +152,7 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<DeleteMediaResponse> {
         let by = caller(&ctx)?.user.name.clone();
         let target = to_delete_from_proto(request.to_owned_message().target.into_option())?;
-        let doomed = self.browse.doomed(target).await?;
+        let doomed = self.browse.doomed(target).await.map_err(target_refused)?;
         let deleted = self.scanner.delete_media(doomed, by).await;
         Response::ok(deleted_to_proto(deleted.map_err(deleting_failed)?))
     }
@@ -176,6 +176,11 @@ fn to_delete_from_proto(target: Option<MediaToDelete>) -> Result<ToDelete, Conne
         .field("target")
         .into()),
     }
+}
+
+/// The Connect error for a delete's target that Browse didn't find, naming the request's field.
+fn target_refused(err: browse::Error) -> ConnectError {
+    super::browse::refused(err, "target.movie.library_id", "target.version_id")
 }
 
 fn deleted_to_proto(deleted: Deleted) -> DeleteMediaResponse {

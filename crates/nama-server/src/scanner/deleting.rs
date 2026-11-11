@@ -3,6 +3,7 @@
 //! `spawn_blocking`.
 
 use std::{
+    collections::BTreeSet,
     ffi::OsStr,
     fs, io,
     path::{Path, PathBuf},
@@ -48,59 +49,63 @@ pub(crate) fn preview(doomed: &Doomed) -> Deleted {
     each_file(doomed, |_| Ok(()))
 }
 
-/// Deletes each Version's file, then its sidecars, then the folders that leaves empty. A Version
-/// whose file can't be deleted keeps its sidecars; the rest still go, and nothing is put back.
-pub(crate) fn delete(doomed: &Doomed) -> Deleted {
+/// Deletes each Version's file, then its sidecars, then the folders that leaves empty, stopping
+/// below any of `kept`, every Library's folders. A Version whose file can't be deleted keeps its
+/// sidecars; the rest still go, and nothing is put back.
+pub(crate) fn delete(doomed: &Doomed, kept: &[&Path]) -> Deleted {
     let deleted = each_file(doomed, |path| fs::remove_file(path));
     for version in &doomed.versions {
         let video = Path::new(&version.path);
         if let (Some(folder), Some(root)) = (video.parent(), root_of(&doomed.library, video)) {
-            remove_empty_folders(folder, root);
+            remove_empty_folders(folder, root, kept);
         }
     }
     deleted
 }
 
-/// Removes each Version's file through `remove`, then, once it's gone, its sidecars.
+/// Removes each Version's file through `remove`, then the sidecars of those that went, each once.
 fn each_file(doomed: &Doomed, remove: impl Fn(&Path) -> io::Result<()>) -> Deleted {
     let mut deleted = Deleted::default();
-    let videos: Vec<&Path> = (doomed.versions.iter())
-        .map(|version| Path::new(&version.path))
-        .collect();
-    for (version, &video) in doomed.versions.iter().zip(&videos) {
+    let mut gone: Vec<&Path> = Vec::new();
+    for version in &doomed.versions {
+        let video = Path::new(&version.path);
         if root_of(&doomed.library, video).is_none() {
             let outside = io::Error::other("it isn't in any of its Library's folders");
             deleted.failed.push((video.to_owned(), outside));
             continue;
         }
         match remove_file(video, &remove) {
-            Ok(file) => deleted.files.push(file),
-            Err(err) => {
-                deleted.failed.push((video.to_owned(), err));
-                continue;
+            Ok(file) => {
+                deleted.files.push(file);
+                deleted.versions.push(version.file.id);
+                gone.push(video);
             }
+            Err(err) => deleted.failed.push((video.to_owned(), err)),
         }
-        deleted.versions.push(version.file.id);
-        let sidecars = match sidecars(video, &videos) {
-            Ok(sidecars) => sidecars,
+    }
+    // Two Versions in one folder can share a sidecar (`Up-1080p.srt` is named after both `Up.mkv`
+    // and `Up-1080p.mkv`), so it's removed and counted once.
+    let mut sidecars = BTreeSet::new();
+    for &video in &gone {
+        match sidecars_of(video, &gone) {
+            Ok(found) => sidecars.extend(found),
             Err(err) => {
                 let folder = video.parent().unwrap_or(video).to_owned();
                 deleted.failed.push((folder, err));
-                continue;
             }
-        };
-        for sidecar in sidecars {
-            match remove_file(&sidecar, &remove) {
-                Ok(file) => deleted.files.push(file),
-                Err(err) => deleted.failed.push((sidecar, err)),
-            }
+        }
+    }
+    for sidecar in sidecars {
+        match remove_file(&sidecar, &remove) {
+            Ok(file) => deleted.files.push(file),
+            Err(err) => deleted.failed.push((sidecar, err)),
         }
     }
     deleted
 }
 
-/// The file at `path` removed through `remove`. One already gone counts as removed, as when a
-/// Version and its sidecar are named alike.
+/// The file at `path` removed through `remove`. One already gone counts as removed, so a Version
+/// whose file was deleted by hand still leaves the Library.
 fn remove_file(path: &Path, remove: impl Fn(&Path) -> io::Result<()>) -> io::Result<File> {
     let gone = |err: &io::Error| err.kind() == io::ErrorKind::NotFound;
     let size = match fs::symlink_metadata(path) {
@@ -119,8 +124,8 @@ fn remove_file(path: &Path, remove: impl Fn(&Path) -> io::Result<()>) -> io::Res
 
 /// The sidecars of `video`: the files beside it whose names start with its own, without its
 /// extension, followed by `.` or `-`. Neither a video nor a file that's also named after a video
-/// that stays, one not among `doomed`, is a sidecar.
-fn sidecars(video: &Path, doomed: &[&Path]) -> io::Result<Vec<PathBuf>> {
+/// that stays, one not among `gone`, is a sidecar.
+fn sidecars_of(video: &Path, gone: &[&Path]) -> io::Result<Vec<PathBuf>> {
     let (Some(folder), Some(stem)) = (video.parent(), video.file_stem()) else {
         return Ok(Vec::new());
     };
@@ -132,7 +137,7 @@ fn sidecars(video: &Path, doomed: &[&Path]) -> io::Result<Vec<PathBuf>> {
         }
     }
     let staying: Vec<&OsStr> = (files.iter())
-        .filter(|file| is_video(file) && !doomed.contains(&file.as_path()))
+        .filter(|file| is_video(file) && !gone.contains(&file.as_path()))
         .filter_map(|file| file.file_stem())
         .collect();
     let sidecar = |file: &&PathBuf| {
@@ -161,9 +166,11 @@ fn root_of<'a>(library: &'a Library, path: &Path) -> Option<&'a Path> {
         .max_by_key(|root| root.components().count())
 }
 
-/// Removes `folder` and each folder above it while they're empty, stopping below `root`.
-fn remove_empty_folders(folder: &Path, root: &Path) {
-    for emptied in folder.ancestors().take_while(|&above| above != root) {
+/// Removes `folder` and each folder above it while they're empty, stopping below `root` or any of
+/// `kept`: Libraries can overlap, and emptying one mustn't remove another's folder.
+fn remove_empty_folders(folder: &Path, root: &Path, kept: &[&Path]) {
+    let stop = |above: &&Path| *above == root || kept.contains(above);
+    for emptied in folder.ancestors().take_while(|above| !stop(above)) {
         // Fails on a folder that isn't empty, which stops it there.
         if fs::remove_dir(emptied).is_err() {
             break;
@@ -173,11 +180,11 @@ fn remove_empty_folders(folder: &Path, root: &Path) {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::Path};
+    use std::{fs, io, path::Path};
 
     use tempfile::TempDir;
 
-    use super::{Doomed, delete, preview};
+    use super::{Doomed, delete, each_file, preview};
     use crate::{
         contents::{Stored, Version},
         libraries::{Kind, Library},
@@ -278,10 +285,58 @@ mod tests {
             fx.write(file);
         }
 
-        let deleted = delete(&fx.doomed(&["Up/Up.mkv"]));
+        let deleted = delete(&fx.doomed(&["Up/Up.mkv"]), &[]);
 
         assert_eq!(names(&deleted.files), ["Up.mkv", "Up.srt"]);
         assert!(fx.exists("Up/Up-1080p.mkv") && fx.exists("Up/Up-1080p.srt"));
+    }
+
+    #[test]
+    fn a_sidecar_named_after_two_versions_is_listed_once() {
+        let fx = Fixture::new();
+        for file in ["Up/Up.mkv", "Up/Up-1080p.mkv", "Up/Up-1080p.srt"] {
+            fx.write(file);
+        }
+
+        let planned = preview(&fx.doomed(&["Up/Up.mkv", "Up/Up-1080p.mkv"]));
+
+        assert_eq!(
+            names(&planned.files),
+            ["Up-1080p.mkv", "Up-1080p.srt", "Up.mkv"]
+        );
+    }
+
+    #[test]
+    fn a_version_that_cant_be_deleted_keeps_a_sidecar_named_after_another_too() {
+        let fx = Fixture::new();
+        for file in ["Up/Up.mkv", "Up/Up-1080p.mkv", "Up/Up-1080p.srt"] {
+            fx.write(file);
+        }
+        let stuck = Path::new("Up-1080p.mkv");
+
+        let deleted = each_file(&fx.doomed(&["Up/Up.mkv", "Up/Up-1080p.mkv"]), |path| {
+            if path.ends_with(stuck) {
+                Err(io::Error::from(io::ErrorKind::PermissionDenied))
+            } else {
+                fs::remove_file(path)
+            }
+        });
+
+        assert_eq!(names(&deleted.files), ["Up.mkv"]);
+        assert_eq!(deleted.versions, [1]);
+        assert!(fx.exists("Up/Up-1080p.srt"));
+    }
+
+    #[test]
+    fn another_librarys_folder_left_empty_stays() {
+        let fx = Fixture::new();
+        fx.write("Movies/Up/Up.mkv");
+        let other = fx.root.path().join("Movies");
+
+        delete(&fx.doomed(&["Movies/Up/Up.mkv"]), &[&other]);
+
+        assert!(!fx.exists("Movies/Up"));
+        assert!(other.is_dir());
     }
 
     #[test]
@@ -289,7 +344,7 @@ mod tests {
         let fx = Fixture::new();
         fx.write("Up/Disc 1/Up.mkv");
 
-        let deleted = delete(&fx.doomed(&["Up/Disc 1/Up.mkv"]));
+        let deleted = delete(&fx.doomed(&["Up/Disc 1/Up.mkv"]), &[]);
 
         assert_eq!(deleted.versions, [1]);
         assert!(!fx.exists("Up"));
@@ -302,7 +357,7 @@ mod tests {
         fx.write("Up/Disc 1/Up.mkv");
         fx.write("Up/folder.jpg");
 
-        delete(&fx.doomed(&["Up/Disc 1/Up.mkv"]));
+        delete(&fx.doomed(&["Up/Disc 1/Up.mkv"]), &[]);
 
         assert!(!fx.exists("Up/Disc 1"));
         assert!(fx.exists("Up/folder.jpg"));
@@ -320,7 +375,7 @@ mod tests {
             .unwrap()
             .clone_into(&mut doomed.versions.first_mut().unwrap().path);
 
-        let deleted = delete(&doomed);
+        let deleted = delete(&doomed, &[]);
 
         assert!(Path::new(&outside).exists());
         assert_eq!(deleted.failed.len(), 1);

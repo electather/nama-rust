@@ -264,15 +264,19 @@ impl Scanner {
 
     /// Deletes `doomed` from disk for good, then removes the Versions whose files went as a scan
     /// removes them, and logs that `by` deleted them. The one way to delete media (see AGENTS.md,
-    /// "One path for deleting media"). It holds the Library's scan lock, so a scan racing it sees either everything
-    /// or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
+    /// "One path for deleting media"). It holds the Library's scan lock, so a scan racing it sees
+    /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
         let scanner = self.clone();
         detached(async move {
             let library = doomed.library.id;
             let _scan = scanner.inner.locks.lock(library).await;
+            let folders: Vec<String> = (scanner.inner.libraries.list().await?.into_iter())
+                .flat_map(|other| other.folders)
+                .collect();
             let (doomed, deleted) = tokio::task::spawn_blocking(move || {
-                let deleted = deleting::delete(&doomed);
+                let kept: Vec<&Path> = folders.iter().map(Path::new).collect();
+                let deleted = deleting::delete(&doomed, &kept);
                 (doomed, deleted)
             })
             .await?;

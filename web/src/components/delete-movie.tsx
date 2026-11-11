@@ -101,8 +101,9 @@ function FilesThatGo({ movie, chosen }: { movie: DeletableMovie; chosen: string 
         freeing {sizeOf(data.bytesFreed)}:
       </p>
       <ul className="mt-2 flex max-h-48 flex-col gap-1 overflow-y-auto text-muted-foreground">
-        {data.files.map((file) => (
-          <li key={file.fileName} className="break-all">
+        {/* Versions in different folders can have files named alike, so a name isn't a key. */}
+        {data.files.map((file, index) => (
+          <li key={`${String(index)} ${file.fileName}`} className="break-all">
             {file.fileName}
           </li>
         ))}
@@ -122,8 +123,8 @@ function NotDeleted({ files }: { files: FileNotDeleted[] }) {
             went.
           </p>
           <ul className="mt-1 flex flex-col gap-1 text-muted-foreground">
-            {files.map((file) => (
-              <li key={file.fileName} className="break-all">
+            {files.map((file, index) => (
+              <li key={`${String(index)} ${file.fileName}`} className="break-all">
                 {file.fileName}: {file.reason}
               </li>
             ))}

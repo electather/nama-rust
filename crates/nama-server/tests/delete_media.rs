@@ -315,19 +315,26 @@ async fn each_delete_is_logged_with_who_what_which_files_and_the_bytes_freed() {
 }
 
 #[tokio::test]
-async fn a_movie_or_version_the_library_doesnt_have_is_not_found() {
+async fn a_library_movie_or_version_that_isnt_there_is_refused_naming_its_field() {
     let fx = Fixture::alien_and_dune().await;
 
+    let no_library = assert_refused(
+        fx.preview(movie(fx.library + 1, 1)).await,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
+    assert_eq!(no_library.field, "target.movie.library_id");
     assert_refused(
         fx.delete(movie(fx.library, 404)).await,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
     );
-    assert_refused(
+    let no_version = assert_refused(
         fx.preview(version(404)).await,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
     );
+    assert_eq!(no_version.field, "target.version_id");
     assert_refused(
         fx.delete(MediaToDelete::default()).await,
         ErrorCode::InvalidArgument,
