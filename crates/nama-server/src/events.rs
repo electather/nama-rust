@@ -503,14 +503,17 @@ mod tests {
     use super::{Filter, Viewer, event, users_to_tell};
     use crate::users::{Permissions, User};
 
-    /// Users 1 and 2 have a new User's Permissions, 3 has `MANAGE_REQUESTS` and 4 has `ADMIN`.
-    fn users() -> Vec<User> {
-        let user = |id, permissions| User {
+    fn user(id: i64, permissions: Permissions) -> User {
+        User {
             id,
             name: format!("User {id}"),
             permissions,
             created_at: 0,
-        };
+        }
+    }
+
+    /// Users 1 and 2 have a new User's Permissions, 3 has `MANAGE_REQUESTS` and 4 has `ADMIN`.
+    fn users() -> Vec<User> {
         vec![
             user(1, Permissions::NEW_USER),
             user(2, Permissions::NEW_USER),
@@ -582,12 +585,6 @@ mod tests {
         });
         let played = playback_of(PLAYER);
         let requesting = || std::iter::once(Permission::Request).collect();
-        let user = |id, permissions| User {
-            id,
-            name: format!("User {id}"),
-            permissions,
-            created_at: 0,
-        };
         // Each viewer, and what they get of `with_path`, `requested`, `followed` and `played`.
         let table = [
             (
