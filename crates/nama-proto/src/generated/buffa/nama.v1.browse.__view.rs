@@ -8261,8 +8261,8 @@ impl ::serde::Serialize for SearchLibrariesRequestOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What `SearchLibraries` found, each kind best fit first. A title in two Libraries is found in
-/// each.
+/// What `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in two
+/// Libraries is found in each.
 #[derive(Clone, Debug, Default)]
 pub struct SearchLibrariesResponseView<'a> {
     /// Field 1: `movies`

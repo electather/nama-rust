@@ -544,9 +544,10 @@ pub trait BrowseService: Send + Sync + 'static {
     /// Searches every Library for the Movies, Shows and Episodes whose titles have each word of the
     /// query, ignoring case, accents and the marks that join words, so "amelie" finds Amélie and
     /// "spiderman" finds Spider-Man. Each word matches the start of a word, so a client can search
-    /// as the User types. A last word of four digits after others is a year, which keeps only the
-    /// titles released or aired that year, or with it in their title: "dune 2021" finds the 2021
-    /// Dune. A Show is found by its own title, and an Episode by its own, not its Show's.
+    /// as the User types. A last word of four digits after others is a year, which keeps only those
+    /// released or aired that year, or with it in their title: "dune 2021" finds the 2021 Dune. A
+    /// Show counts as of every year one of its Episodes aired. A Show is found by its own title,
+    /// and an Episode by its own, not its Show's.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

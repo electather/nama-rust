@@ -802,8 +802,8 @@ export const SearchLibrariesRequestSchema: GenMessage<SearchLibrariesRequest> = 
   messageDesc(file_nama_v1_browse, 23);
 
 /**
- * What `SearchLibraries` found, each kind best fit first. A title in two Libraries is found in
- * each.
+ * What `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in two
+ * Libraries is found in each.
  *
  * @generated from message nama.v1.SearchLibrariesResponse
  */
@@ -1142,9 +1142,10 @@ export const BrowseService: GenService<{
    * Searches every Library for the Movies, Shows and Episodes whose titles have each word of the
    * query, ignoring case, accents and the marks that join words, so "amelie" finds Amélie and
    * "spiderman" finds Spider-Man. Each word matches the start of a word, so a client can search
-   * as the User types. A last word of four digits after others is a year, which keeps only the
-   * titles released or aired that year, or with it in their title: "dune 2021" finds the 2021
-   * Dune. A Show is found by its own title, and an Episode by its own, not its Show's.
+   * as the User types. A last word of four digits after others is a year, which keeps only those
+   * released or aired that year, or with it in their title: "dune 2021" finds the 2021 Dune. A
+   * Show counts as of every year one of its Episodes aired. A Show is found by its own title,
+   * and an Episode by its own, not its Show's.
    *
    * @generated from rpc nama.v1.BrowseService.SearchLibraries
    */

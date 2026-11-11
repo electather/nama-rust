@@ -5395,8 +5395,8 @@ pub const __SEARCH_LIBRARIES_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEn
     from_json: ::buffa::type_registry::any_from_json::<SearchLibrariesRequest>,
     is_wkt: false,
 };
-/// What `SearchLibraries` found, each kind best fit first. A title in two Libraries is found in
-/// each.
+/// What `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in two
+/// Libraries is found in each.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

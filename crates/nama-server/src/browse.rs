@@ -194,7 +194,8 @@ impl Browse {
         Ok(started)
     }
 
-    /// The titles of every Library that a search for `query` finds: see [`Contents::search`].
+    /// The Movies, Shows and Episodes of every Library that a search for `query` finds: see
+    /// [`Contents::search`].
     pub(crate) async fn search(&self, query: &str) -> Result<Found, Error> {
         Ok(self.contents.search(query).await?)
     }

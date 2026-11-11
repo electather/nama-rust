@@ -1,4 +1,4 @@
--- What searching the Libraries compares: one row per Matched item, by item id, kept current by
+-- What searching the Libraries compares: one row per Matched Item, by its id, kept current by
 -- the triggers below. `remove_diacritics 2` lets "amelie" find Amélie.
 CREATE VIRTUAL TABLE title_search USING fts5(
     -- The Movie's or Episode's title, then again without the marks that join words, so
@@ -11,7 +11,7 @@ CREATE VIRTUAL TABLE title_search USING fts5(
     tokenize = 'unicode61 remove_diacritics 2'
 );
 
--- shortcut: only these marks join words; add any other a title is found missing for.
+-- ponytail: only these marks join words; add any other a title is found missing for.
 CREATE VIEW title_search_rows (item_id, title, year, show_title) AS
 SELECT item_id,
        title || ' ' || replace(replace(replace(replace(replace(

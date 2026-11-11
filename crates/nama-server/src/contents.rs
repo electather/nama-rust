@@ -261,8 +261,8 @@ pub(crate) struct Episode {
     pub(crate) versions: Vec<Version>,
 }
 
-/// What [`Contents::search`] found in every Library, each kind best fit first, and each title
-/// once per Library that has it.
+/// What [`Contents::search`] found in every Library, each kind best fit first, and each Movie,
+/// Show or Episode once per Library that has it.
 #[derive(Debug, Default)]
 pub(crate) struct Found {
     pub(crate) movies: Vec<FoundMovie>,
@@ -828,7 +828,7 @@ impl Contents {
                 poster: row.poster,
             });
         }
-        // Each title's rows are one per Item; the first fits best.
+        // A Movie, Show or Episode has a row per Item; the first fits best.
         let mut seen = HashSet::new();
         found
             .movies
@@ -2099,7 +2099,8 @@ mod tests {
         /// `release_date`.
         async fn match_movie(&self, tmdb: i64, title: &str, release_date: &str) {
             let path = format!("/media/{tmdb}.mkv");
-            self.store(&path, 10, movie(title, 2000)).await;
+            let year = release_date.get(..4).unwrap().parse().unwrap();
+            self.store(&path, 10, movie(title, year)).await;
             let item = self.item(&path).await;
             let decided = movie_match(tmdb, title, release_date);
             self.contents.record(vec![(item, decided)]).await.unwrap();
@@ -2240,12 +2241,12 @@ mod tests {
         let ronin = movie_match(8195, "Ronin", "1998-09-25");
         fx.contents.record(vec![(item, ronin)]).await.unwrap();
 
-        assert_eq!(fx.found_movies("heat").await, [""; 0]);
+        assert_eq!(fx.found_movies("heat").await, Vec::<String>::new());
         assert_eq!(fx.found_movies("ronin").await, ["Ronin"]);
         fx.contents
             .record(vec![(item, Decided::Unmatched)])
             .await
             .unwrap();
-        assert_eq!(fx.found_movies("ronin").await, [""; 0]);
+        assert_eq!(fx.found_movies("ronin").await, Vec::<String>::new());
     }
 }
