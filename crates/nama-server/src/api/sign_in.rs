@@ -167,10 +167,6 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, ReauthenticateRequest>,
     ) -> ServiceResult<ReauthenticateResponse> {
         let caller = caller(&ctx)?;
-        let attempt = self
-            .sign_in
-            .limits
-            .admit(client_ip(&ctx)?, Some(&caller.user.name))?;
         let Some(Proof::Password(password)) = request.to_owned_message().proof else {
             return Err(refuse(
                 RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
@@ -179,12 +175,9 @@ impl SignInService for SignInServiceHandler {
             .field("proof")
             .into());
         };
-        let reauthenticated = self.users.reauthenticate(caller, &password).await;
-        // The Device is only found signed out after the password checked out, so that is no guess.
-        if matches!(reauthenticated, Ok(()) | Err(users::Error::SignedOut)) {
-            self.sign_in.limits.succeeded(&attempt);
-        }
-        reauthenticated?;
+        self.sign_in
+            .reauthenticate(caller, &password, client_ip(&ctx)?, Instant::now())
+            .await?;
         Response::ok(ReauthenticateResponse::default())
     }
 

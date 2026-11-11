@@ -1,19 +1,19 @@
 //! Sign-in attempts: one place that names the signing-in Device, lets the attempt past the sign-in
 //! limits, checks its proof and has [`Users`] issue the session, in that order.
 
-use std::time::Instant;
+use std::{net::IpAddr, time::Instant};
 
 use crate::{
     device_names,
     rate_limits::{Blocked, SignInLimits},
-    users::{self, NewDevice, SignedIn, Users},
+    users::{self, Caller, NewDevice, SignedIn, Users},
 };
 
 /// Signs Devices in, counting every attempt as a guess until its proof checks out.
 pub(crate) struct SignIn {
     users: Users,
-    /// The recent failed attempts. `Setup` and `Reauthenticate` still count theirs here from their
-    /// handlers, so all three share one limit per client IP.
+    /// The recent failed attempts. `Setup` still counts its own here from its handler, so every
+    /// attempt shares one limit per client IP.
     pub(crate) limits: SignInLimits,
 }
 
@@ -58,6 +58,21 @@ impl SignIn {
         let (user, method) = self.users.verify(&name, &password).await?;
         self.limits.succeeded(&attempt);
         Ok(self.users.sign_in_as(user, Some(method), device).await?)
+    }
+
+    /// Gives `caller`'s Device Recent Authentication if `password` is their User's, as asked from
+    /// `ip` at `now`.
+    pub(crate) async fn reauthenticate(
+        &self,
+        caller: &Caller,
+        password: &str,
+        ip: IpAddr,
+        now: Instant,
+    ) -> Result<(), Error> {
+        let attempt = self.limits.admit_at(ip, Some(&caller.user.name), now)?;
+        self.users.confirm_password(&caller.user, password).await?;
+        self.limits.succeeded(&attempt);
+        Ok(self.users.record_authentication(caller.device.id).await?)
     }
 }
 
@@ -245,6 +260,124 @@ mod tests {
                 ),
                 "{:?}",
                 refused.map(|_| ())
+            );
+        }
+
+        attempt(&sign_in, "Ada", PASSWORD, now).await.unwrap();
+    }
+
+    /// Ada's Device "Phone", signed in from [`LAPTOP_IP`] by a Sign-in Code, so it has no Recent
+    /// Authentication yet.
+    async fn ada_without_recent_authentication(sign_in: &SignIn) -> Caller {
+        let (ada, _) = sign_in.users.verify("Ada", PASSWORD).await.unwrap();
+        let phone = device("Phone", LAPTOP_IP);
+        sign_in
+            .users
+            .sign_in_as(ada, None, phone)
+            .await
+            .unwrap()
+            .caller
+    }
+
+    /// Reauthenticates `caller` from [`LAPTOP_IP`] with `password_given` at `now`.
+    async fn reauthenticate(
+        sign_in: &SignIn,
+        caller: &Caller,
+        password_given: &str,
+        now: Instant,
+    ) -> Result<(), Error> {
+        let ip = LAPTOP_IP.parse().unwrap();
+        sign_in
+            .reauthenticate(caller, password_given, ip, now)
+            .await
+    }
+
+    /// Fails to reauthenticate `caller` with a wrong password `times` times at `now`.
+    async fn fail_reauthentication(sign_in: &SignIn, caller: &Caller, times: usize, now: Instant) {
+        for _ in 0..times {
+            let failed = reauthenticate(sign_in, caller, "not the password", now).await;
+            assert!(
+                matches!(failed, Err(Error::Users(users::Error::WrongPassword))),
+                "{failed:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn reauthenticating_with_the_right_password_gives_the_device_recent_authentication() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let sign_in = sign_in_with_ada(data_dir.path()).await;
+        let ada = ada_without_recent_authentication(&sign_in).await;
+
+        reauthenticate(&sign_in, &ada, PASSWORD, Instant::now())
+            .await
+            .unwrap();
+
+        let devices = sign_in.users.devices(ada.user.id).await.unwrap().unwrap();
+        let phone = devices.iter().find(|d| d.id == ada.device.id).unwrap();
+        assert!(phone.authenticated_recently(phone.created_at), "{phone:?}");
+    }
+
+    #[tokio::test]
+    async fn the_11th_failed_reauthentication_blocks_reauthenticating_and_signing_in_with_that_name()
+     {
+        let data_dir = tempfile::tempdir().unwrap();
+        let sign_in = sign_in_with_ada(data_dir.path()).await;
+        let ada = ada_without_recent_authentication(&sign_in).await;
+        let now = Instant::now();
+        fail_reauthentication(&sign_in, &ada, 10, now).await;
+
+        let reauthenticating = reauthenticate(&sign_in, &ada, PASSWORD, now).await;
+        let signing_in = attempt(&sign_in, "Ada", PASSWORD, now).await;
+
+        assert!(
+            matches!(reauthenticating, Err(Error::Blocked(_))),
+            "{reauthenticating:?}"
+        );
+        assert_eq!(retry_after_secs(signing_in), Some(15 * 60));
+    }
+
+    #[tokio::test]
+    async fn the_51st_failure_from_an_address_mixing_sign_in_and_reauthentication_is_blocked() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let sign_in = sign_in_with_ada(data_dir.path()).await;
+        let ada = ada_without_recent_authentication(&sign_in).await;
+        let now = Instant::now();
+        for name in ["Grace", "Linus", "Alan", "Edsger"] {
+            fail(&sign_in, name, 10, now).await;
+        }
+        fail_reauthentication(&sign_in, &ada, 10, now).await;
+
+        let blocked = attempt(&sign_in, "Barbara", "not the password", now).await;
+
+        assert_eq!(retry_after_secs(blocked), Some(15 * 60));
+    }
+
+    #[tokio::test]
+    async fn a_successful_reauthentication_forgets_earlier_failures_for_its_name() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let sign_in = sign_in_with_ada(data_dir.path()).await;
+        let ada = ada_without_recent_authentication(&sign_in).await;
+        let now = Instant::now();
+        fail_reauthentication(&sign_in, &ada, 9, now).await;
+        reauthenticate(&sign_in, &ada, PASSWORD, now).await.unwrap();
+        fail_reauthentication(&sign_in, &ada, 9, now).await;
+
+        attempt(&sign_in, "Ada", PASSWORD, now).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn the_right_password_on_a_signed_out_device_is_refused_without_counting_as_a_guess() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let sign_in = sign_in_with_ada(data_dir.path()).await;
+        let ada = ada_without_recent_authentication(&sign_in).await;
+        sign_in.users.sign_out(ada.device.id).await.unwrap();
+        let now = Instant::now();
+        for _ in 0..10 {
+            let refused = reauthenticate(&sign_in, &ada, PASSWORD, now).await;
+            assert!(
+                matches!(refused, Err(Error::Users(users::Error::SignedOut))),
+                "{refused:?}"
             );
         }
 
