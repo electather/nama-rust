@@ -131,7 +131,8 @@ pub fn serve(
         // Quiet long enough that a file being copied in is scanned once it's whole; every six hours
         // for the folders whose changes the OS doesn't report, such as network shares.
         scanner.watch(Duration::from_secs(30), Duration::from_hours(6));
-        requests.start(plugins.take_came_up());
+        // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
+        requests.start(plugins.take_came_up(), Duration::from_mins(1));
         let served = axum::serve(
             listener,
             // The peer's address decides whose rate limit counts and which proxies are trusted.
