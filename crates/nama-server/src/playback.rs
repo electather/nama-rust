@@ -1966,7 +1966,7 @@ mod tests {
 
         assert_eq!(transcode.method(), None);
         assert_eq!(
-            transcode.reasons[2],
+            transcode.reasons[3],
             "This Server's ffmpeg lacks libx264, so it can't Transcode"
         );
         assert_eq!(build(&mut remux).method(), Some(Method::Remux));

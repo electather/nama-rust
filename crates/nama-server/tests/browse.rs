@@ -1332,7 +1332,7 @@ async fn with_an_ffmpeg_lacking_libx264_a_version_needing_a_transcode_cant_be_pl
         PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED
     );
     assert_eq!(
-        needs_transcode.reasons[2],
+        needs_transcode.reasons[3],
         "This Server's ffmpeg lacks libx264, so it can't Transcode"
     );
     assert_eq!(remux.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
