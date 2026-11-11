@@ -7,6 +7,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    mem::discriminant,
     sync::Arc,
 };
 
@@ -97,13 +98,17 @@ pub(crate) struct Probe {
 }
 
 impl Probe {
-    /// The Track at `track`'s place among the file's subtitle streams, counting from 0, which is
-    /// how ffmpeg picks it out.
-    pub(crate) fn subtitle_stream(&self, track: usize) -> usize {
-        // Probing keeps every subtitle stream, so ffmpeg's subtitle streams are these, in order.
-        (self.tracks.iter().take(track))
-            .filter(|earlier| matches!(earlier.kind, TrackKind::Subtitle { .. }))
-            .count()
+    /// The place of the Track at `place` among the file's Tracks of its kind, counting from 0,
+    /// which is how ffmpeg picks out an audio or subtitle stream. `None` if there's no Track there.
+    /// A video Track's can fall short of ffmpeg's, since probing leaves out cover art.
+    pub(crate) fn ffmpeg_index(&self, place: usize) -> Option<usize> {
+        let kind = discriminant(&self.tracks.get(place)?.kind);
+        // Probing keeps every audio and subtitle stream, so ffmpeg's are these, in order.
+        Some(
+            (self.tracks.iter().take(place))
+                .filter(|earlier| discriminant(&earlier.kind) == kind)
+                .count(),
+        )
     }
 }
 
@@ -722,5 +727,69 @@ impl Tracks {
             })
             .await
             .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn track(kind: TrackKind) -> Track {
+        Track {
+            codec: String::new(),
+            language: None,
+            title: None,
+            default: false,
+            forced: false,
+            sdh: false,
+            kind,
+        }
+    }
+
+    #[test]
+    fn ffmpeg_index_counts_only_earlier_tracks_of_the_same_kind() {
+        let video = || {
+            track(TrackKind::Video {
+                width: None,
+                height: None,
+                frame_rate: None,
+                bit_depth: None,
+                hdr: None,
+            })
+        };
+        let audio = || track(TrackKind::Audio { channels: None });
+        let subtitle = |image| track(TrackKind::Subtitle { image });
+        let probe = Probe {
+            container: String::new(),
+            duration_ms: None,
+            bitrate: None,
+            tracks: vec![
+                video(),
+                audio(),
+                subtitle(false),
+                audio(),
+                video(),
+                subtitle(true),
+                audio(),
+            ],
+        };
+
+        let streams: Vec<_> = (0..=probe.tracks.len())
+            .map(|place| probe.ffmpeg_index(place))
+            .collect();
+
+        assert_eq!(
+            streams,
+            [
+                Some(0),
+                Some(0),
+                Some(0),
+                Some(1),
+                Some(1),
+                Some(1),
+                Some(2),
+                None
+            ]
+        );
     }
 }

@@ -398,7 +398,7 @@ fn candidates(facts: &Facts) -> Option<Candidates> {
     let probe = facts.probe.as_ref()?;
     let audio = played_audio_place(facts);
     let played =
-        audio.and_then(|place| Some((ffmpeg_audio_index(probe, place), probe.tracks.get(place)?)));
+        audio.and_then(|place| Some((probe.ffmpeg_index(place)?, probe.tracks.get(place)?)));
     Some(Candidates {
         audio,
         remux: remux(facts, played),
@@ -986,7 +986,7 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
         .subtitle
         .filter(|_| !facts.dropped.contains(&Choice::Subtitle))?;
     let track = probe.tracks.get(place).filter(|track| burns_in(track))?;
-    let subtitle = probe.subtitle_stream(place);
+    let subtitle = probe.ffmpeg_index(place)?;
     Some(
         if matches!(track.kind, TrackKind::Subtitle { image: true }) {
             BurnIn::Image {
@@ -1303,14 +1303,6 @@ fn transcoded_hdr(hdr: Hdr) -> Option<Hdr> {
         Hdr::DolbyVision { base_layer, .. } => base_layer?.hdr(),
         hdr @ (Hdr::Hdr10 | Hdr::Hlg) => Some(hdr),
     }
-}
-
-/// Which of `probe`'s audio Tracks the one at `place` in its Tracks is, counting only its audio
-/// from 0, as ffmpeg does.
-fn ffmpeg_audio_index(probe: &Probe, place: usize) -> usize {
-    (probe.tracks.iter().take(place))
-        .filter(|track| is_audio(track))
-        .count()
 }
 
 /// The place in the Version's Tracks of the audio Track the plan plays: the one chosen, unless the
