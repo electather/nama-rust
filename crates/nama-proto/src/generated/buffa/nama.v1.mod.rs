@@ -102,6 +102,7 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_EPISODES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_EPISODES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CONTINUE_WATCHING_ENTRY_JSON_ANY);
+        reg.register_json_any(super::__CONTINUE_WATCHING_EPISODE_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_LIBRARIES_REQUEST_JSON_ANY);
@@ -459,6 +460,10 @@ pub use self::__buffa::view::ListEpisodesResponseOwnedView;
 pub use self::__buffa::view::ContinueWatchingEntryView;
 #[doc(inline)]
 pub use self::__buffa::view::ContinueWatchingEntryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ContinueWatchingEpisodeView;
+#[doc(inline)]
+pub use self::__buffa::view::ContinueWatchingEpisodeOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListContinueWatchingRequestView;
 #[doc(inline)]

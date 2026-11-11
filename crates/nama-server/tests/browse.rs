@@ -2613,8 +2613,9 @@ fn listed(entries: &[ContinueWatchingEntry]) -> Vec<(i64, Listed<'_>, u64)> {
                     let id = movie.id.as_option().unwrap().clone();
                     (Listed::Movie(id), &movie.watch_state)
                 }
-                MovieOrEpisode::Episode(episode) => {
-                    let show = entry.show.as_option().unwrap().title.as_str();
+                MovieOrEpisode::Episode(started) => {
+                    let show = started.show.as_option().unwrap().title.as_str();
+                    let episode = started.episode.as_option().unwrap();
                     let numbers = (episode.season_number, episode.episode_number);
                     (
                         Listed::Episode(show, numbers.0, numbers.1),
@@ -2664,7 +2665,6 @@ async fn started_movies_and_episodes_are_listed_most_recent_first() {
         panic!("Alien is a Movie");
     };
     assert_eq!(versions(&movie.versions), [("Alien (1979) - 1080p.mkv", 5)]);
-    assert!(entries[1].show.is_unset(), "a Movie has no Show");
 }
 
 #[tokio::test]

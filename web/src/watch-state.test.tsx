@@ -40,10 +40,26 @@ test("Continue Watching lists what you started, and hides when there's nothing",
         },
       },
     },
+    {
+      libraryId: 2n,
+      movieOrEpisode: {
+        case: "episode",
+        value: {
+          episode: {
+            id: { id: { case: "tmdb", value: 1n } },
+            seasonNumber: 2,
+            episodeNumber: 1,
+            watchState: { positionMs: 1n, durationMs: 4n },
+          },
+          show: { id: { id: { case: "tmdb", value: 70523n } }, title: "Dark" },
+        },
+      },
+    },
   ] as const;
   openApp("/", server({ listContinueWatching: () => ({ entries: [...entries] }) }));
   expect(await screen.findByRole("heading", { name: "Continue Watching" })).toBeDefined();
   expect(screen.getByText("Alien")).toBeDefined();
+  expect(screen.getByText("Dark")).toBeDefined();
   cleanup();
 
   openApp("/", server({ listContinueWatching: () => ({ entries: [] }) }));
