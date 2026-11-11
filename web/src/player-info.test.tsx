@@ -75,6 +75,12 @@ const remuxing = serverPlaying({
   ],
 });
 
+/** Opens the player for The Matrix on `fake` and its Playback info. */
+async function openInfo(fake: ReturnType<typeof serverPlaying>) {
+  openApp("/libraries/1/movies/tmdb-603/play", fake);
+  fireEvent.click(await screen.findByRole("button", { name: "Playback info" }));
+}
+
 test("playback info says how the plan plays the Version and with which Tracks", async () => {
   openApp("/libraries/1/movies/tmdb-603/play", server);
 
@@ -86,7 +92,7 @@ test("playback info says how the plan plays the Version and with which Tracks", 
   expect(info.getAttribute("aria-expanded")).toBe("true");
   const panel = within(screen.getByRole("region", { name: "Playback info" }));
   expect(panel.getByText("Direct Play")).toBeDefined();
-  expect(panel.queryByRole("listitem")).toBeNull();
+  expect(panel.queryByRole("list")).toBeNull();
   expect(panel.queryByText("More")).toBeNull();
   expect(panel.getByText("H.264 · 1080p")).toBeDefined();
   expect(panel.getByText("AAC · 5.1 · English")).toBeDefined();
@@ -94,8 +100,7 @@ test("playback info says how the plan plays the Version and with which Tracks", 
 });
 
 test("playback info leads with the reasons that decided the plan, in its own words, and folds the rest under More", async () => {
-  openApp("/libraries/1/movies/tmdb-603/play", remuxing);
-  fireEvent.click(await screen.findByRole("button", { name: "Playback info" }));
+  await openInfo(remuxing);
 
   const region = screen.getByRole("region", { name: "Playback info" });
   const panel = within(region);
@@ -113,7 +118,7 @@ test("playback info leads with the reasons that decided the plan, in its own wor
   expect(lists).toEqual([
     [
       "This Device can’t decode Dolby Digital Plus audio, so it can’t be Direct Played.",
-      "Its audio is converted to Stereo, the most this Device plays.",
+      "Its audio is converted to Stereo, as this Device doesn’t play 5.1.",
       "Something new stood in the way",
     ],
     [
@@ -125,8 +130,7 @@ test("playback info leads with the reasons that decided the plan, in its own wor
 });
 
 test("Esc closes playback info and stays in the player, wherever focus is", async () => {
-  openApp("/libraries/1/movies/tmdb-603/play", server);
-  fireEvent.click(await screen.findByRole("button", { name: "Playback info" }));
+  await openInfo(server);
 
   // As after clicking the video, which takes no focus.
   fireEvent.keyDown(document.body, { key: "Escape" });
@@ -135,7 +139,7 @@ test("Esc closes playback info and stays in the player, wherever focus is", asyn
   expect(screen.getByLabelText("The Matrix")).toBeDefined();
 });
 
-/** Every kind of Playback Reason the schema has. */
+/** Every kind of Playback Reason the schema has, but the one for a kind this app doesn’t know. */
 const kinds = Object.values(PlaybackReasonKind).filter(
   (kind) => typeof kind === "number" && kind !== PlaybackReasonKind.UNSPECIFIED,
 );
@@ -154,11 +158,9 @@ test("playback info words every kind of reason the schema has, naming its params
     hardwareAcceleration: "HARDWARE_ACCELERATION_NVENC",
   };
   const reasons = kinds.map((kind) => ({ kind, params, text: serverText, decided: true }));
-  openApp(
-    "/libraries/1/movies/tmdb-603/play",
+  await openInfo(
     serverPlaying({ method: PlaybackMethod.TRANSCODE, url: "/planned/7", tracks, reasons }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Playback info" }));
 
   const panel = within(screen.getByRole("region", { name: "Playback info" }));
   const worded = panel.getAllByRole("listitem").map((item) => item.textContent);
@@ -171,7 +173,7 @@ test("playback info words every kind of reason the schema has, naming its params
       "This Device can’t show Dolby Vision, so it can’t be Direct Played or Remuxed.",
       "Direct Play failed on this Device.",
       "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to 1280×534.",
-      "Its audio is converted to 5.1, the most the conversion makes.",
+      "Its audio is converted to 5.1, the most a Remux or a Transcode makes.",
       "It Transcodes on the GPU with NVIDIA NVENC.",
     ]),
   );
@@ -186,11 +188,9 @@ test("a reason whose param names a value this app can't name shows the Server's 
       decided: true,
     },
   ];
-  openApp(
-    "/libraries/1/movies/tmdb-603/play",
+  await openInfo(
     serverPlaying({ method: PlaybackMethod.DIRECT_PLAY, url: "/planned/7", tracks, reasons }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Playback info" }));
 
   expect(screen.getByRole("listitem").textContent).toBe(serverText);
 });

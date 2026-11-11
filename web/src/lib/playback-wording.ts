@@ -14,11 +14,11 @@ import {
 import { HardwareAcceleration, HardwareAccelerationSchema } from "@/gen/nama/v1/server_pb";
 import { channelsName, codecName } from "@/lib/browse";
 
-// The one place playback is worded, so a translation library plugs in here.
+// Playback Reasons are worded here, with the names their sentences use, so a translation library
+// plugs in here later (#690).
 
-/** Each Playback Method by name, and what to call a plan with none. */
+/** Each Playback Method by name. */
 export const methodNames = new Map<PlaybackMethod, string>([
-  [PlaybackMethod.UNSPECIFIED, "Can’t play here"],
   [PlaybackMethod.DIRECT_PLAY, "Direct Play"],
   [PlaybackMethod.REMUX, "Remux"],
   [PlaybackMethod.TRANSCODE, "Transcode"],
@@ -103,17 +103,17 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
   [PlaybackReasonKind.SUBTITLES_BURNED_IN]: () =>
     "This Device can’t draw the subtitles chosen, so a Transcode burns them into the picture.",
   [PlaybackReasonKind.DEVICE_PLAYS_FEWER_CHANNELS]: (param) =>
-    `Its audio is converted to ${param.channels()}, the most this Device plays.`,
+    `Its audio is converted to ${param.channels()}, as this Device doesn’t play 5.1.`,
   [PlaybackReasonKind.DEVICE_CHANNELS_UNKNOWN]: (param) =>
     `Its audio is converted to ${param.channels()}, as this Device doesn’t say it plays more.`,
   [PlaybackReasonKind.CONVERSION_CHANNELS_CAPPED]: (param) =>
-    `Its audio is converted to ${param.channels()}, the most the conversion makes.`,
+    `Its audio is converted to ${param.channels()}, the most a Remux or a Transcode makes.`,
   [PlaybackReasonKind.HDR_TONE_MAPPED]: (param) =>
     `Its ${param.hdr()} picture is converted to SDR, which this Device shows.`,
   [PlaybackReasonKind.HDR_NOT_TONE_MAPPED]: (param) =>
     `Nothing on the Server converts its ${param.hdr()} picture to SDR, so its colours look washed out.`,
   [PlaybackReasonKind.REMOTE_DEFAULT_LIMIT]: (param) =>
-    `This Device is outside the local network, so the default Playback Limit for remote playback, ${param.limit()}, applies.`,
+    `This Device is outside the local network, so it asks for the default Playback Limit for remote playback, ${param.limit()}.`,
   [PlaybackReasonKind.PICTURE_SIZE_UNKNOWN]: (param) =>
     `Its picture size isn’t known, so it’s taken to fit the ${param.limit()} Playback Limit.`,
   [PlaybackReasonKind.CHOSEN_AUDIO_DROPPED]: () =>
@@ -143,20 +143,20 @@ function unworded(): never {
 
 /** A reason's `params`, each named the way the rest of the app names it. */
 function named(params: Record<string, string>) {
-  const param = (key: string) => params[key] ?? unworded();
+  const raw = (key: string) => params[key] ?? unworded();
   return {
-    codec: () => codecName(param("codec")),
-    channels: () => channelsName(count(param("channels"))),
-    container: () => containerName(param("container")),
-    hdr: () => nameOf(HdrFormatSchema, hdrNames, param("hdrFormat")),
-    limit: () => nameOf(PlaybackLimitSchema, limitNames, param("playbackLimit")),
-    method: () => nameOf(PlaybackMethodSchema, methodNames, param("method")),
-    hardware: () =>
-      nameOf(HardwareAccelerationSchema, hardwareNames, param("hardwareAcceleration")),
-    count: (key: string) => count(param(key)),
+    codec: () => codecName(raw("codec")),
+    channels: () => channelsName(count(raw("channels"))),
+    container: () => containerName(raw("container")),
+    hdr: () => nameOf(HdrFormatSchema, hdrNames, raw("hdrFormat")),
+    limit: () => nameOf(PlaybackLimitSchema, limitNames, raw("playbackLimit")),
+    method: () => nameOf(PlaybackMethodSchema, methodNames, raw("method")),
+    hardware: () => nameOf(HardwareAccelerationSchema, hardwareNames, raw("hardwareAcceleration")),
+    count: (key: string) => count(raw(key)),
   };
 }
 
+/** A count a param holds as a decimal, which must be positive. */
 function count(decimal: string) {
   const number = Number(decimal);
   return Number.isInteger(number) && number > 0 ? number : unworded();

@@ -51,7 +51,7 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
           aria-label="Playback info"
           className="absolute end-0 top-full mt-2 w-72 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-lg"
         >
-          <h2 className="font-medium">{methodNames.get(plan.method)}</h2>
+          <h2 className="font-medium">{methodNames.get(plan.method) ?? "Can’t play here"}</h2>
           <Reasons texts={decided} />
           <MoreReasons texts={context} />
           {plan.tracks.length > 0 && <Tracks tracks={plan.tracks} />}
@@ -62,6 +62,7 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
 }
 
 function Reasons({ texts }: { texts: string[] }) {
+  if (texts.length === 0) return null;
   return (
     <ul className="mt-1 space-y-1 text-muted-foreground">
       {texts.map((text) => (
