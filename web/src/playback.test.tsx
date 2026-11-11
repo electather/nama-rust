@@ -111,6 +111,30 @@ test("an ffmpeg without libx264 makes the Playback page say the Server can’t T
   expect(screen.queryByText(/Transcodes run in software/u)).toBeNull();
 });
 
+test("an ffmpeg without libx264 lists hardware that passed without saying Transcodes run on it", async () => {
+  openApp(
+    "/admin/playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({
+          ...ffmpegFound,
+          hardware: [{ api: HardwareAcceleration.NVENC, toneMaps: true }],
+          hasZscale: true,
+        }),
+      },
+    }),
+  );
+
+  expect(await screen.findByRole("heading", { name: "NVIDIA NVENC" })).toBeDefined();
+  expect(
+    screen.getByText(/no Transcode runs on it, .* until the Server’s ffmpeg has libx264/u),
+  ).toBeDefined();
+  expect(screen.queryByText(/What Transcodes can run on besides software/u)).toBeNull();
+  expect(screen.queryByText(/Tone-maps HDR to SDR/u)).toBeNull();
+  expect(screen.queryByText(/Automatic picks this one/u)).toBeNull();
+});
+
 test("an ffmpeg without zscale makes the Playback page say it can’t tone-map HDR in software", async () => {
   openApp(
     "/admin/playback",
