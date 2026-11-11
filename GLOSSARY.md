@@ -221,8 +221,12 @@ The Server drawing a subtitle Track into the picture as it Transcodes, for a Dev
 _Avoid_: hardsub, hardcoded subtitles, overlay
 
 **Playback Plan**:
-How the Server will play one Version on one Device: which Version, when the client didn't name one; by Direct Play, Remux or Transcode; with which Tracks; and the reasons for each choice. A new one is made whenever what it was based on changes.
+How the Server will play one Version on one Device: which Version, when the client didn't name one; by Direct Play, Remux or Transcode; with which Tracks; and the Playback Reasons for it. A new one is made whenever what it was based on changes.
 _Avoid_: decision, profile, stream info
+
+**Playback Reason**:
+One fact that shaped a Playback Plan, such as a codec the Device can't decode or a Playback Limit the picture is larger than. It either decided the plan, by standing in the way of a method the plan would rather have used, changing what plays or dropping one of the User's choices, or is context.
+_Avoid_: explanation, note
 
 **Playback Limit**:
 The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback.
