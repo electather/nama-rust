@@ -569,10 +569,10 @@ impl Users {
         }
     }
 
-    /// Signs `device`, whose name has been checked, in as whoever `proved` says. A Sign-in Method
-    /// deleted since, with its User or alone, is refused as a wrong name or password; a Sign-in
-    /// Code is refused if its approving User was deleted or its approving Device signed out. The
-    /// only place sessions are issued.
+    /// Signs `device`, whose name has been checked, in as whoever `proved` says. A User deleted
+    /// since their password was checked is refused as a wrong name or password; a Sign-in Code is
+    /// refused if its approving User was deleted or its approving Device signed out. The only place
+    /// sessions are issued.
     pub(crate) async fn sign_in_as(
         &self,
         proved: Proved,
@@ -991,7 +991,7 @@ async fn proved_user(
 ) -> Result<(User, Option<i64>), Error> {
     match proved {
         Proved::Method { user, method } => {
-            ensure_method_left(conn, user.id, method).await?;
+            ensure_method_exists(conn, user.id, method).await?;
             Ok((user, Some(method)))
         }
         Proved::Code(approving) => Ok((approving_user(conn, approving).await?, None)),
@@ -1000,20 +1000,20 @@ async fn proved_user(
 
 /// Fails with [`Error::WrongNameOrPassword`] if the User `user` no longer has the Sign-in Method
 /// `method`, such as because the User was deleted, which deletes it too.
-async fn ensure_method_left(
+async fn ensure_method_exists(
     conn: &mut SqliteConnection,
     user: i64,
     method: i64,
 ) -> Result<(), Error> {
-    let left = sqlx::query_scalar!(
+    let exists = sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM sign_in_methods WHERE id = ? AND user_id = ?)
-               AS "left!: bool""#,
+               AS "exists!: bool""#,
         method,
         user
     )
     .fetch_one(conn)
     .await?;
-    if left {
+    if exists {
         Ok(())
     } else {
         Err(Error::WrongNameOrPassword)
