@@ -85,8 +85,9 @@ impl Database {
         let mut writer =
             SqliteConnection::connect_with(&options.clone().create_if_missing(true)).await?;
         let migrations_applied = migrate(&mut writer).await?;
-        // A reader opened or pinged in a cancelled caller's future is dropped, not closed, so it
-        // outlives `SqlitePool::close`, but the writer must close last to remove the WAL.
+        // Every reader opens here and is never replaced or pinged on acquire: one opened or pinged
+        // in a cancelled caller's future outlives `SqlitePool::close`, and the writer must close
+        // last to remove the WAL.
         let readers = SqlitePoolOptions::new()
             .max_connections(MAX_READERS)
             .min_connections(MAX_READERS)

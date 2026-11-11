@@ -188,8 +188,11 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
     let output = exited
         .recv_timeout(TIMEOUT)
         .expect("server did not exit after Ctrl-C");
-    // Ends once the server's stdout closes, which its exit does.
-    let last_lines = lines.iter().collect::<Vec<_>>().join("\n");
+    // Ends once the server's stdout closes, which its exit does, or after `TIMEOUT` if a child
+    // still holds it open.
+    let last_lines = std::iter::from_fn(|| lines.recv_timeout(TIMEOUT).ok())
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
         output.status.success(),
         "server exited with {}: {}\n{last_lines}",

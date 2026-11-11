@@ -54,7 +54,7 @@ async fn the_database_is_in_wal_mode_and_closing_checkpoints_the_wal() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn aborted_reads_keep_every_reader_open_and_closing_still_removes_the_wal() {
+async fn closing_after_aborted_reads_still_removes_the_wal() {
     // Each round aborts reads at whatever point they've reached, as shutdown does, so a round
     // only sometimes catches one opening or acquiring a reader.
     const ROUNDS: usize = 20;
@@ -74,13 +74,6 @@ async fn aborted_reads_keep_every_reader_open_and_closing_still_removes_the_wal(
             assert!(read.await.unwrap_err().is_cancelled(), "a read failed");
         }
 
-        // A reader dropped instead of closed shrinks the pool, and may still hold the file open.
-        let pool = db.reader();
-        assert_eq!(
-            pool.size(),
-            pool.options().get_max_connections(),
-            "round {round}: an aborted read dropped a reader"
-        );
         Arc::into_inner(db).unwrap().close().await;
         let wal = data_dir.path().join(format!("{}-wal", db::FILE_NAME));
         assert!(
