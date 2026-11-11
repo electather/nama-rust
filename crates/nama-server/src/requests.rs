@@ -1223,12 +1223,7 @@ impl<'a> Way<'a> {
                 Ok(ask(conn, user, wanted, opens_in).await?)
             }
             Way::Scanning { followed_show } => {
-                let requesters: Vec<_> = followed_show
-                    .requesters
-                    .iter()
-                    .map(|requester| (requester.user_id, requester.requested_at))
-                    .collect();
-                Ok(ask_as(conn, &requesters, wanted, opens_in, now()).await?)
+                Ok(ask_as(conn, &followed_show.requesters, wanted, opens_in, now()).await?)
             }
         }
     }
@@ -1403,15 +1398,20 @@ async fn ask(
     state: RequestState,
 ) -> Result<Applied<Request>, sqlx::Error> {
     let now = now();
-    ask_as(conn, &[(user, now)], wanted, state, now).await
+    let asker = Requester {
+        user_id: user,
+        requested_at: now,
+        ..Default::default()
+    };
+    ask_as(conn, &[asker], wanted, state, now).await
 }
 
-/// Adds each of `requesters`, a User id and when they asked, in order, as a Requester of the open
+/// Adds each of `requesters`, in order and as of when they asked, as a Requester of the open
 /// Request for `wanted`, opening one in `state` at `now` if there is none, which is handed off if
 /// that is Approved. Joining one hands nothing off, so a Request isn't handed off twice.
 async fn ask_as(
     conn: &mut SqliteConnection,
-    requesters: &[(i64, i64)],
+    requesters: &[Requester],
     wanted: Wanted,
     state: RequestState,
     now: i64,
@@ -1423,20 +1423,20 @@ async fn ask_as(
         None => insert_request(conn, &wanted, stored(state), now).await?,
     };
     let mut joined = Vec::new();
-    for &(user, requested_at) in requesters {
+    for requester in requesters {
         let added = sqlx::query!(
             "INSERT INTO requesters (request_id, user_id, requested_at) VALUES (?, ?, ?)
              ON CONFLICT DO NOTHING",
             id,
-            user,
-            requested_at
+            requester.user_id,
+            requester.requested_at
         )
         .execute(&mut *conn)
         .await?
         .rows_affected()
             > 0;
         if added {
-            joined.push(user);
+            joined.push(requester.user_id);
         }
     }
     let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
