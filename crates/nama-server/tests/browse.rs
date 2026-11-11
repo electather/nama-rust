@@ -6,9 +6,6 @@
 mod http;
 #[path = "support/refused.rs"]
 mod refused;
-#[cfg(unix)]
-#[path = "support/script.rs"]
-mod script;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
@@ -40,13 +37,13 @@ use nama_proto::nama::v1::{
     VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry, event, external_id,
     set_played_request::Target,
 };
+#[cfg(unix)]
+use nama_server::ffmpeg::fake::script;
 use nama_server::{
     config::Config,
     ffmpeg::{self, Ffmpeg},
 };
 use refused::assert_refused;
-#[cfg(unix)]
-use script::script;
 use server::{
     Builder, Library, SignedIn, TestServer, WAIT, subscribe,
     tmdb::{ALIEN, DARK, DUNE, THE_OFFICE as THE_OFFICE_US},

@@ -2182,8 +2182,8 @@ pub struct GetPlaybackStatusResponseView<'a> {
     ///
     /// Field 4: `ffprobe_problem`
     pub ffprobe_problem: &'a str,
-    /// The hardware acceleration APIs that passed a test encode at startup, the one Automatic picks
-    /// first. Empty without ffmpeg, a GPU, or an ffmpeg built for one.
+    /// The hardware acceleration APIs that passed a test encode at startup. Empty without ffmpeg, a
+    /// GPU, or an ffmpeg built for one.
     ///
     /// Field 5: `hardware`
     pub hardware: ::buffa::RepeatedView<
@@ -2200,6 +2200,11 @@ pub struct GetPlaybackStatusResponseView<'a> {
     ///
     /// Field 7: `has_zscale`
     pub has_zscale: bool,
+    /// Whether the Server Transcodes at all, in software or on hardware. When it doesn't, it still
+    /// Direct Plays, and Remuxes if it has ffmpeg and ffprobe.
+    ///
+    /// Field 8: `can_transcode`
+    pub can_transcode: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetPlaybackStatusResponseView<'a> {
@@ -2302,6 +2307,13 @@ impl<'a> ::buffa::MessageView<'a> for GetPlaybackStatusResponseView<'a> {
                 )?;
                 view.has_zscale = ::buffa::types::decode_bool(&mut cur)?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.can_transcode = ::buffa::types::decode_bool(&mut cur)?;
+            }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2377,6 +2389,7 @@ impl<'a> ::buffa::MessageView<'a> for GetPlaybackStatusResponseView<'a> {
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             has_libx264: self.has_libx264,
             has_zscale: self.has_zscale,
+            can_transcode: self.can_transcode,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2428,6 +2441,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetPlaybackStatusResponseView<'a> {
         if self.has_zscale {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if self.can_transcode {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2475,6 +2491,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetPlaybackStatusResponseView<'a> {
         if self.has_zscale {
             ::buffa::types::put_bool_field(7u32, self.has_zscale, buf);
         }
+        if self.can_transcode {
+            ::buffa::types::put_bool_field(8u32, self.can_transcode, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -2520,6 +2539,9 @@ impl<'__a> ::serde::Serialize for GetPlaybackStatusResponseView<'__a> {
         }
         if self.has_zscale {
             __map.serialize_entry("hasZscale", &self.has_zscale)?;
+        }
+        if self.can_transcode {
+            __map.serialize_entry("canTranscode", &self.can_transcode)?;
         }
         __map.end()
     }
@@ -2649,8 +2671,8 @@ impl GetPlaybackStatusResponseOwnedView {
     pub fn ffprobe_problem(&self) -> &'_ str {
         self.0.reborrow().ffprobe_problem
     }
-    /// The hardware acceleration APIs that passed a test encode at startup, the one Automatic picks
-    /// first. Empty without ffmpeg, a GPU, or an ffmpeg built for one.
+    /// The hardware acceleration APIs that passed a test encode at startup. Empty without ffmpeg, a
+    /// GPU, or an ffmpeg built for one.
     ///
     /// Field 5: `hardware`
     #[must_use]
@@ -2674,6 +2696,14 @@ impl GetPlaybackStatusResponseOwnedView {
     #[must_use]
     pub fn has_zscale(&self) -> bool {
         self.0.reborrow().has_zscale
+    }
+    /// Whether the Server Transcodes at all, in software or on hardware. When it doesn't, it still
+    /// Direct Plays, and Remuxes if it has ffmpeg and ffprobe.
+    ///
+    /// Field 8: `can_transcode`
+    #[must_use]
+    pub fn can_transcode(&self) -> bool {
+        self.0.reborrow().can_transcode
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetPlaybackStatusResponseView<'static>>>
@@ -2713,11 +2743,19 @@ pub struct FoundHardwareView<'a> {
     ///
     /// Field 1: `api`
     pub api: ::buffa::EnumValue<super::super::HardwareAcceleration>,
-    /// Whether it also passed tone-mapping HDR to SDR on the GPU. Without it, a Transcode of HDR
-    /// for an SDR screen tone-maps in software between decoding and encoding on the GPU.
+    /// Whether it also passed tone-mapping HDR to SDR on the GPU. `tone_mapping` says what
+    /// tone-maps on it.
     ///
     /// Field 2: `tone_maps`
     pub tone_maps: bool,
+    /// What tone-maps HDR to SDR in a Transcode on it, when nothing is burned into the picture.
+    ///
+    /// Field 3: `tone_mapping`
+    pub tone_mapping: ::buffa::EnumValue<super::super::ToneMapping>,
+    /// Whether Automatic picks it.
+    ///
+    /// Field 4: `automatic`
+    pub automatic: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
@@ -2766,6 +2804,22 @@ impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
                 )?;
                 view.tone_maps = ::buffa::types::decode_bool(&mut cur)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.tone_mapping = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.automatic = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2790,6 +2844,8 @@ impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
         ::core::result::Result::Ok(super::super::FoundHardware {
             api: self.api,
             tone_maps: self.tone_maps,
+            tone_mapping: self.tone_mapping,
+            automatic: self.automatic,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2808,6 +2864,15 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundHardwareView<'a> {
             }
         }
         if self.tone_maps {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        {
+            let val = self.tone_mapping.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if self.automatic {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -2829,6 +2894,15 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundHardwareView<'a> {
         }
         if self.tone_maps {
             ::buffa::types::put_bool_field(2u32, self.tone_maps, buf);
+        }
+        {
+            let val = self.tone_mapping.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
+        }
+        if self.automatic {
+            ::buffa::types::put_bool_field(4u32, self.automatic, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2856,6 +2930,12 @@ impl<'__a> ::serde::Serialize for FoundHardwareView<'__a> {
         }
         if self.tone_maps {
             __map.serialize_entry("toneMaps", &self.tone_maps)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.tone_mapping) {
+            __map.serialize_entry("toneMapping", &self.tone_mapping)?;
+        }
+        if self.automatic {
+            __map.serialize_entry("automatic", &self.automatic)?;
         }
         __map.end()
     }
@@ -2955,13 +3035,27 @@ impl FoundHardwareOwnedView {
     pub fn api(&self) -> ::buffa::EnumValue<super::super::HardwareAcceleration> {
         self.0.reborrow().api
     }
-    /// Whether it also passed tone-mapping HDR to SDR on the GPU. Without it, a Transcode of HDR
-    /// for an SDR screen tone-maps in software between decoding and encoding on the GPU.
+    /// Whether it also passed tone-mapping HDR to SDR on the GPU. `tone_mapping` says what
+    /// tone-maps on it.
     ///
     /// Field 2: `tone_maps`
     #[must_use]
     pub fn tone_maps(&self) -> bool {
         self.0.reborrow().tone_maps
+    }
+    /// What tone-maps HDR to SDR in a Transcode on it, when nothing is burned into the picture.
+    ///
+    /// Field 3: `tone_mapping`
+    #[must_use]
+    pub fn tone_mapping(&self) -> ::buffa::EnumValue<super::super::ToneMapping> {
+        self.0.reborrow().tone_mapping
+    }
+    /// Whether Automatic picks it.
+    ///
+    /// Field 4: `automatic`
+    #[must_use]
+    pub fn automatic(&self) -> bool {
+        self.0.reborrow().automatic
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<FoundHardwareView<'static>>>

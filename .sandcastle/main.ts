@@ -199,13 +199,16 @@ const slots = slotPool(MAX_PARALLEL);
 // Triage has its own pool so it never holds up a build or a fix; it compiles little, so more fit at once.
 const TRIAGE_PARALLEL = Number(process.env.TRIAGE_PARALLEL ?? 10);
 const triageSlots = slotPool(TRIAGE_PARALLEL);
+// Rebases and CI fixes have their own pool too, so finishing an open PR never waits behind new builds.
+const FIX_PARALLEL = Number(process.env.FIX_PARALLEL ?? 10);
+const fixSlots = slotPool(FIX_PARALLEL);
 // Every agent running, for the usage slow-down, which counts them all.
-const agentsBusy = () => slots.busy() + triageSlots.busy();
+const agentsBusy = () => slots.busy() + triageSlots.busy() + fixSlots.busy();
 
 // Makes the branch mergeable: Sonnet first, then Opus from the last commit if Sonnet gives up.
 async function fix(box: Box, issue: Issue, problem: string, what: string) {
-  slotWaits.set(issue.number, { issue: issue.number, queue: "babysit", why: `${what} waits for a slot` });
-  await slots.acquire(true).finally(() => slotWaits.delete(issue.number));
+  slotWaits.set(issue.number, { issue: issue.number, queue: "babysit", why: `${what} waits for a fix slot (${fixSlots.busy()}/${FIX_PARALLEL} busy)` });
+  await fixSlots.acquire().finally(() => slotWaits.delete(issue.number));
   try {
     aborts.get(issue.number)?.signal.throwIfAborted(); // closed while it waited for a slot
     return await agent(box, issue, "fix", { PROBLEM: problem }, SONNET);
@@ -216,7 +219,7 @@ async function fix(box: Box, issue: Issue, problem: string, what: string) {
     await box.exec("git merge --abort; git reset --hard HEAD");
     return await agent(box, issue, "fix", { PROBLEM: problem });
   } finally {
-    slots.release();
+    fixSlots.release();
   }
 }
 
@@ -712,7 +715,7 @@ const triagePending = () => TRIAGING && triageable().some((i) => !triaged.has(i.
 // By issue number: one issue is in at most one loop at a time.
 const inFlight = new Map<number, { issue: Issue; loop: Loop; claim: string }>();
 const claimedElsewhere = new Map<number, Waiting>(); // by issue
-const slotWaits = new Map<number, Waiting>(); // in flight, but its fix waits for a slot
+const slotWaits = new Map<number, Waiting>(); // in flight, but its fix waits for a fix slot
 const outcomes: { issue: number; outcome: Outcome }[] = [];
 let crashed = "";
 
@@ -1009,7 +1012,7 @@ const prClosed = (issue: Issue) =>
 // cancelled or crashed instead.
 async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Promise<Outcome>) {
   inFlight.set(issue.number, { issue, loop, claim: claimRef });
-  log(`=== ${loop} #${issue.number} ${issue.title} (${slots.busy()}/${MAX_PARALLEL} slots, ${triageSlots.busy()}/${TRIAGE_PARALLEL} triage slots busy, ${inFlight.size} in flight) ===`);
+  log(`=== ${loop} #${issue.number} ${issue.title} (${slots.busy()}/${MAX_PARALLEL} slots, ${triageSlots.busy()}/${TRIAGE_PARALLEL} triage slots, ${fixSlots.busy()}/${FIX_PARALLEL} fix slots busy, ${inFlight.size} in flight) ===`);
   stage(issue, "claimed");
   const started = Date.now();
   aborts.set(issue.number, new AbortController());

@@ -14,6 +14,7 @@
 
 use std::{collections::BTreeMap, fmt};
 
+use nama_proto::nama::v1::{self as proto, setting_value};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -99,6 +100,61 @@ impl fmt::Debug for SettingValue {
             Self::Text(_) => "Text",
         };
         write!(f, "{kind}(..)")
+    }
+}
+
+impl SettingKind {
+    /// The kind `kind` names in the schema, or `None` for `SETTING_KIND_UNSPECIFIED`.
+    #[must_use]
+    pub const fn from_proto(kind: proto::SettingKind) -> Option<Self> {
+        Some(match kind {
+            proto::SettingKind::SETTING_KIND_UNSPECIFIED => return None,
+            proto::SettingKind::SETTING_KIND_TEXT => Self::Text,
+            proto::SettingKind::SETTING_KIND_SECRET => Self::Secret,
+            proto::SettingKind::SETTING_KIND_BOOL => Self::Bool,
+            proto::SettingKind::SETTING_KIND_INTEGER => Self::Integer,
+            proto::SettingKind::SETTING_KIND_CHOICE => Self::Choice,
+            proto::SettingKind::SETTING_KIND_URL => Self::Url,
+        })
+    }
+}
+
+impl From<SettingKind> for proto::SettingKind {
+    fn from(kind: SettingKind) -> Self {
+        match kind {
+            SettingKind::Text => Self::SETTING_KIND_TEXT,
+            SettingKind::Secret => Self::SETTING_KIND_SECRET,
+            SettingKind::Bool => Self::SETTING_KIND_BOOL,
+            SettingKind::Integer => Self::SETTING_KIND_INTEGER,
+            SettingKind::Choice => Self::SETTING_KIND_CHOICE,
+            SettingKind::Url => Self::SETTING_KIND_URL,
+        }
+    }
+}
+
+impl SettingValue {
+    /// The value `value` holds in the schema, or `None` if it holds none.
+    #[must_use]
+    pub fn from_proto(value: &proto::SettingValue) -> Option<Self> {
+        Some(match value.value.as_ref()? {
+            setting_value::Value::TextValue(text) => Self::Text(text.clone()),
+            setting_value::Value::BoolValue(on) => Self::Bool(*on),
+            setting_value::Value::IntegerValue(number) => Self::Integer(*number),
+        })
+    }
+}
+
+impl From<&SettingValue> for proto::SettingValue {
+    fn from(value: &SettingValue) -> Self {
+        let value = match value {
+            SettingValue::Text(text) => setting_value::Value::TextValue(text.clone()),
+            SettingValue::Bool(on) => setting_value::Value::BoolValue(*on),
+            SettingValue::Integer(number) => setting_value::Value::IntegerValue(*number),
+        };
+        Self {
+            value: Some(value),
+            ..Default::default()
+        }
     }
 }
 
@@ -229,6 +285,8 @@ pub trait SettingsCheck: Send + Sync {
 
 #[cfg(test)]
 mod tests {
+    use nama_proto::nama::v1 as proto;
+
     use super::{SettingField, SettingKind, SettingValue, Settings, SettingsError, SettingsSchema};
 
     fn text(text: &str) -> SettingValue {
@@ -286,5 +344,38 @@ mod tests {
             Some("sonarr.lan")
         );
         assert_eq!(settings.url("missing"), None);
+    }
+
+    #[test]
+    fn each_kind_and_value_comes_back_from_the_schema_as_it_went() {
+        let kinds = [
+            SettingKind::Text,
+            SettingKind::Secret,
+            SettingKind::Bool,
+            SettingKind::Integer,
+            SettingKind::Choice,
+            SettingKind::Url,
+        ];
+        let values = [
+            text("en"),
+            SettingValue::Bool(true),
+            SettingValue::Integer(-3),
+        ];
+
+        let kinds_back = kinds.map(|kind| SettingKind::from_proto(kind.into()));
+        let values_back = values
+            .each_ref()
+            .map(|value| SettingValue::from_proto(&value.into()));
+
+        assert_eq!(kinds_back, kinds.map(Some));
+        assert_eq!(values_back, values.map(Some));
+        assert_eq!(
+            SettingKind::from_proto(proto::SettingKind::SETTING_KIND_UNSPECIFIED),
+            None
+        );
+        assert_eq!(
+            SettingValue::from_proto(&proto::SettingValue::default()),
+            None
+        );
     }
 }

@@ -617,18 +617,24 @@ export type SettingValue = Message<"nama.v1.SettingValue"> & {
    */
   value: {
     /**
+     * Text, for SETTING_KIND_TEXT, SETTING_KIND_SECRET, SETTING_KIND_CHOICE and SETTING_KIND_URL.
+     *
      * @generated from field: string text_value = 1;
      */
     value: string;
     case: "textValue";
   } | {
     /**
+     * On or off, for SETTING_KIND_BOOL.
+     *
      * @generated from field: bool bool_value = 2;
      */
     value: boolean;
     case: "boolValue";
   } | {
     /**
+     * A whole number, for SETTING_KIND_INTEGER.
+     *
      * @generated from field: int64 integer_value = 3;
      */
     value: bigint;
@@ -767,7 +773,8 @@ export const ExtensionPointSchema: GenEnum<ExtensionPoint> = /*@__PURE__*/
   enumDesc(file_nama_v1_plugin, 1);
 
 /**
- * What kind of value a setting takes.
+ * What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
+ * with it too (`nama.plugin.v1.SettingField`).
  *
  * @generated from enum nama.v1.SettingKind
  */
@@ -778,29 +785,36 @@ export const SettingKind = {
   UNSPECIFIED: 0,
 
   /**
+   * Text.
+   *
    * @generated from enum value: SETTING_KIND_TEXT = 1;
    */
   TEXT: 1,
 
   /**
-   * Text that is never sent back, such as an API key.
+   * Text that is never sent back or logged, such as an API key.
    *
    * @generated from enum value: SETTING_KIND_SECRET = 2;
    */
   SECRET: 2,
 
   /**
+   * On or off.
+   *
    * @generated from enum value: SETTING_KIND_BOOL = 3;
    */
   BOOL: 3,
 
   /**
+   * A whole number.
+   *
    * @generated from enum value: SETTING_KIND_INTEGER = 4;
    */
   INTEGER: 4,
 
   /**
-   * Text picked from the choices the Plugin's settings check offers (`TestPluginSettings`).
+   * Text picked from the choices the Plugin's settings check offers (`TestPluginSettings`), which
+   * for an Installed Plugin is its `check_settings()` export.
    *
    * @generated from enum value: SETTING_KIND_CHOICE = 5;
    */
@@ -808,7 +822,7 @@ export const SettingKind = {
 
   /**
    * An http or https URL, such as a Sonarr address. An Installed Plugin may send HTTP requests
-   * to its host.
+   * to its host, as if its Manifest's `allowed_hosts` named it.
    *
    * @generated from enum value: SETTING_KIND_URL = 6;
    */
@@ -816,7 +830,8 @@ export const SettingKind = {
 } as const;
 
 /**
- * What kind of value a setting takes.
+ * What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
+ * with it too (`nama.plugin.v1.SettingField`).
  *
  * @generated from enum nama.v1.SettingKind
  */

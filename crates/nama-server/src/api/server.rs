@@ -11,12 +11,12 @@ use nama_proto::nama::v1::{
     GetPlaybackSettingsResponse, GetPlaybackStatusRequest, GetPlaybackStatusResponse,
     GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest,
     GetServerSettingsResponse, HardwareAcceleration as HardwareAccelerationProto, RefusalReason,
-    ServerService, ServerSettings, UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse,
-    UpdateServerSettingsRequest, UpdateServerSettingsResponse,
+    ServerService, ServerSettings, ToneMapping, UpdatePlaybackSettingsRequest,
+    UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest, UpdateServerSettingsResponse,
 };
 
 use crate::{
-    ffmpeg::{self, Abilities, Accel, CanDo, Ffmpeg},
+    ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
     server_settings::{self, HardwareChoice, Invalid, PlaybackChange, PlaybackValues},
     users::Users,
 };
@@ -97,17 +97,14 @@ impl ServerService for ServerServiceHandler {
         let problem = |program: &Result<ffmpeg::FoundProgram, String>| {
             program.as_ref().err().cloned().unwrap_or_default()
         };
-        let CanDo {
-            hardware,
-            libx264,
-            zscale,
-            ..
-        } = self.abilities.can_do().await;
-        let hardware = hardware
-            .into_iter()
-            .map(|hardware| FoundHardware {
+        let can_do = self.abilities.can_do().await;
+        let automatic = can_do.automatic();
+        let hardware = (can_do.hardware.iter())
+            .map(|&hardware| FoundHardware {
                 api: hardware_choice_to_proto(HardwareChoice::Api(hardware.accel)).into(),
                 tone_maps: hardware.tone_maps,
+                tone_mapping: tone_mapping_to_proto(can_do.tone_mapper(Some(hardware))).into(),
+                automatic: automatic == Some(hardware),
                 ..Default::default()
             })
             .collect();
@@ -117,8 +114,9 @@ impl ServerService for ServerServiceHandler {
             ffmpeg_problem: problem(&self.ffmpeg.ffmpeg),
             ffprobe_problem: problem(&self.ffmpeg.ffprobe),
             hardware,
-            has_libx264: libx264,
-            has_zscale: zscale,
+            has_libx264: can_do.libx264,
+            has_zscale: can_do.zscale,
+            can_transcode: can_do.transcodes(),
             ..Default::default()
         })
     }
@@ -229,5 +227,14 @@ const fn hardware_choice_to_proto(choice: HardwareChoice) -> HardwareAcceleratio
         HardwareChoice::Api(Accel::Qsv) => P::HARDWARE_ACCELERATION_QSV,
         HardwareChoice::Api(Accel::Nvenc) => P::HARDWARE_ACCELERATION_NVENC,
         HardwareChoice::Api(Accel::VideoToolbox) => P::HARDWARE_ACCELERATION_VIDEOTOOLBOX,
+    }
+}
+
+/// What tone-maps HDR as the API names it.
+const fn tone_mapping_to_proto(tone_mapper: Option<ToneMapper>) -> ToneMapping {
+    match tone_mapper {
+        None => ToneMapping::TONE_MAPPING_NONE,
+        Some(ToneMapper::Hardware) => ToneMapping::TONE_MAPPING_GPU,
+        Some(ToneMapper::Software) => ToneMapping::TONE_MAPPING_SOFTWARE,
     }
 }

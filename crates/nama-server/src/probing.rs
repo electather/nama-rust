@@ -1,5 +1,7 @@
 //! Probing: runs ffprobe on stored files and stores what each holds as its Tracks (see
-//! [`crate::tracks`]), and decides what a failure to probe one means for trying it again.
+//! [`crate::tracks`]), and decides what a failure to probe one means for trying it again. It also
+//! lists a Version's keyframes when first asked for them, and keeps them for its file as it is
+//! ([`Probing::keyframes`]).
 //!
 //! After a Library's files change, those without current Tracks, never probed or changed or read
 //! by an older probe version since, are probed in the background, a few at a time
@@ -71,6 +73,12 @@ impl From<Unprobed> for Error {
 /// What probing a file found, or why it couldn't, as handed to whoever waited for it.
 type Probed = Result<Probe, Arc<ProbeError>>;
 
+/// A file's keyframes, or why they couldn't be listed, as handed to whoever waited for them.
+type Listed = Result<Vec<i64>, Arc<ProbeError>>;
+
+/// The Versions some task holds a [`Claim`] on, and where it sends what it found.
+type Claims<T> = Mutex<HashMap<i64, watch::Receiver<Option<T>>>>;
+
 /// Probes stored files, in the background after their Library changes or right away for one
 /// Version.
 #[derive(Debug, Clone)]
@@ -93,7 +101,9 @@ struct Inner {
     /// The Versions being probed, each by one [`Claim`] holder, and where it sends what it found,
     /// so a later pass over their Library leaves them to it and [`Probing::current`] waits for
     /// its result, rather than probe them twice.
-    claimed: Mutex<HashMap<i64, watch::Receiver<Option<Probed>>>>,
+    claimed: Claims<Probed>,
+    /// The Versions whose keyframes are being listed, as `claimed` is for probing.
+    listing: Claims<Listed>,
 }
 
 impl Probing {
@@ -110,6 +120,7 @@ impl Probing {
                 cancel: CancellationToken::new(),
                 running: tokio::sync::Semaphore::new(PROBES_AT_ONCE),
                 claimed: Mutex::default(),
+                listing: Mutex::default(),
             }),
         }
     }
@@ -124,13 +135,38 @@ impl Probing {
         // ponytail: not held to PROBES_AT_ONCE, so a play press never queues; limit it apart if
         // many at once swamp the disk.
         loop {
-            let mut prober = match self.try_claim(file) {
+            let mut prober = match try_claim(&self.inner.claimed, file) {
                 Ok(claim) => return Ok(self.probe_claimed(&path, claim).await?),
                 Err(prober) => prober,
             };
             // An error means the prober gave up without a result, as when it was cancelled
             // midway, so it's probed here instead.
             if let Ok(found) = prober.wait_for(Option::is_some).await
+                && let Some(found) = Option::clone(&found)
+            {
+                return found.map_err(Error::Probe);
+            }
+        }
+    }
+
+    /// When each keyframe of the Version `version`'s first video falls, in milliseconds from its
+    /// start, in order: as kept for its file as it is now, or else listed, which reads the whole
+    /// file, and kept. If something is listing them already, waits for that and returns what it
+    /// found instead, or lists them itself if that gave up without finding anything. They're kept
+    /// only while the Version's Tracks were read from its file as it is now.
+    pub(crate) async fn keyframes(&self, version: i64) -> Result<Vec<i64>, Error> {
+        let (path, file) = (self.inner.contents.version_file(version).await?)
+            .ok_or(Error::NoSuchVersion(version))?;
+        // ponytail: not held to PROBES_AT_ONCE, as `current` isn't; limit it apart if many
+        // whole-file reads at once swamp the disk.
+        loop {
+            let mut lister = match try_claim(&self.inner.listing, file) {
+                Ok(claim) => return self.list_claimed(&path, claim).await,
+                Err(lister) => lister,
+            };
+            // An error means the lister sent nothing, having found them kept or given up, so
+            // they're read or listed here instead.
+            if let Ok(found) = lister.wait_for(Option::is_some).await
                 && let Some(found) = Option::clone(&found)
             {
                 return found.map_err(Error::Probe);
@@ -233,23 +269,6 @@ impl Probing {
         unstored.map_or(Ok(probed), Err)
     }
 
-    /// Claims the stored file `file`, or if something is probing it, hands back where that will
-    /// send what it found.
-    fn try_claim(&self, file: Stored) -> Result<Claim<'_>, watch::Receiver<Option<Probed>>> {
-        match lock(&self.inner.claimed).entry(file.id) {
-            Entry::Occupied(prober) => Err(prober.get().clone()),
-            Entry::Vacant(unclaimed) => {
-                let (found, waiting) = watch::channel(None);
-                unclaimed.insert(waiting);
-                Ok(Claim {
-                    probing: self,
-                    file,
-                    found,
-                })
-            }
-        }
-    }
-
     /// Probes the file at `path`, stored as `file`, and stores what it holds, or logs why not and
     /// forgets what it held before. If something else is probing it, waits for what that found, or
     /// probes it after all if that gave up without finding anything. Once a failure stops the
@@ -274,7 +293,7 @@ impl Probing {
                 return Ok(None);
             }
             // Claimed only now, so `current` doesn't wait for a file still queued here.
-            let mut prober = match self.try_claim(file) {
+            let mut prober = match try_claim(&self.inner.claimed, file) {
                 Ok(claim) => return self.probe_logged(&path, claim, ffprobe_runs).await,
                 Err(prober) => prober,
             };
@@ -293,7 +312,7 @@ impl Probing {
     async fn probe_logged(
         &self,
         path: &str,
-        claim: Claim<'_>,
+        claim: Claim<'_, Probed>,
         ffprobe_runs: &AtomicBool,
     ) -> Result<Option<Probed>, sqlx::Error> {
         match self.probe_claimed(path, claim).await {
@@ -321,7 +340,7 @@ impl Probing {
 
     /// Probes the file at `path`, stored as the file `claim` is for, like
     /// [`Self::probe_and_store`], and sends what it found to whoever waited for it.
-    async fn probe_claimed(&self, path: &str, claim: Claim<'_>) -> Result<Probe, Unprobed> {
+    async fn probe_claimed(&self, path: &str, claim: Claim<'_, Probed>) -> Result<Probe, Unprobed> {
         let probed = self.probe_and_store(path, claim.file).await;
         let found = match &probed {
             Ok(probe) => Ok(probe.clone()),
@@ -353,6 +372,21 @@ impl Probing {
                 Err(Unprobed::Probe(Arc::new(err), failure))
             }
         }
+    }
+
+    /// The keyframes of the file at `path`, stored as the file `claim` is for, as kept, or else
+    /// listed, sent to whoever waited for them, and kept.
+    async fn list_claimed(&self, path: &str, claim: Claim<'_, Listed>) -> Result<Vec<i64>, Error> {
+        if let Some(kept) = self.inner.tracks.keyframes(claim.file).await? {
+            return Ok(kept);
+        }
+        let listed = self.inner.ffmpeg.keyframes(path).await.map_err(Arc::new);
+        claim.found.send_replace(Some(listed.clone()));
+        let keyframes = listed.map_err(Error::Probe)?;
+        (self.inner.tracks)
+            .store_keyframes(claim.file, &keyframes)
+            .await?;
+        Ok(keyframes)
     }
 }
 
@@ -386,20 +420,40 @@ async fn readable(path: &str) -> bool {
     }
 }
 
-/// The right to probe one stored file, held by one task at a time and given up when dropped,
-/// even by a probe cancelled midway.
+/// The right to probe one stored file, or list its keyframes, held by one task at a time and
+/// given up when dropped, even by a probe cancelled midway.
 #[derive(Debug)]
-struct Claim<'a> {
-    probing: &'a Probing,
+struct Claim<'a, T> {
+    claims: &'a Claims<T>,
     file: Stored,
-    /// Where what probing found goes to whoever waits for it. Dropped with nothing sent, it
-    /// tells them to probe the file themselves.
-    found: watch::Sender<Option<Probed>>,
+    /// Where what was found goes to whoever waits for it. Dropped with nothing sent, it tells
+    /// them to do it themselves.
+    found: watch::Sender<Option<T>>,
 }
 
-impl Drop for Claim<'_> {
+impl<T> Drop for Claim<'_, T> {
     fn drop(&mut self) {
-        lock(&self.probing.inner.claimed).remove(&self.file.id);
+        lock(self.claims).remove(&self.file.id);
+    }
+}
+
+/// Claims the stored file `file` in `claims`, or if some task holds it, hands back where that will
+/// send what it found.
+fn try_claim<T>(
+    claims: &Claims<T>,
+    file: Stored,
+) -> Result<Claim<'_, T>, watch::Receiver<Option<T>>> {
+    match lock(claims).entry(file.id) {
+        Entry::Occupied(holder) => Err(holder.get().clone()),
+        Entry::Vacant(unclaimed) => {
+            let (found, waiting) = watch::channel(None);
+            unclaimed.insert(waiting);
+            Ok(Claim {
+                claims,
+                file,
+                found,
+            })
+        }
     }
 }
 
@@ -431,7 +485,7 @@ mod tests {
         config::Config,
         contents::{Change, Contents, Decided, Item, Metadata, Stored},
         db::Database,
-        ffmpeg::{self, Ffmpeg, FoundProgram, ProbeError},
+        ffmpeg::{self, Ffmpeg, ProbeError},
         libraries::{Kind, Libraries},
         playback::subtitles,
         tracks::{
@@ -729,16 +783,12 @@ mod tests {
     /// An ffprobe in `bin` that runs `script`, a shell script.
     #[cfg(unix)]
     fn fake_ffprobe(bin: &std::path::Path, script: &str) -> Ffmpeg {
-        use std::os::unix::fs::PermissionsExt;
-
-        let path = bin.join("ffprobe");
-        fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
         Ffmpeg {
-            ffprobe: Ok(FoundProgram {
-                path,
-                version: "7.1.1".to_owned(),
-            }),
+            ffprobe: Ok(ffmpeg::fake::script(
+                bin,
+                "ffprobe",
+                &format!("#!/bin/sh\n{script}\n"),
+            )),
             ..Ffmpeg::default()
         }
     }
@@ -1395,5 +1445,118 @@ echo "{{\"format\": {{\"format_name\": \"matroska,webm\", \"duration\": \"1.0000
         media.probe_changed().await;
 
         assert_eq!(media.channels(alien).await, Some(10));
+    }
+
+    /// A fake ffprobe in `bin` that reads every file as a second-long Matroska file with no
+    /// Tracks, and lists keyframes at 0 and at as many seconds as the file has bytes, so a changed
+    /// file lists differently. Each listing logs a line to `bin/runs` first, then takes a second.
+    #[cfg(unix)]
+    fn listing_ffprobe(bin: &std::path::Path) -> Ffmpeg {
+        let runs = bin.join("runs");
+        fake_ffprobe(
+            bin,
+            &format!(
+                r#"for file; do :; done
+case "$*" in *packet=*)
+    echo list >> '{}'
+    sleep 1
+    printf '0.000000,K__\n%s.000000,K__\n' "$(wc -c < "$file")"
+    exit ;;
+esac
+echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}}}'"#,
+                runs.display()
+            ),
+        )
+    }
+
+    impl Fixture {
+        /// Writes `size` bytes to the file at `relative`, stores it as a Version, and probes it.
+        async fn write_probed(&self, relative: &str, size: usize) {
+            self.write(relative, size).await;
+            self.match_to_alien().await;
+            self.current(relative).await.unwrap();
+        }
+
+        /// The keyframes of the Version stored at `relative`.
+        async fn keyframes(&self, relative: &str) -> Vec<i64> {
+            let version = self.file_id(relative).await;
+            self.probing.keyframes(version).await.unwrap()
+        }
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_versions_keyframes_are_listed_once_and_kept() {
+        let bin = tempfile::tempdir().unwrap();
+        let media = Fixture::with_ffmpeg(listing_ffprobe(bin.path())).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write_probed(alien, 10).await;
+
+        assert_eq!(media.keyframes(alien).await, [0, 10_000]);
+        assert_eq!(media.keyframes(alien).await, [0, 10_000]);
+
+        assert_eq!(probe_runs(bin.path()), 1);
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_versions_keyframes_asked_for_at_once_are_listed_once() {
+        let bin = tempfile::tempdir().unwrap();
+        let media = Fixture::with_ffmpeg(listing_ffprobe(bin.path())).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write_probed(alien, 10).await;
+        let version = media.file_id(alien).await;
+        let probing = media.probing.clone();
+        let first = tokio::spawn(async move { probing.keyframes(version).await });
+        wait_for_probe(&bin.path().join("runs")).await;
+
+        let second = media.probing.keyframes(version).await.unwrap();
+
+        assert_eq!(first.await.unwrap().unwrap(), second);
+        assert_eq!(probe_runs(bin.path()), 1);
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_versions_keyframes_are_listed_again_once_its_files_size_changes() {
+        let bin = tempfile::tempdir().unwrap();
+        let media = Fixture::with_ffmpeg(listing_ffprobe(bin.path())).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write_probed(alien, 10).await;
+        media.keyframes(alien).await;
+
+        // Stored as a scan would, but not probed again, so its Tracks were read from the old file.
+        media.write(alien, 20).await;
+        media.match_to_alien().await;
+
+        assert_eq!(media.keyframes(alien).await, [0, 20_000]);
+        assert_eq!(probe_runs(bin.path()), 2);
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_versions_keyframes_are_listed_again_once_its_file_is_touched() {
+        let bin = tempfile::tempdir().unwrap();
+        let media = Fixture::with_ffmpeg(listing_ffprobe(bin.path())).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write_probed(alien, 10).await;
+        media.keyframes(alien).await;
+
+        let touched = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        fs::File::options()
+            .write(true)
+            .open(media.path(alien))
+            .unwrap()
+            .set_modified(touched)
+            .unwrap();
+        media.store(alien).await;
+        media.match_to_alien().await;
+        media.keyframes(alien).await;
+
+        assert_eq!(probe_runs(bin.path()), 2);
     }
 }

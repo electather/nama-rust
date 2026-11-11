@@ -41,8 +41,9 @@
 ### Playback
 
 - **What a plan converts is worked out once.** Before the steps run, `candidates` in `src/playback.rs` works out what a Remux and a Transcode of the Version would convert, and the plan keeps the one it narrowed to in `Playing`, with the Version's length, which a Remux's or a Transcode's playlist lists, and, for a Transcode on hardware, what it falls back to in software and why. Its reasons, Tracks, events, playlist and ffmpeg arguments read that value; none asks the planning facts again what it converts, how long the Version is or what it falls back to.
-- **What ffmpeg can do is asked once.** Only `Abilities` in `src/ffmpeg.rs` asks the Server's ffmpeg whether it runs, has zscale or libx264, and which hardware passes its test, and remembers each answer; whether it has zscale or libx264, and which hardware passes when it couldn't list its encoders, is asked again while ffmpeg couldn't say. Planning and the `GetPlaybackStatus` handler read the one `CanDo` it hands back; `RunningPlans` knows only running plans.
+- **What ffmpeg can do is asked once.** Only `Abilities` in `src/ffmpeg.rs` asks the Server's ffmpeg whether it runs, has zscale or libx264, and which hardware passes its test, and remembers each answer; whether it has zscale or libx264, and which hardware passes when it couldn't list its encoders, is asked again while ffmpeg couldn't say. Planning and the `GetPlaybackStatus` handler read the one `CanDo` it hands back, and ask its methods what follows: whether a Transcode runs, what tone-maps HDR on each hardware, and which Automatic picks. `RunningPlans` knows only running plans.
 
 ### Tests
 
 - **One fixture.** Server tests build on `TestServer` in `tests/support`, started through `TestServer::builder()`. Their setup goes through the API, as a client's would; a shared helper never writes the database. A test file adds a fixture of its own only for what that file alone needs, and a shortcut one test needs stays in that test's file.
+- **Fake programs.** Fake programs a test runs are written only through `ffmpeg::fake::script`. Writing one with `fs::write` can fail with "Text file busy" (#411).

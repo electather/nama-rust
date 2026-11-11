@@ -2,7 +2,8 @@
 //! Shows Fulfiller to stop following a Show. Asking how the Requests it took are progressing is
 //! [`super::progress`]'s.
 //!
-//! It holds no SQL: it calls Requests' functions to read Requests and to settle a Hand-off.
+//! It holds no SQL: it calls Requests' functions to read Requests, and settles a Hand-off through
+//! [`Requests::apply`]'s path, which calls it in turn.
 
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -14,24 +15,20 @@ use nama_plugin_api::{
     fulfiller::{Fulfilled, Fulfiller, Movies, Shows},
 };
 use nama_proto::nama::v1::{Request, RequestState};
-use sqlx::{Sqlite, Transaction};
 use tokio::sync::{Notify, mpsc::UnboundedReceiver};
 use tracing::{error, warn};
 
-use super::{Applied, Error, HandedBack, as_handed_off, detached, load, load_one, lock, settle};
+use super::{Error, Requests, as_handed_off, load, load_one, lock};
 use crate::{
-    db::{BoxFuture, Database},
-    events::EventBus,
+    db::{BoxFuture, Database, detached},
     plugins::Registry,
 };
 
-/// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled, which also
-/// publishes the changes its writes make.
+/// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled.
 #[derive(Debug, Clone)]
 pub(super) struct HandOff {
     db: Arc<Database>,
-    events: EventBus,
-    pub(super) plugins: Registry,
+    plugins: Registry,
     /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
     /// skipped it meanwhile.
     handing: Arc<Mutex<HashMap<i64, bool>>>,
@@ -40,56 +37,37 @@ pub(super) struct HandOff {
 }
 
 impl HandOff {
-    /// Hands Requests in `db` to the Fulfillers in `plugins`, publishing on `events` and notifying
-    /// `became_processing` when one becomes Processing.
+    /// Hands Requests in `db` to the Fulfillers in `plugins`, notifying `became_processing` when one
+    /// becomes Processing.
     pub(super) fn new(
         db: Arc<Database>,
-        events: EventBus,
         plugins: Registry,
         became_processing: Arc<Notify>,
     ) -> Self {
         Self {
             db,
-            events,
             plugins,
             handing: Arc::default(),
             became_processing,
         }
     }
 
-    /// The bus it publishes on, for a test to subscribe to.
-    #[cfg(test)]
-    pub(super) const fn events(&self) -> &EventBus {
-        &self.events
-    }
-
-    /// The enabled Plugin providing the Fulfiller of `Kind`, if any.
-    pub(super) fn fulfiller<Kind: 'static>(&self) -> Option<PluginId> {
-        self.plugins
-            .enabled()
-            .into_iter()
-            .find(|plugin| self.plugins.provides::<dyn Fulfiller<Kind>>(plugin))
-    }
-
-    /// The enabled Plugin providing the Fulfiller for `request`'s kind, Movies or Shows, if any.
-    pub(super) fn fulfiller_of(&self, request: &Request) -> Option<PluginId> {
-        if request.movie.is_unset() {
-            self.fulfiller::<Shows>()
-        } else {
-            self.fulfiller::<Movies>()
-        }
-    }
-
     /// Hands the Approved `request` to the Fulfiller for its kind, Movies or Shows, publishing that
     /// its state changed: to Processing once it takes the Request, or to Failed, with its reason,
     /// if it doesn't. Returns the Request as it is now. Without a Fulfiller for its kind the
-    /// Request waits in Approved, and one already being handed off is left to that hand-off.
+    /// Request waits in Approved, and one already being handed off is left to that hand-off. Settles
+    /// through `requests`' path.
     ///
     /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
     /// stored even if the caller stops waiting.
-    // Boxed, since the Hand-off settles through `apply`, which hands off in turn.
-    pub(super) fn request(&self, request: Request) -> BoxFuture<'static, Result<Request, Error>> {
+    // Boxed, since the Hand-off settles through the path, which hands off in turn.
+    pub(super) fn request(
+        &self,
+        requests: &Requests,
+        request: Request,
+    ) -> BoxFuture<'static, Result<Request, Error>> {
         let hand_off = self.clone();
+        let requests = requests.clone();
         Box::pin(detached(async move {
             // An approval and enabling the Fulfiller may hand the same Request off at once, which
             // would hand it to the Fulfiller twice.
@@ -98,7 +76,7 @@ impl HandOff {
             };
             let mut request = request;
             loop {
-                request = hand_off.claimed(request).await?;
+                request = hand_off.claimed(&requests, request).await?;
                 match claim.release() {
                     Some(kept) => claim = kept,
                     None => return Ok(request),
@@ -109,7 +87,7 @@ impl HandOff {
 
     /// [`Self::request`] for `request`, which no other hand-off has, as it is in the database now:
     /// one that finished since `request` was read has moved it on.
-    async fn claimed(&self, request: Request) -> Result<Request, Error> {
+    async fn claimed(&self, requests: &Requests, request: Request) -> Result<Request, Error> {
         let id = request.id;
         let mut conn = self.db.reader().acquire().await?;
         let current = match load_one(&mut conn, id).await? {
@@ -121,15 +99,14 @@ impl HandOff {
         let handed = as_handed_off(&mut conn, current.clone()).await?;
         drop(conn);
         // Before the call, so a Plugin disabled or swapped during it isn't the one the Request names.
-        let plugin = self.fulfiller_of(&current);
+        let plugin = requests.fulfiller_of(&current);
         let Some(fulfilled) = self.fulfill(&handed).await else {
             return Ok(current);
         };
         let took = fulfilled.is_ok();
         let asked = current.quality.as_option().cloned();
-        // Not detached again: this Hand-off already is.
-        let settled = self
-            .apply(move |tx| Box::pin(settle(tx, id, fulfilled, asked, plugin)))
+        let settled = requests
+            .settle_hand_off(id, fulfilled, asked, plugin)
             .await?;
         if took && settled.is_none() {
             warn!(
@@ -146,39 +123,15 @@ impl HandOff {
         Ok(settled)
     }
 
-    /// [`super::Requests::apply`], in the task the caller runs it in.
-    pub(super) async fn apply<T, W>(&self, write: W) -> Result<T, Error>
-    where
-        T: HandedBack + Send + 'static,
-        W: for<'t> FnOnce(
-                &'t mut Transaction<'_, Sqlite>,
-            ) -> BoxFuture<'t, Result<Applied<T>, Error>>
-            + Send
-            + 'static,
-    {
-        let Applied {
-            value,
-            events,
-            hand_off,
-            unfollow,
-        } = self.db.write(write).await?;
-        self.events.publish(events);
-        if let Some(season) = unfollow {
-            self.unfollow(&season).await;
-        }
-        let mut handed = Vec::with_capacity(hand_off.len());
-        // ponytail: one Hand-off at a time, so a slow Fulfiller takes as long for each Season.
-        for request in hand_off {
-            handed.push(self.request(request).await?);
-        }
-        Ok(value.handed_back(&handed))
-    }
-
     /// Hands each Approved Request, oldest first, to its Fulfiller as [`Self::request`] does
     /// whenever a Plugin `came_up` names provides a Fulfiller, which keeps the promise
-    /// [`Fulfiller`]'s docs make. A failure is only logged, and leaves the rest waiting for the
-    /// next. Runs until `came_up` closes or it is dropped.
-    pub(super) async fn as_fulfillers_come_up(&self, mut came_up: UnboundedReceiver<PluginId>) {
+    /// [`Fulfiller`]'s docs make, settling through `requests`' path. A failure is only logged, and
+    /// leaves the rest waiting for the next. Runs until `came_up` closes or it is dropped.
+    pub(super) async fn as_fulfillers_come_up(
+        &self,
+        requests: &Requests,
+        mut came_up: UnboundedReceiver<PluginId>,
+    ) {
         while let Some(plugin) = came_up.recv().await {
             // One disabled since it came up provides nothing.
             if !self.plugins.provides::<dyn Fulfiller<Movies>>(&plugin)
@@ -186,13 +139,13 @@ impl HandOff {
             {
                 continue;
             }
-            if let Err(err) = self.hand_off_waiting().await {
+            if let Err(err) = self.hand_off_waiting(requests).await {
                 error!("handing the waiting Requests to their Fulfillers failed: {err}");
             }
         }
     }
 
-    async fn hand_off_waiting(&self) -> Result<(), Error> {
+    async fn hand_off_waiting(&self, requests: &Requests) -> Result<(), Error> {
         let mut conn = self.db.reader().acquire().await?;
         // ponytail: reads every Request to find the Approved ones; filter in SQL if there get many.
         let all = load(&mut conn, None, None).await?;
@@ -203,7 +156,7 @@ impl HandOff {
             .filter(|request| request.state == RequestState::Approved);
         // ponytail: one at a time, so a slow Fulfiller takes as long for each.
         for request in waiting {
-            self.request(request).await?;
+            self.request(requests, request).await?;
         }
         Ok(())
     }
@@ -243,7 +196,7 @@ impl HandOff {
     /// Tells the Shows Fulfiller, if one is enabled, to stop following the Show of `season`, the
     /// Season Request of a Followed Show that ended. A failure is only logged: the Followed Show
     /// ended either way.
-    async fn unfollow(&self, season: &Request) {
+    pub(super) async fn unfollow(&self, season: &Request) {
         let unfollowed = self
             .plugins
             .call_provider_blanking_secrets::<dyn Fulfiller<Shows>, _, _>(|fulfiller| async move {

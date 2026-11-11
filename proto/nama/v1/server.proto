@@ -85,8 +85,8 @@ message GetPlaybackStatusResponse {
   string ffmpeg_problem = 3;
   // Why the Server can't use ffprobe, in plain words. Empty when it can.
   string ffprobe_problem = 4;
-  // The hardware acceleration APIs that passed a test encode at startup, the one Automatic picks
-  // first. Empty without ffmpeg, a GPU, or an ffmpeg built for one.
+  // The hardware acceleration APIs that passed a test encode at startup. Empty without ffmpeg, a
+  // GPU, or an ffmpeg built for one.
   repeated FoundHardware hardware = 5;
   // Whether ffmpeg has libx264, which a Transcode encodes with in software. Without it no
   // Transcode runs, even on hardware. False when the Server can't use ffmpeg.
@@ -94,15 +94,34 @@ message GetPlaybackStatusResponse {
   // Whether ffmpeg has zscale, which tone-maps HDR to SDR in software. Without it, a Transcode
   // tone-maps only on hardware whose `tone_maps` is set. False when the Server can't use ffmpeg.
   bool has_zscale = 7;
+  // Whether the Server Transcodes at all, in software or on hardware. When it doesn't, it still
+  // Direct Plays, and Remuxes if it has ffmpeg and ffprobe.
+  bool can_transcode = 8;
 }
 
 // A hardware acceleration API that passed its test encode at startup.
 message FoundHardware {
   // Which API. Never `HARDWARE_ACCELERATION_UNSPECIFIED` or `HARDWARE_ACCELERATION_OFF`.
   HardwareAcceleration api = 1;
-  // Whether it also passed tone-mapping HDR to SDR on the GPU. Without it, a Transcode of HDR
-  // for an SDR screen tone-maps in software between decoding and encoding on the GPU.
+  // Whether it also passed tone-mapping HDR to SDR on the GPU. `tone_mapping` says what
+  // tone-maps on it.
   bool tone_maps = 2;
+  // What tone-maps HDR to SDR in a Transcode on it, when nothing is burned into the picture.
+  ToneMapping tone_mapping = 3;
+  // Whether Automatic picks it.
+  bool automatic = 4;
+}
+
+// What tone-maps HDR to SDR in a Transcode.
+enum ToneMapping {
+  // Not said, as by a Server from before this was added.
+  TONE_MAPPING_UNSPECIFIED = 0;
+  // Nothing: HDR's colours look washed out on an SDR screen.
+  TONE_MAPPING_NONE = 1;
+  // The GPU the Transcode runs on.
+  TONE_MAPPING_GPU = 2;
+  // ffmpeg's zscale, in software.
+  TONE_MAPPING_SOFTWARE = 3;
 }
 
 // What a Transcode decodes, scales, tone-maps and encodes its video with.

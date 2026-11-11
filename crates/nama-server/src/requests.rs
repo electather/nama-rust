@@ -19,7 +19,7 @@ use std::{
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use nama_plugin_api::{
     PluginId,
-    fulfiller::{Fulfilled, Movies, Shows},
+    fulfiller::{Fulfilled, Fulfiller, Movies, Shows},
     metadata::{Candidate, Episode, ExternalId, ExternalIds, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
@@ -103,7 +103,11 @@ pub(crate) struct Requests {
     contents: Contents,
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
     metadata: MetadataSource,
-    /// Its way to hand Requests to the Fulfillers, and what publishes the changes its writes make.
+    /// What [`Self::apply`] publishes the changes its writes make on.
+    events: EventBus,
+    /// Where the Fulfillers are.
+    plugins: Registry,
+    /// Its way to hand Requests to the Fulfillers.
     hand_off: HandOff,
     /// What the Fulfillers say they are downloading for the Requests they have.
     progress: Progress,
@@ -289,11 +293,12 @@ impl Requests {
             metadata: MetadataSource::new(plugins.clone()),
             hand_off: HandOff::new(
                 Arc::clone(&db),
-                events,
-                plugins,
+                plugins.clone(),
                 progress.became_processing(),
             ),
             progress,
+            events,
+            plugins,
             db,
             handing_off: Arc::default(),
             following: Arc::default(),
@@ -306,12 +311,19 @@ impl Requests {
     /// progressing, every `progress_every` while there are any and at once when one becomes
     /// Processing. A failed hand-off is only logged, and leaves the rest waiting. Call it once.
     pub(crate) fn start(&self, came_up: UnboundedReceiver<PluginId>, progress_every: Duration) {
-        let handing = self.hand_off.clone();
-        let handing_off = tokio::spawn(async move { handing.as_fulfillers_come_up(came_up).await });
+        let requests = self.clone();
+        let handing_off =
+            tokio::spawn(async move { requests.as_fulfillers_come_up(came_up).await });
         let asking = self.progress.clone();
         let following = tokio::spawn(async move { asking.follow(progress_every).await });
         *lock(&self.handing_off) = Some(handing_off);
         *lock(&self.following) = Some(following);
+    }
+
+    /// Hands off the waiting Requests whenever a Plugin `came_up` names provides a Fulfiller, as
+    /// [`Self::start`] describes, until `came_up` closes.
+    async fn as_fulfillers_come_up(&self, came_up: UnboundedReceiver<PluginId>) {
+        self.hand_off.as_fulfillers_come_up(self, came_up).await;
     }
 
     /// Stops what [`Self::start`] started, logging a panic from either loop. Does nothing before
@@ -384,8 +396,68 @@ impl Requests {
             + Send
             + 'static,
     {
-        let hand_off = self.hand_off.clone();
-        detached(async move { hand_off.apply(write).await }).await
+        let requests = self.clone();
+        detached(async move { requests.applied(write).await }).await
+    }
+
+    /// [`Self::apply`], in the task the caller runs it in.
+    async fn applied<T, W>(&self, write: W) -> Result<T, Error>
+    where
+        T: HandedBack + Send + 'static,
+        W: for<'t> FnOnce(
+                &'t mut Transaction<'_, Sqlite>,
+            ) -> BoxFuture<'t, Result<Applied<T>, Error>>
+            + Send
+            + 'static,
+    {
+        let Applied {
+            value,
+            events,
+            hand_off,
+            unfollow,
+        } = self.db.write(write).await?;
+        self.events.publish(events);
+        if let Some(season) = unfollow {
+            self.hand_off.unfollow(&season).await;
+        }
+        let mut handed = Vec::with_capacity(hand_off.len());
+        // ponytail: one Hand-off at a time, so a slow Fulfiller takes as long for each Season.
+        for request in hand_off {
+            handed.push(self.hand_off.request(self, request).await?);
+        }
+        Ok(value.handed_back(&handed))
+    }
+
+    /// Settles the Hand-off of the Request `id`, asked for at the Quality `asked`, with what the
+    /// Fulfiller from the Plugin `plugin` answered, through [`Self::apply`]'s path in the
+    /// Hand-off's own task. Returns the Request as it is now, or `None` if it was changed meanwhile.
+    async fn settle_hand_off(
+        &self,
+        id: i64,
+        fulfilled: Result<Fulfilled, String>,
+        asked: Option<RequestedQuality>,
+        plugin: Option<PluginId>,
+    ) -> Result<Option<Request>, Error> {
+        // Not detached again: the Hand-off already is.
+        self.applied(move |tx| Box::pin(settle(tx, id, fulfilled, asked, plugin)))
+            .await
+    }
+
+    /// The enabled Plugin providing the Fulfiller of `Kind`, if any.
+    fn fulfiller<Kind: 'static>(&self) -> Option<PluginId> {
+        self.plugins
+            .enabled()
+            .into_iter()
+            .find(|plugin| self.plugins.provides::<dyn Fulfiller<Kind>>(plugin))
+    }
+
+    /// The enabled Plugin providing the Fulfiller for `request`'s kind, Movies or Shows, if any.
+    fn fulfiller_of(&self, request: &Request) -> Option<PluginId> {
+        if request.movie.is_unset() {
+            self.fulfiller::<Shows>()
+        } else {
+            self.fulfiller::<Movies>()
+        }
     }
 
     /// The Quality a new Request `asker` opens on the enabled Fulfiller of `Kind` takes, and
@@ -395,7 +467,7 @@ impl Requests {
         asker: &User,
         chosen: Option<i64>,
     ) -> Result<(Option<RequestedQuality>, bool), Error> {
-        let fulfiller = self.hand_off.fulfiller::<Kind>();
+        let fulfiller = self.fulfiller::<Kind>();
         let mut conn = self.db.reader().acquire().await?;
         Ok(qualities::for_request(&mut conn, asker, fulfiller.as_ref(), chosen).await??)
     }
@@ -407,7 +479,7 @@ impl Requests {
         &self,
         asker: &User,
     ) -> Result<(Vec<Quality>, Option<i64>), sqlx::Error> {
-        let Some(fulfiller) = self.hand_off.fulfiller::<Kind>() else {
+        let Some(fulfiller) = self.fulfiller::<Kind>() else {
             return Ok((Vec::new(), None));
         };
         let mut conn = self.db.reader().acquire().await?;
@@ -422,11 +494,11 @@ impl Requests {
     ) -> Result<Vec<DefaultQuality>, sqlx::Error> {
         let fulfillers = [
             (
-                self.hand_off.fulfiller::<Movies>(),
+                self.fulfiller::<Movies>(),
                 ExtensionPoint::EXTENSION_POINT_MOVIE_FULFILLER,
             ),
             (
-                self.hand_off.fulfiller::<Shows>(),
+                self.fulfiller::<Shows>(),
                 ExtensionPoint::EXTENSION_POINT_SHOW_FULFILLER,
             ),
         ];
@@ -466,8 +538,8 @@ impl Requests {
     /// Fulfiller.
     pub(crate) async fn offered_qualities(&self, kind: TitleKind) -> Result<Vec<Quality>, Error> {
         let fulfiller = match kind {
-            TitleKind::Movie => self.hand_off.fulfiller::<Movies>(),
-            TitleKind::Show => self.hand_off.fulfiller::<Shows>(),
+            TitleKind::Movie => self.fulfiller::<Movies>(),
+            TitleKind::Show => self.fulfiller::<Shows>(),
         };
         let Some(fulfiller) = fulfiller else {
             return Ok(Vec::new());
@@ -490,7 +562,7 @@ impl Requests {
         let request = load_one(&mut *self.db.reader().acquire().await?, id)
             .await?
             .ok_or(Error::NoSuch(Asked::Request, id))?;
-        let fulfiller = self.hand_off.fulfiller_of(&request);
+        let fulfiller = self.fulfiller_of(&request);
         self.offered_change(manager, fulfiller, quality_id)
             .await
             .map(Some)
@@ -610,7 +682,7 @@ impl Requests {
     ) -> Result<FollowedShow, Error> {
         let new_quality = match quality {
             Some(quality) => {
-                let fulfiller = self.hand_off.fulfiller::<Shows>();
+                let fulfiller = self.fulfiller::<Shows>();
                 Some(self.offered_change(manager, fulfiller, quality).await?)
             }
             None => None,
@@ -3094,7 +3166,7 @@ mod tests {
         let (came_up, queue) = tokio::sync::mpsc::unbounded_channel();
         came_up.send(PluginId::from_static(plugin)).unwrap();
         drop(came_up);
-        requests.hand_off.as_fulfillers_come_up(queue).await;
+        requests.as_fulfillers_come_up(queue).await;
     }
 
     /// Ada, the User the tests ask as, holding `permissions`.
@@ -3145,7 +3217,6 @@ mod tests {
             SettingValue::Text(API_KEY.to_owned()),
         )]));
         requests
-            .hand_off
             .plugins
             .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
             .unwrap();
@@ -3160,12 +3231,7 @@ mod tests {
 
     /// Every event `requests` publishes from now on.
     fn subscribe(requests: &Requests) -> Pin<Box<impl Stream<Item = SubscribeResponse> + use<>>> {
-        Box::pin(
-            requests
-                .hand_off
-                .events()
-                .subscribe_as_admin(Filter::default()),
-        )
+        Box::pin(requests.events.subscribe_as_admin(Filter::default()))
     }
 
     /// What the next event `published` lets through says happened, waiting a second at most.
@@ -3286,8 +3352,8 @@ mod tests {
         let item = requests.contents.files(library).await.unwrap()[0].items[0].id;
         let scanner = Scanner::new(
             Arc::clone(&requests.db),
-            requests.hand_off.plugins.clone(),
-            requests.hand_off.events().clone(),
+            requests.plugins.clone(),
+            requests.events.clone(),
             None,
         );
         let mut published = subscribe(&requests);

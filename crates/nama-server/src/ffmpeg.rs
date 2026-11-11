@@ -1,6 +1,8 @@
 //! Finding the ffmpeg and ffprobe the Server Remuxes, Transcodes and probes Versions with, which
 //! come from the system, not the release (ADR 0026).
 
+#[cfg(any(test, feature = "testing"))]
+pub mod fake;
 mod hardware;
 
 use std::{
@@ -533,6 +535,33 @@ pub(crate) struct CanDo {
     pub(crate) libx264: bool,
     /// The hardware acceleration that passed its test, in the order Automatic picks.
     pub(crate) hardware: Vec<Hardware>,
+}
+
+impl CanDo {
+    /// Whether a Transcode runs at all: it needs ffmpeg and ffprobe, and libx264 even on hardware.
+    pub(crate) const fn transcodes(&self) -> bool {
+        // ponytail: a Transcode on hardware needs no libx264, but its fallback to software does;
+        // allow one once a failed hardware run can stop instead of falling back, and change
+        // `server_ffmpeg`'s reason with it.
+        self.runs && self.libx264
+    }
+
+    /// The hardware Automatic picks, if any passed its test.
+    pub(crate) fn automatic(&self) -> Option<Hardware> {
+        self.hardware.first().copied()
+    }
+
+    /// What tone-maps HDR to SDR in a Transcode on `gpu`, or in software for `None`: the GPU if
+    /// it passed tone-mapping, or else zscale if ffmpeg has it.
+    pub(crate) const fn tone_mapper(&self, gpu: Option<Hardware>) -> Option<ToneMapper> {
+        match gpu {
+            Some(Hardware {
+                tone_maps: true, ..
+            }) => Some(ToneMapper::Hardware),
+            _ if self.zscale => Some(ToneMapper::Software),
+            _ => None,
+        }
+    }
 }
 
 /// Asks the Server's ffmpeg what it can do and remembers each answer, so planning and the
@@ -1412,46 +1441,19 @@ fn write_test_media(
 // The fakes are shell scripts.
 #[cfg(all(test, unix))]
 pub(crate) mod tests {
-    use std::{
-        ffi::OsStr,
-        fs,
-        os::unix::fs::PermissionsExt,
-        path::Path,
-        sync::{Arc, PoisonError, RwLock},
-        time::Duration,
-    };
+    use std::{ffi::OsStr, fs, path::Path, sync::Arc, time::Duration};
 
-    use super::{Abilities, Accel, CanDo, Ffmpeg, FoundProgram, Hardware};
+    use super::{Abilities, Accel, CanDo, Ffmpeg, FoundProgram, Hardware, fake::script};
     use crate::config::Config;
 
-    /// Held to write a fake, and shared to run them. A child forked while another test has a fake
-    /// open for writing keeps it open until it execs, and running that fake then fails with
-    /// "Text file busy".
-    pub(crate) static WRITING_FAKES: RwLock<()> = RwLock::new(());
-
     /// Writes a fake `name` into `dir` that prints `version_line` as `-version` does.
-    #[expect(
-        clippy::unwrap_used,
-        reason = "a test helper fails its test by panicking"
-    )]
     fn fake(dir: &Path, name: &str, version_line: &str) {
-        let _writing = WRITING_FAKES
-            .write()
-            .unwrap_or_else(PoisonError::into_inner);
-        let path = dir.join(name);
-        fs::write(&path, format!("#!/bin/sh\necho '{version_line}'\n")).unwrap();
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-    }
-
-    /// [`Ffmpeg::find`], while no fake is being written.
-    fn find(config: &Config, path: &OsStr) -> Ffmpeg {
-        let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
-        Ffmpeg::find(config, path)
+        script(dir, name, &format!("#!/bin/sh\necho '{version_line}'\n"));
     }
 
     /// Looks only on `path`, with no paths configured.
     fn find_on(path: &OsStr) -> Ffmpeg {
-        find(&Config::default(), path)
+        Ffmpeg::find(&Config::default(), path)
     }
 
     #[test]
@@ -1547,7 +1549,7 @@ pub(crate) mod tests {
             ..Config::default()
         };
 
-        let found = find(&config, on_path.path().as_os_str());
+        let found = Ffmpeg::find(&config, on_path.path().as_os_str());
 
         assert_eq!(
             found.ffmpeg,
@@ -1568,7 +1570,7 @@ pub(crate) mod tests {
             ..Config::default()
         };
 
-        let found = find(&config, configured.path().as_os_str());
+        let found = Ffmpeg::find(&config, configured.path().as_os_str());
 
         assert_eq!(
             found.ffmpeg,
@@ -1592,7 +1594,7 @@ pub(crate) mod tests {
             ..Config::default()
         };
 
-        let found = find(&config, on_path.path().as_os_str());
+        let found = Ffmpeg::find(&config, on_path.path().as_os_str());
 
         assert_eq!(
             found.ffmpeg,
@@ -1636,13 +1638,8 @@ pub(crate) mod tests {
         assert_eq!(found.direct_play_only_because(), None);
     }
 
-    /// What `ffmpeg` can do, as its [`Abilities`] first say, while no fake is being written.
-    #[expect(
-        clippy::await_holding_lock,
-        reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
-    )]
+    /// What `ffmpeg` can do, as its [`Abilities`] first say.
     async fn can_do(ffmpeg: Ffmpeg) -> CanDo {
-        let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
         Abilities::new(Arc::new(ffmpeg)).can_do().await
     }
 
@@ -1705,10 +1702,6 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    #[expect(
-        clippy::await_holding_lock,
-        reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
-    )]
     async fn what_ffmpeg_couldnt_answer_is_asked_again() {
         let bin = tempfile::tempdir().unwrap();
         let answered = bin.path().join("answered");
@@ -1722,7 +1715,6 @@ pub(crate) mod tests {
             ),
         );
 
-        let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
         let abilities = Abilities::new(Arc::new(ffmpeg));
         let first = abilities.can_do().await;
         let then = abilities.can_do().await;
@@ -1732,10 +1724,6 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    #[expect(
-        clippy::await_holding_lock,
-        reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
-    )]
     async fn hardware_ffmpeg_couldnt_list_is_tested_again() {
         let bin = tempfile::tempdir().unwrap();
         let answers = bin.path().join("answers");
@@ -1753,7 +1741,6 @@ pub(crate) mod tests {
             ),
         );
 
-        let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
         let abilities = Abilities::new(Arc::new(ffmpeg));
         let first = abilities.can_do().await;
         fs::write(&answers, "").unwrap();
@@ -1770,10 +1757,6 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    #[expect(
-        clippy::await_holding_lock,
-        reason = "the fakes' lock is held while the hardware test forks ffmpeg; a test waits on no other"
-    )]
     async fn shutting_down_mid_hardware_test_stops_it() {
         let bin = tempfile::tempdir().unwrap();
         let started = bin.path().join("started");
@@ -1785,7 +1768,6 @@ pub(crate) mod tests {
                 started.display()
             ),
         );
-        let running_fakes = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
         let abilities = Abilities::new(Arc::new(ffmpeg));
         let waiting = tokio::time::Instant::now();
         while !started.exists() {
@@ -1795,46 +1777,26 @@ pub(crate) mod tests {
             );
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        drop(running_fakes);
 
         tokio::time::timeout(Duration::from_secs(5), abilities.shutdown())
             .await
             .unwrap();
     }
 
-    /// Writes a fake ffmpeg into `dir` that runs `script`, a shell `case` over its arguments, and
+    /// Writes a fake ffmpeg into `dir` that runs `cases`, a shell `case` over its arguments, and
     /// returns it as the Server's ffmpeg.
-    #[expect(
-        clippy::unwrap_used,
-        reason = "a test helper fails its test by panicking"
-    )]
-    pub(crate) fn fake_ffmpeg(dir: &Path, script: &str) -> Ffmpeg {
-        let path = dir.join("ffmpeg");
-        {
-            let _writing = WRITING_FAKES
-                .write()
-                .unwrap_or_else(PoisonError::into_inner);
-            fs::write(
-                &path,
-                format!("#!/bin/sh\ncase \"$*\" in\n{script}\nesac\n"),
-            )
-            .unwrap();
-            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-        }
+    pub(crate) fn fake_ffmpeg(dir: &Path, cases: &str) -> Ffmpeg {
         Ffmpeg {
-            ffmpeg: Ok(FoundProgram {
-                path,
-                version: "7.1.1".to_owned(),
-            }),
+            ffmpeg: Ok(script(
+                dir,
+                "ffmpeg",
+                &format!("#!/bin/sh\ncase \"$*\" in\n{cases}\nesac\n"),
+            )),
             ..Ffmpeg::default()
         }
     }
 
     #[tokio::test]
-    #[expect(
-        clippy::await_holding_lock,
-        reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
-    )]
     async fn only_hardware_ffmpeg_lists_and_that_passes_its_test_encode_is_found() {
         let bin = tempfile::tempdir().unwrap();
         let ffmpeg = fake_ffmpeg(
@@ -1847,10 +1809,7 @@ pub(crate) mod tests {
              *) exit 1 ;;",
         );
 
-        let found = {
-            let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
-            ffmpeg.find_hardware().await
-        };
+        let found = ffmpeg.find_hardware().await;
 
         assert_eq!(
             found,
@@ -1862,10 +1821,6 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    #[expect(
-        clippy::await_holding_lock,
-        reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
-    )]
     async fn hardware_that_passes_its_tone_map_test_tone_maps() {
         let bin = tempfile::tempdir().unwrap();
         let ffmpeg = fake_ffmpeg(
@@ -1875,10 +1830,7 @@ pub(crate) mod tests {
              *) exit 1 ;;",
         );
 
-        let found = {
-            let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
-            ffmpeg.find_hardware().await
-        };
+        let found = ffmpeg.find_hardware().await;
 
         assert_eq!(
             found,

@@ -2,9 +2,6 @@
 
 #[path = "support/refused.rs"]
 mod refused;
-#[cfg(unix)]
-#[path = "support/script.rs"]
-mod script;
 #[path = "support/server.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
@@ -13,15 +10,16 @@ use std::net::SocketAddr;
 
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
-    FoundProgram, GetPlaybackSettingsRequest, GetPlaybackStatusRequest, GetPlaybackStatusResponse,
-    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest, HardwareAcceleration,
-    PlaybackLimit, PlaybackSettings, RefusalReason, ServerServiceClient, ServerSettings,
-    UpdatePlaybackSettingsRequest, UpdateServerSettingsRequest,
+    FoundHardware, FoundProgram, GetPlaybackSettingsRequest, GetPlaybackStatusRequest,
+    GetPlaybackStatusResponse, GetServerInfoRequest, GetServerInfoResponse,
+    GetServerSettingsRequest, HardwareAcceleration, PlaybackLimit, PlaybackSettings, RefusalReason,
+    ServerServiceClient, ServerSettings, ToneMapping, UpdatePlaybackSettingsRequest,
+    UpdateServerSettingsRequest,
 };
+#[cfg(unix)]
+use nama_server::ffmpeg::fake::script;
 use nama_server::{config::Config, ffmpeg::Ffmpeg};
 use refused::assert_refused;
-#[cfg(unix)]
-use script::script;
 use server::TestServer;
 
 fn config_named(name: &str) -> Config {
@@ -240,16 +238,17 @@ async fn the_playback_status_shows_the_path_and_version_of_the_ffmpeg_and_ffprob
     assert_eq!(status.ffprobe.as_option(), Some(&shown("/usr/bin/ffprobe")));
 }
 
-/// The status of a Server whose ffmpeg, a shell script in `bin`, lists `encoder` as its one
-/// encoder and `filter` as its one filter.
+/// The status of a Server whose ffmpeg, a shell script in `bin`, lists `encoders` as its encoders
+/// and `filter` as its one filter, and passes every test encode.
 #[cfg(unix)]
 async fn playback_status_listing(
     bin: &std::path::Path,
-    encoder: &str,
+    encoders: &[&str],
     filter: &str,
 ) -> GetPlaybackStatusResponse {
+    let encoders = encoders.join(" ");
     let ffmpeg = format!(
-        "#!/bin/sh\ncase \"$*\" in *-encoders*) echo ' V....D {encoder}  H.264' ;; \
+        "#!/bin/sh\ncase \"$*\" in *-encoders*) printf ' V....D %s  H.264\\n' {encoders} ;; \
          *-filters*) echo ' ... {filter}  V->V  A filter' ;; esac\n"
     );
     playback_status(Ffmpeg {
@@ -264,10 +263,11 @@ async fn playback_status_listing(
 async fn the_playback_status_says_an_ffmpeg_like_fedoras_lacks_libx264_and_zscale() {
     let bin = tempfile::tempdir().unwrap();
 
-    let status = playback_status_listing(bin.path(), "libopenh264", "scale").await;
+    let status = playback_status_listing(bin.path(), &["libopenh264"], "scale").await;
 
     assert!(!status.has_libx264, "{status:?}");
     assert!(!status.has_zscale, "{status:?}");
+    assert!(!status.can_transcode, "{status:?}");
 }
 
 #[cfg(unix)]
@@ -275,10 +275,57 @@ async fn the_playback_status_says_an_ffmpeg_like_fedoras_lacks_libx264_and_zscal
 async fn the_playback_status_says_an_ffmpeg_listing_libx264_and_zscale_has_them() {
     let bin = tempfile::tempdir().unwrap();
 
-    let status = playback_status_listing(bin.path(), "libx264", "zscale").await;
+    let status = playback_status_listing(bin.path(), &["libx264"], "zscale").await;
 
     assert!(status.has_libx264, "{status:?}");
     assert!(status.has_zscale, "{status:?}");
+    assert!(status.can_transcode, "{status:?}");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_playback_status_says_what_tone_maps_on_each_hardware_and_which_automatic_picks() {
+    let found = |api: HardwareAcceleration, tone_mapping: ToneMapping, automatic| FoundHardware {
+        api: api.into(),
+        tone_maps: tone_mapping == ToneMapping::TONE_MAPPING_GPU,
+        tone_mapping: tone_mapping.into(),
+        automatic,
+        ..Default::default()
+    };
+    let cases = [
+        (
+            ["libx264", "h264_videotoolbox", "h264_qsv"],
+            "zscale",
+            ToneMapping::TONE_MAPPING_SOFTWARE,
+        ),
+        (
+            ["libopenh264", "h264_videotoolbox", "h264_qsv"],
+            "scale",
+            ToneMapping::TONE_MAPPING_NONE,
+        ),
+    ];
+    for (encoders, filter, without_gpu) in cases {
+        let bin = tempfile::tempdir().unwrap();
+
+        let status = playback_status_listing(bin.path(), &encoders, filter).await;
+
+        assert_eq!(
+            status.hardware,
+            [
+                found(
+                    HardwareAcceleration::HARDWARE_ACCELERATION_QSV,
+                    ToneMapping::TONE_MAPPING_GPU,
+                    true
+                ),
+                found(
+                    HardwareAcceleration::HARDWARE_ACCELERATION_VIDEOTOOLBOX,
+                    without_gpu,
+                    false
+                ),
+            ],
+            "with {filter}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -291,6 +338,7 @@ async fn without_ffmpeg_the_playback_status_says_it_has_neither_libx264_nor_zsca
 
     assert!(!status.has_libx264, "{status:?}");
     assert!(!status.has_zscale, "{status:?}");
+    assert!(!status.can_transcode, "{status:?}");
 }
 
 #[tokio::test]

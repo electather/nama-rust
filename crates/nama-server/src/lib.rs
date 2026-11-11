@@ -51,7 +51,6 @@ use crate::{
     requests::Requests,
     scanner::Scanner,
     server_settings::Settings,
-    tracks::Tracks,
 };
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins `plugins` started,
@@ -113,7 +112,7 @@ pub fn serve(
         settings.playback(),
         Arc::clone(&ffmpeg),
         Contents::new(Arc::clone(&db)),
-        Tracks::new(Arc::clone(&db)),
+        probing.clone(),
         events.clone(),
     );
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
