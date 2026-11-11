@@ -303,29 +303,28 @@ impl RunningPlans {
     }
 
     /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
-    /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file, whose
-    /// length is `duration_ms` if known. `None` if there is no such Version, or `plan` can't be
-    /// played, as a Remux or a Transcode can't without a length.
+    /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file. `None`
+    /// if there is no such Version, or `plan` can't be played.
     pub(crate) async fn start(
         &self,
         caller: &Caller,
         plan: super::Plan,
-        duration_ms: Option<i64>,
     ) -> Result<Option<StartedPlan>, StartError> {
         let Some(playing) = plan.playing else {
             return Ok(None);
         };
         let playback = playback(caller, &plan);
-        let started = match (playing, duration_ms) {
-            (Playing::DirectPlay, _) => {
+        let started = match playing {
+            Playing::DirectPlay => {
                 Some((self.direct_play(playback), direct_play_url(plan.version)))
             }
-            (Playing::Remux(remux), Some(ms)) => self.remux(playback, remux, ms).await?,
-            (Playing::Transcode(transcode), Some(ms)) => {
-                self.transcode(playback, transcode, ms).await?
+            Playing::Remux { remux, duration_ms } => {
+                self.remux(playback, remux, duration_ms).await?
             }
-            // The plan rules both out without a length, which their playlists list.
-            (Playing::Remux(_) | Playing::Transcode(_), None) => None,
+            Playing::Transcode {
+                transcode,
+                duration_ms,
+            } => self.transcode(playback, transcode, duration_ms).await?,
         };
         Ok(started.map(|(id, url)| StartedPlan { id, url, plan }))
     }
@@ -1478,7 +1477,7 @@ mod tests {
             settings(&db, data.path().join("transcodes")).playback(),
             &events,
         );
-        let mut subscription = Box::pin(events.subscribe(Filter::default()));
+        let mut subscription = Box::pin(events.subscribe_as_admin(Filter::default()));
         let starts = Arc::new(Mutex::new(vec![]));
         let (on_hardware, in_software) = (Arc::clone(&starts), Arc::clone(&starts));
         let hardware = move |_: &Path, from: Keyframe| {
@@ -1680,7 +1679,7 @@ mod tests {
             settings(&db, data.path().join("transcodes")).playback(),
             &events,
         );
-        let mut subscription = Box::pin(events.subscribe(Filter::default()));
+        let mut subscription = Box::pin(events.subscribe_as_admin(Filter::default()));
         start_sleeping(&plans, 7).await;
 
         plans.stop_unused(Duration::ZERO).await;
@@ -1714,7 +1713,7 @@ mod tests {
         let (device, another) = (7, 8);
         let id = start_sleeping(&plans, device).await;
         let dir = hls(&plans, id, device).dir.clone();
-        let mut subscription = Box::pin(events.subscribe(Filter::default()));
+        let mut subscription = Box::pin(events.subscribe_as_admin(Filter::default()));
 
         plans.stop_for(id, another).await;
         assert!(plans.ask(id, device).is_some());

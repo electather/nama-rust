@@ -130,12 +130,15 @@ impl Embedded {
         let Some(found) = (probe.tracks.get(track)).filter(|found| found.is_text_subtitle()) else {
             return Ok(None);
         };
+        let Some(subtitle) = probe.ffmpeg_index(track) else {
+            return Ok(None);
+        };
         let ass = found.is_ass_subtitle();
         Ok(Some(Self {
             file,
             track,
             path,
-            subtitle: probe.subtitle_stream(track),
+            subtitle,
             ass,
         }))
     }
