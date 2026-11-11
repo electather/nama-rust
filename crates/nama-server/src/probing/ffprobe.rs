@@ -1,5 +1,5 @@
 //! Running ffprobe on a stored file and reading what it prints, private to Probing
-//! (`AGENTS.md`, "One owner for probing").
+//! (the crate's `AGENTS.md`, "One owner for probing").
 
 use std::{collections::HashMap, time::Duration};
 
