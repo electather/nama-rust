@@ -185,8 +185,9 @@ impl Progress {
     }
 }
 
-/// Whether `request` is in one of the [`FULFILLING`] states.
-fn is_fulfilling(request: &Request) -> bool {
+/// Whether `request` is one its Fulfiller may have that isn't Available yet, as [`fulfilling`]
+/// reads them but blind to the reference, which a Request read for a viewer doesn't carry.
+pub(super) fn is_fulfilling(request: &Request) -> bool {
     FULFILLING.iter().any(|&state| request.state == state)
 }
 

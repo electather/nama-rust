@@ -2477,8 +2477,8 @@ mod tests {
     use super::{
         Applied, Error, Requests, STATES, Wanted, WantedSeasons, approve, ask, ask_movie,
         ask_seasons, asked, availability, cancel, cancel_followed, decide_followed, decline,
-        follow, load, load_one, make_seasons_available, opening_state, retry, settle, withdraw,
-        withdraw_followed,
+        follow, load, load_one, make_seasons_available, opening_state, progress, retry, settle,
+        withdraw, withdraw_followed,
     };
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
@@ -2957,16 +2957,23 @@ mod tests {
         let admin = ada(Permissions::ADMIN);
         let mut has_it = Vec::new();
         for (id, state, reference) in inserted {
-            let expected = reference.is_some()
-                && matches!(
-                    state,
-                    RequestState::Processing | RequestState::PartiallyAvailable
-                );
+            let not_available_yet = matches!(
+                state,
+                RequestState::Processing | RequestState::PartiallyAvailable
+            );
+            let expected = reference.is_some() && not_available_yet;
             let request = requests.get(&admin, id).await.unwrap();
             assert_eq!(
                 !request.downloads.is_empty(),
                 expected,
                 "{state:?} with the reference {reference:?}"
+            );
+            // Downloads alone can't catch the Rust check being wider than the SQL's: nothing is
+            // kept for the extra ones, so they'd attach none.
+            assert_eq!(
+                progress::is_fulfilling(&request),
+                not_available_yet,
+                "{state:?}"
             );
             has_it.extend(reference.filter(|_| expected));
         }
@@ -2987,6 +2994,7 @@ mod tests {
                      VALUES (?, 'Movie', ?, 0, ?)
                      RETURNING id",
                 )
+                // A Movie of its own each, as only one open Request per Movie may be stored.
                 .bind(tmdb_id * 2 + i64::from(reference.is_some()))
                 .bind(stored)
                 .bind(&reference)
