@@ -1136,6 +1136,7 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
         plan.reasons,
         [
             "Its Tracks need no change",
+            "Its length is known",
             "This Device decodes its container and Tracks",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "No hardware acceleration passed its test when this Server started, so a Transcode \
@@ -1276,7 +1277,7 @@ async fn with_the_cap_full_a_device_that_plays_a_remux_gets_one_and_the_plan_say
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert_eq!(
-        plan.reasons.get(5).map(String::as_str),
+        plan.reasons.get(6).map(String::as_str),
         Some(
             "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
              Transcode it"
@@ -1359,6 +1360,8 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
         [
             "Its Tracks aren't known, so they're taken to need no change, and it can only be \
              Direct Played",
+            "Its length isn't known, which a Remux's or a Transcode's playlist needs, so it can \
+             only be Direct Played",
             "Its Tracks aren't known, so this Device is taken to decode them",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "No hardware acceleration passed its test when this Server started, so a Transcode \
@@ -1573,7 +1576,7 @@ async fn an_h264_and_aac_mkv_is_remuxed_over_hls_with_its_audio_copied() {
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert_eq!(codecs(&plan), ["h264", "aac"]);
     assert_eq!(
-        plan.reasons[1],
+        plan.reasons[2],
         "This Device can't decode its Matroska container, so it can't be Direct Played"
     );
     let reply = fetch(&fx.server, &plan.url, Some(&fx.server.admin_token)).await;
@@ -1734,7 +1737,7 @@ async fn dts_is_remuxed_as_aac_with_up_to_as_many_channels_as_the_device_plays()
         assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
         assert_eq!(codecs(&plan), ["h264", "aac"]);
         assert_eq!(
-            plan.reasons[1],
+            plan.reasons[2],
             format!(
                 "This Device can't decode its Matroska container or DTS audio, so it can't be \
                  Direct Played, and a Remux converts that audio to {to}"
@@ -1789,7 +1792,7 @@ async fn switching_to_the_commentary_mid_play_remuxes_it_from_there_with_its_aud
         (Some(1), Some(2))
     );
     assert_eq!(
-        commentary.reasons[6],
+        commentary.reasons[7],
         "The audio Track chosen isn't the one browsers play from its file, so it can't be Direct \
          Played"
     );
@@ -1806,7 +1809,7 @@ async fn an_hevc_mkv_is_transcoded_to_h264_and_aac_over_hls_in_six_second_segmen
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     assert_eq!(codecs(&plan), ["h264", "aac"]);
     assert_eq!(
-        plan.reasons[1],
+        plan.reasons[2],
         "This Device can't decode its Matroska container, HEVC video or AC-3 audio, so it \
          can't be Direct Played or Remuxed, and a Transcode converts it to H.264 and stereo \
          AAC, as this Device doesn't say it plays more"
@@ -1845,7 +1848,7 @@ async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_
 
     assert_eq!(at_720p.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     assert_eq!(
-        at_720p.reasons[8],
+        at_720p.reasons[9],
         "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to \
          1280×720"
     );
@@ -1854,7 +1857,7 @@ async fn a_1080p_h264_mkv_limited_to_720p_is_transcoded_down_to_it_and_original_
         "h264,1280,720"
     );
     assert_eq!(original.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(original.reasons[8], "The Playback Limit is Original");
+    assert_eq!(original.reasons[9], "The Playback Limit is Original");
     assert_eq!(
         original.playback_limits,
         [
@@ -1879,7 +1882,7 @@ async fn a_720p_limit_picked_after_a_transcode_failed_on_the_device_is_dropped_f
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert_eq!(plan.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
     assert_eq!(
-        plan.reasons[8],
+        plan.reasons[9],
         "The 720p Playback Limit needs a Transcode, which can't play it here, so it's \
          dropped for Original"
     );
@@ -1929,7 +1932,7 @@ async fn a_1080p_h264_mkv_played_from_outside_the_local_network_transcodes_to_th
     let local = fx.ask_for_plan(unpicked).await.unwrap();
 
     assert_eq!(defaulted.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
-    assert_eq!(defaulted.reasons[7], REMOTE_720P);
+    assert_eq!(defaulted.reasons[8], REMOTE_720P);
     assert_eq!(defaulted.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
     assert_eq!(
         played_streams(&fx, &defaulted.url, "v", "0.m4s", "width,height").await,
@@ -1940,7 +1943,7 @@ async fn a_1080p_h264_mkv_played_from_outside_the_local_network_transcodes_to_th
         PlaybackMethod::PLAYBACK_METHOD_REMUX
     );
     assert_eq!(local.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
-    assert_eq!(local.reasons[7], LOCAL);
+    assert_eq!(local.reasons[8], LOCAL);
     assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1961,9 +1964,9 @@ async fn behind_a_trusted_proxy_the_forwarded_client_address_decides_whether_pla
         .await
         .unwrap();
 
-    assert_eq!(remote.reasons[7], REMOTE_720P);
+    assert_eq!(remote.reasons[8], REMOTE_720P);
     assert_eq!(remote.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
-    assert_eq!(local.reasons[7], LOCAL);
+    assert_eq!(local.reasons[8], LOCAL);
     assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1982,7 +1985,7 @@ async fn behind_an_untrusted_proxy_the_peers_address_decides_whether_playback_is
         .await
         .unwrap();
 
-    assert_eq!(plan.reasons[7], LOCAL);
+    assert_eq!(plan.reasons[8], LOCAL);
     assert_eq!(plan.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -2003,7 +2006,7 @@ async fn a_pgs_track_turned_on_mid_play_is_burned_into_a_transcode_from_there() 
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     assert_eq!(
-        plan.reasons[9],
+        plan.reasons[10],
         "The subtitles chosen are burned into its picture, which only a Transcode does"
     );
     assert_eq!(
@@ -2056,7 +2059,7 @@ async fn hdr10_transcoded_for_a_browser_on_an_sdr_screen_is_tone_mapped_to_sdr()
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     assert_eq!(
-        plan.reasons[2],
+        plan.reasons[3],
         "This Server has ffmpeg, which tone-maps its HDR10 picture to SDR in a Transcode"
     );
     let colours = "color_transfer,color_primaries";
@@ -2119,7 +2122,7 @@ async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_an
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED);
     assert_eq!(plan.url, "");
-    assert_eq!(plan.reasons[4], "Direct Play failed on this Device");
+    assert_eq!(plan.reasons[5], "Direct Play failed on this Device");
 }
 
 #[tokio::test]

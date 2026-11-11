@@ -405,8 +405,9 @@ fn candidate_tone_mapper(candidates: Option<&Candidates>) -> Option<ToneMapper> 
 
 /// The steps for what the Version, Device and Server allow that lasts, so what they allow is what
 /// the User's choices can ever have.
-const LASTING_STEPS: [Step; 4] = [
+const LASTING_STEPS: [Step; 5] = [
     version_tracks,
+    version_length,
     device_decoding,
     server_ffmpeg,
     server_encoders,
@@ -524,23 +525,40 @@ fn offers(facts: &Facts, lasting: &BTreeSet<Method>) -> Offers {
     }
 }
 
-/// The step for the Version's own Tracks and length. None needs changing to play yet, so once
-/// they're known it allows every method, and before then only Direct Play, since a Remux or a
-/// Transcode needs them: an HLS playlist lists how long each segment is.
+/// The step for the Version's own Tracks. None needs changing to play yet, so once they're known
+/// it allows every method, and before then only Direct Play, since a Remux or a Transcode needs
+/// them.
 fn version_tracks(facts: &Facts, _: Option<&Candidates>) -> Narrowing {
-    let direct_play_only = BTreeSet::from([Method::DirectPlay]);
-    let (allows, reason) = match &facts.probe {
-        None => (
-            direct_play_only,
+    let (allows, reason) = if facts.probe.is_some() {
+        (BTreeSet::from(Method::ALL), "Its Tracks need no change")
+    } else {
+        (
+            BTreeSet::from([Method::DirectPlay]),
             "Its Tracks aren't known, so they're taken to need no change, and it can only be \
              Direct Played",
-        ),
-        Some(probe) if probe.duration_ms.is_none() => (
-            direct_play_only,
+        )
+    };
+    Narrowing {
+        allows,
+        reason: reason.to_owned(),
+    }
+}
+
+/// The step for the Version's length: without it only Direct Play, since the HLS playlist of a
+/// Remux or a Transcode lists how long each segment is.
+fn version_length(facts: &Facts, _: Option<&Candidates>) -> Narrowing {
+    let known = facts
+        .probe
+        .as_ref()
+        .is_some_and(|probe| probe.duration_ms.is_some());
+    let (allows, reason) = if known {
+        (BTreeSet::from(Method::ALL), "Its length is known")
+    } else {
+        (
+            BTreeSet::from([Method::DirectPlay]),
             "Its length isn't known, which a Remux's or a Transcode's playlist needs, so it can \
              only be Direct Played",
-        ),
-        Some(_) => (BTreeSet::from(Method::ALL), "Its Tracks need no change"),
+        )
     };
     Narrowing {
         allows,
@@ -1512,6 +1530,7 @@ mod tests {
                 tracks: vec![video("h264"), audio("aac", true)],
                 reasons: vec![
                     "Its Tracks need no change".to_owned(),
+                    "Its length is known".to_owned(),
                     "This Device decodes its container and Tracks".to_owned(),
                     "This Server has ffmpeg".to_owned(),
                     "No hardware acceleration passed its test when this Server started, so a \
@@ -1564,9 +1583,9 @@ mod tests {
             let cant_direct_play =
                 format!("This Device can't decode its {cant}, so it can't be Direct Played");
             assert!(
-                plan.reasons[1].starts_with(&cant_direct_play),
+                plan.reasons[2].starts_with(&cant_direct_play),
                 "{}",
-                plan.reasons[1]
+                plan.reasons[2]
             );
         }
     }
@@ -1629,30 +1648,39 @@ mod tests {
 
             assert_eq!(plan.method(), Some(method), "{tracks:?}");
             assert_eq!(
-                plan.reasons[1].contains("can't be Direct Played or Remuxed"),
+                plan.reasons[2].contains("can't be Direct Played or Remuxed"),
                 method == Method::Transcode,
                 "{}",
-                plan.reasons[1]
+                plan.reasons[2]
             );
         }
     }
 
     #[test]
     fn a_version_whose_length_isnt_known_isnt_remuxed_or_transcoded_and_says_why() {
-        let mut facts = in_container(MKV, Some(vec![video("h264"), audio("aac", true)]));
-        if let Some(probe) = &mut facts.probe {
-            probe.duration_ms = None;
-        }
+        let unknown_length = |container| {
+            let mut facts = in_container(container, Some(vec![video("h264"), audio("aac", true)]));
+            if let Some(probe) = &mut facts.probe {
+                probe.duration_ms = None;
+            }
+            build(&mut facts)
+        };
 
-        let plan = build(&mut facts);
+        let mkv = unknown_length(MKV);
+        let mp4 = unknown_length(MP4);
 
-        assert_eq!(plan.method(), None);
+        assert_eq!(mkv.method(), None);
         assert_eq!(
-            plan.reasons[0],
+            mkv.reasons[1],
             "Its length isn't known, which a Remux's or a Transcode's playlist needs, so it can \
              only be Direct Played"
         );
-        assert_eq!(plan.offers.audio, [1]);
+        assert_eq!(mkv.offers.audio, [1]);
+        assert_eq!(
+            mp4.method(),
+            Some(Method::DirectPlay),
+            "Direct Play needs no length"
+        );
     }
 
     #[test]
@@ -1666,6 +1694,8 @@ mod tests {
             [
                 "Its Tracks aren't known, so they're taken to need no change, and it can only \
                  be Direct Played",
+                "Its length isn't known, which a Remux's or a Transcode's playlist needs, so it \
+                 can only be Direct Played",
                 "Its Tracks aren't known, so this Device is taken to decode them",
                 "This Server has ffmpeg",
                 "No hardware acceleration passed its test when this Server started, so a \
@@ -1740,7 +1770,7 @@ mod tests {
         assert_eq!(plan.playing, Some(remuxing(1, None)), "counting only audio");
         assert_eq!(plan.tracks, [video("h264"), commentary]);
         assert_eq!(
-            plan.reasons[6],
+            plan.reasons[7],
             "The audio Track chosen isn't the one browsers play from its file, so it can't be \
              Direct Played"
         );
@@ -1792,6 +1822,7 @@ mod tests {
             plan.reasons,
             [
                 "Its Tracks need no change",
+                "Its length is known",
                 "This Device can't decode its Matroska container, so it can't be Direct Played",
                 "This Server has ffmpeg",
                 "No hardware acceleration passed its test when this Server started, so a \
@@ -1831,7 +1862,7 @@ mod tests {
             let plan = build(&mut facts);
 
             assert_eq!(plan.method(), Some(method), "{reason}");
-            assert_eq!(plan.reasons[4], reason);
+            assert_eq!(plan.reasons[5], reason);
         }
     }
 
@@ -1891,12 +1922,12 @@ mod tests {
 
         assert_eq!(without_ffmpeg.method(), None);
         assert_eq!(
-            without_ffmpeg.reasons[2],
+            without_ffmpeg.reasons[3],
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play"
         );
         assert_eq!(without_hls.method(), None);
         assert_eq!(
-            without_hls.reasons[1],
+            without_hls.reasons[2],
             "This Device can't decode its Matroska container, so it can't be Direct Played, \
              and it can't play HLS, which anything else needs"
         );
@@ -1947,7 +1978,7 @@ mod tests {
         };
         assert_eq!(plan.tracks, [video("h264"), aac]);
         assert_eq!(
-            plan.reasons[1],
+            plan.reasons[2],
             "This Device can't decode its Matroska container or DTS audio, so it can't be Direct \
              Played, and a Remux converts that audio to 5.1 AAC"
         );
@@ -1995,7 +2026,7 @@ mod tests {
                 "{source:?} on {plays}"
             );
             assert_eq!(
-                plan.reasons[1],
+                plan.reasons[2],
                 format!(
                     "This Device can't decode its DTS audio, so it can't be Direct Played, and a \
                      Remux converts that audio to {to}"
@@ -2026,7 +2057,7 @@ mod tests {
             [video("h264"), audio_with("aac", true, Some(2))]
         );
         assert_eq!(
-            plan.reasons[1],
+            plan.reasons[2],
             "This Device can't decode its Matroska container or HEVC video, so it can't be \
              Direct Played or Remuxed, and a Transcode converts it to H.264 and stereo AAC, as \
              this Device doesn't play 5.1"
@@ -2053,7 +2084,7 @@ mod tests {
             );
             assert_eq!(video_hdr(&plan.tracks), None, "{hdr:?} comes out SDR");
             assert_eq!(
-                plan.reasons[2],
+                plan.reasons[3],
                 format!(
                     "This Server has ffmpeg, which tone-maps its {name} picture to SDR in a Transcode"
                 )
@@ -2072,12 +2103,12 @@ mod tests {
 
         assert_eq!(transcoded(&plan).video.tone_map, None);
         assert_eq!(
-            plan.reasons[1],
+            plan.reasons[2],
             "This Device can't decode its HEVC video or HDR10 picture, so it can't be Direct \
              Played or Remuxed, and a Transcode converts it to H.264"
         );
         assert_eq!(
-            plan.reasons[2],
+            plan.reasons[3],
             "This Server's ffmpeg lacks zscale, so a Transcode can't tone-map its HDR10 picture \
              to SDR and its colours look washed out"
         );
@@ -2091,7 +2122,7 @@ mod tests {
         let plan = build(&mut facts);
 
         assert_eq!(transcoded(&plan).video.tone_map, None);
-        assert_eq!(plan.reasons[2], "This Server has ffmpeg");
+        assert_eq!(plan.reasons[3], "This Server has ffmpeg");
     }
 
     #[test]
@@ -2122,7 +2153,7 @@ mod tests {
         let plan = build(&mut facts);
 
         assert_eq!(transcoded(&plan).video.tone_map, None);
-        assert_eq!(plan.reasons[2], "This Server has ffmpeg");
+        assert_eq!(plan.reasons[3], "This Server has ffmpeg");
         assert_eq!(video_hdr(&plan.tracks), None);
     }
 
@@ -2139,7 +2170,7 @@ mod tests {
 
         assert_eq!(plan.method(), None);
         assert_eq!(
-            plan.reasons[2],
+            plan.reasons[3],
             "This Server has ffmpeg, but it can't Transcode a Dolby Vision picture with no Base \
              Layer, as in profile 5"
         );
@@ -2153,7 +2184,7 @@ mod tests {
 
         assert_eq!(plan.method(), Some(Method::Transcode));
         assert_eq!(
-            plan.reasons[1],
+            plan.reasons[2],
             "This Device can't decode its HEVC video, so it can't be Direct Played or Remuxed, \
              and a Transcode converts it to H.264"
         );
@@ -2170,7 +2201,7 @@ mod tests {
 
         assert_eq!(plan.method(), Some(Method::Remux));
         assert_eq!(
-            plan.reasons[5],
+            plan.reasons[6],
             "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
              Transcode it"
         );
@@ -2225,7 +2256,7 @@ mod tests {
             [track("h264", false, scaled), audio("aac", true)]
         );
         assert_eq!(
-            plan.reasons[8],
+            plan.reasons[9],
             "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to \
              1280×720"
         );
@@ -2245,14 +2276,14 @@ mod tests {
         assert_eq!(defaulted.method(), Some(Method::Transcode));
         assert_eq!(defaulted.limit, Some(PlaybackLimit::P720));
         assert_eq!(
-            defaulted.reasons[7],
+            defaulted.reasons[8],
             "This Device is outside the local network, so the default Playback Limit for remote \
              playback, 720p, applies"
         );
         assert_eq!(picked.method(), Some(Method::DirectPlay));
         assert_eq!(picked.limit, None);
         assert_eq!(
-            picked.reasons[7],
+            picked.reasons[8],
             "This Device is outside the local network, but its User picked a Playback Limit in \
              the player, which applies instead of the default for remote playback"
         );
@@ -2307,7 +2338,7 @@ mod tests {
             let plan = build(&mut facts);
 
             assert_eq!(plan.method(), Some(Method::DirectPlay), "{reason}");
-            assert_eq!(plan.reasons[8], reason);
+            assert_eq!(plan.reasons[9], reason);
         }
     }
 
@@ -2392,7 +2423,7 @@ mod tests {
 
             assert_eq!(plan.method(), Some(Method::Transcode), "{}", chosen.codec);
             assert_eq!(
-                plan.reasons[9],
+                plan.reasons[10],
                 "The subtitles chosen are burned into its picture, which only a Transcode does"
             );
             assert_eq!(plan.burn_in, Some(2), "{}", chosen.codec);
@@ -2406,7 +2437,7 @@ mod tests {
         let plan = build(&mut facts);
 
         assert_eq!(
-            plan.reasons[3],
+            plan.reasons[4],
             "A Transcode runs on the GPU with Intel QSV"
         );
         assert_eq!(
@@ -2456,7 +2487,7 @@ mod tests {
 
             let plan = build(&mut facts);
 
-            assert_eq!(plan.reasons[3], reason);
+            assert_eq!(plan.reasons[4], reason);
             assert_eq!(transcoded(&plan).video.hardware, on, "{reason}");
         }
     }
@@ -2474,7 +2505,7 @@ mod tests {
             let plan = build(&mut facts);
 
             assert_eq!(plan.method(), Some(Method::DirectPlay), "{chosen:?}");
-            assert_eq!(plan.reasons[9], "No subtitles are burned into its picture");
+            assert_eq!(plan.reasons[10], "No subtitles are burned into its picture");
         }
     }
 
@@ -2518,7 +2549,7 @@ mod tests {
 
             let plan = build(&mut facts);
 
-            assert_eq!(plan.reasons[3], reason);
+            assert_eq!(plan.reasons[4], reason);
             assert_eq!(transcoded(&plan).video.tone_map, tone_map, "{reason}");
         }
     }
@@ -2786,12 +2817,12 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         const LIMIT_DROPPED: &str = "The 720p Playback Limit needs a Transcode, which can't play it here, so it's \
              dropped for Original";
         let choices: [(&str, Change, usize, &str); 3] = [
-            ("720p", picking_720p, 8, LIMIT_DROPPED),
-            ("the remote default", remote_at_720p, 8, LIMIT_DROPPED),
+            ("720p", picking_720p, 9, LIMIT_DROPPED),
+            ("the remote default", remote_at_720p, 9, LIMIT_DROPPED),
             (
                 "PGS",
                 burning_in_pgs,
-                9,
+                10,
                 "The subtitles chosen need a Transcode to burn them in, which can't play it here, \
                  so they're dropped",
             ),
@@ -2875,7 +2906,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
                 assert_eq!(plan.method(), Some(Method::DirectPlay), "{case}");
                 assert_eq!(plan.audio, Some(1), "{case}");
                 assert_eq!(
-                    plan.reasons[6],
+                    plan.reasons[7],
                     "The audio Track chosen needs a Remux or a Transcode, and neither can play it \
                      here, so it's dropped for the file's own",
                     "{case}"
