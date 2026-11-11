@@ -221,8 +221,8 @@ impl Scanner {
         .await
     }
 
-    /// Deletes the Library `id`, then throws away its Versions' cached subtitles and stops
-    /// watching its folders, even if the caller stops waiting (ADR 0029).
+    /// Deletes the Library `id`, then throws away its Versions' cached subtitles where something
+    /// probes, and stops watching its folders, even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_library(&self, id: i64) -> Result<(), libraries::Error> {
         let scanner = self.clone();
         detached(async move {

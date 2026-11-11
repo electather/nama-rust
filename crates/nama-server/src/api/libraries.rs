@@ -20,7 +20,7 @@ use super::{caller, database_failed, refuse, unknown_enum_value};
 /// which [`require_access`](super::require_access) enforces, except listing them, which any
 /// signed-in User may do to browse.
 pub(super) struct LibraryServiceHandler {
-    /// Only reads: a change goes through the Scanner, which does what must follow it.
+    /// Only reads (see AGENTS.md, "One path for Library changes").
     pub(super) libraries: Libraries,
     pub(super) scanner: Scanner,
 }
