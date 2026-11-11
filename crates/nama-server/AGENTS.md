@@ -34,7 +34,7 @@
 
 ### Playback
 
-- **What a plan converts is worked out once.** Before the steps run, `candidates` in `src/playback.rs` works out what a Remux and a Transcode of the Version would convert, and the plan keeps the one it narrowed to in `Playing`. Its reasons, Tracks, events and ffmpeg arguments read that value; none asks the planning facts again.
+- **What a plan converts is worked out once.** Before the steps run, `candidates` in `src/playback.rs` works out what a Remux and a Transcode of the Version would convert, and the plan keeps the one it narrowed to in `Playing`. Its reasons, Tracks, events and ffmpeg arguments read that value; none asks the planning facts again what it converts.
 
 ### Tests
 

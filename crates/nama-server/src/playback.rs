@@ -395,11 +395,12 @@ struct Candidates {
 fn candidates(facts: &Facts) -> Option<Candidates> {
     let probe = facts.probe.as_ref()?;
     let audio = played_audio_place(facts);
-    let ffmpeg_audio = audio.map(|place| ffmpeg_audio_index(probe, place));
+    let played =
+        audio.and_then(|place| Some((ffmpeg_audio_index(probe, place), probe.tracks.get(place)?)));
     Some(Candidates {
         audio,
-        remux: remux(facts, ffmpeg_audio),
-        transcode: transcode(facts, ffmpeg_audio),
+        remux: remux(facts, played),
+        transcode: transcode(facts, played),
     })
 }
 
@@ -580,6 +581,9 @@ fn device_decoding(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
             reason: format!("{reason}, and it can't play HLS, which anything else needs"),
         };
     }
+    let played_channels = (candidates.audio)
+        .and_then(|place| probe.tracks.get(place))
+        .and_then(channels_of);
     let decodes_video =
         played_video(probe).is_none_or(|video| undecodable(video, &facts.device).is_empty());
     if !decodes_video {
@@ -587,14 +591,14 @@ fn device_decoding(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
             allows: BTreeSet::from([Method::Transcode]),
             reason: format!(
                 "{reason} or Remuxed, and a Transcode converts it to {}",
-                transcode_in_words(facts, &candidates.transcode)
+                transcode_in_words(&facts.device, played_channels, &candidates.transcode)
             ),
         };
     }
     let reason = match candidates.remux.audio.and_then(|audio| audio.aac_channels) {
         Some(channels) => format!(
             "{reason}, and a Remux converts that audio to {}",
-            aac_in_words(facts, channels, Method::Remux)
+            aac_in_words(&facts.device, played_channels, channels, Method::Remux)
         ),
         None => reason,
     };
@@ -726,22 +730,22 @@ fn video_conversion(facts: &Facts) -> VideoConversion {
     }
 }
 
-/// What a Remux for `facts` converts, playing the audio Track `audio`.
-fn remux(facts: &Facts, audio: Option<usize>) -> Remux {
-    let audio = audio.map(|track| RemuxAudio {
+/// What a Remux for `facts` converts, playing `audio`: the index ffmpeg knows an audio Track by,
+/// and that Track.
+fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> Remux {
+    let audio = audio.map(|(track, played)| RemuxAudio {
         track,
-        aac_channels: aac_channels(facts),
+        aac_channels: aac_channels(&facts.device, played),
     });
     Remux { audio }
 }
 
-/// What a Transcode for `facts` converts, playing the audio Track `audio`.
-fn transcode(facts: &Facts, audio: Option<usize>) -> Transcode {
-    let audio =
-        (audio.zip(converted_channels(facts))).map(|(track, aac_channels)| TranscodeAudio {
-            track,
-            aac_channels,
-        });
+/// What a Transcode for `facts` converts, playing `audio` as [`remux`] does.
+fn transcode(facts: &Facts, audio: Option<(usize, &Track)>) -> Transcode {
+    let audio = audio.map(|(track, played)| TranscodeAudio {
+        track,
+        aac_channels: converted_channels(&facts.device, played),
+    });
     Transcode {
         audio,
         video: video_conversion(facts),
@@ -1063,10 +1067,20 @@ fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<String> {
     cant
 }
 
-/// What `transcode` of the Version makes, in plain words, such as "H.264 and stereo AAC".
-fn transcode_in_words(facts: &Facts, transcode: &Transcode) -> String {
+/// What `transcode` of the Version makes for `device`, in plain words, such as "H.264 and stereo
+/// AAC", from audio with `played_channels`.
+fn transcode_in_words(
+    device: &DeviceDecoding,
+    played_channels: Option<i64>,
+    transcode: &Transcode,
+) -> String {
     let audio = transcode.audio.map(|audio| {
-        let aac = aac_in_words(facts, audio.aac_channels, Method::Transcode);
+        let aac = aac_in_words(
+            device,
+            played_channels,
+            audio.aac_channels,
+            Method::Transcode,
+        );
         format!(" and {aac}")
     });
     format!("H.264{}", audio.unwrap_or_default())
@@ -1094,35 +1108,29 @@ fn played_by(playing: Option<&Playing>, tracks: Vec<Track>) -> Vec<Track> {
     }
 }
 
-/// How many channels a Remux converts the played audio to, as AAC, if the Device can't decode
-/// it, as [`converted_channels`] says.
-fn aac_channels(facts: &Facts) -> Option<i64> {
-    let audio = played_audio_track(facts)?;
-    if undecodable(audio, &facts.device).is_empty() {
+/// How many channels a Remux converts the audio Track `audio` to, as AAC, if `device` can't
+/// decode it, as [`converted_channels`] says.
+fn aac_channels(device: &DeviceDecoding, audio: &Track) -> Option<i64> {
+    if undecodable(audio, device).is_empty() {
         return None;
     }
-    converted_channels(facts)
+    Some(converted_channels(device, audio))
 }
 
-/// How many channels the played audio has once converted to AAC for the Device, if it has
-/// audio: as many as it has, up to 5.1 if the Device plays 5.1 and stereo otherwise.
-fn converted_channels(facts: &Facts) -> Option<i64> {
-    played_audio_track(facts)?;
-    let most = if facts.device.audio_channels >= 6 {
-        6
-    } else {
-        2
-    };
+/// How many channels the audio Track `audio` has once converted to AAC for `device`: as many as
+/// it has, up to 5.1 if the Device plays 5.1 and stereo otherwise.
+fn converted_channels(device: &DeviceDecoding, audio: &Track) -> i64 {
+    let most = if device.audio_channels >= 6 { 6 } else { 2 };
     // Stereo when the file doesn't say, which every Device plays.
-    Some(played_channels(facts).unwrap_or(2).min(most))
+    channels_of(audio).unwrap_or(2).min(most)
 }
 
-/// How many channels the played audio has, if the file says.
-fn played_channels(facts: &Facts) -> Option<i64> {
-    let TrackKind::Audio { channels } = played_audio_track(facts)?.kind else {
-        return None;
-    };
-    channels
+/// How many channels the audio Track `audio` has, if the file says.
+const fn channels_of(audio: &Track) -> Option<i64> {
+    match audio.kind {
+        TrackKind::Audio { channels } => channels,
+        TrackKind::Video { .. } | TrackKind::Subtitle { .. } => None,
+    }
 }
 
 /// `tracks` with their audio converted to AAC with `channels` channels.
@@ -1166,19 +1174,24 @@ fn converted_to_h264(mut tracks: Vec<Track>, video: &VideoConversion) -> Vec<Tra
 }
 
 /// AAC with `channels` channels in plain words, such as "5.1 AAC", saying why when that's fewer
-/// than the played audio has, which `method` converts it to.
-fn aac_in_words(facts: &Facts, channels: i64, method: Method) -> String {
+/// than the `played_channels` the audio has, which `method` converts it to for `device`.
+fn aac_in_words(
+    device: &DeviceDecoding,
+    played_channels: Option<i64>,
+    channels: i64,
+    method: Method,
+) -> String {
     let name = match channels {
         1 => "mono".to_owned(),
         2 => "stereo".to_owned(),
         6 => "5.1".to_owned(),
         n => format!("{n}-channel"),
     };
-    let why = if channels >= played_channels(facts).unwrap_or_default() {
+    let why = if channels >= played_channels.unwrap_or_default() {
         ""
-    } else if facts.device.audio_channels >= 6 {
+    } else if device.audio_channels >= 6 {
         &format!(", the most a {} makes", method.name())
-    } else if facts.device.audio_channels == 0 {
+    } else if device.audio_channels == 0 {
         ", as this Device doesn't say it plays more"
     } else {
         ", as this Device doesn't play 5.1"
@@ -1249,11 +1262,6 @@ fn transcoded_hdr(hdr: Hdr) -> Option<Hdr> {
         Hdr::DolbyVision { base_layer, .. } => base_layer?.hdr(),
         hdr @ (Hdr::Hdr10 | Hdr::Hlg) => Some(hdr),
     }
-}
-
-/// The Track at [`played_audio_place`].
-fn played_audio_track(facts: &Facts) -> Option<&Track> {
-    facts.probe.as_ref()?.tracks.get(played_audio_place(facts)?)
 }
 
 /// Which of `probe`'s audio Tracks the one at `place` in its Tracks is, counting only its audio
