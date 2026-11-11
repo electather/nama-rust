@@ -21,7 +21,8 @@ use crate::{
     plugins::Registry,
 };
 
-/// Hands `$query!` the SQL for whether its Fulfiller has a Request that isn't Available yet.
+/// Hands `$query!` the SQL for whether a Request's Fulfiller has it and it isn't Available yet,
+/// as [`is_fulfilling`] has it.
 macro_rules! fulfilling_sql {
     ($query:ident) => {
         $query!("state IN ('processing', 'partially_available')")
