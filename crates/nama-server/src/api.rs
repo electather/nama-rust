@@ -23,7 +23,7 @@ use crate::{
     contents::Contents,
     db::{Database, now},
     events::EventBus,
-    ffmpeg::Ffmpeg,
+    ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
     libraries::Libraries,
     metadata::MetadataSource,
@@ -80,6 +80,7 @@ pub(crate) fn router(
     requests: Requests,
     settings: server_settings::Settings,
     running: RunningPlans,
+    abilities: Abilities,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: crate::playback::subtitles::Cache,
@@ -105,7 +106,7 @@ pub(crate) fn router(
             name: config.name.clone(),
             users: users.clone(),
             settings,
-            running: running.clone(),
+            abilities: abilities.clone(),
             ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
@@ -123,6 +124,7 @@ pub(crate) fn router(
         .add_service(Arc::new(WatchStateServiceHandler { browse }))
         .add_service(Arc::new(PlaybackServiceHandler {
             probing,
+            abilities,
             running,
             settings: playback,
         }))

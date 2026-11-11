@@ -33,8 +33,8 @@ use tower_http::services::ServeFile;
 use crate::{
     contents::Contents,
     ffmpeg::{
-        BurnIn, Ffmpeg, Hardware, ProbeError, Remux, RemuxAudio, ToneMapper, Transcode,
-        TranscodeAudio, VideoConversion, VideoLimit,
+        Abilities, BurnIn, CanDo, Ffmpeg, Hardware, ProbeError, Remux, RemuxAudio, ToneMapper,
+        Transcode, TranscodeAudio, VideoConversion, VideoLimit,
     },
     probing::{self, Probing},
     server_settings::{HardwareChoice, PlaybackValues},
@@ -271,8 +271,14 @@ pub(crate) struct Asked {
 /// it in `running` if it plays. It probes the Version first unless its Tracks are current. `None`
 /// if there is no such Version, and [`StartError::Busy`] if only a Transcode would play it and
 /// the Server is running as many as it may.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the handles are the PlaybackService handler's own, and the rest is the call; \
+              passing the handler would tie planning to the API"
+)]
 pub(crate) async fn plan(
     probing: &Probing,
+    abilities: &Abilities,
     running: &RunningPlans,
     caller: &Caller,
     asked: Asked,
@@ -301,13 +307,17 @@ pub(crate) async fn plan(
         Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
         Err(probing::Error::Database(err)) => return Err(err.into()),
     };
-    // Asked together, so a busy host's planning waits out one listing's timeout, not two.
-    let (zscale, libx264) = tokio::join!(running.can_tone_map(), running.can_encode_in_software());
+    let CanDo {
+        runs,
+        zscale,
+        libx264,
+        hardware,
+    } = abilities.can_do().await;
     let mut facts = Facts {
         version,
         probe,
         device: decoding,
-        ffmpeg: running.can_run(),
+        ffmpeg: runs,
         zscale,
         libx264,
         failed,
@@ -321,7 +331,7 @@ pub(crate) async fn plan(
         },
         subtitle,
         hardware_choice: settings.hardware,
-        hardware: running.found_hardware().await.to_vec(),
+        hardware,
         dropped: BTreeSet::new(),
     };
     let max_transcodes =
@@ -2926,7 +2936,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             contents::Contents,
             db::Database,
             events::EventBus,
-            ffmpeg::Ffmpeg,
+            ffmpeg::{Abilities, Ffmpeg},
             libraries::{Kind, Libraries},
             playback::{Asked, Planned, StartedPlan, plan, running::RunningPlans, subtitles},
             plugins::Registry,
@@ -2956,9 +2966,10 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             subtitles::Cache::new(data.path()),
         );
         let settings = Settings::new(Arc::clone(&db), data.path().join("transcodes"));
+        let ffmpeg = Arc::new(Ffmpeg::default());
         let running = RunningPlans::new(
             settings.playback(),
-            Arc::new(Ffmpeg::default()),
+            Arc::clone(&ffmpeg),
             contents,
             Tracks::new(Arc::clone(&db)),
             EventBus::new(db, Registry::new(), ServerUrl::default()),
@@ -2975,6 +2986,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         };
         let planned = plan(
             &probing,
+            &Abilities::new(ffmpeg),
             &running,
             &ripley_on_the_nostromo(),
             asked,
