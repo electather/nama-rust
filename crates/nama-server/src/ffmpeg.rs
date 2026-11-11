@@ -346,25 +346,19 @@ impl Ffmpeg {
         Ok(output.stdout)
     }
 
-    /// Starts ffmpeg copying the first video, and the `audio`th audio Track if any, of the file
-    /// at `path` untouched into fMP4 in `dir`, but for converting that audio to AAC with
-    /// `aac_channels` channels if given, from the keyframe `from` to the end. It writes a
-    /// file per keyframe, named by its number such as `3.m4s`, and an init segment named by
-    /// [`hls_init`] that's whole once `from`'s file is. A run started at any keyframe writes the
-    /// same files, so one can pick up where another stopped. Each file appears only once it's
-    /// whole. Dropping the child stops ffmpeg.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the plan fixes the first three and each run the last two; a struct would only rename them"
-    )]
+    /// The run of ffmpeg that copies the first video of the file at `path`, and `remux`'s audio
+    /// Track if any, untouched into fMP4 in `dir`, but for converting that audio to AAC as `remux`
+    /// says, from the keyframe `from` to the end. It writes a file per keyframe, named by its
+    /// number such as `3.m4s`, and an init segment named by [`hls_init`] that's whole once
+    /// `from`'s file is. A run started at any keyframe writes the same files, so one can pick up
+    /// where another stopped. Each file appears only once it's whole. Fails without ffmpeg.
     pub(crate) fn remux(
         &self,
         path: &str,
-        audio: Option<usize>,
-        aac_channels: Option<i64>,
+        remux: &Remux,
         dir: &Path,
         from: Keyframe,
-    ) -> io::Result<tokio::process::Child> {
+    ) -> io::Result<HlsRun> {
         let ffmpeg = (self.ffmpeg.as_ref()).map_err(|why| io::Error::other(why.clone()))?;
         let mut command = tokio::process::Command::new(&ffmpeg.path);
         command.args(["-v", "error", "-nostdin"]);
@@ -393,42 +387,39 @@ impl Ffmpeg {
         ];
         command.args(times);
         command.args(["-map", "0:V:0"]);
-        map_audio(&mut command, audio);
+        map_audio(&mut command, remux.audio.map(|audio| audio.track));
         command.args(["-c", "copy"]);
-        aac(&mut command, aac_channels);
-        spawn_hls(command, &ffmpeg.version, dir, from.n)
+        aac(
+            &mut command,
+            remux.audio.and_then(|audio| audio.aac_channels),
+        );
+        Ok(hls_output(command, &ffmpeg.version, dir, from.n))
     }
 
-    /// Starts ffmpeg converting the first video of the file at `path` to 8-bit H.264 as `video`
-    /// says, and its `audio`th audio Track, if given, to AAC with the channels given beside it,
-    /// into fMP4 in `dir`, from `cuts[0]` to the end. It cuts a file at each of `cuts`, in
-    /// milliseconds, numbered from `n`, such as `3.m4s`, and writes an init segment named by
-    /// [`hls_init`] that's whole once the first file is. A run started at any cut writes the same
-    /// files, so one can pick up where another stopped. Each file appears only once it's whole.
-    /// Dropping the child stops ffmpeg.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "as for `remux`: the plan fixes the first three and each run the rest"
-    )]
+    /// The run of ffmpeg that converts the first video of the file at `path` to 8-bit H.264, and
+    /// its audio Track if any to AAC, as `transcode` says, into fMP4 in `dir`, from the cut `from`
+    /// to the end. It cuts a file at each cut, numbered from `from`'s, such as `3.m4s`, and writes
+    /// an init segment named by [`hls_init`] that's whole once the first file is. A run started at
+    /// any cut writes the same files, so one can pick up where another stopped. Each file appears
+    /// only once it's whole. Fails without ffmpeg.
     pub(crate) fn transcode(
         &self,
         path: &str,
-        audio: Option<(usize, i64)>,
-        video: &VideoConversion,
+        transcode: &Transcode,
         dir: &Path,
-        n: usize,
-        cuts: &[i64],
-    ) -> io::Result<tokio::process::Child> {
+        from: FromCut<'_>,
+    ) -> io::Result<HlsRun> {
         let ffmpeg = (self.ffmpeg.as_ref()).map_err(|why| io::Error::other(why.clone()))?;
         let mut command = tokio::process::Command::new(&ffmpeg.path);
         command.args(["-v", "error", "-nostdin"]);
+        let video = &transcode.video;
         let VideoArgs {
             input,
             video: video_input,
             codec,
         } = video_args(path, video);
         command.args(input);
-        let start_ms = cuts.first().copied().unwrap_or_default();
+        let start_ms = from.cuts.first().copied().unwrap_or_default();
         if start_ms > 0 {
             // Decodes from the keyframe before it and drops the frames before it.
             command.args(["-ss", &seconds(start_ms)]);
@@ -438,10 +429,10 @@ impl Ffmpeg {
         // cut a run starts at: `-force_key_frames` expressions time frames from the run's first.
         command.args(["-copyts", "-start_at_zero"]);
         command.args(video_input);
-        map_audio(&mut command, audio.map(|(audio, _)| audio));
+        map_audio(&mut command, transcode.audio.map(|audio| audio.track));
         // ponytail: a 5-hour Version's cuts near Windows' 32K command line; read them from a
         // file if longer ones fail to Transcode there.
-        let cuts: Vec<String> = cuts.iter().map(|&cut| seconds(cut)).collect();
+        let cuts: Vec<String> = from.cuts.iter().map(|&cut| seconds(cut)).collect();
         command
             .args(codec)
             .arg("-force_key_frames")
@@ -458,9 +449,12 @@ impl Ffmpeg {
                 .args(["-b:v", &rate, "-maxrate", &rate, "-bufsize"])
                 .arg((2 * u64::from(bits_per_second)).to_string());
         }
-        aac(&mut command, audio.map(|(_, channels)| channels));
+        aac(
+            &mut command,
+            transcode.audio.map(|audio| audio.aac_channels),
+        );
         command.args(["-output_ts_offset", &seconds(TRANSCODE_LATER_BY_MS)]);
-        spawn_hls(command, &ffmpeg.version, dir, n)
+        Ok(hls_output(command, &ffmpeg.version, dir, from.n))
     }
 
     /// The file at `path`'s subtitle stream `subtitle`, counting only its subtitle streams from 0,
@@ -488,6 +482,60 @@ impl Ffmpeg {
             return Err(SubtitleError::Failed(stderr.trim().to_owned()));
         }
         Ok(output.stdout)
+    }
+}
+
+/// What a Remux converts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Remux {
+    /// The audio Track it plays, or `None` when the Version has none.
+    pub(crate) audio: Option<RemuxAudio>,
+}
+
+/// The audio Track a Remux plays.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RemuxAudio {
+    /// Its place among the file's audio Tracks, counting from 0.
+    pub(crate) track: usize,
+    /// The channels it's converted to AAC with, or `None` to copy it.
+    pub(crate) aac_channels: Option<i64>,
+}
+
+/// What a Transcode converts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Transcode {
+    /// The audio Track it plays, or `None` when the Version has none.
+    pub(crate) audio: Option<TranscodeAudio>,
+    /// How it converts the first video.
+    pub(crate) video: VideoConversion,
+}
+
+/// The audio Track a Transcode plays.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct TranscodeAudio {
+    /// Its place among the file's audio Tracks, counting from 0.
+    pub(crate) track: usize,
+    /// The channels it's converted to AAC with.
+    pub(crate) aac_channels: i64,
+}
+
+/// The cut a run of a Transcode starts at.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FromCut<'a> {
+    /// Its number, from 0.
+    pub(crate) n: usize,
+    /// When it and each cut after it fall, in milliseconds from the file's start.
+    pub(crate) cuts: &'a [i64],
+}
+
+/// One run of ffmpeg writing a Remux's or Transcode's files, built but not started. Only this
+/// module builds one, so ffmpeg only ever runs with arguments built here.
+pub(crate) struct HlsRun(tokio::process::Command);
+
+impl HlsRun {
+    /// Starts ffmpeg. Dropping the child stops it.
+    pub(crate) fn spawn(mut self) -> io::Result<tokio::process::Child> {
+        self.0.spawn()
     }
 }
 
@@ -692,14 +740,9 @@ fn aac(command: &mut tokio::process::Command, channels: Option<i64>) {
     }
 }
 
-/// Starts `command`, ffmpeg at `version` given its input and codecs, writing HLS with fMP4 to
-/// `dir`: a file per keyframe, numbered from `n`, and an init segment named by [`hls_init`].
-fn spawn_hls(
-    mut command: tokio::process::Command,
-    version: &str,
-    dir: &Path,
-    n: usize,
-) -> io::Result<tokio::process::Child> {
+/// `command`, ffmpeg at `version` given its input and codecs, writing HLS with fMP4 to `dir`: a
+/// file per keyframe, numbered from `n`, and an init segment named by [`hls_init`].
+fn hls_output(mut command: tokio::process::Command, version: &str, dir: &Path, n: usize) -> HlsRun {
     // ffmpeg 5.0 renamed it; 6.0 dropped the old name.
     let segment_options = if is_release_before(version, (5, 0)) {
         "-hls_ts_options"
@@ -724,8 +767,8 @@ fn spawn_hls(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
+        .kill_on_drop(true);
+    HlsRun(command)
 }
 
 /// The keyframes in what `ffprobe -show_entries packet=pts_time,flags:format=start_time -of
@@ -1181,7 +1224,7 @@ mod tests {
         sync::{PoisonError, RwLock},
     };
 
-    use super::{Accel, Ffmpeg, FoundProgram, Hardware, Keyframe};
+    use super::{Accel, Ffmpeg, FoundProgram, Hardware};
     use crate::config::Config;
 
     /// Held to write a fake, and shared to run them. A child forked while another test has a fake
@@ -1507,48 +1550,347 @@ mod tests {
     async fn without_ffmpeg_no_hardware_is_found() {
         assert_eq!(Ffmpeg::default().find_hardware().await, []);
     }
+}
 
-    #[tokio::test]
-    async fn ffmpeg_before_5_0_is_given_segment_options_by_their_old_name() {
-        let bin = tempfile::tempdir().unwrap();
-        let args = bin.path().join("args");
-        let script = format!(
-            "#!/bin/sh\n[ \"$1\" = -version ] && echo 'ffmpeg version 4.4.2' \
-             || echo \"$*\" > '{}'\n",
-            args.display()
-        );
-        let ffmpeg = {
-            let _writing = WRITING_FAKES
-                .write()
-                .unwrap_or_else(PoisonError::into_inner);
-            let path = bin.path().join("ffmpeg");
-            fs::write(&path, script).unwrap();
-            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-            path
-        };
-        let ffmpeg = Ffmpeg {
+#[cfg(test)]
+mod hls_run_tests {
+    use std::path::Path;
+
+    use super::{
+        BurnIn, Ffmpeg, FoundProgram, FromCut, HlsRun, Keyframe, Remux, RemuxAudio, ToneMapper,
+        Transcode, TranscodeAudio, VideoConversion, VideoLimit,
+    };
+
+    /// An ffmpeg at `version` that isn't on this machine, which building arguments never runs.
+    fn ffmpeg(version: &str) -> Ffmpeg {
+        Ffmpeg {
             ffmpeg: Ok(FoundProgram {
-                path: ffmpeg,
-                version: "4.4.2".to_owned(),
+                path: "ffmpeg".into(),
+                version: version.to_owned(),
             }),
             ..Ffmpeg::default()
+        }
+    }
+
+    fn args(run: &HlsRun) -> Vec<String> {
+        (run.0.as_std().get_args())
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    /// A Transcode's video converted in software, with nothing else asked of it.
+    const SOFTWARE: VideoConversion = VideoConversion {
+        hardware: None,
+        tone_map: None,
+        limit: None,
+        burn_in: None,
+        in_band_headers: false,
+    };
+
+    /// The arguments for a run of `remux` of `alien.mkv` from `from`, with ffmpeg 7.1.1.
+    fn remux_args(remux: Remux, from: Keyframe) -> Vec<String> {
+        let run = ffmpeg("7.1.1").remux("alien.mkv", &remux, Path::new("plan"), from);
+        args(&run.unwrap())
+    }
+
+    /// The arguments for a run of a silent Transcode of `alien.mkv` whose video `video` converts,
+    /// from its first cut of three, with ffmpeg 7.1.1.
+    fn transcode_args(video: VideoConversion) -> Vec<String> {
+        let transcode = Transcode { audio: None, video };
+        let from = FromCut {
+            n: 0,
+            cuts: &[0, 6000, 12_000],
+        };
+        let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, Path::new("plan"), from);
+        args(&run.unwrap())
+    }
+
+    /// What `args` gives the first `option`, if anything.
+    fn value_of<'a>(args: &'a [String], option: &str) -> Option<&'a str> {
+        let at = args.iter().position(|arg| arg == option)?;
+        args.get(at + 1).map(String::as_str)
+    }
+
+    const fn keyframe(n: usize, ms: i64, previous_ms: Option<i64>) -> Keyframe {
+        Keyframe { n, ms, previous_ms }
+    }
+
+    /// `name` in the folder the tests write to, as ffmpeg is given it on this platform.
+    fn in_plan(name: &str) -> String {
+        Path::new("plan").join(name).display().to_string()
+    }
+
+    #[test]
+    fn a_remux_copies_the_video_and_converts_the_audio_from_its_keyframe_on() {
+        let remux = Remux {
+            audio: Some(RemuxAudio {
+                track: 1,
+                aac_channels: Some(2),
+            }),
         };
 
-        let remux = {
-            let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
-            let first = Keyframe {
-                n: 0,
-                ms: 0,
-                previous_ms: None,
-            };
-            ffmpeg.remux("alien.mkv", None, None, bin.path(), first)
+        let args = remux_args(remux, keyframe(3, 6000, Some(4000)));
+
+        let expected = [
+            "-v",
+            "error",
+            "-nostdin",
+            "-ss",
+            "5.500",
+            "-itsoffset",
+            "1.000",
+            "-i",
+            "alien.mkv",
+            "-copyts",
+            "-start_at_zero",
+            "-ss",
+            "6.500",
+            "-output_ts_offset",
+            "6.500",
+            "-map",
+            "0:V:0",
+            "-map",
+            "0:a:1",
+            "-c",
+            "copy",
+            "-c:a",
+            "aac",
+            "-ac",
+            "2",
+            "-f",
+            "hls",
+            "-hls_segment_type",
+            "fmp4",
+            "-hls_time",
+            "0.001",
+            "-hls_playlist_type",
+            "vod",
+            "-hls_flags",
+            "temp_file",
+            "-hls_fmp4_init_filename",
+            "init-3.mp4",
+            "-hls_segment_options",
+            "movflags=+frag_discont",
+            "-start_number",
+            "3",
+            "-hls_segment_filename",
+            &in_plan("%d.m4s"),
+            &in_plan("ffmpeg.m3u8"),
+        ];
+        assert_eq!(args, expected);
+    }
+
+    #[test]
+    fn a_transcode_converts_the_video_and_audio_from_its_cut_on() {
+        let transcode = Transcode {
+            audio: Some(TranscodeAudio {
+                track: 0,
+                aac_channels: 6,
+            }),
+            video: SOFTWARE,
+        };
+        let from = FromCut {
+            n: 2,
+            cuts: &[12_000, 18_000],
         };
 
-        remux.unwrap().wait().await.unwrap();
-        let args = fs::read_to_string(args).unwrap();
-        assert!(
-            args.contains("-hls_ts_options movflags=+frag_discont"),
-            "{args}"
+        let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, Path::new("plan"), from);
+        let args = args(&run.unwrap());
+
+        let expected = [
+            "-v",
+            "error",
+            "-nostdin",
+            "-ss",
+            "12.000",
+            "-i",
+            "alien.mkv",
+            "-copyts",
+            "-start_at_zero",
+            "-map",
+            "0:V:0",
+            "-map",
+            "0:a:0",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-pix_fmt",
+            "yuv420p",
+            "-x264-params",
+            "keyint=infinite:scenecut=0",
+            "-force_key_frames",
+            "12.000,18.000",
+            "-c:a",
+            "aac",
+            "-ac",
+            "6",
+            "-output_ts_offset",
+            "1.000",
+            "-f",
+            "hls",
+            "-hls_segment_type",
+            "fmp4",
+            "-hls_time",
+            "0.001",
+            "-hls_playlist_type",
+            "vod",
+            "-hls_flags",
+            "temp_file",
+            "-hls_fmp4_init_filename",
+            "init-2.mp4",
+            "-hls_segment_options",
+            "movflags=+frag_discont",
+            "-start_number",
+            "2",
+            "-hls_segment_filename",
+            &in_plan("%d.m4s"),
+            &in_plan("ffmpeg.m3u8"),
+        ];
+        assert_eq!(args, expected);
+    }
+
+    #[test]
+    fn a_remux_seeks_halfway_back_to_the_keyframe_before_and_at_most_half_a_second() {
+        let input_seek = |from| {
+            let args = remux_args(Remux { audio: None }, from);
+            let input = args.iter().position(|arg| arg == "-i").unwrap();
+            value_of(&args[..input], "-ss").map(str::to_owned)
+        };
+
+        assert_eq!(
+            input_seek(keyframe(3, 6000, Some(5600))).as_deref(),
+            Some("5.800")
+        );
+        assert_eq!(
+            input_seek(keyframe(3, 6000, Some(2000))).as_deref(),
+            Some("5.500")
+        );
+        assert_eq!(
+            input_seek(keyframe(0, 400, None)),
+            None,
+            "from the file's start"
+        );
+    }
+
+    #[test]
+    fn hdr_is_tone_mapped_to_sdr_in_software_with_zscale() {
+        let tone_mapped = VideoConversion {
+            tone_map: Some(ToneMapper::Software),
+            ..SOFTWARE
+        };
+
+        let args = transcode_args(tone_mapped);
+
+        let filters = "setparams=color_primaries=bt2020:colorspace=bt2020nc,\
+                       zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,\
+                       tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p";
+        assert_eq!(value_of(&args, "-vf"), Some(filters));
+    }
+
+    #[test]
+    fn a_playback_limit_scales_the_picture_and_caps_the_bitrate() {
+        let limited = VideoConversion {
+            limit: Some(VideoLimit {
+                size: Some((1280, 720)),
+                bits_per_second: 4_000_000,
+            }),
+            ..SOFTWARE
+        };
+
+        let args = transcode_args(limited);
+
+        assert_eq!(value_of(&args, "-vf"), Some("scale=1280:720"));
+        assert_eq!(value_of(&args, "-b:v"), Some("4000000"));
+        assert_eq!(value_of(&args, "-maxrate"), Some("4000000"));
+        assert_eq!(value_of(&args, "-bufsize"), Some("8000000"));
+    }
+
+    #[test]
+    fn an_image_subtitle_is_burned_in_fitted_and_centred_over_the_picture() {
+        let burned = VideoConversion {
+            burn_in: Some(BurnIn::Image {
+                subtitle: 1,
+                picture: Some((1920, 1080)),
+            }),
+            ..SOFTWARE
+        };
+
+        let args = transcode_args(burned);
+
+        let graph = "[0:V:0]null[picture];\
+                     [0:s:1]scale=1920:1080:force_original_aspect_ratio=decrease[subtitle];\
+                     [picture][subtitle]overlay=(W-w)/2:(H-h)/2[video]";
+        assert_eq!(value_of(&args, "-filter_complex"), Some(graph));
+        assert_eq!(value_of(&args, "-map"), Some("[video]"));
+    }
+
+    #[test]
+    fn a_text_subtitle_is_burned_in_from_the_file_by_libass() {
+        let burned = VideoConversion {
+            burn_in: Some(BurnIn::Text { subtitle: 2 }),
+            ..SOFTWARE
+        };
+
+        let args = transcode_args(burned);
+
+        assert_eq!(
+            value_of(&args, "-vf"),
+            Some(r"subtitles=filename=\'alien.mkv\':si=2")
+        );
+    }
+
+    #[test]
+    fn audio_is_converted_to_aac_with_its_channels_or_else_copied() {
+        let audio = |aac_channels| Remux {
+            audio: Some(RemuxAudio {
+                track: 0,
+                aac_channels,
+            }),
+        };
+        let first = keyframe(0, 0, None);
+
+        let converted = remux_args(audio(Some(6)), first);
+        let copied = remux_args(audio(None), first);
+
+        assert_eq!(value_of(&converted, "-c:a"), Some("aac"));
+        assert_eq!(value_of(&converted, "-ac"), Some("6"));
+        assert_eq!(value_of(&copied, "-c:a"), None);
+        assert_eq!(value_of(&copied, "-ac"), None);
+    }
+
+    #[test]
+    fn a_transcode_forces_a_keyframe_at_each_cut_from_its_first() {
+        let args = transcode_args(SOFTWARE);
+
+        assert_eq!(
+            value_of(&args, "-force_key_frames"),
+            Some("0.000,6.000,12.000")
+        );
+    }
+
+    #[test]
+    fn ffmpeg_before_5_0_is_given_segment_options_by_their_old_name() {
+        let segment_options = |version| {
+            let silent = Remux { audio: None };
+            let run = ffmpeg(version).remux(
+                "alien.mkv",
+                &silent,
+                Path::new("plan"),
+                keyframe(0, 0, None),
+            );
+            let args = args(&run.unwrap());
+            ["-hls_ts_options", "-hls_segment_options"]
+                .into_iter()
+                .filter(|option| value_of(&args, option) == Some("movflags=+frag_discont"))
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(segment_options("4.4.2"), ["-hls_ts_options"]);
+        assert_eq!(segment_options("n5.0"), ["-hls_segment_options"]);
+        assert_eq!(
+            segment_options("N-113021-g5b3fc5d"),
+            ["-hls_segment_options"]
         );
     }
 }
@@ -1779,8 +2121,8 @@ mod hls_tests {
     use std::{fs, path::Path};
 
     use super::{
-        Ffmpeg, Keyframe, ToneMapper, VideoConversion, VideoLimit, write_h264_with_5_1,
-        write_hevc_with_5_1, write_test_media,
+        Ffmpeg, FromCut, Keyframe, Remux, RemuxAudio, ToneMapper, Transcode, TranscodeAudio,
+        VideoConversion, VideoLimit, write_h264_with_5_1, write_hevc_with_5_1, write_test_media,
     };
     use crate::config::Config;
 
@@ -1798,8 +2140,14 @@ mod hls_tests {
     async fn remux(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, from: Keyframe) {
         fs::create_dir_all(dir).unwrap();
         let path = path.to_str().unwrap();
-        let output = ffmpeg.remux(path, Some(0), None, dir, from).unwrap();
-        let output = output.wait_with_output().await.unwrap();
+        let remux = Remux {
+            audio: Some(RemuxAudio {
+                track: 0,
+                aac_channels: None,
+            }),
+        };
+        let output = ffmpeg.remux(path, &remux, dir, from).unwrap();
+        let output = output.spawn().unwrap().wait_with_output().await.unwrap();
         assert!(output.status.success(), "{output:?}");
     }
 
@@ -1819,23 +2167,27 @@ mod hls_tests {
     async fn transcode(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, n: usize) {
         fs::create_dir_all(dir).unwrap();
         let cuts = [0, 6000, 12_000, 18_000];
+        let transcode = Transcode {
+            audio: Some(TranscodeAudio {
+                track: 0,
+                aac_channels: 2,
+            }),
+            video: VideoConversion {
+                hardware: None,
+                tone_map: None,
+                limit: None,
+                burn_in: None,
+                in_band_headers: false,
+            },
+        };
+        let from = FromCut {
+            n,
+            cuts: &cuts[n..],
+        };
         let output = ffmpeg
-            .transcode(
-                path.to_str().unwrap(),
-                Some((0, 2)),
-                &VideoConversion {
-                    hardware: None,
-                    tone_map: None,
-                    limit: None,
-                    burn_in: None,
-                    in_band_headers: false,
-                },
-                dir,
-                n,
-                &cuts[n..],
-            )
+            .transcode(path.to_str().unwrap(), &transcode, dir, from)
             .unwrap();
-        let output = output.wait_with_output().await.unwrap();
+        let output = output.spawn().unwrap().wait_with_output().await.unwrap();
         assert!(output.status.success(), "{output:?}");
     }
 
@@ -1869,19 +2221,23 @@ mod hls_tests {
         .unwrap();
         let dir = work.path().join("transcoded");
         fs::create_dir_all(&dir).unwrap();
-        let tone_mapped = VideoConversion {
-            hardware: None,
-            tone_map: Some(ToneMapper::Software),
-            limit: None,
-            burn_in: None,
-            in_band_headers: false,
+        let tone_mapped = Transcode {
+            audio: None,
+            video: VideoConversion {
+                hardware: None,
+                tone_map: Some(ToneMapper::Software),
+                limit: None,
+                burn_in: None,
+                in_band_headers: false,
+            },
         };
+        let from = FromCut { n: 0, cuts: &[0] };
 
         let output = ffmpeg
-            .transcode(file.to_str().unwrap(), None, &tone_mapped, &dir, 0, &[0])
+            .transcode(file.to_str().unwrap(), &tone_mapped, &dir, from)
             .unwrap();
 
-        let output = output.wait_with_output().await.unwrap();
+        let output = output.spawn().unwrap().wait_with_output().await.unwrap();
         assert!(output.status.success(), "{output:?}");
     }
 
@@ -1921,18 +2277,17 @@ mod hls_tests {
         let dir = work.path().join("transcoded");
         fs::create_dir_all(&dir).unwrap();
 
+        let transcode = Transcode { audio: None, video };
+        let from = FromCut {
+            n: 0,
+            cuts: &[0, 6000, 12_000, 18_000],
+        };
+
         let output = ffmpeg
-            .transcode(
-                file.to_str().unwrap(),
-                None,
-                &video,
-                &dir,
-                0,
-                &[0, 6000, 12_000, 18_000],
-            )
+            .transcode(file.to_str().unwrap(), &transcode, &dir, from)
             .unwrap();
 
-        let output = output.wait_with_output().await.unwrap();
+        let output = output.spawn().unwrap().wait_with_output().await.unwrap();
         assert!(output.status.success(), "{hardware:?}: {output:?}");
         for n in 0..4 {
             assert!(dir.join(format!("{n}.m4s")).exists(), "{n}.m4s");
