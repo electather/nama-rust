@@ -14,8 +14,7 @@ pub(super) enum Asked {
 }
 
 // sqlx checks a query at compile time from its literal text, so a table or column name can't be
-// a bound parameter. This hands the local macro `$query` the literal names of `$asked`'s tables,
-// writing one compile-checked query per kind as the two arms of a match.
+// a bound parameter: `$query` is a local macro that takes them as literals, expanded once per kind.
 macro_rules! per_kind {
     ($asked:expr, $query:ident) => {
         match $asked {
@@ -62,8 +61,8 @@ pub(super) async fn requesters(
             .await?
         };
     }
-    // ponytail: every one's Requesters, even for one User's; filter by them in SQL if the list
-    // gets big.
+    // ponytail: every Requester of this kind, even when listing one User's; filter by them in SQL
+    // if the list gets big.
     let rows = per_kind!(asked, requesters);
     let mut requesters: HashMap<i64, Vec<Requester>> = HashMap::new();
     for row in rows {
