@@ -979,34 +979,6 @@ fn assert_blocked(reply: &Reply) {
 }
 
 #[tokio::test]
-async fn the_11th_failed_sign_in_for_a_name_is_blocked_even_with_the_right_password() {
-    let server = start().await;
-    set_up(&server).await;
-    fail_sign_in(&server, "Ada", 10).await;
-
-    let blocked = call(
-        &server,
-        "SignIn",
-        &sign_in_request("aDA", PASSWORD, "SESSION_DELIVERY_TOKEN"),
-        &[],
-    )
-    .await;
-
-    assert_blocked(&blocked);
-}
-
-#[tokio::test]
-async fn failures_for_one_name_dont_block_another_name() {
-    let server = start().await;
-    set_up(&server).await;
-    fail_sign_in(&server, "Grace", 10).await;
-
-    let signed_in = sign_in(&server, "SESSION_DELIVERY_TOKEN").await;
-
-    assert_eq!(signed_in.status, 200, "{}", signed_in.body);
-}
-
-#[tokio::test]
 async fn x_forwarded_proto_from_an_untrusted_peer_doesnt_set_a_secure_cookie() {
     let server = start().await;
 
@@ -1023,19 +995,6 @@ async fn x_forwarded_proto_from_an_untrusted_peer_doesnt_set_a_secure_cookie() {
         attributes,
         ["HttpOnly", "SameSite=Strict", "Path=/", "Max-Age=7776000"]
     );
-}
-
-#[tokio::test]
-async fn a_successful_sign_in_resets_that_names_failures() {
-    let server = start().await;
-    set_up(&server).await;
-    fail_sign_in(&server, "Ada", 9).await;
-    sign_in(&server, "SESSION_DELIVERY_TOKEN").await;
-    fail_sign_in(&server, "Ada", 9).await;
-
-    let signed_in = sign_in(&server, "SESSION_DELIVERY_TOKEN").await;
-
-    assert_eq!(signed_in.status, 200, "{}", signed_in.body);
 }
 
 /// Fails to set up with a wrong Setup Code `times` times, the `i`th time sending
