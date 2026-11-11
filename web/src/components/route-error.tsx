@@ -3,7 +3,9 @@ import { Link, type ErrorComponentProps, useRouter } from "@tanstack/react-route
 
 import { Page } from "@/components/page";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { isCode } from "@/lib/connect-errors";
+import { refusalOf } from "@/lib/forms";
 
 /** What a page shows instead when it fails, in plain words and never an error code. */
 export function RouteError({ error }: ErrorComponentProps) {
@@ -30,13 +32,39 @@ function NotAllowed() {
         It needs a Permission you don’t have. If you need something changed here, ask whoever runs
         the Server.
       </p>
-      {/* Pulled back by the button's own padding, so its words line up with the text above. */}
-      <div className="mt-6 -ms-4">
-        <Link to="/" className={buttonVariants({ variant: "ghost" })}>
-          Back to your Libraries
-        </Link>
-      </div>
+      <BackToLibraries />
     </Page>
+  );
+}
+
+/** What the player's page shows instead when it fails: a Version gone while it played was deleted. */
+export function PlayerError(props: ErrorComponentProps) {
+  if (refusalOf(props.error).reason === RefusalReason.VERSION_NOT_FOUND) {
+    return <DeletedWhilePlaying />;
+  }
+  return <RouteError {...props} />;
+}
+
+/** What the player shows once what it plays was deleted from the Server. */
+export function DeletedWhilePlaying() {
+  return (
+    <Page heading="Deleted from the Server">
+      <p className="mt-2 max-w-prose text-muted-foreground">
+        Someone deleted what was playing, so it can’t play any more.
+      </p>
+      <BackToLibraries />
+    </Page>
+  );
+}
+
+function BackToLibraries() {
+  return (
+    // Pulled back by the button's own padding, so its words line up with the text above.
+    <div className="mt-6 -ms-4">
+      <Link to="/" className={buttonVariants({ variant: "ghost" })}>
+        Back to your Libraries
+      </Link>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT url, segment_folder, max_transcodes, hardware_acceleration, hardware_gpu,\n                    hardware_gpu_name, remote_playback_limit\n             FROM server_settings",
+  "query": "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,\n                    hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit\n             FROM server_settings",
   "describe": {
     "columns": [
       {
@@ -37,8 +37,19 @@
         }
       },
       {
-        "name": "hardware_acceleration",
+        "name": "keep_behind_minutes",
         "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "keep_behind_minutes"
+          }
+        }
+      },
+      {
+        "name": "hardware_acceleration",
+        "ordinal": 4,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -49,7 +60,7 @@
       },
       {
         "name": "hardware_gpu",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -60,7 +71,7 @@
       },
       {
         "name": "hardware_gpu_name",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +82,7 @@
       },
       {
         "name": "remote_playback_limit",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -88,11 +99,12 @@
       false,
       false,
       true,
+      true,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "add6e69c957c4455c44824738d89b08d86d20dd91f577227dae45a8ab91cda38"
+  "hash": "e218778f9a12255c306e4049fb600b1dcaa3dd6d25e257b562011aba498a5e6c"
 }

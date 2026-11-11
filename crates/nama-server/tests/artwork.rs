@@ -1,5 +1,5 @@
 //! Posters and backdrops: fetched from the metadata Provider the first time they're asked for,
-//! then served from the cache on disk.
+//! then kept in the Server's image store.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/tmdb.rs"]
@@ -21,26 +21,22 @@ async fn tmdb() -> (FakeTmdb, ExtensionPoints) {
 }
 
 #[tokio::test]
-async fn an_image_is_downloaded_once_then_served_from_disk() {
+async fn an_image_is_downloaded_once_then_kept() {
     let (fake, plugins) = tmdb().await;
     let data = tempfile::tempdir().unwrap();
     let tmdb = PluginId::from_static("tmdb");
 
-    let first = Artwork::new(data.path(), plugins.clone())
-        .get(&tmdb, POSTER)
+    Artwork::new(data.path(), plugins.clone())
+        .keep(&tmdb, POSTER)
         .await
         .unwrap();
-    // A fresh cache over the same directory, as after a restart.
-    let again = Artwork::new(data.path(), plugins)
-        .get(&tmdb, POSTER)
+    // A fresh store over the same directory, as after a restart.
+    Artwork::new(data.path(), plugins)
+        .keep(&tmdb, POSTER)
         .await
         .unwrap();
 
     assert_eq!(fake.requests().len(), 1);
-    assert_eq!(first, again);
-    assert!(first.path.starts_with(data.path()));
-    assert_eq!(first.content_type, "image/jpeg");
-    assert!(std::fs::read(&first.path).unwrap().starts_with(b"\xff\xd8"));
 }
 
 #[tokio::test]
@@ -49,7 +45,7 @@ async fn an_image_the_provider_does_not_have_is_not_found() {
     let data = tempfile::tempdir().unwrap();
 
     let missing = Artwork::new(data.path(), plugins)
-        .get(&PluginId::from_static("tmdb"), "/missing.jpg")
+        .keep(&PluginId::from_static("tmdb"), "/missing.jpg")
         .await;
 
     assert!(matches!(missing, Err(Error::NotFound)), "{missing:?}");
@@ -61,7 +57,7 @@ async fn an_image_from_a_plugin_that_is_not_enabled_is_unavailable() {
     let data = tempfile::tempdir().unwrap();
 
     let result = Artwork::new(data.path(), plugins)
-        .get(&PluginId::from_static("other"), POSTER)
+        .keep(&PluginId::from_static("other"), POSTER)
         .await;
 
     assert!(matches!(result, Err(Error::Unavailable(_))), "{result:?}");

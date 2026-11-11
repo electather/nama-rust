@@ -2,10 +2,11 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { Player } from "@/components/player";
-import { NotFound } from "@/components/route-error";
+import { DeletedWhilePlaying, NotFound, PlayerError } from "@/components/route-error";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import {
   externalIdFromParam,
+  isGone,
   libraryFromParam,
   queryOrNotFound,
   versionSearch,
@@ -30,17 +31,18 @@ export const Route = createFileRoute(
   },
   staticData: { fullScreen: true },
   notFoundComponent: NotFound,
+  errorComponent: PlayerError,
   component: PlayEpisode,
 });
 
 function PlayEpisode() {
   const { input, episodeNumber } = Route.useLoaderData();
-  const { episodes } = useSuspenseQuery(BrowseService.method.listEpisodes, input).data;
-  const episode = episodes.find((each) => each.episodeNumber === episodeNumber);
+  const { data, error } = useSuspenseQuery(BrowseService.method.listEpisodes, input);
+  const episode = data.episodes.find((each) => each.episodeNumber === episodeNumber);
   const { version } = Route.useSearch();
   const { libraryId, showId } = Route.useParams();
-  // An Event may have removed it since the loader ran.
-  if (!episode) return <NotFound />;
+  // An Event removed it, or its whole Season, since the loader ran.
+  if (!episode || isGone(error)) return <DeletedWhilePlaying />;
   const { id, tracks } = versionToPlay(episode.versions, version);
   return (
     <Player

@@ -78,6 +78,14 @@ pub(crate) fn hls_init(n: usize) -> String {
     format!("init-{n}.mp4")
 }
 
+/// The file the run whose init segment [`hls_init`] named `name` started at, if it's one.
+pub(crate) fn hls_init_from(name: &str) -> Option<usize> {
+    name.strip_prefix("init-")?
+        .strip_suffix(".mp4")?
+        .parse()
+        .ok()
+}
+
 /// How long ffmpeg may take to read one subtitle out of a file. Matroska interleaves it with the
 /// video, so the whole file is read. Raised rather than grown with the file's size: an hour reads
 /// 60 GB at 17 MB/s, slower than a spinning disk or a NAS on gigabit, so only a stuck read

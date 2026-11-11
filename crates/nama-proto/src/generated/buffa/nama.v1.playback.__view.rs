@@ -12,7 +12,7 @@ pub struct ReportTrackPickRequestView<'a> {
     /// Field 2: `kind`
     pub kind: ::buffa::EnumValue<super::super::PickedTrackKind>,
     /// The Track picked, by its place in the Version's `tracks`, counting from 0. Unset when the
-    /// User turned that kind off.
+    /// User turned subtitles off; audio is never off.
     ///
     /// Field 3: `track`
     pub track: ::core::option::Option<u32>,
@@ -292,7 +292,7 @@ impl ReportTrackPickRequestOwnedView {
         self.0.reborrow().kind
     }
     /// The Track picked, by its place in the Version's `tracks`, counting from 0. Unset when the
-    /// User turned that kind off.
+    /// User turned subtitles off; audio is never off.
     ///
     /// Field 3: `track`
     #[must_use]
@@ -1066,7 +1066,8 @@ pub struct PlanPlaybackRequestView<'a> {
     /// Field 2: `start_position_ms`
     pub start_position_ms: u64,
     /// The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
-    /// Unset for the one the Version plays by default.
+    /// Unset for the Server to choose by the User's Audio Preference, or else the one the Version
+    /// plays by default, which `PlaybackPlan.audio_track` then says.
     ///
     /// Field 3: `audio_track`
     pub audio_track: ::core::option::Option<u32>,
@@ -1547,7 +1548,8 @@ impl PlanPlaybackRequestOwnedView {
         self.0.reborrow().start_position_ms
     }
     /// The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
-    /// Unset for the one the Version plays by default.
+    /// Unset for the Server to choose by the User's Audio Preference, or else the one the Version
+    /// plays by default, which `PlaybackPlan.audio_track` then says.
     ///
     /// Field 3: `audio_track`
     #[must_use]
@@ -2604,8 +2606,8 @@ pub struct PlaybackPlanView<'a> {
     /// Field 7: `playback_limit`
     pub playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
     /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
-    /// asked for, or else the one the Version plays by default. Unset when it has no audio or its
-    /// Tracks aren't known.
+    /// asked for or the Server chose, or else the one the Version plays by default. Unset when it has
+    /// no audio or its Tracks aren't known.
     ///
     /// Field 8: `audio_track`
     pub audio_track: ::core::option::Option<u32>,
@@ -3318,8 +3320,8 @@ impl PlaybackPlanOwnedView {
         self.0.reborrow().playback_limit
     }
     /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
-    /// asked for, or else the one the Version plays by default. Unset when it has no audio or its
-    /// Tracks aren't known.
+    /// asked for or the Server chose, or else the one the Version plays by default. Unset when it has
+    /// no audio or its Tracks aren't known.
     ///
     /// Field 8: `audio_track`
     #[must_use]

@@ -276,9 +276,9 @@ function nameOf(code: string) {
 }
 
 /**
- * Reports the subtitle Track the User picked while playing Version `versionId`, by its place in
- * the Version's Tracks, or `undefined` for off. Reports go out in the background, in order, and a
- * failed one is sent again, never shown.
+ * Reports the Track of a kind the User picked while playing Version `versionId`, by its place in
+ * the Version's Tracks, or `undefined` for subtitles off. Reports go out in the background, in
+ * order, and a failed one is sent again, never shown.
  */
 export function usePickReporter(versionId: bigint) {
   const { mutate } = useMutation(PlaybackService.method.reportTrackPick, {
@@ -286,7 +286,7 @@ export function usePickReporter(versionId: bigint) {
     // One at a time, so a retried pick never lands after a newer one.
     scope: { id: "report-track-pick" },
   });
-  return (track: number | undefined) => {
-    mutate({ versionId, kind: PickedTrackKind.SUBTITLE, track });
+  return (kind: PickedTrackKind, track: number | undefined) => {
+    mutate({ versionId, kind, track });
   };
 }

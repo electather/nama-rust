@@ -10,14 +10,29 @@ use std::{
 };
 
 use super::is_video;
-use crate::{contents::Version, libraries::Library};
+use crate::{
+    contents::{Episode, Version},
+    libraries::Library,
+};
 
 /// Versions of one title of a Library, which a delete removes, with the title, for its log.
 #[derive(Debug)]
 pub(crate) struct Doomed {
     pub(crate) library: Library,
     pub(crate) title: String,
+    /// Each file once.
     pub(crate) versions: Vec<Version>,
+    /// The Episodes the title isn't, that a file of `versions` holds too.
+    pub(crate) taken_along: Vec<Episode>,
+}
+
+impl Doomed {
+    pub(crate) fn version_ids(&self) -> Vec<i64> {
+        self.versions
+            .iter()
+            .map(|version| version.file.id)
+            .collect()
+    }
 }
 
 /// A file on disk.
@@ -36,6 +51,8 @@ pub(crate) struct Deleted {
     pub(crate) failed: Vec<(PathBuf, io::Error)>,
     /// The Versions whose own files went.
     pub(crate) versions: Vec<i64>,
+    /// How many Playback Plans play the Versions, as a preview finds them.
+    pub(crate) playing: usize,
 }
 
 impl Deleted {
@@ -232,6 +249,7 @@ mod tests {
                 },
                 title: "Title".to_owned(),
                 versions: versions.collect(),
+                taken_along: Vec::new(),
             }
         }
 
