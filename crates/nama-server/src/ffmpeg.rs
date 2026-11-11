@@ -540,6 +540,31 @@ pub(crate) struct CanDo {
     pub(crate) hardware: Vec<Hardware>,
 }
 
+impl CanDo {
+    /// Whether a Transcode runs at all: it needs ffmpeg and ffprobe, and libx264 even on hardware,
+    /// which falls back to software when it fails partway.
+    pub(crate) const fn transcodes(&self) -> bool {
+        self.runs && self.libx264
+    }
+
+    /// The hardware Automatic picks, if any passed its test.
+    pub(crate) fn automatic(&self) -> Option<Hardware> {
+        self.hardware.first().copied()
+    }
+
+    /// What tone-maps HDR to SDR in a Transcode on `gpu`, or in software for `None`: the GPU if
+    /// it passed tone-mapping, or else zscale if ffmpeg has it.
+    pub(crate) const fn tone_mapper(&self, gpu: Option<Hardware>) -> Option<ToneMapper> {
+        match gpu {
+            Some(Hardware {
+                tone_maps: true, ..
+            }) => Some(ToneMapper::Hardware),
+            _ if self.zscale => Some(ToneMapper::Software),
+            _ => None,
+        }
+    }
+}
+
 /// Asks the Server's ffmpeg what it can do and remembers each answer, so planning and the
 /// Playback status read the same [`CanDo`]. The only asker: see `AGENTS.md`, Playback.
 #[derive(Clone)]

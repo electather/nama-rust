@@ -307,19 +307,11 @@ pub(crate) async fn plan(
         Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
         Err(probing::Error::Database(err)) => return Err(err.into()),
     };
-    let CanDo {
-        runs,
-        zscale,
-        libx264,
-        hardware,
-    } = abilities.can_do().await;
     let mut facts = Facts {
         version,
         probe,
         device: decoding,
-        ffmpeg: runs,
-        zscale,
-        libx264,
+        can_do: abilities.can_do().await,
         failed,
         audio,
         transcodes_full: None,
@@ -331,7 +323,6 @@ pub(crate) async fn plan(
         },
         subtitle,
         hardware_choice: settings.hardware,
-        hardware,
         dropped: BTreeSet::new(),
     };
     let max_transcodes =
@@ -364,24 +355,14 @@ pub(crate) const fn method_to_proto(method: Option<Method>) -> proto::PlaybackMe
 }
 
 /// What a plan is based on.
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "each is a separate fact a step reads, not a state"
-)]
 struct Facts {
     version: i64,
     /// What probing found in the Version, or `None` if it couldn't be probed.
     probe: Option<Probe>,
     device: DeviceDecoding,
-    /// Whether the Server has ffmpeg and ffprobe, which every method but Direct Play needs
-    /// (ADR 0026).
-    ffmpeg: bool,
-    /// Whether its ffmpeg has zscale, which tone-maps HDR to SDR in software and a system ffmpeg
-    /// may lack (ADR 0026).
-    zscale: bool,
-    /// Whether its ffmpeg has libx264, which a Transcode encodes with in software and a system
-    /// ffmpeg may lack (ADR 0026).
-    libx264: bool,
+    /// What the Server's ffmpeg can do: every method but Direct Play needs ffmpeg and ffprobe,
+    /// and a system ffmpeg may lack zscale or libx264 (ADR 0026).
+    can_do: CanDo,
     /// The methods that just failed to play it on the Device. The Server never stores them.
     failed: BTreeSet<Method>,
     /// The audio Track the User chose, by its place in the Version's Tracks, if they chose one.
@@ -395,8 +376,6 @@ struct Facts {
     subtitle: Option<usize>,
     /// What the admin chose for Transcodes to run on.
     hardware_choice: HardwareChoice,
-    /// The hardware acceleration that passed its test at startup, in the order Automatic picks.
-    hardware: Vec<Hardware>,
     /// The User's choices the plan doesn't honour, as [`build`] found.
     dropped: BTreeSet<Choice>,
 }
@@ -688,7 +667,7 @@ fn device_decoding(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
 /// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026); without libx264, no
 /// Transcode; and otherwise a Transcode tone-maps HDR the Device can't show to SDR, if it can.
 fn server_ffmpeg(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
-    if !facts.ffmpeg {
+    if !facts.can_do.runs {
         return Narrowing {
             allows: BTreeSet::from([Method::DirectPlay]),
             reason: "This Server lacks ffmpeg or ffprobe, so it can only Direct Play".to_owned(),
@@ -696,7 +675,7 @@ fn server_ffmpeg(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
     }
     // ponytail: a Transcode on hardware needs no libx264, but its fallback to software does;
     // allow a Transcode on hardware once a failed hardware run can stop instead of falling back.
-    if !facts.libx264 {
+    if !facts.can_do.transcodes() {
         return Narrowing {
             allows: BTreeSet::from([Method::DirectPlay, Method::Remux]),
             reason: "This Server's ffmpeg lacks libx264, so it can't Transcode".to_owned(),
@@ -735,9 +714,7 @@ fn server_ffmpeg(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
 /// tone-mapping only if ffmpeg has zscale.
 fn fallback(facts: &Facts, transcode: Transcode) -> Option<Fallback> {
     let accel = transcode.video.hardware?;
-    let tone_map = (transcode.video.tone_map)
-        .filter(|_| facts.zscale)
-        .map(|_| ToneMapper::Software);
+    let tone_map = (transcode.video.tone_map).and_then(|_| facts.can_do.tone_mapper(None));
     let without_tone_mapping = if tone_map.is_none() && transcode.video.tone_map.is_some() {
         ", without tone-mapping its HDR, as this Server's ffmpeg lacks zscale"
     } else {
@@ -766,12 +743,10 @@ fn tone_mapper(facts: &Facts) -> Option<ToneMapper> {
     if facts.device.hdr || played_hdr(facts).and_then(transcoded_hdr).is_none() {
         return None;
     }
-    match transcodes_on(facts) {
-        Ok(Hardware {
-            tone_maps: true, ..
-        }) if burn_in(facts).is_none() => Some(ToneMapper::Hardware),
-        _ => facts.zscale.then_some(ToneMapper::Software),
-    }
+    let gpu = transcodes_on(facts)
+        .ok()
+        .filter(|_| burn_in(facts).is_none());
+    facts.can_do.tone_mapper(gpu)
 }
 
 /// The reason for the Server's encoders: what a Transcode decodes, scales, tone-maps and encodes
@@ -799,10 +774,10 @@ fn server_encoders(facts: &Facts, candidates: Option<&Candidates>) -> String {
 
 /// The hardware a Transcode runs on, as the admin chose, or why it runs in software.
 fn transcodes_on(facts: &Facts) -> Result<Hardware, String> {
-    let found = |accel| (facts.hardware.iter()).find(|found| found.accel == accel);
+    let found = |accel| (facts.can_do.hardware.iter()).find(|found| found.accel == accel);
     match facts.hardware_choice {
         HardwareChoice::Off => Err("Hardware acceleration is off".to_owned()),
-        HardwareChoice::Automatic => facts.hardware.first().copied().ok_or_else(|| {
+        HardwareChoice::Automatic => facts.can_do.automatic().ok_or_else(|| {
             "No hardware acceleration passed its test when this Server started".to_owned()
         }),
         HardwareChoice::Api(accel) => found(accel).copied().ok_or_else(|| {
@@ -1481,7 +1456,8 @@ mod tests {
     };
     use crate::{
         ffmpeg::{
-            Accel, Hardware, Remux, RemuxAudio, ToneMapper, Transcode, VideoConversion, VideoLimit,
+            Accel, CanDo, Hardware, Remux, RemuxAudio, ToneMapper, Transcode, VideoConversion,
+            VideoLimit,
         },
         server_settings::HardwareChoice,
         tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
@@ -1580,9 +1556,12 @@ mod tests {
                 tracks,
             }),
             device: firefox(),
-            ffmpeg: true,
-            zscale: true,
-            libx264: true,
+            can_do: CanDo {
+                runs: true,
+                zscale: true,
+                libx264: true,
+                hardware: vec![],
+            },
             failed: BTreeSet::new(),
             audio: None,
             transcodes_full: None,
@@ -1590,7 +1569,6 @@ mod tests {
             network: Network::Local,
             subtitle: None,
             hardware_choice: HardwareChoice::Automatic,
-            hardware: vec![],
             dropped: BTreeSet::new(),
         }
     }
@@ -2051,10 +2029,8 @@ mod tests {
     #[test]
     fn without_ffmpeg_on_the_server_or_hls_on_the_device_a_version_isnt_remuxed() {
         let tracks = Some(vec![video("h264"), audio("aac", true)]);
-        let mut no_ffmpeg = Facts {
-            ffmpeg: false,
-            ..in_container(MKV, tracks.clone())
-        };
+        let mut no_ffmpeg = in_container(MKV, tracks.clone());
+        without_ffmpeg(&mut no_ffmpeg);
         let mut no_hls = in_container(MKV, tracks);
         no_hls.device.hls = false;
 
@@ -2076,9 +2052,10 @@ mod tests {
 
     #[test]
     fn without_libx264_on_the_server_a_version_isnt_transcoded_but_still_remuxes_or_direct_plays() {
-        let without_libx264 = |container, tracks| Facts {
-            libx264: false,
-            ..in_container(container, Some(tracks))
+        let without_libx264 = |container, tracks| {
+            let mut facts = in_container(container, Some(tracks));
+            facts.can_do.libx264 = false;
+            facts
         };
         let mut transcode = without_libx264(MP4, vec![video("hevc"), audio("aac", true)]);
         let mut remux = without_libx264(MKV, vec![video("h264"), audio("aac", true)]);
@@ -2100,21 +2077,13 @@ mod tests {
         let tracks = || Some(vec![video("h264"), audio("aac", true)]);
         let mut no_hls = in_container(MKV, tracks());
         no_hls.device.hls = false;
+        let mut no_ffmpeg = in_container(MKV, tracks());
+        without_ffmpeg(&mut no_ffmpeg);
+        let mut no_libx264 = in_container(MKV, tracks());
+        no_libx264.can_do.libx264 = false;
         let cases = [
-            (
-                "no ffmpeg",
-                Facts {
-                    ffmpeg: false,
-                    ..in_container(MKV, tracks())
-                },
-            ),
-            (
-                "no libx264",
-                Facts {
-                    libx264: false,
-                    ..in_container(MKV, tracks())
-                },
-            ),
+            ("no ffmpeg", no_ffmpeg),
+            ("no libx264", no_libx264),
             ("unprobed Version", facts(None)),
             ("no HLS", no_hls),
         ];
@@ -2293,10 +2262,8 @@ mod tests {
 
     #[test]
     fn without_zscale_hdr_isnt_tone_mapped_and_the_plan_says_its_colours_look_washed_out() {
-        let mut facts = Facts {
-            zscale: false,
-            ..in_container(MP4, Some(vec![hdr_video("hevc", Some(Hdr::Hdr10))]))
-        };
+        let mut facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(Hdr::Hdr10))]));
+        facts.can_do.zscale = false;
 
         let plan = build(&mut facts);
 
@@ -2721,11 +2688,12 @@ mod tests {
     /// HEVC 4K that Firefox can't decode, on a Server whose ffmpeg found `found` and whose admin
     /// chose `choice`.
     fn hevc_on(choice: HardwareChoice, found: Vec<Hardware>, hdr: Option<Hdr>) -> Facts {
-        Facts {
+        let mut facts = Facts {
             hardware_choice: choice,
-            hardware: found,
             ..in_container(MKV, Some(vec![hdr_video("hevc", hdr), audio("aac", true)]))
-        }
+        };
+        facts.can_do.hardware = found;
+        facts
     }
 
     #[test]
@@ -2756,10 +2724,8 @@ mod tests {
 
     #[test]
     fn without_zscale_hdr_is_tone_mapped_by_hardware_that_can() {
-        let mut facts = Facts {
-            zscale: false,
-            ..hevc_on(HardwareChoice::Automatic, vec![QSV], Some(Hdr::Hdr10))
-        };
+        let mut facts = hevc_on(HardwareChoice::Automatic, vec![QSV], Some(Hdr::Hdr10));
+        facts.can_do.zscale = false;
 
         let plan = build(&mut facts);
 
@@ -2792,10 +2758,8 @@ mod tests {
 
     #[test]
     fn without_zscale_a_hardware_transcode_of_hdr_falls_back_without_tone_mapping_and_says_so() {
-        let mut facts = Facts {
-            zscale: false,
-            ..hevc_on(HardwareChoice::Automatic, vec![QSV], Some(Hdr::Hdr10))
-        };
+        let mut facts = hevc_on(HardwareChoice::Automatic, vec![QSV], Some(Hdr::Hdr10));
+        facts.can_do.zscale = false;
 
         let plan = build(&mut facts);
 
@@ -3021,7 +2985,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
     }
 
     fn without_ffmpeg(facts: &mut Facts) {
-        facts.ffmpeg = false;
+        facts.can_do.runs = false;
     }
 
     /// A Dolby Vision profile 5 picture, which this Device shows, in place of the video.

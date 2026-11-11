@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3Qi7gEKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCRIoCghoYXJkd2FyZRgFIAMoCzIWLm5hbWEudjEuRm91bmRIYXJkd2FyZRITCgtoYXNfbGlieDI2NBgGIAEoCBISCgpoYXNfenNjYWxlGAcgASgIIk4KDUZvdW5kSGFyZHdhcmUSKgoDYXBpGAEgASgOMh0ubmFtYS52MS5IYXJkd2FyZUFjY2VsZXJhdGlvbhIRCgl0b25lX21hcHMYAiABKAgiLQoMRm91bmRQcm9ncmFtEgwKBHBhdGgYASABKAkSDwoHdmVyc2lvbhgCIAEoCSIcChpHZXRQbGF5YmFja1NldHRpbmdzUmVxdWVzdCJKChtHZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTAodVXBkYXRlUGxheWJhY2tTZXR0aW5nc1JlcXVlc3QSKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTQoeVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIs8BChBQbGF5YmFja1NldHRpbmdzEhYKDnNlZ21lbnRfZm9sZGVyGAEgASgJEhsKDm1heF90cmFuc2NvZGVzGAIgASgNSACIAQESNQoVcmVtb3RlX3BsYXliYWNrX2xpbWl0GAMgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjwKFWhhcmR3YXJlX2FjY2VsZXJhdGlvbhgEIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb25CEQoPX21heF90cmFuc2NvZGVzKuUBChRIYXJkd2FyZUFjY2VsZXJhdGlvbhIlCiFIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVU5TUEVDSUZJRUQQABIdChlIQVJEV0FSRV9BQ0NFTEVSQVRJT05fT0ZGEAESHwobSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1ZBQVBJEAISHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1FTVhADEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9OVkVOQxAEEiYKIkhBUkRXQVJFX0FDQ0VMRVJBVElPTl9WSURFT1RPT0xCT1gQBTLnBAoNU2VydmVyU2VydmljZRJTCg1HZXRTZXJ2ZXJJbmZvEh0ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVxdWVzdBoeLm5hbWEudjEuR2V0U2VydmVySW5mb1Jlc3BvbnNlIgOQAgESXwoRR2V0U2VydmVyU2V0dGluZ3MSIS5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVxdWVzdBoiLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVNlcnZlclNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACAhJfChFHZXRQbGF5YmFja1N0YXR1cxIhLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0GiIubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlIgOQAgESZQoTR2V0UGxheWJhY2tTZXR0aW5ncxIjLm5hbWEudjEuR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QaJC5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXNwb25zZSIDkAIBEm4KFlVwZGF0ZVBsYXliYWNrU2V0dGluZ3MSJi5uYW1hLnYxLlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GicubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_playback]);
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QihQIKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCRIoCghoYXJkd2FyZRgFIAMoCzIWLm5hbWEudjEuRm91bmRIYXJkd2FyZRITCgtoYXNfbGlieDI2NBgGIAEoCBISCgpoYXNfenNjYWxlGAcgASgIEhUKDWNhbl90cmFuc2NvZGUYCCABKAgijQEKDUZvdW5kSGFyZHdhcmUSKgoDYXBpGAEgASgOMh0ubmFtYS52MS5IYXJkd2FyZUFjY2VsZXJhdGlvbhIRCgl0b25lX21hcHMYAiABKAgSKgoMdG9uZV9tYXBwaW5nGAMgASgOMhQubmFtYS52MS5Ub25lTWFwcGluZxIRCglhdXRvbWF0aWMYBCABKAgiLQoMRm91bmRQcm9ncmFtEgwKBHBhdGgYASABKAkSDwoHdmVyc2lvbhgCIAEoCSIcChpHZXRQbGF5YmFja1NldHRpbmdzUmVxdWVzdCJKChtHZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTAodVXBkYXRlUGxheWJhY2tTZXR0aW5nc1JlcXVlc3QSKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTQoeVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIs8BChBQbGF5YmFja1NldHRpbmdzEhYKDnNlZ21lbnRfZm9sZGVyGAEgASgJEhsKDm1heF90cmFuc2NvZGVzGAIgASgNSACIAQESNQoVcmVtb3RlX3BsYXliYWNrX2xpbWl0GAMgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjwKFWhhcmR3YXJlX2FjY2VsZXJhdGlvbhgEIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb25CEQoPX21heF90cmFuc2NvZGVzKnMKC1RvbmVNYXBwaW5nEhwKGFRPTkVfTUFQUElOR19VTlNQRUNJRklFRBAAEhUKEVRPTkVfTUFQUElOR19OT05FEAESFAoQVE9ORV9NQVBQSU5HX0dQVRACEhkKFVRPTkVfTUFQUElOR19TT0ZUV0FSRRADKuUBChRIYXJkd2FyZUFjY2VsZXJhdGlvbhIlCiFIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVU5TUEVDSUZJRUQQABIdChlIQVJEV0FSRV9BQ0NFTEVSQVRJT05fT0ZGEAESHwobSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1ZBQVBJEAISHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1FTVhADEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9OVkVOQxAEEiYKIkhBUkRXQVJFX0FDQ0VMRVJBVElPTl9WSURFT1RPT0xCT1gQBTLnBAoNU2VydmVyU2VydmljZRJTCg1HZXRTZXJ2ZXJJbmZvEh0ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVxdWVzdBoeLm5hbWEudjEuR2V0U2VydmVySW5mb1Jlc3BvbnNlIgOQAgESXwoRR2V0U2VydmVyU2V0dGluZ3MSIS5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVxdWVzdBoiLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAIBEmgKFFVwZGF0ZVNlcnZlclNldHRpbmdzEiQubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACAhJfChFHZXRQbGF5YmFja1N0YXR1cxIhLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0GiIubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlIgOQAgESZQoTR2V0UGxheWJhY2tTZXR0aW5ncxIjLm5hbWEudjEuR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QaJC5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXNwb25zZSIDkAIBEm4KFlVwZGF0ZVBsYXliYWNrU2V0dGluZ3MSJi5uYW1hLnYxLlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GicubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_playback]);
 
 /**
  * @generated from message nama.v1.GetServerInfoRequest
@@ -196,8 +196,8 @@ export type GetPlaybackStatusResponse = Message<"nama.v1.GetPlaybackStatusRespon
   ffprobeProblem: string;
 
   /**
-   * The hardware acceleration APIs that passed a test encode at startup, the one Automatic picks
-   * first. Empty without ffmpeg, a GPU, or an ffmpeg built for one.
+   * The hardware acceleration APIs that passed a test encode at startup. Empty without ffmpeg, a
+   * GPU, or an ffmpeg built for one.
    *
    * @generated from field: repeated nama.v1.FoundHardware hardware = 5;
    */
@@ -218,6 +218,14 @@ export type GetPlaybackStatusResponse = Message<"nama.v1.GetPlaybackStatusRespon
    * @generated from field: bool has_zscale = 7;
    */
   hasZscale: boolean;
+
+  /**
+   * Whether the Server Transcodes at all, in software or on hardware. When it doesn't, it still
+   * Direct Plays, and Remuxes if it has ffmpeg and ffprobe.
+   *
+   * @generated from field: bool can_transcode = 8;
+   */
+  canTranscode: boolean;
 };
 
 /**
@@ -241,12 +249,26 @@ export type FoundHardware = Message<"nama.v1.FoundHardware"> & {
   api: HardwareAcceleration;
 
   /**
-   * Whether it also passed tone-mapping HDR to SDR on the GPU. Without it, a Transcode of HDR
-   * for an SDR screen tone-maps in software between decoding and encoding on the GPU.
+   * Whether it also passed tone-mapping HDR to SDR on the GPU. `tone_mapping` says what
+   * tone-maps on it.
    *
    * @generated from field: bool tone_maps = 2;
    */
   toneMaps: boolean;
+
+  /**
+   * What tone-maps HDR to SDR in a Transcode on it, when nothing is burned into the picture.
+   *
+   * @generated from field: nama.v1.ToneMapping tone_mapping = 3;
+   */
+  toneMapping: ToneMapping;
+
+  /**
+   * Whether Automatic picks it.
+   *
+   * @generated from field: bool automatic = 4;
+   */
+  automatic: boolean;
 };
 
 /**
@@ -399,6 +421,54 @@ export const PlaybackSettingsSchema: GenMessage<PlaybackSettings> = /*@__PURE__*
   messageDesc(file_nama_v1_server, 15);
 
 /**
+ * What tone-maps HDR to SDR in a Transcode.
+ *
+ * @generated from enum nama.v1.ToneMapping
+ */
+export const ToneMapping = {
+  /**
+   * Not said, as by a Server from before this was added.
+   *
+   * @generated from enum value: TONE_MAPPING_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * Nothing: HDR's colours look washed out on an SDR screen.
+   *
+   * @generated from enum value: TONE_MAPPING_NONE = 1;
+   */
+  NONE: 1,
+
+  /**
+   * The GPU the Transcode runs on.
+   *
+   * @generated from enum value: TONE_MAPPING_GPU = 2;
+   */
+  GPU: 2,
+
+  /**
+   * ffmpeg's zscale, in software.
+   *
+   * @generated from enum value: TONE_MAPPING_SOFTWARE = 3;
+   */
+  SOFTWARE: 3,
+} as const;
+
+/**
+ * What tone-maps HDR to SDR in a Transcode.
+ *
+ * @generated from enum nama.v1.ToneMapping
+ */
+export type ToneMapping = (typeof ToneMapping)[keyof typeof ToneMapping] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.ToneMapping.
+ */
+export const ToneMappingSchema: GenEnum<ToneMapping> = /*@__PURE__*/
+  enumDesc(file_nama_v1_server, 0);
+
+/**
  * What a Transcode decodes, scales, tone-maps and encodes its video with.
  *
  * @generated from enum nama.v1.HardwareAcceleration
@@ -458,7 +528,7 @@ export type HardwareAcceleration = (typeof HardwareAcceleration)[keyof typeof Ha
  * Describes the enum nama.v1.HardwareAcceleration.
  */
 export const HardwareAccelerationSchema: GenEnum<HardwareAcceleration> = /*@__PURE__*/
-  enumDesc(file_nama_v1_server, 0);
+  enumDesc(file_nama_v1_server, 1);
 
 /**
  * Facts about a Server that any client can read, before signing in, and the Server's settings.

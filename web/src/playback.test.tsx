@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 
-import { HardwareAcceleration } from "@/gen/nama/v1/server_pb";
+import { HardwareAcceleration, ToneMapping } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
 import { admin, fakeServer, openApp } from "./test-app";
@@ -84,11 +84,12 @@ test("an Admin sees the hardware acceleration that passed its test and whether i
         getPlaybackStatus: () => ({
           ...ffmpegFound,
           hardware: [
-            { api: HardwareAcceleration.NVENC, toneMaps: true },
-            { api: HardwareAcceleration.VAAPI, toneMaps: false },
+            { api: HardwareAcceleration.NVENC, toneMapping: ToneMapping.GPU, automatic: true },
+            { api: HardwareAcceleration.VAAPI, toneMapping: ToneMapping.SOFTWARE },
           ],
           hasLibx264: true,
           hasZscale: true,
+          canTranscode: true,
         }),
       },
     }),
@@ -107,7 +108,12 @@ test("without hardware acceleration the Playback page says Transcodes run in sof
     fakeServer({
       signedIn: admin,
       serverService: {
-        getPlaybackStatus: () => ({ ...ffmpegFound, hasLibx264: true, hasZscale: true }),
+        getPlaybackStatus: () => ({
+          ...ffmpegFound,
+          hasLibx264: true,
+          hasZscale: true,
+          canTranscode: true,
+        }),
       },
     }),
   );
@@ -138,7 +144,9 @@ test("an ffmpeg without libx264 lists hardware that passed without saying Transc
       serverService: {
         getPlaybackStatus: () => ({
           ...ffmpegFound,
-          hardware: [{ api: HardwareAcceleration.NVENC, toneMaps: true }],
+          hardware: [
+            { api: HardwareAcceleration.NVENC, toneMapping: ToneMapping.GPU, automatic: true },
+          ],
           hasZscale: true,
         }),
       },
@@ -163,7 +171,9 @@ test("without ffprobe the Playback page lists hardware that passed without sayin
         getPlaybackStatus: () => ({
           ffmpeg: ffmpegFound.ffmpeg,
           ffprobeProblem: "ffprobe wasn't found on the PATH",
-          hardware: [{ api: HardwareAcceleration.NVENC, toneMaps: true }],
+          hardware: [
+            { api: HardwareAcceleration.NVENC, toneMapping: ToneMapping.GPU, automatic: true },
+          ],
           hasLibx264: true,
           hasZscale: true,
         }),
@@ -188,7 +198,9 @@ test("without ffprobe or libx264 the Playback page says hardware waits for both"
         getPlaybackStatus: () => ({
           ffmpeg: ffmpegFound.ffmpeg,
           ffprobeProblem: "ffprobe wasn't found on the PATH",
-          hardware: [{ api: HardwareAcceleration.NVENC, toneMaps: true }],
+          hardware: [
+            { api: HardwareAcceleration.NVENC, toneMapping: ToneMapping.GPU, automatic: true },
+          ],
           hasZscale: true,
         }),
       },
@@ -211,8 +223,9 @@ test("an ffmpeg without zscale makes the Playback page say it can’t tone-map H
       serverService: {
         getPlaybackStatus: () => ({
           ...ffmpegFound,
-          hardware: [{ api: HardwareAcceleration.VAAPI, toneMaps: false }],
+          hardware: [{ api: HardwareAcceleration.VAAPI, toneMapping: ToneMapping.NONE }],
           hasLibx264: true,
+          canTranscode: true,
         }),
       },
     }),

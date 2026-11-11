@@ -16,6 +16,7 @@ import {
   type FoundProgram,
   type GetPlaybackStatusResponse,
   ServerService,
+  ToneMapping,
 } from "@/gen/nama/v1/server_pb";
 
 export const Route = createFileRoute("/_member/_admin/admin/playback")({
@@ -57,7 +58,7 @@ function Playback() {
 
 /** What the Server's ffmpeg lacks that a Transcode needs, if anything. */
 function MissingFromFfmpeg({ status }: { status: GetPlaybackStatusResponse }) {
-  if (ffmpegLacksLibx264(status)) {
+  if (!status.canTranscode && !status.hasLibx264) {
     return (
       <p className="mt-4 max-w-prose text-pretty">
         This Server’s ffmpeg lacks libx264, so it can’t Transcode, only Direct Play and Remux.
@@ -79,8 +80,7 @@ function MissingFromFfmpeg({ status }: { status: GetPlaybackStatusResponse }) {
 }
 
 function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
-  const { hardware, hasZscale } = status;
-  const canTranscode = serverCanTranscode(status);
+  const { hardware, canTranscode } = status;
   return (
     <section aria-labelledby="hardware" className="mt-12">
       <h2 id="hardware" className="font-medium">
@@ -98,14 +98,8 @@ function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
         </p>
       ) : (
         <AdminList>
-          {hardware.map((found, index) => (
-            <HardwareRow
-              key={found.api}
-              found={found}
-              automatic={index === 0}
-              hasZscale={hasZscale}
-              canTranscode={canTranscode}
-            />
+          {hardware.map((found) => (
+            <HardwareRow key={found.api} found={found} canTranscode={canTranscode} />
           ))}
         </AdminList>
       )}
@@ -113,20 +107,8 @@ function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
   );
 }
 
-/** Whether the Server found an ffmpeg without libx264, so no Transcode runs, even on hardware. */
-function ffmpegLacksLibx264({ ffmpeg, hasLibx264 }: GetPlaybackStatusResponse) {
-  // `server_ffmpeg` in `crates/nama-server/src/playback.rs` plans no Transcode without libx264.
-  return ffmpeg !== undefined && !hasLibx264;
-}
-
-/** Whether the Server plans Transcodes at all, in software or on hardware. */
-function serverCanTranscode({ ffmpeg, ffprobe, hasLibx264 }: GetPlaybackStatusResponse) {
-  // `server_ffmpeg` in `crates/nama-server/src/playback.rs` plans no Transcode without all three.
-  return ffmpeg !== undefined && ffprobe !== undefined && hasLibx264;
-}
-
 function hardwareIntro(status: GetPlaybackStatusResponse) {
-  return status.hardware.length === 0 || serverCanTranscode(status)
+  return status.hardware.length === 0 || status.canTranscode
     ? "What Transcodes can run on besides software."
     : whyNoTranscodeRunsOnHardware(status);
 }
@@ -174,40 +156,29 @@ function ProgramRow({
 }
 
 /**
- * A hardware acceleration API that passed its test encode, `automatic` if Automatic picks it.
- * Without the GPU, a Transcode tone-maps HDR only if ffmpeg `hasZscale`. Unless the Server
- * `canTranscode`, tone-mapping and Automatic don't apply yet.
+ * A hardware acceleration API that passed its test encode. Unless the Server `canTranscode`,
+ * tone-mapping and Automatic don't apply yet.
  */
-function HardwareRow({
-  found,
-  automatic,
-  hasZscale,
-  canTranscode,
-}: {
-  found: FoundHardware;
-  automatic: boolean;
-  hasZscale: boolean;
-  canTranscode: boolean;
-}) {
+function HardwareRow({ found, canTranscode }: { found: FoundHardware; canTranscode: boolean }) {
   return (
     <AdminRow end={<StateLabel label="Passed" Icon={CircleCheck} />}>
       <h3 className="font-medium">{hardwareName(found.api)}</h3>
       {canTranscode && (
         <p className="text-sm text-pretty text-muted-foreground">
-          {toneMapping(found.toneMaps, hasZscale)}
-          {automatic && " Automatic picks this one."}
+          {toneMappings.get(found.toneMapping)}
+          {found.automatic && " Automatic picks this one."}
         </p>
       )}
     </AdminRow>
   );
 }
 
-/** What tone-maps HDR to SDR in a Transcode on hardware whose test says it `toneMaps` or not. */
-function toneMapping(toneMaps: boolean, hasZscale: boolean) {
-  if (toneMaps) {
-    return "Tone-maps HDR to SDR on the GPU too.";
-  }
-  return hasZscale
-    ? "Tone-maps HDR to SDR in software, between decoding and encoding on the GPU."
-    : "Can’t tone-map HDR to SDR, on the GPU or in software.";
-}
+/** What tone-maps HDR to SDR in a Transcode on a hardware row, in plain words. */
+const toneMappings = new Map<ToneMapping, string>([
+  [ToneMapping.GPU, "Tone-maps HDR to SDR on the GPU too."],
+  [
+    ToneMapping.SOFTWARE,
+    "Tone-maps HDR to SDR in software, between decoding and encoding on the GPU.",
+  ],
+  [ToneMapping.NONE, "Can’t tone-map HDR to SDR, on the GPU or in software."],
+]);
