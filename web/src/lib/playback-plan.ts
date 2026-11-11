@@ -8,6 +8,7 @@ import {
   type PlaybackMethod,
   type PlaybackPlan,
   PlaybackPlanSchema,
+  PlaybackReasonKind,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
@@ -253,12 +254,26 @@ function usePlan(versionId: bigint, asking: Asking) {
       } catch (error) {
         const { reason, params } = refusalOf(error);
         if (reason !== RefusalReason.SERVER_BUSY) throw error;
-        return create(PlaybackPlanSchema, { reasons: [serverBusy(params["maxTranscodes"])] });
+        return serverBusyPlan(params);
       }
     },
     staleTime: "static",
     gcTime: 0,
   }).data;
+}
+
+/** A plan that can't play, as a Server too busy to Transcode gives. */
+function serverBusyPlan(params: Record<string, string>) {
+  return create(PlaybackPlanSchema, {
+    reasons: [
+      {
+        kind: PlaybackReasonKind.SERVER_BUSY,
+        params,
+        text: serverBusy(params["maxTranscodes"]),
+        decided: true,
+      },
+    ],
+  });
 }
 
 /** Why the Server, running `maxTranscodes` Transcodes at once, can't play a Version here now. */

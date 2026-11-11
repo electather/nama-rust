@@ -633,7 +633,7 @@ pub(crate) fn track_to_proto(track: &Track) -> proto::Track {
 }
 
 /// `hdr` as a video Track's `hdr` and `dolby_vision`.
-fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVision>) {
+pub(crate) fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVision>) {
     match hdr {
         None => (proto::HdrFormat::HDR_FORMAT_UNSPECIFIED, None),
         Some(Hdr::Hdr10) => (proto::HdrFormat::HDR_FORMAT_HDR10, None),

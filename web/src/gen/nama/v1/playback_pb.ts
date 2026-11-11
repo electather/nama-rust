@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/playback.proto.
  */
 export const file_nama_v1_playback: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxInIKFlJlcG9ydFRyYWNrUGlja1JlcXVlc3QSEgoKdmVyc2lvbl9pZBgBIAEoAxImCgRraW5kGAIgASgOMhgubmFtYS52MS5QaWNrZWRUcmFja0tpbmQSEgoFdHJhY2sYAyABKA1IAIgBAUIICgZfdHJhY2siGQoXUmVwb3J0VHJhY2tQaWNrUmVzcG9uc2UiJgoTU3RvcFBsYXliYWNrUmVxdWVzdBIPCgdwbGFuX2lkGAEgASgEIhYKFFN0b3BQbGF5YmFja1Jlc3BvbnNlIscCChNQbGFuUGxheWJhY2tSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSGQoRc3RhcnRfcG9zaXRpb25fbXMYAiABKAQSGAoLYXVkaW9fdHJhY2sYAyABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgEIAEoDUgBiAEBEi4KDnBsYXliYWNrX2xpbWl0GAUgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjAKD2RldmljZV9kZWNvZGluZxgGIAEoCzIXLm5hbWEudjEuRGV2aWNlRGVjb2RpbmcSLwoOZmFpbGVkX21ldGhvZHMYByADKA4yFy5uYW1hLnYxLlBsYXliYWNrTWV0aG9kEhQKDG5vX3N1YnRpdGxlcxgIIAEoCEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIpwCCg5EZXZpY2VEZWNvZGluZxImCgpjb250YWluZXJzGAYgAygOMhIubmFtYS52MS5Db250YWluZXISKQoMdmlkZW9fY29kZWNzGAcgAygOMhMubmFtYS52MS5WaWRlb0NvZGVjEikKDGF1ZGlvX2NvZGVjcxgIIAMoDjITLm5hbWEudjEuQXVkaW9Db2RlYxILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgSFgoOYXVkaW9fY2hhbm5lbHMYBSABKA0SMQoQc3VidGl0bGVfZm9ybWF0cxgJIAMoDjIXLm5hbWEudjEuU3VidGl0bGVGb3JtYXRKBAgBEAJSDWNvbnRlbnRfdHlwZXMiOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuIs4DCgxQbGF5YmFja1BsYW4SJwoGbWV0aG9kGAEgASgOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZBILCgN1cmwYAiABKAkSHgoGdHJhY2tzGAMgAygLMg4ubmFtYS52MS5UcmFjaxIPCgdyZWFzb25zGAQgAygJEiwKCXN1YnRpdGxlcxgFIAMoCzIZLm5hbWEudjEuUGxheWJhY2tTdWJ0aXRsZRIKCgJpZBgGIAEoBBIuCg5wbGF5YmFja19saW1pdBgHIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIYCgthdWRpb190cmFjaxgIIAEoDUgAiAEBEhsKDnN1YnRpdGxlX3RyYWNrGAkgASgNSAGIAQESFAoMYXVkaW9fdHJhY2tzGAogAygNEhYKDmJ1cm5faW5fdHJhY2tzGAsgAygNEi8KD3BsYXliYWNrX2xpbWl0cxgMIAMoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIeChFzdGFydGluZ19zdWJ0aXRsZRgNIAEoDUgCiAEBQg4KDF9hdWRpb190cmFja0IRCg9fc3VidGl0bGVfdHJhY2tCFAoSX3N0YXJ0aW5nX3N1YnRpdGxlInYKEFBsYXliYWNrU3VidGl0bGUSHQoFdHJhY2sYASABKAsyDi5uYW1hLnYxLlRyYWNrEg0KBXBsYWNlGAQgASgNEgsKA3VybBgCIAEoCRInCgZmb3JtYXQYAyABKA4yFy5uYW1hLnYxLlN1YnRpdGxlRm9ybWF0KlQKD1BpY2tlZFRyYWNrS2luZBIhCh1QSUNLRURfVFJBQ0tfS0lORF9VTlNQRUNJRklFRBAAEh4KGlBJQ0tFRF9UUkFDS19LSU5EX1NVQlRJVExFEAEqmAEKDVBsYXliYWNrTGltaXQSHgoaUExBWUJBQ0tfTElNSVRfVU5TUEVDSUZJRUQQABIbChdQTEFZQkFDS19MSU1JVF9PUklHSU5BTBABEhgKFFBMQVlCQUNLX0xJTUlUXzEwODBQEAISFwoTUExBWUJBQ0tfTElNSVRfNzIwUBADEhcKE1BMQVlCQUNLX0xJTUlUXzQ4MFAQBCpmCg5TdWJ0aXRsZUZvcm1hdBIfChtTVUJUSVRMRV9GT1JNQVRfVU5TUEVDSUZJRUQQABIaChZTVUJUSVRMRV9GT1JNQVRfV0VCVlRUEAESFwoTU1VCVElUTEVfRk9STUFUX1BHUxACKmUKCUNvbnRhaW5lchIZChVDT05UQUlORVJfVU5TUEVDSUZJRUQQABIRCg1DT05UQUlORVJfTVA0EAESEgoOQ09OVEFJTkVSX1dFQk0QAhIWChJDT05UQUlORVJfTUFUUk9TS0EQAyqUAQoKVmlkZW9Db2RlYxIbChdWSURFT19DT0RFQ19VTlNQRUNJRklFRBAAEhQKEFZJREVPX0NPREVDX0gyNjQQARIUChBWSURFT19DT0RFQ19IRVZDEAISEwoPVklERU9fQ09ERUNfVlA4EAMSEwoPVklERU9fQ09ERUNfVlA5EAQSEwoPVklERU9fQ09ERUNfQVYxEAUq7wEKCkF1ZGlvQ29kZWMSGwoXQVVESU9fQ09ERUNfVU5TUEVDSUZJRUQQABITCg9BVURJT19DT0RFQ19BQUMQARITCg9BVURJT19DT0RFQ19NUDMQAhITCg9BVURJT19DT0RFQ19BQzMQAxIUChBBVURJT19DT0RFQ19FQUMzEAQSFAoQQVVESU9fQ09ERUNfT1BVUxAFEhYKEkFVRElPX0NPREVDX1ZPUkJJUxAGEhQKEEFVRElPX0NPREVDX0ZMQUMQBxITCg9BVURJT19DT0RFQ19EVFMQCBIWChJBVURJT19DT0RFQ19UUlVFSEQQCSqMAQoOUGxheWJhY2tNZXRob2QSHwobUExBWUJBQ0tfTUVUSE9EX1VOU1BFQ0lGSUVEEAASHwobUExBWUJBQ0tfTUVUSE9EX0RJUkVDVF9QTEFZEAESGQoVUExBWUJBQ0tfTUVUSE9EX1JFTVVYEAISHQoZUExBWUJBQ0tfTUVUSE9EX1RSQU5TQ09ERRADMpACCg9QbGF5YmFja1NlcnZpY2USUAoMUGxhblBsYXliYWNrEhwubmFtYS52MS5QbGFuUGxheWJhY2tSZXF1ZXN0Gh0ubmFtYS52MS5QbGFuUGxheWJhY2tSZXNwb25zZSIDkAICElAKDFN0b3BQbGF5YmFjaxIcLm5hbWEudjEuU3RvcFBsYXliYWNrUmVxdWVzdBodLm5hbWEudjEuU3RvcFBsYXliYWNrUmVzcG9uc2UiA5ACAhJZCg9SZXBvcnRUcmFja1BpY2sSHy5uYW1hLnYxLlJlcG9ydFRyYWNrUGlja1JlcXVlc3QaIC5uYW1hLnYxLlJlcG9ydFRyYWNrUGlja1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_browse]);
+  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxInIKFlJlcG9ydFRyYWNrUGlja1JlcXVlc3QSEgoKdmVyc2lvbl9pZBgBIAEoAxImCgRraW5kGAIgASgOMhgubmFtYS52MS5QaWNrZWRUcmFja0tpbmQSEgoFdHJhY2sYAyABKA1IAIgBAUIICgZfdHJhY2siGQoXUmVwb3J0VHJhY2tQaWNrUmVzcG9uc2UiJgoTU3RvcFBsYXliYWNrUmVxdWVzdBIPCgdwbGFuX2lkGAEgASgEIhYKFFN0b3BQbGF5YmFja1Jlc3BvbnNlIscCChNQbGFuUGxheWJhY2tSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSGQoRc3RhcnRfcG9zaXRpb25fbXMYAiABKAQSGAoLYXVkaW9fdHJhY2sYAyABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgEIAEoDUgBiAEBEi4KDnBsYXliYWNrX2xpbWl0GAUgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjAKD2RldmljZV9kZWNvZGluZxgGIAEoCzIXLm5hbWEudjEuRGV2aWNlRGVjb2RpbmcSLwoOZmFpbGVkX21ldGhvZHMYByADKA4yFy5uYW1hLnYxLlBsYXliYWNrTWV0aG9kEhQKDG5vX3N1YnRpdGxlcxgIIAEoCEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIpwCCg5EZXZpY2VEZWNvZGluZxImCgpjb250YWluZXJzGAYgAygOMhIubmFtYS52MS5Db250YWluZXISKQoMdmlkZW9fY29kZWNzGAcgAygOMhMubmFtYS52MS5WaWRlb0NvZGVjEikKDGF1ZGlvX2NvZGVjcxgIIAMoDjITLm5hbWEudjEuQXVkaW9Db2RlYxILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgSFgoOYXVkaW9fY2hhbm5lbHMYBSABKA0SMQoQc3VidGl0bGVfZm9ybWF0cxgJIAMoDjIXLm5hbWEudjEuU3VidGl0bGVGb3JtYXRKBAgBEAJSDWNvbnRlbnRfdHlwZXMiOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuIu0DCgxQbGF5YmFja1BsYW4SJwoGbWV0aG9kGAEgASgOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZBILCgN1cmwYAiABKAkSHgoGdHJhY2tzGAMgAygLMg4ubmFtYS52MS5UcmFjaxIoCgdyZWFzb25zGA0gAygLMhcubmFtYS52MS5QbGF5YmFja1JlYXNvbhIsCglzdWJ0aXRsZXMYBSADKAsyGS5uYW1hLnYxLlBsYXliYWNrU3VidGl0bGUSCgoCaWQYBiABKAQSLgoOcGxheWJhY2tfbGltaXQYByABKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXQSGAoLYXVkaW9fdHJhY2sYCCABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgJIAEoDUgBiAEBEhQKDGF1ZGlvX3RyYWNrcxgKIAMoDRIWCg5idXJuX2luX3RyYWNrcxgLIAMoDRIvCg9wbGF5YmFja19saW1pdHMYDCADKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXQSHgoRc3RhcnRpbmdfc3VidGl0bGUYDiABKA1IAogBAUIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrQhQKEl9zdGFydGluZ19zdWJ0aXRsZUoECAQQBSJ2ChBQbGF5YmFja1N1YnRpdGxlEh0KBXRyYWNrGAEgASgLMg4ubmFtYS52MS5UcmFjaxINCgVwbGFjZRgEIAEoDRILCgN1cmwYAiABKAkSJwoGZm9ybWF0GAMgASgOMhcubmFtYS52MS5TdWJ0aXRsZUZvcm1hdCK+AQoOUGxheWJhY2tSZWFzb24SKQoEa2luZBgBIAEoDjIbLm5hbWEudjEuUGxheWJhY2tSZWFzb25LaW5kEjMKBnBhcmFtcxgCIAMoCzIjLm5hbWEudjEuUGxheWJhY2tSZWFzb24uUGFyYW1zRW50cnkSDAoEdGV4dBgDIAEoCRIPCgdkZWNpZGVkGAQgASgIGi0KC1BhcmFtc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEqVAoPUGlja2VkVHJhY2tLaW5kEiEKHVBJQ0tFRF9UUkFDS19LSU5EX1VOU1BFQ0lGSUVEEAASHgoaUElDS0VEX1RSQUNLX0tJTkRfU1VCVElUTEUQASqYAQoNUGxheWJhY2tMaW1pdBIeChpQTEFZQkFDS19MSU1JVF9VTlNQRUNJRklFRBAAEhsKF1BMQVlCQUNLX0xJTUlUX09SSUdJTkFMEAESGAoUUExBWUJBQ0tfTElNSVRfMTA4MFAQAhIXChNQTEFZQkFDS19MSU1JVF83MjBQEAMSFwoTUExBWUJBQ0tfTElNSVRfNDgwUBAEKmYKDlN1YnRpdGxlRm9ybWF0Eh8KG1NVQlRJVExFX0ZPUk1BVF9VTlNQRUNJRklFRBAAEhoKFlNVQlRJVExFX0ZPUk1BVF9XRUJWVFQQARIXChNTVUJUSVRMRV9GT1JNQVRfUEdTEAIqZQoJQ29udGFpbmVyEhkKFUNPTlRBSU5FUl9VTlNQRUNJRklFRBAAEhEKDUNPTlRBSU5FUl9NUDQQARISCg5DT05UQUlORVJfV0VCTRACEhYKEkNPTlRBSU5FUl9NQVRST1NLQRADKpQBCgpWaWRlb0NvZGVjEhsKF1ZJREVPX0NPREVDX1VOU1BFQ0lGSUVEEAASFAoQVklERU9fQ09ERUNfSDI2NBABEhQKEFZJREVPX0NPREVDX0hFVkMQAhITCg9WSURFT19DT0RFQ19WUDgQAxITCg9WSURFT19DT0RFQ19WUDkQBBITCg9WSURFT19DT0RFQ19BVjEQBSrvAQoKQXVkaW9Db2RlYxIbChdBVURJT19DT0RFQ19VTlNQRUNJRklFRBAAEhMKD0FVRElPX0NPREVDX0FBQxABEhMKD0FVRElPX0NPREVDX01QMxACEhMKD0FVRElPX0NPREVDX0FDMxADEhQKEEFVRElPX0NPREVDX0VBQzMQBBIUChBBVURJT19DT0RFQ19PUFVTEAUSFgoSQVVESU9fQ09ERUNfVk9SQklTEAYSFAoQQVVESU9fQ09ERUNfRkxBQxAHEhMKD0FVRElPX0NPREVDX0RUUxAIEhYKEkFVRElPX0NPREVDX1RSVUVIRBAJKowBCg5QbGF5YmFja01ldGhvZBIfChtQTEFZQkFDS19NRVRIT0RfVU5TUEVDSUZJRUQQABIfChtQTEFZQkFDS19NRVRIT0RfRElSRUNUX1BMQVkQARIZChVQTEFZQkFDS19NRVRIT0RfUkVNVVgQAhIdChlQTEFZQkFDS19NRVRIT0RfVFJBTlNDT0RFEAMq/AsKElBsYXliYWNrUmVhc29uS2luZBIkCiBQTEFZQkFDS19SRUFTT05fS0lORF9VTlNQRUNJRklFRBAAEicKI1BMQVlCQUNLX1JFQVNPTl9LSU5EX1RSQUNLU19VTktOT1dOEAESJwojUExBWUJBQ0tfUkVBU09OX0tJTkRfTEVOR1RIX1VOS05PV04QAhI1CjFQTEFZQkFDS19SRUFTT05fS0lORF9ERVZJQ0VfQ0FOVF9ERUNPREVfQ09OVEFJTkVSEAMSMQotUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfREVDT0RFX1ZJREVPEAQSMQotUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfREVDT0RFX0FVRElPEAUSLQopUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfU0hPV19IRFIQBhItCilQTEFZQkFDS19SRUFTT05fS0lORF9ERVZJQ0VfQ0FOVF9QTEFZX0hMUxAHEiwKKFBMQVlCQUNLX1JFQVNPTl9LSU5EX1NFUlZFUl9MQUNLU19GRk1QRUcQCBIxCi1QTEFZQkFDS19SRUFTT05fS0lORF9TRVJWRVJfQ0FOVF9FTkNPREVfVklERU8QCRI2CjJQTEFZQkFDS19SRUFTT05fS0lORF9ET0xCWV9WSVNJT05fTkVFRFNfQkFTRV9MQVlFUhAKEjAKLFBMQVlCQUNLX1JFQVNPTl9LSU5EX01FVEhPRF9GQUlMRURfT05fREVWSUNFEAsSJAogUExBWUJBQ0tfUkVBU09OX0tJTkRfU0VSVkVSX0JVU1kQDBIzCi9QTEFZQkFDS19SRUFTT05fS0lORF9DSE9TRU5fQVVESU9fTk9UX0ZJTEVTX09XThANEiwKKFBMQVlCQUNLX1JFQVNPTl9LSU5EX1BJQ1RVUkVfU0NBTEVEX0RPV04QDhIsCihQTEFZQkFDS19SRUFTT05fS0lORF9TVUJUSVRMRVNfQlVSTkVEX0lOEA8SNAowUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX1BMQVlTX0ZFV0VSX0NIQU5ORUxTEBASMAosUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NIQU5ORUxTX1VOS05PV04QERIzCi9QTEFZQkFDS19SRUFTT05fS0lORF9DT05WRVJTSU9OX0NIQU5ORUxTX0NBUFBFRBASEigKJFBMQVlCQUNLX1JFQVNPTl9LSU5EX0hEUl9UT05FX01BUFBFRBATEiwKKFBMQVlCQUNLX1JFQVNPTl9LSU5EX0hEUl9OT1RfVE9ORV9NQVBQRUQQFBItCilQTEFZQkFDS19SRUFTT05fS0lORF9SRU1PVEVfREVGQVVMVF9MSU1JVBAVEi0KKVBMQVlCQUNLX1JFQVNPTl9LSU5EX1BJQ1RVUkVfU0laRV9VTktOT1dOEBYSLQopUExBWUJBQ0tfUkVBU09OX0tJTkRfQ0hPU0VOX0FVRElPX0RST1BQRUQQFxIvCitQTEFZQkFDS19SRUFTT05fS0lORF9QTEFZQkFDS19MSU1JVF9EUk9QUEVEEBgSMQotUExBWUJBQ0tfUkVBU09OX0tJTkRfQ0hPU0VOX1NVQlRJVExFU19EUk9QUEVEEBkSLworUExBWUJBQ0tfUkVBU09OX0tJTkRfVFJBTlNDT0RFU19PTl9IQVJEV0FSRRAaEjIKLlBMQVlCQUNLX1JFQVNPTl9LSU5EX0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9PRkYQGxI4CjRQTEFZQkFDS19SRUFTT05fS0lORF9OT19IQVJEV0FSRV9BQ0NFTEVSQVRJT05fUEFTU0VEEBwSOgo2UExBWUJBQ0tfUkVBU09OX0tJTkRfSEFSRFdBUkVfQUNDRUxFUkFUSU9OX0ZBSUxFRF9URVNUEB0SMAosUExBWUJBQ0tfUkVBU09OX0tJTkRfSEFSRFdBUkVfRkFJTEVEX1BBUlRXQVkQHjKQAgoPUGxheWJhY2tTZXJ2aWNlElAKDFBsYW5QbGF5YmFjaxIcLm5hbWEudjEuUGxhblBsYXliYWNrUmVxdWVzdBodLm5hbWEudjEuUGxhblBsYXliYWNrUmVzcG9uc2UiA5ACAhJQCgxTdG9wUGxheWJhY2sSHC5uYW1hLnYxLlN0b3BQbGF5YmFja1JlcXVlc3QaHS5uYW1hLnYxLlN0b3BQbGF5YmFja1Jlc3BvbnNlIgOQAgISWQoPUmVwb3J0VHJhY2tQaWNrEh8ubmFtYS52MS5SZXBvcnRUcmFja1BpY2tSZXF1ZXN0GiAubmFtYS52MS5SZXBvcnRUcmFja1BpY2tSZXNwb25zZSIDkAICYgZwcm90bzM", [file_nama_v1_browse]);
 
 /**
  * @generated from message nama.v1.ReportTrackPickRequest
@@ -286,11 +286,12 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
   tracks: Track[];
 
   /**
-   * Why it plays this way, in plain words, one for each step, in the order they ran.
+   * The facts that shaped it, in the order the steps that found them ran. A step that changes
+   * nothing gives none, so a Direct Play nothing stood in the way of has none.
    *
-   * @generated from field: repeated string reasons = 4;
+   * @generated from field: repeated nama.v1.PlaybackReason reasons = 13;
    */
-  reasons: string[];
+  reasons: PlaybackReason[];
 
   /**
    * The subtitles the Device shows itself, which the player turns on and off without a new plan,
@@ -363,7 +364,7 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
    * burns in, or else, when the request left the choice to the Server, one of `subtitles` that
    * the player shows itself. Unset for none.
    *
-   * @generated from field: optional uint32 starting_subtitle = 13;
+   * @generated from field: optional uint32 starting_subtitle = 14;
    */
   startingSubtitle?: number | undefined;
 };
@@ -417,6 +418,50 @@ export type PlaybackSubtitle = Message<"nama.v1.PlaybackSubtitle"> & {
  */
 export const PlaybackSubtitleSchema: GenMessage<PlaybackSubtitle> = /*@__PURE__*/
   messageDesc(file_nama_v1_playback, 8);
+
+/**
+ * One fact that shaped a Playback Plan (ADR 0034).
+ *
+ * @generated from message nama.v1.PlaybackReason
+ */
+export type PlaybackReason = Message<"nama.v1.PlaybackReason"> & {
+  /**
+   * @generated from field: nama.v1.PlaybackReasonKind kind = 1;
+   */
+  kind: PlaybackReasonKind;
+
+  /**
+   * The values the reason mentions. Keys are lowerCamelCase with the unit in the key (AIP-193);
+   * each kind lists its own.
+   *
+   * @generated from field: map<string, string> params = 2;
+   */
+  params: { [key: string]: string };
+
+  /**
+   * The Server's English sentence, for a client that doesn't know the kind. Not API contract.
+   *
+   * @generated from field: string text = 3;
+   */
+  text: string;
+
+  /**
+   * Whether it decided the plan, or is context. It decided the plan if it rules out a method the
+   * plan would rather have used than the one it plays (Direct Play before Remux before
+   * Transcode), or any method when the plan can't play, or if it says what the method it plays
+   * changes or that a choice was dropped.
+   *
+   * @generated from field: bool decided = 4;
+   */
+  decided: boolean;
+};
+
+/**
+ * Describes the message nama.v1.PlaybackReason.
+ * Use `create(PlaybackReasonSchema)` to create a new message.
+ */
+export const PlaybackReasonSchema: GenMessage<PlaybackReason> = /*@__PURE__*/
+  messageDesc(file_nama_v1_playback, 9);
 
 /**
  * The kind of Track a User picks while playing.
@@ -746,10 +791,267 @@ export const PlaybackMethodSchema: GenEnum<PlaybackMethod> = /*@__PURE__*/
   enumDesc(file_nama_v1_playback, 6);
 
 /**
+ * The kinds of fact that shape a Playback Plan. A kind, its params and the methods it rules out
+ * are API contract: one is never renamed or reused. A param that names a schema enum carries
+ * that value's name (`PLAYBACK_LIMIT_1080P`), and a number is a plain decimal.
+ *
+ * @generated from enum nama.v1.PlaybackReasonKind
+ */
+export const PlaybackReasonKind = {
+  /**
+   * A kind this client doesn't know; show the reason's `text`. The Server never sends it.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * Rules out Remux and Transcode: the Version's Tracks aren't known.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_TRACKS_UNKNOWN = 1;
+   */
+  TRACKS_UNKNOWN: 1,
+
+  /**
+   * Rules out Remux and Transcode: the Version's length isn't known.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_LENGTH_UNKNOWN = 2;
+   */
+  LENGTH_UNKNOWN: 2,
+
+  /**
+   * Rules out Direct Play: the Device doesn't decode the container. Params: `container`, the
+   * `Container` value's name (`CONTAINER_MATROSKA`), or else ffprobe's name for it (`avi`).
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER = 3;
+   */
+  DEVICE_CANT_DECODE_CONTAINER: 3,
+
+  /**
+   * Rules out Direct Play and Remux: the Device doesn't decode the video Track. Params: `codec`,
+   * as ffprobe names it (`hevc`), as in `Track.codec`.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO = 4;
+   */
+  DEVICE_CANT_DECODE_VIDEO: 4,
+
+  /**
+   * Rules out Direct Play: the Device doesn't decode the audio Track the plan plays. Params:
+   * `codec`, as for the video.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_AUDIO = 5;
+   */
+  DEVICE_CANT_DECODE_AUDIO: 5,
+
+  /**
+   * Rules out Direct Play and Remux: the Device can't show the picture's HDR. Params:
+   * `hdrFormat` (`HDR_FORMAT_HDR10`).
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR = 6;
+   */
+  DEVICE_CANT_SHOW_HDR: 6,
+
+  /**
+   * Rules out Remux and Transcode: the Device doesn't play HLS.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS = 7;
+   */
+  DEVICE_CANT_PLAY_HLS: 7,
+
+  /**
+   * Rules out Remux and Transcode: the Server lacks ffmpeg or ffprobe.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG = 8;
+   */
+  SERVER_LACKS_FFMPEG: 8,
+
+  /**
+   * Rules out Transcode: the Server's ffmpeg lacks libx264.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO = 9;
+   */
+  SERVER_CANT_ENCODE_VIDEO: 9,
+
+  /**
+   * Rules out Transcode: the picture is Dolby Vision with no Base Layer, as in profile 5.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER = 10;
+   */
+  DOLBY_VISION_NEEDS_BASE_LAYER: 10,
+
+  /**
+   * Rules out the method in `method` (`PLAYBACK_METHOD_REMUX`): it just failed on the Device.
+   * One for each method that did.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE = 11;
+   */
+  METHOD_FAILED_ON_DEVICE: 11,
+
+  /**
+   * Rules out Transcode: the Server runs as many Transcodes as it may. Params: `maxTranscodes`.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_SERVER_BUSY = 12;
+   */
+  SERVER_BUSY: 12,
+
+  /**
+   * Rules out Direct Play: the audio Track chosen isn't the one browsers play from the file.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN = 13;
+   */
+  CHOSEN_AUDIO_NOT_FILES_OWN: 13,
+
+  /**
+   * Rules out Direct Play and Remux: the picture is larger than the Playback Limit in effect, so
+   * a Transcode scales it down. Params: `playbackLimit` (`PLAYBACK_LIMIT_720P`), and the size it
+   * scales to, `widthPixels` and `heightPixels`.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN = 14;
+   */
+  PICTURE_SCALED_DOWN: 14,
+
+  /**
+   * Rules out Direct Play and Remux: the subtitles chosen need Burn-in.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN = 15;
+   */
+  SUBTITLES_BURNED_IN: 15,
+
+  /**
+   * The plan converts the audio to fewer channels because the Device says it plays fewer.
+   * Params: `channels`, how many it converts to.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS = 16;
+   */
+  DEVICE_PLAYS_FEWER_CHANNELS: 16,
+
+  /**
+   * The same, because the Device doesn't say how many it plays. Params: `channels`.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN = 17;
+   */
+  DEVICE_CHANNELS_UNKNOWN: 17,
+
+  /**
+   * The same, because that is the most the method makes. Params: `channels`.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED = 18;
+   */
+  CONVERSION_CHANNELS_CAPPED: 18,
+
+  /**
+   * The plan Transcodes and tone-maps the picture to SDR. Params: `hdrFormat`.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_HDR_TONE_MAPPED = 19;
+   */
+  HDR_TONE_MAPPED: 19,
+
+  /**
+   * The plan Transcodes HDR the Device can't show, and nothing tone-maps it, so its colours look
+   * washed out. Params: `hdrFormat`.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED = 20;
+   */
+  HDR_NOT_TONE_MAPPED: 20,
+
+  /**
+   * The default Playback Limit for remote playback chose the limit, as the Device is outside the
+   * local network, and the limit scaled the picture down or was dropped. Params: `playbackLimit`.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT = 21;
+   */
+  REMOTE_DEFAULT_LIMIT: 21,
+
+  /**
+   * A Playback Limit below Original is in effect and the picture's size isn't known, so it's
+   * taken to fit. Params: `playbackLimit`.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN = 22;
+   */
+  PICTURE_SIZE_UNKNOWN: 22,
+
+  /**
+   * The plan dropped the audio Track chosen for the file's own (ADR 0031). The reasons that ruled
+   * out the methods that would play it are in the same list.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED = 23;
+   */
+  CHOSEN_AUDIO_DROPPED: 23,
+
+  /**
+   * The plan dropped the Playback Limit for Original, likewise. Params: `playbackLimit`, the one
+   * dropped.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED = 24;
+   */
+  PLAYBACK_LIMIT_DROPPED: 24,
+
+  /**
+   * The plan dropped the subtitles chosen, likewise.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED = 25;
+   */
+  CHOSEN_SUBTITLES_DROPPED: 25,
+
+  /**
+   * The plan Transcodes on a GPU. Params: `hardwareAcceleration`
+   * (`HARDWARE_ACCELERATION_VAAPI`).
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE = 26;
+   */
+  TRANSCODES_ON_HARDWARE: 26,
+
+  /**
+   * The plan Transcodes in software because hardware acceleration is off.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF = 27;
+   */
+  HARDWARE_ACCELERATION_OFF: 27,
+
+  /**
+   * The same, because none passed its test when the Server started.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED = 28;
+   */
+  NO_HARDWARE_ACCELERATION_PASSED: 28,
+
+  /**
+   * The same, because the one the Admin picked didn't pass its test when the Server started.
+   * Params: `hardwareAcceleration`.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST = 29;
+   */
+  HARDWARE_ACCELERATION_FAILED_TEST: 29,
+
+  /**
+   * The hardware the plan Transcoded on failed while playing, so the rest Transcodes in
+   * software. Only in `PlaybackChanged`. Params: `hardwareAcceleration`.
+   *
+   * @generated from enum value: PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY = 30;
+   */
+  HARDWARE_FAILED_PARTWAY: 30,
+} as const;
+
+/**
+ * The kinds of fact that shape a Playback Plan. A kind, its params and the methods it rules out
+ * are API contract: one is never renamed or reused. A param that names a schema enum carries
+ * that value's name (`PLAYBACK_LIMIT_1080P`), and a number is a plain decimal.
+ *
+ * @generated from enum nama.v1.PlaybackReasonKind
+ */
+export type PlaybackReasonKind = (typeof PlaybackReasonKind)[keyof typeof PlaybackReasonKind] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.PlaybackReasonKind.
+ */
+export const PlaybackReasonKindSchema: GenEnum<PlaybackReasonKind> = /*@__PURE__*/
+  enumDesc(file_nama_v1_playback, 7);
+
+/**
  * How the signed-in caller's Device plays a Version.
  *
  * The Server builds a Playback Plan by running separate steps in a fixed order, each of which can
- * only narrow what the plan may be, and records why (ADR 0027).
+ * only narrow what the plan may be (ADR 0027), and gives the Playback Reasons for it (ADR 0034).
  *
  * @generated from service nama.v1.PlaybackService
  */
@@ -757,7 +1059,7 @@ export const PlaybackService: GenService<{
   /**
    * Returns a Playback Plan for playing a Version on the caller's Device, probing the Version
    * first if the Server has no current Tracks for it. A choice the caller asks for that the plan
-   * can't honour here is dropped, and its `reasons` say why (ADR 0031). Fails with `not_found` if
+   * can't honour here is dropped, and a reason says so (ADR 0031). Fails with `not_found` if
    * there is no such Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when the Device
    * itself needs a Transcode to play it, never for a choice, and the Server is already running as
    * many as it may; one of the caller's own Device's doesn't count, as a new plan replaces the one

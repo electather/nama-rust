@@ -9766,7 +9766,8 @@ impl ::serde::Serialize for PlaybackEndedOwnedView {
     }
 }
 /// A plan that `PlaybackStarted` told of changed how it plays while playing: its Transcode's
-/// hardware acceleration failed, so the rest of it Transcodes in software, as a reason it adds says.
+/// hardware acceleration failed, so the rest of it Transcodes in software. Its reasons are the
+/// software fallback's, which say so.
 #[derive(Clone, Debug, Default)]
 pub struct PlaybackChangedView<'a> {
     /// As it plays now.
@@ -10081,8 +10082,11 @@ pub struct PlaybackView<'a> {
     pub tracks: ::buffa::RepeatedView<'a, super::super::__buffa::view::TrackView<'a>>,
     /// Why it plays this way, as its plan says.
     ///
-    /// Field 6: `reasons`
-    pub reasons: ::buffa::RepeatedView<'a, &'a str>,
+    /// Field 7: `reasons`
+    pub reasons: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::PlaybackReasonView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackView<'a> {
@@ -10163,16 +10167,25 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackView<'a> {
                         )?,
                     );
             }
-            6u32 => {
+            7u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
                 ctx.register_element_memory(
-                    ::buffa::__private::element_footprint(&__elem),
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::PlaybackReasonView,
+                    >(),
                 )?;
-                view.reasons.push(__elem);
+                view.reasons
+                    .push(
+                        <super::super::__buffa::view::PlaybackReasonView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -10205,7 +10218,11 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
-            reasons: self.reasons.iter().map(|s| s.to_string()).collect(),
+            reasons: self
+                .reasons
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -10241,7 +10258,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackView<'a> {
                     + inner_size as u64;
         }
         for v in &self.reasons {
-            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -10278,7 +10300,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackView<'a> {
             v.write_to(__cache, buf);
         }
         for v in &self.reasons {
-            ::buffa::types::put_string_field(6u32, v, buf);
+            ::buffa::types::put_len_delimited_header(
+                7u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10459,9 +10486,14 @@ impl PlaybackOwnedView {
     }
     /// Why it plays this way, as its plan says.
     ///
-    /// Field 6: `reasons`
+    /// Field 7: `reasons`
     #[must_use]
-    pub fn reasons(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+    pub fn reasons(
+        &self,
+    ) -> &::buffa::RepeatedView<
+        '_,
+        super::super::__buffa::view::PlaybackReasonView<'_>,
+    > {
         &self.0.reborrow().reasons
     }
 }

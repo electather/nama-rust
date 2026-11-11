@@ -18,7 +18,7 @@ const server = (() => {
         plan: {
           method: PlaybackMethod.DIRECT_PLAY,
           url: "/planned/7",
-          reasons: ["Its Tracks need no change"],
+          reasons: [{ text: "This Device can't play HLS, which a Remux and a Transcode need" }],
           tracks: [
             { codec: "h264", kind: { case: "video", value: { width: 1920, height: 1080 } } },
             { codec: "aac", language: "eng", kind: { case: "audio", value: { channels: 6 } } },
@@ -50,7 +50,9 @@ test("playback info says how the plan plays the Version, why, and with which Tra
   expect(info.getAttribute("aria-expanded")).toBe("true");
   const panel = within(screen.getByRole("region", { name: "Playback info" }));
   expect(panel.getByText("Direct Play")).toBeDefined();
-  expect(panel.getByText("Its Tracks need no change")).toBeDefined();
+  expect(
+    panel.getByText("This Device can't play HLS, which a Remux and a Transcode need"),
+  ).toBeDefined();
   expect(panel.getByText("H.264 · 1080p")).toBeDefined();
   expect(panel.getByText("AAC · 5.1 · English")).toBeDefined();
   expect(panel.getByText("SRT · French")).toBeDefined();

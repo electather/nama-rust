@@ -11,8 +11,8 @@ use nama_proto::nama::v1::{
 use crate::{
     ffmpeg::Abilities,
     playback::{
-        self, Asked, AskedSubtitle, DeviceDecoding, Method, PickedLimit, Planned, PlaybackLimit,
-        StartedPlan, method_to_proto,
+        self, Asked, AskedSubtitle, DeviceDecoding, Method, NAMED_LIMITS, PickedLimit, Planned,
+        PlaybackLimit, StartedPlan, limit_to_proto, method_to_proto, reason_to_proto,
         running::{RunningPlans, StartError},
     },
     probing::{self, Probing},
@@ -187,22 +187,6 @@ impl PlaybackServiceHandler {
     }
 }
 
-/// Each Playback Limit below Original, by the API's name for it.
-const NAMED_LIMITS: [(PlaybackLimit, proto::PlaybackLimit); 3] = [
-    (
-        PlaybackLimit::P1080,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_1080P,
-    ),
-    (
-        PlaybackLimit::P720,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_720P,
-    ),
-    (
-        PlaybackLimit::P480,
-        proto::PlaybackLimit::PLAYBACK_LIMIT_480P,
-    ),
-];
-
 /// The Playback Limit `limit` names, `None` being Original, as is one not picked or one newer
 /// than this Server.
 pub(super) fn limit_from_proto(limit: EnumValue<proto::PlaybackLimit>) -> Option<PlaybackLimit> {
@@ -218,16 +202,6 @@ fn picked_limit(limit: EnumValue<proto::PlaybackLimit>) -> PickedLimit {
     } else {
         PickedLimit::Picked(limit_from_proto(limit))
     }
-}
-
-/// `limit` as the API names it, `None` being Original.
-pub(super) fn limit_to_proto(limit: Option<PlaybackLimit>) -> proto::PlaybackLimit {
-    (NAMED_LIMITS.into_iter())
-        .find(|(ours, _)| Some(*ours) == limit)
-        .map_or(
-            proto::PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL,
-            |(_, theirs)| theirs,
-        )
 }
 
 /// Those of `values` this Server's schema names, as a newer client may send ones it doesn't.
@@ -264,7 +238,7 @@ fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
         method: method_to_proto(plan.method()).into(),
         url,
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
-        reasons: plan.reasons,
+        reasons: plan.reasons.iter().map(reason_to_proto).collect(),
         playback_limit: limit_to_proto(plan.limit).into(),
         audio_track: plan.audio.and_then(place),
         subtitle_track: plan.burn_in.and_then(place),

@@ -6326,7 +6326,8 @@ pub const __PLAYBACK_ENDED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
     is_wkt: false,
 };
 /// A plan that `PlaybackStarted` told of changed how it plays while playing: its Transcode's
-/// hardware acceleration failed, so the rest of it Transcodes in software, as a reason it adds says.
+/// hardware acceleration failed, so the rest of it Transcodes in software. Its reasons are the
+/// software fallback's, which say so.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -6521,13 +6522,13 @@ pub struct Playback {
     pub tracks: ::buffa::alloc::vec::Vec<Track>,
     /// Why it plays this way, as its plan says.
     ///
-    /// Field 6: `reasons`
+    /// Field 7: `reasons`
     #[serde(
         rename = "reasons",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
-    pub reasons: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    pub reasons: ::buffa::alloc::vec::Vec<PlaybackReason>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -6595,7 +6596,12 @@ impl ::buffa::Message for Playback {
                     + inner_size as u64;
         }
         for v in &self.reasons {
-            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -6631,7 +6637,12 @@ impl ::buffa::Message for Playback {
             v.write_to(__cache, buf);
         }
         for v in &self.reasons {
-            ::buffa::types::put_string_field(6u32, v, buf);
+            ::buffa::types::put_len_delimited_header(
+                7u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6688,16 +6699,17 @@ impl ::buffa::Message for Playback {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.tracks.push(elem);
             }
-            6u32 => {
+            7u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                let __elem = ::buffa::types::decode_string(buf)?;
+                let mut elem = ::core::default::Default::default();
                 ctx.register_element_memory(
-                    ::buffa::__private::element_footprint(&__elem),
+                    ::buffa::__private::element_footprint(&elem),
                 )?;
-                self.reasons.push(__elem);
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.reasons.push(elem);
             }
             _ => {
                 self.__buffa_unknown_fields

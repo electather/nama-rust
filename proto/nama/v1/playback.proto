@@ -7,11 +7,11 @@ import "nama/v1/browse.proto";
 // How the signed-in caller's Device plays a Version.
 //
 // The Server builds a Playback Plan by running separate steps in a fixed order, each of which can
-// only narrow what the plan may be, and records why (ADR 0027).
+// only narrow what the plan may be (ADR 0027), and gives the Playback Reasons for it (ADR 0034).
 service PlaybackService {
   // Returns a Playback Plan for playing a Version on the caller's Device, probing the Version
   // first if the Server has no current Tracks for it. A choice the caller asks for that the plan
-  // can't honour here is dropped, and its `reasons` say why (ADR 0031). Fails with `not_found` if
+  // can't honour here is dropped, and a reason says so (ADR 0031). Fails with `not_found` if
   // there is no such Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when the Device
   // itself needs a Transcode to play it, never for a choice, and the Server is already running as
   // many as it may; one of the caller's own Device's doesn't count, as a new plan replaces the one
@@ -188,8 +188,10 @@ message PlaybackPlan {
   // The Tracks it plays: its video, then its audio, as the Device gets them, so audio a Remux
   // converts is AAC here. Empty when they aren't known, as on a Server without ffprobe.
   repeated Track tracks = 3;
-  // Why it plays this way, in plain words, one for each step, in the order they ran.
-  repeated string reasons = 4;
+  reserved 4;
+  // The facts that shaped it, in the order the steps that found them ran. A step that changes
+  // nothing gives none, so a Direct Play nothing stood in the way of has none.
+  repeated PlaybackReason reasons = 13;
   // The subtitles the Device shows itself, which the player turns on and off without a new plan,
   // in the order the Version holds them: the text ones, and those in a format the Device draws
   // (ADR 0033). A Track here in a format the Device draws isn't among `burn_in_tracks`.
@@ -219,7 +221,7 @@ message PlaybackPlan {
   // The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
   // burns in, or else, when the request left the choice to the Server, one of `subtitles` that
   // the player shows itself. Unset for none.
-  optional uint32 starting_subtitle = 13;
+  optional uint32 starting_subtitle = 14;
 }
 
 // A subtitle the Device shows itself: a text one as a WebVTT `<track>`, or one it draws.
@@ -233,4 +235,107 @@ message PlaybackSubtitle {
   string url = 2;
   // The format it's fetched in.
   SubtitleFormat format = 3;
+}
+
+// One fact that shaped a Playback Plan (ADR 0034).
+message PlaybackReason {
+  PlaybackReasonKind kind = 1;
+  // The values the reason mentions. Keys are lowerCamelCase with the unit in the key (AIP-193);
+  // each kind lists its own.
+  map<string, string> params = 2;
+  // The Server's English sentence, for a client that doesn't know the kind. Not API contract.
+  string text = 3;
+  // Whether it decided the plan, or is context. It decided the plan if it rules out a method the
+  // plan would rather have used than the one it plays (Direct Play before Remux before
+  // Transcode), or any method when the plan can't play, or if it says what the method it plays
+  // changes or that a choice was dropped.
+  bool decided = 4;
+}
+
+// The kinds of fact that shape a Playback Plan. A kind, its params and the methods it rules out
+// are API contract: one is never renamed or reused. A param that names a schema enum carries
+// that value's name (`PLAYBACK_LIMIT_1080P`), and a number is a plain decimal.
+enum PlaybackReasonKind {
+  // A kind this client doesn't know; show the reason's `text`. The Server never sends it.
+  PLAYBACK_REASON_KIND_UNSPECIFIED = 0;
+
+  // Rules out Remux and Transcode: the Version's Tracks aren't known.
+  PLAYBACK_REASON_KIND_TRACKS_UNKNOWN = 1;
+  // Rules out Remux and Transcode: the Version's length isn't known.
+  PLAYBACK_REASON_KIND_LENGTH_UNKNOWN = 2;
+  // Rules out Direct Play: the Device doesn't decode the container. Params: `container`, the
+  // `Container` value's name (`CONTAINER_MATROSKA`), or else ffprobe's name for it (`avi`).
+  PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER = 3;
+  // Rules out Direct Play and Remux: the Device doesn't decode the video Track. Params: `codec`,
+  // as ffprobe names it (`hevc`), as in `Track.codec`.
+  PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO = 4;
+  // Rules out Direct Play: the Device doesn't decode the audio Track the plan plays. Params:
+  // `codec`, as for the video.
+  PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_AUDIO = 5;
+  // Rules out Direct Play and Remux: the Device can't show the picture's HDR. Params:
+  // `hdrFormat` (`HDR_FORMAT_HDR10`).
+  PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR = 6;
+  // Rules out Remux and Transcode: the Device doesn't play HLS.
+  PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS = 7;
+  // Rules out Remux and Transcode: the Server lacks ffmpeg or ffprobe.
+  PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG = 8;
+  // Rules out Transcode: the Server's ffmpeg lacks libx264.
+  PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO = 9;
+  // Rules out Transcode: the picture is Dolby Vision with no Base Layer, as in profile 5.
+  PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER = 10;
+  // Rules out the method in `method` (`PLAYBACK_METHOD_REMUX`): it just failed on the Device.
+  // One for each method that did.
+  PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE = 11;
+  // Rules out Transcode: the Server runs as many Transcodes as it may. Params: `maxTranscodes`.
+  PLAYBACK_REASON_KIND_SERVER_BUSY = 12;
+  // Rules out Direct Play: the audio Track chosen isn't the one browsers play from the file.
+  PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN = 13;
+  // Rules out Direct Play and Remux: the picture is larger than the Playback Limit in effect, so
+  // a Transcode scales it down. Params: `playbackLimit` (`PLAYBACK_LIMIT_720P`), and the size it
+  // scales to, `widthPixels` and `heightPixels`.
+  PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN = 14;
+  // Rules out Direct Play and Remux: the subtitles chosen need Burn-in.
+  PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN = 15;
+
+  // The rest rule nothing out.
+
+  // The plan converts the audio to fewer channels because the Device says it plays fewer.
+  // Params: `channels`, how many it converts to.
+  PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS = 16;
+  // The same, because the Device doesn't say how many it plays. Params: `channels`.
+  PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN = 17;
+  // The same, because that is the most the method makes. Params: `channels`.
+  PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED = 18;
+  // The plan Transcodes and tone-maps the picture to SDR. Params: `hdrFormat`.
+  PLAYBACK_REASON_KIND_HDR_TONE_MAPPED = 19;
+  // The plan Transcodes HDR the Device can't show, and nothing tone-maps it, so its colours look
+  // washed out. Params: `hdrFormat`.
+  PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED = 20;
+  // The default Playback Limit for remote playback chose the limit, as the Device is outside the
+  // local network, and the limit scaled the picture down or was dropped. Params: `playbackLimit`.
+  PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT = 21;
+  // A Playback Limit below Original is in effect and the picture's size isn't known, so it's
+  // taken to fit. Params: `playbackLimit`.
+  PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN = 22;
+  // The plan dropped the audio Track chosen for the file's own (ADR 0031). The reasons that ruled
+  // out the methods that would play it are in the same list.
+  PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED = 23;
+  // The plan dropped the Playback Limit for Original, likewise. Params: `playbackLimit`, the one
+  // dropped.
+  PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED = 24;
+  // The plan dropped the subtitles chosen, likewise.
+  PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED = 25;
+  // The plan Transcodes on a GPU. Params: `hardwareAcceleration`
+  // (`HARDWARE_ACCELERATION_VAAPI`).
+  PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE = 26;
+  // The plan Transcodes in software because hardware acceleration is off.
+  PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_OFF = 27;
+  // The same, because none passed its test when the Server started.
+  PLAYBACK_REASON_KIND_NO_HARDWARE_ACCELERATION_PASSED = 28;
+  // The same, because the one the Admin picked didn't pass its test when the Server started.
+  // Params: `hardwareAcceleration`.
+  PLAYBACK_REASON_KIND_HARDWARE_ACCELERATION_FAILED_TEST = 29;
+  // The hardware the plan Transcoded on failed while playing, so the rest Transcodes in
+  // software. Only in `PlaybackChanged`. Params: `hardwareAcceleration`.
+  PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY = 30;
 }
