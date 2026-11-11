@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
@@ -81,6 +82,23 @@ test.each([
     expect(fetched).toHaveBeenLastCalledWith(url, { method: "HEAD" });
   },
 );
+
+test("a plan its player still plays is never stopped, though React sets up its effects twice", async () => {
+  const stopped: bigint[] = [];
+  openApp(
+    "/libraries/1/movies/tmdb-603/play",
+    planning(PlaybackMethod.REMUX, PLAYLIST, stopped),
+    (app) => <StrictMode>{app}</StrictMode>,
+  );
+  await screen.findByLabelText("The Matrix");
+
+  // Long enough for a stop sent on the effect's first cleanup to arrive.
+  await new Promise((resolve) => {
+    setTimeout(resolve, 50);
+  });
+
+  expect(stopped).toEqual([]);
+});
 
 test("the Server is told a plan stopped once a new plan replaces it, and once the player closes", async () => {
   const stopped: bigint[] = [];
