@@ -5,9 +5,11 @@
 - **One database writer.** Every write goes through `Database::write` in `src/db.rs`, on the one writable SQLite connection. Long jobs such as a scan write in small batches.
 - **One owner for a Library's contents.** Only `src/contents.rs` reads or writes `library_files`, `library_items`, `item_matches` and `match_pins`, tests included. Everything else goes through `Contents`.
 - **One owner for Tracks.** Only `src/tracks.rs` reads or writes `version_probes`, `tracks` and `probe_failures`, tests included. Browse attaches them to the Versions `Contents` reads.
+- **One owner for probing.** Only `src/probing.rs` runs ffprobe on stored files and decides what a probe failure means for trying it again (`ProbeFailure`); Tracks stores it.
 - **One owner for Quality rules.** Only `src/qualities.rs` reads or writes `qualities` and `default_qualities`, tests included, and decides which Quality a Request, Show or Followed Show takes (ADR 0025). Requests and handlers ask it.
 - **One owner for Server settings.** Only `src/server_settings.rs` reads or writes `server_settings`, tests included.
 - **One path for Request changes.** Every change to a Request or Followed Show goes through `Requests::apply`, which alone publishes their events and hands off (ADR 0029). A Library's write making them Available is the exception (ADR 0012).
+- **Requester rules once.** What a Request and a Followed Show share (Requesters, the guarded Pending decision, who may see one) is written once in `src/requests/asked.rs`; each keeps only what differs.
 - **One owner for Plugin changes.** Outside tests, only `src/plugin_settings.rs` enables or disables a Plugin or saves its settings, under its one lock and in ADR 0028's order. Handlers and tasks ask `PluginSettings`; they don't call `Registry::enable_by_id` or `Registry::disable`.
 - **Query data.** After changing a `sqlx::query!` or anything in `migrations/`, regenerate `.sqlx/` at the workspace root and commit it (commands in `README.md`).
 - **Name parser version.** A change to how names are parsed or how Matching decides that could turn an Unmatched Item into a Match bumps `PARSER_VERSION` in `src/scanner/names.rs`, so the next scan parses stored files again and retries their automatic Unmatched decisions (ADR 0023).
@@ -31,6 +33,10 @@
 - **Causes stay server-side.** A database or server-side error is logged; the client gets a generic Connect error.
 - **Refusals are typed.** Every error a client can cause carries a `nama.v1.Refusal` detail (ADR 0019). Build it with `refuse` in `src/api.rs`, which sets the Connect code from the `RefusalReason` and fills `debug`; never build a client-caused `ConnectError` directly. The one exception is the router's 404 for a path no `ACCESS` entry lists (see "New RPCs start closed"). A refusal about one request field names it in `field`, and values its message mentions go in `params` (AIP-193: lowerCamelCase keys, units in the key). Server-side failures carry none.
 - **Plugin code runs contained.** Every call into a Plugin, its `Drop` included, goes through `contain_sync` (or its async twin) in `src/plugins.rs`, outside the registry lock.
+
+### Playback
+
+- **What a plan converts is worked out once.** Before the steps run, `candidates` in `src/playback.rs` works out what a Remux and a Transcode of the Version would convert, and the plan keeps the one it narrowed to in `Playing`. Its reasons, Tracks, events and ffmpeg arguments read that value; none asks the planning facts again what it converts.
 
 ### Tests
 

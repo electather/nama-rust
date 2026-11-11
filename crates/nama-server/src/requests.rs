@@ -9,8 +9,9 @@
 //! also what its events carry.
 
 use std::{
+    borrow::Cow,
     cmp::Reverse,
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashSet},
     iter,
     sync::{Arc, Mutex},
 };
@@ -43,8 +44,10 @@ use crate::{
     users::User,
 };
 
+mod asked;
 mod hand_off;
 
+use asked::Asked;
 use hand_off::{HandOff, PROGRESS_EVERY, lock};
 
 /// Each Request state as `requests.state` stores it.
@@ -722,15 +725,12 @@ impl Requests {
         token: &str,
     ) -> Result<ListRequestsResponse, Error> {
         let after = read_page_token(token, state)?;
-        let mut conn = self.db.reader().acquire().await?;
-        // ponytail: reads every row `viewer` may see to list one page; page in the queries once a
-        // Server's Requests number in the thousands.
-        let requests = load(&mut conn, None, visible_to(viewer)).await?;
-        let followed = load_followed(&mut conn, None, visible_to(viewer)).await?;
-        let mut rows: Vec<Listed> = requests
+        // ponytail: reads every Request and Followed Show, whoever `viewer` is, to list one page;
+        // page and filter in the queries once a Server's Requests number in the thousands.
+        let mut rows: Vec<Listed> = self
+            .listed(viewer)
+            .await?
             .into_iter()
-            .map(Listed::Request)
-            .chain(followed.into_iter().map(Listed::Followed))
             .filter(|row| state.is_none_or(|state| row.state() == state))
             .filter(|row| after.is_none_or(|after| row.place() < after))
             .collect();
@@ -759,24 +759,26 @@ impl Requests {
     /// How many of the Requests and Followed Shows `viewer` may see are Pending, as many as
     /// [`Self::list`] shows them, counting a Followed Show apart from its Season Requests.
     pub(crate) async fn count_pending(&self, viewer: &User) -> Result<u32, sqlx::Error> {
-        let requester = visible_to(viewer);
-        // Keep the visibility checks in step with `load` and `load_followed`, or the count and the
-        // Pending filter disagree.
-        sqlx::query_scalar!(
-            r#"SELECT (SELECT COUNT(*) FROM requests
-                       WHERE state = 'pending'
-                         AND (?1 IS NULL OR EXISTS (SELECT 1 FROM requesters
-                                                    WHERE request_id = requests.id
-                                                      AND user_id = ?1)))
-                + (SELECT COUNT(*) FROM followed_shows
-                   WHERE state = 'pending'
-                     AND (?1 IS NULL OR EXISTS (SELECT 1 FROM followed_show_requesters
-                                                WHERE followed_show_id = followed_shows.id
-                                                  AND user_id = ?1))) AS "count!: u32""#,
-            requester
-        )
-        .fetch_one(self.db.reader())
-        .await
+        // ponytail: reads every Request and Followed Show to count the Pending ones, so the count
+        // is what `list` shows; count in SQL once a Server's Requests number in the thousands.
+        let rows = self.listed(viewer).await?;
+        let pending = rows
+            .iter()
+            .filter(|row| row.state() == RequestState::Pending)
+            .count();
+        Ok(u32::try_from(pending).unwrap_or(u32::MAX))
+    }
+
+    /// Every Request and Followed Show `viewer` may see, unordered.
+    async fn listed(&self, viewer: &User) -> Result<Vec<Listed>, sqlx::Error> {
+        let mut conn = self.db.reader().acquire().await?;
+        let requests = load(&mut conn, None, visible_to(viewer)).await?;
+        let followed = load_followed(&mut conn, None, visible_to(viewer)).await?;
+        Ok(requests
+            .into_iter()
+            .map(Listed::Request)
+            .chain(followed.into_iter().map(Listed::Followed))
+            .collect())
     }
 
     /// The Movies the metadata source finds titled like `title`, best fit first, as `viewer`
@@ -1139,10 +1141,11 @@ async fn ask_seasons(
 
 /// How Seasons of a Show are asked for, which decides what is done with each:
 ///
-/// | Library has | asking | following |
-/// |---|---|---|
-/// | all of it | refuse | skip |
-/// | some or none of it | open as asked | open as asked |
+/// | Library has | asking | following | a scan |
+/// |---|---|---|---|
+/// | all of it | refuse | skip | open as Available |
+/// | some of it | open as asked | open as asked | open as Partially Available |
+/// | none of it | open as asked | open as asked | skip |
 #[derive(Debug, Clone, Copy)]
 enum Way<'a> {
     /// `user` asking for Seasons on their own, apart from the Show's Followed Show. Their new
@@ -1155,16 +1158,119 @@ enum Way<'a> {
         state: RequestState,
         followed_show: &'a FollowedShow,
     },
+    /// A Library's write, which has no Request open for the Seasons, asking for them for the
+    /// Requesters of the Show's Approved Followed Show in the order they asked. Never hands off,
+    /// as new Requests open already in a Library.
+    Scanning,
 }
 
-impl Way<'_> {
-    /// Refuses the Season `season` of the Show `show`, which a Library has in full, if this way
-    /// refuses such a Season rather than skipping it.
-    fn refuse_in_library(self, show: i64, season: u32) -> Result<(), Error> {
-        match self {
-            Way::Asking { .. } => Err(Error::SeasonInLibrary { show, season }),
-            Way::Following { .. } => Ok(()),
+/// A [`Way`] of asking for the Seasons of a Show, with the Followed Show its new Requests open
+/// for, if any.
+#[derive(Debug)]
+struct Asker<'a> {
+    way: Way<'a>,
+    followed_show: Option<Cow<'a, FollowedShow>>,
+}
+
+impl<'a> Asker<'a> {
+    /// Asks `way` for Seasons of the Show `show`, a scan for its Approved Followed Show, if any.
+    async fn new(
+        conn: &mut SqliteConnection,
+        way: Way<'a>,
+        show: i64,
+    ) -> Result<Self, sqlx::Error> {
+        let followed_show = match way {
+            Way::Asking { .. } => None,
+            Way::Following { followed_show, .. } => Some(Cow::Borrowed(followed_show)),
+            Way::Scanning => approved_followed_show(conn, show).await?.map(Cow::Owned),
+        };
+        Ok(Self { way, followed_show })
+    }
+
+    /// The Followed Show new Requests open for, if any.
+    fn followed_show(&self) -> Option<&FollowedShow> {
+        self.followed_show.as_deref()
+    }
+
+    /// The state a new Request for the Season `season` of the Show `show` opens in, given how
+    /// much of it a Library `has`, or `None` if this way skips it. Refuses a Season a Library has
+    /// in full if this way refuses one.
+    async fn opens_in(
+        &self,
+        conn: &mut SqliteConnection,
+        show: i64,
+        season: u32,
+        has: Option<RequestState>,
+    ) -> Result<Option<RequestState>, Error> {
+        let in_full = has == Some(RequestState::Available);
+        match self.way {
+            Way::Asking { .. } if in_full => Err(Error::SeasonInLibrary { show, season }),
+            Way::Asking { state, .. } => Ok(Some(state)),
+            Way::Following { .. } if in_full => Ok(None),
+            // An Approved Followed Show was approved once for every Season, so needs no approving
+            // again.
+            Way::Following {
+                state,
+                followed_show,
+                ..
+            } => Ok(Some(followed_show.state.as_known().unwrap_or(state))),
+            Way::Scanning => {
+                // A Show with no Approved Followed Show has no one a scan could ask for.
+                let Some(followed_show) = self.followed_show() else {
+                    return Ok(None);
+                };
+                let skips = has.is_none()
+                    || covers(conn, followed_show.id, season).await?
+                    || was_available(conn, show, season).await?;
+                Ok(if skips { None } else { has })
+            }
         }
+    }
+
+    /// Opens or joins the Request for `wanted` this way, a new one opening in `opens_in`.
+    async fn ask(
+        &self,
+        conn: &mut SqliteConnection,
+        wanted: Wanted,
+        opens_in: RequestState,
+    ) -> Result<Applied<Request>, Error> {
+        match self.way {
+            // Only `user`'s own auto-approve approves a Pending Season Request they join,
+            // whichever way they ask: the state of a Followed Show they join doesn't.
+            Way::Asking { user, state } | Way::Following { user, state, .. }
+                if state == RequestState::Approved =>
+            {
+                ask_approving(conn, user, wanted, opens_in).await
+            }
+            Way::Asking { user, .. } | Way::Following { user, .. } => {
+                Ok(ask(conn, user, wanted, opens_in).await?)
+            }
+            Way::Scanning => {
+                // `opens_in` skips every Season of a Show with no Approved Followed Show, so a
+                // scan never gets here without its Requesters.
+                let requesters = self
+                    .followed_show()
+                    .map(|followed| followed.requesters.as_slice());
+                let requesters = requesters.unwrap_or_default();
+                Ok(ask_as(conn, requesters, wanted, opens_in, now()).await?)
+            }
+        }
+    }
+
+    /// Records that the Followed Show this way asks for covers the Season `season` from then on,
+    /// so one it opened and someone declined, cancelled or withdrew from isn't opened again.
+    async fn cover(&self, conn: &mut SqliteConnection, season: u32) -> Result<(), sqlx::Error> {
+        // Following covers its Seasons as it opens the Followed Show.
+        if let (Way::Scanning, Some(followed_show)) = (self.way, self.followed_show()) {
+            sqlx::query!(
+                "UPDATE followed_shows SET latest_season = ? WHERE id = ?",
+                season,
+                followed_show.id
+            )
+            .execute(&mut *conn)
+            .await?;
+        }
+        Ok(())
     }
 }
 
@@ -1194,40 +1300,27 @@ impl SeasonsToAsk {
     /// Opens or joins a Request for each Season, the [`Way`] `way` asks for it. Returns the
     /// Requests in Season order.
     async fn ask(
-        self,
+        mut self,
         conn: &mut SqliteConnection,
         way: Way<'_>,
     ) -> Result<Applied<Vec<Request>>, Error> {
-        let (user, state, followed_show) = match way {
-            Way::Asking { user, state } => (user, state, None),
-            Way::Following {
-                user,
-                state,
-                followed_show,
-            } => (user, state, Some(followed_show)),
-        };
-        // An Approved Followed Show was approved once for every Season, so needs no approving again.
-        let opens_in = followed_show
-            .and_then(|followed| followed.state.as_known())
-            .unwrap_or(state);
+        let show = self.show.show_tmdb_id;
+        let asking = Asker::new(conn, way, show).await?;
+        if let (Way::Scanning, Some(followed)) = (way, asking.followed_show()) {
+            // A Library's write knows no title for the Show, so a scan takes its Followed Show's.
+            self.show.show_title.clone_from(&followed.show_title);
+        }
         let today = today(conn).await?;
         let mut asked = Applied::quiet(Vec::with_capacity(self.show.seasons.len()));
         for season in &self.show.seasons {
-            let matched =
-                contents::matched_episodes(conn, self.show.show_tmdb_id, season.number.into())
-                    .await?;
-            if availability(&season.episodes, &matched, &today) == Some(RequestState::Available) {
-                way.refuse_in_library(self.show.show_tmdb_id, season.number)?;
+            let matched = contents::matched_episodes(conn, show, season.number.into()).await?;
+            let has = availability(&season.episodes, &matched, &today);
+            let Some(opens_in) = asking.opens_in(conn, show, season.number, has).await? else {
                 continue;
-            }
-            let wanted = self.wanted(season, followed_show.map(|followed| followed.id));
-            // Only `user`'s own auto-approve approves a Pending Season Request they join, whichever
-            // way they ask: the state of a Followed Show they join doesn't.
-            let one = if state == RequestState::Approved {
-                ask_approving(conn, user, wanted, opens_in).await?
-            } else {
-                ask(conn, user, wanted, opens_in).await?
             };
+            let wanted = self.wanted(season, asking.followed_show().map(|followed| followed.id));
+            let one = asking.ask(conn, wanted, opens_in).await?;
+            asking.cover(conn, season.number).await?;
             asked.value.push(one.value);
             asked.events.extend(one.events);
             asked.hand_off.extend(one.hand_off);
@@ -1331,9 +1424,7 @@ async fn insert_request(
     .await
 }
 
-/// Adds `user` as a Requester of the open Request for `wanted`, opening one in `state` if there
-/// is none, which is handed off if that is Approved. Joining one hands nothing off, so a Request
-/// isn't handed off twice.
+/// [`ask_as`] for `user`, asking now.
 async fn ask(
     conn: &mut SqliteConnection,
     user: i64,
@@ -1341,23 +1432,47 @@ async fn ask(
     state: RequestState,
 ) -> Result<Applied<Request>, sqlx::Error> {
     let now = now();
+    let asker = Requester {
+        user_id: user,
+        requested_at: now,
+        ..Default::default()
+    };
+    ask_as(conn, &[asker], wanted, state, now).await
+}
+
+/// Adds each of `requesters`, in order and as of when they asked, as a Requester of the open
+/// Request for `wanted`, opening one in `state` at `now` if there is none, which is handed off if
+/// that is Approved. Joining one hands nothing off, so a Request isn't handed off twice.
+async fn ask_as(
+    conn: &mut SqliteConnection,
+    requesters: &[Requester],
+    wanted: Wanted,
+    state: RequestState,
+    now: i64,
+) -> Result<Applied<Request>, sqlx::Error> {
     let open = open_request(conn, wanted.tmdb_id, wanted.season).await?;
     let opened = open.is_none();
     let id = match open {
         Some(id) => id,
         None => insert_request(conn, &wanted, stored(state), now).await?,
     };
-    let joined = sqlx::query!(
-        "INSERT INTO requesters (request_id, user_id, requested_at) VALUES (?, ?, ?)
-         ON CONFLICT DO NOTHING",
-        id,
-        user,
-        now
-    )
-    .execute(&mut *conn)
-    .await?
-    .rows_affected()
-        > 0;
+    let mut joined = Vec::new();
+    for requester in requesters {
+        let added = sqlx::query!(
+            "INSERT INTO requesters (request_id, user_id, requested_at) VALUES (?, ?, ?)
+             ON CONFLICT DO NOTHING",
+            id,
+            requester.user_id,
+            requester.requested_at
+        )
+        .execute(&mut *conn)
+        .await?
+        .rows_affected()
+            > 0;
+        if added {
+            joined.push(requester.user_id);
+        }
+    }
     let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
     if opened {
         let created = event(RequestCreated {
@@ -1370,15 +1485,17 @@ async fn ask(
             ..Applied::saying(request, created)
         });
     }
-    if joined {
-        let added = event(RequesterAdded {
+    let added = joined.into_iter().map(|user| {
+        event(RequesterAdded {
             request: request.clone().into(),
             user_id: user,
             ..Default::default()
-        });
-        return Ok(Applied::saying(request, added));
-    }
-    Ok(Applied::quiet(request))
+        })
+    });
+    Ok(Applied {
+        events: added.collect(),
+        ..Applied::quiet(request)
+    })
 }
 
 /// Makes Available the open Request for each of the Movies `tmdb_ids` that a Library now has,
@@ -1407,8 +1524,7 @@ pub(crate) async fn make_available(
 /// their Show's TMDB id, Partially Available (if Processing) or Available by how many of its
 /// aired Episodes a Library has, and returns an event for each Request that changed (ADR 0012).
 /// Declined and Available Requests are closed, so Episodes that air later don't reopen them. A
-/// Season that came out after the Show's Approved Followed Show was opened gets a Request in that
-/// state.
+/// Season with no open Request is asked for by a scan, as [`Way::Scanning`] says.
 pub(crate) async fn make_seasons_available(
     conn: &mut SqliteConnection,
     seasons: Vec<(i64, Season)>,
@@ -1420,84 +1536,90 @@ pub(crate) async fn make_seasons_available(
         let Some(state) = availability(&season.episodes, &matched, &today) else {
             continue;
         };
-        let changed = match open_request(conn, show_tmdb_id, Some(season.number)).await? {
-            Some(id) => change_state(conn, id, state).await?,
-            None => open_followed_season(conn, show_tmdb_id, &season, state).await?,
-        };
-        happened.extend(changed);
+        match open_request(conn, show_tmdb_id, Some(season.number)).await? {
+            Some(id) => happened.extend(change_state(conn, id, state).await?),
+            None => happened.extend(scan_season(conn, show_tmdb_id, season).await?),
+        }
     }
     Ok(happened)
 }
 
-/// Opens a Request in `state` for `season` of the Show `show_tmdb_id`, which has no open one, for
-/// the Requesters of the Show's Approved Followed Show, if the Season is numbered after every one
-/// the Followed Show covers and has no Available Request, so a Season once Available isn't asked
-/// for again. The Followed Show covers the Season from then on, so one it opened and someone
-/// declined, cancelled or withdrew from isn't opened again. Returns the event for it.
-async fn open_followed_season(
+/// Asks for `season` of the Show `show_tmdb_id`, which a Library's write found no open Request
+/// for, by a scan. Returns the events for it.
+async fn scan_season(
     conn: &mut SqliteConnection,
     show_tmdb_id: i64,
-    season: &Season,
-    state: RequestState,
-) -> Result<Option<Event>, sqlx::Error> {
-    // ponytail: a Season that came out but was skipped, such as a Season 0 added later, gets no
-    // Request; ask for it on its own.
-    let Some(followed) = sqlx::query!(
-        r#"SELECT id AS "id!", title FROM followed_shows
-           WHERE tmdb_id = ? AND state = 'approved'
-             AND (latest_season IS NULL OR latest_season < ?)"#,
+    season: Season,
+) -> Result<Vec<Event>, sqlx::Error> {
+    let show = WantedSeasons {
         show_tmdb_id,
-        season.number
+        // ponytail: a Followed Show stores no Show ids, and this Season opens already in a Library.
+        show_ids: ExternalIds::default(),
+        // A scan takes its Followed Show's title.
+        show_title: String::new(),
+        seasons: vec![season],
+        quality: None,
+        quality_chosen: false,
+        chosen: None,
+    };
+    let scanned = async {
+        let asking = SeasonsToAsk::read(conn, show).await?;
+        asking.ask(conn, Way::Scanning).await
+    };
+    match scanned.await {
+        Ok(scanned) => Ok(scanned.events),
+        Err(Error::Database(err)) => Err(err),
+        // A scan names no Quality and refuses no Season, so only the database can fail it.
+        Err(refused) => Err(sqlx::Error::Protocol(refused.to_string())),
+    }
+}
+
+async fn approved_followed_show(
+    conn: &mut SqliteConnection,
+    tmdb_id: i64,
+) -> Result<Option<FollowedShow>, sqlx::Error> {
+    let id = sqlx::query_scalar!(
+        "SELECT id FROM followed_shows WHERE tmdb_id = ? AND state = 'approved'",
+        tmdb_id
     )
     .fetch_optional(&mut *conn)
-    .await?
-    else {
+    .await?;
+    let Some(id) = id else {
         return Ok(None);
     };
-    let available = sqlx::query_scalar!(
+    Ok(load_followed(conn, Some(id), None).await?.pop())
+}
+
+/// Whether the Followed Show `id` covers the Season `season`: it is numbered no later than the
+/// latest one the Followed Show asked for.
+async fn covers(conn: &mut SqliteConnection, id: i64, season: u32) -> Result<bool, sqlx::Error> {
+    // ponytail: a Season that came out but was skipped, such as a Season 0 added later, gets no
+    // Request from a scan; ask for it on its own.
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM followed_shows WHERE id = ? AND latest_season >= ?)
+           AS "is!: bool""#,
+        id,
+        season
+    )
+    .fetch_one(&mut *conn)
+    .await
+}
+
+/// Whether the Season `season` of the Show `show_tmdb_id` ever had an Available Request, so its
+/// Followed Show doesn't ask for it again.
+async fn was_available(
+    conn: &mut SqliteConnection,
+    show_tmdb_id: i64,
+    season: u32,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM requests
                           WHERE tmdb_id = ? AND season = ? AND state = 'available') AS "is!: bool""#,
         show_tmdb_id,
-        season.number
+        season
     )
     .fetch_one(&mut *conn)
-    .await?;
-    if available {
-        return Ok(None);
-    }
-    let wanted = Wanted {
-        tmdb_id: show_tmdb_id,
-        season: Some(season.number),
-        title: followed.title,
-        release_date: season.air_date.clone(),
-        // ponytail: a Followed Show stores no Show ids, and this Season opens already in a Library.
-        show_ids: ExternalIds::default(),
-        followed_show: Some(followed.id),
-        quality: show_requests(conn, show_tmdb_id).await?.quality().cloned(),
-        quality_chosen: false,
-    };
-    let id = insert_request(conn, &wanted, stored(state), now()).await?;
-    sqlx::query!(
-        "UPDATE followed_shows SET latest_season = ? WHERE id = ?",
-        season.number,
-        followed.id
-    )
-    .execute(&mut *conn)
-    .await?;
-    sqlx::query!(
-        "INSERT INTO requesters (request_id, user_id, requested_at)
-         SELECT ?, user_id, requested_at FROM followed_show_requesters WHERE followed_show_id = ?
-         ORDER BY requested_at, rowid",
-        id,
-        followed.id
-    )
-    .execute(&mut *conn)
-    .await?;
-    let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
-    Ok(Some(event(RequestCreated {
-        request: request.into(),
-        ..Default::default()
-    })))
+    .await
 }
 
 /// Moves the Request `id` to `state`, Available or Partially Available, and returns the event for
@@ -2147,39 +2269,13 @@ async fn load_followed(
         r#"SELECT id AS "id!", tmdb_id, title, state, created_at, decline_reason, quality_id,
                   quality_name, quality_profile_id
            FROM followed_shows
-           WHERE (?1 IS NULL OR id = ?1)
-             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM followed_show_requesters
-                                        WHERE followed_show_id = followed_shows.id
-                                          AND user_id = ?2))
+           WHERE ?1 IS NULL OR id = ?1
            ORDER BY id DESC"#,
-        id,
-        requester
-    )
-    .fetch_all(&mut *conn)
-    .await?;
-    // ponytail: every Followed Show's Requesters, as `load` reads every Request's.
-    let mut requesters: HashMap<i64, Vec<Requester>> = HashMap::new();
-    let requester_rows = sqlx::query!(
-        "SELECT r.followed_show_id, r.user_id, users.display_username, r.requested_at
-         FROM followed_show_requesters AS r
-         JOIN users ON users.id = r.user_id
-         WHERE ?1 IS NULL OR r.followed_show_id = ?1
-         ORDER BY r.requested_at, r.rowid",
         id
     )
     .fetch_all(&mut *conn)
     .await?;
-    for row in requester_rows {
-        requesters
-            .entry(row.followed_show_id)
-            .or_default()
-            .push(Requester {
-                user_id: row.user_id,
-                name: row.display_username,
-                requested_at: row.requested_at,
-                ..Default::default()
-            });
-    }
+    let mut requesters = asked::requesters(conn, Asked::FollowedShow, id).await?;
     Ok(rows
         .into_iter()
         .map(|row| FollowedShow {
@@ -2194,6 +2290,7 @@ async fn load_followed(
                 .into(),
             ..Default::default()
         })
+        .filter(|followed| asked::may_see(requester, &followed.requesters))
         .collect())
 }
 
@@ -2217,16 +2314,13 @@ async fn load(
                   (SELECT display_username FROM users WHERE id = quality_changed_by)
                       AS quality_changed_by
            FROM requests
-           WHERE (?1 IS NULL OR id = ?1)
-             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters
-                                        WHERE request_id = requests.id AND user_id = ?2))
+           WHERE ?1 IS NULL OR id = ?1
            ORDER BY id DESC"#,
-        id,
-        requester
+        id
     )
     .fetch_all(&mut *conn)
     .await?;
-    let mut requesters = requesters_by_request(conn, id).await?;
+    let mut requesters = asked::requesters(conn, Asked::Request, id).await?;
     Ok(rows
         .into_iter()
         .map(|row| {
@@ -2282,41 +2376,8 @@ async fn load(
             }
             request
         })
+        .filter(|request| asked::may_see(requester, &request.requesters))
         .collect())
-}
-
-/// The Requesters of the Request `id`, or of every Request if `None`, by Request id, first asker
-/// first.
-async fn requesters_by_request(
-    conn: &mut SqliteConnection,
-    id: Option<i64>,
-) -> Result<HashMap<i64, Vec<Requester>>, sqlx::Error> {
-    // ponytail: every Request's Requesters, even for one User's Requests; filter by them in SQL if
-    // the list gets big.
-    let mut requesters: HashMap<i64, Vec<Requester>> = HashMap::new();
-    let requester_rows = sqlx::query!(
-        "SELECT requesters.request_id, requesters.user_id, users.display_username,
-                requesters.requested_at
-         FROM requesters
-         JOIN users ON users.id = requesters.user_id
-         WHERE ?1 IS NULL OR requesters.request_id = ?1
-         ORDER BY requesters.requested_at, requesters.rowid",
-        id
-    )
-    .fetch_all(&mut *conn)
-    .await?;
-    for row in requester_rows {
-        requesters
-            .entry(row.request_id)
-            .or_default()
-            .push(Requester {
-                user_id: row.user_id,
-                name: row.display_username,
-                requested_at: row.requested_at,
-                ..Default::default()
-            });
-    }
-    Ok(requesters)
 }
 
 /// The three columns a Request stores `quality` in, all set or all `NULL`, as [`stored_quality`]
@@ -2412,16 +2473,17 @@ mod tests {
         testing::{API_KEY, FakeTmdb},
     };
     use nama_proto::nama::v1::{
-        Event, FollowedShow, Permission, Request, RequestState, SubscribeResponse,
-        event::Event as Happened, subscribe_response,
+        Event, FollowedShow, ListRequestsResponse, Permission, Request, RequestState,
+        SubscribeResponse, event::Event as Happened, subscribe_response,
     };
     use sqlx::SqliteConnection;
     use tokio::sync::Notify;
 
     use super::{
         Applied, Error, Requests, Wanted, WantedSeasons, approve, ask, ask_movie, ask_seasons,
-        availability, cancel, cancel_followed, decide_followed, decline, follow, load, load_one,
-        make_seasons_available, opening_state, retry, settle, withdraw, withdraw_followed,
+        asked, availability, cancel, cancel_followed, decide_followed, decline, follow, load,
+        load_one, make_seasons_available, opening_state, retry, settle, withdraw,
+        withdraw_followed,
     };
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
@@ -2708,13 +2770,18 @@ mod tests {
         plugins
             .enable(Arc::new(FulfillerPlugin("gated", fulfiller)))
             .unwrap();
-        let events = EventBus::new(Arc::clone(&db), plugins.clone(), ServerUrl::default());
-        let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
-        let requests = Requests::new(db, matcher, events, plugins);
+        let requests = requests_on(db, plugins);
         for &tmdb_id in tmdb_ids {
             ask_as(&requests, Permissions::ADMIN, tmdb_id).await;
         }
         (data, requests)
+    }
+
+    /// Requests in `db`, handing off to the Fulfillers in `plugins`.
+    fn requests_on(db: Arc<Database>, plugins: Registry) -> Requests {
+        let events = EventBus::new(Arc::clone(&db), plugins.clone(), ServerUrl::default());
+        let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
+        Requests::new(db, matcher, events, plugins)
     }
 
     /// Waits until `asked` has been asked about `references`, sorted, in one batch.
@@ -3027,7 +3094,7 @@ mod tests {
     async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_made_available() {
         let tmdb = FakeTmdb::start().await;
         let folder = tempfile::tempdir().unwrap();
-        let (data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
+        let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
         enable_tmdb(&requests, &tmdb);
         let root = folder.path().canonicalize().unwrap();
         let library = Libraries::new(Arc::clone(&requests.db))
@@ -3056,8 +3123,7 @@ mod tests {
             Arc::clone(&requests.db),
             requests.hand_off.plugins.clone(),
             requests.hand_off.events().clone(),
-            Arc::new(crate::ffmpeg::Ffmpeg::default()),
-            crate::playback::subtitles::Cache::new(data.path()),
+            None,
         );
         let scan = scanner.lock(library).await;
         let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
@@ -3852,6 +3918,132 @@ mod tests {
         );
         assert_eq!(handed_off(&bob_left), NOTHING);
         assert_eq!(handed_off(&ada_left), NOTHING);
+    }
+
+    const KINDS: [asked::Asked; 2] = [asked::Asked::Request, asked::Asked::FollowedShow];
+
+    fn user(id: i64, permissions: Permissions) -> User {
+        User {
+            id,
+            ..ada(permissions)
+        }
+    }
+
+    /// `user` asks for the Movie 949 or follows Dark, as `kind` says, joining it if it is open.
+    /// Returns its id.
+    async fn ask_kind(db: &Database, kind: asked::Asked, user: i64) -> i64 {
+        match kind {
+            asked::Asked::Request => ask_for(db, user, 949, RequestState::Pending).await.value.id,
+            asked::Asked::FollowedShow => {
+                follow_as(db, user, dark(), RequestState::Pending)
+                    .await
+                    .value
+                    .0
+                    .id
+            }
+        }
+    }
+
+    /// The ids of the Requesters `page` lists for the `kind` with the ID `id`, if it lists it.
+    fn listed_requesters(
+        page: &ListRequestsResponse,
+        kind: asked::Asked,
+        id: i64,
+    ) -> Option<Vec<i64>> {
+        let requesters = match kind {
+            asked::Asked::Request => page
+                .requests
+                .iter()
+                .find(|request| request.id == id)
+                .map(|request| &request.requesters),
+            asked::Asked::FollowedShow => page
+                .followed_shows
+                .iter()
+                .find(|followed| followed.id == id)
+                .map(|followed| &followed.requesters),
+        }?;
+        Some(
+            requesters
+                .iter()
+                .map(|requester| requester.user_id)
+                .collect(),
+        )
+    }
+
+    #[tokio::test]
+    async fn requesters_are_listed_in_the_order_they_asked() {
+        let (_data, db) = ada_and_bob().await;
+        let requests = requests_on(Arc::clone(&db), Registry::new());
+
+        for kind in KINDS {
+            let id = ask_kind(&db, kind, BOB).await;
+            ask_kind(&db, kind, ADA).await;
+            let page = requests
+                .list(&ada(Permissions::ADMIN), None, 100, "")
+                .await
+                .unwrap();
+
+            assert_eq!(
+                listed_requesters(&page, kind, id),
+                Some(vec![BOB, ADA]),
+                "{kind:?}"
+            );
+        }
+    }
+
+    /// Whether `viewer` sees the `kind` with the ID `id` among the Requests listed.
+    async fn sees(requests: &Requests, viewer: &User, kind: asked::Asked, id: i64) -> bool {
+        let page = requests.list(viewer, None, 100, "").await.unwrap();
+        listed_requesters(&page, kind, id).is_some()
+    }
+
+    #[tokio::test]
+    async fn only_its_requesters_and_those_who_may_view_requests_see_one() {
+        let (_data, db) = ada_and_bob().await;
+        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let nothing = Permissions::from_iter([]);
+        let view_requests = Permissions::from_iter([Permission::ViewRequests]);
+
+        for kind in KINDS {
+            let id = ask_kind(&db, kind, ADA).await;
+            let seen = [
+                sees(&requests, &ada(nothing), kind, id).await,
+                sees(&requests, &user(BOB, nothing), kind, id).await,
+                sees(&requests, &user(BOB, view_requests), kind, id).await,
+            ];
+
+            assert_eq!(seen, [true, false, true], "{kind:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn the_pending_count_is_as_many_as_the_pending_list_shows() {
+        let (_data, db) = ada_and_bob().await;
+        let requests = requests_on(Arc::clone(&db), Registry::new());
+        ask_for(&db, ADA, 949, RequestState::Pending).await;
+        ask_for(&db, ADA, 603, RequestState::Approved).await;
+        follow_as(&db, ADA, dark(), RequestState::Pending).await;
+        follow_as(&db, ADA, breaking_bad(), RequestState::Approved).await;
+        let nothing = Permissions::from_iter([]);
+        let viewers = [
+            user(BOB, Permissions::from_iter([Permission::ViewRequests])),
+            ada(nothing),
+            user(BOB, nothing),
+        ];
+
+        let mut counted_and_listed = Vec::new();
+        for viewer in &viewers {
+            let counted = requests.count_pending(viewer).await.unwrap();
+            let page = requests
+                .list(viewer, Some(RequestState::Pending), 100, "")
+                .await
+                .unwrap();
+            let listed = page.requests.len() + page.followed_shows.len();
+            counted_and_listed.push((counted, u32::try_from(listed).unwrap()));
+        }
+
+        // Ada's Pending Movie, Followed Show and its two Season Requests.
+        assert_eq!(counted_and_listed, [(4, 4), (4, 4), (0, 0)]);
     }
 
     /// A Shows Fulfiller that takes every Request, and keeps the TMDB id of each Show it is told
