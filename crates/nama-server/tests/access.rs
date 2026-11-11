@@ -1,6 +1,6 @@
 //! Who may call what: a session for everything but the public RPCs, a Permission for managing
-//! Libraries, Matches, Users and settings, and Recent Authentication for changing who can sign in
-//! as whom, over a real socket and against a real SQLite database.
+//! Libraries, Matches, Users, settings or Requests and for Requesting, and Recent Authentication
+//! for changing who can sign in as whom, over a real socket and against a real SQLite database.
 
 #[path = "support/refused.rs"]
 mod refused;
@@ -8,7 +8,7 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, fs};
 
 use buffa::Enumeration;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
@@ -62,7 +62,42 @@ const MANAGE_SETTINGS: [&str; 10] = [
 ];
 
 /// The RPCs only an Admin may call, which need `PERMISSION_ADMIN`.
-const ADMIN: [&str; 1] = ["/nama.v1.ServerService/GetPlaybackStatus"];
+const ADMIN: [&str; 3] = [
+    "/nama.v1.ServerService/GetPlaybackStatus",
+    "/nama.v1.ServerService/GetPlaybackSettings",
+    "/nama.v1.ServerService/UpdatePlaybackSettings",
+];
+
+/// Every RPC that manages every User's Requests, which needs `PERMISSION_MANAGE_REQUESTS`.
+const MANAGE_REQUESTS: [&str; 9] = [
+    "/nama.v1.RequestService/CountPendingRequests",
+    "/nama.v1.RequestService/ApproveRequest",
+    "/nama.v1.RequestService/DeclineRequest",
+    "/nama.v1.RequestService/CancelRequest",
+    "/nama.v1.RequestService/RetryRequest",
+    "/nama.v1.RequestService/ApproveFollowedShow",
+    "/nama.v1.RequestService/DeclineFollowedShow",
+    "/nama.v1.RequestService/CancelFollowedShow",
+    "/nama.v1.RequestService/ListOfferedQualities",
+];
+
+/// Every RPC for Requesting a Movie, which needs `PERMISSION_REQUEST_MOVIE`.
+const REQUEST_MOVIE: [&str; 4] = [
+    "/nama.v1.RequestService/SearchMovies",
+    "/nama.v1.RequestService/LookUpMovie",
+    "/nama.v1.RequestService/ListMovieQualities",
+    "/nama.v1.RequestService/CreateRequest",
+];
+
+/// Every RPC for Requesting Seasons of a Show or Following it, which needs
+/// `PERMISSION_REQUEST_TV`.
+const REQUEST_TV: [&str; 5] = [
+    "/nama.v1.RequestService/SearchShows",
+    "/nama.v1.RequestService/LookUpShow",
+    "/nama.v1.RequestService/ListShowQualities",
+    "/nama.v1.RequestService/CreateSeasonRequests",
+    "/nama.v1.RequestService/CreateFollowedShow",
+];
 
 /// The RPCs for browsing the Libraries, what they hold and the caller's Continue Watching, and for
 /// playing it, which any signed-in User may call.
@@ -92,6 +127,18 @@ const SIGNED_IN: [&str; 12] = [
     "/nama.v1.UserService/ChangePassword",
     "/nama.v1.RequestService/ListRequests",
     "/nama.v1.RequestService/GetRequest",
+];
+
+/// Each Permission some RPC needs, with every RPC that needs it: kept by hand, as a second
+/// statement of who may call what that doesn't read `ACCESS`.
+const NEEDS_PERMISSION: [(Permission, &[&str]); 7] = [
+    (Permission::ManageLibraries, &MANAGE_LIBRARIES),
+    (Permission::ManageUsers, &MANAGE_USERS),
+    (Permission::ManageSettings, &MANAGE_SETTINGS),
+    (Permission::Admin, &ADMIN),
+    (Permission::ManageRequests, &MANAGE_REQUESTS),
+    (Permission::RequestMovie, &REQUEST_MOVIE),
+    (Permission::RequestTv, &REQUEST_TV),
 ];
 
 const SIGN_OUT: &str = "/nama.v1.SignInService/SignOut";
@@ -253,7 +300,7 @@ async fn refused_for_recent_authentication(
     token: &str,
 ) -> BTreeSet<&'static str> {
     let mut refused = BTreeSet::new();
-    for path in managing().chain(&BROWSE).chain(&SIGNED_IN) {
+    for path in needing_a_permission().chain(&BROWSE).chain(&SIGNED_IN) {
         if *path == SIGN_OUT {
             continue;
         }
@@ -273,13 +320,52 @@ async fn refused_for_recent_authentication(
     refused
 }
 
-/// Every RPC that manages Libraries, Matches, Users or settings, or only an Admin may call.
-fn managing() -> impl Iterator<Item = &'static &'static str> {
-    MANAGE_LIBRARIES
-        .iter()
-        .chain(&MANAGE_USERS)
-        .chain(&MANAGE_SETTINGS)
-        .chain(&ADMIN)
+fn needing_a_permission() -> impl Iterator<Item = &'static &'static str> {
+    NEEDS_PERMISSION.iter().flat_map(|(_, paths)| paths.iter())
+}
+
+/// Every RPC `buf generate` wrote a stub for, by path, read from the generated code as
+/// `every_generated_rpc_has_an_access_entry` in `src/api.rs` reads it, so a new RPC shows up here
+/// without anyone listing it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn generated_rpcs() -> Vec<String> {
+    let generated = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../nama-proto/src/generated/connect"
+    );
+    let mut rpcs = Vec::new();
+    for file in fs::read_dir(generated).unwrap() {
+        let code = fs::read_to_string(file.unwrap().path()).unwrap();
+        rpcs.extend(
+            code.lines()
+                .filter_map(|line| line.trim().strip_prefix("\"/nama."))
+                .filter_map(|rest| rest.strip_suffix("\","))
+                .map(|rest| format!("/nama.{rest}")),
+        );
+    }
+    rpcs
+}
+
+/// The Permission the access layer named in refusing `reply` for want of one, if it did.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn permission_refused(reply: &Reply) -> Option<String> {
+    if reply.status != 403 {
+        return None;
+    }
+    let refusal = refusal_of(&reply.refused().unwrap_err());
+    (refusal.reason == RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED).then(|| {
+        refusal
+            .params
+            .get("permission")
+            .cloned()
+            .unwrap_or_default()
+    })
 }
 
 /// Asserts that `token` may call each of `paths`: an empty request is wrong for most of them, but
@@ -320,7 +406,7 @@ async fn assert_refused_for_want_of(
 async fn an_unauthenticated_call_to_anything_but_the_public_rpcs_is_unauthenticated() {
     let server = TestServer::builder().start().await;
 
-    for path in managing().chain(&BROWSE).chain(&SIGNED_IN) {
+    for path in needing_a_permission().chain(&BROWSE).chain(&SIGNED_IN) {
         let reply = post_json(&server, path, None).await;
 
         assert_refused(
@@ -362,6 +448,29 @@ async fn a_new_user_managing_libraries_matches_users_or_settings_is_refused_nami
         Permission::ManageSettings,
     )
     .await;
+}
+
+#[tokio::test]
+async fn a_user_without_permissions_is_refused_exactly_the_listed_rpcs_naming_their_permission() {
+    let server = TestServer::builder().start().await;
+    let token = server.user("Grace", &[]).await.token;
+    let mut rpcs = generated_rpcs();
+    // Stable, so only `SignOut`, which ends the session the rest are called with, moves: last.
+    rpcs.sort_by_key(|rpc| rpc == SIGN_OUT);
+
+    let unknown: Vec<_> = needing_a_permission()
+        .filter(|path| !rpcs.iter().any(|rpc| rpc == *path))
+        .collect();
+    assert!(unknown.is_empty(), "no such RPCs: {unknown:?}");
+    for path in &rpcs {
+        let reply = post_json(&server, path, Some(&token)).await;
+
+        let needed = NEEDS_PERMISSION
+            .iter()
+            .find(|(_, paths)| paths.contains(&path.as_str()))
+            .map(|(permission, _)| permission.proto_name().to_owned());
+        assert_eq!(permission_refused(&reply), needed, "{path}");
+    }
 }
 
 #[tokio::test]
