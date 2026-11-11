@@ -172,6 +172,31 @@ pub(crate) struct Caller {
     pub(crate) device: Device,
 }
 
+/// The Device a Sign-in Code was approved from, and its User, by id: both are looked up again when
+/// the code signs a Device in.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ApprovingDevice {
+    pub(crate) user_id: i64,
+    pub(crate) device_id: i64,
+}
+
+impl From<&Caller> for ApprovingDevice {
+    fn from(caller: &Caller) -> Self {
+        Self {
+            user_id: caller.user.id,
+            device_id: caller.device.id,
+        }
+    }
+}
+
+/// Who a Device signs in as, and how that was proved.
+pub(crate) enum Proved {
+    /// `user`, with their Sign-in Method `method`.
+    Method { user: User, method: i64 },
+    /// The User of the Device that approved a Sign-in Code.
+    Code(ApprovingDevice),
+}
+
 /// The session a request carried.
 #[derive(Debug)]
 pub(crate) struct Session {
@@ -264,6 +289,13 @@ pub enum Error {
     /// No User has this ID.
     #[error("no User has that ID")]
     NoSuchUser,
+    /// The User who approved a Sign-in Code was deleted before it signed its Device in.
+    #[error("the User who approved this code no longer exists")]
+    ApprovingUserDeleted,
+    /// The Device a Sign-in Code was approved from signed out, or expired, before the code signed
+    /// its Device in.
+    #[error("the Device that approved this code has since signed out")]
+    ApprovingDeviceSignedOut,
     /// The change would leave the Server with no Admin.
     #[error("the Server must keep at least one Admin")]
     LastAdmin,
@@ -537,29 +569,32 @@ impl Users {
         }
     }
 
-    /// Signs `device`, whose name has been checked, in as `user`, who proved who they are with the
-    /// Sign-in Method `method`, or with none, by approving a Sign-in Code. The only place sessions
-    /// are issued.
+    /// Signs `device`, whose name has been checked, in as whoever `proved` says. A Sign-in Code is
+    /// refused if its approving User was deleted or its approving Device signed out. The only
+    /// place sessions are issued.
     pub(crate) async fn sign_in_as(
         &self,
-        user: User,
-        method: Option<i64>,
+        proved: Proved,
         device: NewDevice,
     ) -> Result<SignedIn, Error> {
         let token = new_token()?;
         let token_hash = hash_token(&token);
-        let device = self
+        let caller = self
             .db
             .write(move |tx| {
-                Box::pin(
-                    async move { insert_device(tx, user.id, method, device, &token_hash).await },
-                )
+                Box::pin(async move {
+                    let (user, method) = match proved {
+                        Proved::Method { user, method } => (user, Some(method)),
+                        // In the write that inserts the Device, so a delete or sign-out just
+                        // before can't slip through.
+                        Proved::Code(approving) => (approving_user(tx, approving).await?, None),
+                    };
+                    let device = insert_device(tx, user.id, method, device, &token_hash).await?;
+                    Ok::<_, Error>(Caller { user, device })
+                })
             })
             .await?;
-        Ok(SignedIn {
-            caller: Caller { user, device },
-            token,
-        })
+        Ok(SignedIn { caller, token })
     }
 
     /// Signs the Device `device` out by deleting it, so its session stops working and
@@ -949,6 +984,36 @@ async fn user_exists(conn: &mut SqliteConnection, user: i64) -> Result<bool, sql
     )
     .fetch_one(conn)
     .await
+}
+
+/// The User of `approving`, failing if they were deleted or it signed out or expired.
+async fn approving_user(
+    conn: &mut SqliteConnection,
+    approving: ApprovingDevice,
+) -> Result<User, Error> {
+    let now = now();
+    let row = sqlx::query!(
+        r#"SELECT u.id AS "id!", u.display_username AS name,
+                  u.permissions AS "permissions: Permissions", u.created_at,
+                  EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = u.id AND expires_at > ?)
+                      AS "signed_in!: bool"
+           FROM users u WHERE u.id = ?"#,
+        approving.device_id,
+        now,
+        approving.user_id
+    )
+    .fetch_optional(conn)
+    .await?
+    .ok_or(Error::ApprovingUserDeleted)?;
+    if !row.signed_in {
+        return Err(Error::ApprovingDeviceSignedOut);
+    }
+    Ok(User {
+        id: row.id,
+        name: row.name,
+        permissions: row.permissions,
+        created_at: row.created_at,
+    })
 }
 
 /// Gives the User `user` exactly `permissions`, failing if that leaves no User with
@@ -1574,7 +1639,7 @@ mod tests {
     async fn sign_in_with_password(users: &Users, name: &str) -> SignedIn {
         let (user, method) = users.verify(name, PASSWORD).await.unwrap();
         users
-            .sign_in_as(user, Some(method), laptop())
+            .sign_in_as(Proved::Method { user, method }, laptop())
             .await
             .unwrap()
     }
@@ -1686,15 +1751,44 @@ mod tests {
     async fn a_device_signed_in_by_a_sign_in_code_records_no_method_and_never_authenticated() {
         let data_dir = tempfile::tempdir().unwrap();
         let users = users_with_local_auth(data_dir.path()).await;
-        let ada = create_user(&users.db, "Ada").await.unwrap();
+        users.create(&admin(), "Ada", PASSWORD).await.unwrap();
+        let approving = sign_in_with_password(&users, "Ada").await;
 
-        let signed_in = users.sign_in_as(ada, None, laptop()).await.unwrap();
+        let signed_in = users
+            .sign_in_as(
+                Proved::Code(ApprovingDevice::from(&approving.caller)),
+                laptop(),
+            )
+            .await
+            .unwrap();
 
         let (method, ip, _, authenticated_at) =
             sign_in_details(&users, signed_in.caller.device.id).await;
         assert_eq!(
             (method, ip.as_str(), authenticated_at),
             (None, "192.0.2.7", 0)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_sign_in_code_approved_from_a_device_that_expired_since_is_refused() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let users = users_with_local_auth(data_dir.path()).await;
+        users.create(&admin(), "Ada", PASSWORD).await.unwrap();
+        let approving = sign_in_with_password(&users, "Ada").await;
+        expire_devices(&users, now() - 1).await;
+
+        let refused = users
+            .sign_in_as(
+                Proved::Code(ApprovingDevice::from(&approving.caller)),
+                laptop(),
+            )
+            .await;
+
+        assert!(
+            matches!(refused, Err(Error::ApprovingDeviceSignedOut)),
+            "{:?}",
+            refused.err()
         );
     }
 
@@ -1717,7 +1811,10 @@ mod tests {
         add_other_sign_in_method(&users, ada).await;
         let by_password = sign_in_with_password(&users, "Ada").await;
         let by_code = users
-            .sign_in_as(by_password.caller.user.clone(), None, laptop())
+            .sign_in_as(
+                Proved::Code(ApprovingDevice::from(&by_password.caller)),
+                laptop(),
+            )
             .await
             .unwrap();
 
