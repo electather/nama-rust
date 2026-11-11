@@ -1452,7 +1452,12 @@ mod tests {
         clippy::await_holding_lock,
         reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
     )]
-    async fn without_ffmpeg_or_zscale_among_its_filters_the_server_cant_tone_map() {
+    async fn only_ffmpeg_listing_zscale_among_its_filters_can_tone_map() {
+        let bin = tempfile::tempdir().unwrap();
+        let with = fake_ffmpeg(
+            bin.path(),
+            "*-filters*) echo ' .SC zscale  V->V  Apply resizing, colorspace and bit depth' ;;",
+        );
         // Prints its arguments, not a filter.
         let echo = Ffmpeg {
             ffmpeg: Ok(FoundProgram {
@@ -1463,6 +1468,7 @@ mod tests {
         };
 
         let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
+        assert_eq!(with.has_zscale().await, Ok(true));
         assert_eq!(echo.has_zscale().await, Ok(false));
         assert_eq!(Ffmpeg::default().has_zscale().await, Ok(false));
     }
@@ -2275,11 +2281,13 @@ mod hls_tests {
             [dir.join("init-0.mp4"), dir.join("0.m4s")].map(|written| fs::read(written).unwrap());
         let played = work.path().join("played.mp4");
         fs::write(&played, init_and_first.concat()).unwrap();
-        let probed = std::process::Command::new("ffprobe")
+        let ffprobe = &ffmpeg.ffprobe.as_ref().unwrap().path;
+        let probed = tokio::process::Command::new(ffprobe)
             .args(["-v", "error", "-select_streams", "v", "-of", "csv=p=0"])
             .args(["-show_entries", "stream=color_transfer,color_primaries"])
             .arg(&played)
             .output()
+            .await
             .unwrap();
         assert!(probed.status.success(), "{probed:?}");
         assert_eq!(
