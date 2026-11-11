@@ -62,9 +62,8 @@ export type Hardware = Pick<FoundHardware, "api" | "gpu">;
 /**
  * The form an Admin sets how the Server plays Versions it changes with: the folder Remuxes and
  * Transcodes write their segment files to, how much of them they keep for skipping back, what
- * Transcodes run on, the most it runs at once, and
- * the default Playback Limit for remote playback. One form, as saving replaces every Playback
- * setting.
+ * Transcodes run on, the most it runs at once, and the default Playback Limit for remote playback.
+ * One form, as saving replaces every Playback setting.
  */
 export function PlaybackSettingsForm() {
   const queryClient = useQueryClient();

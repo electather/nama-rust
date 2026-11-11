@@ -23,7 +23,7 @@ use crate::{
 
 /// How many minutes behind playback a running plan keeps its files while none is set: about 1 GB
 /// behind a 4K Remux, which a small tmpfs holds (#671).
-pub(crate) const DEFAULT_KEEP_BEHIND_MINUTES: u32 = 5;
+const DEFAULT_KEEP_BEHIND_MINUTES: u32 = 5;
 
 /// The Server settings: reads them once at start, checks and stores each change, and hands each
 /// reader a view of the values in use. Clones share them.
@@ -209,8 +209,9 @@ impl Settings {
     }
 
     /// Stores every Playback setting `change` gives, or none, and uses them for plans made and
-    /// started from now on, and the time kept for skipping back for running plans too. A GPU it picks must be one `passed`, the hardware that passed its test
-    /// at startup, has with its API, or the one stored with it.
+    /// started from now on, and the time kept for skipping back for running plans too. A GPU it
+    /// picks must be one `passed`, the hardware that passed its test at startup, has with its API,
+    /// or the one stored with it.
     ///
     /// # Errors
     ///

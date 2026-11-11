@@ -13,9 +13,10 @@
 //! A segment asked for waits for ffmpeg to write its files, and one whose files have gone since
 //! waits for them to be written again. One far past what ffmpeg has written restarts ffmpeg at it,
 //! and ffmpeg stops once it's [`RUN_AHEAD_MS`] past the last segment asked for, to start again at
-//! the next file asked for that it hasn't written. Every [`TIDY_EVERY`], files ending further before
-//! the last segment asked for than the Playback settings keep for skipping back are deleted, as are earlier runs' init
-//! files, so a plan's folder stops growing; one asked for again is written again.
+//! the next file asked for that it hasn't written. Every [`TIDY_EVERY`], files ending further
+//! before the last segment asked for than the Playback settings keep for skipping back are
+//! deleted, as are earlier runs' init files, so a plan's folder stops growing; one asked for again
+//! is written again.
 //!
 //! A Transcode on hardware that fails carries on in software from the first file it hadn't
 //! written, takes its software fallback's reasons and publishes `PlaybackChanged`.
@@ -1509,8 +1510,7 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn a_tick_after_keep_for_skipping_back_is_lowered_deletes_what_a_running_plan_no_longer_keeps()
-     {
+    async fn a_tick_after_keep_for_skipping_back_is_lowered_deletes_what_it_no_longer_keeps() {
         let data = tempfile::tempdir().unwrap();
         let db = database(data.path()).await;
         let settings = settings(&db, data.path().join("transcodes"));
