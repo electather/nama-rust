@@ -1,6 +1,8 @@
 import { useNavigate, useRouteContext } from "@tanstack/react-router";
+import { useId } from "react";
 
 import { DeleteMovie } from "@/components/delete-movie";
+import { Button } from "@/components/ui/button";
 import { PlayedButton } from "@/components/watch-state";
 import type { Movie } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
@@ -10,16 +12,19 @@ import { useSetPlayed } from "@/lib/watch-state";
 
 /**
  * What the signed-in User may do to `movie` of the Library `libraryId` besides playing it: mark it
- * played or unplayed, and delete it with Delete media.
+ * played or unplayed, and delete it with Delete media unless `readOnlyFolder` holds it.
  */
 export function MovieActions({
   libraryId,
   movieId,
   movie,
+  readOnlyFolder,
 }: {
   libraryId: bigint;
   movieId: ExternalId;
   movie: Movie;
+  /** The folder holding the Movie that the Server couldn't write to when it last scanned. */
+  readOnlyFolder: string | undefined;
 }) {
   const { signedIn } = useRouteContext({ from: "/_member" });
   const navigate = useNavigate();
@@ -32,17 +37,36 @@ export function MovieActions({
           setPlayed({ libraryId, target: { case: "movieId", value: movieId }, played });
         }}
       />
-      {may(signedIn.user, Permission.DELETE_MEDIA) && (
-        <DeleteMovie
-          libraryId={libraryId}
-          movieId={movieId}
-          title={movie.title}
-          versions={movie.versions}
-          onDeletedEveryVersion={() =>
-            navigate({ to: "/libraries/$libraryId", params: { libraryId: String(libraryId) } })
-          }
-        />
-      )}
+      {may(signedIn.user, Permission.DELETE_MEDIA) &&
+        (readOnlyFolder === undefined ? (
+          <DeleteMovie
+            libraryId={libraryId}
+            movieId={movieId}
+            title={movie.title}
+            versions={movie.versions}
+            onDeletedEveryVersion={() =>
+              navigate({ to: "/libraries/$libraryId", params: { libraryId: String(libraryId) } })
+            }
+          />
+        ) : (
+          <CantDeleteMovie title={movie.title} folder={readOnlyFolder} />
+        ))}
+    </>
+  );
+}
+
+/** The Delete action of the Movie `title`, disabled, saying the Server can't write to `folder`. */
+function CantDeleteMovie({ title, folder }: { title: string; folder: string }) {
+  const reason = useId();
+  return (
+    <>
+      <Button variant="ghost" disabled aria-label={`Delete ${title}`} aria-describedby={reason}>
+        Delete
+      </Button>
+      <p id={reason} className="basis-full text-sm break-words text-muted-foreground">
+        {title} can’t be deleted: the Server can’t write to {folder}. Make that folder writable,
+        then scan the Library again.
+      </p>
     </>
   );
 }

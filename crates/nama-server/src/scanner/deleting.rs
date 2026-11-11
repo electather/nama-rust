@@ -20,6 +20,25 @@ pub(crate) struct Doomed {
     pub(crate) versions: Vec<Version>,
 }
 
+impl Doomed {
+    /// The folder of the Library holding one of the Versions that the Library's last scan found
+    /// the Server can't write to, which refuses the delete.
+    pub(crate) fn read_only_folder(&self) -> Option<&str> {
+        read_only_folder(&self.library, self.versions.iter().map(|v| v.path.as_str()))
+    }
+}
+
+/// The first folder of `library` holding one of `paths` that the Library's last scan found the
+/// Server can't write to.
+pub(crate) fn read_only_folder<'a, 'p>(
+    library: &'a Library,
+    paths: impl IntoIterator<Item = &'p str>,
+) -> Option<&'a str> {
+    (paths.into_iter())
+        .filter_map(|path| root_of(library, Path::new(path))?.to_str())
+        .find(|root| library.read_only.iter().any(|folder| folder == root))
+}
+
 /// A file on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct File {
@@ -229,6 +248,7 @@ mod tests {
                     name: "Media".to_owned(),
                     kind: Kind::Movies,
                     folders: vec![self.path("")],
+                    read_only: Vec::new(),
                 },
                 title: "Title".to_owned(),
                 versions: versions.collect(),

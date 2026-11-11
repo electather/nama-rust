@@ -2136,6 +2136,16 @@ pub struct PreviewDeleteMediaResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
     )]
     pub bytes_freed: u64,
+    /// The Library folder holding `files` that the Server couldn't write to when it last scanned the
+    /// Library, if there is one, in which case `DeleteMedia` is refused.
+    ///
+    /// Field 3: `read_only_folder`
+    #[serde(
+        rename = "readOnlyFolder",
+        alias = "read_only_folder",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub read_only_folder: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2145,6 +2155,7 @@ impl ::core::fmt::Debug for PreviewDeleteMediaResponse {
         f.debug_struct("PreviewDeleteMediaResponse")
             .field("files", &self.files)
             .field("bytes_freed", &self.bytes_freed)
+            .field("read_only_folder", &self.read_only_folder)
             .finish()
     }
 }
@@ -2154,6 +2165,18 @@ impl PreviewDeleteMediaResponse {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PreviewDeleteMediaResponse";
+}
+impl PreviewDeleteMediaResponse {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::read_only_folder`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_read_only_folder(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.read_only_folder = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(PreviewDeleteMediaResponse);
 impl ::buffa::MessageName for PreviewDeleteMediaResponse {
@@ -2186,6 +2209,9 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
         if self.bytes_freed != 0u64 {
             size += 1u64 + ::buffa::types::uint64_encoded_len(self.bytes_freed) as u64;
         }
+        if let Some(ref v) = self.read_only_folder {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2206,6 +2232,9 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
         }
         if self.bytes_freed != 0u64 {
             ::buffa::types::put_uint64_field(2u32, self.bytes_freed, buf);
+        }
+        if let Some(ref v) = self.read_only_folder {
+            ::buffa::types::put_string_field(3u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2239,6 +2268,18 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
                 )?;
                 self.bytes_freed = ::buffa::types::decode_uint64(buf)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .read_only_folder
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2249,6 +2290,7 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
     fn clear(&mut self) {
         self.files.clear();
         self.bytes_freed = 0u64;
+        self.read_only_folder = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
