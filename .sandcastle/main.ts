@@ -526,8 +526,7 @@ async function waitForChecks(job: Job): Promise<"pass" | "fail" | "stale"> {
   return code === 0 ? "pass" : "fail";
 }
 
-// A conflict needs an agent (rebase); a PR merely behind main is updated on GitHub (updateBranch). Either way it
-// runs CI again before merging: see merge.ts for why (#561).
+// A conflict needs an agent (rebase); after a red main, a PR merely behind is updated on GitHub (updateBranch).
 // merge-tree exits non-zero on a conflict (or any error, which then just rebases).
 const conflicts = (ref: string) => !ok("git", "merge-tree", "--write-tree", `origin/${BASE}`, ref);
 const behind = (ref: string) => !ok("git", "merge-base", "--is-ancestor", `origin/${BASE}`, ref);
@@ -593,18 +592,16 @@ async function greenCi(job: Job) {
   }
 }
 
-// Runs one at a time (see `serially`), so no other factory merge lands between the last green run and the merge.
-// The cost is that merges land at least one CI run apart, as in a merge queue. Main is fetched again after each
-// run, since a hand merge may have moved it meanwhile.
+// A green PR merges even when main has moved past it: throughput over re-running CI on main's tip,
+// accepting that two green PRs can still break main together (#561). Only a conflict, which GitHub can't merge,
+// sends it back. Runs one at a time (see `serially`) so two merges don't race on the same main.
 async function mergePr(job: Job) {
   stage(job.issue, "merging");
   const head = `origin/${branchOf(job.issue)}`;
   for (;;) {
     fetchOrigin();
-    const step = mergeStep({ conflicts: conflicts(head), behind: behind(head) });
-    if (step === "merge") break;
-    if (step === "rebase") await rebase(job);
-    else await updateBranch(job);
+    if (!conflicts(head)) break;
+    await rebase(job);
     await greenCi(job);
   }
   // A push between the check and here (an agent, by hand) would merge an untested head; GitHub refuses that.

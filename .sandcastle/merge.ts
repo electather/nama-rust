@@ -1,6 +1,5 @@
-// What a PR needs before the babysitter may merge it. A PR merges only on a green run of a head that contains
-// main's tip: a run against an older main proves nothing about the new one. #546 and #555 were each green, merged
-// three minutes apart without a conflict, and both added migration 0041 (#561).
+// What a PR whose CI failed while main was red needs once main is green again: main's fix, by an agent when it
+// conflicts, else by GitHub. A green PR merges without this (see mergePr).
 export type MergeStep = "rebase" | "update" | "merge";
 
 // conflicts: merging main into the head conflicts. behind: main's tip isn't in the head.
