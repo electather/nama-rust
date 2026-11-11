@@ -62,7 +62,8 @@ impl BrowseService for BrowseServiceHandler {
             self.browse.movie(user.id, request.library_id, &id).await?;
         Response::ok(GetMovieResponse {
             movie: movie_to_proto(movie, state).into(),
-            // A Library's folders are for those who manage it, or may delete what's in them.
+            // Where a Library lives is shown only to those who may delete what's in it (AGENTS.md,
+            // "Clients name ids"), not to every User who can browse it.
             read_only_folder: read_only_folder
                 .filter(|_| user.permissions.allow(Permission::DeleteMedia)),
             ..Default::default()

@@ -163,6 +163,22 @@ test("a delete the Server refuses for a read-only folder says which folder", asy
   ).toBeDefined();
 });
 
+test("the confirmation says a read-only folder refuses the delete", async () => {
+  openAlien(deletesMedia, {
+    previewDeleteMedia: () => ({
+      files: [ALIEN_1080P],
+      bytesFreed: ALIEN_1080P.size,
+      readOnlyFolder: "/media/movies",
+    }),
+  });
+
+  const dialog = await openDeleteDialog();
+
+  expect(
+    await within(dialog).findByText(/refuse to delete them: it can’t write to \/media\/movies/u),
+  ).toBeDefined();
+});
+
 /** The Server's refusal to delete from `folder`, which it couldn't write to when it last scanned. */
 function folderReadOnly(folder: string): never {
   throw refused(Code.FailedPrecondition, `media in ${folder} can't be deleted`, {

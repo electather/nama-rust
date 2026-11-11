@@ -85,7 +85,10 @@ function WhatGoes(movie: DeletableMovie) {
   );
 }
 
-/** The files deleting `chosen` of `movie` takes, and the space that frees, as the Server previews it. */
+/**
+ * The files deleting `chosen` of `movie` takes, the space that frees, and the read-only folder that
+ * refuses it if a scan found one since the page loaded, as the Server previews it.
+ */
 function FilesThatGo({ movie, chosen }: { movie: DeletableMovie; chosen: string }) {
   const { data, error } = useQuery(LibraryService.method.previewDeleteMedia, {
     target: targetOf(movie, chosen),
@@ -108,7 +111,18 @@ function FilesThatGo({ movie, chosen }: { movie: DeletableMovie; chosen: string 
           </li>
         ))}
       </ul>
+      <RefusedFor folder={data.readOnlyFolder} />
     </div>
+  );
+}
+
+/** Says the Server will refuse the delete because it can't write to `folder`, if there is one. */
+function RefusedFor({ folder }: { folder: string | undefined }) {
+  if (folder === undefined) return null;
+  return (
+    <p className="mt-2 text-destructive">
+      The Server will refuse to delete them: it can’t write to {folder}.
+    </p>
   );
 }
 

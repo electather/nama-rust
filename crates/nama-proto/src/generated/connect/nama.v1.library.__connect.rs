@@ -588,7 +588,8 @@ pub trait LibraryService: Send + Sync + 'static {
         >,
     > + Send;
     /// Lists the files `DeleteMedia` would delete for the same target, and the bytes they would
-    /// free, deleting nothing. Needs `PERMISSION_DELETE_MEDIA`. Fails as `DeleteMedia` does.
+    /// free, deleting nothing. Needs `PERMISSION_DELETE_MEDIA`. Fails as `DeleteMedia` does, except
+    /// that a read-only Library folder is named in `read_only_folder` rather than refused.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
