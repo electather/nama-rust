@@ -7,8 +7,9 @@ edition.workspace = true
 repository.workspace = true
 
 [features]
-# `contents::Contents::files`: what a Library holds, as integration tests read it back; and the
-# Built-in Plugin `nama-plugin-test-choices`, whose settings check offers choices.
+# `contents::Contents::files`: what a Library holds, as integration tests read it back;
+# `ffmpeg::fake`, the fake programs tests run; and the Built-in Plugin `nama-plugin-test-choices`,
+# whose settings check offers choices.
 testing = ["dep:nama-plugin-test-choices"]
 # Embeds the built web app (`web/dist`, from `vp build`) and serves it. Off by default so builds
 # and tests need no Node; release builds turn it on (`dist-workspace.toml`).

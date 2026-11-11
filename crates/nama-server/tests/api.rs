@@ -2,9 +2,6 @@
 
 #[path = "support/refused.rs"]
 mod refused;
-#[cfg(unix)]
-#[path = "support/script.rs"]
-mod script;
 #[path = "support/server.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
@@ -18,10 +15,10 @@ use nama_proto::nama::v1::{
     PlaybackLimit, PlaybackSettings, RefusalReason, ServerServiceClient, ServerSettings,
     UpdatePlaybackSettingsRequest, UpdateServerSettingsRequest,
 };
+#[cfg(unix)]
+use nama_server::ffmpeg::fake::script;
 use nama_server::{config::Config, ffmpeg::Ffmpeg};
 use refused::assert_refused;
-#[cfg(unix)]
-use script::script;
 use server::TestServer;
 
 fn config_named(name: &str) -> Config {
