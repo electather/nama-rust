@@ -125,7 +125,7 @@ function HardwareField({ saved }: { saved: HardwareAcceleration }) {
       label="Hardware acceleration"
       name="hardwareAcceleration"
       defaultValue={saved}
-      hint="What Transcodes decode, scale and encode video on. Automatic picks the first listed above, and Off runs them in software. One that didn’t pass its test when the Server started leaves them in software. A change applies from the next Transcode."
+      hint="What Transcodes decode, scale and encode video on. Automatic picks the one marked above, and Off runs them in software. One that didn’t pass its test when the Server started leaves them in software. A change applies from the next Transcode."
     >
       {choices.map((api) => (
         <option key={api} value={api}>
