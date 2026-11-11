@@ -57,7 +57,7 @@ function Playback() {
 
 /** What the Server's ffmpeg lacks that a Transcode needs, if anything. */
 function MissingFromFfmpeg({ status }: { status: GetPlaybackStatusResponse }) {
-  if (!status.hasLibx264) {
+  if (ffmpegLacksLibx264(status)) {
     return (
       <p className="mt-4 max-w-prose text-pretty">
         This Server’s ffmpeg lacks libx264, so it can’t Transcode, only Direct Play and Remux.
@@ -80,14 +80,15 @@ function MissingFromFfmpeg({ status }: { status: GetPlaybackStatusResponse }) {
 
 function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
   const { hardware, ffprobe, hasLibx264, hasZscale } = status;
+  const lacksLibx264 = ffmpegLacksLibx264(status);
   return (
     <section aria-labelledby="hardware" className="mt-12">
       <h2 id="hardware" className="font-medium">
         Hardware acceleration
       </h2>
       <p className="mt-2 max-w-prose text-pretty text-muted-foreground">
-        What Transcodes can run on besides software. The Server tests VAAPI, Intel QSV, NVIDIA NVENC
-        and Apple VideoToolbox when it starts, so restart it after adding a GPU.
+        {whatHardwareIsFor(lacksLibx264)} The Server tests VAAPI, Intel QSV, NVIDIA NVENC and Apple
+        VideoToolbox when it starts, so restart it after adding a GPU.
       </p>
       {hardware.length === 0 ? (
         <p className="mt-4 max-w-prose text-pretty">
@@ -103,12 +104,25 @@ function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
               found={found}
               automatic={index === 0}
               hasZscale={hasZscale}
+              lacksLibx264={lacksLibx264}
             />
           ))}
         </AdminList>
       )}
     </section>
   );
+}
+
+/** Whether the Server found an ffmpeg without libx264, so no Transcode runs, even on hardware. */
+function ffmpegLacksLibx264({ ffmpeg, hasLibx264 }: GetPlaybackStatusResponse) {
+  // `server_ffmpeg` in `crates/nama-server/src/playback.rs` plans no Transcode without libx264.
+  return ffmpeg !== undefined && !hasLibx264;
+}
+
+function whatHardwareIsFor(lacksLibx264: boolean) {
+  return lacksLibx264
+    ? "What passed its test, though no Transcode runs on it, or in software, until the Server’s ffmpeg has libx264."
+    : "What Transcodes can run on besides software.";
 }
 
 function ProgramRow({
@@ -145,24 +159,29 @@ function ProgramRow({
 
 /**
  * A hardware acceleration API that passed its test encode, `automatic` if Automatic picks it.
- * Without the GPU, a Transcode tone-maps HDR only if ffmpeg `hasZscale`.
+ * Without the GPU, a Transcode tone-maps HDR only if ffmpeg `hasZscale`. While ffmpeg
+ * `lacksLibx264` no Transcode runs, so tone-mapping and Automatic don't apply yet.
  */
 function HardwareRow({
   found,
   automatic,
   hasZscale,
+  lacksLibx264,
 }: {
   found: FoundHardware;
   automatic: boolean;
   hasZscale: boolean;
+  lacksLibx264: boolean;
 }) {
   return (
     <AdminRow end={<StateLabel label="Passed" Icon={CircleCheck} />}>
       <h3 className="font-medium">{hardwareName(found.api)}</h3>
-      <p className="text-sm text-pretty text-muted-foreground">
-        {toneMapping(found.toneMaps, hasZscale)}
-        {automatic && " Automatic picks this one."}
-      </p>
+      {!lacksLibx264 && (
+        <p className="text-sm text-pretty text-muted-foreground">
+          {toneMapping(found.toneMaps, hasZscale)}
+          {automatic && " Automatic picks this one."}
+        </p>
+      )}
     </AdminRow>
   );
 }
