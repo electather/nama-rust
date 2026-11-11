@@ -23,7 +23,6 @@ use crate::{
     events::event,
     requests,
     scanner::PARSER_VERSION,
-    tracks::Track,
 };
 
 /// Reads and writes the contents of Libraries.
@@ -199,9 +198,9 @@ pub(crate) struct Metadata {
 }
 
 /// A Movie some Items of a Library are Matched to, with the metadata the Match of its first
-/// Version stores.
+/// Version stores. Browse hands it out with Versions of its own, which have Tracks.
 #[derive(Debug)]
-pub(crate) struct Movie {
+pub(crate) struct Movie<V = Version> {
     /// Which of the Match's ids identifies the Movie: see [`primary_id`].
     pub(crate) id: ExternalId,
     /// The Plugin whose metadata Provider made the Match, which the image paths are for.
@@ -214,7 +213,25 @@ pub(crate) struct Movie {
     pub(crate) poster: Option<String>,
     pub(crate) backdrop: Option<String>,
     /// The files Matched to it, by path.
-    pub(crate) versions: Vec<Version>,
+    pub(crate) versions: Vec<V>,
+}
+
+impl<V> Movie<V> {
+    /// The Movie with each of its Versions made into `version(it)`.
+    pub(crate) fn map_versions<W>(self, version: impl FnMut(V) -> W) -> Movie<W> {
+        Movie {
+            id: self.id,
+            plugin: self.plugin,
+            title: self.title,
+            original_title: self.original_title,
+            overview: self.overview,
+            release_date: self.release_date,
+            runtime_minutes: self.runtime_minutes,
+            poster: self.poster,
+            backdrop: self.backdrop,
+            versions: self.versions.into_iter().map(version).collect(),
+        }
+    }
 }
 
 /// A stored file that a Movie or Episode is available in.
@@ -223,8 +240,6 @@ pub(crate) struct Version {
     /// Its file as stored now: its Tracks count only if probing read it at this size and time.
     pub(crate) file: Stored,
     pub(crate) path: String,
-    /// Empty as read here: Browse fills them in from [`crate::tracks::Tracks`], which owns them.
-    pub(crate) tracks: Vec<Track>,
 }
 
 /// What [`Contents::matched_to`] found a Version Matched to.
@@ -244,7 +259,7 @@ pub(crate) enum MatchedTo {
 /// A Show some Items of a Library are Matched to Episodes of, with the metadata the Match of its
 /// first Episode, by season, episode and path, stores.
 #[derive(Debug, Clone)]
-pub(crate) struct Show {
+pub(crate) struct Show<V = Version> {
     /// Which of its Episodes' Show ids identifies it: see [`primary_id`].
     pub(crate) id: ExternalId,
     /// The Plugin whose metadata Provider made the Match, which the image paths are for.
@@ -252,10 +267,10 @@ pub(crate) struct Show {
     pub(crate) title: String,
     pub(crate) backdrop: Option<String>,
     /// The Seasons the Library has Episodes of, by number.
-    pub(crate) seasons: BTreeMap<i64, Season>,
+    pub(crate) seasons: BTreeMap<i64, Season<V>>,
 }
 
-impl Show {
+impl<V> Show<V> {
     /// The Show's poster: its first Season's, since a Match stores each Episode's Season poster
     /// and none of the Show's own.
     pub(crate) fn poster(&self) -> Option<&str> {
@@ -264,26 +279,51 @@ impl Show {
     }
 
     /// Every Episode of every Season, by season and episode number.
-    pub(crate) fn episodes(&self) -> impl Iterator<Item = &Episode> {
+    pub(crate) fn episodes(&self) -> impl Iterator<Item = &Episode<V>> {
         self.seasons.values().flat_map(|season| &season.episodes)
+    }
+
+    /// The Show with each of its Episodes' Versions made into `version(it)`.
+    pub(crate) fn map_versions<W>(self, mut version: impl FnMut(V) -> W) -> Show<W> {
+        let seasons = (self.seasons.into_iter())
+            .map(|(number, season)| {
+                let episodes = (season.episodes.into_iter())
+                    .map(|episode| episode.map_versions(&mut version))
+                    .collect();
+                let season = Season {
+                    poster: season.poster,
+                    episodes,
+                };
+                (number, season)
+            })
+            .collect();
+        Show {
+            id: self.id,
+            plugin: self.plugin,
+            title: self.title,
+            backdrop: self.backdrop,
+            seasons,
+        }
     }
 }
 
 /// The Episodes of a Show's Season that some Items of a Library are Matched to.
 #[derive(Debug, Clone)]
-pub(crate) struct Season {
+pub(crate) struct Season<V = Version> {
     /// The poster the Match of its first Episode stores.
     pub(crate) poster: Option<String>,
     /// By episode number.
-    pub(crate) episodes: Vec<Episode>,
+    pub(crate) episodes: Vec<Episode<V>>,
 }
 
 /// An Episode some Items of a Library are Matched to, with the metadata the Match of its first
 /// Version stores.
 #[derive(Debug, Clone)]
-pub(crate) struct Episode {
+pub(crate) struct Episode<V = Version> {
     /// Which of the Match's ids identifies the Episode: see [`primary_id`].
     pub(crate) id: ExternalId,
+    /// Its Season's number.
+    pub(crate) season: i64,
     /// The episode number within its Season.
     pub(crate) number: i64,
     pub(crate) title: String,
@@ -291,7 +331,23 @@ pub(crate) struct Episode {
     pub(crate) air_date: Option<String>,
     pub(crate) runtime_minutes: Option<i64>,
     /// The files Matched to it, by path. A file holding two Episodes is a Version of each.
-    pub(crate) versions: Vec<Version>,
+    pub(crate) versions: Vec<V>,
+}
+
+impl<V> Episode<V> {
+    /// The Episode with each of its Versions made into `version(it)`.
+    pub(crate) fn map_versions<W>(self, version: impl FnMut(V) -> W) -> Episode<W> {
+        Episode {
+            id: self.id,
+            season: self.season,
+            number: self.number,
+            title: self.title,
+            overview: self.overview,
+            air_date: self.air_date,
+            runtime_minutes: self.runtime_minutes,
+            versions: self.versions.into_iter().map(version).collect(),
+        }
+    }
 }
 
 /// What [`Contents::search`] found in every Library, each kind best fit first, and each Movie,
@@ -713,16 +769,13 @@ impl Contents {
             let Some(id) = primary_id(ids) else {
                 continue;
             };
-            let version = Version {
-                file: Stored {
-                    id: row.file,
-                    size: row.size,
-                    modified_ns: row.modified_ns,
-                    parser_version: row.parser_version,
-                },
-                path: row.path,
-                tracks: Vec::new(),
-            };
+            let version = version(
+                row.file,
+                row.path,
+                row.size,
+                row.modified_ns,
+                row.parser_version,
+            );
             match movies.last_mut() {
                 Some(movie) if movie.id == id => movie.versions.push(version),
                 _ => movies.push(Movie {
@@ -795,20 +848,18 @@ impl Contents {
                 poster: row.poster,
                 episodes: Vec::new(),
             });
-            let version = Version {
-                file: Stored {
-                    id: row.file,
-                    size: row.size,
-                    modified_ns: row.modified_ns,
-                    parser_version: row.parser_version,
-                },
-                path: row.path,
-                tracks: Vec::new(),
-            };
+            let version = version(
+                row.file,
+                row.path,
+                row.size,
+                row.modified_ns,
+                row.parser_version,
+            );
             match season.episodes.last_mut() {
                 Some(episode) if episode.id == id => episode.versions.push(version),
                 _ => season.episodes.push(Episode {
                     id,
+                    season: row.season,
                     number: row.episode,
                     title: row.title,
                     overview: row.overview,
@@ -1017,6 +1068,18 @@ pub(crate) async fn matched_episodes(
     .fetch_all(&mut *conn)
     .await?;
     Ok(numbers.into_iter().collect())
+}
+
+/// The Version of a file that [`Contents::movies`] and [`Contents::shows`] read, its columns
+/// in the order both select them.
+fn version(id: i64, path: String, size: i64, modified_ns: i64, parser_version: i64) -> Version {
+    let file = Stored {
+        id,
+        size,
+        modified_ns,
+        parser_version,
+    };
+    Version { file, path }
 }
 
 /// The one of `ids` that identifies a title: its TMDB id if it has one, or else its IMDb or TVDB

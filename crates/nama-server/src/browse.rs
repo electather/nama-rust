@@ -8,12 +8,30 @@ use std::{collections::HashMap, sync::Arc};
 use nama_plugin_api::metadata::ExternalId;
 
 use crate::{
-    contents::{Contents, Episode, Found, Movie, Season, Show, Stored, Version},
+    contents::{self, Contents, Found, Stored},
     db::Database,
     libraries::{self, Kind, Libraries, Library},
-    tracks::Tracks,
+    tracks::{Probe, Track, Tracks},
     watch_states::{MovieOrEpisode, WatchState, WatchStates},
 };
+
+/// A Movie whose Versions have their Tracks.
+pub(crate) type Movie = contents::Movie<Version>;
+/// A Show whose Episodes' Versions have their Tracks.
+pub(crate) type Show = contents::Show<Version>;
+/// A Season whose Episodes' Versions have their Tracks.
+pub(crate) type Season = contents::Season<Version>;
+/// An Episode whose Versions have their Tracks.
+pub(crate) type Episode = contents::Episode<Version>;
+
+/// A stored file that a Movie or Episode is available in, with its Tracks.
+#[derive(Debug, Clone)]
+pub(crate) struct Version {
+    pub(crate) file: Stored,
+    pub(crate) path: String,
+    /// What probing read from the file as it is now: none if it hasn't.
+    pub(crate) tracks: Vec<Track>,
+}
 
 /// Why Browse found nothing, or failed.
 #[derive(Debug, thiserror::Error)]
@@ -46,11 +64,15 @@ pub(crate) enum Started {
     Episode {
         library: i64,
         show: Show,
-        /// The Episode's season number.
-        season: i64,
         episode: Episode,
         state: WatchState,
     },
+}
+
+/// A Library's titles, read whole.
+enum Titles {
+    Movies(Vec<Movie>),
+    Shows(Vec<Show>),
 }
 
 /// Reads the Libraries' titles and the Users' Watch States of them.
@@ -79,9 +101,7 @@ impl Browse {
         user: i64,
         library: i64,
     ) -> Result<Vec<(Movie, Option<WatchState>)>, Error> {
-        let mut movies = self.movies_of(library).await?;
-        self.add_tracks(movies.iter_mut().flat_map(|movie| &mut movie.versions))
-            .await?;
+        let movies = self.movies_of(library).await?;
         let ids: Vec<&ExternalId> = movies.iter().map(|movie| &movie.id).collect();
         let states = self.watch_states.of_movies(user, &ids).await?;
         Ok(movies.into_iter().zip(states).collect())
@@ -89,20 +109,18 @@ impl Browse {
 
     /// The Movie `id` of the Movies Library `library`, with the User `user`'s Watch State of it,
     /// if they've started it.
-    // ponytail: whole-Library read (see AGENTS.md).
     pub(crate) async fn movie(
         &self,
         user: i64,
         library: i64,
         id: &ExternalId,
     ) -> Result<(Movie, Option<WatchState>), Error> {
-        let mut movie = self
+        let movie = self
             .movies_of(library)
             .await?
             .into_iter()
             .find(|movie| &movie.id == id)
             .ok_or(Error::NothingMatched)?;
-        self.add_tracks(&mut movie.versions).await?;
         let state = self.watch_states.of_movies(user, &[id]).await?.pop();
         Ok((movie, state.flatten()))
     }
@@ -116,23 +134,20 @@ impl Browse {
         show: &ExternalId,
         season: i64,
     ) -> Result<Vec<(Episode, Option<WatchState>)>, Error> {
-        let mut episodes = self.season(library, show, season).await?.episodes;
-        self.add_tracks(
-            episodes
-                .iter_mut()
-                .flat_map(|episode| &mut episode.versions),
-        )
-        .await?;
+        let episodes = self.season(library, show, season).await?.episodes;
         let ids: Vec<&ExternalId> = episodes.iter().map(|episode| &episode.id).collect();
         let states = self.watch_states.of_episodes(user, &ids).await?;
         Ok(episodes.into_iter().zip(states).collect())
     }
 
     /// The Shows of the Shows Library `library`.
-    // ponytail: whole-Library read (see AGENTS.md).
     pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, Error> {
-        self.require_kind(library, Kind::Shows).await?;
-        Ok(self.contents.shows(library).await?)
+        match self.read(&self.library(library).await?).await? {
+            Titles::Shows(shows) => Ok(shows),
+            Titles::Movies(_) => Err(Error::WrongKind {
+                wanted: Kind::Shows,
+            }),
+        }
     }
 
     /// The Show `id` of the Shows Library `library`.
@@ -159,7 +174,6 @@ impl Browse {
     }
 
     /// The Episode `id` of any Show of the Shows Library `library`.
-    // ponytail: whole-Library read (see AGENTS.md).
     pub(crate) async fn episode(&self, library: i64, id: &ExternalId) -> Result<Episode, Error> {
         self.shows(library)
             .await?
@@ -173,25 +187,24 @@ impl Browse {
     /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
     /// played, most recent first. Each is in the oldest Library that has it, and one no Library
     /// has is left out.
-    // ponytail: whole-Library read (see AGENTS.md).
     pub(crate) async fn continue_watching(&self, user: i64) -> Result<Vec<Started>, Error> {
         let started = self.watch_states.continue_watching(user).await?;
+        if started.is_empty() {
+            return Ok(Vec::new());
+        }
         let mut unfound: HashMap<MovieOrEpisode, WatchState> = started.iter().cloned().collect();
         let mut found = HashMap::new();
         // Oldest first, so a title in two Libraries is found in the older.
         for library in self.libraries.list().await.map_err(finding_failed)? {
-            found.extend(self.started_in(&library, &mut unfound).await?);
+            found.extend(match self.read(&library).await? {
+                Titles::Movies(movies) => started_movies(library.id, movies, &mut unfound),
+                Titles::Shows(shows) => started_episodes(library.id, &shows, &mut unfound),
+            });
         }
-        let mut started: Vec<Started> = started
+        Ok(started
             .into_iter()
             .filter_map(|(watched, _)| found.remove(&watched))
-            .collect();
-        self.add_tracks(started.iter_mut().flat_map(|started| match started {
-            Started::Movie { movie, .. } => &mut movie.versions,
-            Started::Episode { episode, .. } => &mut episode.versions,
-        }))
-        .await?;
-        Ok(started)
+            .collect())
     }
 
     /// The Movies, Shows and Episodes of every Library that a search for `query` finds: see
@@ -200,53 +213,64 @@ impl Browse {
         Ok(self.contents.search(query).await?)
     }
 
-    /// Fills in the Tracks of each of `versions` that probing read from its file as it is now.
-    async fn add_tracks(
-        &self,
-        versions: impl IntoIterator<Item = &mut Version>,
-    ) -> Result<(), sqlx::Error> {
-        let mut versions: Vec<&mut Version> = versions.into_iter().collect();
-        let files: Vec<Stored> = versions.iter().map(|version| version.file).collect();
-        let probes = self.tracks.of(&files).await?;
-        for version in &mut versions {
-            if let Some(probe) = probes.get(&version.file.id) {
-                // A file holding two Episodes is a Version of each.
-                version.tracks.clone_from(&probe.tracks);
-            }
-        }
-        Ok(())
-    }
-
-    /// The Movies or Episodes of `library` that `unfound` has the Watch State of, each taken out
-    /// of `unfound`.
-    async fn started_in(
-        &self,
-        library: &Library,
-        unfound: &mut HashMap<MovieOrEpisode, WatchState>,
-    ) -> Result<Vec<(MovieOrEpisode, Started)>, Error> {
+    /// Every title of `library`, its Versions with the Tracks probing read from their files as
+    /// they are now. Every finder reads through here.
+    // ponytail: whole-Library read (see AGENTS.md).
+    async fn read(&self, library: &Library) -> Result<Titles, Error> {
         Ok(match library.kind {
             Kind::Movies => {
                 let movies = self.contents.movies(library.id).await?;
-                started_movies(library.id, movies, unfound)
+                let files = movies.iter().flat_map(|movie| &movie.versions);
+                let probes = self.probes(files).await?;
+                let with_tracks = |movie: contents::Movie| movie.map_versions(with_tracks(&probes));
+                Titles::Movies(movies.into_iter().map(with_tracks).collect())
             }
             Kind::Shows => {
                 let shows = self.contents.shows(library.id).await?;
-                started_episodes(library.id, &shows, unfound)
+                let files = (shows.iter().flat_map(contents::Show::episodes))
+                    .flat_map(|episode| &episode.versions);
+                let probes = self.probes(files).await?;
+                let with_tracks = |show: contents::Show| show.map_versions(with_tracks(&probes));
+                Titles::Shows(shows.into_iter().map(with_tracks).collect())
             }
         })
     }
 
-    async fn movies_of(&self, library: i64) -> Result<Vec<Movie>, Error> {
-        self.require_kind(library, Kind::Movies).await?;
-        Ok(self.contents.movies(library).await?)
+    /// What probing read from the files of `versions` as they are now, by file id.
+    async fn probes(
+        &self,
+        versions: impl Iterator<Item = &contents::Version>,
+    ) -> Result<HashMap<i64, Probe>, sqlx::Error> {
+        let files: Vec<Stored> = versions.map(|version| version.file).collect();
+        self.tracks.of(&files).await
     }
 
-    async fn require_kind(&self, library: i64, wanted: Kind) -> Result<(), Error> {
-        let library = self.libraries.get(library).await.map_err(finding_failed)?;
-        if library.kind == wanted {
-            return Ok(());
+    async fn movies_of(&self, library: i64) -> Result<Vec<Movie>, Error> {
+        match self.read(&self.library(library).await?).await? {
+            Titles::Movies(movies) => Ok(movies),
+            Titles::Shows(_) => Err(Error::WrongKind {
+                wanted: Kind::Movies,
+            }),
         }
-        Err(Error::WrongKind { wanted })
+    }
+
+    async fn library(&self, library: i64) -> Result<Library, Error> {
+        self.libraries.get(library).await.map_err(finding_failed)
+    }
+}
+
+/// Makes a Version from Contents into one with the Tracks `probes` has of its file.
+fn with_tracks(probes: &HashMap<i64, Probe>) -> impl Fn(contents::Version) -> Version {
+    |version| {
+        // A file holding two Episodes is a Version of each, so its Tracks are cloned.
+        let tracks = (probes.get(&version.file.id))
+            .map(|probe| probe.tracks.clone())
+            .unwrap_or_default();
+        Version {
+            file: version.file,
+            path: version.path,
+            tracks,
+        }
     }
 }
 
@@ -283,10 +307,7 @@ fn started_episodes(
 ) -> Vec<(MovieOrEpisode, Started)> {
     let mut started = Vec::new();
     for show in shows {
-        let episodes = show.seasons.iter().flat_map(|(&number, season)| {
-            season.episodes.iter().map(move |episode| (number, episode))
-        });
-        for (season, episode) in episodes {
+        for episode in show.episodes() {
             let watched = MovieOrEpisode::episode(&episode.id);
             let Some(state) = unfound.remove(&watched) else {
                 continue;
@@ -296,7 +317,6 @@ fn started_episodes(
             let episode = Started::Episode {
                 library,
                 show: show.clone(),
-                season,
                 episode: episode.clone(),
                 state,
             };
@@ -347,37 +367,59 @@ mod tests {
     };
 
     const ALIEN_TMDB_ID: i64 = 348;
+    const KNIGHT_TMDB_ID: i64 = 224_372;
+    const KNIGHT_PILOT_TMDB_ID: i64 = 5_000_001;
 
-    /// Creates a Movies Library on a folder of its own, with one file Matched to Alien.
-    async fn library_with_alien(db: &Arc<Database>, name: &str, folder: &TempDir) -> i64 {
+    /// Creates a Library of `kind` on `folder`, with its canonical path.
+    async fn library(
+        db: &Arc<Database>,
+        name: &str,
+        kind: Kind,
+        folder: &TempDir,
+    ) -> (i64, String) {
         let root = folder.path().canonicalize().unwrap();
-        let root = root.to_str().unwrap();
+        let root = root.to_str().unwrap().to_owned();
         let library = Libraries::new(Arc::clone(db))
-            .create(name, Kind::Movies, vec![root.to_owned()])
+            .create(name, kind, vec![root.clone()])
             .await
             .unwrap()
             .id;
+        (library, root)
+    }
+
+    /// Stores the file at `path` in `library`, holding `item`, and Matches the Item to `matched`.
+    async fn store_matched(
+        db: &Arc<Database>,
+        library: i64,
+        path: String,
+        item: Item,
+        matched: Metadata,
+    ) {
         let contents = Contents::new(Arc::clone(db));
         let file = Change::Store {
-            path: format!("{root}/Alien (1979)/Alien (1979).mkv"),
+            path,
             size: 10,
             modified_ns: 0,
-            items: vec![Item::Movie {
-                title: "Alien".to_owned(),
-                year: Some(1979),
-                hint: None,
-            }],
+            items: vec![item],
         };
         contents.apply(library, vec![file]).await.unwrap();
-        let (item, _, _) = contents.undecided(library).await.unwrap().remove(0);
-        let alien = Metadata {
+        let (undecided, _, _) = contents.undecided(library).await.unwrap().remove(0);
+        contents
+            .record(vec![(undecided, Decided::Matched(Box::new(matched)))])
+            .await
+            .unwrap();
+    }
+
+    /// TMDB's metadata of the title `title`, which has the id `tmdb`.
+    fn tmdb_metadata(title: &str, tmdb: i64) -> Metadata {
+        Metadata {
             plugin: PluginId::from_static("tmdb"),
             ids: ExternalIds {
-                tmdb: Some(ALIEN_TMDB_ID),
+                tmdb: Some(tmdb),
                 ..ExternalIds::default()
             },
             show_ids: ExternalIds::default(),
-            title: "Alien".to_owned(),
+            title: title.to_owned(),
             original_title: None,
             show_title: None,
             overview: None,
@@ -385,12 +427,110 @@ mod tests {
             runtime_minutes: None,
             poster: None,
             backdrop: None,
+        }
+    }
+
+    /// Creates a Movies Library on a folder of its own, with one file Matched to Alien.
+    async fn library_with_alien(db: &Arc<Database>, name: &str, folder: &TempDir) -> i64 {
+        let (library, root) = library(db, name, Kind::Movies, folder).await;
+        let alien = Item::Movie {
+            title: "Alien".to_owned(),
+            year: Some(1979),
+            hint: None,
         };
-        contents
-            .record(vec![(item, Decided::Matched(Box::new(alien)))])
+        let path = format!("{root}/Alien (1979)/Alien (1979).mkv");
+        store_matched(
+            db,
+            library,
+            path,
+            alien,
+            tmdb_metadata("Alien", ALIEN_TMDB_ID),
+        )
+        .await;
+        library
+    }
+
+    /// The one file stored in `library`, as stored now.
+    async fn only_file(db: &Arc<Database>, library: i64) -> Stored {
+        let stored = Contents::new(Arc::clone(db)).stored(library).await.unwrap();
+        *stored.values().next().unwrap()
+    }
+
+    fn stereo() -> Track {
+        Track {
+            codec: "ac3".to_owned(),
+            language: None,
+            title: None,
+            default: false,
+            forced: false,
+            sdh: false,
+            kind: TrackKind::Audio { channels: Some(2) },
+        }
+    }
+
+    fn probe_of(tracks: Vec<Track>) -> Probe {
+        Probe {
+            container: "matroska,webm".to_owned(),
+            duration_ms: None,
+            bitrate: None,
+            tracks,
+        }
+    }
+
+    #[tokio::test]
+    async fn an_episode_has_the_same_tracks_however_it_is_reached() {
+        let data = tempfile::tempdir().unwrap();
+        let folder = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let (library, root) = library(&db, "Shows", Kind::Shows, &folder).await;
+        let pilot_file = Item::Episode {
+            show: "A Knight of the Seven Kingdoms".to_owned(),
+            year: Some(2026),
+            hint: None,
+            season: 1,
+            episode: 1,
+        };
+        let matched = Metadata {
+            show_ids: ExternalIds {
+                tmdb: Some(KNIGHT_TMDB_ID),
+                ..ExternalIds::default()
+            },
+            show_title: Some("A Knight of the Seven Kingdoms".to_owned()),
+            ..tmdb_metadata("The Hedge Knight", KNIGHT_PILOT_TMDB_ID)
+        };
+        let path = format!("{root}/A Knight of the Seven Kingdoms/Season 01/S01E01.mkv");
+        store_matched(&db, library, path, pilot_file, matched).await;
+        let file = only_file(&db, library).await;
+        Tracks::new(Arc::clone(&db))
+            .store(file, probe_of(vec![stereo()]))
             .await
             .unwrap();
-        library
+        let browse = Browse::new(db);
+        let (show, pilot) = (
+            ExternalId::Tmdb(KNIGHT_TMDB_ID),
+            ExternalId::Tmdb(KNIGHT_PILOT_TMDB_ID),
+        );
+
+        let (listed, _) = browse
+            .episodes(0, library, &show, 1)
+            .await
+            .unwrap()
+            .remove(0);
+        let in_season = browse
+            .season(library, &show, 1)
+            .await
+            .unwrap()
+            .episodes
+            .remove(0);
+        let in_show = browse.show(library, &show).await.unwrap();
+        let in_show = in_show.episodes().next().unwrap().clone();
+        let by_id = browse.episode(library, &pilot).await.unwrap();
+
+        let tracks = [listed, in_season, in_show, by_id].map(|episode| {
+            assert_eq!(episode.id, pilot);
+            episode.versions[0].tracks.clone()
+        });
+        assert_eq!(tracks, [[stereo()], [stereo()], [stereo()], [stereo()]]);
     }
 
     #[tokio::test]
@@ -434,36 +574,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn continue_watching_reads_no_library_for_a_user_who_started_nothing() {
+        let (data, unreadable_data) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let unreadable = Arc::new(Database::open(unreadable_data.path()).await.unwrap());
+        unreadable.reader().close().await;
+        let browse = Browse {
+            libraries: Libraries::new(Arc::clone(&unreadable)),
+            contents: Contents::new(Arc::clone(&unreadable)),
+            tracks: Tracks::new(unreadable),
+            watch_states: WatchStates::new(db),
+        };
+
+        let started = browse.continue_watching(1).await.unwrap();
+
+        assert!(started.is_empty(), "{started:?}");
+    }
+
+    #[tokio::test]
     async fn a_version_has_no_tracks_read_from_its_file_before_it_changed() {
         let data = tempfile::tempdir().unwrap();
         let folder = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
         let library = library_with_alien(&db, "Movies", &folder).await;
-        let stored = Contents::new(Arc::clone(&db))
-            .stored(library)
-            .await
-            .unwrap();
-        let file = *stored.values().next().unwrap();
+        let file = only_file(&db, library).await;
         let before_it_changed = Stored {
             modified_ns: file.modified_ns - 1,
             ..file
         };
-        let stereo = Probe {
-            container: "matroska,webm".to_owned(),
-            duration_ms: None,
-            bitrate: None,
-            tracks: vec![Track {
-                codec: "ac3".to_owned(),
-                language: None,
-                title: None,
-                default: false,
-                forced: false,
-                sdh: false,
-                kind: TrackKind::Audio { channels: Some(2) },
-            }],
-        };
         Tracks::new(Arc::clone(&db))
-            .store(before_it_changed, stereo)
+            .store(before_it_changed, probe_of(vec![stereo()]))
             .await
             .unwrap();
 
