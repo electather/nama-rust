@@ -588,7 +588,7 @@ impl Abilities {
     }
 
     /// What ffmpeg can do. An answer ffmpeg couldn't give, such as on a busy host whose listing
-    /// timed out, counts as `false` and is asked again next time.
+    /// timed out, counts as `false` or no hardware and is asked again next time.
     pub(crate) async fn can_do(&self) -> CanDo {
         let ffmpeg = &self.inner.ffmpeg;
         // Together, so a busy host waits out one listing's timeout, not two.
