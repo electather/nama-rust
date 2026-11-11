@@ -412,6 +412,8 @@ fn candidate_tone_mapper(candidates: Option<&Candidates>) -> Option<ToneMapper> 
 }
 
 // The steps run in ADR 0027's order, split by ADR 0031. A new input is a new step in one of these.
+// The Server's encoders aren't one: they rule nothing out, so `build` gives their reason between
+// the lasting and the now steps, and only while a Transcode is allowed (see `LASTING_STEPS`).
 
 /// The steps for what the Version, Device and Server allow that lasts, so what they allow is what
 /// the User's choices can ever have. [`server_encoders`] speaks right after them, and only while
@@ -1948,9 +1950,10 @@ mod tests {
             let plan = build(&mut facts);
 
             assert!(
-                !plan.reasons.iter().any(|reason| {
-                    reason.contains("a Transcode runs") || reason.contains("A Transcode runs")
-                }),
+                !plan
+                    .reasons
+                    .iter()
+                    .any(|reason| { reason.contains("Transcode runs") }),
                 "{case}: {:?}",
                 plan.reasons
             );
@@ -2362,7 +2365,8 @@ mod tests {
             let plan = build(&mut facts);
 
             assert_eq!(plan.method(), Some(Method::DirectPlay), "{reason}");
-            assert!(plan.reasons.iter().any(|said| said == reason), "{reason}");
+            // The reasons end with the four choice steps', so the Playback Limit's is second last.
+            assert_eq!(plan.reasons[plan.reasons.len() - 2], reason, "{reason}");
         }
     }
 
@@ -2840,17 +2844,20 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
     fn a_choice_only_a_transcode_honours_is_dropped_when_it_cant_transcode_and_the_plan_says_why() {
         const LIMIT_DROPPED: &str = "The 720p Playback Limit needs a Transcode, which can't play it here, so it's \
              dropped for Original";
-        let choices: [(&str, Change, &str); 3] = [
-            ("720p", picking_720p, LIMIT_DROPPED),
-            ("the remote default", remote_at_720p, LIMIT_DROPPED),
+        // How far from the end of the reasons each choice's step gives its own, since the steps
+        // before them give more or fewer reasons depending on what ruled a Transcode out.
+        let choices: [(&str, Change, usize, &str); 3] = [
+            ("720p", picking_720p, 2, LIMIT_DROPPED),
+            ("the remote default", remote_at_720p, 2, LIMIT_DROPPED),
             (
                 "PGS",
                 burning_in_pgs,
+                1,
                 "The subtitles chosen need a Transcode to burn them in, which can't play it here, \
                  so they're dropped",
             ),
         ];
-        for (chosen, choose, reason) in choices {
+        for (chosen, choose, from_end, reason) in choices {
             for (ruled_out, rule_out) in NO_TRANSCODE {
                 let mut facts = direct_played();
                 choose(&mut facts);
@@ -2861,7 +2868,11 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
                 let case = format!("{chosen} with {ruled_out}");
                 assert_eq!(plan.method(), Some(Method::DirectPlay), "{case}");
                 assert_eq!((plan.limit, plan.burn_in), (None, None), "{case}");
-                assert!(plan.reasons.iter().any(|said| said == reason), "{case}");
+                assert_eq!(
+                    plan.reasons[plan.reasons.len() - from_end],
+                    reason,
+                    "{case}"
+                );
                 assert_eq!(too_busy_to_play(facts), None, "{case}");
             }
         }
@@ -2928,9 +2939,13 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
                 let case = format!("{} with {ruled_out}", chosen.codec);
                 assert_eq!(plan.method(), Some(Method::DirectPlay), "{case}");
                 assert_eq!(plan.audio, Some(1), "{case}");
-                let dropped = "The audio Track chosen needs a Remux or a Transcode, and neither can \
-                               play it here, so it's dropped for the file's own";
-                assert!(plan.reasons.iter().any(|said| said == dropped), "{case}");
+                // The chosen audio's step is the first of the four choice steps, which end the reasons.
+                assert_eq!(
+                    plan.reasons[plan.reasons.len() - 4],
+                    "The audio Track chosen needs a Remux or a Transcode, and neither can play it \
+                     here, so it's dropped for the file's own",
+                    "{case}"
+                );
             }
         }
     }
