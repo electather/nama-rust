@@ -20,10 +20,10 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    rate_limits::{Blocked, SignInCodeLimits},
+    rate_limits::Blocked,
     sessions::session_cookie,
-    sign_in::{self, SignIn},
-    sign_in_codes::{self, Poll, SignInCodes},
+    sign_in::{self, Polled, SignIn},
+    sign_in_codes,
     users::{self, Caller, NewDevice, SetupCode, SignedIn, Users},
 };
 
@@ -38,29 +38,6 @@ pub(super) struct SignInServiceHandler {
     /// What `Setup` must be given. `None` once the Server started with Users.
     pub(super) setup_code: Option<SetupCode>,
     pub(super) sign_in: SignIn,
-    pub(super) sign_in_codes: SignInCodes,
-    /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
-    pub(super) sign_in_code_limits: SignInCodeLimits,
-}
-
-impl SignInServiceHandler {
-    /// Looks up or approves a Sign-in Code with `use_code`, as the caller of `ctx` at the time it
-    /// is given, unless their Device has failed too often lately. Only a code that is unknown or
-    /// expired counts as a failure: that is what a guess gets.
-    fn with_sign_in_code_limit<T>(
-        &self,
-        ctx: &RequestContext,
-        use_code: impl FnOnce(&Caller, Instant) -> Result<T, sign_in_codes::Error>,
-    ) -> Result<T, ConnectError> {
-        let caller = caller(ctx)?;
-        let now = Instant::now();
-        let attempt = self.sign_in_code_limits.admit(caller.device.id, now)?;
-        let used = use_code(caller, now);
-        if !matches!(used, Err(sign_in_codes::Error::NotFound)) {
-            self.sign_in_code_limits.wasnt_a_guess(&attempt);
-        }
-        Ok(used?)
-    }
 }
 
 #[expect(
@@ -190,18 +167,20 @@ impl SignInService for SignInServiceHandler {
 
     fn start_sign_in_code<'a>(
         &'a self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, StartSignInCodeRequest>,
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<StartSignInCodeResponse> + Send + use<'a>>,
     > + Send {
         let request = request.to_owned_message();
         let started = wants_token(request.delivery).and_then(|wants_token| {
-            let device_name =
-                users::checked_name("device_name", "a Device's name", &request.device_name)?;
-            Ok(self
-                .sign_in_codes
-                .start(device_name, wants_token, Instant::now())?)
+            let user_agent = user_agent(ctx.headers());
+            Ok(self.sign_in.start_code(
+                request.device_name,
+                user_agent.as_deref(),
+                wants_token,
+                Instant::now(),
+            )?)
         });
         future::ready(started.and_then(|started| {
             Response::ok(StartSignInCodeResponse {
@@ -219,8 +198,11 @@ impl SignInService for SignInServiceHandler {
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<LookUpSignInCodeResponse> + Send + use<'a>>,
     > + Send {
-        let looked_up = self
-            .with_sign_in_code_limit(&ctx, |_, now| self.sign_in_codes.look_up(request.code, now));
+        let looked_up = caller(&ctx).and_then(|caller| {
+            Ok(self
+                .sign_in
+                .look_up_code(caller, request.code, Instant::now())?)
+        });
         future::ready(looked_up.and_then(|device_name| {
             Response::ok(LookUpSignInCodeResponse {
                 device_name,
@@ -236,8 +218,10 @@ impl SignInService for SignInServiceHandler {
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<ApproveSignInCodeResponse> + Send + use<'a>>,
     > + Send {
-        let approved = self.with_sign_in_code_limit(&ctx, |caller, now| {
-            self.sign_in_codes.approve(request.code, &caller.user, now)
+        let approved = caller(&ctx).and_then(|caller| {
+            Ok(self
+                .sign_in
+                .approve_code(caller, request.code, Instant::now())?)
         });
         future::ready(approved.and_then(|()| Response::ok(ApproveSignInCodeResponse::default())))
     }
@@ -249,31 +233,23 @@ impl SignInService for SignInServiceHandler {
     ) -> ServiceResult<PollSignInCodeResponse> {
         // Before `poll`, which uses up an approved code: failing after it would lose the sign-in.
         let ip_address = client_ip(&ctx)?;
-        let poll = self
-            .sign_in_codes
-            .poll(request.handle, Instant::now())
-            .ok_or_else(|| {
-                refuse(
-                    RefusalReason::REFUSAL_REASON_HANDLE_NOT_FOUND,
-                    "no sign-in is waiting on that handle",
-                )
-                .field("handle")
-            })?;
-        let (user, device_name, wants_token) = match poll {
-            Poll::Waiting => return poll_status(SignInCodeStatus::SIGN_IN_CODE_STATUS_WAITING),
-            Poll::Expired => return poll_status(SignInCodeStatus::SIGN_IN_CODE_STATUS_EXPIRED),
-            Poll::Approved {
-                user,
-                device_name,
+        let polled = self
+            .sign_in
+            .poll_code(
+                request.handle,
+                ip_address,
+                user_agent(ctx.headers()),
+                Instant::now(),
+            )
+            .await?;
+        let (signed_in, wants_token) = match polled {
+            Polled::Waiting => return poll_status(SignInCodeStatus::SIGN_IN_CODE_STATUS_WAITING),
+            Polled::Expired => return poll_status(SignInCodeStatus::SIGN_IN_CODE_STATUS_EXPIRED),
+            Polled::SignedIn {
+                signed_in,
                 wants_token,
-            } => (user, device_name, wants_token),
+            } => (signed_in, wants_token),
         };
-        let device = NewDevice {
-            name: device_name,
-            ip_address,
-            user_agent: user_agent(ctx.headers()),
-        };
-        let signed_in = self.users.sign_in_as(user, None, device).await?;
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -363,8 +339,8 @@ impl From<Blocked> for ConnectError {
     }
 }
 
-/// The Connect error a client gets for a Sign-in Code that couldn't be started, looked up or
-/// approved. A random number generator that failed is logged, not sent.
+/// The Connect error a client gets for a Sign-in Code that couldn't be started, looked up,
+/// approved or polled. A random number generator that failed is logged, not sent.
 impl From<sign_in_codes::Error> for ConnectError {
     fn from(err: sign_in_codes::Error) -> Self {
         use RefusalReason as R;
@@ -375,6 +351,9 @@ impl From<sign_in_codes::Error> for ConnectError {
             }
             sign_in_codes::Error::AlreadyApproved => {
                 refuse(R::REFUSAL_REASON_SIGN_IN_CODE_ALREADY_APPROVED, message).field("code")
+            }
+            sign_in_codes::Error::HandleNotFound => {
+                refuse(R::REFUSAL_REASON_HANDLE_NOT_FOUND, message).field("handle")
             }
             sign_in_codes::Error::TooManyPending => {
                 refuse(R::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS, message)
@@ -394,6 +373,7 @@ impl From<sign_in::Error> for ConnectError {
         match err {
             sign_in::Error::Blocked(blocked) => blocked.into(),
             sign_in::Error::Users(err) => err.into(),
+            sign_in::Error::Code(err) => err.into(),
         }
     }
 }
