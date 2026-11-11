@@ -10,6 +10,7 @@ use std::{
     convert::Infallible,
     fmt,
     future::Future,
+    ops::Deref,
     panic::{self, AssertUnwindSafe},
     sync::{Arc, PoisonError, RwLock},
     time::Duration,
@@ -35,10 +36,29 @@ pub const SETTINGS_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Every Plugin enabled on this Server and everything they registered.
 ///
-/// Cloning a `Registry` gives another handle to the same one.
-#[derive(Clone, Default)]
+/// Only Plugin settings and startup hold one (`crates/nama-server/AGENTS.md`, "One owner for
+/// Plugin changes"). Cloning a `Registry` gives another handle to the same one.
+#[derive(Clone, Debug, Default)]
 pub struct Registry {
+    points: ExtensionPoints,
+}
+
+/// How the Kernel calls the Plugins enabled in a [`Registry`]: observing, intercepting, asking
+/// Providers and who provides a capability. It can't enable or disable a Plugin.
+///
+/// Cloning gives another handle to the same Plugins.
+#[derive(Clone, Default)]
+pub struct ExtensionPoints {
     state: Arc<RwLock<State>>,
+}
+
+// A Registry calls Plugins as every other module does; only it also changes them.
+impl Deref for Registry {
+    type Target = ExtensionPoints;
+
+    fn deref(&self) -> &ExtensionPoints {
+        &self.points
+    }
 }
 
 #[derive(Default)]
@@ -464,37 +484,6 @@ impl Registry {
         })
     }
 
-    /// Disables the Plugin `id` if `check`, given the state and its enablement if it is enabled,
-    /// lets it, all under one lock. Returns whether it was enabled.
-    fn disable_if<E>(
-        &self,
-        id: &PluginId,
-        check: impl FnOnce(&State, Option<&Enabled>) -> Result<(), E>,
-    ) -> Result<bool, E> {
-        // What is removed is dropped after the lock is released, since a Plugin's `Drop` is
-        // Plugin code.
-        let removed = self.write(|state| {
-            check(state, state.plugins.get(id))?;
-            let Some(plugin) = state.plugins.remove(id) else {
-                return Ok(None);
-            };
-            let mut handlers = Vec::new();
-            for entries in state.points.values_mut() {
-                handlers.extend(entries.extract_if(.., |entry| entry.plugin == *id));
-            }
-            state.points.retain(|_, entries| !entries.is_empty());
-            Ok(Some((plugin, handlers)))
-        })?;
-        let was_enabled = removed.is_some();
-        if let Err(message) = contain_sync(|| drop(removed)) {
-            error!(plugin = %id, message, "plugin panicked while being dropped");
-        }
-        if was_enabled {
-            info!(plugin = %id, "disabled plugin");
-        }
-        Ok(was_enabled)
-    }
-
     /// Runs the Plugin `id`'s settings check on `settings`, on a fresh instance whether
     /// it is enabled or not, and returns the choices it offers. The settings are checked against
     /// its schema first, with its Choice settings optional, and its defaults filled in.
@@ -581,6 +570,29 @@ impl Registry {
         self.read(|state| Some(state.listed(id, state.known.get(id)?)))
     }
 
+    /// How the rest of the Kernel calls these Plugins, which can't change them.
+    #[must_use]
+    pub fn extension_points(&self) -> ExtensionPoints {
+        self.points.clone()
+    }
+
+    /// Sets which Plugins' Providers of `T` come first, and in what order, overriding their
+    /// priorities. Plugins not in `plugins` follow in priority order. The ranking is kept while a
+    /// Plugin in it is disabled or not yet enabled.
+    pub fn set_provider_precedence<T: ?Sized + 'static>(&self, plugins: Vec<PluginId>) {
+        self.write(|state| state.precedence.insert(PointKey::provide::<T>(), plugins));
+    }
+
+    /// The id of each Installed Plugin disabled from now on because it crashed, for the Server to
+    /// save as disabled. Replaces the receiver an earlier call returned.
+    pub(crate) fn crashed(&self) -> mpsc::UnboundedReceiver<PluginId> {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        self.write(|state| state.crashed = Some(sender));
+        receiver
+    }
+}
+
+impl ExtensionPoints {
     /// Tells every Observer at `P` about `event`, without waiting for them.
     ///
     /// Each Observer runs as its own task, so a slow one doesn't hold up the others, and two
@@ -699,8 +711,8 @@ impl Registry {
         self.ask_in_turn(Some(plugin), call).await
     }
 
-    /// Asks the Providers of `T` in the order [`Registry::ask_first`] describes, considering only
-    /// `only`'s if given, until one answers without panicking.
+    /// Asks the Providers of `T` in the order [`ExtensionPoints::ask_first`] describes,
+    /// considering only `only`'s if given, until one answers without panicking.
     async fn ask_in_turn<T, R, K, E, F>(
         &self,
         only: Option<&PluginId>,
@@ -762,7 +774,7 @@ impl Registry {
         }
     }
 
-    /// The task [`Registry::tell_each`] runs for one Provider.
+    /// The task [`ExtensionPoints::tell_each`] runs for one Provider.
     async fn tell_one<T, E, F>(
         self,
         entry: Entry,
@@ -784,7 +796,7 @@ impl Registry {
     }
 
     /// Calls `call` with `provider`, logging its failure, unless `entry`'s Plugin has been
-    /// disabled since [`Registry::tell_each`].
+    /// disabled since [`ExtensionPoints::tell_each`].
     async fn tell_if_current<T, E, F>(
         &self,
         entry: &Entry,
@@ -817,19 +829,35 @@ impl Registry {
         entries.into_iter().map(|entry| entry.plugin).collect()
     }
 
-    /// Sets which Plugins' Providers of `T` come first, and in what order, overriding their
-    /// priorities. Plugins not in `plugins` follow in priority order. The ranking is kept while a
-    /// Plugin in it is disabled or not yet enabled.
-    pub fn set_provider_precedence<T: ?Sized + 'static>(&self, plugins: Vec<PluginId>) {
-        self.write(|state| state.precedence.insert(PointKey::provide::<T>(), plugins));
-    }
-
-    /// The id of each Installed Plugin disabled from now on because it crashed, for the Server to
-    /// save as disabled. Replaces the receiver an earlier call returned.
-    pub(crate) fn crashed(&self) -> mpsc::UnboundedReceiver<PluginId> {
-        let (sender, receiver) = mpsc::unbounded_channel();
-        self.write(|state| state.crashed = Some(sender));
-        receiver
+    /// Disables the Plugin `id` if `check`, given the state and its enablement if it is enabled,
+    /// lets it, all under one lock. Returns whether it was enabled.
+    fn disable_if<E>(
+        &self,
+        id: &PluginId,
+        check: impl FnOnce(&State, Option<&Enabled>) -> Result<(), E>,
+    ) -> Result<bool, E> {
+        // What is removed is dropped after the lock is released, since a Plugin's `Drop` is
+        // Plugin code.
+        let removed = self.write(|state| {
+            check(state, state.plugins.get(id))?;
+            let Some(plugin) = state.plugins.remove(id) else {
+                return Ok(None);
+            };
+            let mut handlers = Vec::new();
+            for entries in state.points.values_mut() {
+                handlers.extend(entries.extract_if(.., |entry| entry.plugin == *id));
+            }
+            state.points.retain(|_, entries| !entries.is_empty());
+            Ok(Some((plugin, handlers)))
+        })?;
+        let was_enabled = removed.is_some();
+        if let Err(message) = contain_sync(|| drop(removed)) {
+            error!(plugin = %id, message, "plugin panicked while being dropped");
+        }
+        if was_enabled {
+            info!(plugin = %id, "disabled plugin");
+        }
+        Ok(was_enabled)
     }
 
     fn is_current(&self, entry: &Entry) -> bool {
@@ -1061,10 +1089,11 @@ fn panic_message(payload: &(dyn Any + Send)) -> String {
     }
 }
 
-impl fmt::Debug for Registry {
+impl fmt::Debug for ExtensionPoints {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Registry")
-            .field("enabled", &self.enabled())
+        let enabled: Vec<_> = self.read(|state| state.plugins.keys().cloned().collect());
+        f.debug_struct("ExtensionPoints")
+            .field("enabled", &enabled)
             .finish_non_exhaustive()
     }
 }

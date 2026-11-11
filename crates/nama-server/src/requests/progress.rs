@@ -18,7 +18,7 @@ use super::{load, lock};
 use crate::{
     db::Database,
     events::{EventBus, event},
-    plugins::Registry,
+    plugins::ExtensionPoints,
 };
 
 /// Hands `$query!` the SQL for whether a Request's Fulfiller has it and it isn't Available yet,
@@ -35,7 +35,7 @@ pub(super) use fulfilling_sql;
 pub(super) struct Progress {
     db: Arc<Database>,
     events: EventBus,
-    plugins: Registry,
+    plugins: ExtensionPoints,
     /// What each Request's Fulfiller said it is downloading for it when last asked, by Request id.
     kept: Arc<Mutex<HashMap<i64, Vec<Download>>>>,
     /// Wakes [`Progress::follow`] when a Request becomes Processing.
@@ -44,7 +44,7 @@ pub(super) struct Progress {
 
 impl Progress {
     /// Asks about the Requests in `db` of the Fulfillers in `plugins`, publishing on `events`.
-    pub(super) fn new(db: Arc<Database>, events: EventBus, plugins: Registry) -> Self {
+    pub(super) fn new(db: Arc<Database>, events: EventBus, plugins: ExtensionPoints) -> Self {
         Self {
             db,
             events,

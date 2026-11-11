@@ -18,7 +18,7 @@ use tokio::sync::broadcast;
 use crate::{
     codes::random_secret,
     db::{BoxFuture, Database, now},
-    plugins::{Failure, ProviderError, Registry},
+    plugins::{ExtensionPoints, Failure, ProviderError},
     rate_limits::Attempt,
 };
 
@@ -54,7 +54,7 @@ const SIGN_OUTS_BUFFERED: usize = 64;
 #[derive(Debug, Clone)]
 pub struct Users {
     db: Arc<Database>,
-    plugins: Registry,
+    plugins: ExtensionPoints,
     sign_outs: broadcast::Sender<i64>,
 }
 
@@ -308,7 +308,7 @@ pub enum Error {
 impl Users {
     /// The Users kept in `db`, whose passwords the Authenticator enabled in `plugins` checks.
     #[must_use]
-    pub fn new(db: Arc<Database>, plugins: Registry) -> Self {
+    pub fn new(db: Arc<Database>, plugins: ExtensionPoints) -> Self {
         Self {
             db,
             plugins,
@@ -788,7 +788,7 @@ impl Users {
     }
 
     /// The User whose name is `name` ignoring case, whether or not they have a password, with their
-    /// password if an enabled Plugin made it.
+    /// password if an enabled Authenticator made it.
     async fn user_named(
         &self,
         name: &str,
@@ -814,8 +814,8 @@ impl Users {
             permissions: row.permissions,
             created_at: row.created_at,
         };
-        let enabled = self.plugins.enabled();
-        let plugin = enabled
+        let authenticators = self.plugins.providers::<dyn Authenticator>();
+        let plugin = authenticators
             .into_iter()
             .find(|id| row.provider_id.as_deref() == Some(id.as_str()));
         let stored = match (row.method_id, plugin, row.credential) {
@@ -1322,6 +1322,7 @@ async fn insert_device(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::plugins::Registry;
 
     async fn create_user(db: &Database, name: &str) -> Result<User, Error> {
         let name = name.to_owned();
@@ -1359,7 +1360,7 @@ mod tests {
         })
         .await
         .unwrap();
-        (Users::new(db, Registry::new()), signed_in_at)
+        (Users::new(db, ExtensionPoints::default()), signed_in_at)
     }
 
     #[tokio::test]
@@ -1498,7 +1499,7 @@ mod tests {
     async fn demoting_two_admins_at_once_leaves_exactly_one() {
         let data_dir = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
-        let users = Users::new(Arc::clone(&db), Registry::new());
+        let users = Users::new(Arc::clone(&db), ExtensionPoints::default());
         let ada = create_user(&db, "Ada").await.unwrap().id;
         let grace = create_user(&db, "Grace").await.unwrap().id;
         users
@@ -1608,7 +1609,7 @@ mod tests {
         sqlx::Connection::close(before).await.unwrap();
 
         let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
-        let users = Users::new(db, Registry::new());
+        let users = Users::new(db, ExtensionPoints::default());
         let defaults = users.default_permissions().await.unwrap();
         let users = users.list().await.unwrap();
 
@@ -1633,7 +1634,7 @@ mod tests {
         plugins
             .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
             .unwrap();
-        Users::new(db, plugins)
+        Users::new(db, plugins.extension_points())
     }
 
     const PASSWORD: &str = "correct horse battery staple";

@@ -2905,7 +2905,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             ffmpeg::{Abilities, Ffmpeg},
             libraries::{Kind, Libraries},
             playback::{Asked, Planned, StartedPlan, plan, running::RunningPlans, subtitles},
-            plugins::Registry,
+            plugins::ExtensionPoints,
             probing::Probing,
             server_settings::{ServerUrl, Settings},
         };
@@ -2937,7 +2937,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             Arc::clone(&ffmpeg),
             contents,
             probing.clone(),
-            EventBus::new(db, Registry::new(), ServerUrl::default()),
+            EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
         );
 
         let asked = Asked {

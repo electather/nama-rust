@@ -21,14 +21,14 @@ use tracing::{error, warn};
 use super::{Error, Requests, as_handed_off, load, load_one, lock};
 use crate::{
     db::{BoxFuture, Database, detached},
-    plugins::{Answer, Registry},
+    plugins::{Answer, ExtensionPoints},
 };
 
 /// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled.
 #[derive(Debug, Clone)]
 pub(super) struct HandOff {
     db: Arc<Database>,
-    plugins: Registry,
+    plugins: ExtensionPoints,
     /// The ids of the Requests being handed to a Fulfiller now, each with whether another hand-off
     /// skipped it meanwhile.
     handing: Arc<Mutex<HashMap<i64, bool>>>,
@@ -41,7 +41,7 @@ impl HandOff {
     /// becomes Processing.
     pub(super) fn new(
         db: Arc<Database>,
-        plugins: Registry,
+        plugins: ExtensionPoints,
         became_processing: Arc<Notify>,
     ) -> Self {
         Self {
