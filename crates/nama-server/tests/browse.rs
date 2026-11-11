@@ -1160,8 +1160,6 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
             "Its length is known",
             "This Device decodes its container and Tracks",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
-            "No hardware acceleration passed its test when this Server started, so a Transcode \
-             runs in software",
             "Nothing has failed to play it on this Device",
             "This Server isn't running as many Transcodes as it may at once",
             "It plays the file's own audio Track",
@@ -1398,8 +1396,6 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
              only be Direct Played",
             "Its Tracks aren't known, so this Device is taken to decode them",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
-            "No hardware acceleration passed its test when this Server started, so a Transcode \
-             runs in software",
             "Nothing has failed to play it on this Device",
             "This Server isn't running as many Transcodes as it may at once",
             "It plays the file's own audio Track",
@@ -1905,9 +1901,9 @@ async fn behind_a_trusted_proxy_the_forwarded_client_address_decides_whether_pla
         .await
         .unwrap();
 
-    assert_eq!(remote.reasons[8], REMOTE_720P);
+    assert_eq!(remote.reasons[7], REMOTE_720P);
     assert_eq!(remote.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
-    assert_eq!(local.reasons[8], LOCAL);
+    assert_eq!(local.reasons[7], LOCAL);
     assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1926,7 +1922,7 @@ async fn behind_an_untrusted_proxy_the_peers_address_decides_whether_playback_is
         .await
         .unwrap();
 
-    assert_eq!(plan.reasons[8], LOCAL);
+    assert_eq!(plan.reasons[7], LOCAL);
     assert_eq!(plan.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -2037,7 +2033,7 @@ async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_an
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED);
     assert_eq!(plan.url, "");
-    assert_eq!(plan.reasons[5], "Direct Play failed on this Device");
+    assert_eq!(plan.reasons[4], "Direct Play failed on this Device");
 }
 
 /// The pure tests in `src/playback.rs` cover what these choices do; this checks they reach it.
@@ -2054,9 +2050,9 @@ async fn a_picked_playback_limit_and_a_failed_transcode_reach_the_plan() {
         .await
         .unwrap();
 
-    assert_eq!(plan.reasons[5], "Transcode failed on this Device");
+    assert_eq!(plan.reasons[4], "Transcode failed on this Device");
     assert_eq!(
-        plan.reasons[9],
+        plan.reasons[8],
         "Its picture size isn't known, so it's taken to fit the 480p Playback Limit"
     );
 }

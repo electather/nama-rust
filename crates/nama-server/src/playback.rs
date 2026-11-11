@@ -412,15 +412,17 @@ fn candidate_tone_mapper(candidates: Option<&Candidates>) -> Option<ToneMapper> 
 }
 
 // The steps run in ADR 0027's order, split by ADR 0031. A new input is a new step in one of these.
+// The Server's encoders aren't one: they rule nothing out, so `build` gives their reason between
+// the lasting and the now steps, and only while a Transcode is allowed (see `LASTING_STEPS`).
 
 /// The steps for what the Version, Device and Server allow that lasts, so what they allow is what
-/// the User's choices can ever have.
-const LASTING_STEPS: [Step; 5] = [
+/// the User's choices can ever have. [`server_encoders`] speaks right after them, and only while
+/// they allow a Transcode, since saying where one runs would contradict a step that ruled it out.
+const LASTING_STEPS: [Step; 4] = [
     version_tracks,
     version_length,
     device_decoding,
     server_ffmpeg,
-    server_encoders,
 ];
 
 /// The steps for what rules a method out only for now.
@@ -448,6 +450,9 @@ fn build(facts: &mut Facts) -> Plan {
         BTreeSet::from(Method::ALL),
         &mut reasons,
     );
+    if lasting.contains(&Method::Transcode) {
+        reasons.push(server_encoders(facts, candidates));
+    }
     let mut allowed = narrowed(facts, candidates, &NOW_STEPS, lasting.clone(), &mut reasons);
     for (choice, step) in CHOICE_STEPS {
         let Narrowing { allows, reason } = step(facts, candidates);
@@ -701,12 +706,12 @@ fn tone_mapper(facts: &Facts) -> Option<ToneMapper> {
     }
 }
 
-/// The step for the Server's encoders: what a Transcode decodes, scales, tone-maps and encodes on,
-/// which the admin chooses. It rules nothing out.
+/// The reason for the Server's encoders: what a Transcode decodes, scales, tone-maps and encodes
+/// on, which the admin chooses. It rules nothing out, so it isn't a [`Step`].
 // ponytail: Dolby Vision profile 5 stays out of reach: none of these APIs' ffmpeg filters reshape
 // its colours, which only libplacebo does.
-fn server_encoders(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
-    let reason = match transcodes_on(facts) {
+fn server_encoders(facts: &Facts, candidates: Option<&Candidates>) -> String {
+    match transcodes_on(facts) {
         Err(why) => format!("{why}, so a Transcode runs in software"),
         Ok(Hardware { accel, .. }) => {
             let on = format!("A Transcode runs on the GPU with {}", accel.name());
@@ -721,10 +726,6 @@ fn server_encoders(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing 
                 _ => on,
             }
         }
-    };
-    Narrowing {
-        allows: BTreeSet::from(Method::ALL),
-        reason,
     }
 }
 
@@ -1726,8 +1727,6 @@ mod tests {
                  can only be Direct Played",
                 "Its Tracks aren't known, so this Device is taken to decode them",
                 "This Server has ffmpeg",
-                "No hardware acceleration passed its test when this Server started, so a \
-                 Transcode runs in software",
                 "Nothing has failed to play it on this Device",
                 "This Server isn't running as many Transcodes as it may at once",
                 "It plays the file's own audio Track",
@@ -1980,6 +1979,43 @@ mod tests {
         );
         assert_eq!(build(&mut remux).method(), Some(Method::Remux));
         assert_eq!(build(&mut direct_play).method(), Some(Method::DirectPlay));
+    }
+
+    #[test]
+    fn once_a_lasting_step_rules_out_a_transcode_its_plan_doesnt_say_where_one_runs() {
+        let tracks = || Some(vec![video("h264"), audio("aac", true)]);
+        let mut no_hls = in_container(MKV, tracks());
+        no_hls.device.hls = false;
+        let cases = [
+            (
+                "no ffmpeg",
+                Facts {
+                    ffmpeg: false,
+                    ..in_container(MKV, tracks())
+                },
+            ),
+            (
+                "no libx264",
+                Facts {
+                    libx264: false,
+                    ..in_container(MKV, tracks())
+                },
+            ),
+            ("unprobed Version", facts(None)),
+            ("no HLS", no_hls),
+        ];
+        for (case, mut facts) in cases {
+            let plan = build(&mut facts);
+
+            assert!(
+                !plan
+                    .reasons
+                    .iter()
+                    .any(|reason| { reason.contains("Transcode runs") }),
+                "{case}: {:?}",
+                plan.reasons
+            );
+        }
     }
 
     fn rules_out_direct_play(_: &Facts, _: Option<&Candidates>) -> Narrowing {
@@ -2387,7 +2423,8 @@ mod tests {
             let plan = build(&mut facts);
 
             assert_eq!(plan.method(), Some(Method::DirectPlay), "{reason}");
-            assert_eq!(plan.reasons[9], reason);
+            // The reasons end with the four choice steps', so the Playback Limit's is second last.
+            assert_eq!(plan.reasons[plan.reasons.len() - 2], reason, "{reason}");
         }
     }
 
@@ -2865,18 +2902,20 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
     fn a_choice_only_a_transcode_honours_is_dropped_when_it_cant_transcode_and_the_plan_says_why() {
         const LIMIT_DROPPED: &str = "The 720p Playback Limit needs a Transcode, which can't play it here, so it's \
              dropped for Original";
+        // How far from the end of the reasons each choice's step gives its own, since the steps
+        // before them give more or fewer reasons depending on what ruled a Transcode out.
         let choices: [(&str, Change, usize, &str); 3] = [
-            ("720p", picking_720p, 9, LIMIT_DROPPED),
-            ("the remote default", remote_at_720p, 9, LIMIT_DROPPED),
+            ("720p", picking_720p, 2, LIMIT_DROPPED),
+            ("the remote default", remote_at_720p, 2, LIMIT_DROPPED),
             (
                 "PGS",
                 burning_in_pgs,
-                10,
+                1,
                 "The subtitles chosen need a Transcode to burn them in, which can't play it here, \
                  so they're dropped",
             ),
         ];
-        for (chosen, choose, step, reason) in choices {
+        for (chosen, choose, from_end, reason) in choices {
             for (ruled_out, rule_out) in NO_TRANSCODE {
                 let mut facts = direct_played();
                 choose(&mut facts);
@@ -2887,7 +2926,11 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
                 let case = format!("{chosen} with {ruled_out}");
                 assert_eq!(plan.method(), Some(Method::DirectPlay), "{case}");
                 assert_eq!((plan.limit, plan.burn_in), (None, None), "{case}");
-                assert_eq!(plan.reasons[step], reason, "{case}");
+                assert_eq!(
+                    plan.reasons[plan.reasons.len() - from_end],
+                    reason,
+                    "{case}"
+                );
                 assert_eq!(too_busy_to_play(facts), None, "{case}");
             }
         }
@@ -2954,8 +2997,9 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
                 let case = format!("{} with {ruled_out}", chosen.codec);
                 assert_eq!(plan.method(), Some(Method::DirectPlay), "{case}");
                 assert_eq!(plan.audio, Some(1), "{case}");
+                // The chosen audio's step is the first of the four choice steps, which end the reasons.
                 assert_eq!(
-                    plan.reasons[7],
+                    plan.reasons[plan.reasons.len() - 4],
                     "The audio Track chosen needs a Remux or a Transcode, and neither can play it \
                      here, so it's dropped for the file's own",
                     "{case}"

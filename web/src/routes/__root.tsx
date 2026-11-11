@@ -13,7 +13,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Nama" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    // Under `vp test` vitest stubs CSS, so this is `""`. An empty href makes React warn, and a real
+    // one hangs every test: the router marks a stylesheet with `precedence`, and React then waits for
+    // a load that never comes in happy-dom.
+    links: appCss ? [{ rel: "stylesheet", href: appCss }] : [],
   }),
   notFoundComponent: NotFound,
   shellComponent: RootDocument,
