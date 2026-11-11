@@ -232,6 +232,10 @@ _Avoid_: explanation, note
 The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback.
 _Avoid_: quality, bitrate, resolution
 
+**Subtitle Preference**:
+What a User wants subtitles to start as when they play something: none, or a language, either full or forced-only, and SDH or not. A User sets one in Settings for everything; picking a subtitle, or turning subtitles off, while playing a Show or Movie keeps one for that Show or Movie, which wins.
+_Avoid_: default subtitle, remembered subtitle, sticky subtitle, subtitle choice (a pick in one playback)
+
 **GPU**:
 A graphics processor in the Server's machine that a Transcode can run on, either dedicated or integrated into the CPU. An Admin picks one, or leaves the Server to prefer a dedicated one.
 _Avoid_: device (that's a client), card, adapter, render node
