@@ -1794,7 +1794,8 @@ EOF
 )]
 impl Fixture {
     /// Starts a Server with a Shows Library holding Dark's S01E01 and S02E01, each with English and
-    /// German subtitles, scanned and Matched, and gives the Versions of those two Episodes.
+    /// German subtitles and a German dub, scanned and Matched, and gives the Versions of those two
+    /// Episodes.
     async fn subtitled_dark(bin: &Path) -> (Self, [i64; 2]) {
         let ffmpeg = ffprobe_reading_english_and_german_tracks(bin);
         let mut fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_SHOWS, ffmpeg).await;

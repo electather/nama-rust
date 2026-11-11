@@ -166,7 +166,7 @@ impl PlaybackService for PlaybackServiceHandler {
             return Response::ok(ReportTrackPickResponse::default());
         };
         let version = request.version_id;
-        let kept = match pick {
+        let stored = match pick {
             Pick::Subtitle(None) => {
                 (self.preferences)
                     .keep_subtitle(user, kept_for, SubtitlePreference::Off)
@@ -183,7 +183,7 @@ impl PlaybackService for PlaybackServiceHandler {
                 self.preferences.keep_audio(user, kept_for, picked).await
             }
         };
-        kept.map_err(database_failed)?;
+        stored.map_err(database_failed)?;
         Response::ok(ReportTrackPickResponse::default())
     }
 }
