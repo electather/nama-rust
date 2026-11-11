@@ -522,8 +522,13 @@ impl Scanner {
     /// Scans the Library `id` now, after any scan of it that's running, and returns what
     /// changed.
     pub(crate) async fn scan(&self, id: i64) -> Result<Summary, Error> {
-        let scan = self.inner.locks.lock(id).await;
+        let scan = self.lock(id).await;
         self.scan_locked(&scan).await
+    }
+
+    /// Takes the scan lock a scan of the Library `id` takes, to hold it as a scan would.
+    pub(crate) async fn lock(&self, id: i64) -> ScanLock {
+        self.inner.locks.lock(id).await
     }
 
     /// Waits until no background scan is running or waiting.

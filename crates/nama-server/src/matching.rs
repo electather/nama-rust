@@ -1448,7 +1448,7 @@ mod tests {
         movies.write(alien);
         media.scan(movies).await;
         let item = media.item(movies, alien).await;
-        let scan = media.matcher.locks.lock(movies.id).await;
+        let scan = media.scanner.lock(movies.id).await;
 
         let matcher = media.matcher.clone();
         let mut clearing = tokio::spawn(async move { matcher.clear_match(item).await });
