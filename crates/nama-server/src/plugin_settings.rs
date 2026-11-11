@@ -227,7 +227,7 @@ impl PluginSettings {
     }
 
     /// Stops saving the Plugins disabled for crashing, once those that crashed before it are
-    /// saved. One that crashes after it runs again after a restart.
+    /// saved. One that crashes after those are saved may run again after a restart.
     pub async fn shutdown(&self) {
         let Some(saving_crashed) = lock_ignoring_poison(&self.saving_crashed).take() else {
             return;
@@ -246,15 +246,15 @@ impl PluginSettings {
     async fn save_crashed(self, mut crashed: mpsc::UnboundedReceiver<PluginId>) {
         loop {
             tokio::select! {
+                // Stopping first, so a stop always saves the queue through the one drain below.
+                biased;
+                () = self.stop_saving_crashed.cancelled() => break,
                 id = crashed.recv() => match id {
                     Some(id) => self.save_crashed_plugin(&id).await,
                     None => return,
                 },
-                () = self.stop_saving_crashed.cancelled() => break,
             }
         }
-        // `recv` can lose the race above with ids still queued (tokio's coop budget, too);
-        // `try_recv` takes every one left.
         while let Ok(id) = crashed.try_recv() {
             self.save_crashed_plugin(&id).await;
         }
