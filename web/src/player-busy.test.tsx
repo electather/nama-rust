@@ -42,7 +42,7 @@ test("a Server too busy to Transcode the Version says so in plain words instead 
   expect(await screen.findByText("This Version can’t play here")).toBeDefined();
   expect(
     screen.getByText(
-      "The Server is busy: only a Transcode plays this here, and it’s already running as many as it’s set to run at once (1). Try again once one ends.",
+      "The Server is running as many Transcodes as it may at once (1), so it can’t Transcode this until one ends.",
     ),
   ).toBeDefined();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();

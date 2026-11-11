@@ -140,14 +140,18 @@ export function versionLine({ tracks }: Version) {
 export function trackLine(track: Track) {
   const { codec, language, title, kind } = track;
   return metadataLine(
-    codecNames.get(codec) ?? codec.toUpperCase(),
+    codecName(codec),
     kind.case === "video" ? pictureOf(kind.value) : soundOf([track]),
     language === undefined ? undefined : languageName(language),
     title,
   );
 }
 
-/** Codecs by the names people know them by, keyed by ffprobe's name; any other is in capitals. */
+/** A codec, as ffprobe names it, by the name people know it by, or else in capitals. */
+export function codecName(codec: string) {
+  return codecNames.get(codec) ?? codec.toUpperCase();
+}
+
 const codecNames = new Map([
   ["h264", "H.264"],
   ["ac3", "Dolby Digital"],
@@ -208,7 +212,12 @@ export function soundOf(tracks: Track[]) {
   );
   const [first] = audio;
   const chosen = audio.find(({ isDefault }) => isDefault) ?? first;
-  return chosen && (soundNames.get(chosen.channels) ?? `${chosen.channels} channels`);
+  return chosen && channelsName(chosen.channels);
+}
+
+/** How many `channels` sound has, by its usual name, such as "Stereo" or "5.1". */
+export function channelsName(channels: number) {
+  return soundNames.get(channels) ?? `${channels} channels`;
 }
 
 /** The Version to play when nobody chose one: the largest file. */

@@ -1,6 +1,6 @@
-import { belowOriginal } from "@/components/playback-limit-menu";
 import type { PlaybackLimit, PlaybackPlan } from "@/gen/nama/v1/playback_pb";
 import type { Choice } from "@/lib/playback-plan";
+import { belowOriginal } from "@/lib/playback-wording";
 
 /** Says when `plan` dropped the choice the User `justChose`, which it couldn't honour (ADR 0031). */
 export function DroppedChoice({ justChose, plan }: { justChose: Choice; plan: PlaybackPlan }) {
