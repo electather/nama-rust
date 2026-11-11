@@ -276,8 +276,8 @@ pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
 }
 
 impl Requests {
-    /// The Requests in `db`, looking titles up in and handing Approved ones to the Providers in
-    /// `plugins`, publishing on `events`.
+    /// The Requests in `db`, looking titles up through the metadata Provider and handing Approved
+    /// ones to the Fulfillers in `plugins`, publishing on `events`.
     pub(crate) fn new(db: Arc<Database>, events: EventBus, plugins: Registry) -> Self {
         Self {
             contents: Contents::new(Arc::clone(&db)),

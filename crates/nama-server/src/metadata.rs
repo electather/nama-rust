@@ -19,7 +19,7 @@ use crate::{contents::Metadata, plugins::Registry};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub(crate) enum Error {
     /// It has no such title, Season or image, or can't look titles up by the id asked for.
-    #[error("the metadata source has no such title")]
+    #[error("the metadata Provider has no such title, Season or image")]
     NotFound,
     /// No metadata Provider is enabled, or it failed. Worth asking again later.
     #[error("no metadata Provider could answer")]
