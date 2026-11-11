@@ -506,6 +506,7 @@ pub(crate) struct RemuxAudio {
 pub(crate) struct Transcode {
     /// The audio Track it plays, or `None` when the Version has none.
     pub(crate) audio: Option<TranscodeAudio>,
+    /// How it converts the first video.
     pub(crate) video: VideoConversion,
 }
 
@@ -528,7 +529,7 @@ pub(crate) struct FromCut<'a> {
 }
 
 /// One run of ffmpeg writing a Remux's or Transcode's files, built but not started. Only this
-/// module builds one, so only it starts ffmpeg.
+/// module builds one, so ffmpeg only ever runs with arguments built here.
 pub(crate) struct HlsRun(tokio::process::Command);
 
 impl HlsRun {
@@ -1621,20 +1622,15 @@ mod hls_run_tests {
     }
 
     #[test]
-    fn a_remux_copies_the_video_and_converts_its_audio_from_its_keyframe_on() {
+    fn a_remux_copies_the_video_and_converts_the_audio_from_its_keyframe_on() {
         let remux = Remux {
             audio: Some(RemuxAudio {
                 track: 1,
                 aac_channels: Some(2),
             }),
         };
-        let from = Keyframe {
-            n: 3,
-            ms: 6000,
-            previous_ms: Some(4000),
-        };
 
-        let run = ffmpeg("7.1.1").remux("alien.mkv", &remux, Path::new("plan"), from);
+        let args = remux_args(remux, keyframe(3, 6000, Some(4000)));
 
         let expected = [
             "-v",
@@ -1682,23 +1678,17 @@ mod hls_run_tests {
             &in_plan("%d.m4s"),
             &in_plan("ffmpeg.m3u8"),
         ];
-        assert_eq!(args(&run.unwrap()), expected);
+        assert_eq!(args, expected);
     }
 
     #[test]
-    fn a_transcode_converts_video_and_audio_cutting_at_each_cut_from_its_own_on() {
+    fn a_transcode_converts_the_video_and_audio_from_its_cut_on() {
         let transcode = Transcode {
             audio: Some(TranscodeAudio {
                 track: 0,
                 aac_channels: 6,
             }),
-            video: VideoConversion {
-                hardware: None,
-                tone_map: None,
-                limit: None,
-                burn_in: None,
-                in_band_headers: false,
-            },
+            video: SOFTWARE,
         };
         let from = FromCut {
             n: 2,
@@ -1706,6 +1696,7 @@ mod hls_run_tests {
         };
 
         let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, Path::new("plan"), from);
+        let args = args(&run.unwrap());
 
         let expected = [
             "-v",
@@ -1757,7 +1748,7 @@ mod hls_run_tests {
             &in_plan("%d.m4s"),
             &in_plan("ffmpeg.m3u8"),
         ];
-        assert_eq!(args(&run.unwrap()), expected);
+        assert_eq!(args, expected);
     }
 
     #[test]
@@ -1851,7 +1842,7 @@ mod hls_run_tests {
     }
 
     #[test]
-    fn audio_converted_to_aac_gets_its_channels_and_copied_audio_none() {
+    fn audio_is_converted_to_aac_with_its_channels_or_else_copied() {
         let audio = |aac_channels| Remux {
             audio: Some(RemuxAudio {
                 track: 0,
