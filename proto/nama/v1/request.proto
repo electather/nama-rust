@@ -185,8 +185,11 @@ enum RequestState {
 // is neither Declined nor Available.
 message Request {
   int64 id = 1;
-  // The Movie asked for, unless it asks for a Season.
-  RequestedMovie movie = 2;
+  // What it asks for.
+  oneof movie_or_season {
+    RequestedMovie movie = 2;
+    RequestedSeason season = 7;
+  }
   RequestState state = 3;
   // Who asked for it, first asker first. There is at least one.
   repeated Requester requesters = 4;
@@ -195,8 +198,6 @@ message Request {
   // Why it was declined, for its Requesters to read. Only a Declined Request has one, and only if
   // the decliner gave one.
   optional string decline_reason = 6;
-  // The Season asked for, unless it asks for a Movie.
-  RequestedSeason season = 7;
   // Why the Fulfiller didn't take it, in the Fulfiller's own words. Only a Failed Request has one.
   optional string failure_reason = 8;
   // The ID of the Followed Show that opened it, while that Followed Show lasts.

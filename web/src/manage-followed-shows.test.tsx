@@ -29,7 +29,10 @@ function followedServer() {
   });
   const season1 = create(RequestSchema, {
     id: 3n,
-    season: { showTmdbId: 70_523n, seasonNumber: 1, showTitle: "Dark" },
+    movieOrSeason: {
+      case: "season",
+      value: { showTmdbId: 70_523n, seasonNumber: 1, showTitle: "Dark" },
+    },
     state: RequestState.PENDING,
     requesters: [{ userId: 2n, name: "Ada" }],
     followedShowId: 7n,

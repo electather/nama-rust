@@ -15,7 +15,9 @@ use nama_plugin_api::{
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
     settings::{Choice, Choices, Settings, SettingsCheck},
 };
-use nama_proto::nama::v1::{Quality, Request};
+use nama_proto::nama::v1::{
+    Quality, Request, RequestedMovie, RequestedSeason, request::MovieOrSeason,
+};
 use nama_server::plugins::Registry;
 
 /// The id of the Plugin providing the fake Fulfiller for Movies.
@@ -187,12 +189,30 @@ impl FakeFulfiller {
     }
 }
 
+/// The Movie `request` asks for, as the Server hands only those to a Movies Fulfiller.
+#[expect(clippy::panic, reason = "a test helper fails its test by panicking")]
+fn asked_movie(request: &Request) -> &RequestedMovie {
+    match &request.movie_or_season {
+        Some(MovieOrSeason::Movie(movie)) => movie,
+        other => panic!("a Movies Fulfiller was handed {other:?}"),
+    }
+}
+
+/// The Season `request` asks for, as the Server hands only those to a Shows Fulfiller.
+#[expect(clippy::panic, reason = "a test helper fails its test by panicking")]
+fn asked_season(request: &Request) -> &RequestedSeason {
+    match &request.movie_or_season {
+        Some(MovieOrSeason::Season(season)) => season,
+        other => panic!("a Shows Fulfiller was handed {other:?}"),
+    }
+}
+
 impl Fulfiller<Movies> for FakeFulfiller {
     fn fulfill<'a>(
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        let tmdb_id = request.movie.tmdb_id;
+        let tmdb_id = asked_movie(request).tmdb_id;
         self.handed
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -235,7 +255,7 @@ impl Fulfiller<Shows> for FakeFulfiller {
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        let season = &request.season;
+        let season = asked_season(request);
         let (show, season_number) = (season.show_tmdb_id, season.season_number);
         let follow = request.followed_show_id.is_some();
         self.handed_seasons
@@ -260,7 +280,7 @@ impl Fulfiller<Shows> for FakeFulfiller {
         self.unfollowed
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .push(request.season.show_tmdb_id);
+            .push(asked_season(request).show_tmdb_id);
         Box::pin(async { Ok(()) })
     }
 

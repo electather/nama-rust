@@ -5,7 +5,7 @@
 
 use nama_pdk::{
     Notification,
-    nama_proto::nama::v1::{Request, RequestState, event::Event},
+    nama_proto::nama::v1::{Request, RequestState, event::Event, request::MovieOrSeason},
 };
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
@@ -340,15 +340,14 @@ fn what_happened(notification: &Notification) -> Option<String> {
 /// What `request` asks for, with the year it came out if known: `Dune (2021)` or
 /// `Dark Season 2 (2019)`.
 fn title(request: &Request) -> String {
-    let (title, date) = match request.movie.as_option() {
-        Some(movie) => (movie.title.clone(), movie.release_date.as_deref()),
-        None => (
-            format!(
-                "{} Season {}",
-                request.season.show_title, request.season.season_number
-            ),
-            request.season.air_date.as_deref(),
+    let (title, date) = match &request.movie_or_season {
+        Some(MovieOrSeason::Movie(movie)) => (movie.title.clone(), movie.release_date.as_deref()),
+        Some(MovieOrSeason::Season(season)) => (
+            format!("{} Season {}", season.show_title, season.season_number),
+            season.air_date.as_deref(),
         ),
+        // The Server sets one on every Request it sends.
+        None => (String::new(), None),
     };
     // Dates are `YYYY-MM-DD`.
     match date.and_then(|date| date.get(..4)) {
@@ -415,7 +414,7 @@ mod tests {
     /// Dune, released in 2021, in `state`, asked for by Sam then Ada.
     fn dune(state: RequestState) -> Request {
         Request {
-            movie: RequestedMovie {
+            movie_or_season: RequestedMovie {
                 title: "Dune".to_owned(),
                 release_date: Some("2021-09-15".to_owned()),
                 ..RequestedMovie::default()
@@ -509,8 +508,7 @@ mod tests {
     #[test]
     fn a_season_is_named_by_its_show_and_number() {
         let request = Request {
-            movie: None.into(),
-            season: RequestedSeason {
+            movie_or_season: RequestedSeason {
                 show_title: "Dark".to_owned(),
                 season_number: 2,
                 air_date: Some("2019-06-21".to_owned()),

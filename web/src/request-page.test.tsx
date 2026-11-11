@@ -13,14 +13,20 @@ afterEach(cleanup);
 /** Heat, Pending, asked for by Sam, the signed-in User. */
 const heat = {
   id: 2n,
-  movie: { tmdbId: 949n, title: "Heat", releaseDate: "1995-12-15" },
+  movieOrSeason: {
+    case: "movie" as const,
+    value: { tmdbId: 949n, title: "Heat", releaseDate: "1995-12-15" },
+  },
   state: RequestState.PENDING,
   requesters: [{ userId: 1n, name: "Sam" }],
 };
 
 const darkSeason1 = {
   id: 3n,
-  season: { showTmdbId: 70_523n, seasonNumber: 1, showTitle: "Dark", airDate: "2017-12-01" },
+  movieOrSeason: {
+    case: "season" as const,
+    value: { showTmdbId: 70_523n, seasonNumber: 1, showTitle: "Dark", airDate: "2017-12-01" },
+  },
   state: RequestState.APPROVED,
   requesters: [{ userId: 1n, name: "Sam" }],
 };

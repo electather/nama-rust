@@ -48,6 +48,7 @@ pub mod __buffa {
             include!("nama.v1.watch_state.__view_oneof.rs");
             include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.plugin.__view_oneof.rs");
+            include!("nama.v1.request.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
             include!("nama.v1.sign_in.__view_oneof.rs");
         }
@@ -59,6 +60,7 @@ pub mod __buffa {
         include!("nama.v1.watch_state.__oneof.rs");
         include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.plugin.__oneof.rs");
+        include!("nama.v1.request.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
         include!("nama.v1.sign_in.__oneof.rs");
     }
