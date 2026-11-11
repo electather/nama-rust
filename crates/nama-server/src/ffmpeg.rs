@@ -30,9 +30,9 @@ const MINIMUM: (u32, u32) = (4, 4);
 /// How long ffprobe may take over one file, such as one on a network share that stopped answering.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// How long ffprobe may take to list a file's keyframes, which reads all of it, such as a 60 GB
-/// file from a slow network share.
-const KEYFRAMES_TIMEOUT: Duration = Duration::from_mins(10);
+/// How long ffprobe may take to read all of a file, as listing its keyframes or finding where its
+/// video ends does, such as a 60 GB file from a slow network share.
+const WHOLE_FILE_TIMEOUT: Duration = Duration::from_mins(10);
 
 /// A keyframe of a Version's video that a Remux starts at.
 #[derive(Clone, Copy, Debug)]
@@ -321,7 +321,7 @@ impl Ffmpeg {
             "-of",
             "csv=p=0",
         ];
-        let output = self.run_ffprobe(&args, path, KEYFRAMES_TIMEOUT).await?;
+        let output = self.run_ffprobe(&args, path, WHOLE_FILE_TIMEOUT).await?;
         Ok(parse_video_end(&String::from_utf8_lossy(&output)))
     }
 
@@ -338,7 +338,7 @@ impl Ffmpeg {
             "-of",
             "csv=p=0",
         ];
-        let output = self.run_ffprobe(&args, path, KEYFRAMES_TIMEOUT).await?;
+        let output = self.run_ffprobe(&args, path, WHOLE_FILE_TIMEOUT).await?;
         Ok(parse_keyframes(&String::from_utf8_lossy(&output)))
     }
 
