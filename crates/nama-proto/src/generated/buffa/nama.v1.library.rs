@@ -2147,6 +2147,15 @@ pub struct PreviewDeleteMediaResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub episodes_taken_along: ::buffa::alloc::vec::Vec<EpisodeTakenAlong>,
+    /// How many Playback Plans play the Versions now: how many people deleting them stops watching.
+    ///
+    /// Field 4: `playing`
+    #[serde(
+        rename = "playing",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub playing: u32,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2157,6 +2166,7 @@ impl ::core::fmt::Debug for PreviewDeleteMediaResponse {
             .field("files", &self.files)
             .field("bytes_freed", &self.bytes_freed)
             .field("episodes_taken_along", &self.episodes_taken_along)
+            .field("playing", &self.playing)
             .finish()
     }
 }
@@ -2206,6 +2216,9 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.playing != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.playing) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2234,6 +2247,9 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.playing != 0u32 {
+            ::buffa::types::put_uint32_field(4u32, self.playing, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2279,6 +2295,13 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.episodes_taken_along.push(elem);
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.playing = ::buffa::types::decode_uint32(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2290,6 +2313,7 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
         self.files.clear();
         self.bytes_freed = 0u64;
         self.episodes_taken_along.clear();
+        self.playing = 0u32;
         self.__buffa_unknown_fields.clear();
     }
 }

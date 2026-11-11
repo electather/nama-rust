@@ -103,13 +103,6 @@ pub fn serve(
     let ffmpeg = Arc::new(ffmpeg);
     let subtitles = subtitles::Cache::new(&config.data_dir);
     let probing = Probing::new(Arc::clone(&db), Arc::clone(&ffmpeg), subtitles.clone());
-    let scanner = Scanner::new(
-        Arc::clone(&db),
-        points.clone(),
-        events.clone(),
-        Some(probing.clone()),
-    );
-    let requests = Requests::new(Arc::clone(&db), events.clone(), points);
     let running = RunningPlans::new(
         settings.playback(),
         Arc::clone(&ffmpeg),
@@ -117,6 +110,14 @@ pub fn serve(
         probing.clone(),
         events.clone(),
     );
+    let scanner = Scanner::new(
+        Arc::clone(&db),
+        points.clone(),
+        events.clone(),
+        Some(probing.clone()),
+        Some(running.clone()),
+    );
+    let requests = Requests::new(Arc::clone(&db), events.clone(), points);
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
     let load_settings = load_settings(settings.clone());
     let app = api::router(

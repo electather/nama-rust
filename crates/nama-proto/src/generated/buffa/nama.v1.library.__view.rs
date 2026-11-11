@@ -3922,6 +3922,10 @@ pub struct PreviewDeleteMediaResponseView<'a> {
         'a,
         super::super::__buffa::view::EpisodeTakenAlongView<'a>,
     >,
+    /// How many Playback Plans play the Versions now: how many people deleting them stops watching.
+    ///
+    /// Field 4: `playing`
+    pub playing: u32,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
@@ -3960,6 +3964,13 @@ impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.bytes_freed = ::buffa::types::decode_uint64(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.playing = ::buffa::types::decode_uint32(&mut cur)?;
             }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -4038,6 +4049,7 @@ impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            playing: self.playing,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4068,6 +4080,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PreviewDeleteMediaResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.playing != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.playing) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4097,6 +4112,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PreviewDeleteMediaResponseView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.playing != 0u32 {
+            ::buffa::types::put_uint32_field(4u32, self.playing, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4131,6 +4149,13 @@ impl<'__a> ::serde::Serialize for PreviewDeleteMediaResponseView<'__a> {
         }
         if !self.episodes_taken_along.is_empty() {
             __map.serialize_entry("episodesTakenAlong", &*self.episodes_taken_along)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.playing) {
+            __map
+                .serialize_entry(
+                    "playing",
+                    &::buffa::json_helpers::ProtoJson(&self.playing),
+                )?;
         }
         __map.end()
     }
@@ -4255,6 +4280,13 @@ impl PreviewDeleteMediaResponseOwnedView {
         super::super::__buffa::view::EpisodeTakenAlongView<'_>,
     > {
         &self.0.reborrow().episodes_taken_along
+    }
+    /// How many Playback Plans play the Versions now: how many people deleting them stops watching.
+    ///
+    /// Field 4: `playing`
+    #[must_use]
+    pub fn playing(&self) -> u32 {
+        self.0.reborrow().playing
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PreviewDeleteMediaResponseView<'static>>>

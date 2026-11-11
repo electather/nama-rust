@@ -26,10 +26,14 @@
 //! its file at `/media/versions/<id>`, which marks every Direct Play of that Version on the Device
 //! asked for. [`sweep_leftovers`] deletes the folders of plans a run left behind when the next
 //! starts.
+//!
+//! Deleting a Version ends its plans first and cuts off each response serving its file
+//! ([`RunningPlans::end_for_deleting`]): a file open for reading can still be read once it's
+//! deleted.
 
 use std::{
     collections::HashMap,
-    fmt::Write as _,
+    fmt::{self, Write as _},
     io,
     ops::Range,
     path::{Path, PathBuf},
@@ -143,6 +147,33 @@ struct Inner {
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
     cancel: CancellationToken,
+    /// By Version, cancelled while it's deleted, which cuts off each response serving its file.
+    // ponytail: one kept per Version served since the Server started; drop each once nothing
+    // serves it if that ever adds up.
+    served: Mutex<HashMap<i64, CancellationToken>>,
+}
+
+impl fmt::Debug for RunningPlans {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RunningPlans").finish_non_exhaustive()
+    }
+}
+
+/// Versions being deleted, each of whose files is cut off as soon as it's served until this is
+/// dropped, once they're gone from disk and the Library.
+#[must_use = "the Versions are served again once it's dropped"]
+pub(crate) struct Deleting {
+    plans: RunningPlans,
+    versions: Vec<i64>,
+}
+
+impl Drop for Deleting {
+    fn drop(&mut self) {
+        let mut served = lock(&self.plans.inner.served);
+        for version in &self.versions {
+            served.remove(version);
+        }
+    }
 }
 
 /// One playable plan.
@@ -229,6 +260,7 @@ impl RunningPlans {
             plans: Mutex::default(),
             tasks: TaskTracker::new(),
             cancel: CancellationToken::new(),
+            served: Mutex::default(),
         });
         inner
             .tasks
@@ -253,13 +285,17 @@ impl RunningPlans {
 
     /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
     /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file. `None`
-    /// if there is no such Version, or `plan` can't be played.
+    /// if there is no such Version, it's being deleted, or `plan` can't be played.
     pub(crate) async fn start(
         &self,
         caller: &Caller,
         plan: super::Plan,
     ) -> Result<Option<StartedPlan>, StartError> {
-        let Some(playing) = plan.playing.clone() else {
+        let Some(playing) = plan
+            .playing
+            .clone()
+            .filter(|_| !self.deleting(plan.version))
+        else {
             return Ok(None);
         };
         let playback = playback(caller, &plan);
@@ -461,6 +497,48 @@ impl RunningPlans {
         if let Some(plan) = plan {
             self.stop(id, &plan).await;
         }
+    }
+
+    /// How many plans play one of `versions`.
+    pub(crate) fn playing(&self, versions: &[i64]) -> usize {
+        (lock(&self.inner.plans).values())
+            .filter(|plan| versions.contains(&plan.playback.version_id))
+            .count()
+    }
+
+    /// Stops every plan playing one of `versions`, whose files are about to be deleted, and cuts
+    /// off each response serving one of them, until the [`Deleting`] it returns is dropped.
+    // ponytail: a Remux or Transcode already starting as this begins can still start on a file
+    // about to go, and play on until it's unused; check again as it's kept if that ever shows.
+    pub(crate) async fn end_for_deleting(&self, versions: &[i64]) -> Deleting {
+        {
+            let mut served = lock(&self.inner.served);
+            for &version in versions {
+                served.entry(version).or_default().cancel();
+            }
+        }
+        let ending: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
+            .extract_if(|_, plan| versions.contains(&plan.playback.version_id))
+            .collect();
+        for (id, plan) in ending {
+            self.stop(id, &plan).await;
+        }
+        Deleting {
+            plans: self.clone(),
+            versions: versions.to_vec(),
+        }
+    }
+
+    /// Whether the Version `version` is being deleted.
+    fn deleting(&self, version: i64) -> bool {
+        (lock(&self.inner.served).get(&version)).is_some_and(CancellationToken::is_cancelled)
+    }
+
+    /// Cancelled once the Version `version` is being deleted, to cut off a response serving its
+    /// file.
+    pub(crate) fn served(&self, version: i64) -> CancellationToken {
+        let mut served = lock(&self.inner.served);
+        served.entry(version).or_default().child_token()
     }
 
     /// Stops every plan not asked for in the last `unused_for`, and deletes its files.
@@ -2164,5 +2242,55 @@ mod tests {
             assert!(!leftover.exists(), "{}", leftover.display());
         }
         assert!(others.exists());
+    }
+
+    /// A plan Direct Playing the Version `version`.
+    fn direct_play_of(version: i64) -> crate::playback::Plan {
+        crate::playback::Plan {
+            version,
+            playing: Some(crate::playback::Playing::DirectPlay),
+            tracks: vec![],
+            reasons: vec![],
+            subtitles: vec![],
+            limit: None,
+            audio: None,
+            burn_in: None,
+            starting_subtitle: None,
+            offers: crate::playback::Offers::default(),
+        }
+    }
+
+    fn ripley() -> crate::users::Caller {
+        use crate::users::{Caller, Device, Permissions, User};
+
+        Caller {
+            user: User {
+                id: 1,
+                name: "Ripley".to_owned(),
+                permissions: Permissions::NEW_USER,
+                created_at: 0,
+            },
+            device: Device {
+                id: 1,
+                name: "Nostromo".to_owned(),
+                created_at: 0,
+                last_seen_at: 0,
+                authenticated_at: 0,
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn a_version_being_deleted_starts_no_plan_until_it_is_gone() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let deleting = plans.end_for_deleting(&[4]).await;
+
+        let while_deleting = plans.start(&ripley(), direct_play_of(4)).await.unwrap();
+        drop(deleting);
+        let after = plans.start(&ripley(), direct_play_of(4)).await.unwrap();
+
+        assert!(while_deleting.is_none());
+        assert!(after.is_some());
     }
 }

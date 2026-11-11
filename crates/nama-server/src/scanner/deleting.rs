@@ -26,6 +26,15 @@ pub(crate) struct Doomed {
     pub(crate) taken_along: Vec<Episode>,
 }
 
+impl Doomed {
+    pub(crate) fn version_ids(&self) -> Vec<i64> {
+        self.versions
+            .iter()
+            .map(|version| version.file.id)
+            .collect()
+    }
+}
+
 /// A file on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct File {
@@ -42,6 +51,8 @@ pub(crate) struct Deleted {
     pub(crate) failed: Vec<(PathBuf, io::Error)>,
     /// The Versions whose own files went.
     pub(crate) versions: Vec<i64>,
+    /// How many Playback Plans play the Versions, as a preview finds them.
+    pub(crate) playing: usize,
 }
 
 impl Deleted {
