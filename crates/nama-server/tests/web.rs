@@ -49,6 +49,7 @@ async fn the_app_s_stylesheet_is_served() {
 #[tokio::test]
 async fn the_app_s_webassembly_is_served_as_such() {
     let server = TestServer::builder().start().await;
+    // Only a chunk loaded on demand names it, not the shell, so it's found where `vp build` wrote it.
     let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/client/assets");
     let wasm = std::fs::read_dir(assets)
         .unwrap()

@@ -39,7 +39,7 @@ interface Asking {
 }
 
 /**
- * A subtitle the User chose: a text one by the URL the player shows it from, one to burn in by its
+ * A subtitle the User chose: one the Device shows itself by the URL it's fetched from, one to burn in by its
  * place in the Version's Tracks, or `undefined` for none.
  */
 export type SubtitleChoice = string | number | undefined;
@@ -51,7 +51,7 @@ export type SubtitleChoice = string | number | undefined;
  * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't
  * make the player ask forever. `chooseAudio` asks for a new plan from there with the audio Track
  * at a place in the Version's Tracks, and `chooseLimit` with a Playback Limit. `chooseSubtitle`
- * shows a text subtitle, which `shownSubtitle` then holds, or asks for a new plan from there with a
+ * shows a subtitle the Device shows itself, which `shownSubtitle` then holds, or asks for a new plan from there with a
  * subtitle Track burned in. The plan says which of these it honoured, which may drop
  * `justChose` (ADR 0031).
  */
@@ -185,7 +185,7 @@ function choosers(askFromHere: ReturnType<typeof asker>) {
 }
 
 /**
- * The text subtitle shown, by URL, kept here so the `<video>` a new plan plays in shows it too,
+ * The subtitle the Device shows itself, by URL, kept here so the `<video>` a new plan plays in shows it too,
  * and `chooseSubtitle`, which shows one, and will `askFromHere` when what's burned in changes from
  * `subtitleTrack`.
  */

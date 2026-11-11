@@ -105,15 +105,23 @@ function useShownSubtitles(
   return {
     ...useSubtitles(videoRef, shown),
     ...usePgsSubtitle(videoRef, drawn?.url, () => {
-      if (videoRef.current && drawn) chooseSubtitle(videoRef.current, placeIn(tracks, drawn));
+      if (videoRef.current && drawn)
+        chooseSubtitle(videoRef.current, placeIn(tracks, plan.subtitles, drawn));
     }),
   };
 }
 
-/** The place in `tracks` of `subtitle`'s Track, if it's among them. */
-function placeIn(tracks: Track[], { track }: PlaybackSubtitle) {
-  const place = tracks.findIndex((each) => track !== undefined && equals(TrackSchema, each, track));
-  return place === -1 ? undefined : place;
+/**
+ * The place in the Version's `tracks` of `drawn`'s Track, one of the plan's `subtitles`, if it's
+ * among them. Tracks carry no id, and two can look alike, as two untitled English ones do, so it's
+ * matched by its turn among those alike: both lists keep the Version's order, and the plan lists
+ * every Track in a format it draws.
+ */
+function placeIn(tracks: Track[], subtitles: PlaybackSubtitle[], drawn: PlaybackSubtitle) {
+  const alike = (track: Track | undefined) =>
+    track !== undefined && drawn.track !== undefined && equals(TrackSchema, track, drawn.track);
+  const turn = subtitles.filter(({ track }) => alike(track)).indexOf(drawn);
+  return tracks.flatMap((track, place) => (alike(track) ? [place] : []))[turn];
 }
 
 function isImageSubtitle(track: Track | undefined) {

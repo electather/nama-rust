@@ -1,7 +1,9 @@
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService } from "@/gen/nama/v1/browse_pb";
+import type { MessageInitShape } from "@bufbuild/protobuf";
+
+import { BrowseService, type TrackSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
   type PlanPlaybackRequest,
@@ -57,32 +59,40 @@ const PLAYER = "/libraries/1/movies/tmdb-348/play";
 const ENGLISH = "/media/versions/7/subtitles/1";
 const SIGNS = "/media/versions/7/subtitles/2";
 
+const PGS_SIGNS = {
+  codec: "hdmv_pgs_subtitle",
+  language: "eng",
+  title: "Signs",
+  kind: { case: "subtitle", value: { image: true } },
+} as const;
+
 /**
  * A fake Server with Alien in Library 1, whose one Version holds an English SRT and an English PGS
- * titled Signs. A Device that lists PGS gets both among its plan's subtitles; any other gets the
- * PGS one to burn in, and a Transcode when it asks for that. Each plan request goes in `asked`.
+ * titled Signs, then `twins` more PGS Tracks just like it. A Device that lists PGS gets them all
+ * among its plan's subtitles; any other gets the PGS ones to burn in, and a Transcode when it asks
+ * for that. Each plan request goes in `asked`.
  */
-function server(asked: PlanPlaybackRequest[]) {
+function server(asked: PlanPlaybackRequest[], twins = 0) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const tracks = [
+  const tracks: MessageInitShape<typeof TrackSchema>[] = [
     { codec: "h264", kind: { case: "video", value: {} } },
     { codec: "subrip", language: "eng", kind: { case: "subtitle", value: {} } },
-    {
-      codec: "hdmv_pgs_subtitle",
-      language: "eng",
-      title: "Signs",
-      kind: { case: "subtitle", value: { image: true } },
-    },
-  ] as const;
+    ...Array.from({ length: 1 + twins }, () => PGS_SIGNS),
+  ];
   const english = { track: tracks[1], url: ENGLISH, format: SubtitleFormat.WEBVTT };
-  const signs = { track: tracks[2], url: SIGNS, format: SubtitleFormat.PGS };
+  const signs = tracks.slice(2).map((track, turn) => ({
+    track,
+    url: `/media/versions/7/subtitles/${turn + 2}`,
+    format: SubtitleFormat.PGS,
+  }));
+  const burnInTracks = signs.map((_, turn) => turn + 2);
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
       getMovie: () => ({
         movie: {
           id: { id: { case: "tmdb", value: 348n } },
           title: "Alien",
-          versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks: [...tracks] }],
+          versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n, tracks }],
         },
       }),
     });
@@ -96,20 +106,24 @@ function server(asked: PlanPlaybackRequest[]) {
             ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
             : { method: PlaybackMethod.TRANSCODE, url: "/media/plans/1/index.m3u8" };
         return draws
-          ? { plan: { ...plan, subtitles: [english, signs] } }
-          : { plan: { ...plan, subtitles: [english], burnInTracks: [2], subtitleTrack } };
+          ? { plan: { ...plan, subtitles: [english, ...signs] } }
+          : { plan: { ...plan, subtitles: [english], burnInTracks, subtitleTrack } };
       },
     });
   });
 }
 
-/** Opens the player, its subtitles fetched as `fetched` answers, as `asked` records its plans. */
+/**
+ * Opens the player on [`server`] with `twins`, its subtitles fetched as `fetched` answers, as
+ * `asked` records its plans.
+ */
 async function playing(
   asked: PlanPlaybackRequest[],
   fetched = () => Promise.resolve(new Response("PGS")),
+  twins = 0,
 ) {
   vi.spyOn(globalThis, "fetch").mockImplementation(fetched);
-  openApp(PLAYER, server(asked));
+  openApp(PLAYER, server(asked, twins));
   const video = await screen.findByLabelText<HTMLVideoElement>("Alien");
   Object.defineProperty(video, "readyState", { value: HTMLMediaElement.HAVE_METADATA });
   return video;
@@ -200,19 +214,25 @@ test("a PGS Track that can't be fetched says so, as a text one does", async () =
 test("a renderer that won't start has the Track burned in by a plan that doesn't list PGS", async () => {
   const asked: PlanPlaybackRequest[] = [];
   bitsub.failsToStart = true;
-  const directPlay = await playing(asked);
+  // Two PGS Tracks alike, so the second must be told from the first by its turn.
+  const directPlay = await playing(asked, undefined, 1);
 
-  choose(/Signs/u);
+  fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
+  for (const second of screen.getAllByRole("menuitemradio", { name: /Signs/u }).slice(1)) {
+    fireEvent.click(second);
+  }
 
   await waitFor(() => {
     expect(asked).toHaveLength(2);
   });
-  expect(asked.map((request) => request.subtitleTrack)).toEqual([undefined, 2]);
+  expect(asked.map((request) => request.subtitleTrack)).toEqual([undefined, 3]);
   expect(asked[1]?.deviceDecoding?.subtitleFormats).toEqual([]);
   await waitFor(() => {
     expect(screen.getByLabelText("Alien")).not.toBe(directPlay);
   });
   fireEvent.click(screen.getByRole("button", { name: "Subtitles" }));
-  const signs = screen.getByRole("menuitemradio", { name: /Signs/u });
-  expect(signs.getAttribute("aria-checked")).toBe("true");
+  const checked = screen
+    .getAllByRole("menuitemradio")
+    .map((item) => item.getAttribute("aria-checked"));
+  expect(checked).toEqual(["false", "false", "false", "true"]);
 });
