@@ -16,9 +16,10 @@ use tokio::time::Instant;
 use tracing::{error, warn};
 
 use crate::{
+    codes,
     db::{Database, now},
     plugins::Registry,
-    users::{self, Permissions, User},
+    users::{Permissions, User},
 };
 
 /// How long a link waits for its User to finish with it.
@@ -105,7 +106,7 @@ impl Connections {
     /// the link they open to finish. Polls the Plugin in the background until they do, or for
     /// [`LIFETIME`].
     pub(crate) async fn start(&self, user: i64, plugin: &PluginId) -> Result<String, StartError> {
-        let code = users::random_secret()?;
+        let code = codes::random_secret()?;
         let started = self
             .plugins
             .call_provider_of_blanking_secrets::<dyn Connector, _, _>(plugin, |connector| {
@@ -318,7 +319,7 @@ mod tests {
 
     use nama_plugin_api::{
         BoxFuture, Manifest, Plugin, PluginError, PointKey, Priority, Registrar,
-        connector::ConnectionStarted, settings::SettingsSchema,
+        connector::ConnectionStarted,
     };
 
     use super::*;
@@ -329,13 +330,9 @@ mod tests {
     impl Plugin for NeverConnected {
         fn manifest(&self) -> Manifest {
             Manifest {
-                id: PluginId::from_static("chat"),
-                name: String::new(),
-                description: String::new(),
                 version: "1.0.0".to_owned(),
-                settings: SettingsSchema::default(),
                 extension_points: vec![PointKey::provide::<dyn Connector>()],
-                logo_svg: None,
+                ..Manifest::new(PluginId::from_static("chat"))
             }
         }
 

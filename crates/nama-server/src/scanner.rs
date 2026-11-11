@@ -44,9 +44,9 @@ use walkdir::{DirEntry, WalkDir};
 
 use crate::{
     contents::{Change, Contents, Stored},
-    db::Database,
+    db::{Database, detached},
     events::{EventBus, event},
-    libraries::{self, Kind, Libraries},
+    libraries::{self, Kind, Libraries, Library},
     matching::{self, ManualError, Matcher, count},
     plugins::Registry,
     probing::Probing,
@@ -102,7 +102,8 @@ impl From<matching::Error> for Error {
     }
 }
 
-/// Scans Libraries, one scan per Library at a time, either now or in the background.
+/// Scans Libraries, one scan per Library at a time, either now or in the background, and makes
+/// every change to a Library along with what must follow it.
 #[derive(Debug, Clone)]
 pub(crate) struct Scanner {
     inner: Arc<Inner>,
@@ -114,7 +115,7 @@ struct Inner {
     libraries: Libraries,
     matcher: Matcher,
     events: EventBus,
-    /// Told when a scan finishes, unless nothing probes.
+    /// Told when a scan finishes and asked to clean subtitles, unless nothing probes.
     probing: Option<Probing>,
     /// Background scans, so shutting down can wait for them.
     tasks: TaskTracker,
@@ -146,7 +147,8 @@ impl ScanLock {
 }
 
 impl Scanner {
-    /// Tells `probing` each Library whose scan finished, or nothing where nothing probes.
+    /// Tells `probing` each Library whose scan finished and has it clean subtitles, or does
+    /// neither where nothing probes.
     pub(crate) fn new(
         db: Arc<Database>,
         plugins: Registry,
@@ -185,6 +187,55 @@ impl Scanner {
             Ok(libraries) => libraries.iter().for_each(|library| self.queue(library.id)),
             Err(err) => tracing::error!("could not list the Libraries to scan: {err}"),
         }
+    }
+
+    /// Creates a Library and watches its folders. The watch follows even if the caller stops
+    /// waiting (ADR 0029); scanning the new Library is left to the caller.
+    pub(crate) async fn create_library(
+        &self,
+        name: String,
+        kind: Kind,
+        folders: Vec<String>,
+    ) -> Result<Library, libraries::Error> {
+        let scanner = self.clone();
+        detached(async move {
+            let library = scanner.inner.libraries.create(&name, kind, folders).await?;
+            scanner.rewatch().await;
+            Ok(library)
+        })
+        .await
+    }
+
+    /// Renames the Library `id` and replaces its folders, then watches its new folders and not its
+    /// old ones, even if the caller stops waiting (ADR 0029).
+    pub(crate) async fn update_library(
+        &self,
+        id: i64,
+        name: String,
+        folders: Vec<String>,
+    ) -> Result<Library, libraries::Error> {
+        let scanner = self.clone();
+        detached(async move {
+            let library = scanner.inner.libraries.update(id, &name, folders).await?;
+            scanner.rewatch().await;
+            Ok(library)
+        })
+        .await
+    }
+
+    /// Deletes the Library `id`, then throws away its Versions' cached subtitles where something
+    /// probes, and stops watching its folders, even if the caller stops waiting (ADR 0029).
+    pub(crate) async fn delete_library(&self, id: i64) -> Result<(), libraries::Error> {
+        let scanner = self.clone();
+        detached(async move {
+            scanner.inner.libraries.delete(id).await?;
+            if let Some(probing) = &scanner.inner.probing {
+                probing.clean_subtitles().await;
+            }
+            scanner.rewatch().await;
+            Ok(())
+        })
+        .await
     }
 
     /// Cancels the scans running or waiting, waits for them to stop, and starts no more.
@@ -976,7 +1027,6 @@ mod tests {
     async fn watches_follow_libraries_created_updated_and_deleted() {
         let media = Fixture::new(Kind::Movies).await;
         let watched = || media.scanner.watched();
-        let libraries = &media.scanner.inner.libraries;
         let more = tempfile::tempdir().unwrap();
         let (first, second) = (more.path().join("first"), more.path().join("second"));
         fs::create_dir(&first).unwrap();
@@ -985,36 +1035,35 @@ mod tests {
         let second = second.canonicalize().unwrap();
         watch(&media).await;
 
-        let created = libraries
-            .create(
-                "More",
+        let created = media
+            .scanner
+            .create_library(
+                "More".to_owned(),
                 Kind::Shows,
                 vec![first.to_str().unwrap().to_owned()],
             )
             .await
             .unwrap();
-        media.scanner.rewatch().await;
         assert_eq!(
             watched(),
             [(media.root.clone(), media.library), (first, created.id)]
         );
 
-        libraries
-            .update(
+        media
+            .scanner
+            .update_library(
                 created.id,
-                "More",
+                "More".to_owned(),
                 vec![second.to_str().unwrap().to_owned()],
             )
             .await
             .unwrap();
-        media.scanner.rewatch().await;
         assert_eq!(
             watched(),
             [(media.root.clone(), media.library), (second, created.id)]
         );
 
-        libraries.delete(created.id).await.unwrap();
-        media.scanner.rewatch().await;
+        media.scanner.delete_library(created.id).await.unwrap();
         assert_eq!(watched(), [(media.root.clone(), media.library)]);
         media.scanner.shutdown().await;
     }
@@ -1022,18 +1071,16 @@ mod tests {
     #[tokio::test]
     async fn deleting_a_library_inside_another_keeps_the_outer_one_watched() {
         let media = Fixture::new(Kind::Movies).await;
-        let libraries = &media.scanner.inner.libraries;
         fs::create_dir(media.path("inner")).unwrap();
         let inner = media.path("inner").to_str().unwrap().to_owned();
         watch(&media).await;
-        let created = libraries
-            .create("Inner", Kind::Shows, vec![inner])
+        let created = media
+            .scanner
+            .create_library("Inner".to_owned(), Kind::Shows, vec![inner])
             .await
             .unwrap();
-        media.scanner.rewatch().await;
 
-        libraries.delete(created.id).await.unwrap();
-        media.scanner.rewatch().await;
+        media.scanner.delete_library(created.id).await.unwrap();
         media.write("inner/Alien (1979).mkv", 10);
 
         wait_for_files(&media, &["inner/Alien (1979).mkv"]).await;

@@ -24,7 +24,7 @@ use crate::{
     sessions::session_cookie,
     sign_in::{self, Polled, SignIn},
     sign_in_codes::{self, Delivery},
-    users::{Caller, NewDevice, SignedIn, Users},
+    users::{Caller, NewDevice, SignedIn},
 };
 
 use super::{
@@ -34,7 +34,6 @@ use super::{
 
 /// `nama.v1.SignInService`: signing Devices in, and saying who is signed in.
 pub(super) struct SignInServiceHandler {
-    pub(super) users: Users,
     pub(super) sign_in: SignIn,
 }
 
@@ -107,7 +106,10 @@ impl SignInService for SignInServiceHandler {
         _request: ServiceRequest<'_, SignOutRequest>,
     ) -> ServiceResult<SignOutResponse> {
         let device = caller(&ctx)?.device.id;
-        self.users.sign_out(device).await.map_err(database_failed)?;
+        self.sign_in
+            .sign_out(device)
+            .await
+            .map_err(database_failed)?;
         Ok(signed_out(SignOutResponse::default(), &ctx))
     }
 
@@ -132,17 +134,15 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, ReauthenticateRequest>,
     ) -> ServiceResult<ReauthenticateResponse> {
         let caller = caller(&ctx)?;
-        let password = request
+        let proof = request
             .to_owned_message()
             .proof
-            .map(|Proof::Password(password)| password);
+            .map(|Proof::Password(password)| sign_in::Proof::Password {
+                name: caller.user.name.clone(),
+                password,
+            });
         self.sign_in
-            .reauthenticate(
-                caller,
-                password.as_deref(),
-                client_ip(&ctx)?,
-                Instant::now(),
-            )
+            .reauthenticate(caller, proof, client_ip(&ctx)?, Instant::now())
             .await?;
         Response::ok(ReauthenticateResponse::default())
     }

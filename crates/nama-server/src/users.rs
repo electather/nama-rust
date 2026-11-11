@@ -3,9 +3,8 @@
 //! [`Users`] is the only way in. It checks names before anything is written and has the enabled
 //! Authenticator turn passwords into credentials. Nothing secret is stored: see `AGENTS.md`.
 
-use std::{fmt, net::IpAddr, ops::RangeInclusive, sync::Arc};
+use std::{net::IpAddr, ops::RangeInclusive, sync::Arc};
 
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use buffa::Enumeration;
 use nama_plugin_api::{
     PluginError, PluginId,
@@ -17,6 +16,7 @@ use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::{sync::broadcast, task::JoinHandle};
 
 use crate::{
+    codes::random_secret,
     db::{BoxFuture, Database, now},
     plugins::Registry,
 };
@@ -26,16 +26,6 @@ pub(crate) const NAME_LENGTH: RangeInclusive<usize> = 1..=64;
 
 /// What every session token starts with, so a leaked one is easy to recognise.
 const TOKEN_PREFIX: &str = "nama_";
-
-/// How many random bytes a session token carries.
-const TOKEN_BYTES: usize = 32;
-
-/// Crockford's base32 alphabet, which leaves out I, L, O and U so a code read off a log or a screen
-/// can't be mistyped as another.
-const CODE_ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-
-/// How many characters a Setup Code has: 60 random bits.
-const SETUP_CODE_LENGTH: usize = 12;
 
 /// How long, in seconds, a Device may go unused before it expires and its session stops working:
 /// 90 days.
@@ -66,11 +56,6 @@ pub struct Users {
     plugins: Registry,
     sign_outs: broadcast::Sender<i64>,
 }
-
-/// The one-time code a fresh Server prints to its log, which whoever creates the first Admin must
-/// enter. It is shown as `XXXX-XXXX-XXXX` and matched ignoring case, dashes and spaces.
-#[derive(Debug, Clone)]
-pub struct SetupCode(String);
 
 /// The set of Permissions a User holds (ADR 0020).
 // Stored in `users.permissions` as a bitset: bit n is the `Permission` numbered n. Those numbers
@@ -331,7 +316,7 @@ impl Users {
     }
 
     /// Whether the Server has any User yet. Until it has, the first Admin can be created with a
-    /// [`SetupCode`].
+    /// [`SetupCode`](crate::codes::SetupCode).
     ///
     /// # Errors
     ///
@@ -859,63 +844,6 @@ impl Users {
     }
 }
 
-impl SetupCode {
-    /// A new random Setup Code.
-    ///
-    /// # Errors
-    ///
-    /// If the operating system's random number generator fails.
-    pub fn generate() -> Result<Self, getrandom::Error> {
-        random_code(SETUP_CODE_LENGTH).map(Self)
-    }
-
-    /// Whether `entered` is this code, ignoring case, dashes and spaces.
-    pub(crate) fn matches(&self, entered: &str) -> bool {
-        // Comparing hashes, so how long a wrong guess takes says nothing about the code.
-        Sha256::digest(normalized_code(entered)) == Sha256::digest(&self.0)
-    }
-}
-
-impl fmt::Display for SetupCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&code_in_groups(&self.0))
-    }
-}
-
-/// `length` random characters of [`CODE_ALPHABET`], for a code a person reads and types.
-pub(crate) fn random_code(length: usize) -> Result<String, getrandom::Error> {
-    let mut bytes = vec![0; length];
-    getrandom::fill(&mut bytes)?;
-    // 256 is a multiple of 32, so every character is equally likely.
-    Ok(bytes
-        .iter()
-        .filter_map(|byte| CODE_ALPHABET.get(usize::from(byte % 32)))
-        .map(|&c| char::from(c))
-        .collect())
-}
-
-/// A code as a person typed it, in the form [`random_code`] makes: without dashes or spaces, and
-/// in upper case.
-pub(crate) fn normalized_code(entered: &str) -> String {
-    entered
-        .chars()
-        .filter(|c| *c != '-' && !c.is_whitespace())
-        .map(|c| c.to_ascii_uppercase())
-        .collect()
-}
-
-/// A code [`random_code`] made, as it is shown: in groups of four joined by dashes.
-pub(crate) fn code_in_groups(code: &str) -> String {
-    let mut shown = String::with_capacity(code.len() + code.len() / 4);
-    for (i, c) in code.chars().enumerate() {
-        if i > 0 && i % 4 == 0 {
-            shown.push('-');
-        }
-        shown.push(c);
-    }
-    shown
-}
-
 /// Has `authenticator` check `password` against `credential`, which is meant to be slow, where
 /// blocking is fine.
 fn verify_where_blocking_is_fine(
@@ -945,13 +873,6 @@ pub(crate) fn checked_name(
 
 fn new_token() -> Result<String, getrandom::Error> {
     Ok(format!("{TOKEN_PREFIX}{}", random_secret()?))
-}
-
-/// [`TOKEN_BYTES`] random bytes, base64url-encoded: too many to guess.
-pub(crate) fn random_secret() -> Result<String, getrandom::Error> {
-    let mut bytes = [0; TOKEN_BYTES];
-    getrandom::fill(&mut bytes)?;
-    Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
 /// What the database keeps of a session token.
@@ -1909,21 +1830,5 @@ mod tests {
         let password = password_method(&users, ada).await;
         // Refused if it were Ada's last Sign-in Method.
         delete_sign_in_method(&users, password).await.unwrap();
-    }
-
-    #[test]
-    fn a_setup_code_matches_ignoring_case_dashes_and_spaces() {
-        let code = SetupCode("ABCD0123WXYZ".to_owned());
-
-        assert!(code.matches(" abcd-0123 wxyz\n"));
-        assert!(!code.matches("ABCD-0123-WXY"));
-    }
-
-    #[test]
-    fn a_setup_code_is_shown_in_groups_of_four() {
-        assert_eq!(
-            SetupCode("ABCD0123WXYZ".to_owned()).to_string(),
-            "ABCD-0123-WXYZ"
-        );
     }
 }

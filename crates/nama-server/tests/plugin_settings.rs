@@ -58,15 +58,11 @@ impl Plugin for Fake {
             default: None,
         };
         Manifest {
-            id: PluginId::from_static(self.id),
-            name: String::new(),
-            description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema {
                 fields: vec![greeting],
             },
-            extension_points: Vec::new(),
-            logo_svg: None,
+            ..Manifest::new(PluginId::from_static(self.id))
         }
     }
 
@@ -81,13 +77,9 @@ struct BuiltinFulfiller;
 impl Plugin for BuiltinFulfiller {
     fn manifest(&self) -> Manifest {
         Manifest {
-            id: PluginId::from_static("zz-fulfiller"),
-            name: String::new(),
-            description: String::new(),
             version: "0.0.0".to_owned(),
-            settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
-            logo_svg: None,
+            ..Manifest::new(PluginId::from_static("zz-fulfiller"))
         }
     }
 

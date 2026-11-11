@@ -17,6 +17,7 @@ use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason, ex
 use crate::{
     artwork::{self, Artwork},
     browse::Browse,
+    codes::SetupCode,
     config::Config,
     connections::Connections,
     contents::Contents,
@@ -26,6 +27,7 @@ use crate::{
     forwarded::{RequestSource, identify_source},
     libraries::Libraries,
     matching::Matcher,
+    metadata::MetadataSource,
     playback::running::RunningPlans,
     plugin_settings::PluginSettings,
     probing::Probing,
@@ -34,7 +36,7 @@ use crate::{
     server_settings,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie},
     tracks::Tracks,
-    users::{Caller, SetupCode, Users},
+    users::{Caller, Users},
     watch_states::WatchStates,
 };
 
@@ -109,11 +111,11 @@ pub(crate) fn router(
             ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
-            users: users.clone(),
             sign_in: SignIn::new(users.clone(), setup_code),
         }))
         .add_service(Arc::new(MatchServiceHandler {
-            matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
+            matcher: Matcher::new(Arc::clone(&db), plugins.clone(), events.clone()),
+            metadata: MetadataSource::new(plugins),
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
             scanner: scanner.clone(),
@@ -127,7 +129,7 @@ pub(crate) fn router(
             browse,
         }))
         .add_service(Arc::new(PlaybackServiceHandler {
-            probing: probing.clone(),
+            probing,
             running,
             settings: playback,
         }))
@@ -136,7 +138,6 @@ pub(crate) fn router(
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
             scanner,
-            probing,
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,

@@ -6,7 +6,7 @@
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 use nama_plugin_api::{
-    PluginId,
+    Manifest, PluginId,
     auth::Authenticator,
     settings::{Choices, SettingKind, SettingValue, Settings, SettingsError, SettingsSchema},
 };
@@ -282,10 +282,7 @@ impl PluginSettings {
         }
         // Built-in first: the first Plugin enabled for a kind of Fulfiller keeps it.
         known.sort_by_key(|plugin| plugin.kind != PluginKind::PLUGIN_KIND_BUILT_IN);
-        for plugin in known
-            .into_iter()
-            .filter(|plugin| plugin.refused_reason.is_none())
-        {
+        for plugin in known.into_iter().filter(|plugin| plugin.manifest.is_ok()) {
             let id = plugin.id;
             let config = settings
                 .get(id.as_str())
@@ -363,12 +360,7 @@ impl PluginSettings {
     ///
     /// If the stored settings can't be read.
     pub async fn get(&self, id: &PluginId) -> Result<Option<StoredPlugin>, sqlx::Error> {
-        let Some(plugin) = self
-            .registry
-            .plugins()
-            .into_iter()
-            .find(|plugin| plugin.id == *id)
-        else {
+        let Some(plugin) = self.registry.plugin(id) else {
             return Ok(None);
         };
         Ok(Some(with_stored(plugin, &mut self.stored().await?)))
@@ -392,14 +384,14 @@ impl PluginSettings {
         let (this, id) = (self.clone(), id.clone());
         detached(async move {
             let _changing = this.lock().await;
-            let StoredPlugin { plugin, stored } = this.listed(&id).await?;
-            let settings = with_stored_secrets(&plugin.settings_schema, sent, &stored.settings);
+            let (manifest, StoredPlugin { plugin, stored }) = this.listed(&id).await?;
+            let settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
             Settings::new(settings.clone())
-                .resolve(&plugin.settings_schema)
+                .resolve(&manifest.settings)
                 .map_err(ChangeError::InvalidSettings)?;
             // ponytail: checked under `changing`, so a slow outside service holds up other Plugin
             // changes for up to SETTINGS_CHECK_TIMEOUT; check before locking if that bites.
-            this.check_choices(&plugin, &settings).await?;
+            this.check_choices(&manifest, &settings).await?;
             save(&this.db, id.as_str(), stored.enabled, &settings).await?;
             if stored.enabled {
                 this.enable_again(&id, &settings);
@@ -428,8 +420,11 @@ impl PluginSettings {
         let (this, id) = (self.clone(), id.clone());
         detached(async move {
             let _changing = this.lock().await;
-            let settings = this.listed(&id).await?.stored.settings;
-            match this.registry.enable_by_id(&id, Settings::new(settings)) {
+            let (_, StoredPlugin { stored, .. }) = this.listed(&id).await?;
+            match this
+                .registry
+                .enable_by_id(&id, Settings::new(stored.settings))
+            {
                 Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
                 Err(err) => return Err(ChangeError::Enable(err)),
             }
@@ -495,15 +490,15 @@ impl PluginSettings {
         id: &PluginId,
         sent: BTreeMap<String, SettingValue>,
     ) -> Result<Choices, ChangeError> {
-        let StoredPlugin { plugin, stored } = self.listed(id).await?;
-        let settings = with_stored_secrets(&plugin.settings_schema, sent, &stored.settings);
+        let (manifest, StoredPlugin { stored, .. }) = self.listed(id).await?;
+        let settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
         self.run_check(id, settings, None).await
     }
 
     /// Runs the Plugin `id`'s settings check on its stored settings, and returns the choices it
     /// offers.
     async fn check_stored(&self, id: &PluginId) -> Result<Choices, ChangeError> {
-        let StoredPlugin { stored, .. } = self.listed(id).await?;
+        let (_, StoredPlugin { stored, .. }) = self.listed(id).await?;
         self.run_check(id, stored.settings, None).await
     }
 
@@ -553,31 +548,32 @@ impl PluginSettings {
             })
     }
 
-    /// The Plugin `id` with what is stored for it, unless no Plugin has the id or the Server
-    /// refused it.
-    async fn listed(&self, id: &PluginId) -> Result<StoredPlugin, ChangeError> {
+    /// The Plugin `id`'s Manifest, and the Plugin with what is stored for it, unless no Plugin
+    /// has the id or the Server refused it.
+    async fn listed(&self, id: &PluginId) -> Result<(Manifest, StoredPlugin), ChangeError> {
         let found = self
             .get(id)
             .await?
             .ok_or_else(|| ChangeError::Unknown(id.clone()))?;
-        match found.plugin.refused_reason {
-            Some(reason) => Err(ChangeError::Refused {
-                plugin: found.plugin.id,
-                reason,
+        match &found.plugin.manifest {
+            Ok(manifest) => Ok((manifest.clone(), found)),
+            Err(reason) => Err(ChangeError::Refused {
+                plugin: id.clone(),
+                reason: reason.clone(),
             }),
-            None => Ok(found),
         }
     }
 
-    /// Refuses `settings` for `plugin` unless its settings check passes on them and offers each
-    /// choice setting's value. The check runs only when some choice setting has a value.
+    /// Refuses `settings` for the Plugin `manifest` describes unless its settings check passes on
+    /// them and offers each choice setting's value. The check runs only when some choice setting
+    /// has a value.
     async fn check_choices(
         &self,
-        plugin: &Listed,
+        manifest: &Manifest,
         settings: &BTreeMap<String, SettingValue>,
     ) -> Result<(), ChangeError> {
-        let chosen: Vec<_> = plugin
-            .settings_schema
+        let chosen: Vec<_> = manifest
+            .settings
             .fields
             .iter()
             .filter(|field| field.kind == SettingKind::Choice)
@@ -590,7 +586,7 @@ impl PluginSettings {
             return Ok(());
         };
         let offered = self
-            .run_check(&plugin.id, settings.clone(), Some(first))
+            .run_check(&manifest.id, settings.clone(), Some(first))
             .await?;
         for (key, value) in chosen {
             let is_offered = offered
@@ -598,7 +594,7 @@ impl PluginSettings {
                 .is_some_and(|choices| choices.iter().any(|choice| choice.value == *value));
             if !is_offered {
                 return Err(ChangeError::NotOffered {
-                    plugin: plugin.id.clone(),
+                    plugin: manifest.id.clone(),
                     key: key.to_owned(),
                     value: value.clone(),
                 });
