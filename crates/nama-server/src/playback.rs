@@ -412,15 +412,12 @@ fn candidate_tone_mapper(candidates: Option<&Candidates>) -> Option<ToneMapper> 
 }
 
 // The steps run in ADR 0027's order, split by ADR 0031. A new input is a new step in one of these.
+// `server_encoders` runs right after the lasting steps, and only while they allow a Transcode,
+// since saying where a Transcode runs would contradict a step that ruled it out.
 
 /// The steps for what the Version, Device and Server allow that lasts, so what they allow is what
 /// the User's choices can ever have.
-const LASTING_STEPS: [Step; 4] = [
-    version_tracks,
-    device_decoding,
-    server_ffmpeg,
-    server_encoders,
-];
+const LASTING_STEPS: [Step; 3] = [version_tracks, device_decoding, server_ffmpeg];
 
 /// The steps for what rules a method out only for now.
 const NOW_STEPS: [Step; 2] = [failed_on_device, server_busy];
@@ -447,6 +444,9 @@ fn build(facts: &mut Facts) -> Plan {
         BTreeSet::from(Method::ALL),
         &mut reasons,
     );
+    if lasting.contains(&Method::Transcode) {
+        reasons.push(server_encoders(facts, candidates).reason);
+    }
     let mut allowed = narrowed(facts, candidates, &NOW_STEPS, lasting.clone(), &mut reasons);
     for (choice, step) in CHOICE_STEPS {
         let Narrowing { allows, reason } = step(facts, candidates);
@@ -1673,8 +1673,6 @@ mod tests {
                  be Direct Played",
                 "Its Tracks aren't known, so this Device is taken to decode them",
                 "This Server has ffmpeg",
-                "No hardware acceleration passed its test when this Server started, so a \
-                 Transcode runs in software",
                 "Nothing has failed to play it on this Device",
                 "This Server isn't running as many Transcodes as it may at once",
                 "It plays the file's own audio Track",
@@ -1926,6 +1924,42 @@ mod tests {
         );
         assert_eq!(build(&mut remux).method(), Some(Method::Remux));
         assert_eq!(build(&mut direct_play).method(), Some(Method::DirectPlay));
+    }
+
+    #[test]
+    fn once_a_lasting_step_rules_out_a_transcode_its_plan_doesnt_say_where_one_runs() {
+        let tracks = || Some(vec![video("h264"), audio("aac", true)]);
+        let mut no_hls = in_container(MKV, tracks());
+        no_hls.device.hls = false;
+        let cases = [
+            (
+                "no ffmpeg",
+                Facts {
+                    ffmpeg: false,
+                    ..in_container(MKV, tracks())
+                },
+            ),
+            (
+                "no libx264",
+                Facts {
+                    libx264: false,
+                    ..in_container(MKV, tracks())
+                },
+            ),
+            ("unprobed Version", facts(None)),
+            ("no HLS", no_hls),
+        ];
+        for (case, mut facts) in cases {
+            let plan = build(&mut facts);
+
+            assert!(
+                !plan.reasons.iter().any(|reason| {
+                    reason.contains("a Transcode runs") || reason.contains("A Transcode runs")
+                }),
+                "{case}: {:?}",
+                plan.reasons
+            );
+        }
     }
 
     fn rules_out_direct_play(_: &Facts, _: Option<&Candidates>) -> Narrowing {
@@ -2333,7 +2367,7 @@ mod tests {
             let plan = build(&mut facts);
 
             assert_eq!(plan.method(), Some(Method::DirectPlay), "{reason}");
-            assert_eq!(plan.reasons[8], reason);
+            assert!(plan.reasons.iter().any(|said| said == reason), "{reason}");
         }
     }
 
@@ -2811,18 +2845,17 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
     fn a_choice_only_a_transcode_honours_is_dropped_when_it_cant_transcode_and_the_plan_says_why() {
         const LIMIT_DROPPED: &str = "The 720p Playback Limit needs a Transcode, which can't play it here, so it's \
              dropped for Original";
-        let choices: [(&str, Change, usize, &str); 3] = [
-            ("720p", picking_720p, 8, LIMIT_DROPPED),
-            ("the remote default", remote_at_720p, 8, LIMIT_DROPPED),
+        let choices: [(&str, Change, &str); 3] = [
+            ("720p", picking_720p, LIMIT_DROPPED),
+            ("the remote default", remote_at_720p, LIMIT_DROPPED),
             (
                 "PGS",
                 burning_in_pgs,
-                9,
                 "The subtitles chosen need a Transcode to burn them in, which can't play it here, \
                  so they're dropped",
             ),
         ];
-        for (chosen, choose, step, reason) in choices {
+        for (chosen, choose, reason) in choices {
             for (ruled_out, rule_out) in NO_TRANSCODE {
                 let mut facts = direct_played();
                 choose(&mut facts);
@@ -2833,7 +2866,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
                 let case = format!("{chosen} with {ruled_out}");
                 assert_eq!(plan.method(), Some(Method::DirectPlay), "{case}");
                 assert_eq!((plan.limit, plan.burn_in), (None, None), "{case}");
-                assert_eq!(plan.reasons[step], reason, "{case}");
+                assert!(plan.reasons.iter().any(|said| said == reason), "{case}");
                 assert_eq!(too_busy_to_play(facts), None, "{case}");
             }
         }
@@ -2900,12 +2933,9 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
                 let case = format!("{} with {ruled_out}", chosen.codec);
                 assert_eq!(plan.method(), Some(Method::DirectPlay), "{case}");
                 assert_eq!(plan.audio, Some(1), "{case}");
-                assert_eq!(
-                    plan.reasons[6],
-                    "The audio Track chosen needs a Remux or a Transcode, and neither can play it \
-                     here, so it's dropped for the file's own",
-                    "{case}"
-                );
+                let dropped = "The audio Track chosen needs a Remux or a Transcode, and neither can \
+                               play it here, so it's dropped for the file's own";
+                assert!(plan.reasons.iter().any(|said| said == dropped), "{case}");
             }
         }
     }
