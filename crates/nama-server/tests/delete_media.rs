@@ -648,7 +648,7 @@ async fn a_season_or_episode_version_that_isnt_there_or_a_show_in_a_movies_libra
 
 /// A Server's ffmpeg and ffprobe, shell scripts in `bin`: ffprobe reads every file as an HEVC and
 /// AAC MKV, which a browser needs Transcoded, and ffmpeg lists libx264 but writes nothing until
-/// it's stopped.
+/// it's stopped, keeping its process id in `bin/ffmpeg.pid` while it runs.
 #[cfg(unix)]
 fn ffmpeg_transcoding_forever(bin: &Path) -> Ffmpeg {
     let ffprobe = r#"#!/bin/sh
@@ -659,7 +659,7 @@ cat <<EOF
 EOF
 "#;
     let ffmpeg = "#!/bin/sh\ncase \"$*\" in *-encoders*) echo ' V....D libx264  H.264' ;; \
-                  *-filters*) ;; *) exec sleep 600 ;; esac\n";
+                  *-filters*) ;; *) echo $$ > \"$0.pid\"; exec sleep 600 ;; esac\n";
     Ffmpeg {
         ffmpeg: Ok(script(bin, "ffmpeg", ffmpeg)),
         ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
@@ -692,6 +692,27 @@ async fn deleting_a_version_being_transcoded_ends_its_plan_which_the_preview_cou
     assert_eq!(told.playback.version_id, alien);
     let token = Some(fx.server.admin_token.as_str());
     assert_eq!(fetch(&fx.server, &plan.url, token).await.status, 404);
+    let pid = fs::read_to_string(bin.path().join("ffmpeg.pid")).unwrap();
+    let pid = pid.trim();
+    assert!(stops(pid).await, "ffmpeg {pid} still runs");
+}
+
+/// Whether the process `pid` ends, reaped or not, within 10 seconds.
+#[cfg(unix)]
+#[expect(clippy::unwrap_used, reason = "ps failing to run fails the test")]
+async fn stops(pid: &str) -> bool {
+    for _ in 0..100 {
+        let ps = std::process::Command::new("ps")
+            .args(["-o", "stat=", "-p", pid])
+            .output()
+            .unwrap();
+        let state = String::from_utf8_lossy(&ps.stdout);
+        if state.trim().is_empty() || state.trim_start().starts_with('Z') {
+            return true;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    false
 }
 
 /// Bigger than the sockets between a Server and its client buffer, so serving it whole waits on
