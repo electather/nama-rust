@@ -1952,14 +1952,10 @@ async fn withdraw(
     visible: Option<i64>,
     id: i64,
 ) -> Result<Applied<()>, Error> {
-    let request = load(conn, Some(id), visible)
-        .await?
-        .into_iter()
-        .next()
-        .ok_or(Error::NoSuch(Asked::Request, id))?;
-    if !asked::is_requester(user, &request.requesters) {
-        return Err(Error::NotARequester(Asked::Request, id));
-    }
+    let found = load(conn, Some(id), visible).await?.pop();
+    let request = asked::requested_by(Asked::Request, id, user, found, |request| {
+        &request.requesters
+    })?;
     if request.state != RequestState::Pending {
         return Err(Error::NotPending(Asked::Request, id));
     }
@@ -2194,11 +2190,10 @@ async fn withdraw_followed(
     visible: Option<i64>,
     id: i64,
 ) -> Result<Applied<()>, Error> {
-    let followed = load_followed(conn, Some(id), visible).await?.pop();
-    let followed = followed.ok_or(Error::NoSuch(Asked::FollowedShow, id))?;
-    if !asked::is_requester(user, &followed.requesters) {
-        return Err(Error::NotARequester(Asked::FollowedShow, id));
-    }
+    let found = load_followed(conn, Some(id), visible).await?.pop();
+    let followed = asked::requested_by(Asked::FollowedShow, id, user, found, |followed| {
+        &followed.requesters
+    })?;
     let followed_season = followed_season(conn, id).await?;
     let was_last = asked::leave(conn, Asked::FollowedShow, id, user).await?;
     if was_last {
@@ -4175,6 +4170,30 @@ mod tests {
                 .unwrap();
 
             assert_eq!(listed_requesters(&page, kind, id), None, "{kind:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_non_requester_withdrawing_is_not_found_unless_they_may_see_it_even_once_approved() {
+        let (_data, db) = ada_and_bob().await;
+        let requests = requests_on(Arc::clone(&db), Registry::new());
+        let viewer = user(BOB, Permissions::from_iter([Permission::ViewRequests]));
+        let non_viewer = user(BOB, Permissions::from_iter([]));
+
+        for kind in KINDS {
+            let id = ask_kind(&db, kind, ADA).await.value;
+            approve_kind(&requests, kind, id).await.unwrap();
+            let unseen = withdraw_kind(&requests, kind, &non_viewer, id).await;
+            let seen = withdraw_kind(&requests, kind, &viewer, id).await;
+
+            assert!(
+                matches!(unseen, Err(Error::NoSuch(k, i)) if k == kind && i == id),
+                "{unseen:?}"
+            );
+            assert!(
+                matches!(seen, Err(Error::NotARequester(k, i)) if k == kind && i == id),
+                "{seen:?}"
+            );
         }
     }
 
