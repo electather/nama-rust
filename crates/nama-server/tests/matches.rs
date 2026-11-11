@@ -378,8 +378,13 @@ async fn matching_a_file_by_hand_to_a_requested_movie_makes_its_request_availabl
 }
 
 #[tokio::test]
-async fn matching_one_of_two_aired_episodes_by_hand_makes_its_season_request_partially_available() {
-    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
+async fn matching_one_of_two_aired_episodes_by_hand_makes_its_processing_season_request_partially_available()
+ {
+    let fx = Fixture::start_with(
+        LibraryKind::LIBRARY_KIND_SHOWS,
+        TestServer::builder().tmdb().shows_fulfiller(&[]),
+    )
+    .await;
     let pilot = "The Office/Season 01/The Office - S01E01.mkv";
     fx.write(pilot, VIDEO);
     // Both the US and the UK Office fit, so the scan leaves it Unmatched.
