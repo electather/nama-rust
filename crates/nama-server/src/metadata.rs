@@ -89,7 +89,7 @@ impl MetadataSource {
                 async move { metadata.image(&path).await }
             })
             .await;
-        read(answered.map(|answer| (plugin.clone(), answer))).map(|(_, image)| image)
+        meaning(answered.map(|answer| (plugin.clone(), answer))).map(|(_, image)| image)
     }
 
     async fn ask<R, F>(
@@ -99,7 +99,7 @@ impl MetadataSource {
     where
         F: Future<Output = Result<R, MetadataError>>,
     {
-        read(
+        meaning(
             self.plugins
                 .call_provider_with_id::<dyn MetadataProvider, _, _>(call)
                 .await,
@@ -107,8 +107,11 @@ impl MetadataSource {
     }
 }
 
-/// What the Provider of the Plugin that answered said, or `None` if no Provider could be asked.
-fn read<R>(answered: Option<(PluginId, Result<R, MetadataError>)>) -> Result<(PluginId, R), Error> {
+/// The answer in `answered`, or what its failure means; `answered` is `None` when no Provider
+/// could be asked.
+fn meaning<R>(
+    answered: Option<(PluginId, Result<R, MetadataError>)>,
+) -> Result<(PluginId, R), Error> {
     match answered {
         Some((plugin, Ok(answer))) => Ok((plugin, answer)),
         Some((_, Err(MetadataError::NotFound | MetadataError::UnsupportedId(_)))) => {
