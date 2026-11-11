@@ -212,7 +212,8 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             "the time kept for skipping back must be at least 1 minute",
         )
-        .field("settings.keep_behind_minutes"),
+        .field("settings.keep_behind_minutes")
+        .param("minMinutes", &1),
         Refused(Invalid::GpuNotOffered { id }) => refuse(
             RefusalReason::REFUSAL_REASON_GPU_NOT_OFFERED,
             "the GPU must be one the hardware acceleration passed its test on when the Server \

@@ -619,6 +619,10 @@ async fn keep_for_skipping_back_set_to_0_is_refused_naming_it_and_nothing_change
         RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
     );
     assert_eq!(refusal.field, "settings.keep_behind_minutes");
+    assert_eq!(
+        refusal.params.get("minMinutes").map(String::as_str),
+        Some("1")
+    );
     let got = client
         .get_playback_settings(GetPlaybackSettingsRequest::default())
         .await
