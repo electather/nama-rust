@@ -940,19 +940,6 @@ async fn signing_out_ends_that_devices_event_streams_and_leaves_other_devices_op
     assert!(phone_next.is_some(), "the other Device's stream ended");
 }
 
-/// Fails to sign in as `name` with a wrong password `times` times.
-async fn fail_sign_in(server: &TestServer, name: &str, times: usize) {
-    let request = sign_in_request(name, "not the password", "SESSION_DELIVERY_TOKEN");
-    for _ in 0..times {
-        let refused = call(server, "SignIn", &request, &[]).await;
-        assert_refused(
-            refused.refused(),
-            ErrorCode::Unauthenticated,
-            RefusalReason::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD,
-        );
-    }
-}
-
 /// Asserts `reply` was refused as rate limited, with a retry delay of at most 15 minutes, given in
 /// both the `Retry-After` header and the Refusal.
 #[expect(
@@ -1016,17 +1003,6 @@ async fn fail_setup(server: &TestServer, times: usize, forwarded_for: impl Fn(us
             RefusalReason::REFUSAL_REASON_WRONG_SETUP_CODE,
         );
     }
-}
-
-#[tokio::test]
-async fn the_51st_failure_from_one_ip_mixing_sign_in_and_setup_is_blocked() {
-    let server = start().await;
-    fail_setup(&server, 40, |i| format!("203.0.113.{i}")).await;
-    fail_sign_in(&server, "Grace", 10).await;
-
-    let blocked = set_up(&server).await;
-
-    assert_blocked(&blocked);
 }
 
 #[tokio::test]

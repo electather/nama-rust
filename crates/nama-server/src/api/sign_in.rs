@@ -24,7 +24,7 @@ use crate::{
     sessions::session_cookie,
     sign_in::{self, SignIn},
     sign_in_codes::{self, Poll, SignInCodes},
-    users::{self, Caller, NewDevice, SetupCode, SignedIn, Users},
+    users::{self, Caller, NewDevice, SignedIn, Users},
 };
 
 use super::{
@@ -35,8 +35,6 @@ use super::{
 /// `nama.v1.SignInService`: signing Devices in, and saying who is signed in.
 pub(super) struct SignInServiceHandler {
     pub(super) users: Users,
-    /// What `Setup` must be given. `None` once the Server started with Users.
-    pub(super) setup_code: Option<SetupCode>,
     pub(super) sign_in: SignIn,
     pub(super) sign_in_codes: SignInCodes,
     /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
@@ -75,28 +73,18 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SetupRequest>,
     ) -> ServiceResult<SetupResponse> {
         let request = request.to_owned_message();
-        let attempt = self.sign_in.limits.admit(client_ip(&ctx)?, None)?;
         let wants_token = wants_token(request.delivery)?;
-        // The Server only made no code because it started with Users. Users are checked before the
-        // code, so once there are any every attempt is refused as already set up, as documented.
-        let setup_code = self.setup_code.as_ref().ok_or(users::Error::AlreadySetUp)?;
-        if self.users.any().await.map_err(database_failed)? {
-            return Err(users::Error::AlreadySetUp.into());
-        }
-        if !setup_code.matches(&request.setup_code) {
-            return Err(refuse(
-                RefusalReason::REFUSAL_REASON_WRONG_SETUP_CODE,
-                "the Setup Code is wrong",
-            )
-            .field("setup_code")
-            .into());
-        }
-        let device = sign_in::named(new_device(request.device_name, &ctx)?)?;
+        let device = new_device(request.device_name, &ctx)?;
         let signed_in = self
-            .users
-            .create_first_admin(&request.name, &request.password, device)
+            .sign_in
+            .setup(
+                &request.setup_code,
+                &request.name,
+                &request.password,
+                device,
+                Instant::now(),
+            )
             .await?;
-        self.sign_in.limits.succeeded(&attempt);
         Ok(hand_out_session(
             signed_in,
             wants_token,
@@ -387,6 +375,12 @@ impl From<sign_in::Error> for ConnectError {
     fn from(err: sign_in::Error) -> Self {
         match err {
             sign_in::Error::Blocked(blocked) => blocked.into(),
+            sign_in::Error::WrongSetupCode => refuse(
+                RefusalReason::REFUSAL_REASON_WRONG_SETUP_CODE,
+                err.to_string(),
+            )
+            .field("setup_code")
+            .into(),
             sign_in::Error::Users(err) => err.into(),
             err @ sign_in::Error::ProofMissing => refuse(
                 RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
