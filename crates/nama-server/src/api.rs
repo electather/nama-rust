@@ -29,12 +29,10 @@ use crate::{
     playback::running::RunningPlans,
     plugin_settings::PluginSettings,
     probing::Probing,
-    rate_limits::SignInCodeLimits,
     requests::Requests,
     scanner::Scanner,
     server_settings,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie},
-    sign_in_codes::SignInCodes,
     tracks::Tracks,
     users::{Caller, SetupCode, Users},
     watch_states::WatchStates,
@@ -113,8 +111,6 @@ pub(crate) fn router(
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
             sign_in: SignIn::new(users.clone(), setup_code),
-            sign_in_codes: SignInCodes::default(),
-            sign_in_code_limits: SignInCodeLimits::default(),
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),

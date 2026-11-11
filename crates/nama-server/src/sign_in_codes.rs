@@ -34,7 +34,7 @@ struct Pending {
     /// As [`users::normalized_code`] makes it.
     code: String,
     device_name: String,
-    wants_token: bool,
+    delivery: Delivery,
     expires_at: Instant,
     approved_by: Option<User>,
 }
@@ -45,21 +45,31 @@ pub(crate) struct Started {
     pub(crate) handle: String,
 }
 
+/// How the Device that started a Sign-in Code asked to be handed its session. Kept with the code
+/// and given back when it signs in; only the API module acts on it (ADR 0015).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Delivery {
+    /// In a cookie.
+    Cookie,
+    /// In the response body.
+    Token,
+}
+
 #[derive(Debug)]
 pub(crate) enum Poll {
     Waiting,
     /// Not approved, or not polled once approved, within [`LIFETIME`].
     Expired,
-    /// Approved by `user`, so the Device `device_name` signs in as them, given its session as a
-    /// token if it `wants_token`. Answered once: the sign-in is forgotten.
+    /// Approved by `user`, so the Device `device_name` signs in as them, given its session by
+    /// `delivery`. Answered once: the sign-in is forgotten.
     Approved {
         user: User,
         device_name: String,
-        wants_token: bool,
+        delivery: Delivery,
     },
 }
 
-/// Why a Sign-in Code couldn't be started, looked up or approved.
+/// Why a Sign-in Code couldn't be started, looked up, approved or polled.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
     /// No unexpired code matches. An unknown code and an expired one are refused alike.
@@ -68,6 +78,10 @@ pub(crate) enum Error {
     /// The code was approved already, so it can't be again.
     #[error("that Sign-in Code was already approved")]
     AlreadyApproved,
+    /// No sign-in is waiting on the poll handle: it was never given out, already answered
+    /// [`Poll::Approved`], or forgotten.
+    #[error("no sign-in is waiting on that handle")]
+    HandleNotFound,
     /// [`MAX_PENDING`] sign-ins are pending.
     #[error("too many sign-ins are waiting, try again later")]
     TooManyPending,
@@ -81,7 +95,7 @@ impl SignInCodes {
     pub(crate) fn start(
         &self,
         device_name: String,
-        wants_token: bool,
+        delivery: Delivery,
         now: Instant,
     ) -> Result<Started, Error> {
         let handle = users::random_secret()?;
@@ -106,7 +120,7 @@ impl SignInCodes {
             Pending {
                 code,
                 device_name,
-                wants_token,
+                delivery,
                 expires_at: now + LIFETIME,
                 approved_by: None,
             },
@@ -129,27 +143,30 @@ impl SignInCodes {
         Ok(())
     }
 
-    /// Where the sign-in polled with `handle` has got to at `now`, or `None` for a handle never
-    /// given out, already answered [`Poll::Approved`], or forgotten.
-    pub(crate) fn poll(&self, handle: &str, now: Instant) -> Option<Poll> {
+    /// Where the sign-in polled with `handle` has got to at `now`.
+    pub(crate) fn poll(&self, handle: &str, now: Instant) -> Result<Poll, Error> {
         let mut pending = self.lock();
-        match pending.get(handle)? {
-            sign_in if now >= sign_in.expires_at => Some(Poll::Expired),
-            Pending {
-                approved_by: None, ..
-            } => Some(Poll::Waiting),
-            Pending {
-                approved_by: Some(_),
-                ..
-            } => {
-                let sign_in = pending.remove(handle)?;
-                Some(Poll::Approved {
-                    user: sign_in.approved_by?,
-                    device_name: sign_in.device_name,
-                    wants_token: sign_in.wants_token,
-                })
-            }
+        let sign_in = pending.get(handle).ok_or(Error::HandleNotFound)?;
+        if now >= sign_in.expires_at {
+            return Ok(Poll::Expired);
         }
+        if sign_in.approved_by.is_none() {
+            return Ok(Poll::Waiting);
+        }
+        let Some(Pending {
+            approved_by: Some(user),
+            device_name,
+            delivery,
+            ..
+        }) = pending.remove(handle)
+        else {
+            return Err(Error::HandleNotFound);
+        };
+        Ok(Poll::Approved {
+            user,
+            device_name,
+            delivery,
+        })
     }
 
     fn lock(&self) -> MutexGuard<'_, HashMap<String, Pending>> {
@@ -193,7 +210,9 @@ mod tests {
 
     /// A sign-in started at `now` for the Device "Living room TV", wanting a token.
     fn start(codes: &SignInCodes, now: Instant) -> Started {
-        codes.start("Living room TV".to_owned(), true, now).unwrap()
+        codes
+            .start("Living room TV".to_owned(), Delivery::Token, now)
+            .unwrap()
     }
 
     #[test]
@@ -222,19 +241,19 @@ mod tests {
         let first = codes.poll(&started.handle, now);
         let again = codes.poll(&started.handle, now);
 
-        let Some(Poll::Approved {
+        let Ok(Poll::Approved {
             user,
             device_name,
-            wants_token,
+            delivery,
         }) = first
         else {
             panic!("not approved: {first:?}");
         };
         assert_eq!(
-            (user.id, device_name.as_str(), wants_token),
-            (1, "Living room TV", true)
+            (user.id, device_name.as_str(), delivery),
+            (1, "Living room TV", Delivery::Token)
         );
-        assert!(again.is_none(), "{again:?}");
+        assert!(matches!(again, Err(Error::HandleNotFound)), "{again:?}");
     }
 
     #[test]
@@ -248,7 +267,7 @@ mod tests {
         assert_eq!(device_name, "Living room TV");
         assert!(matches!(
             codes.poll(&started.handle, now),
-            Some(Poll::Waiting)
+            Ok(Poll::Waiting)
         ));
     }
 
@@ -263,7 +282,7 @@ mod tests {
 
         assert!(matches!(
             codes.poll(&started.handle, now),
-            Some(Poll::Approved { .. })
+            Ok(Poll::Approved { .. })
         ));
     }
 
@@ -321,8 +340,8 @@ mod tests {
         let waiting = codes.poll(&started.handle, just_before);
         let expired = codes.poll(&started.handle, started_at + TEN_MINUTES);
 
-        assert!(matches!(waiting, Some(Poll::Waiting)), "{waiting:?}");
-        assert!(matches!(expired, Some(Poll::Expired)), "{expired:?}");
+        assert!(matches!(waiting, Ok(Poll::Waiting)), "{waiting:?}");
+        assert!(matches!(expired, Ok(Poll::Expired)), "{expired:?}");
     }
 
     #[test]
@@ -334,14 +353,16 @@ mod tests {
 
         let polled = codes.poll(&started.handle, started_at + TEN_MINUTES);
 
-        assert!(matches!(polled, Some(Poll::Expired)), "{polled:?}");
+        assert!(matches!(polled, Ok(Poll::Expired)), "{polled:?}");
     }
 
     #[test]
-    fn an_unknown_handle_polls_as_nothing() {
+    fn an_unknown_handle_is_refused_when_polled() {
         let codes = SignInCodes::default();
 
-        assert!(codes.poll("made-up", Instant::now()).is_none());
+        let polled = codes.poll("made-up", Instant::now());
+
+        assert!(matches!(polled, Err(Error::HandleNotFound)), "{polled:?}");
     }
 
     #[test]
@@ -353,6 +374,8 @@ mod tests {
 
         start(&codes, much_later);
 
-        assert!(codes.poll(&old.handle, much_later).is_none());
+        let polled = codes.poll(&old.handle, much_later);
+
+        assert!(matches!(polled, Err(Error::HandleNotFound)), "{polled:?}");
     }
 }
