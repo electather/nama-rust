@@ -2851,21 +2851,13 @@ mod tests {
     /// shell script.
     #[cfg(unix)]
     fn h264_aac_ffprobe(bin: &std::path::Path) -> crate::ffmpeg::Ffmpeg {
-        use std::os::unix::fs::PermissionsExt;
-
-        let path = bin.join("ffprobe");
         let script = r#"#!/bin/sh
 echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
                    {"codec_name": "aac", "codec_type": "audio"}],
        "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2"}}'
 "#;
-        std::fs::write(&path, script).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
         crate::ffmpeg::Ffmpeg {
-            ffprobe: Ok(crate::ffmpeg::FoundProgram {
-                path,
-                version: "7.1.1".to_owned(),
-            }),
+            ffprobe: Ok(crate::ffmpeg::fake::script(bin, "ffprobe", script)),
             ..crate::ffmpeg::Ffmpeg::default()
         }
     }

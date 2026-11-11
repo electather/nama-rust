@@ -431,7 +431,7 @@ mod tests {
         config::Config,
         contents::{Change, Contents, Decided, Item, Metadata, Stored},
         db::Database,
-        ffmpeg::{self, Ffmpeg, FoundProgram, ProbeError},
+        ffmpeg::{self, Ffmpeg, ProbeError},
         libraries::{Kind, Libraries},
         playback::subtitles,
         tracks::{
@@ -729,16 +729,12 @@ mod tests {
     /// An ffprobe in `bin` that runs `script`, a shell script.
     #[cfg(unix)]
     fn fake_ffprobe(bin: &std::path::Path, script: &str) -> Ffmpeg {
-        use std::os::unix::fs::PermissionsExt;
-
-        let path = bin.join("ffprobe");
-        fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
         Ffmpeg {
-            ffprobe: Ok(FoundProgram {
-                path,
-                version: "7.1.1".to_owned(),
-            }),
+            ffprobe: Ok(ffmpeg::fake::script(
+                bin,
+                "ffprobe",
+                &format!("#!/bin/sh\n{script}\n"),
+            )),
             ..Ffmpeg::default()
         }
     }

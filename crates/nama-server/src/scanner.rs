@@ -553,7 +553,7 @@ mod tests {
         contents::{Contents, File, Item},
         db::Database,
         events::{EventBus, Filter},
-        ffmpeg::{Ffmpeg, FoundProgram},
+        ffmpeg::Ffmpeg,
         libraries::{self, Kind, Libraries},
         playback::subtitles,
         plugins::Registry,
@@ -905,18 +905,10 @@ mod tests {
     /// shell script.
     #[cfg(unix)]
     fn fake_ffprobe(bin: &std::path::Path, then: &str) -> Ffmpeg {
-        use std::os::unix::fs::PermissionsExt;
-
-        let path = bin.join("ffprobe");
         let runs = bin.join("runs");
         let script = format!("#!/bin/sh\necho run >> '{}'\n{then}\n", runs.display());
-        fs::write(&path, script).unwrap();
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
         Ffmpeg {
-            ffprobe: Ok(FoundProgram {
-                path,
-                version: "7.1.1".to_owned(),
-            }),
+            ffprobe: Ok(crate::ffmpeg::fake::script(bin, "ffprobe", &script)),
             ..Ffmpeg::default()
         }
     }
