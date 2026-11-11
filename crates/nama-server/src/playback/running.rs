@@ -293,7 +293,7 @@ impl RunningPlans {
     /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
     /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file, whose
     /// length is `duration_ms` if known. `None` if there is no such Version, or `plan` can't be
-    /// played.
+    /// played, as a Remux or a Transcode can't without a length.
     pub(crate) async fn start(
         &self,
         caller: &Caller,
@@ -304,14 +304,16 @@ impl RunningPlans {
             return Ok(None);
         };
         let playback = playback(caller, &plan);
-        let started = match playing {
-            Playing::DirectPlay => {
+        let started = match (playing, duration_ms) {
+            (Playing::DirectPlay, _) => {
                 Some((self.direct_play(playback), direct_play_url(plan.version)))
             }
-            Playing::Remux(remux) => self.remux(playback, remux, duration_ms).await?,
-            Playing::Transcode(transcode) => {
-                self.transcode(playback, transcode, duration_ms).await?
+            (Playing::Remux(remux), Some(ms)) => self.remux(playback, remux, ms).await?,
+            (Playing::Transcode(transcode), Some(ms)) => {
+                self.transcode(playback, transcode, ms).await?
             }
+            // The plan rules both out without a length, which their playlists list.
+            (Playing::Remux(_) | Playing::Transcode(_), None) => None,
         };
         Ok(started.map(|(id, url)| StartedPlan { id, url, plan }))
     }
@@ -323,14 +325,14 @@ impl RunningPlans {
         &self,
         playback: Playback,
         remux: Remux,
-        duration_ms: Option<i64>,
+        duration_ms: i64,
     ) -> Result<Option<(u64, String)>, StartError> {
         let version = playback.version_id;
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
             return Ok(None);
         };
         let keyframes = self.keyframes(version, &path).await?;
-        let timeline = Timeline::new(keyframes, duration_ms.unwrap_or_default());
+        let timeline = Timeline::new(keyframes, duration_ms);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |dir: &Path, from| ffmpeg.remux(&path, &remux, dir, from)?.spawn();
         let runs = Runs {
@@ -352,7 +354,7 @@ impl RunningPlans {
         &self,
         playback: Playback,
         transcode: Transcode,
-        duration_ms: Option<i64>,
+        duration_ms: i64,
     ) -> Result<Option<(u64, String)>, StartError> {
         let Some((path, _)) = (self.inner.contents)
             .version_file(playback.version_id)
@@ -360,11 +362,8 @@ impl RunningPlans {
         else {
             return Ok(None);
         };
-        let duration_ms = duration_ms.unwrap_or_default();
-        // At least one, so a Version whose length isn't known still has a segment.
-        let segments = (duration_ms.max(1) + SEGMENT_MS - 1) / SEGMENT_MS;
-        let cuts: Vec<i64> = (0..segments).map(|n| n * SEGMENT_MS).collect();
-        let timeline = Timeline::new(cuts.clone(), duration_ms);
+        let timeline = Timeline::transcoded(duration_ms);
+        let cuts = timeline.keyframes.clone();
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |attempt: Transcode| -> Box<Run> {
             let (ffmpeg, path, cuts) = (Arc::clone(&ffmpeg), path.clone(), cuts.clone());
@@ -646,6 +645,13 @@ impl Timeline {
             keyframes,
             segments,
         }
+    }
+
+    /// A Transcode of a video `duration_ms` long, with a keyframe forced at each multiple of
+    /// [`SEGMENT_MS`] before its end, so each is a segment's first.
+    fn transcoded(duration_ms: i64) -> Self {
+        let segments = (duration_ms + SEGMENT_MS - 1) / SEGMENT_MS;
+        Self::new((0..segments).map(|n| n * SEGMENT_MS).collect(), duration_ms)
     }
 
     /// The keyframes whose files segment `n` joins, by number.
@@ -1545,6 +1551,24 @@ mod tests {
         assert_eq!(segment_ms, [7500, 5000, 7500, 5000, 5020]);
         assert_eq!(timeline.keyframes_of(1), 3..5);
         assert_eq!(timeline.keyframes_of(4), 10..12);
+    }
+
+    #[test]
+    fn a_transcode_lists_a_segment_for_each_six_seconds_of_its_length() {
+        let playlist = Timeline::transcoded(13_999).playlist();
+
+        let listed: Vec<&str> = (playlist.lines())
+            .filter(|line| line.starts_with("#EXT-X-TARGETDURATION") || line.starts_with("#EXTINF"))
+            .collect();
+        assert_eq!(
+            listed,
+            [
+                "#EXT-X-TARGETDURATION:6",
+                "#EXTINF:6.000,",
+                "#EXTINF:6.000,",
+                "#EXTINF:1.999,",
+            ]
+        );
     }
 
     /// Starts a plan for the Device `device` whose ffmpeg is `sleep`, and returns its id.
