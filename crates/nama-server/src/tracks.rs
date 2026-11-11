@@ -100,10 +100,10 @@ pub(crate) struct Probe {
 impl Probe {
     /// The place of the Track at `place` among the file's Tracks of its kind, counting from 0,
     /// which is how ffmpeg picks out an audio or subtitle stream. `None` if there's no Track there.
+    /// A video Track's can fall short of ffmpeg's, since probing leaves out cover art.
     pub(crate) fn ffmpeg_index(&self, place: usize) -> Option<usize> {
         let kind = discriminant(&self.tracks.get(place)?.kind);
-        // Probing keeps every audio and subtitle stream, so ffmpeg's are these, in order. It
-        // leaves out cover art, so a video Track's count can be short of ffmpeg's.
+        // Probing keeps every audio and subtitle stream, so ffmpeg's are these, in order.
         Some(
             (self.tracks.iter().take(place))
                 .filter(|earlier| discriminant(&earlier.kind) == kind)
