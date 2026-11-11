@@ -79,7 +79,7 @@ function MissingFromFfmpeg({ status }: { status: GetPlaybackStatusResponse }) {
 }
 
 function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
-  const { hardware, hasLibx264, hasZscale } = status;
+  const { hardware, ffprobe, hasLibx264, hasZscale } = status;
   return (
     <section aria-labelledby="hardware" className="mt-12">
       <h2 id="hardware" className="font-medium">
@@ -91,7 +91,7 @@ function HardwareSection({ status }: { status: GetPlaybackStatusResponse }) {
       </p>
       {hardware.length === 0 ? (
         <p className="mt-4 max-w-prose text-pretty">
-          {hasLibx264
+          {hasLibx264 && ffprobe !== undefined
             ? "None passed its test, so Transcodes run in software."
             : "None passed its test."}
         </p>

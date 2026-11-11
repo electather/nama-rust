@@ -77,22 +77,24 @@ test("an Admin sees the hardware acceleration that passed its test and whether i
   expect(screen.queryByText(/Transcodes run in software/u)).toBeNull();
 });
 
+const ffmpegFound = {
+  ffmpeg: { path: "/usr/bin/ffmpeg", version: "7.1.1" },
+  ffprobe: { path: "/usr/bin/ffprobe", version: "7.1.1" },
+};
+
 test("without hardware acceleration the Playback page says Transcodes run in software", async () => {
   openApp(
     "/admin/playback",
     fakeServer({
       signedIn: admin,
-      serverService: { getPlaybackStatus: () => ({ hasLibx264: true, hasZscale: true }) },
+      serverService: {
+        getPlaybackStatus: () => ({ ...ffmpegFound, hasLibx264: true, hasZscale: true }),
+      },
     }),
   );
 
   expect(await screen.findByText(/Transcodes run in software/u)).toBeDefined();
 });
-
-const ffmpegFound = {
-  ffmpeg: { path: "/usr/bin/ffmpeg", version: "7.1.1" },
-  ffprobe: { path: "/usr/bin/ffprobe", version: "7.1.1" },
-};
 
 test("an ffmpeg without libx264 makes the Playback page say the Server can’t Transcode", async () => {
   openApp(
@@ -135,7 +137,14 @@ test("an ffmpeg without zscale makes the Playback page say it can’t tone-map H
 
 test.each([
   ["ffmpeg", { ffmpegProblem: "ffmpeg wasn't found on PATH" }],
-  ["ffprobe", { ffmpeg: ffmpegFound.ffmpeg, ffprobeProblem: "ffprobe wasn't found on PATH" }],
+  [
+    "ffprobe",
+    {
+      ffmpeg: ffmpegFound.ffmpeg,
+      ffprobeProblem: "ffprobe wasn't found on PATH",
+      hasLibx264: true,
+    },
+  ],
 ])(
   "without %s the Playback page says it can only Direct Play, not what ffmpeg lacks",
   async (_missing, status) => {
@@ -147,6 +156,7 @@ test.each([
     expect(await screen.findByText(/can only Direct Play/u)).toBeDefined();
     expect(screen.queryByText(/libx264/u)).toBeNull();
     expect(screen.queryByText(/zscale/u)).toBeNull();
+    expect(screen.queryByText(/Transcodes run in software/u)).toBeNull();
   },
 );
 
