@@ -13,8 +13,8 @@ use nama_proto::nama::v1::{
 
 use crate::{
     artwork,
-    browse::{self, Browse, Started},
-    contents::{Episode, FoundEpisode, FoundMovie, FoundShow, Movie, Show, Version},
+    browse::{self, Browse, Episode, Movie, Show, Started, Version},
+    contents::{FoundEpisode, FoundMovie, FoundShow},
     libraries::Kind,
     tracks::track_to_proto,
     watch_states::WatchState,
@@ -111,16 +111,16 @@ impl BrowseService for BrowseServiceHandler {
     ) -> ServiceResult<ListEpisodesResponse> {
         let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
-        let number = request.season_number;
+        let number = i64::from(request.season_number);
         let show = required_id(request.show_id.into_option(), "show_id", "Show")?;
         let episodes = self
             .browse
-            .episodes(user, request.library_id, &show, i64::from(number))
+            .episodes(user, request.library_id, &show, number)
             .await?;
         Response::ok(ListEpisodesResponse {
             episodes: episodes
                 .into_iter()
-                .map(|(episode, state)| episode_to_proto(number, episode, state))
+                .map(|(episode, state)| episode_to_proto(episode, state))
                 .collect(),
             ..Default::default()
         })
@@ -224,11 +224,10 @@ fn started_to_proto(started: Started) -> proto::ContinueWatchingEntry {
         Started::Episode {
             library,
             show,
-            season,
             episode,
             state,
         } => {
-            let episode = episode_to_proto(proto_number(season), episode, Some(state));
+            let episode = episode_to_proto(episode, Some(state));
             (library, episode.into(), Some(show_to_proto(&show)))
         }
     };
@@ -264,16 +263,11 @@ fn show_to_proto(show: &Show) -> proto::Show {
     }
 }
 
-/// An Episode of Season `season` as clients see it, with the caller's Watch State of it, if
-/// they've started it.
-fn episode_to_proto(
-    season: u32,
-    episode: Episode,
-    watch_state: Option<WatchState>,
-) -> proto::Episode {
+/// An Episode as clients see it, with the caller's Watch State of it, if they've started it.
+fn episode_to_proto(episode: Episode, watch_state: Option<WatchState>) -> proto::Episode {
     proto::Episode {
         id: external_id_to_proto(episode.id).into(),
-        season_number: season,
+        season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),
         title: episode.title,
         overview: episode.overview,
