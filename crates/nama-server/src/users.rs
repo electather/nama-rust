@@ -504,9 +504,10 @@ impl Users {
     }
 
     /// Checks that `password` is `user`'s, refusing it with [`Error::WrongPassword`] if not.
-    /// `_admitted` proves the guess went through `SignIn`'s rate limit ("Guessable requests go
-    /// through `SignIn`" in `crates/nama-server/AGENTS.md`): only `SignInLimits::admit` makes one.
-    /// Its ceiling: a fresh `SignInLimits` can still mint one, and it isn't checked against `user`.
+    ///
+    /// `_admitted` is a guess `SignInLimits::admit` let through: see "Guessable requests go through
+    /// `SignIn`" in `crates/nama-server/AGENTS.md`. ponytail: a fresh `SignInLimits` can still mint
+    /// one, and it isn't checked against `user`.
     pub(crate) async fn confirm_password(
         &self,
         _admitted: &Attempt,
@@ -554,9 +555,9 @@ impl Users {
     /// `password` is theirs. An unknown name takes as long as a wrong password, and is refused the
     /// same way.
     ///
-    /// `_admitted` proves the guess went through `SignIn`'s rate limit ("Guessable requests go
-    /// through `SignIn`" in `crates/nama-server/AGENTS.md`): only `SignInLimits::admit` makes one.
-    /// Its ceiling: a fresh `SignInLimits` can still mint one, and it isn't checked against `name`.
+    /// `_admitted` is a guess `SignInLimits::admit` let through: see "Guessable requests go through
+    /// `SignIn`" in `crates/nama-server/AGENTS.md`. ponytail: a fresh `SignInLimits` can still mint
+    /// one, and it isn't checked against `name`.
     pub(crate) async fn verify(
         &self,
         _admitted: &Attempt,
