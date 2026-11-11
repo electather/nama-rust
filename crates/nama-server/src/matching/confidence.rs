@@ -25,8 +25,8 @@ const VOTE_RATIO: u64 = 10;
 pub(crate) enum Decision {
     /// One candidate fits confidently.
     Match(ExternalId),
-    /// More than one candidate fits about as well.
-    Ambiguous,
+    /// More than one candidate fits about as well: these, best fit first.
+    Ambiguous(Vec<Candidate>),
     /// No candidate fits well enough.
     NoMatch,
 }
@@ -49,12 +49,14 @@ pub(crate) fn decide(title: &str, year: Option<i32>, candidates: &[Candidate]) -
     if *best_score < THRESHOLD {
         return Decision::NoMatch;
     }
-    let contested = others
+    let contenders = others
         .iter()
         .take_while(|(score, _)| best_score - score < MARGIN)
-        .any(|(_, other)| !outvotes(best, other));
-    if contested {
-        Decision::Ambiguous
+        .filter(|(_, other)| !outvotes(best, other))
+        .map(|(_, other)| *other);
+    let tied: Vec<Candidate> = std::iter::once(*best).chain(contenders).cloned().collect();
+    if tied.len() > 1 {
+        Decision::Ambiguous(tied)
     } else {
         Decision::Match(best.id.clone())
     }
@@ -313,10 +315,30 @@ mod tests {
             with_votes(0, candidate(2, "Hamlet", Some(2000))),
         ];
 
-        assert_eq!(decide("The Office", None, &the_office), Decision::Ambiguous);
+        assert_eq!(
+            decide("The Office", None, &the_office),
+            Decision::Ambiguous(the_office.to_vec())
+        );
         assert_eq!(
             decide("Hamlet", Some(2000), &barely_rated),
-            Decision::Ambiguous
+            Decision::Ambiguous(barely_rated.to_vec())
+        );
+    }
+
+    #[test]
+    fn an_ambiguous_title_ties_only_the_titles_that_contest_the_best() {
+        let us = with_votes(5_682, candidate(2316, "The Office", Some(2005)));
+        let uk = with_votes(1_016, candidate(2996, "The Office", Some(2001)));
+        let outvoted = with_votes(100, candidate(3, "The Office", Some(2005)));
+        let unlike = with_votes(9_000, candidate(4, "Office Space", Some(2005)));
+
+        assert_eq!(
+            decide(
+                "The Office",
+                None,
+                &[outvoted, uk.clone(), unlike, us.clone()]
+            ),
+            Decision::Ambiguous(vec![us, uk])
         );
     }
 
@@ -352,7 +374,7 @@ mod tests {
         );
         assert_eq!(
             decide(typo, Some(2001), &fellowship(2_501)),
-            Decision::Ambiguous
+            Decision::Ambiguous(fellowship(2_501).to_vec())
         );
     }
 

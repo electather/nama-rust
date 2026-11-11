@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/match.proto.
  */
 export const file_nama_v1_match: GenFile = /*@__PURE__*/
-  fileDesc("ChNuYW1hL3YxL21hdGNoLnByb3RvEgduYW1hLnYxIkIKCkV4dGVybmFsSWQSDgoEdG1kYhgBIAEoA0gAEg4KBGltZGIYAiABKAlIABIOCgR0dmRiGAMgASgDSABCBAoCaWQijAEKDlRpdGxlQ2FuZGlkYXRlEh8KAmlkGAEgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEg0KBXRpdGxlGAIgASgJEhsKDm9yaWdpbmFsX3RpdGxlGAMgASgJSACIAQESEQoEeWVhchgEIAEoBUgBiAEBQhEKD19vcmlnaW5hbF90aXRsZUIHCgVfeWVhciJkChVTZWFyY2hNZXRhZGF0YVJlcXVlc3QSIAoEa2luZBgBIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBAUIHCgVfeWVhciJFChZTZWFyY2hNZXRhZGF0YVJlc3BvbnNlEisKCmNhbmRpZGF0ZXMYASADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlIkkKD1NldE1hdGNoUmVxdWVzdBIPCgdpdGVtX2lkGAEgASgDEiUKCHRpdGxlX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIjYKEFNldE1hdGNoUmVzcG9uc2USDwoHbWF0Y2hlZBgBIAEoBBIRCgl1bm1hdGNoZWQYAiABKAQiJAoRQ2xlYXJNYXRjaFJlcXVlc3QSDwoHaXRlbV9pZBgBIAEoAyInChJDbGVhck1hdGNoUmVzcG9uc2USEQoJdW5tYXRjaGVkGAEgASgEIi8KGUxpc3RVbm1hdGNoZWRJdGVtc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyJbChpMaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZRIlCgVpdGVtcxgBIAMoCzIWLm5hbWEudjEuVW5tYXRjaGVkSXRlbRIWCg51bnBhcnNlZF9wYXRocxgCIAMoCSK9AQoNVW5tYXRjaGVkSXRlbRIPCgdpdGVtX2lkGAEgASgDEgwKBHBhdGgYAiABKAkSIAoEa2luZBgDIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAQgASgJEhEKBHllYXIYBSABKAVIAIgBARITCgZzZWFzb24YBiABKAVIAYgBARIUCgdlcGlzb2RlGAcgASgFSAKIAQFCBwoFX3llYXJCCQoHX3NlYXNvbkIKCghfZXBpc29kZSpSCglUaXRsZUtpbmQSGgoWVElUTEVfS0lORF9VTlNQRUNJRklFRBAAEhQKEFRJVExFX0tJTkRfTU9WSUUQARITCg9USVRMRV9LSU5EX1NIT1cQAjLcAgoMTWF0Y2hTZXJ2aWNlElYKDlNlYXJjaE1ldGFkYXRhEh4ubmFtYS52MS5TZWFyY2hNZXRhZGF0YVJlcXVlc3QaHy5uYW1hLnYxLlNlYXJjaE1ldGFkYXRhUmVzcG9uc2UiA5ACARJECghTZXRNYXRjaBIYLm5hbWEudjEuU2V0TWF0Y2hSZXF1ZXN0GhkubmFtYS52MS5TZXRNYXRjaFJlc3BvbnNlIgOQAgISSgoKQ2xlYXJNYXRjaBIaLm5hbWEudjEuQ2xlYXJNYXRjaFJlcXVlc3QaGy5uYW1hLnYxLkNsZWFyTWF0Y2hSZXNwb25zZSIDkAICEmIKEkxpc3RVbm1hdGNoZWRJdGVtcxIiLm5hbWEudjEuTGlzdFVubWF0Y2hlZEl0ZW1zUmVxdWVzdBojLm5hbWEudjEuTGlzdFVubWF0Y2hlZEl0ZW1zUmVzcG9uc2UiA5ACAWIGcHJvdG8z");
+  fileDesc("ChNuYW1hL3YxL21hdGNoLnByb3RvEgduYW1hLnYxIkIKCkV4dGVybmFsSWQSDgoEdG1kYhgBIAEoA0gAEg4KBGltZGIYAiABKAlIABIOCgR0dmRiGAMgASgDSABCBAoCaWQijAEKDlRpdGxlQ2FuZGlkYXRlEh8KAmlkGAEgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEg0KBXRpdGxlGAIgASgJEhsKDm9yaWdpbmFsX3RpdGxlGAMgASgJSACIAQESEQoEeWVhchgEIAEoBUgBiAEBQhEKD19vcmlnaW5hbF90aXRsZUIHCgVfeWVhciJkChVTZWFyY2hNZXRhZGF0YVJlcXVlc3QSIAoEa2luZBgBIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBAUIHCgVfeWVhciJFChZTZWFyY2hNZXRhZGF0YVJlc3BvbnNlEisKCmNhbmRpZGF0ZXMYASADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlIkkKD1NldE1hdGNoUmVxdWVzdBIPCgdpdGVtX2lkGAEgASgDEiUKCHRpdGxlX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIjYKEFNldE1hdGNoUmVzcG9uc2USDwoHbWF0Y2hlZBgBIAEoBBIRCgl1bm1hdGNoZWQYAiABKAQiJAoRQ2xlYXJNYXRjaFJlcXVlc3QSDwoHaXRlbV9pZBgBIAEoAyInChJDbGVhck1hdGNoUmVzcG9uc2USEQoJdW5tYXRjaGVkGAEgASgEIi8KGUxpc3RVbm1hdGNoZWRJdGVtc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyJbChpMaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZRIlCgVpdGVtcxgBIAMoCzIWLm5hbWEudjEuVW5tYXRjaGVkSXRlbRIWCg51bnBhcnNlZF9wYXRocxgCIAMoCSKVAgoNVW5tYXRjaGVkSXRlbRIPCgdpdGVtX2lkGAEgASgDEgwKBHBhdGgYAiABKAkSIAoEa2luZBgDIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAQgASgJEhEKBHllYXIYBSABKAVIAIgBARITCgZzZWFzb24YBiABKAVIAYgBARIUCgdlcGlzb2RlGAcgASgFSAKIAQESKAoGcmVhc29uGAggASgOMhgubmFtYS52MS5Vbm1hdGNoZWRSZWFzb24SLAoLdGllZF90aXRsZXMYCSADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlQgcKBV95ZWFyQgkKB19zZWFzb25CCgoIX2VwaXNvZGUqUgoJVGl0bGVLaW5kEhoKFlRJVExFX0tJTkRfVU5TUEVDSUZJRUQQABIUChBUSVRMRV9LSU5EX01PVklFEAESEwoPVElUTEVfS0lORF9TSE9XEAIqnQEKD1VubWF0Y2hlZFJlYXNvbhIgChxVTk1BVENIRURfUkVBU09OX1VOU1BFQ0lGSUVEEAASHgoaVU5NQVRDSEVEX1JFQVNPTl9BTUJJR1VPVVMQARIiCh5VTk1BVENIRURfUkVBU09OX05PX1RJVExFX0ZJVFMQAhIkCiBVTk1BVENIRURfUkVBU09OX1VOS05PV05fSURfSElOVBADMtwCCgxNYXRjaFNlcnZpY2USVgoOU2VhcmNoTWV0YWRhdGESHi5uYW1hLnYxLlNlYXJjaE1ldGFkYXRhUmVxdWVzdBofLm5hbWEudjEuU2VhcmNoTWV0YWRhdGFSZXNwb25zZSIDkAIBEkQKCFNldE1hdGNoEhgubmFtYS52MS5TZXRNYXRjaFJlcXVlc3QaGS5uYW1hLnYxLlNldE1hdGNoUmVzcG9uc2UiA5ACAhJKCgpDbGVhck1hdGNoEhoubmFtYS52MS5DbGVhck1hdGNoUmVxdWVzdBobLm5hbWEudjEuQ2xlYXJNYXRjaFJlc3BvbnNlIgOQAgISYgoSTGlzdFVubWF0Y2hlZEl0ZW1zEiIubmFtYS52MS5MaXN0VW5tYXRjaGVkSXRlbXNSZXF1ZXN0GiMubmFtYS52MS5MaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZSIDkAIBYgZwcm90bzM");
 
 /**
  * An id of a title in a metadata source. Movies and Shows have separate id spaces.
@@ -337,6 +337,21 @@ export type UnmatchedItem = Message<"nama.v1.UnmatchedItem"> & {
    * @generated from field: optional int32 episode = 7;
    */
   episode?: number | undefined;
+
+  /**
+   * Why automatic Matching left the item Unmatched.
+   *
+   * @generated from field: nama.v1.UnmatchedReason reason = 8;
+   */
+  reason: UnmatchedReason;
+
+  /**
+   * For `UNMATCHED_REASON_AMBIGUOUS`, the titles that fit about as well as each other, best fit
+   * first, to pass to `SetMatch`.
+   *
+   * @generated from field: repeated nama.v1.TitleCandidate tied_titles = 9;
+   */
+  tiedTitles: TitleCandidate[];
 };
 
 /**
@@ -380,6 +395,55 @@ export type TitleKind = (typeof TitleKind)[keyof typeof TitleKind] | UnknownEnum
  */
 export const TitleKindSchema: GenEnum<TitleKind> = /*@__PURE__*/
   enumDesc(file_nama_v1_match, 0);
+
+/**
+ * Why automatic Matching left an item Unmatched, which says how to fix it.
+ *
+ * @generated from enum nama.v1.UnmatchedReason
+ */
+export const UnmatchedReason = {
+  /**
+   * Matching hasn't decided about the item yet, or left it Unmatched for another reason, such as
+   * an Episode its Show doesn't have.
+   *
+   * @generated from enum value: UNMATCHED_REASON_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * More than one title fits about as well, so picking one of `tied_titles` fixes it.
+   *
+   * @generated from enum value: UNMATCHED_REASON_AMBIGUOUS = 1;
+   */
+  AMBIGUOUS: 1,
+
+  /**
+   * No title the search found fits well enough. A rename or an ID Hint may fix it.
+   *
+   * @generated from enum value: UNMATCHED_REASON_NO_TITLE_FITS = 2;
+   */
+  NO_TITLE_FITS: 2,
+
+  /**
+   * The item's ID Hint names no title the metadata source has.
+   *
+   * @generated from enum value: UNMATCHED_REASON_UNKNOWN_ID_HINT = 3;
+   */
+  UNKNOWN_ID_HINT: 3,
+} as const;
+
+/**
+ * Why automatic Matching left an item Unmatched, which says how to fix it.
+ *
+ * @generated from enum nama.v1.UnmatchedReason
+ */
+export type UnmatchedReason = (typeof UnmatchedReason)[keyof typeof UnmatchedReason] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.UnmatchedReason.
+ */
+export const UnmatchedReasonSchema: GenEnum<UnmatchedReason> = /*@__PURE__*/
+  enumDesc(file_nama_v1_match, 1);
 
 /**
  * Fixing Matches by hand: finding titles in the metadata source, and Matching items to them.

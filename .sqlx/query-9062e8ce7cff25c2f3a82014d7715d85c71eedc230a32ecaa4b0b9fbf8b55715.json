@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_items.id AS \"id!\", library_files.path,\n                      library_items.kind AS \"kind: ItemKind\", library_items.title,\n                      library_items.year, library_items.hint, library_items.season,\n                      library_items.episode,\n                      item_matches.unmatched_reason AS \"unmatched_reason?: ReasonColumn\",\n                      item_matches.tied_titles AS \"tied_titles?\"\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n               WHERE library_files.library_id = ?\n                 AND item_matches.state IS NOT 'matched'\n                 AND NOT EXISTS (SELECT 1 FROM match_pins\n                                 WHERE match_pins.library_id = library_files.library_id\n                                   AND match_pins.kind = library_items.kind\n                                   AND match_pins.title = library_items.title\n                                   AND match_pins.year IS library_items.year\n                                   AND match_pins.hint IS library_items.hint\n                                   AND match_pins.pinned_tmdb_id IS NULL\n                                   AND match_pins.pinned_imdb_id IS NULL\n                                   AND match_pins.pinned_tvdb_id IS NULL)\n               ORDER BY library_files.path, library_items.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "kind: ItemKind",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "year",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "year"
+          }
+        }
+      },
+      {
+        "name": "hint",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "hint"
+          }
+        }
+      },
+      {
+        "name": "season",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "season"
+          }
+        }
+      },
+      {
+        "name": "episode",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "episode"
+          }
+        }
+      },
+      {
+        "name": "unmatched_reason?: ReasonColumn",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "unmatched_reason"
+          }
+        }
+      },
+      {
+        "name": "tied_titles?",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "tied_titles"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "9062e8ce7cff25c2f3a82014d7715d85c71eedc230a32ecaa4b0b9fbf8b55715"
+}

@@ -14,6 +14,9 @@
 //!   Show's external ids; Watch State keys Episodes by the Show's ids plus Season and Episode
 //!   numbers (ADR 0008), so its own IMDb and TVDB ids aren't fetched.
 //!
+//! Matching stores why it left an item Unmatched, so an admin knows how to fix it: more than one
+//! title fits about as well (and which), none does, or its ID hint names none.
+//!
 //! An admin can fix a Match by hand ([`Matcher::set_match`], [`Matcher::clear_match`]). That pins
 //! the Match to what the item's file names, its title, year and ID hint, for every item in the
 //! Library named the same way; for an Episode, that is every Episode of its Show. Matching follows
@@ -43,7 +46,9 @@ use nama_proto::nama::v1::{Event, ItemMatched};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    contents::{Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin},
+    contents::{
+        Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin, TiedTitle, UnmatchedReason,
+    },
     db::{Database, detached},
     events::{EventBus, event},
     plugins::Registry,
@@ -100,6 +105,18 @@ pub(crate) struct Matcher {
 struct TitleKey {
     name: Name,
     pin: Option<Pin>,
+}
+
+impl TitleKey {
+    /// `miss`, from fetching the title this key names, blamed on its ID Hint if that named it.
+    fn blame_id_hint(&self, miss: Miss) -> Miss {
+        match miss {
+            Miss::Unmatched(None) if self.pin.is_none() && self.name.hint.is_some() => {
+                Miss::Unmatched(Some(UnmatchedReason::UnknownIdHint))
+            }
+            miss @ (Miss::Unmatched(_) | Miss::Undecided) => miss,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -162,9 +179,10 @@ impl PendingEpisode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Miss {
-    Unmatched,
+    /// With why, or `None` where Matching stores none: a pin, or an Episode its Show doesn't have.
+    Unmatched(Option<UnmatchedReason>),
     /// The metadata Provider couldn't answer: the item is Unmatched for now, but undecided, so
     /// the next scan tries again.
     Undecided,
@@ -174,7 +192,7 @@ impl Miss {
     /// Why looking up the title `id` by hand failed.
     fn looking_up(self, id: &ExternalId) -> ManualError {
         match self {
-            Self::Unmatched => ManualError::NoSuchTitle(id.clone()),
+            Self::Unmatched(_) => ManualError::NoSuchTitle(id.clone()),
             Self::Undecided => ManualError::Unavailable,
         }
     }
@@ -240,7 +258,7 @@ impl Matcher {
                 .into_iter()
                 .map(|candidate| (plugin.clone(), candidate))
                 .collect()),
-            Err(Miss::Unmatched) => Ok(Vec::new()),
+            Err(Miss::Unmatched(_)) => Ok(Vec::new()),
             Err(Miss::Undecided) => Err(ManualError::Unavailable),
         }
     }
@@ -326,7 +344,7 @@ impl Matcher {
         let outcomes = named
             .items
             .iter()
-            .map(|&(alike, _)| (alike, Err(Miss::Unmatched)))
+            .map(|&(alike, _)| (alike, Err(Miss::Unmatched(None))))
             .collect();
         self.pin(item, named, Pin::Unmatched, outcomes).await
     }
@@ -412,7 +430,9 @@ impl Matcher {
 
     async fn match_movie(&self, key: &TitleKey) -> Result<Metadata, Miss> {
         let id = self.find(TitleKind::Movie, key).await?;
-        self.fetch_movie(&id).await
+        self.fetch_movie(&id)
+            .await
+            .map_err(|miss| key.blame_id_hint(miss))
     }
 
     async fn fetch_movie(&self, id: &ExternalId) -> Result<Metadata, Miss> {
@@ -427,12 +447,18 @@ impl Matcher {
 
     async fn match_episodes(&self, key: &TitleKey, episodes: &[PendingEpisode]) -> Outcomes {
         let show = match self.find(TitleKind::Show, key).await {
-            Ok(id) => self.fetch_show(&id).await,
+            Ok(id) => self
+                .fetch_show(&id)
+                .await
+                .map_err(|miss| key.blame_id_hint(miss)),
             Err(miss) => Err(miss),
         };
         match show {
             Ok(show) => self.match_in_show(&show, episodes).await,
-            Err(miss) => episodes.iter().map(|e| (e.item, Err(miss))).collect(),
+            Err(miss) => episodes
+                .iter()
+                .map(|e| (e.item, Err(miss.clone())))
+                .collect(),
         }
     }
 
@@ -467,8 +493,8 @@ impl Matcher {
                         .iter()
                         .find(|e| i64::from(e.number) == pending.episode)
                         .map(|episode| Metadata::episode(plugin, show, season, episode))
-                        .ok_or(Miss::Unmatched),
-                    Err(miss) => Err(*miss),
+                        .ok_or(Miss::Unmatched(None)),
+                    Err(miss) => Err(miss.clone()),
                 };
                 (pending.item, found)
             }));
@@ -480,7 +506,7 @@ impl Matcher {
     }
 
     async fn season(&self, show: &ExternalId, number: i64) -> Result<Season, Miss> {
-        let number = u32::try_from(number).map_err(|_negative| Miss::Unmatched)?;
+        let number = u32::try_from(number).map_err(|_negative| Miss::Unmatched(None))?;
         self.ask(|metadata| {
             let show = show.clone();
             async move { metadata.season(&show, number).await }
@@ -494,7 +520,7 @@ impl Matcher {
     async fn find(&self, kind: TitleKind, key: &TitleKey) -> Result<ExternalId, Miss> {
         match &key.pin {
             Some(Pin::Title(id)) => return Ok(id.clone()),
-            Some(Pin::Unmatched) => return Err(Miss::Unmatched),
+            Some(Pin::Unmatched) => return Err(Miss::Unmatched(None)),
             None => {}
         }
         let name = &key.name;
@@ -521,15 +547,16 @@ impl Matcher {
         }
         match decision {
             Decision::Match(id) => Ok(id),
-            Decision::Ambiguous => {
+            Decision::Ambiguous(tied) => {
                 tracing::info!(
                     title = %name.title,
                     year = ?name.year,
                     "more than one title fits; left Unmatched"
                 );
-                Err(Miss::Unmatched)
+                let tied = tied.into_iter().map(TiedTitle::from).collect();
+                Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(tied))))
             }
-            Decision::NoMatch => Err(Miss::Unmatched),
+            Decision::NoMatch => Err(Miss::Unmatched(Some(UnmatchedReason::NoTitleFits))),
         }
     }
 
@@ -565,7 +592,7 @@ impl Matcher {
         {
             Some((plugin, Ok(answer))) => Ok((plugin, answer)),
             Some((_, Err(MetadataError::NotFound | MetadataError::UnsupportedId(_)))) => {
-                Err(Miss::Unmatched)
+                Err(Miss::Unmatched(None))
             }
             Some((plugin, Err(MetadataError::Failed(error)))) => {
                 tracing::warn!(%plugin, %error, "the metadata provider failed; will try again");
@@ -643,9 +670,9 @@ fn tally(outcomes: Outcomes, summary: &mut Summary) -> Decisions {
                 summary.matched += 1;
                 decided.push((item, Decided::Matched(Box::new(metadata))));
             }
-            Err(Miss::Unmatched) => {
+            Err(Miss::Unmatched(reason)) => {
                 summary.unmatched += 1;
-                decided.push((item, Decided::Unmatched));
+                decided.push((item, Decided::Unmatched(reason)));
             }
             Err(Miss::Undecided) => summary.undecided += 1,
         }
@@ -666,7 +693,7 @@ fn matched_events(library: i64, decided: &[(i64, Decided)]) -> Vec<Event> {
                 title: metadata.title.clone(),
                 ..Default::default()
             })),
-            Decided::Unmatched => None,
+            Decided::Unmatched(_) => None,
         })
         .collect()
 }
@@ -1041,7 +1068,7 @@ mod tests {
         let item = media.item(shows, pilot).await;
         media
             .contents
-            .record(vec![(item, Decided::Unmatched)])
+            .record(vec![(item, Decided::Unmatched(None))])
             .await
             .unwrap();
         assert_eq!(media.items(shows).await[0].1.item.name().hint, None);
@@ -1177,7 +1204,7 @@ mod tests {
         let item = media.item(shows, pilot).await;
         media
             .contents
-            .record(vec![(item, Decided::Unmatched)])
+            .record(vec![(item, Decided::Unmatched(None))])
             .await
             .unwrap();
         media.contents.read_by_older_parser(shows.id).await;
@@ -1358,7 +1385,7 @@ mod tests {
         let item = media.item(movies, hamlet).await;
         media
             .contents
-            .record(vec![(item, Decided::Unmatched)])
+            .record(vec![(item, Decided::Unmatched(None))])
             .await
             .unwrap();
 

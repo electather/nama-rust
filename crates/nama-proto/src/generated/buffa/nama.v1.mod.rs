@@ -104,6 +104,11 @@ pub mod __buffa {
         reg.register_json_any(super::__CONTINUE_WATCHING_ENTRY_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_CONTINUE_WATCHING_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_LIBRARIES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_LIBRARIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_IN_LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__SHOW_IN_LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__STOP_PLAYBACK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__STOP_PLAYBACK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAN_PLAYBACK_REQUEST_JSON_ANY);
@@ -462,6 +467,26 @@ pub use self::__buffa::view::ListContinueWatchingRequestOwnedView;
 pub use self::__buffa::view::ListContinueWatchingResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ListContinueWatchingResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchLibrariesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchLibrariesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchLibrariesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchLibrariesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieInLibraryView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieInLibraryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowInLibraryView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowInLibraryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeInLibraryView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeInLibraryOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::StopPlaybackRequestView;
 #[doc(inline)]

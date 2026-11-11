@@ -7,13 +7,14 @@ use nama_proto::nama::v1::{
     self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetShowRequest,
     GetShowResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
     ListEpisodesRequest, ListEpisodesResponse, ListMoviesRequest, ListMoviesResponse,
-    ListShowsRequest, ListShowsResponse, RefusalReason,
+    ListShowsRequest, ListShowsResponse, RefusalReason, SearchLibrariesRequest,
+    SearchLibrariesResponse,
 };
 
 use crate::{
     artwork,
     browse::{self, Browse, Started},
-    contents::{Episode, Movie, Show, Version},
+    contents::{Episode, FoundEpisode, FoundMovie, FoundShow, Movie, Show, Version},
     libraries::Kind,
     tracks::track_to_proto,
     watch_states::WatchState,
@@ -135,6 +136,58 @@ impl BrowseService for BrowseServiceHandler {
             entries: started.into_iter().map(started_to_proto).collect(),
             ..Default::default()
         })
+    }
+
+    async fn search_libraries(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, SearchLibrariesRequest>,
+    ) -> ServiceResult<SearchLibrariesResponse> {
+        let found = self.browse.search(request.query).await?;
+        Response::ok(SearchLibrariesResponse {
+            movies: found.movies.into_iter().map(found_movie_to_proto).collect(),
+            shows: found.shows.into_iter().map(found_show_to_proto).collect(),
+            episodes: found
+                .episodes
+                .into_iter()
+                .map(found_episode_to_proto)
+                .collect(),
+            ..Default::default()
+        })
+    }
+}
+
+fn found_movie_to_proto(movie: FoundMovie) -> proto::MovieInLibrary {
+    proto::MovieInLibrary {
+        library_id: movie.library,
+        id: external_id_to_proto(movie.id).into(),
+        poster_url: movie.poster.map(|path| artwork::url(&movie.plugin, &path)),
+        title: movie.title,
+        release_date: movie.release_date,
+        ..Default::default()
+    }
+}
+
+fn found_show_to_proto(show: FoundShow) -> proto::ShowInLibrary {
+    proto::ShowInLibrary {
+        library_id: show.library,
+        id: external_id_to_proto(show.id).into(),
+        poster_url: show.poster.map(|path| artwork::url(&show.plugin, &path)),
+        title: show.title,
+        ..Default::default()
+    }
+}
+
+fn found_episode_to_proto(episode: FoundEpisode) -> proto::EpisodeInLibrary {
+    proto::EpisodeInLibrary {
+        library_id: episode.library,
+        id: external_id_to_proto(episode.id).into(),
+        show_id: external_id_to_proto(episode.show).into(),
+        show_title: episode.show_title,
+        season_number: proto_number(episode.season),
+        episode_number: proto_number(episode.number),
+        title: episode.title,
+        ..Default::default()
     }
 }
 
