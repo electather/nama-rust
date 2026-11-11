@@ -10,7 +10,8 @@ use super::FoundProgram;
 
 /// The program `name`, the shell script `body` written to `bin`.
 ///
-/// A child `sh` writes it, lest a fork hold it open and make it "Text file busy" (`AGENTS.md`).
+/// A child `sh` writes it, lest a fork hold it open and make it "Text file busy"
+/// (`crates/nama-server/AGENTS.md`, "Fake programs").
 ///
 /// # Panics
 ///
