@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", tmdb_id, title, state, created_at, decline_reason, quality_id,\n                  quality_name, quality_profile_id\n           FROM followed_shows\n           WHERE (?1 IS NULL OR id = ?1)\n             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM followed_show_requesters\n                                        WHERE followed_show_id = followed_shows.id\n                                          AND user_id = ?2))\n           ORDER BY id DESC",
+  "query": "SELECT id AS \"id!\", tmdb_id, title, state, created_at, decline_reason, quality_id,\n                  quality_name, quality_profile_id\n           FROM followed_shows\n           WHERE ?1 IS NULL OR id = ?1\n           ORDER BY id DESC",
   "describe": {
     "columns": [
       {
@@ -104,7 +104,7 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 1
     },
     "nullable": [
       false,
@@ -118,5 +118,5 @@
       true
     ]
   },
-  "hash": "612f522d044a6a381ce038be25f0e0f740f3bd58161b83ba3366cec63b3dec33"
+  "hash": "16384382445c113e78425307c19f830b1a61a07967ae5b040420fb6fd5538f94"
 }

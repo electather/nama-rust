@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", tmdb_id, season AS \"season: u32\", title, release_date, show_imdb_id,\n                  show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id,\n                  quality_id, quality_name, quality_profile_id, quality_changed_from,\n                  quality_changed_at, quality_used_id, quality_used_name,\n                  quality_used_profile_id,\n                  (SELECT display_username FROM users WHERE id = quality_changed_by)\n                      AS quality_changed_by\n           FROM requests\n           WHERE (?1 IS NULL OR id = ?1)\n             AND (?2 IS NULL OR EXISTS (SELECT 1 FROM requesters\n                                        WHERE request_id = requests.id AND user_id = ?2))\n           ORDER BY id DESC",
+  "query": "SELECT id AS \"id!\", tmdb_id, season AS \"season: u32\", title, release_date, show_imdb_id,\n                  show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id,\n                  quality_id, quality_name, quality_profile_id, quality_changed_from,\n                  quality_changed_at, quality_used_id, quality_used_name,\n                  quality_used_profile_id,\n                  (SELECT display_username FROM users WHERE id = quality_changed_by)\n                      AS quality_changed_by\n           FROM requests\n           WHERE ?1 IS NULL OR id = ?1\n           ORDER BY id DESC",
   "describe": {
     "columns": [
       {
@@ -236,7 +236,7 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 1
     },
     "nullable": [
       false,
@@ -262,5 +262,5 @@
       true
     ]
   },
-  "hash": "025720eba6d9a18d3228826cb06b5d3363e922c9b006d53c5921344ad4b9c26e"
+  "hash": "9b55c02a1fb57552073f02535bbad8e002e18fa177db7233e0b8780d33756f7f"
 }
