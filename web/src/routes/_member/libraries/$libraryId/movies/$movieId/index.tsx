@@ -2,10 +2,11 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 
+import { MovieActions } from "@/components/movie-actions";
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { buttonVariants } from "@/components/ui/button";
-import { PlayedButton, WatchedBar } from "@/components/watch-state";
+import { WatchedBar } from "@/components/watch-state";
 import { BrowseService, type Version } from "@/gen/nama/v1/browse_pb";
 import {
   metadataLine,
@@ -16,7 +17,6 @@ import {
   versionToPlay,
   yearOf,
 } from "@/lib/browse";
-import { useSetPlayed } from "@/lib/watch-state";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movieId/")({
   loader: ({ context, params }) => loadMovie(context, params),
@@ -27,7 +27,6 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movi
 function Movie() {
   const input = Route.useLoaderData();
   const { data } = useSuspenseQuery(BrowseService.method.getMovie, input);
-  const setPlayed = useSetPlayed();
   const [chosen, setChosen] = useState<number>();
   const { movie } = data;
   if (!movie) return <NotFound />;
@@ -46,16 +45,7 @@ function Movie() {
         <WatchedBar state={movie.watchState} />
       </div>
       <Play versions={movie.versions} version={version} onChoose={setChosen}>
-        <PlayedButton
-          played={movie.watchState?.played === true}
-          onToggle={(played) => {
-            setPlayed({
-              libraryId: input.libraryId,
-              target: { case: "movieId", value: input.movieId },
-              played,
-            });
-          }}
-        />
+        <MovieActions libraryId={input.libraryId} movieId={input.movieId} movie={movie} />
       </Play>
       {movie.overview !== undefined && (
         <p className="mt-8 max-w-prose text-pretty">{movie.overview}</p>
