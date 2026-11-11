@@ -1555,9 +1555,9 @@ mod tests {
 
     #[test]
     fn a_keyframe_at_the_length_joins_the_last_segment() {
-        let every_two_seconds: Vec<i64> = (0..4).map(|n| n * 2000).collect();
+        let keyframes: Vec<i64> = (0..4).map(|n| n * 2000).collect();
 
-        let timeline = Timeline::new(every_two_seconds, 6000);
+        let timeline = Timeline::new(keyframes, 6000);
 
         let segment_ms: Vec<i64> = timeline.segments.iter().map(|segment| segment.ms).collect();
         assert_eq!(segment_ms, [6000]);
