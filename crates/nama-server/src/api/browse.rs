@@ -20,7 +20,9 @@ use crate::{
     watch_states::WatchState,
 };
 
-use super::{caller, database_failed, external_id_to_proto, refuse, required_id};
+use super::{
+    caller, database_failed, external_id_to_proto, refuse, required_id, version_not_found,
+};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
@@ -305,14 +307,15 @@ fn version_to_proto(version: &Version) -> proto::Version {
     }
 }
 
-/// The Connect error a client gets for a Library, title or Season that Browse didn't find. Database
-/// failures are logged, not sent.
+/// The Connect error a client gets for a Library, title, Season or Version that Browse didn't
+/// find. Database failures are logged, not sent.
 impl From<browse::Error> for ConnectError {
     fn from(err: browse::Error) -> Self {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            // Every Browse and Watch State call names its Library in `library_id`.
+            // Every call that looks up a Library names it in `library_id`; reporting progress
+            // looks none up.
             browse::Error::NoSuchLibrary(id) => {
                 refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message)
                     .field("library_id")
@@ -320,6 +323,7 @@ impl From<browse::Error> for ConnectError {
             }
             browse::Error::NothingMatched => refuse(R::REFUSAL_REASON_NOTHING_MATCHED, message),
             browse::Error::NoSuchSeason => refuse(R::REFUSAL_REASON_SEASON_NOT_FOUND, message),
+            browse::Error::NoSuchVersion => return version_not_found(),
             browse::Error::WrongKind { wanted } => {
                 let kind = match wanted {
                     Kind::Movies => "movies",

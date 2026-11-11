@@ -83,7 +83,7 @@ test("a picked choice is saved, and an untested one is saved as it was", async (
     testPluginSettings: () => profiles,
     updatePluginSettings: (request) => {
       sent.push(request);
-      return { plugin: { id: "test-choices", enabled: true } };
+      return { plugin: { summary: { id: "test-choices", enabled: true } } };
     },
   });
   await pressSave();

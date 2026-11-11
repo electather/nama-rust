@@ -250,7 +250,7 @@ test("enabling a Plugin on its details page shows it enabled there and on the li
   const logEvents = () => ({ id: "log-events", version: "0.1.0", enabled });
   openPlugins({
     listPlugins: () => ({ summaries: [logEvents()] }),
-    getPlugin: () => ({ plugin: logEvents() }),
+    getPlugin: () => ({ plugin: { summary: logEvents() } }),
     enablePlugin: () => {
       enabled = true;
       return {};

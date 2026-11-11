@@ -4,27 +4,40 @@ import { Ban, Power, PowerOff } from "lucide-react";
 
 import { StateLabel } from "@/components/state-label";
 import { Button } from "@/components/ui/button";
-import { type Plugin, PluginService, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
+import { PluginService, type PluginSummary, type Setting } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { refusal, refusalOf } from "@/lib/forms";
 import { pluginName, pluginsKey } from "@/lib/plugins";
 
 /**
- * Whether `plugin` is enabled, a button to change that, and why the Server refused to, for a
- * wrapping flex row. A Plugin the Server refused only says so.
+ * Whether the Plugin `summary` is enabled, a button to change that, and why the Server refused to,
+ * for a wrapping flex row. A Plugin the Server refused only says so. A refusal names a setting by
+ * its label in `settings`, or by its key without them, as on the list.
  */
-export function PluginToggle({ plugin }: { plugin: PluginSummary | Plugin }) {
-  if (plugin.refusedReason !== "") return <StateLabel label="Refused" Icon={Ban} />;
-  return <EnableOrDisable plugin={plugin} />;
+export function PluginToggle({
+  summary,
+  settings,
+}: {
+  summary: PluginSummary;
+  settings?: Setting[];
+}) {
+  if (summary.refusedReason !== "") return <StateLabel label="Refused" Icon={Ban} />;
+  return <EnableOrDisable summary={summary} settings={settings} />;
 }
 
-function EnableOrDisable({ plugin }: { plugin: PluginSummary | Plugin }) {
+function EnableOrDisable({
+  summary,
+  settings,
+}: {
+  summary: PluginSummary;
+  settings: Setting[] | undefined;
+}) {
   const queryClient = useQueryClient();
   // Refused or not, the list and the details page may be out of date.
   const onSettled = () => queryClient.invalidateQueries({ queryKey: pluginsKey });
   const enable = useMutation(PluginService.method.enablePlugin, { onSettled });
   const disable = useMutation(PluginService.method.disablePlugin, { onSettled });
-  const { change, action, ...state } = plugin.enabled
+  const { change, action, ...state } = summary.enabled
     ? { change: disable, action: "Disable", label: "Enabled", Icon: Power }
     : { change: enable, action: "Enable", label: "Disabled", Icon: PowerOff };
   // A fragment: the alert takes a whole line of the header, which wraps.
@@ -34,10 +47,10 @@ function EnableOrDisable({ plugin }: { plugin: PluginSummary | Plugin }) {
         <StateLabel {...state} />
         <Button
           variant="ghost"
-          aria-label={`${action} ${pluginName(plugin)}`}
+          aria-label={`${action} ${pluginName(summary)}`}
           disabled={change.isPending}
           onClick={() => {
-            change.mutate({ id: plugin.id });
+            change.mutate({ id: summary.id });
           }}
         >
           {action}
@@ -45,25 +58,23 @@ function EnableOrDisable({ plugin }: { plugin: PluginSummary | Plugin }) {
       </div>
       {change.isError && (
         <p role="alert" className="w-full text-sm text-pretty text-destructive">
-          {refusedChange(change.error, plugin, action.toLowerCase())}
+          {refusedChange(change.error, `${action.toLowerCase()} ${pluginName(summary)}`, settings)}
         </p>
       )}
     </>
   );
 }
 
-/** Why `plugin` couldn't be enabled or disabled, by its Refusal (web/AGENTS.md). */
-function refusedChange(error: unknown, plugin: PluginSummary | Plugin, verb: string) {
+/** Why `doing`, enabling or disabling a Plugin, failed, by its Refusal (web/AGENTS.md). */
+function refusedChange(error: unknown, doing: string, settings: Setting[] | undefined) {
   const { field, params } = refusalOf(error);
   // The Server names a setting as `settings.<key>`.
   const key = field.replace(/^settings\./u, "");
-  // The list doesn't have the settings, so names the setting by its key.
-  const settings = "settings" in plugin ? plugin.settings : [];
-  const label = settings.find((setting) => setting.key === key)?.label ?? key;
+  const label = settings?.find((setting) => setting.key === key)?.label ?? key;
   const { fulfillerPluginId, titleKind } = params;
   return refusal(
     error,
-    `${verb} ${pluginName(plugin)}`,
+    doing,
     {},
     {
       [RefusalReason.LAST_AUTHENTICATOR]: {

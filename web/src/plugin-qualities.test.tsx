@@ -17,12 +17,14 @@ afterEach(cleanup);
 
 /** Radarr, set up with its Quality profile setting. */
 const radarr = {
-  id: "radarr",
-  name: "Radarr",
-  version: "0.1.0",
-  kind: PluginKind.INSTALLED,
-  enabled: true,
-  extensionPoints: [ExtensionPoint.MOVIE_FULFILLER],
+  summary: {
+    id: "radarr",
+    name: "Radarr",
+    version: "0.1.0",
+    kind: PluginKind.INSTALLED,
+    enabled: true,
+    extensionPoints: [ExtensionPoint.MOVIE_FULFILLER],
+  },
   checksSettings: true,
   settings: [
     {
@@ -139,9 +141,12 @@ test("a Plugin without a Quality profile setting has no Qualities", async () => 
 test("a Fulfiller for Shows has Qualities too", async () => {
   const sonarr = {
     ...radarr,
-    id: "sonarr",
-    name: "Sonarr",
-    extensionPoints: [ExtensionPoint.SHOW_FULFILLER],
+    summary: {
+      ...radarr.summary,
+      id: "sonarr",
+      name: "Sonarr",
+      extensionPoints: [ExtensionPoint.SHOW_FULFILLER],
+    },
   };
   openPlugin("sonarr", {
     getPlugin: () => ({ plugin: sonarr }),

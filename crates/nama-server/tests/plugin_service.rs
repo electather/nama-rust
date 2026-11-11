@@ -338,7 +338,7 @@ async fn a_plugins_extension_points_come_with_it() {
     let tmdb = get_plugin_with(BTreeMap::new(), "tmdb").await;
 
     assert_eq!(
-        tmdb.extension_points,
+        tmdb.summary.extension_points,
         [ExtensionPoint::EXTENSION_POINT_METADATA_PROVIDER]
     );
 }
@@ -357,10 +357,7 @@ async fn every_builtin_and_bundled_plugin_says_its_name_and_what_it_does() {
         assert!(!summary.name.is_empty(), "{summary:?}");
         assert!(!summary.description.is_empty(), "{summary:?}");
         let got = started.get(&summary.id).await.unwrap();
-        assert_eq!(
-            (got.name, got.description),
-            (summary.name.clone(), summary.description.clone())
-        );
+        assert_eq!(got.summary.as_option(), Some(summary));
     }
     assert_eq!(plugin(&listed, "tmdb").name, "TMDB");
     assert_eq!(plugin(&listed, "radarr").name, "Radarr");
@@ -420,7 +417,7 @@ async fn a_plugins_settings_come_with_their_schema_and_stored_values() {
 
     let tmdb = get_plugin_with(settings, "tmdb").await;
 
-    assert!(tmdb.enabled);
+    assert!(tmdb.summary.enabled);
     let api_key = setting(&tmdb, "api_key");
     assert_eq!(api_key.kind, SettingKind::SETTING_KIND_SECRET);
     assert!(api_key.required);
@@ -476,7 +473,7 @@ async fn setting_the_tmdb_api_key_on_a_fresh_server_enables_it_without_a_restart
     let updated = started.update("tmdb", [("api_key", text(TMDB_KEY))]).await;
 
     let plugin = updated.unwrap().plugin.into_option().unwrap();
-    assert!(plugin.enabled, "{plugin:?}");
+    assert!(plugin.summary.enabled, "{plugin:?}");
     assert!(setting(&plugin, "api_key").secret_set);
     assert!(started.can_match().await);
 }
@@ -605,7 +602,7 @@ async fn a_disabled_plugins_new_settings_are_saved_but_it_stays_disabled() {
 
     let updated = started.update("tmdb", [("api_key", text(TMDB_KEY))]).await;
 
-    assert!(!updated.unwrap().plugin.into_option().unwrap().enabled);
+    assert!(!updated.unwrap().plugin.unwrap().summary.unwrap().enabled);
     assert!(!started.can_match().await);
     let tmdb = started.stored().await.remove("tmdb").unwrap();
     assert!(!tmdb.enabled);
@@ -948,7 +945,7 @@ async fn saving_a_choice_the_check_offers_saves_it() {
         .update(test_choices::ID, [("profile", text("2"))])
         .await;
 
-    assert!(updated.unwrap().plugin.into_option().unwrap().enabled);
+    assert!(updated.unwrap().plugin.unwrap().summary.enabled);
     let config = started.stored().await.remove(test_choices::ID).unwrap();
     assert_eq!(
         config.settings.get("profile"),
