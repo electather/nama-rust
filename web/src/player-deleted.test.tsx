@@ -59,7 +59,7 @@ function matrixUntilDeleted() {
   };
 }
 
-test("the player says the title was deleted once an Event says it's gone", async () => {
+test("the player says what it plays was deleted once an Event says it's gone", async () => {
   const server = matrixUntilDeleted();
   openApp("/libraries/1/movies/tmdb-603/play", server.transport);
   await screen.findByLabelText("The Matrix");
@@ -67,11 +67,11 @@ test("the player says the title was deleted once an Event says it's gone", async
   server.deletes();
   server.tellsTheApp();
 
-  expect(await screen.findByRole("heading", { name: "This title was deleted" })).toBeDefined();
+  expect(await screen.findByRole("heading", { name: "Deleted from the Server" })).toBeDefined();
   expect(screen.queryByLabelText("The Matrix")).toBeNull();
 });
 
-test("a player that fails as its Version is deleted, before the Event comes, says the title was deleted", async () => {
+test("a player that fails as its Version is deleted, before the Event comes, says it was deleted", async () => {
   const server = matrixUntilDeleted();
   openApp("/libraries/1/movies/tmdb-603/play", server.transport);
   const video = await screen.findByLabelText("The Matrix");
@@ -79,5 +79,5 @@ test("a player that fails as its Version is deleted, before the Event comes, say
   server.deletes();
   fireEvent.error(video);
 
-  expect(await screen.findByRole("heading", { name: "This title was deleted" })).toBeDefined();
+  expect(await screen.findByRole("heading", { name: "Deleted from the Server" })).toBeDefined();
 });

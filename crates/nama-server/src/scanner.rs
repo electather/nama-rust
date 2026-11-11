@@ -271,9 +271,10 @@ impl Scanner {
     }
 
     /// Ends the plans playing `doomed`, then deletes it from disk for good, then removes the
-    /// Versions whose files went as a scan removes them, and logs that `by` deleted them. The one way to delete media (see AGENTS.md,
-    /// "One path for deleting media"). It holds the Library's scan lock, so a scan racing it sees
-    /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
+    /// Versions whose files went as a scan removes them, and logs that `by` deleted them. The one
+    /// way to delete media (see AGENTS.md, "One path for deleting media"). It holds the Library's
+    /// scan lock, so a scan racing it sees either everything or nothing gone, and finishes even if
+    /// the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
         let scanner = self.clone();
         detached(async move {

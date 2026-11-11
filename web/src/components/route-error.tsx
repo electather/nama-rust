@@ -14,7 +14,7 @@ export function RouteError({ error }: ErrorComponentProps) {
   // The router is already rechecking the session, and sends a signed-out visitor to /sign-in.
   if (isCode(error, Code.Unauthenticated)) return null;
   // Only the player names a Version, so one that's gone was deleted while it played.
-  if (refusalOf(error).reason === RefusalReason.VERSION_NOT_FOUND) return <TitleDeleted />;
+  if (refusalOf(error).reason === RefusalReason.VERSION_NOT_FOUND) return <DeletedWhilePlaying />;
   return (
     <Page heading="Something went wrong">
       <p className="mt-2 text-muted-foreground">
@@ -40,11 +40,11 @@ function NotAllowed() {
 }
 
 /** What the player shows once what it plays was deleted from the Server. */
-export function TitleDeleted() {
+export function DeletedWhilePlaying() {
   return (
-    <Page heading="This title was deleted">
+    <Page heading="Deleted from the Server">
       <p className="mt-2 max-w-prose text-muted-foreground">
-        Someone deleted it from the Server while it played, so it can’t play any more.
+        Someone deleted what was playing, so it can’t play any more.
       </p>
       <BackToLibraries />
     </Page>
