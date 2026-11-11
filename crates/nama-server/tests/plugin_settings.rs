@@ -2,9 +2,6 @@
 //! config's `[plugins.*]` tables once, on the first start, and changing them in the order
 //! ADR 0028 sets, against a real database and fake Plugins, without HTTP.
 
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
-
 #[path = "support/log.rs"]
 #[expect(dead_code, reason = "the harness's `wait_for` has no use here")]
 mod log;
@@ -71,25 +68,30 @@ impl Plugin for Fake {
     }
 }
 
-/// A Built-in Movie Fulfiller that takes no Request.
-struct BuiltinFulfiller;
+/// A Movie Fulfiller that takes no Request, and panics when handed one if it `panics`.
+#[derive(Clone, Copy)]
+struct MovieFulfiller {
+    id: &'static str,
+    panics: bool,
+}
 
-impl Plugin for BuiltinFulfiller {
+impl Plugin for MovieFulfiller {
     fn manifest(&self) -> Manifest {
         Manifest {
             version: "0.0.0".to_owned(),
             extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
-            ..Manifest::new(PluginId::from_static("zz-fulfiller"))
+            ..Manifest::new(PluginId::from_static(self.id))
         }
     }
 
     fn register(&self, registrar: &mut Registrar) {
-        registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(Self));
+        registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(*self));
     }
 }
 
-impl Fulfiller<Movies> for BuiltinFulfiller {
+impl Fulfiller<Movies> for MovieFulfiller {
     fn fulfill<'a>(&'a self, _: &'a Request) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+        assert!(!self.panics, "fulfill bug");
         Box::pin(async { Err("takes no Request".into()) })
     }
 
@@ -139,6 +141,32 @@ async fn open() -> (TempDir, Arc<Database>) {
 
 fn greeter() -> PluginId {
     PluginId::from_static("greeter")
+}
+
+/// [`registry`], listing the Fake `dropped-in` as an Installed Plugin.
+fn with_dropped_in() -> Registry {
+    let registry = registry();
+    registry.list_as_installed(vec![|| {
+        Arc::new(Fake {
+            id: "dropped-in",
+            panics: false,
+        })
+    }]);
+    registry
+}
+
+fn dropped_in() -> PluginId {
+    PluginId::from_static("dropped-in")
+}
+
+/// The ids of the Plugins `plugins` lists.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn listed(plugins: &PluginSettings) -> Vec<PluginId> {
+    let listed = plugins.list().await.unwrap().into_iter();
+    listed.map(|got| got.plugin.id).collect()
 }
 
 #[tokio::test]
@@ -218,12 +246,14 @@ async fn the_stored_settings_win_over_the_configs_tables_once_imported() {
 async fn with_nothing_stored_a_builtin_plugin_starts_enabled_and_an_installed_one_disabled() {
     let (data_dir, db) = open().await;
 
-    let plugins = PluginSettings::start(Arc::clone(&db), registry(), &config(data_dir.path(), ""))
-        .await
-        .unwrap();
+    let plugins = PluginSettings::start(
+        Arc::clone(&db),
+        with_dropped_in(),
+        &config(data_dir.path(), ""),
+    )
+    .await
+    .unwrap();
 
-    // Radarr is an Installed Plugin the Server bundles.
-    let radarr = PluginId::from_static("radarr");
     assert_eq!(
         plugins.registry().enabled(),
         [greeter(), PluginId::from_static("local-auth")]
@@ -237,7 +267,7 @@ async fn with_nothing_stored_a_builtin_plugin_starts_enabled_and_an_installed_on
             .stored
             .enabled
     );
-    assert!(!plugins.get(&radarr).await.unwrap().unwrap().stored.enabled);
+    assert!(!stored_enabled(&plugins, &dropped_in()).await);
     let listed: Vec<_> = plugins
         .list()
         .await
@@ -246,7 +276,7 @@ async fn with_nothing_stored_a_builtin_plugin_starts_enabled_and_an_installed_on
         .map(|got| (got.plugin.id, got.stored.enabled))
         .collect();
     assert!(listed.contains(&(greeter(), true)), "{listed:?}");
-    assert!(listed.contains(&(radarr, false)), "{listed:?}");
+    assert!(listed.contains(&(dropped_in(), false)), "{listed:?}");
 }
 
 #[tokio::test]
@@ -281,18 +311,20 @@ async fn a_plugin_that_fails_to_enable_is_logged_and_left_off_while_the_rest_sta
 async fn builtin_plugins_enable_before_installed_ones_so_a_builtin_fulfiller_keeps_its_kind() {
     let (data_dir, db) = open().await;
     let registry = registry();
-    // Its id sorts after `radarr`'s, so only enabling Built-in Plugins first lets it win.
-    registry.describe_builtin(|| Arc::new(BuiltinFulfiller));
-    let config = config(
-        data_dir.path(),
-        r#"
-        [plugins.radarr]
-        url = "http://localhost:7878"
-        api_key = "key"
-        quality_profile = "1"
-        root_folder = "/movies"
-        "#,
-    );
+    // Its id sorts after the Installed one's, so only enabling Built-in Plugins first lets it win.
+    registry.describe_builtin(|| {
+        Arc::new(MovieFulfiller {
+            id: "zz-fulfiller",
+            panics: false,
+        })
+    });
+    registry.list_as_installed(vec![|| {
+        Arc::new(MovieFulfiller {
+            id: "aa-fulfiller",
+            panics: false,
+        })
+    }]);
+    let config = config(data_dir.path(), "[plugins.aa-fulfiller]");
 
     let plugins = PluginSettings::start(db, registry, &config).await.unwrap();
 
@@ -302,7 +334,7 @@ async fn builtin_plugins_enable_before_installed_ones_so_a_builtin_fulfiller_kee
         "{enabled:?}"
     );
     assert!(
-        !enabled.contains(&PluginId::from_static("radarr")),
+        !enabled.contains(&PluginId::from_static("aa-fulfiller")),
         "{enabled:?}"
     );
 }
@@ -455,11 +487,9 @@ async fn changes_at_once_leave_the_stored_state_as_what_is_running() {
     }
 }
 
-/// Calls the enabled Movie Fulfiller until the test Plugin's, set to panic, has crashed enough
-/// times in a row to be disabled.
-async fn crash_test_plugin(plugins: &PluginSettings) {
-    let test_plugin = PluginId::from_static("test-plugin");
-    while plugins.registry().enabled().contains(&test_plugin) {
+/// Calls the enabled Movie Fulfiller until the Installed one that panics is disabled.
+async fn crash_fulfiller(plugins: &PluginSettings) {
+    while plugins.registry().enabled().contains(&crashes()) {
         plugins
             .registry()
             .call_provider(|fulfiller: Arc<dyn Fulfiller<Movies>>| async move {
@@ -470,62 +500,149 @@ async fn crash_test_plugin(plugins: &PluginSettings) {
     }
 }
 
-/// A database and config whose Installed test Plugin is set to panic when asked to fulfil.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn with_test_plugin_that_panics() -> (TempDir, Arc<Database>, Config) {
+fn crashes() -> PluginId {
+    PluginId::from_static("crashes")
+}
+
+/// [`registry`], listing as an Installed Plugin the Movie Fulfiller `crashes`, which panics when
+/// handed a Request.
+fn with_one_that_crashes() -> Registry {
+    let registry = registry();
+    registry.list_as_installed(vec![|| {
+        Arc::new(MovieFulfiller {
+            id: "crashes",
+            panics: true,
+        })
+    }]);
+    registry
+}
+
+/// A database and a config that enables `crashes`.
+async fn enabling_one_that_crashes() -> (TempDir, Arc<Database>, Config) {
     let (data_dir, db) = open().await;
-    let dir = data_dir.path().join("plugins");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("test.wasm"), test_plugin::build("")).unwrap();
-    let config = config(
-        data_dir.path(),
-        "[plugins.test-plugin]\nfulfiller = \"panic\"",
-    );
+    let config = config(data_dir.path(), "[plugins.crashes]");
     (data_dir, db, config)
 }
 
 #[tokio::test]
 async fn a_crashed_plugin_is_saved_as_disabled_unless_an_admin_enabled_it_again() {
-    let (_data_dir, db, config) = with_test_plugin_that_panics().await;
-    let plugins = PluginSettings::start(db, registry(), &config)
+    let (_data_dir, db, config) = enabling_one_that_crashes().await;
+    let plugins = PluginSettings::start(db, with_one_that_crashes(), &config)
         .await
         .unwrap();
-    let test_plugin = PluginId::from_static("test-plugin");
 
-    crash_test_plugin(&plugins).await;
+    crash_fulfiller(&plugins).await;
     let crashed_at = Instant::now();
-    while stored_enabled(&plugins, &test_plugin).await {
+    while stored_enabled(&plugins, &crashes()).await {
         assert!(crashed_at.elapsed() < WAIT, "its disable was never saved");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
-    plugins.enable(&test_plugin).await.unwrap();
-    crash_test_plugin(&plugins).await;
-    plugins.enable(&test_plugin).await.unwrap();
+    plugins.enable(&crashes()).await.unwrap();
+    crash_fulfiller(&plugins).await;
+    plugins.enable(&crashes()).await.unwrap();
     // Listing takes the lock after the crash's save, which waited for the enable.
     plugins.list().await.unwrap();
 
-    assert!(plugins.registry().enabled().contains(&test_plugin));
-    assert!(stored_enabled(&plugins, &test_plugin).await);
+    assert!(plugins.registry().enabled().contains(&crashes()));
+    assert!(stored_enabled(&plugins, &crashes()).await);
 }
 
 #[tokio::test]
 async fn a_crash_queued_before_shutdown_is_saved_so_it_stays_disabled_after_a_restart() {
-    let (_data_dir, db, config) = with_test_plugin_that_panics().await;
-    let plugins = PluginSettings::start(Arc::clone(&db), registry(), &config)
+    let (_data_dir, db, config) = enabling_one_that_crashes().await;
+    let plugins = PluginSettings::start(Arc::clone(&db), with_one_that_crashes(), &config)
         .await
         .unwrap();
 
     // On this one-thread runtime nothing yields between the crash and `shutdown`, so the saving
     // task hasn't taken the id yet.
-    crash_test_plugin(&plugins).await;
+    crash_fulfiller(&plugins).await;
     plugins.shutdown().await;
-    let restarted = PluginSettings::start(db, registry(), &config)
+    let restarted = PluginSettings::start(db, with_one_that_crashes(), &config)
         .await
         .unwrap();
 
-    let test_plugin = PluginId::from_static("test-plugin");
-    assert!(!restarted.registry().enabled().contains(&test_plugin));
+    assert!(!restarted.registry().enabled().contains(&crashes()));
+}
+
+#[tokio::test]
+async fn a_crashed_builtin_plugin_is_disabled_but_stays_stored_as_enabled() {
+    let (data_dir, db) = open().await;
+    let registry = registry();
+    registry.describe_builtin(|| {
+        Arc::new(MovieFulfiller {
+            id: "crashes",
+            panics: true,
+        })
+    });
+    let plugins = PluginSettings::start(db, registry, &config(data_dir.path(), ""))
+        .await
+        .unwrap();
+
+    crash_fulfiller(&plugins).await;
+    plugins.shutdown().await;
+
+    assert!(!plugins.registry().enabled().contains(&crashes()));
+    assert!(stored_enabled(&plugins, &crashes()).await);
+}
+
+#[tokio::test]
+async fn listing_drops_an_installed_plugin_gone_since_unless_it_is_enabled() {
+    let (data_dir, db) = open().await;
+    let registry = registry();
+    registry.list_as_installed(vec![
+        || {
+            Arc::new(Fake {
+                id: "dropped-in",
+                panics: false,
+            })
+        },
+        || {
+            Arc::new(Fake {
+                id: "enabled",
+                panics: false,
+            })
+        },
+    ]);
+    let config = config(
+        data_dir.path(),
+        "[plugins.enabled]\n[plugins.greeter]\nenabled = false",
+    );
+    let plugins = PluginSettings::start(db, registry, &config).await.unwrap();
+    assert!(listed(&plugins).await.contains(&dropped_in()));
+
+    plugins.registry().list_as_installed(Vec::new());
+
+    let listed = listed(&plugins).await;
+    assert!(!listed.contains(&dropped_in()), "{listed:?}");
+    assert!(
+        listed.contains(&PluginId::from_static("enabled")),
+        "{listed:?}"
+    );
+    // A Built-in Plugin stays listed, enabled or not.
+    assert!(listed.contains(&greeter()), "{listed:?}");
+}
+
+#[tokio::test]
+async fn an_installed_plugin_with_a_builtin_ones_id_is_listed_refused_apart_from_it() {
+    let (data_dir, db) = open().await;
+    let registry = registry();
+    registry.list_as_installed(vec![|| {
+        Arc::new(Fake {
+            id: "greeter",
+            panics: false,
+        })
+    }]);
+
+    let plugins = PluginSettings::start(db, registry, &config(data_dir.path(), ""))
+        .await
+        .unwrap();
+
+    let refused = PluginId::from_static("greeter.in-process");
+    let listed = plugins.get(&refused).await.unwrap().unwrap().plugin;
+    assert_eq!(
+        listed.manifest.err().as_deref(),
+        Some("its id greeter is another Plugin's")
+    );
+    assert!(plugins.registry().enabled().contains(&greeter()));
 }

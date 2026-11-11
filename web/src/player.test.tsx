@@ -5,10 +5,12 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BrowseService, type TrackSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
+  AudioCodec,
   type PlanPlaybackRequest,
   PlaybackMethod,
   type PlaybackPlanSchema,
   PlaybackService,
+  VideoCodec,
 } from "@/gen/nama/v1/playback_pb";
 
 import type { WatchStateSchema } from "@/gen/nama/v1/watch_state_pb";
@@ -223,14 +225,11 @@ test("a Version whose plan says it can't play shows the plan's reasons instead o
 });
 
 test("the plan request says what this Device decodes", async () => {
-  const decodable = ['video/mp4; codecs="avc1.640028"', 'audio/mp4; codecs="mp4a.40.2"'];
-  // A configuration names its content type, which its JSON holds as the type's own JSON.
-  const decodingInfo = (configuration: MediaDecodingConfiguration) =>
-    Promise.resolve({
-      supported: decodable.some((type) =>
-        JSON.stringify(configuration).includes(JSON.stringify(type)),
-      ),
-    });
+  const h264AndAac = ["avc1.640028", "mp4a.40.2"];
+  const decodingInfo = (configuration: MediaDecodingConfiguration) => {
+    const json = JSON.stringify(configuration);
+    return Promise.resolve({ supported: h264AndAac.some((codec) => json.includes(codec)) });
+  };
   Object.defineProperty(navigator, "mediaCapabilities", {
     value: { decodingInfo },
     configurable: true,
@@ -246,8 +245,9 @@ test("the plan request says what this Device decodes", async () => {
 
   await findVideo();
 
-  expect(asked.map((request) => request.deviceDecoding?.contentTypes)).toEqual([decodable]);
-  expect(asked.map((request) => request.deviceDecoding?.audioChannels)).toEqual([6]);
+  expect(asked.map((request) => request.deviceDecoding)).toMatchObject([
+    { videoCodecs: [VideoCodec.H264], audioCodecs: [AudioCodec.AAC], audioChannels: 6 },
+  ]);
 });
 
 test("a Remux plays its HLS playlist through hls.js in a browser without HLS of its own", async () => {

@@ -48,7 +48,9 @@ impl PlaybackService for PlaybackServiceHandler {
         let asked = Asked {
             version: request.version_id,
             decoding: DeviceDecoding {
-                content_types: decoding.content_types,
+                containers: known(&decoding.containers),
+                video_codecs: known(&decoding.video_codecs),
+                audio_codecs: known(&decoding.audio_codecs),
                 hdr: decoding.hdr,
                 hls: decoding.native_hls || decoding.mse,
                 audio_channels: decoding.audio_channels,
@@ -148,6 +150,11 @@ pub(super) fn limit_to_proto(limit: Option<PlaybackLimit>) -> proto::PlaybackLim
             proto::PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL,
             |(_, theirs)| theirs,
         )
+}
+
+/// Those of `values` this Server's schema names, as a newer client may send ones it doesn't.
+fn known<E: buffa::Enumeration>(values: &[EnumValue<E>]) -> Vec<E> {
+    values.iter().filter_map(EnumValue::as_known).collect()
 }
 
 /// `None` for no method, or one newer than this Server, which it can't plan anyway.

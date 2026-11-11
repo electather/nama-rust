@@ -175,6 +175,544 @@ impl ::buffa::Enumeration for PlaybackLimit {
         ]
     }
 }
+/// A container the Server knows whether a Device plays.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum Container {
+    CONTAINER_UNSPECIFIED = 0i32,
+    CONTAINER_MP4 = 1i32,
+    CONTAINER_WEBM = 2i32,
+    CONTAINER_MATROSKA = 3i32,
+}
+impl Container {
+    ///Idiomatic alias for [`Self::CONTAINER_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::CONTAINER_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::CONTAINER_MP4`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mp4: Self = Self::CONTAINER_MP4;
+    ///Idiomatic alias for [`Self::CONTAINER_WEBM`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Webm: Self = Self::CONTAINER_WEBM;
+    ///Idiomatic alias for [`Self::CONTAINER_MATROSKA`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Matroska: Self = Self::CONTAINER_MATROSKA;
+}
+impl ::core::default::Default for Container {
+    fn default() -> Self {
+        Self::CONTAINER_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for Container {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for Container {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = Container;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!("a string, integer, or null for ", stringify!(Container)),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<Container, E> {
+                <Container as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<Container, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <Container as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<Container, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <Container as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<Container, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for Container {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for Container {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::CONTAINER_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::CONTAINER_MP4),
+            2i32 => ::core::option::Option::Some(Self::CONTAINER_WEBM),
+            3i32 => ::core::option::Option::Some(Self::CONTAINER_MATROSKA),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::CONTAINER_UNSPECIFIED => "CONTAINER_UNSPECIFIED",
+            Self::CONTAINER_MP4 => "CONTAINER_MP4",
+            Self::CONTAINER_WEBM => "CONTAINER_WEBM",
+            Self::CONTAINER_MATROSKA => "CONTAINER_MATROSKA",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "CONTAINER_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::CONTAINER_UNSPECIFIED)
+            }
+            "CONTAINER_MP4" => ::core::option::Option::Some(Self::CONTAINER_MP4),
+            "CONTAINER_WEBM" => ::core::option::Option::Some(Self::CONTAINER_WEBM),
+            "CONTAINER_MATROSKA" => {
+                ::core::option::Option::Some(Self::CONTAINER_MATROSKA)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::CONTAINER_UNSPECIFIED,
+            Self::CONTAINER_MP4,
+            Self::CONTAINER_WEBM,
+            Self::CONTAINER_MATROSKA,
+        ]
+    }
+}
+/// A video codec the Server knows whether a Device decodes.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum VideoCodec {
+    VIDEO_CODEC_UNSPECIFIED = 0i32,
+    VIDEO_CODEC_H264 = 1i32,
+    VIDEO_CODEC_HEVC = 2i32,
+    VIDEO_CODEC_VP8 = 3i32,
+    VIDEO_CODEC_VP9 = 4i32,
+    VIDEO_CODEC_AV1 = 5i32,
+}
+impl VideoCodec {
+    ///Idiomatic alias for [`Self::VIDEO_CODEC_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::VIDEO_CODEC_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::VIDEO_CODEC_H264`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const H264: Self = Self::VIDEO_CODEC_H264;
+    ///Idiomatic alias for [`Self::VIDEO_CODEC_HEVC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Hevc: Self = Self::VIDEO_CODEC_HEVC;
+    ///Idiomatic alias for [`Self::VIDEO_CODEC_VP8`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Vp8: Self = Self::VIDEO_CODEC_VP8;
+    ///Idiomatic alias for [`Self::VIDEO_CODEC_VP9`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Vp9: Self = Self::VIDEO_CODEC_VP9;
+    ///Idiomatic alias for [`Self::VIDEO_CODEC_AV1`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Av1: Self = Self::VIDEO_CODEC_AV1;
+}
+impl ::core::default::Default for VideoCodec {
+    fn default() -> Self {
+        Self::VIDEO_CODEC_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for VideoCodec {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for VideoCodec {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = VideoCodec;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!("a string, integer, or null for ", stringify!(VideoCodec)),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<VideoCodec, E> {
+                <VideoCodec as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<VideoCodec, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <VideoCodec as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<VideoCodec, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <VideoCodec as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<VideoCodec, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for VideoCodec {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for VideoCodec {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::VIDEO_CODEC_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::VIDEO_CODEC_H264),
+            2i32 => ::core::option::Option::Some(Self::VIDEO_CODEC_HEVC),
+            3i32 => ::core::option::Option::Some(Self::VIDEO_CODEC_VP8),
+            4i32 => ::core::option::Option::Some(Self::VIDEO_CODEC_VP9),
+            5i32 => ::core::option::Option::Some(Self::VIDEO_CODEC_AV1),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::VIDEO_CODEC_UNSPECIFIED => "VIDEO_CODEC_UNSPECIFIED",
+            Self::VIDEO_CODEC_H264 => "VIDEO_CODEC_H264",
+            Self::VIDEO_CODEC_HEVC => "VIDEO_CODEC_HEVC",
+            Self::VIDEO_CODEC_VP8 => "VIDEO_CODEC_VP8",
+            Self::VIDEO_CODEC_VP9 => "VIDEO_CODEC_VP9",
+            Self::VIDEO_CODEC_AV1 => "VIDEO_CODEC_AV1",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "VIDEO_CODEC_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::VIDEO_CODEC_UNSPECIFIED)
+            }
+            "VIDEO_CODEC_H264" => ::core::option::Option::Some(Self::VIDEO_CODEC_H264),
+            "VIDEO_CODEC_HEVC" => ::core::option::Option::Some(Self::VIDEO_CODEC_HEVC),
+            "VIDEO_CODEC_VP8" => ::core::option::Option::Some(Self::VIDEO_CODEC_VP8),
+            "VIDEO_CODEC_VP9" => ::core::option::Option::Some(Self::VIDEO_CODEC_VP9),
+            "VIDEO_CODEC_AV1" => ::core::option::Option::Some(Self::VIDEO_CODEC_AV1),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::VIDEO_CODEC_UNSPECIFIED,
+            Self::VIDEO_CODEC_H264,
+            Self::VIDEO_CODEC_HEVC,
+            Self::VIDEO_CODEC_VP8,
+            Self::VIDEO_CODEC_VP9,
+            Self::VIDEO_CODEC_AV1,
+        ]
+    }
+}
+/// An audio codec the Server knows whether a Device decodes.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum AudioCodec {
+    AUDIO_CODEC_UNSPECIFIED = 0i32,
+    AUDIO_CODEC_AAC = 1i32,
+    AUDIO_CODEC_MP3 = 2i32,
+    AUDIO_CODEC_AC3 = 3i32,
+    AUDIO_CODEC_EAC3 = 4i32,
+    AUDIO_CODEC_OPUS = 5i32,
+    AUDIO_CODEC_VORBIS = 6i32,
+    AUDIO_CODEC_FLAC = 7i32,
+    AUDIO_CODEC_DTS = 8i32,
+    AUDIO_CODEC_TRUEHD = 9i32,
+}
+impl AudioCodec {
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::AUDIO_CODEC_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_AAC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Aac: Self = Self::AUDIO_CODEC_AAC;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_MP3`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Mp3: Self = Self::AUDIO_CODEC_MP3;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_AC3`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ac3: Self = Self::AUDIO_CODEC_AC3;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_EAC3`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Eac3: Self = Self::AUDIO_CODEC_EAC3;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_OPUS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Opus: Self = Self::AUDIO_CODEC_OPUS;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_VORBIS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Vorbis: Self = Self::AUDIO_CODEC_VORBIS;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_FLAC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Flac: Self = Self::AUDIO_CODEC_FLAC;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_DTS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Dts: Self = Self::AUDIO_CODEC_DTS;
+    ///Idiomatic alias for [`Self::AUDIO_CODEC_TRUEHD`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Truehd: Self = Self::AUDIO_CODEC_TRUEHD;
+}
+impl ::core::default::Default for AudioCodec {
+    fn default() -> Self {
+        Self::AUDIO_CODEC_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for AudioCodec {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for AudioCodec {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = AudioCodec;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!("a string, integer, or null for ", stringify!(AudioCodec)),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<AudioCodec, E> {
+                <AudioCodec as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<AudioCodec, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <AudioCodec as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<AudioCodec, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <AudioCodec as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<AudioCodec, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for AudioCodec {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for AudioCodec {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::AUDIO_CODEC_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::AUDIO_CODEC_AAC),
+            2i32 => ::core::option::Option::Some(Self::AUDIO_CODEC_MP3),
+            3i32 => ::core::option::Option::Some(Self::AUDIO_CODEC_AC3),
+            4i32 => ::core::option::Option::Some(Self::AUDIO_CODEC_EAC3),
+            5i32 => ::core::option::Option::Some(Self::AUDIO_CODEC_OPUS),
+            6i32 => ::core::option::Option::Some(Self::AUDIO_CODEC_VORBIS),
+            7i32 => ::core::option::Option::Some(Self::AUDIO_CODEC_FLAC),
+            8i32 => ::core::option::Option::Some(Self::AUDIO_CODEC_DTS),
+            9i32 => ::core::option::Option::Some(Self::AUDIO_CODEC_TRUEHD),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::AUDIO_CODEC_UNSPECIFIED => "AUDIO_CODEC_UNSPECIFIED",
+            Self::AUDIO_CODEC_AAC => "AUDIO_CODEC_AAC",
+            Self::AUDIO_CODEC_MP3 => "AUDIO_CODEC_MP3",
+            Self::AUDIO_CODEC_AC3 => "AUDIO_CODEC_AC3",
+            Self::AUDIO_CODEC_EAC3 => "AUDIO_CODEC_EAC3",
+            Self::AUDIO_CODEC_OPUS => "AUDIO_CODEC_OPUS",
+            Self::AUDIO_CODEC_VORBIS => "AUDIO_CODEC_VORBIS",
+            Self::AUDIO_CODEC_FLAC => "AUDIO_CODEC_FLAC",
+            Self::AUDIO_CODEC_DTS => "AUDIO_CODEC_DTS",
+            Self::AUDIO_CODEC_TRUEHD => "AUDIO_CODEC_TRUEHD",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "AUDIO_CODEC_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::AUDIO_CODEC_UNSPECIFIED)
+            }
+            "AUDIO_CODEC_AAC" => ::core::option::Option::Some(Self::AUDIO_CODEC_AAC),
+            "AUDIO_CODEC_MP3" => ::core::option::Option::Some(Self::AUDIO_CODEC_MP3),
+            "AUDIO_CODEC_AC3" => ::core::option::Option::Some(Self::AUDIO_CODEC_AC3),
+            "AUDIO_CODEC_EAC3" => ::core::option::Option::Some(Self::AUDIO_CODEC_EAC3),
+            "AUDIO_CODEC_OPUS" => ::core::option::Option::Some(Self::AUDIO_CODEC_OPUS),
+            "AUDIO_CODEC_VORBIS" => {
+                ::core::option::Option::Some(Self::AUDIO_CODEC_VORBIS)
+            }
+            "AUDIO_CODEC_FLAC" => ::core::option::Option::Some(Self::AUDIO_CODEC_FLAC),
+            "AUDIO_CODEC_DTS" => ::core::option::Option::Some(Self::AUDIO_CODEC_DTS),
+            "AUDIO_CODEC_TRUEHD" => {
+                ::core::option::Option::Some(Self::AUDIO_CODEC_TRUEHD)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::AUDIO_CODEC_UNSPECIFIED,
+            Self::AUDIO_CODEC_AAC,
+            Self::AUDIO_CODEC_MP3,
+            Self::AUDIO_CODEC_AC3,
+            Self::AUDIO_CODEC_EAC3,
+            Self::AUDIO_CODEC_OPUS,
+            Self::AUDIO_CODEC_VORBIS,
+            Self::AUDIO_CODEC_FLAC,
+            Self::AUDIO_CODEC_DTS,
+            Self::AUDIO_CODEC_TRUEHD,
+        ]
+    }
+}
 /// How a Playback Plan plays a Version.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -953,17 +1491,35 @@ pub const __PLAN_PLAYBACK_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct DeviceDecoding {
-    /// The media types it can decode, with their codecs, such as
-    /// `video/mp4; codecs="avc1.640028"`.
+    /// The containers it can play.
     ///
-    /// Field 1: `content_types`
+    /// Field 6: `containers`
     #[serde(
-        rename = "contentTypes",
-        alias = "content_types",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
-        deserialize_with = "::buffa::json_helpers::null_as_default"
+        rename = "containers",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
-    pub content_types: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    pub containers: ::buffa::alloc::vec::Vec<::buffa::EnumValue<Container>>,
+    /// The video codecs it can decode.
+    ///
+    /// Field 7: `video_codecs`
+    #[serde(
+        rename = "videoCodecs",
+        alias = "video_codecs",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub video_codecs: ::buffa::alloc::vec::Vec<::buffa::EnumValue<VideoCodec>>,
+    /// The audio codecs it can decode.
+    ///
+    /// Field 8: `audio_codecs`
+    #[serde(
+        rename = "audioCodecs",
+        alias = "audio_codecs",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub audio_codecs: ::buffa::alloc::vec::Vec<::buffa::EnumValue<AudioCodec>>,
     /// Whether its display shows HDR.
     ///
     /// Field 2: `hdr`
@@ -1010,7 +1566,9 @@ pub struct DeviceDecoding {
 impl ::core::fmt::Debug for DeviceDecoding {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("DeviceDecoding")
-            .field("content_types", &self.content_types)
+            .field("containers", &self.containers)
+            .field("video_codecs", &self.video_codecs)
+            .field("audio_codecs", &self.audio_codecs)
             .field("hdr", &self.hdr)
             .field("native_hls", &self.native_hls)
             .field("mse", &self.mse)
@@ -1045,9 +1603,6 @@ impl ::buffa::Message for DeviceDecoding {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        for v in &self.content_types {
-            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
-        }
         if self.hdr {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
@@ -1061,6 +1616,30 @@ impl ::buffa::Message for DeviceDecoding {
             size
                 += 1u64 + ::buffa::types::uint32_encoded_len(self.audio_channels) as u64;
         }
+        if !self.containers.is_empty() {
+            let payload: u64 = self
+                .containers
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.video_codecs.is_empty() {
+            let payload: u64 = self
+                .video_codecs
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.audio_codecs.is_empty() {
+            let payload: u64 = self
+                .audio_codecs
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1071,9 +1650,6 @@ impl ::buffa::Message for DeviceDecoding {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        for v in &self.content_types {
-            ::buffa::types::put_string_field(1u32, v, buf);
-        }
         if self.hdr {
             ::buffa::types::put_bool_field(2u32, self.hdr, buf);
         }
@@ -1085,6 +1661,39 @@ impl ::buffa::Message for DeviceDecoding {
         }
         if self.audio_channels != 0u32 {
             ::buffa::types::put_uint32_field(5u32, self.audio_channels, buf);
+        }
+        if !self.containers.is_empty() {
+            let payload: u64 = self
+                .containers
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(6u32, payload, buf);
+            for v in &self.containers {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if !self.video_codecs.is_empty() {
+            let payload: u64 = self
+                .video_codecs
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(7u32, payload, buf);
+            for v in &self.video_codecs {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if !self.audio_codecs.is_empty() {
+            let payload: u64 = self
+                .audio_codecs
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(8u32, payload, buf);
+            for v in &self.audio_codecs {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1099,17 +1708,6 @@ impl ::buffa::Message for DeviceDecoding {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let __elem = ::buffa::types::decode_string(buf)?;
-                ctx.register_element_memory(
-                    ::buffa::__private::element_footprint(&__elem),
-                )?;
-                self.content_types.push(__elem);
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -1138,6 +1736,120 @@ impl ::buffa::Message for DeviceDecoding {
                 )?;
                 self.audio_channels = ::buffa::types::decode_uint32(buf)?;
             }
+            6u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.containers.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.containers
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.containers
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            7u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.video_codecs.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.video_codecs
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.video_codecs
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            8u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.audio_codecs.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.audio_codecs
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.audio_codecs
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1146,11 +1858,13 @@ impl ::buffa::Message for DeviceDecoding {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.content_types.clear();
         self.hdr = false;
         self.native_hls = false;
         self.mse = false;
         self.audio_channels = 0u32;
+        self.containers.clear();
+        self.video_codecs.clear();
+        self.audio_codecs.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

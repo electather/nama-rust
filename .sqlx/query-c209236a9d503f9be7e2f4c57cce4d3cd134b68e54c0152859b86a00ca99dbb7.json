@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT keyframes_ms FROM version_probes WHERE version_id = ?",
+  "query": "SELECT keyframes_ms FROM version_probes\n             WHERE version_id = ? AND size = ? AND modified_ns = ?",
   "describe": {
     "columns": [
       {
@@ -16,11 +16,11 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 3
     },
     "nullable": [
       true
     ]
   },
-  "hash": "fcea48293d7ab89842330ce89affead7c84f2028e827e72ff5c396e0ea6eb2f6"
+  "hash": "c209236a9d503f9be7e2f4c57cce4d3cd134b68e54c0152859b86a00ca99dbb7"
 }

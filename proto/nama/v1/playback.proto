@@ -69,9 +69,14 @@ enum PlaybackLimit {
 
 // What a Device can decode.
 message DeviceDecoding {
-  // The media types it can decode, with their codecs, such as
-  // `video/mp4; codecs="avc1.640028"`.
-  repeated string content_types = 1;
+  reserved 1;
+  reserved "content_types";
+  // The containers it can play.
+  repeated Container containers = 6;
+  // The video codecs it can decode.
+  repeated VideoCodec video_codecs = 7;
+  // The audio codecs it can decode.
+  repeated AudioCodec audio_codecs = 8;
   // Whether its display shows HDR.
   bool hdr = 2;
   // Whether it plays HLS without a script's help.
@@ -81,6 +86,38 @@ message DeviceDecoding {
   // How many audio channels it plays out at once, such as 6 for 5.1. 0 when it doesn't say,
   // which the Server takes as stereo.
   uint32 audio_channels = 5;
+}
+
+// A container the Server knows whether a Device plays.
+enum Container {
+  CONTAINER_UNSPECIFIED = 0;
+  CONTAINER_MP4 = 1;
+  CONTAINER_WEBM = 2;
+  CONTAINER_MATROSKA = 3;
+}
+
+// A video codec the Server knows whether a Device decodes.
+enum VideoCodec {
+  VIDEO_CODEC_UNSPECIFIED = 0;
+  VIDEO_CODEC_H264 = 1;
+  VIDEO_CODEC_HEVC = 2;
+  VIDEO_CODEC_VP8 = 3;
+  VIDEO_CODEC_VP9 = 4;
+  VIDEO_CODEC_AV1 = 5;
+}
+
+// An audio codec the Server knows whether a Device decodes.
+enum AudioCodec {
+  AUDIO_CODEC_UNSPECIFIED = 0;
+  AUDIO_CODEC_AAC = 1;
+  AUDIO_CODEC_MP3 = 2;
+  AUDIO_CODEC_AC3 = 3;
+  AUDIO_CODEC_EAC3 = 4;
+  AUDIO_CODEC_OPUS = 5;
+  AUDIO_CODEC_VORBIS = 6;
+  AUDIO_CODEC_FLAC = 7;
+  AUDIO_CODEC_DTS = 8;
+  AUDIO_CODEC_TRUEHD = 9;
 }
 
 // How a Playback Plan plays a Version.

@@ -233,15 +233,10 @@ impl Ffmpeg {
 
     /// The hardware acceleration APIs that ffmpeg lists an encoder for and that pass a test
     /// encode, as a Transcode would run it, in [`Accel::ALL`]'s order, each with whether it passes
-    /// a test tone-map too. Takes a few seconds while each opens its device.
-    async fn find_hardware(&self) -> Vec<Hardware> {
-        let encoders = match self.listed("-encoders").await {
-            Ok(encoders) => encoders,
-            Err(err) => {
-                tracing::warn!("could not ask ffmpeg for its encoders: {err}");
-                return vec![];
-            }
-        };
+    /// a test tone-map too, or why ffmpeg couldn't list its encoders. Takes a few seconds while
+    /// each opens its device.
+    async fn find_hardware(&self) -> Result<Vec<Hardware>, String> {
+        let encoders = self.listed("-encoders").await?;
         let mut found = vec![];
         for accel in Accel::ALL {
             if !encoders.iter().any(|encoder| encoder == accel.encoder()) {
@@ -273,7 +268,7 @@ impl Ffmpeg {
                     .is_ok();
             found.push(Hardware { accel, tone_maps });
         }
-        found
+        Ok(found)
     }
 
     /// Converts `clip`, a lavfi source, as `video` says, and throws it away, or says why it failed.
@@ -587,7 +582,7 @@ struct AbilitiesInner {
 
 impl Abilities {
     /// Starts testing `ffmpeg`'s hardware in the background, as it takes a few seconds; the first
-    /// [`Self::can_do`] waits for it.
+    /// [`Self::can_do`] waits for it, and asks again if ffmpeg couldn't list its encoders.
     pub(crate) fn new(ffmpeg: Arc<Ffmpeg>) -> Self {
         let abilities = Self {
             inner: Arc::new(AbilitiesInner {
@@ -603,7 +598,7 @@ impl Abilities {
         // database cleanly (#554).
         let testing = abilities.clone();
         abilities.inner.tasks.spawn(async move {
-            // Only for testing once; what was found is kept, and a task's output must be owned.
+            // Only for testing early; a task's output must be owned.
             let _: Option<usize> = (testing.inner.cancel)
                 .run_until_cancelled(async { testing.hardware().await.len() })
                 .await;
@@ -620,7 +615,7 @@ impl Abilities {
     }
 
     /// What ffmpeg can do. An answer ffmpeg couldn't give, such as on a busy host whose listing
-    /// timed out, counts as `false` and is asked again next time.
+    /// timed out, counts as `false` or no hardware and is asked again next time.
     pub(crate) async fn can_do(&self) -> CanDo {
         let ffmpeg = &self.inner.ffmpeg;
         // Together, so a busy host waits out one listing's timeout, not two.
@@ -638,18 +633,24 @@ impl Abilities {
     }
 
     /// The hardware acceleration that passed its test encode, tested the first time it's asked
-    /// for and kept.
+    /// for and kept, or none while ffmpeg couldn't list its encoders, which is asked again next
+    /// time.
     async fn hardware(&self) -> &[Hardware] {
         let ffmpeg = &self.inner.ffmpeg;
-        self.inner
-            .hardware
-            .get_or_init(|| async {
-                let found = ffmpeg.find_hardware().await;
-                let names: Vec<&str> = found.iter().map(|found| found.accel.name()).collect();
-                tracing::info!(hardware = ?names, "tested hardware acceleration");
-                found
-            })
-            .await
+        let tested = self.inner.hardware.get_or_try_init(|| async {
+            let found = ffmpeg.find_hardware().await?;
+            let names: Vec<&str> = found.iter().map(|found| found.accel.name()).collect();
+            tracing::info!(hardware = ?names, "tested hardware acceleration");
+            Ok::<_, String>(found)
+        });
+        // As `answered_once`: a listing that timed out on a busy host isn't kept as no hardware.
+        match tested.await {
+            Ok(found) => found,
+            Err(err) => {
+                tracing::warn!("could not ask ffmpeg for its encoders: {err}");
+                &[]
+            }
+        }
     }
 }
 
@@ -1760,6 +1761,44 @@ pub(crate) mod tests {
     #[tokio::test]
     #[expect(
         clippy::await_holding_lock,
+        reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
+    )]
+    async fn hardware_ffmpeg_couldnt_list_is_tested_again() {
+        let bin = tempfile::tempdir().unwrap();
+        let answers = bin.path().join("answers");
+        // Fails to list its encoders until `answers` exists, so the first `can_do` finds none
+        // whether or not the background startup test asked first.
+        let ffmpeg = fake_ffmpeg(
+            bin.path(),
+            &format!(
+                "*-encoders*) [ -e '{answers}' ] || exit 1; \
+                              echo ' V....D h264_vaapi  H.264/AVC (VAAPI)' ;;
+                 *tonemap_vaapi*) exit 1 ;;
+                 *h264_vaapi*) exit 0 ;;
+                 *) exit 1 ;;",
+                answers = answers.display()
+            ),
+        );
+
+        let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
+        let abilities = Abilities::new(Arc::new(ffmpeg));
+        let first = abilities.can_do().await;
+        fs::write(&answers, "").unwrap();
+        let then = abilities.can_do().await;
+
+        assert_eq!(first.hardware, []);
+        assert_eq!(
+            then.hardware,
+            [Hardware {
+                accel: Accel::Vaapi,
+                tone_maps: false,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    #[expect(
+        clippy::await_holding_lock,
         reason = "the fakes' lock is held while the hardware test forks ffmpeg; a test waits on no other"
     )]
     async fn shutting_down_mid_hardware_test_stops_it() {
@@ -1842,10 +1881,10 @@ pub(crate) mod tests {
 
         assert_eq!(
             found,
-            [Hardware {
+            Ok(vec![Hardware {
                 accel: Accel::Vaapi,
                 tone_maps: false,
-            }]
+            }])
         );
     }
 
@@ -1870,16 +1909,16 @@ pub(crate) mod tests {
 
         assert_eq!(
             found,
-            [Hardware {
+            Ok(vec![Hardware {
                 accel: Accel::Qsv,
                 tone_maps: true,
-            }]
+            }])
         );
     }
 
     #[tokio::test]
     async fn without_ffmpeg_no_hardware_is_found() {
-        assert_eq!(Ffmpeg::default().find_hardware().await, []);
+        assert_eq!(Ffmpeg::default().find_hardware().await, Ok(vec![]));
     }
 }
 
@@ -2800,7 +2839,7 @@ mod hls_tests {
     #[ignore = "needs a GPU that ffmpeg can use"]
     async fn hardware_found_on_this_host_transcodes_cut_at_every_cut_and_tone_maps_hdr10() {
         let ffmpeg = system_ffmpeg();
-        let found = ffmpeg.find_hardware().await;
+        let found = ffmpeg.find_hardware().await.unwrap();
         let hardware = *found.first().expect("no hardware passed its test encode");
         let work = tempfile::tempdir().unwrap();
         let file = work.path().join("hdr10.mkv");

@@ -60,9 +60,14 @@ impl Started {
 
     /// Drops the test Plugin, built with `features`, into the Server's `plugins/` as `file`.
     fn drop_in(&self, file: &str, features: &str) {
+        self.drop_bytes_in(file, &test_plugin::build(features));
+    }
+
+    /// Drops `bytes` into the Server's `plugins/` as `file`.
+    fn drop_bytes_in(&self, file: &str, bytes: &[u8]) {
         let dir = self.server.data_dir().join("plugins");
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join(file), test_plugin::build(features)).unwrap();
+        std::fs::write(dir.join(file), bytes).unwrap();
     }
 
     /// Saves the test Plugin's settings as the Plugins page does, each one text.
@@ -330,59 +335,32 @@ async fn a_plugins_name_and_description_come_from_its_manifest() {
 }
 
 #[tokio::test]
-async fn a_plugin_whose_manifest_has_no_name_or_description_still_loads_and_enables() {
-    let started = Started::new().await;
-
-    started.drop_in("unnamed.wasm", "unnamed");
-
-    let listed = started.listed("test-plugin").await.unwrap();
-    assert_eq!(listed.refused_reason, "");
-    assert_eq!(
-        (listed.name.as_str(), listed.description.as_str()),
-        ("", "")
-    );
-    let got = started.got("test-plugin").await;
-    assert_eq!(got.summary.into_option(), Some(listed));
-    started
-        .client()
-        .enable_plugin(enable("test-plugin"))
-        .await
-        .unwrap();
-    assert!(started.listed("test-plugin").await.unwrap().enabled);
-}
-
-#[tokio::test]
 async fn a_refused_plugin_is_listed_and_shown_with_why_and_enabling_it_is_refused() {
     let started = Started::new().await;
 
-    started.drop_in("out-of-range.wasm", "out-of-range");
-    let listed = started.listed("out-of-range.wasm").await.unwrap();
+    started.drop_bytes_in("not-wasm.wasm", b"not a WASM module");
+    let listed = started.listed("not-wasm.wasm").await.unwrap();
     assert_eq!(listed.kind, PluginKind::PLUGIN_KIND_INSTALLED);
     assert!(!listed.enabled);
-    assert!(
-        listed
-            .refused_reason
-            .contains("it wants nama-api <0.1, and this Server has 0.1.0"),
-        "{listed:?}"
-    );
+    assert_eq!(listed.refused_reason, "it is not a WASM module");
 
     let refusal = assert_refused(
         started
             .client()
-            .enable_plugin(enable("out-of-range.wasm"))
+            .enable_plugin(enable("not-wasm.wasm"))
             .await,
         ErrorCode::FailedPrecondition,
         RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
     );
     assert_eq!(refusal.field, "id");
-    assert_eq!(refusal.params["pluginId"], "out-of-range.wasm");
+    assert_eq!(refusal.params["pluginId"], "not-wasm.wasm");
     assert_eq!(refusal.params["reason"], listed.refused_reason);
-    let got = started.got("out-of-range.wasm").await;
+    let got = started.got("not-wasm.wasm").await;
     assert_eq!(got.summary.as_option(), Some(&listed));
     assert!(got.settings.is_empty(), "{got:?}");
-    assert!(!started.listed("out-of-range.wasm").await.unwrap().enabled);
+    assert!(!started.listed("not-wasm.wasm").await.unwrap().enabled);
     let update = UpdatePluginSettingsRequest {
-        id: "out-of-range.wasm".to_owned(),
+        id: "not-wasm.wasm".to_owned(),
         ..Default::default()
     };
     assert_refused(
@@ -443,46 +421,6 @@ async fn a_plugins_logo_from_its_manifest_comes_through_list_and_get_plugin() {
     assert!(listed.logo_svg.starts_with("<svg"), "{listed:?}");
     let got = started.got("test-plugin").await;
     assert_eq!(got.summary.into_option(), Some(listed));
-}
-
-#[tokio::test]
-async fn a_plugin_without_a_logo_loads_without_one() {
-    let started = Started::new().await;
-
-    started.drop_in("test.wasm", "logoless");
-
-    let listed = started.listed("test-plugin").await.unwrap();
-    assert_eq!(listed.logo_svg, "", "{listed:?}");
-    assert!(listed.refused_reason.is_empty(), "{listed:?}");
-    let got = started.got("test-plugin").await;
-    assert_eq!(got.summary.into_option(), Some(listed));
-}
-
-#[tokio::test]
-async fn a_logo_over_16_kib_or_not_svg_is_dropped_with_a_warning_and_the_plugin_still_loads() {
-    let log = Log::global();
-    for (features, why) in [
-        ("big-logo", "it is over 16384 bytes"),
-        ("html-logo", "it isn't SVG: its root is <html>"),
-        ("doctype-logo", "it isn't SVG: XML with DTD detected"),
-    ] {
-        let started = Started::new().await;
-
-        started.drop_in("test.wasm", features);
-
-        let listed = started.listed("test-plugin").await.unwrap();
-        assert_eq!(listed.logo_svg, "", "{features}");
-        let got = started.got("test-plugin").await;
-        assert_eq!(got.summary.into_option(), Some(listed), "{features}");
-        log.wait_for(&["test-plugin", "dropped its logo", why], 1)
-            .await;
-        started
-            .client()
-            .enable_plugin(enable("test-plugin"))
-            .await
-            .unwrap();
-        assert!(started.listed("test-plugin").await.unwrap().enabled);
-    }
 }
 
 #[tokio::test]

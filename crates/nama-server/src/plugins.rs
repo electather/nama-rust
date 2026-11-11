@@ -53,6 +53,9 @@ struct State {
     known: BTreeMap<PluginId, Described>,
     /// Where [`Registry::crashed`] sends the Installed Plugins it disables for crashing.
     crashed: Option<mpsc::UnboundedSender<PluginId>>,
+    /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
+    #[cfg(feature = "testing")]
+    as_installed: Vec<fn() -> Arc<dyn Plugin>>,
 }
 
 type Make = Arc<dyn Fn() -> Arc<dyn Plugin> + Send + Sync>;
@@ -963,6 +966,34 @@ pub(crate) fn log_not_enabled(id: &PluginId, err: &EnableError) {
     } else {
         error!(plugin = %id, "could not enable plugin: {err}");
     }
+}
+
+/// What the Plugin `make` makes says about itself, as [`asked`] gets it, or `None`, logged, if it
+/// panics being made.
+fn what_it_says(make: &dyn Fn() -> Arc<dyn Plugin>) -> Option<(Manifest, bool)> {
+    let plugin = contain_sync(make)
+        .inspect_err(|message| error!(message, "a plugin panicked while being made"))
+        .ok()?;
+    let said = asked(&*plugin);
+    // A panic dropping it is moot: what it said about itself is already read.
+    let _dropped = contain_sync(|| drop(plugin));
+    said
+}
+
+/// `plugin`'s Manifest and whether it has a settings check, or `None`, logged, if it panics
+/// giving them: both are Plugin code, so a panic in them is contained.
+fn asked(plugin: &dyn Plugin) -> Option<(Manifest, bool)> {
+    let manifest = contain_sync(|| plugin.manifest())
+        .inspect_err(|message| {
+            error!(message, "a plugin panicked while giving its manifest");
+        })
+        .ok()?;
+    let checks_settings = contain_sync(|| plugin.settings_check().is_some())
+        .inspect_err(|message| {
+            error!(plugin = %manifest.id, message, "a plugin panicked while describing itself");
+        })
+        .ok()?;
+    Some((manifest, checks_settings))
 }
 
 /// The Plugin's `logo` if the Server keeps it: at most [`MAX_LOGO_BYTES`] and an SVG document.
