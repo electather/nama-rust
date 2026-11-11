@@ -130,12 +130,13 @@ impl HandOff {
         };
         let handed = as_handed_off(&mut conn, current.clone()).await?;
         drop(conn);
+        // Before the call, so a Plugin disabled or swapped during it isn't the one the Request names.
+        let plugin = self.fulfiller_of(&current);
         let Some(fulfilled) = self.fulfill(&handed).await else {
             return Ok(current);
         };
         let took = fulfilled.is_ok();
         let asked = current.quality.as_option().cloned();
-        let plugin = self.fulfiller_of(&current);
         // Not detached again: this Hand-off already is.
         let settled = self
             .apply(move |tx| Box::pin(settle(tx, id, fulfilled, asked, plugin)))
