@@ -528,8 +528,8 @@ pub struct Request {
         QualityChange,
         ::buffa::Inline<QualityChange>,
     >,
-    /// The ID of the Plugin that is its Fulfiller, as of its latest Hand-off: the one that took it or
-    /// failed it. Unset until it is handed off.
+    /// The ID of the Plugin whose Fulfiller it was handed to at its latest Hand-off, whether or not
+    /// it took it. Unset until it is handed off.
     ///
     /// Field 14: `fulfiller_plugin_id`
     #[serde(

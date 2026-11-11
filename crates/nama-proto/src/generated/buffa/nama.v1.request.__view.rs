@@ -79,8 +79,8 @@ pub struct RequestView<'a> {
     pub quality_change: ::buffa::MessageFieldView<
         super::super::__buffa::view::QualityChangeView<'a>,
     >,
-    /// The ID of the Plugin that is its Fulfiller, as of its latest Hand-off: the one that took it or
-    /// failed it. Unset until it is handed off.
+    /// The ID of the Plugin whose Fulfiller it was handed to at its latest Hand-off, whether or not
+    /// it took it. Unset until it is handed off.
     ///
     /// Field 14: `fulfiller_plugin_id`
     pub fulfiller_plugin_id: ::core::option::Option<&'a str>,
@@ -863,8 +863,8 @@ impl RequestOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::QualityChangeView<'_>> {
         &self.0.reborrow().quality_change
     }
-    /// The ID of the Plugin that is its Fulfiller, as of its latest Hand-off: the one that took it or
-    /// failed it. Unset until it is handed off.
+    /// The ID of the Plugin whose Fulfiller it was handed to at its latest Hand-off, whether or not
+    /// it took it. Unset until it is handed off.
     ///
     /// Field 14: `fulfiller_plugin_id`
     #[must_use]

@@ -121,8 +121,8 @@ export type Request = Message<"nama.v1.Request"> & {
   qualityChange?: QualityChange | undefined;
 
   /**
-   * The ID of the Plugin that is its Fulfiller, as of its latest Hand-off: the one that took it or
-   * failed it. Unset until it is handed off.
+   * The ID of the Plugin whose Fulfiller it was handed to at its latest Hand-off, whether or not
+   * it took it. Unset until it is handed off.
    *
    * @generated from field: optional string fulfiller_plugin_id = 14;
    */
