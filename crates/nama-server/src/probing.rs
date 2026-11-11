@@ -162,7 +162,8 @@ impl Probing {
                 Ok(claim) => return self.list_claimed(&path, claim).await,
                 Err(lister) => lister,
             };
-            // An error means the lister gave up without a result, so they're listed here instead.
+            // An error means the lister sent nothing, having found them kept or given up, so
+            // they're read or listed here instead.
             if let Ok(found) = lister.wait_for(Option::is_some).await
                 && let Some(found) = Option::clone(&found)
             {
