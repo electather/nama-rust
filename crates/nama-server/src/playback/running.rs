@@ -322,7 +322,10 @@ impl RunningPlans {
                 transcode,
                 duration_ms,
                 fallback,
-            } => (self.transcode(playback, transcode, duration_ms, fallback)).await?,
+            } => {
+                self.transcode(playback, transcode, duration_ms, fallback)
+                    .await?
+            }
         };
         Ok(started.map(|(id, url)| StartedPlan { id, url, plan }))
     }

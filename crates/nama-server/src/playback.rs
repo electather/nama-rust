@@ -172,8 +172,8 @@ pub(crate) enum Planned {
     Unplayable(Plan),
 }
 
-/// How a plan plays a Version, with what its method converts and, for a Remux or a Transcode,
-/// the Version's length, which their playlists list.
+/// How a plan plays a Version, with what its method converts, for a Remux or a Transcode the
+/// Version's length, which their playlists list, and for a Transcode on hardware its fallback.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Playing {
     DirectPlay,
@@ -728,7 +728,7 @@ fn fallback(facts: &Facts, transcode: Transcode) -> Option<Fallback> {
     let tone_map = (transcode.video.tone_map)
         .filter(|_| facts.zscale)
         .map(|_| ToneMapper::Software);
-    let untone_mapped = if tone_map.is_none() && transcode.video.tone_map.is_some() {
+    let without_tone_mapping = if tone_map.is_none() && transcode.video.tone_map.is_some() {
         ", without tone-mapping its HDR, as this Server's ffmpeg lacks zscale"
     } else {
         ""
@@ -743,7 +743,7 @@ fn fallback(facts: &Facts, transcode: Transcode) -> Option<Fallback> {
             ..transcode
         },
         why: format!(
-            "{} failed partway, so the rest of it Transcodes in software{untone_mapped}",
+            "{} failed partway, so the rest of it Transcodes in software{without_tone_mapping}",
             accel.name()
         ),
     })
