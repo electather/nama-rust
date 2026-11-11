@@ -1018,4 +1018,25 @@ mod tests {
         assert_eq!(watched(), [(media.root.clone(), media.library)]);
         media.scanner.shutdown().await;
     }
+
+    #[tokio::test]
+    async fn deleting_a_library_inside_another_keeps_the_outer_one_watched() {
+        let media = Fixture::new(Kind::Movies).await;
+        let libraries = &media.scanner.inner.libraries;
+        fs::create_dir(media.path("inner")).unwrap();
+        let inner = media.path("inner").to_str().unwrap().to_owned();
+        watch(&media).await;
+        let created = libraries
+            .create("Inner", Kind::Shows, vec![inner])
+            .await
+            .unwrap();
+        media.scanner.rewatch().await;
+
+        libraries.delete(created.id).await.unwrap();
+        media.scanner.rewatch().await;
+        media.write("inner/Alien (1979).mkv", 10);
+
+        wait_for_files(&media, &["inner/Alien (1979).mkv"]).await;
+        media.scanner.shutdown().await;
+    }
 }

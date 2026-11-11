@@ -133,9 +133,13 @@ impl Scanner {
     }
 }
 
-/// Has `watcher` stop watching the folders in `before` that aren't in `wanted`, and start watching
-/// those in `wanted` that aren't in `before`. Returns `wanted` less those it couldn't watch.
-// shortcut: a watch the OS ended, as it does for a folder deleted or unmounted, goes unnoticed, so
+/// Has `watcher` watch the folders in `wanted`, given it watches those in `before`. Returns
+/// `wanted` less those it couldn't watch.
+///
+/// Only the outermost folders get OS watches: a watch of a folder covers what's inside it, and
+/// notify keys its inotify watches by path, so watching a folder inside another shares the outer
+/// watch's, and unwatching either ends both.
+// ponytail: a watch the OS ended, as it does for a folder deleted or unmounted, goes unnoticed, so
 // the folder is left to the periodic scan even once it's back; forget the folder on its own
 // remove event if that matters.
 fn watch_only(
@@ -143,12 +147,36 @@ fn watch_only(
     before: &[PathBuf],
     mut wanted: HashMap<PathBuf, i64>,
 ) -> HashMap<PathBuf, i64> {
-    for folder in before.iter().filter(|folder| !wanted.contains_key(*folder)) {
+    let outer_before = outermost(&before.iter().collect::<Vec<_>>());
+    let outer_wanted = outermost(&wanted.keys().collect::<Vec<_>>());
+    // Unwatching first, since a folder that was inside one unwatched may now need its own watch.
+    for folder in outer_before
+        .iter()
+        .filter(|folder| !outer_wanted.contains(folder))
+    {
         // It fails only for a folder whose watch the OS already ended.
         let _: notify::Result<()> = watcher.unwatch(folder);
     }
-    wanted.retain(|folder, _| before.contains(folder) || watch_folder(watcher, folder));
+    let failed: Vec<PathBuf> = outer_wanted
+        .into_iter()
+        .filter(|folder| !outer_before.contains(folder) && !watch_folder(watcher, folder))
+        .cloned()
+        .collect();
+    wanted.retain(|folder, _| !failed.iter().any(|outer| folder.starts_with(outer)));
     wanted
+}
+
+/// The `folders` not inside another of them.
+fn outermost<'a>(folders: &[&'a PathBuf]) -> Vec<&'a PathBuf> {
+    folders
+        .iter()
+        .filter(|folder| {
+            !folders
+                .iter()
+                .any(|outer| outer != *folder && folder.starts_with(outer))
+        })
+        .copied()
+        .collect()
 }
 
 /// Whether `watcher` could watch `folder` and all that's in it.
