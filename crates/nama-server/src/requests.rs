@@ -312,16 +312,18 @@ impl Requests {
     /// Processing. A failed hand-off is only logged, and leaves the rest waiting. Call it once.
     pub(crate) fn start(&self, came_up: UnboundedReceiver<PluginId>, progress_every: Duration) {
         let requests = self.clone();
-        let handing_off = tokio::spawn(async move {
-            requests
-                .hand_off
-                .as_fulfillers_come_up(&requests, came_up)
-                .await;
-        });
+        let handing_off =
+            tokio::spawn(async move { requests.as_fulfillers_come_up(came_up).await });
         let asking = self.progress.clone();
         let following = tokio::spawn(async move { asking.follow(progress_every).await });
         *lock(&self.handing_off) = Some(handing_off);
         *lock(&self.following) = Some(following);
+    }
+
+    /// Hands off the waiting Requests whenever a Plugin `came_up` names provides a Fulfiller, as
+    /// [`Self::start`] describes, until `came_up` closes.
+    async fn as_fulfillers_come_up(&self, came_up: UnboundedReceiver<PluginId>) {
+        self.hand_off.as_fulfillers_come_up(self, came_up).await;
     }
 
     /// Stops what [`Self::start`] started, logging a panic from either loop. Does nothing before
@@ -3164,10 +3166,7 @@ mod tests {
         let (came_up, queue) = tokio::sync::mpsc::unbounded_channel();
         came_up.send(PluginId::from_static(plugin)).unwrap();
         drop(came_up);
-        requests
-            .hand_off
-            .as_fulfillers_come_up(requests, queue)
-            .await;
+        requests.as_fulfillers_come_up(queue).await;
     }
 
     /// Ada, the User the tests ask as, holding `permissions`.
