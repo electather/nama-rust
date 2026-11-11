@@ -1,6 +1,6 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
-use std::{collections::BTreeSet, future, net::IpAddr, sync::Arc};
+use std::{future, net::IpAddr, sync::Arc};
 
 use axum::{
     extract::Request,
@@ -15,25 +15,10 @@ use connectrpc::{
     ServiceResult, ServiceStream,
 };
 use futures_util::StreamExt;
-use nama_plugin_api::{
-    PluginId,
-    fulfiller::{Movies, Shows},
-    metadata::{Candidate, ExternalId, TitleKind},
-};
+use nama_plugin_api::metadata::{ExternalId, TitleKind};
 use nama_proto::nama::v1::{
-    self as proto, ApproveFollowedShowRequest, ApproveFollowedShowResponse, ApproveRequestRequest,
-    ApproveRequestResponse, CancelFollowedShowRequest, CancelFollowedShowResponse,
-    CancelRequestRequest, CancelRequestResponse, CountPendingRequestsRequest,
-    CountPendingRequestsResponse, CreateFollowedShowRequest, CreateFollowedShowResponse,
-    CreateRequestRequest, CreateRequestResponse, CreateSeasonRequestsRequest,
-    CreateSeasonRequestsResponse, DeclineFollowedShowRequest, DeclineFollowedShowResponse,
-    DeclineRequestRequest, DeclineRequestResponse, EventService, EventType, GetRequestRequest,
-    GetRequestResponse, ListRequestsRequest, ListRequestsResponse, LookUpMovieRequest,
-    LookUpMovieResponse, LookUpShowRequest, LookUpShowResponse, Permission, Refusal, RefusalReason,
-    RequestService, RequestState, RetryRequestRequest, RetryRequestResponse, SearchMoviesRequest,
-    SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse, SubscribeRequest,
-    SubscribeResponse, WithdrawFollowedShowRequest, WithdrawFollowedShowResponse,
-    WithdrawRequestRequest, WithdrawRequestResponse, external_id,
+    self as proto, EventService, EventType, Permission, Refusal, RefusalReason, SubscribeRequest,
+    SubscribeResponse, external_id,
 };
 
 use crate::{
@@ -41,7 +26,7 @@ use crate::{
     browse::Browse,
     config::Config,
     connections::Connections,
-    contents::{Contents, Metadata},
+    contents::Contents,
     db::{Database, now},
     events::{EventBus, Filter},
     ffmpeg::Ffmpeg,
@@ -50,9 +35,8 @@ use crate::{
     matching::Matcher,
     playback::running::RunningPlans,
     plugin_settings::PluginSettings,
-    qualities,
     rate_limits::{SignInCodeLimits, SignInLimits},
-    requests::{self, Found, FoundShow, Requests},
+    requests::Requests,
     scanner::Scanner,
     server_settings,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie},
@@ -67,6 +51,7 @@ mod libraries;
 mod matches;
 mod playback;
 mod plugins;
+mod requests;
 mod server;
 mod sign_in;
 mod users;
@@ -77,6 +62,7 @@ use libraries::LibraryServiceHandler;
 use matches::MatchServiceHandler;
 use playback::PlaybackServiceHandler;
 use plugins::PluginServiceHandler;
+use requests::RequestServiceHandler;
 use server::ServerServiceHandler;
 use sign_in::SignInServiceHandler;
 use users::UserServiceHandler;
@@ -397,488 +383,6 @@ fn version_not_found() -> ConnectError {
     .into()
 }
 
-/// `nama.v1.RequestService`: Users asking for Movies and Seasons of Shows. Asking needs
-/// `PERMISSION_REQUEST_MOVIE` or `PERMISSION_REQUEST_TV`, which [`require_access`] enforces;
-/// without `PERMISSION_VIEW_REQUESTS`, [`Requests`] shows a User only their own Requests.
-struct RequestServiceHandler {
-    requests: Requests,
-    /// Serves the images of the Movies found, which no Match stores.
-    artwork: Artwork,
-}
-
-#[expect(
-    refining_impl_trait,
-    reason = "plain `async fn` returning the owned response is the form the generated trait \
-              documents; the refined signature isn't visible outside this crate"
-)]
-impl RequestService for RequestServiceHandler {
-    async fn create_request(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, CreateRequestRequest>,
-    ) -> ServiceResult<CreateRequestResponse> {
-        let asker = &caller(&ctx)?.user;
-        let request = self
-            .requests
-            .create(asker, request.movie_tmdb_id, request.quality)
-            .await?;
-        Response::ok(CreateRequestResponse {
-            request: request.into(),
-            ..Default::default()
-        })
-    }
-
-    async fn create_season_requests(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, CreateSeasonRequestsRequest>,
-    ) -> ServiceResult<CreateSeasonRequestsResponse> {
-        let asker = &caller(&ctx)?.user;
-        let seasons: BTreeSet<u32> = request.season_numbers.iter().copied().collect();
-        if seasons.is_empty() {
-            return Err(refuse(
-                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                "name at least one Season to ask for",
-            )
-            .field("season_numbers")
-            .into());
-        }
-        let requests = self
-            .requests
-            .create_seasons(asker, request.show_tmdb_id, &seasons, request.quality)
-            .await?;
-        Response::ok(CreateSeasonRequestsResponse {
-            requests,
-            ..Default::default()
-        })
-    }
-
-    async fn list_requests(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, ListRequestsRequest>,
-    ) -> ServiceResult<ListRequestsResponse> {
-        let viewer = &caller(&ctx)?.user;
-        // Unspecified, or a state this Server doesn't know, lists every state.
-        let state = request
-            .state
-            .as_known()
-            .filter(|&state| state != RequestState::Unspecified);
-        let size = match request.page_size {
-            0 => 50,
-            size => size.min(100),
-        };
-        let page = self
-            .requests
-            .list(viewer, state, size as usize, request.page_token)
-            .await?;
-        Response::ok(page)
-    }
-
-    async fn get_request(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, GetRequestRequest>,
-    ) -> ServiceResult<GetRequestResponse> {
-        let viewer = &caller(&ctx)?.user;
-        let request = self.requests.get(viewer, request.id).await?;
-        Response::ok(GetRequestResponse {
-            request: request.into(),
-            ..Default::default()
-        })
-    }
-
-    async fn count_pending_requests(
-        &self,
-        ctx: RequestContext,
-        _request: ServiceRequest<'_, CountPendingRequestsRequest>,
-    ) -> ServiceResult<CountPendingRequestsResponse> {
-        let viewer = &caller(&ctx)?.user;
-        let count = self
-            .requests
-            .count_pending(viewer)
-            .await
-            .map_err(database_failed)?;
-        Response::ok(CountPendingRequestsResponse {
-            count,
-            ..Default::default()
-        })
-    }
-
-    async fn search_movies(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, SearchMoviesRequest>,
-    ) -> ServiceResult<SearchMoviesResponse> {
-        let viewer = &caller(&ctx)?.user;
-        let title = searched_title(request.to_owned_message().title)?;
-        let found = self.requests.search(viewer, title).await?;
-        Response::ok(SearchMoviesResponse {
-            movies: found
-                .into_iter()
-                .map(|found| self.searched_to_proto(found))
-                .collect(),
-            ..Default::default()
-        })
-    }
-
-    async fn list_movie_qualities(
-        &self,
-        ctx: RequestContext,
-        _request: ServiceRequest<'_, proto::ListMovieQualitiesRequest>,
-    ) -> ServiceResult<proto::ListMovieQualitiesResponse> {
-        let (qualities, personal_default) = self
-            .requests
-            .qualities::<Movies>(&caller(&ctx)?.user)
-            .await
-            .map_err(database_failed)?;
-        Response::ok(proto::ListMovieQualitiesResponse {
-            qualities,
-            personal_default,
-            ..Default::default()
-        })
-    }
-
-    async fn list_default_qualities(
-        &self,
-        ctx: RequestContext,
-        _request: ServiceRequest<'_, proto::ListDefaultQualitiesRequest>,
-    ) -> ServiceResult<proto::ListDefaultQualitiesResponse> {
-        let defaults = self
-            .requests
-            .personal_defaults(caller(&ctx)?.user.id)
-            .await
-            .map_err(database_failed)?;
-        Response::ok(proto::ListDefaultQualitiesResponse {
-            defaults,
-            ..Default::default()
-        })
-    }
-
-    async fn list_show_qualities(
-        &self,
-        ctx: RequestContext,
-        _request: ServiceRequest<'_, proto::ListShowQualitiesRequest>,
-    ) -> ServiceResult<proto::ListShowQualitiesResponse> {
-        let (qualities, personal_default) = self
-            .requests
-            .qualities::<Shows>(&caller(&ctx)?.user)
-            .await
-            .map_err(database_failed)?;
-        Response::ok(proto::ListShowQualitiesResponse {
-            qualities,
-            personal_default,
-            ..Default::default()
-        })
-    }
-
-    async fn set_default_quality(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, proto::SetDefaultQualityRequest>,
-    ) -> ServiceResult<proto::SetDefaultQualityResponse> {
-        let plugin = PluginId::from(request.plugin_id.to_owned());
-        self.requests
-            .set_personal_default(caller(&ctx)?.user.id, plugin, request.quality)
-            .await?;
-        Response::ok(proto::SetDefaultQualityResponse::default())
-    }
-
-    async fn look_up_movie(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, LookUpMovieRequest>,
-    ) -> ServiceResult<LookUpMovieResponse> {
-        let viewer = &caller(&ctx)?.user;
-        let found = self.requests.look_up(viewer, request.movie_tmdb_id).await?;
-        Response::ok(LookUpMovieResponse {
-            movie: self.looked_up_to_proto(found).into(),
-            ..Default::default()
-        })
-    }
-
-    async fn search_shows(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, SearchShowsRequest>,
-    ) -> ServiceResult<SearchShowsResponse> {
-        let title = searched_title(request.to_owned_message().title)?;
-        let found = self.requests.search_shows(title).await?;
-        Response::ok(SearchShowsResponse {
-            shows: found
-                .into_iter()
-                .map(|found| self.searched_show_to_proto(found))
-                .collect(),
-            ..Default::default()
-        })
-    }
-
-    async fn look_up_show(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, LookUpShowRequest>,
-    ) -> ServiceResult<LookUpShowResponse> {
-        let viewer = &caller(&ctx)?.user;
-        let found = self
-            .requests
-            .look_up_show(viewer, request.show_tmdb_id)
-            .await?;
-        Response::ok(LookUpShowResponse {
-            show: self.looked_up_show_to_proto(found).into(),
-            ..Default::default()
-        })
-    }
-
-    async fn approve_request(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, ApproveRequestRequest>,
-    ) -> ServiceResult<ApproveRequestResponse> {
-        let manager = &caller(&ctx)?.user;
-        let approved = self
-            .requests
-            .approve(manager, request.id, request.quality_id)
-            .await?;
-        Response::ok(ApproveRequestResponse {
-            request: approved.into(),
-            ..Default::default()
-        })
-    }
-
-    async fn decline_request(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, DeclineRequestRequest>,
-    ) -> ServiceResult<DeclineRequestResponse> {
-        let declined = self.requests.decline(request.id, request.reason).await?;
-        Response::ok(DeclineRequestResponse {
-            request: declined.into(),
-            ..Default::default()
-        })
-    }
-
-    async fn cancel_request(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, CancelRequestRequest>,
-    ) -> ServiceResult<CancelRequestResponse> {
-        self.requests.cancel(request.id).await?;
-        Response::ok(CancelRequestResponse::default())
-    }
-
-    async fn retry_request(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, RetryRequestRequest>,
-    ) -> ServiceResult<RetryRequestResponse> {
-        let manager = &caller(&ctx)?.user;
-        let retried = self
-            .requests
-            .retry(manager, request.id, request.quality_id)
-            .await?;
-        Response::ok(RetryRequestResponse {
-            request: retried.into(),
-            ..Default::default()
-        })
-    }
-
-    async fn withdraw_request(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, WithdrawRequestRequest>,
-    ) -> ServiceResult<WithdrawRequestResponse> {
-        let requester = &caller(&ctx)?.user;
-        self.requests.withdraw(requester, request.id).await?;
-        Response::ok(WithdrawRequestResponse::default())
-    }
-
-    async fn create_followed_show(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, CreateFollowedShowRequest>,
-    ) -> ServiceResult<CreateFollowedShowResponse> {
-        let asker = &caller(&ctx)?.user;
-        let (followed_show, requests) = self
-            .requests
-            .follow(asker, request.show_tmdb_id, request.quality)
-            .await?;
-        Response::ok(CreateFollowedShowResponse {
-            followed_show: followed_show.into(),
-            requests,
-            ..Default::default()
-        })
-    }
-
-    async fn list_offered_qualities(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, proto::ListOfferedQualitiesRequest>,
-    ) -> ServiceResult<proto::ListOfferedQualitiesResponse> {
-        let kind = title_kind_from_proto(request.kind)?;
-        let qualities = self.requests.offered_qualities(kind).await?;
-        Response::ok(proto::ListOfferedQualitiesResponse {
-            qualities,
-            ..Default::default()
-        })
-    }
-
-    async fn approve_followed_show(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, ApproveFollowedShowRequest>,
-    ) -> ServiceResult<ApproveFollowedShowResponse> {
-        let manager = &caller(&ctx)?.user;
-        let approved = self
-            .requests
-            .approve_followed(manager, request.id, request.quality_id)
-            .await?;
-        Response::ok(ApproveFollowedShowResponse {
-            followed_show: approved.into(),
-            ..Default::default()
-        })
-    }
-
-    async fn decline_followed_show(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, DeclineFollowedShowRequest>,
-    ) -> ServiceResult<DeclineFollowedShowResponse> {
-        let declined = self
-            .requests
-            .decline_followed(request.id, request.reason)
-            .await?;
-        Response::ok(DeclineFollowedShowResponse {
-            followed_show: declined.into(),
-            ..Default::default()
-        })
-    }
-
-    async fn cancel_followed_show(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, CancelFollowedShowRequest>,
-    ) -> ServiceResult<CancelFollowedShowResponse> {
-        self.requests.cancel_followed(request.id).await?;
-        Response::ok(CancelFollowedShowResponse::default())
-    }
-
-    async fn withdraw_followed_show(
-        &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, WithdrawFollowedShowRequest>,
-    ) -> ServiceResult<WithdrawFollowedShowResponse> {
-        let requester = &caller(&ctx)?.user;
-        self.requests
-            .withdraw_followed(requester, request.id)
-            .await?;
-        Response::ok(WithdrawFollowedShowResponse::default())
-    }
-}
-
-impl RequestServiceHandler {
-    /// A Movie a search found, as clients see it, with its poster offered to them.
-    fn searched_to_proto(&self, found: Found<Candidate>) -> proto::FoundMovie {
-        let Found {
-            tmdb_id,
-            plugin,
-            movie,
-            library,
-            request,
-        } = found;
-        proto::FoundMovie {
-            tmdb_id,
-            title: movie.title,
-            year: movie.year,
-            poster_url: movie.poster.map(|path| self.artwork.offer(&plugin, &path)),
-            library_id: library,
-            request: request.into(),
-            ..Default::default()
-        }
-    }
-
-    /// A Movie looked up, as clients see it, with its images offered to them.
-    fn looked_up_to_proto(&self, found: Found<Metadata>) -> proto::FoundMovie {
-        let Found {
-            tmdb_id,
-            plugin,
-            movie,
-            library,
-            request,
-        } = found;
-        let offer = |path: String| self.artwork.offer(&plugin, &path);
-        proto::FoundMovie {
-            tmdb_id,
-            title: movie.title,
-            year: movie.release_date.as_deref().and_then(year_of),
-            overview: movie.overview,
-            runtime_minutes: movie.runtime_minutes,
-            poster_url: movie.poster.map(offer),
-            backdrop_url: movie.backdrop.map(offer),
-            library_id: library,
-            request: request.into(),
-            ..Default::default()
-        }
-    }
-
-    /// A Show a search found, as clients see it, with its poster offered to them.
-    fn searched_show_to_proto(&self, found: FoundShow<Candidate>) -> proto::FoundShow {
-        let FoundShow {
-            tmdb_id,
-            plugin,
-            show,
-            ..
-        } = found;
-        proto::FoundShow {
-            tmdb_id,
-            title: show.title,
-            year: show.year,
-            poster_url: show.poster.map(|path| self.artwork.offer(&plugin, &path)),
-            ..Default::default()
-        }
-    }
-
-    /// A Show looked up, as clients see it, with its images offered to them.
-    fn looked_up_show_to_proto(
-        &self,
-        found: FoundShow<nama_plugin_api::metadata::Show>,
-    ) -> proto::FoundShow {
-        let FoundShow {
-            tmdb_id,
-            plugin,
-            show,
-            seasons,
-            followed_show,
-            quality,
-        } = found;
-        let offer = |path: String| self.artwork.offer(&plugin, &path);
-        proto::FoundShow {
-            tmdb_id,
-            title: show.title,
-            year: show.first_air_date.as_deref().and_then(year_of),
-            overview: show.overview,
-            poster_url: show.poster.map(offer),
-            backdrop_url: show.backdrop.map(offer),
-            seasons,
-            followed_show: followed_show.into(),
-            quality: quality.into(),
-            ..Default::default()
-        }
-    }
-}
-
-/// `title`, unless it is blank, which a search for titles refuses.
-fn searched_title(title: String) -> Result<String, ConnectError> {
-    if title.trim().is_empty() {
-        return Err(refuse(
-            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-            "the title to search for must not be blank",
-        )
-        .field("title")
-        .into());
-    }
-    Ok(title)
-}
-
 /// `nama.v1.EventService`: live updates.
 //
 // TODO(M3): once there is per-Library access, only send a caller events about Libraries it may see.
@@ -909,7 +413,7 @@ impl EventService for EventServiceHandler {
                 // ponytail: Permissions as the stream opened, like any request's, so one who loses
                 // `VIEW_REQUESTS` sees everyone's Request events until they resubscribe. End
                 // streams on a Permission change if that matters.
-                requester: requests::visible_to(&caller.user),
+                requester: crate::requests::visible_to(&caller.user),
                 player: crate::playback::visible_to(&caller.user),
             };
             let signed_out = self.users.signed_out(caller.device.id);
@@ -965,11 +469,6 @@ fn title_kind_from_proto(kind: EnumValue<proto::TitleKind>) -> Result<TitleKind,
             unknown_enum_value("kind", "the kind of title must be movie or show"),
         ),
     }
-}
-
-/// The year of a `YYYY-MM-DD` date.
-fn year_of(date: &str) -> Option<i32> {
-    date.get(..4)?.parse().ok()
 }
 
 /// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.
@@ -1162,121 +661,6 @@ fn unknown_enum_value(field: &str, message: &str) -> ConnectError {
 fn database_failed(err: sqlx::Error) -> ConnectError {
     tracing::error!("a request failed: {err}");
     ConnectError::internal("the Server's database failed")
-}
-
-/// The refusal of a Quality a User named, in the field they named it in.
-impl From<qualities::Refused> for ConnectError {
-    fn from(err: qualities::Refused) -> Self {
-        use RefusalReason as R;
-        let message = err.to_string();
-        let refused = match err {
-            qualities::Refused::NotAllowed => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field(qualities::ASKED)
-            }
-            qualities::Refused::NotOffered { id, field } => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
-                    .field(field)
-                    .param("qualityId", &id)
-            }
-            qualities::Refused::NotTheShows { named, shows } => {
-                show_has_quality(message, qualities::ASKED, named, &shows)
-            }
-            qualities::Refused::ShowQualityFixed { named, shows } => {
-                show_has_quality(message, qualities::CHANGED, named, &shows)
-            }
-        };
-        refused.into()
-    }
-}
-
-/// The refusal of the Quality `named` in `field`, as it isn't the Show's, `shows`.
-fn show_has_quality(
-    message: String,
-    field: &str,
-    named: i64,
-    shows: &proto::RequestedQuality,
-) -> Refused {
-    refuse(RefusalReason::REFUSAL_REASON_SHOW_HAS_QUALITY, message)
-        .field(field)
-        .param("qualityId", &named)
-        .param("showQualityId", &shows.id)
-        .param("showQualityName", &shows.name)
-}
-
-/// The Connect error a client gets for a Request that couldn't be made or found. Database failures
-/// are logged, not sent.
-impl From<requests::Error> for ConnectError {
-    fn from(err: requests::Error) -> Self {
-        use RefusalReason as R;
-        let message = err.to_string();
-        let refused = match err {
-            // Every RPC naming a Request or Followed Show names it in `id`, only `CreateRequest`
-            // and `LookUpMovie` name a Movie, both in `movie_tmdb_id`, and only
-            // `CreateSeasonRequests`, `CreateFollowedShow` and `LookUpShow` a Show, all in
-            // `show_tmdb_id`.
-            requests::Error::NoSuchRequest(id) => {
-                refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
-                    .field("id")
-                    .param("requestId", &id)
-            }
-            requests::Error::NotPending(id) => {
-                refuse(R::REFUSAL_REASON_REQUEST_NOT_PENDING, message)
-                    .field("id")
-                    .param("requestId", &id)
-            }
-            requests::Error::NotFailed(id) => refuse(R::REFUSAL_REASON_REQUEST_NOT_FAILED, message)
-                .field("id")
-                .param("requestId", &id),
-            requests::Error::NotARequester(id) => {
-                refuse(R::REFUSAL_REASON_NOT_A_REQUESTER, message)
-                    .field("id")
-                    .param("requestId", &id)
-            }
-            requests::Error::NoSuchFollowedShow(id) => {
-                refuse(R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND, message)
-                    .field("id")
-                    .param("followedShowId", &id)
-            }
-            requests::Error::FollowedShowNotPending(id) => {
-                refuse(R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_PENDING, message)
-                    .field("id")
-                    .param("followedShowId", &id)
-            }
-            requests::Error::NotAFollowedShowRequester(id) => {
-                refuse(R::REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER, message)
-                    .field("id")
-                    .param("followedShowId", &id)
-            }
-            requests::Error::InLibrary(id) => refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
-                .field("movie_tmdb_id")
-                .param("tmdbId", &id),
-            requests::Error::SeasonInLibrary { show, season } => {
-                refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
-                    .field("season_numbers")
-                    .param("tmdbId", &show)
-                    .param("seasonNumber", &season)
-            }
-            requests::Error::NoSuchMovie(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
-                .field("movie_tmdb_id")
-                .param("titleId", &ExternalId::Tmdb(id)),
-            requests::Error::NoSuchShow(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
-                .field("show_tmdb_id")
-                .param("titleId", &ExternalId::Tmdb(id)),
-            requests::Error::NoSuchSeason { show, season } => {
-                refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
-                    .field("season_numbers")
-                    .param("titleId", &ExternalId::Tmdb(show))
-                    .param("seasonNumber", &season)
-            }
-            requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
-            requests::Error::Quality(refused) => return refused.into(),
-            requests::Error::PageTokenInvalid => {
-                refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page_token")
-            }
-            requests::Error::Database(err) => return database_failed(err),
-        };
-        refused.into()
-    }
 }
 
 /// The client IP address `ctx` came from, which rate limits count by.
