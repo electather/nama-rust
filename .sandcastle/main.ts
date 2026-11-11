@@ -1034,7 +1034,8 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
     else if (loop === "babysit" && !merging && !stillReady(issue)) stop(`the issue lost ${READY}`);
   }, 60_000);
   try {
-    gh("issue", "edit", String(issue.number), "--add-label", WORKING);
+    // Only a marker for people, like its removal in release(): a GitHub GraphQL hiccup here once ended a whole run.
+    if (!ok("gh", "issue", "edit", String(issue.number), "--add-label", WORKING)) log(`#${issue.number} couldn't add ${WORKING}`);
     finish(issue, await work());
   } catch (e) {
     // Checked first: merging by hand makes whatever the factory was doing fail (a rejected push, a
