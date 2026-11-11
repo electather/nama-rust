@@ -224,11 +224,6 @@ fn server_logs_installed_plugins_enables_the_stored_ones_and_skips_the_ones_it_r
     )
     .unwrap();
     std::fs::write(plugins_dir.join("test.wasm"), test_plugin::build("")).unwrap();
-    std::fs::write(
-        plugins_dir.join("out-of-range.wasm"),
-        test_plugin::build("out-of-range"),
-    )
-    .unwrap();
     std::fs::write(plugins_dir.join("panics.wasm"), test_plugin::build("panic")).unwrap();
     std::fs::write(plugins_dir.join("not-wasm.wasm"), "not a WASM module").unwrap();
     // WASM's magic number and version, then a byte that starts no valid section.
@@ -246,11 +241,6 @@ fn server_logs_installed_plugins_enables_the_stored_ones_and_skips_the_ones_it_r
     assert!(no_manifest.contains("manifest()"), "{no_manifest}");
     let not_wasm = wait_for_line(&lines, "not-wasm.wasm");
     assert!(not_wasm.contains("not a WASM module"), "{not_wasm}");
-    let out_of_range = wait_for_line(&lines, "out-of-range.wasm");
-    assert!(
-        out_of_range.contains("it wants nama-api <0.1, and this Server has 0.1.0"),
-        "{out_of_range}"
-    );
     // nama-pdk's panic hook hands the panic's message to the Server.
     let panics = wait_for_line(&lines, "panics.wasm");
     assert!(

@@ -43,7 +43,8 @@ use tokio::task;
 use tracing::{error, info, warn};
 
 use super::{
-    CheckTimedOut, Described, Registry, contain_sync, kept_logo, secret_values, without_secrets,
+    CheckTimedOut, Described, Make, Registry, contain_sync, kept_logo, secret_values,
+    without_secrets,
 };
 
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
@@ -288,9 +289,20 @@ fn is_timeout(err: &extism::Error) -> bool {
     err.to_string() == "timeout"
 }
 
-impl Installed {
-    fn id(&self) -> PluginId {
-        self.manifest.id.clone()
+/// A Plugin to list as Installed once [`describe`] finds its id free.
+struct Listable {
+    make: Make,
+    manifest: Manifest,
+    checks_settings: bool,
+}
+
+impl From<Installed> for Listable {
+    fn from(plugin: Installed) -> Self {
+        Self {
+            manifest: plugin.manifest.clone(),
+            checks_settings: plugin.checks_settings,
+            make: Arc::new(move || Arc::new(plugin.clone())),
+        }
     }
 }
 
@@ -602,8 +614,12 @@ impl Registry {
             };
             state.known.iter().filter_map(builtin).collect()
         });
+        let found = found.0.into_iter();
+        let found = found.map(|(file, plugin)| (file, plugin.map(Listable::from)));
+        #[cfg(feature = "testing")]
+        let found = found.chain(self.made_as_installed());
         let mut described = Vec::new();
-        for (file, plugin) in found.0 {
+        for (file, plugin) in found {
             let (id, known) = describe(&file, plugin, &taken);
             if known.plugin.is_ok() {
                 taken.push(id.clone());
@@ -620,26 +636,60 @@ impl Registry {
             }
         });
     }
+
+    /// Lists the in-process Plugins `plugins` make as Installed ones beside the Packages found on
+    /// disk, from the next listing on and in place of those given before, so a test can try what
+    /// holds for an Installed Plugin without building a Package.
+    #[cfg(feature = "testing")]
+    pub fn list_as_installed(&self, plugins: Vec<fn() -> Arc<dyn Plugin>>) {
+        self.write(|state| state.as_installed = plugins);
+    }
+
+    /// The Plugins [`Registry::list_as_installed`] lists, each as if found in a file named after
+    /// its id. One that panics saying what it is is logged and left out.
+    #[cfg(feature = "testing")]
+    fn made_as_installed(&self) -> Vec<(PathBuf, Result<Listable, Refused>)> {
+        let plugins = self.read(|state| state.as_installed.clone());
+        let listable = |make: fn() -> Arc<dyn Plugin>| {
+            let (manifest, checks_settings) = super::what_it_says(&make)?;
+            // Not the id itself, so one refused for its id taken is listed apart from the holder.
+            let file = PathBuf::from(format!("{}.in-process", manifest.id));
+            let make = Arc::new(make);
+            Some((
+                file,
+                Ok(Listable {
+                    make,
+                    manifest,
+                    checks_settings,
+                }),
+            ))
+        };
+        plugins.into_iter().filter_map(listable).collect()
+    }
 }
 
-/// The Installed Plugin in `file` as the registry lists it: by its id, or by the file's name if
-/// the Server refused it, since it may not know the id. One whose id is `taken` is refused.
+/// The Installed Plugin found in `file`, or listed in-process under a made-up one, as the registry
+/// lists it: by its id, or by the file's name if the Server refused it, since it may not know the
+/// id. One whose id is `taken` is refused.
 fn describe(
     file: &Path,
-    plugin: Result<Installed, Refused>,
+    plugin: Result<Listable, Refused>,
     taken: &[PluginId],
 ) -> (PluginId, Described) {
-    let plugin = plugin.and_then(|plugin| match plugin.id() {
-        id if taken.contains(&id) => Err(Refused::IdTaken(id)),
+    let plugin = plugin.and_then(|plugin| match &plugin.manifest.id {
+        id if taken.contains(id) => Err(Refused::IdTaken(id.clone())),
         _ => Ok(plugin),
     });
     match plugin {
-        Ok(plugin) => {
-            let (id, manifest) = (plugin.id(), plugin.manifest.clone());
-            let checks_settings = plugin.checks_settings;
+        Ok(Listable {
+            make,
+            manifest,
+            checks_settings,
+        }) => {
+            let id = manifest.id.clone();
             let described = Described {
                 kind: PluginKind::PLUGIN_KIND_INSTALLED,
-                plugin: Ok((Arc::new(move || Arc::new(plugin.clone())), manifest)),
+                plugin: Ok((make, manifest)),
                 checks_settings,
             };
             (id, described)
@@ -750,17 +800,24 @@ fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
     })
     .map_err(Refused::Panicked)??;
     let mut package = wire::Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
-    check_nama_api(&package.nama_api)?;
-    check_allowed_hosts(&package.allowed_hosts)?;
-    let points = points(&package)?;
-    check_exports(&points, |export| exported.contains(&export))?;
     Ok(Installed {
-        manifest: manifest(&mut package, &points)?,
+        manifest: judge(&mut package, &exported)?,
         package: Arc::new(package),
         wasm: wasm.into(),
         cache_config: cache_config.into(),
         checks_settings: exported.contains(&CHECK_SETTINGS),
     })
+}
+
+/// What the Server makes of `package`, the Manifest of a Package with the exports `exported`: the
+/// Manifest the Kernel reads, or why it refuses the Plugin. Runs no Plugin code, so a test needs
+/// no Package.
+fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<Manifest, Refused> {
+    check_nama_api(&package.nama_api)?;
+    check_allowed_hosts(&package.allowed_hosts)?;
+    let points = points(package)?;
+    check_exports(&points, |export| exported.contains(&export))?;
+    manifest(package, &points)
 }
 
 /// What `package`, naming `points`, says about its Plugin, as the Kernel reads it. Its logo is
@@ -911,16 +968,21 @@ fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema, Refused> 
 
 #[cfg(test)]
 mod tests {
-    use nama_plugin_api::settings::{
-        SettingField, SettingKind, SettingValue, Settings, SettingsSchema,
+    use std::sync::Arc;
+
+    use nama_plugin_api::{
+        PluginId, PointKey,
+        notifier::Notifier,
+        settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
     };
-    use nama_proto::nama::plugin::v1::{
-        self as wire, Manifest, ObservePoint, ProvidePoint, setting_value,
+    use nama_proto::{
+        NAMA_API_VERSION,
+        nama::plugin::v1::{self as wire, Manifest, ObservePoint, ProvidePoint, setting_value},
     };
 
     use super::{
-        BUNDLED, allowed_hosts, check_allowed_hosts, check_exports, extism_config, is_crash, load,
-        points, settings_schema, write_cache_config,
+        BUNDLED, allowed_hosts, check_allowed_hosts, check_exports, extism_config, is_crash, judge,
+        load, points, settings_schema, write_cache_config,
     };
 
     // The errors as Extism 1.41 gives them for the test Plugin's Observer.
@@ -1106,6 +1168,165 @@ mod tests {
             refused.err().map(|refused| refused.to_string()),
             Some("its setting api_key is of a kind this Server doesn't know".to_owned())
         );
+    }
+
+    /// A Manifest this Server takes, for a Notifier with a logo, before each test changes it.
+    fn notifier() -> Manifest {
+        Manifest {
+            id: "test-plugin".to_owned(),
+            name: "Test Plugin".to_owned(),
+            description: "Stands in for an Installed Plugin.".to_owned(),
+            version: "0.1.0".to_owned(),
+            nama_api: format!("^{NAMA_API_VERSION}"),
+            providers: vec![ProvidePoint::PROVIDE_POINT_NOTIFIER.into()],
+            logo_svg: r#"<svg xmlns="http://www.w3.org/2000/svg"/>"#.to_owned(),
+            ..Default::default()
+        }
+    }
+
+    /// `package` judged as from a Package exporting `deliver`, with what it logged.
+    fn judged(mut package: Manifest) -> (Result<nama_plugin_api::Manifest, String>, String) {
+        let log = tempfile::NamedTempFile::new().unwrap();
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(Arc::new(log.reopen().unwrap()))
+            .with_ansi(false)
+            .finish();
+        let judged = tracing::subscriber::with_default(subscriber, || {
+            judge(&mut package, &["deliver"]).map_err(|refused| refused.to_string())
+        });
+        (judged, std::fs::read_to_string(log.path()).unwrap())
+    }
+
+    #[test]
+    fn a_manifest_this_server_takes_is_read_as_the_kernel_reads_it() {
+        let (judged, _) = judged(notifier());
+
+        let manifest = judged.unwrap();
+        assert_eq!(manifest.id, PluginId::from_static("test-plugin"));
+        assert_eq!(
+            (manifest.name.as_str(), manifest.description.as_str()),
+            ("Test Plugin", "Stands in for an Installed Plugin.")
+        );
+        assert_eq!(manifest.version, "0.1.0");
+        assert_eq!(
+            manifest.extension_points,
+            [PointKey::provide::<dyn Notifier>()]
+        );
+        assert_eq!(
+            manifest.logo_svg.as_deref(),
+            Some(r#"<svg xmlns="http://www.w3.org/2000/svg"/>"#)
+        );
+    }
+
+    #[test]
+    fn a_manifest_from_before_plugins_had_a_name_or_a_logo_is_taken_without_them() {
+        let (judged, _) = judged(Manifest {
+            name: String::new(),
+            description: String::new(),
+            logo_svg: String::new(),
+            ..notifier()
+        });
+
+        let manifest = judged.unwrap();
+        assert_eq!(
+            (manifest.name.as_str(), manifest.description.as_str()),
+            ("", "")
+        );
+        assert_eq!(manifest.logo_svg, None);
+    }
+
+    #[test]
+    fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
+        let text = |text: &str| wire::SettingValue {
+            value: Some(setting_value::Value::Text(text.to_owned())),
+            ..Default::default()
+        };
+        let wrong = [
+            Manifest {
+                nama_api: "<0.1".to_owned(),
+                ..notifier()
+            },
+            Manifest {
+                nama_api: "one".to_owned(),
+                ..notifier()
+            },
+            Manifest {
+                allowed_hosts: vec!["sonarr.lan:8989".to_owned()],
+                ..notifier()
+            },
+            Manifest {
+                observers: vec![99.into()],
+                ..notifier()
+            },
+            Manifest {
+                providers: vec![ProvidePoint::PROVIDE_POINT_CONNECTOR.into()],
+                ..notifier()
+            },
+            Manifest {
+                settings: vec![wire::SettingField {
+                    key: "count".to_owned(),
+                    ..Default::default()
+                }],
+                ..notifier()
+            },
+            Manifest {
+                settings: vec![wire::SettingField {
+                    key: "count".to_owned(),
+                    kind: wire::SettingKind::SETTING_KIND_INTEGER.into(),
+                    default_value: text("three").into(),
+                    ..Default::default()
+                }],
+                ..notifier()
+            },
+        ];
+
+        let refusals = wrong.map(|package| judged(package).0.err());
+
+        assert_eq!(
+            refusals,
+            [
+                format!("it wants nama-api <0.1, and this Server has {NAMA_API_VERSION}"),
+                r#"its nama-api requirement "one" isn't a semver requirement: unexpected character 'o' while parsing major version number"#.to_owned(),
+                "its allowed host sonarr.lan:8989 has a port, and allowed hosts are matched without one".to_owned(),
+                "its Manifest names observer 99, an Extension Point this Server doesn't know".to_owned(),
+                "its Manifest names PROVIDE_POINT_CONNECTOR, and it has no start_connection export".to_owned(),
+                "its setting count is of a kind this Server doesn't know".to_owned(),
+                "its setting count's default isn't Integer".to_owned(),
+            ]
+            .map(Some)
+        );
+    }
+
+    #[test]
+    fn a_logo_over_16_kib_or_not_svg_is_dropped_saying_why_and_the_plugin_still_taken() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"/>"#;
+        let padding = " ".repeat(16 * 1024);
+        let dropped = [
+            (
+                format!(r#"<svg xmlns="http://www.w3.org/2000/svg">{padding}</svg>"#),
+                "it is over 16384 bytes",
+            ),
+            (
+                r#"<html xmlns="http://www.w3.org/1999/xhtml"/>"#.to_owned(),
+                "it isn't SVG: its root is <html>",
+            ),
+            (
+                format!(r#"<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "x.dtd">{svg}"#),
+                "it isn't SVG: XML with DTD detected",
+            ),
+        ];
+
+        for (logo_svg, why) in dropped {
+            let (judged, log) = judged(Manifest {
+                logo_svg,
+                ..notifier()
+            });
+
+            assert_eq!(judged.map(|manifest| manifest.logo_svg), Ok(None), "{why}");
+            assert!(log.contains("test-plugin"), "{log}");
+            assert!(log.contains("dropped its logo"), "{log}");
+            assert!(log.contains(why), "{log}");
+        }
     }
 
     #[test]

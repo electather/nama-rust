@@ -11,19 +11,8 @@ publish = false
 crate-type = ["cdylib"]
 
 [features]
-# Builds the Plugin with a `nama-api` requirement no Server meets, so the Server refuses it.
-out-of-range = []
 # Builds the Plugin so its `manifest()` panics, to show the Server gets the panic's message.
 panic = []
-# Builds the Plugin with a logo the Server drops: SVG over 16 KiB, an HTML document, or SVG with a
-# DOCTYPE.
-big-logo = []
-html-logo = []
-doctype-logo = []
-# Builds the Plugin without a logo, as a Manifest from before logos has none.
-logoless = []
-# Builds the Plugin with a Manifest from before Plugins had a name and a description.
-unnamed = []
 # Builds the Plugin naming the Connector Extension Point without its exports, so the Server
 # refuses it.
 unexported-connector = []
