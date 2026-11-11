@@ -279,7 +279,7 @@ impl HandOff {
     pub(super) async fn follow_progress(&self, interval: Duration) {
         loop {
             let fulfilling = self.poll_progress().await.unwrap_or_else(|err| {
-                error!("reading the Requests the Fulfillers have failed: {err}");
+                error!("reading which Requests the Fulfillers have failed: {err}");
                 true
             });
             // A Request that became Processing while the Fulfillers were asked left a permit, so

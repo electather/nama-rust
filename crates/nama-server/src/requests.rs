@@ -2619,7 +2619,7 @@ mod tests {
         }
     }
 
-    /// A Fulfiller taking a Request with `reference`.
+    /// A Fulfiller's answer that it took a Request, with `reference`.
     fn took(reference: String) -> BoxFuture<'static, Result<Fulfilled, PluginError>> {
         Box::pin(async {
             Ok(Fulfilled {
@@ -2939,6 +2939,9 @@ mod tests {
         scan_dark(&db, &[1]).await;
         let batches = asked.batches().len();
         let any_once_available = requests.hand_off.poll_progress().await.unwrap();
+        // `poll_progress` publishes before it returns, so anything it published is waiting here.
+        let published_once_available =
+            tokio::time::timeout(Duration::from_millis(100), events.next()).await;
         let available = requests.get(&ada(Permissions::ADMIN), id).await.unwrap();
 
         assert!(any);
@@ -2952,6 +2955,7 @@ mod tests {
         assert_eq!(partly.downloads, downloading("season-1"));
         assert!(!any_once_available);
         assert_eq!(asked.batches().len(), batches);
+        assert_eq!(published_once_available.ok(), None);
         assert_eq!(available.state, RequestState::Available);
         assert_eq!(available.downloads, []);
     }
