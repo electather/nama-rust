@@ -14,7 +14,7 @@ import {
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { findDeviceDecoding } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
-import { refusalOf } from "@/lib/forms";
+import { refusalOf, serverMessage } from "@/lib/forms";
 import { toMs } from "@/lib/watch-state";
 
 /** What the player asks a plan for, beside the Version. */
@@ -254,32 +254,21 @@ function usePlan(versionId: bigint, asking: Asking) {
       } catch (error) {
         const { reason, params } = refusalOf(error);
         if (reason !== RefusalReason.SERVER_BUSY) throw error;
-        return serverBusyPlan(params);
+        return create(PlaybackPlanSchema, {
+          reasons: [
+            {
+              kind: PlaybackReasonKind.SERVER_BUSY,
+              params,
+              text: serverMessage(error),
+              decided: true,
+            },
+          ],
+        });
       }
     },
     staleTime: "static",
     gcTime: 0,
   }).data;
-}
-
-/** A plan that can't play, as a Server too busy to Transcode gives. */
-function serverBusyPlan(params: Record<string, string>) {
-  return create(PlaybackPlanSchema, {
-    reasons: [
-      {
-        kind: PlaybackReasonKind.SERVER_BUSY,
-        params,
-        text: serverBusy(params["maxTranscodes"]),
-        decided: true,
-      },
-    ],
-  });
-}
-
-/** Why the Server, running `maxTranscodes` Transcodes at once, can't play a Version here now. */
-function serverBusy(maxTranscodes = "") {
-  const most = maxTranscodes === "" ? "" : ` (${maxTranscodes})`;
-  return `The Server is busy: only a Transcode plays this here, and it’s already running as many as it’s set to run at once${most}. Try again once one ends.`;
 }
 
 /**

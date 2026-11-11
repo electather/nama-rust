@@ -12,6 +12,7 @@ use crate::{
     contents::{self, Contents, Found, MatchedTo, Stored},
     db::Database,
     libraries::{self, Kind, Libraries, Library},
+    scanner::Doomed,
     tracks::{Probe, Track, Tracks},
     watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
 };
@@ -80,6 +81,15 @@ pub(crate) enum Target {
     Episode(ExternalId),
     Season { show: ExternalId, number: i64 },
     Show(ExternalId),
+}
+
+/// What a User deletes: see [`Browse::doomed`].
+#[derive(Debug)]
+pub(crate) enum ToDelete {
+    /// Every Version of a Movie of a Movies Library.
+    Movie { library: i64, id: ExternalId },
+    /// One Version of a Movie.
+    Version(i64),
 }
 
 /// A Library's titles, read whole, with Versions of the form `V`.
@@ -221,6 +231,43 @@ impl Browse {
             Target::Show(id) => titles.show(&id)?.episodes().map(episode).collect(),
         };
         Ok(self.watch_states.mark(user, marked, played).await?)
+    }
+
+    /// The Versions `target` names, with their Library and title. Fails as browsing to its Movie
+    /// does, or with [`Error::NoSuchVersion`] for a Version of no Movie.
+    pub(crate) async fn doomed(&self, target: ToDelete) -> Result<Doomed, Error> {
+        match target {
+            ToDelete::Movie { library, id } => {
+                let library = self.library(library).await?;
+                let movie = self.titles(&library).await?.movie(&id)?;
+                Ok(Doomed {
+                    library,
+                    title: movie.title,
+                    versions: movie.versions,
+                })
+            }
+            ToDelete::Version(version) => self.doomed_version(version).await,
+        }
+    }
+
+    /// The Version `version` of a Movie, with its Library and the Movie's title.
+    async fn doomed_version(&self, version: i64) -> Result<Doomed, Error> {
+        let library = self.contents.library_of_version(version).await?;
+        let library = self.library(library.ok_or(Error::NoSuchVersion)?).await?;
+        let Titles::Movies(movies) = self.titles(&library).await? else {
+            return Err(Error::NoSuchVersion);
+        };
+        let (title, version) = (movies.into_iter())
+            .find_map(|movie| {
+                let version = movie.versions.into_iter().find(|v| v.file.id == version)?;
+                Some((movie.title, version))
+            })
+            .ok_or(Error::NoSuchVersion)?;
+        Ok(Doomed {
+            library,
+            title,
+            versions: vec![version],
+        })
     }
 
     /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not

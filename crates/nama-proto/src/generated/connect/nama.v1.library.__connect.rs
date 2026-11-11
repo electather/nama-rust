@@ -46,6 +46,22 @@ pub type OwnedScanLibraryRequestView = ::buffa::view::OwnedView<
 pub type OwnedScanLibraryResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ScanLibraryResponseView<'static>,
 >;
+///Shorthand for `OwnedView<PreviewDeleteMediaRequestView<'static>>`.
+pub type OwnedPreviewDeleteMediaRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PreviewDeleteMediaRequestView<'static>,
+>;
+///Shorthand for `OwnedView<PreviewDeleteMediaResponseView<'static>>`.
+pub type OwnedPreviewDeleteMediaResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PreviewDeleteMediaResponseView<'static>,
+>;
+///Shorthand for `OwnedView<DeleteMediaRequestView<'static>>`.
+pub type OwnedDeleteMediaRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeleteMediaRequestView<'static>,
+>;
+///Shorthand for `OwnedView<DeleteMediaResponseView<'static>>`.
+pub type OwnedDeleteMediaResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeleteMediaResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateLibraryResponse>
 for crate::messages::nama::v1::__buffa::view::CreateLibraryResponseView<'_> {
     fn encode(
@@ -250,6 +266,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::PreviewDeleteMediaResponse>
+for crate::messages::nama::v1::__buffa::view::PreviewDeleteMediaResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::PreviewDeleteMediaResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PreviewDeleteMediaResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeleteMediaResponse>
+for crate::messages::nama::v1::__buffa::view::DeleteMediaResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeleteMediaResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeleteMediaResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const LIBRARY_SERVICE_SERVICE_NAME: &str = "nama.v1.LibraryService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateLibrary` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -288,9 +372,21 @@ pub const LIBRARY_SERVICE_SCAN_LIBRARY_SPEC: ::connectrpc::Spec = ::connectrpc::
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `PreviewDeleteMedia` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LIBRARY_SERVICE_PREVIEW_DELETE_MEDIA_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.LibraryService/PreviewDeleteMedia",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `DeleteMedia` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LIBRARY_SERVICE_DELETE_MEDIA_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.LibraryService/DeleteMedia",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// The Server's Libraries: named collections of one kind of media, each backed by one or more
-/// folders on the Server's disk. Every RPC but `ListLibraries` needs `PERMISSION_MANAGE_LIBRARIES`,
-/// and fails with `permission_denied` without it.
+/// folders on the Server's disk. Every RPC but `ListLibraries` and those deleting media needs
+/// `PERMISSION_MANAGE_LIBRARIES`, and fails with `permission_denied` without it.
 ///
 /// # Implementing handlers
 ///
@@ -488,6 +584,60 @@ pub trait LibraryService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::ScanLibraryResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists the files `DeleteMedia` would delete for the same target, and the bytes they would
+    /// free, deleting nothing. Needs `PERMISSION_DELETE_MEDIA`. Fails as `DeleteMedia` does.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn preview_delete_media<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::PreviewDeleteMediaRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::PreviewDeleteMediaResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Deletes media from disk for good, with nothing to undo it: each Version's file, its sidecars
+    /// (the files beside it whose names start with the video's name, without its extension, followed
+    /// by `.` or `-`, and that aren't videos), and the folders that leaves empty, never a Library's
+    /// own folder or above it. The Versions whose files went are removed as a scan removes them, with
+    /// `LibraryItemRemoved`. A file that can't be deleted is listed with why, and the rest still go.
+    /// Needs `PERMISSION_DELETE_MEDIA` and Recent Authentication. Fails with `invalid_argument` if
+    /// the target is missing, or names a Shows Library as a Movie's, and with `not_found` if there
+    /// is no such Library, Movie or Version.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn delete_media<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::DeleteMediaRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::DeleteMediaResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -697,6 +847,64 @@ impl<S: LibraryService> LibraryServiceExt for S {
                 },
             )
             .with_spec(LIBRARY_SERVICE_SCAN_LIBRARY_SPEC)
+            .route_view_idempotent(
+                LIBRARY_SERVICE_SERVICE_NAME,
+                "PreviewDeleteMedia",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::PreviewDeleteMediaRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::PreviewDeleteMediaRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.preview_delete_media(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::PreviewDeleteMediaResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LIBRARY_SERVICE_PREVIEW_DELETE_MEDIA_SPEC)
+            .route_view(
+                LIBRARY_SERVICE_SERVICE_NAME,
+                "DeleteMedia",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::DeleteMediaRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::DeleteMediaRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.delete_media(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::DeleteMediaResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LIBRARY_SERVICE_DELETE_MEDIA_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -785,6 +993,18 @@ impl<T: LibraryService> ::connectrpc::Dispatcher for LibraryServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(LIBRARY_SERVICE_SCAN_LIBRARY_SPEC),
+                )
+            }
+            "PreviewDeleteMedia" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LIBRARY_SERVICE_PREVIEW_DELETE_MEDIA_SPEC),
+                )
+            }
+            "DeleteMedia" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LIBRARY_SERVICE_DELETE_MEDIA_SPEC),
                 )
             }
             _ => None,
@@ -928,6 +1148,48 @@ impl<T: LibraryService> ::connectrpc::Dispatcher for LibraryServiceServer<T> {
                     svc.scan_library(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::ScanLibraryResponse>(format)
+                })
+            }
+            "PreviewDeleteMedia" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::PreviewDeleteMediaRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::PreviewDeleteMediaRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::PreviewDeleteMediaRequest,
+                    >::from_parts(&req, &body);
+                    svc.preview_delete_media(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::PreviewDeleteMediaResponse,
+                        >(format)
+                })
+            }
+            "DeleteMedia" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::DeleteMediaRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::DeleteMediaRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::DeleteMediaRequest,
+                    >::from_parts(&req, &body);
+                    svc.delete_media(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::DeleteMediaResponse>(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -1318,6 +1580,96 @@ where
                 &self.transport,
                 &self.config,
                 LIBRARY_SERVICE_SCAN_LIBRARY_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the PreviewDeleteMedia RPC. Sends a request to /nama.v1.LibraryService/PreviewDeleteMedia.
+    pub async fn preview_delete_media(
+        &self,
+        request: crate::messages::nama::v1::PreviewDeleteMediaRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::PreviewDeleteMediaResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.preview_delete_media_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the PreviewDeleteMedia RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn preview_delete_media_with_options(
+        &self,
+        request: crate::messages::nama::v1::PreviewDeleteMediaRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::PreviewDeleteMediaResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LIBRARY_SERVICE_PREVIEW_DELETE_MEDIA_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the DeleteMedia RPC. Sends a request to /nama.v1.LibraryService/DeleteMedia.
+    pub async fn delete_media(
+        &self,
+        request: crate::messages::nama::v1::DeleteMediaRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeleteMediaResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.delete_media_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the DeleteMedia RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn delete_media_with_options(
+        &self,
+        request: crate::messages::nama::v1::DeleteMediaRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeleteMediaResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LIBRARY_SERVICE_DELETE_MEDIA_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

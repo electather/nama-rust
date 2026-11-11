@@ -44,7 +44,10 @@ export function ConfirmDialog({
       >
         {confirmation.action}
       </Button>
-      <ConfirmModal ref={dialog} openings={openings} destructive {...confirmation} />
+      <ConfirmModal ref={dialog} openings={openings} destructive {...confirmation}>
+        {/* Only once opened, so what they fetch waits until someone asks. */}
+        {openings > 0 && confirmation.children}
+      </ConfirmModal>
     </>
   );
 }

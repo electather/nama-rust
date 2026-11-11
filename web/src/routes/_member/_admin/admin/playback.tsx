@@ -5,7 +5,6 @@ import { CircleCheck, CircleSlash } from "lucide-react";
 import { AdminList, AdminRow } from "@/components/admin-list";
 import { Page } from "@/components/page";
 import {
-  hardwareName,
   PlaybackSettingsForm,
   playbackSettingsQuery,
   playbackStatusQuery,
@@ -18,6 +17,7 @@ import {
   ServerService,
   ToneMapping,
 } from "@/gen/nama/v1/server_pb";
+import { hardwareName } from "@/lib/playback-wording";
 
 export const Route = createFileRoute("/_member/_admin/admin/playback")({
   loader: ({ context: { queryClient, transport } }) =>

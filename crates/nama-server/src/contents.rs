@@ -536,6 +536,16 @@ impl Contents {
         .await
     }
 
+    /// The Library whose file the Version `version` is, if there is such a Version.
+    pub(crate) async fn library_of_version(
+        &self,
+        version: i64,
+    ) -> Result<Option<i64>, sqlx::Error> {
+        sqlx::query_scalar!("SELECT library_id FROM library_files WHERE id = ?", version)
+            .fetch_optional(self.db.reader())
+            .await
+    }
+
     pub(crate) async fn matched_to(&self, version: i64) -> Result<MatchedTo, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_items.kind AS "kind?: ItemKind", item_matches.tmdb_id, item_matches.imdb_id,
