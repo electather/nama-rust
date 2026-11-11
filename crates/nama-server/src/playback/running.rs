@@ -646,20 +646,20 @@ async fn sweep(path: &Path) -> io::Result<()> {
 
 impl Timeline {
     /// A video with `keyframes`, in milliseconds, cut at the first keyframe at or after each
-    /// multiple of [`SEGMENT_MS`] past the last cut's multiple. The last segment ends at
-    /// `duration_ms`.
+    /// multiple of [`SEGMENT_MS`] past the last cut's multiple. No cut falls at or after
+    /// `duration_ms`, where the last segment ends, so none lasts 0 ms.
     fn new(keyframes: Vec<i64>, duration_ms: i64) -> Self {
         let mut segments = vec![];
         let (mut first_keyframe, mut start, mut cut_after) = (0, 0, SEGMENT_MS);
         for (n, &keyframe) in keyframes.iter().enumerate() {
-            if keyframe >= cut_after {
+            if keyframe >= cut_after && keyframe < duration_ms {
                 let ms = keyframe - start;
                 segments.push(Segment { first_keyframe, ms });
                 (first_keyframe, start) = (n, keyframe);
                 cut_after += SEGMENT_MS;
             }
         }
-        let ms = (duration_ms - start).max(0);
+        let ms = duration_ms - start;
         segments.push(Segment { first_keyframe, ms });
         Self {
             keyframes,
@@ -1576,6 +1576,27 @@ mod tests {
         assert_eq!(segment_ms, [7500, 5000, 7500, 5000, 5020]);
         assert_eq!(timeline.keyframes_of(1), 3..5);
         assert_eq!(timeline.keyframes_of(4), 10..12);
+    }
+
+    #[test]
+    fn a_keyframe_at_the_length_joins_the_last_segment() {
+        let keyframes: Vec<i64> = (0..4).map(|n| n * 2000).collect();
+
+        let timeline = Timeline::new(keyframes, 6000);
+
+        let segment_ms: Vec<i64> = timeline.segments.iter().map(|segment| segment.ms).collect();
+        assert_eq!(segment_ms, [6000]);
+        assert_eq!(timeline.keyframes_of(0), 0..4);
+        assert!(!timeline.playlist().contains("#EXTINF:0.000"));
+    }
+
+    #[test]
+    fn a_keyframe_past_the_length_joins_the_last_segment() {
+        let timeline = Timeline::new(vec![0, 2500, 5000, 7500], 7400);
+
+        let segment_ms: Vec<i64> = timeline.segments.iter().map(|segment| segment.ms).collect();
+        assert_eq!(segment_ms, [7400]);
+        assert!(!timeline.playlist().contains("#EXTINF:0.000"));
     }
 
     #[test]
