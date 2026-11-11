@@ -115,8 +115,7 @@ impl LibraryService for LibraryServiceHandler {
         // The delete commits even if the caller stops waiting, so its cleanup must follow (ADR 0029).
         detached(async move {
             libraries.delete(id).await?;
-            // It has no stored files left, so this only cleans the subtitle cache.
-            probing.files_changed(id, |_| {}).await;
+            probing.clean_subtitles().await;
             Ok::<_, libraries::Error>(())
         })
         .await?;

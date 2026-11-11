@@ -138,17 +138,14 @@ impl Probing {
         }
     }
 
-    /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
-    /// since they were cached, then probes the Library `library`'s files without current Tracks
-    /// in the background, unless the Server has no ffprobe or is shutting down. Calls `finished`
-    /// with what the pass found once Probing has caught up, or not at all if the pass is
-    /// cancelled or fails.
-    pub(crate) async fn files_changed(
+    /// Probes the Library `library`'s files without current Tracks in the background, unless the
+    /// Server has no ffprobe or is shutting down. Calls `finished` with what the pass found once
+    /// Probing has caught up, or not at all if the pass is cancelled or fails.
+    pub(crate) fn files_changed(
         &self,
         library: i64,
         finished: impl FnOnce(ProbingFinished) + Send + 'static,
     ) {
-        self.clean_subtitles().await;
         // Closing the tracker doesn't refuse spawns, so a pass after shutdown is refused here.
         if self.inner.cancel.is_cancelled() {
             return;
@@ -180,8 +177,9 @@ impl Probing {
         self.inner.tasks.wait().await;
     }
 
-    /// Throws away the subtitles cached for files gone or changed, or logs why it couldn't.
-    async fn clean_subtitles(&self) {
+    /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
+    /// since they were cached, or logs why it couldn't.
+    pub(crate) async fn clean_subtitles(&self) {
         // ponytail: reads every stored file after each scan; clean only the Library scanned once
         // Libraries get big.
         let cleaned = match self.inner.contents.every_stored().await {
@@ -528,7 +526,7 @@ mod tests {
 
         /// Tells Probing the Library's files changed, then waits for the pass it starts.
         async fn probe_changed(&self) {
-            self.probing.files_changed(self.library, |_| {}).await;
+            self.probing.files_changed(self.library, |_| {});
             self.probing.idle().await;
         }
 
@@ -792,7 +790,7 @@ EOF"#,
         let bin = tempfile::tempdir().unwrap();
         let media = Fixture::with_ffmpeg(fake_ffprobe(bin.path(), "exec sleep 60")).await;
         media.write("Alien (1979)/Alien (1979).mkv", 10).await;
-        media.probing.files_changed(media.library, |_| {}).await;
+        media.probing.files_changed(media.library, |_| {});
 
         let stopped = tokio::time::timeout(Duration::from_secs(5), media.probing.shutdown()).await;
 
@@ -835,7 +833,7 @@ EOF"#,
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
 
-        media.probing.files_changed(media.library, |_| {}).await;
+        media.probing.files_changed(media.library, |_| {});
         wait_for_probe(&runs).await;
         media.probe_changed().await;
 
@@ -844,16 +842,13 @@ EOF"#,
     }
 
     /// Tells Probing the Library's files changed, and returns what its pass reports once done.
-    async fn files_changed_reporting(
+    fn files_changed_reporting(
         media: &Fixture,
     ) -> tokio::sync::mpsc::UnboundedReceiver<ProbingFinished> {
         let (told, reported) = tokio::sync::mpsc::unbounded_channel();
-        media
-            .probing
-            .files_changed(media.library, move |probed| {
-                drop(told.send(probed));
-            })
-            .await;
+        media.probing.files_changed(media.library, move |probed| {
+            drop(told.send(probed));
+        });
         reported
     }
 
@@ -866,10 +861,10 @@ EOF"#,
         let media = Fixture::with_ffmpeg(slow_ffprobe(bin.path(), &runs)).await;
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
-        let mut first = files_changed_reporting(&media).await;
+        let mut first = files_changed_reporting(&media);
         wait_for_probe(&runs).await;
 
-        let mut second = files_changed_reporting(&media).await;
+        let mut second = files_changed_reporting(&media);
 
         let caught_up = ProbingFinished {
             library_id: media.library,
@@ -899,7 +894,7 @@ EOF"#,
             .acquire_many(u32::try_from(PROBES_AT_ONCE).unwrap())
             .await
             .unwrap();
-        let mut reported = files_changed_reporting(&media).await;
+        let mut reported = files_changed_reporting(&media);
         let probing = media.probing.clone();
         let version = media.file_id(alien).await;
         let gives_up = tokio::spawn(async move { probing.current(version).await });
@@ -935,7 +930,7 @@ echo '{"format": {"format_name": "matroska,webm"}}'"#,
         media.write("Alien (1979)/Alien (1979).mkv", 10).await;
         media.write("Heat (1995)/Heat (1995).mkv", 20).await;
 
-        let mut first = files_changed_reporting(&media).await;
+        let mut first = files_changed_reporting(&media);
 
         let counted = ProbingFinished {
             library_id: media.library,
@@ -946,7 +941,7 @@ echo '{"format": {"format_name": "matroska,webm"}}'"#,
         assert_eq!(first.recv().await, Some(counted));
 
         // Nothing is left to probe: Alien's Tracks are current, and Heat failed for good.
-        let mut second = files_changed_reporting(&media).await;
+        let mut second = files_changed_reporting(&media);
 
         let nothing = ProbingFinished {
             library_id: media.library,
@@ -965,7 +960,7 @@ echo '{"format": {"format_name": "matroska,webm"}}'"#,
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
         media.match_to_alien().await;
-        media.probing.files_changed(media.library, |_| {}).await;
+        media.probing.files_changed(media.library, |_| {});
         wait_for_probe(&runs).await;
 
         let probe = media.current(alien).await.unwrap();
@@ -989,7 +984,7 @@ echo '{"format": {"format_name": "matroska,webm"}}'"#,
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
         media.match_to_alien().await;
-        media.probing.files_changed(media.library, |_| {}).await;
+        media.probing.files_changed(media.library, |_| {});
         wait_for_probe(&runs).await;
 
         let probed = media.current(alien).await;
@@ -1017,7 +1012,7 @@ echo '{"format": {"format_name": "matroska,webm"}}'"#,
             .acquire_many(u32::try_from(PROBES_AT_ONCE).unwrap())
             .await
             .unwrap();
-        media.probing.files_changed(media.library, |_| {}).await;
+        media.probing.files_changed(media.library, |_| {});
 
         let probed = tokio::time::timeout(Duration::from_secs(5), media.current(alien)).await;
 
