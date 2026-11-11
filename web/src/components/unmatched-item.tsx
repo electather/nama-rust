@@ -10,6 +10,7 @@ import {
   type TitleCandidate,
   TitleKind,
   type UnmatchedItem,
+  UnmatchedReason,
 } from "@/gen/nama/v1/match_pb";
 import { unmatchedKey } from "@/lib/events";
 import { formText, onSubmitted, refusal } from "@/lib/forms";
@@ -42,6 +43,7 @@ export function UnmatchedRow({
               {item.kind === TitleKind.SHOW ? "Episode" : "Movie"}
             </span>
           </span>
+          <span className="text-sm empty:hidden">{whyUnmatched(item)}</span>
           <span className="text-sm wrap-anywhere text-muted-foreground">{item.path}</span>
         </div>
         <Button
@@ -69,6 +71,22 @@ function parsedAs(item: UnmatchedItem) {
   if (item.season === undefined || item.episode === undefined) return title;
   return `${title} · Season ${item.season}, Episode ${item.episode}`;
 }
+
+// "en-GB" for "A, B or C", without the serial comma, as the rest of the app writes lists.
+const titleList = new Intl.ListFormat("en-GB", { type: "disjunction" });
+
+/** Why automatic Matching left `item` Unmatched, which says how to fix it, or "" if not known. */
+function whyUnmatched({ reason, tiedTitles }: UnmatchedItem) {
+  if (reason !== UnmatchedReason.AMBIGUOUS) return unmatchedBecause[reason] ?? "";
+  const tied = tiedTitles.map((title) => withYear(title.title, title.year));
+  return `More than one title fits: ${titleList.format(tied)}.`;
+}
+
+const unmatchedBecause: Partial<Record<UnmatchedReason, string>> = {
+  [UnmatchedReason.NO_TITLE_FITS]:
+    "No title fits its name. Renaming the file or adding an ID Hint may help.",
+  [UnmatchedReason.UNKNOWN_ID_HINT]: "Its ID Hint names no title.",
+};
 
 function withYear(title: string, year: number | undefined) {
   return year === undefined ? title : `${title} (${year})`;
