@@ -13,7 +13,6 @@ use crate::{
     libraries::Libraries,
     matching::{ManualError, Matcher},
     metadata::{self, MetadataSource},
-    scanner::Scanner,
 };
 
 use super::{
@@ -27,8 +26,6 @@ pub(super) struct MatchServiceHandler {
     pub(super) metadata: MetadataSource,
     pub(super) contents: Contents,
     pub(super) libraries: Libraries,
-    /// Where the scan lock a Match is fixed under comes from.
-    pub(super) scanner: Scanner,
 }
 
 #[expect(
@@ -88,11 +85,7 @@ impl MatchService for MatchServiceHandler {
                 )
                 .field("title_id")
             })?;
-        let scan = self.scanner.lock_library_of(request.item_id).await?;
-        let summary = self
-            .matcher
-            .set_match(&scan, request.item_id, &title)
-            .await?;
+        let summary = self.matcher.set_match(request.item_id, &title).await?;
         Response::ok(SetMatchResponse {
             matched: summary.matched,
             unmatched: summary.unmatched,
@@ -105,8 +98,7 @@ impl MatchService for MatchServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, ClearMatchRequest>,
     ) -> ServiceResult<ClearMatchResponse> {
-        let scan = self.scanner.lock_library_of(request.item_id).await?;
-        let summary = self.matcher.clear_match(&scan, request.item_id).await?;
+        let summary = self.matcher.clear_match(request.item_id).await?;
         Response::ok(ClearMatchResponse {
             unmatched: summary.unmatched,
             ..Default::default()
