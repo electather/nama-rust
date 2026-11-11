@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM sign_in_methods WHERE id = ? AND user_id = ?)\n               AS \"left!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "left!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a85955ff8dadd377fdd356c6814e6c2ff195124108695bc4b9350df7d2e8e9bb"
+}
