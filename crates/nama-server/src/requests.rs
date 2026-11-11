@@ -2368,7 +2368,7 @@ mod tests {
         testing::{API_KEY, FakeTmdb},
     };
     use nama_proto::nama::v1::{
-        FollowedShow, Permission, Request, RequestState, SubscribeResponse,
+        Event, FollowedShow, Permission, Request, RequestState, SubscribeResponse,
         event::Event as Happened, subscribe_response,
     };
     use sqlx::SqliteConnection;
@@ -2376,8 +2376,8 @@ mod tests {
 
     use super::{
         Applied, Error, Requests, Wanted, WantedSeasons, approve, ask, ask_movie, ask_seasons,
-        availability, cancel, cancel_followed, decide_followed, decline, follow, load_one,
-        opening_state, retry, settle, withdraw, withdraw_followed,
+        availability, cancel, cancel_followed, decide_followed, decline, follow, load, load_one,
+        make_seasons_available, opening_state, retry, settle, withdraw, withdraw_followed,
     };
     use crate::{
         contents::{Change, Contents, Decided, Decisions, Item, Metadata},
@@ -3036,7 +3036,6 @@ mod tests {
 
     #[tokio::test]
     async fn an_available_season_request_stays_available_when_a_later_episode_airs() {
-        const DARK: i64 = 70523;
         let data = tempfile::tempdir().unwrap();
         let folder = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
@@ -3098,15 +3097,19 @@ mod tests {
         assert!(episode_2_aired.is_empty(), "{episode_2_aired:?}");
     }
 
-    /// What each event in `applied` says happened, and the state its Request or Followed Show is
-    /// in by then.
+    /// What each event in `applied` says happened, as [`said`] tells it.
+    fn happened<T>(applied: &Applied<T>) -> Vec<(&'static str, RequestState)> {
+        said(&applied.events)
+    }
+
+    /// What each of `events` says happened, and the state its Request or Followed Show is in by
+    /// then.
     #[expect(
         clippy::wildcard_enum_match_arm,
         reason = "the writes under test publish only Request and Followed Show events"
     )]
-    fn happened<T>(applied: &Applied<T>) -> Vec<(&'static str, RequestState)> {
-        applied
-            .events
+    fn said(events: &[Event]) -> Vec<(&'static str, RequestState)> {
+        events
             .iter()
             .map(|event| {
                 let (what, state) = match event.event.as_ref().expect("an event") {
@@ -3301,10 +3304,12 @@ mod tests {
         assert_eq!(handed_off(&again), NOTHING);
     }
 
+    const DARK: i64 = 70523;
+
     /// Seasons 1 and 2 of Dark, as the metadata source gives them.
     fn dark() -> WantedSeasons {
         WantedSeasons {
-            show_tmdb_id: 70523,
+            show_tmdb_id: DARK,
             show_ids: ExternalIds::default(),
             show_title: "Dark".to_owned(),
             seasons: vec![
@@ -3320,10 +3325,17 @@ mod tests {
         }
     }
 
-    /// A new Library Matches a file holding only the first Episode of Season 1 of Dark, as a scan
-    /// does, though both have aired, which makes its open Request Partially Available.
-    async fn match_dark_pilot(db: &Arc<Database>) {
-        let dark = dark();
+    /// Season `number` of Dark, as the metadata source gives it: both its Episodes have aired.
+    fn dark_season(number: u32) -> Season {
+        Season {
+            number,
+            ..season_1("2017-12-08")
+        }
+    }
+
+    /// A new Library Matches a file to each of `episodes` of Season `season` of Dark, as a scan
+    /// does, without Requests hearing of the Season yet: [`scan_dark`] tells them.
+    async fn match_dark_episodes(db: &Arc<Database>, season: i64, episodes: &[i64]) {
         let folder = tempfile::tempdir().unwrap();
         let root = folder.path().canonicalize().unwrap();
         let contents = Contents::new(Arc::clone(db));
@@ -3336,30 +3348,43 @@ mod tests {
             .await
             .unwrap()
             .id;
-        let pilot = Item::Episode {
-            show: dark.show_title,
-            year: None,
-            hint: Some(ExternalId::Tmdb(dark.show_tmdb_id)),
-            season: 1,
-            episode: 1,
-        };
-        let store = Change::Store {
-            path: "/media/Dark/Season 01/Dark - S01E01.mkv".to_owned(),
-            size: 1,
-            modified_ns: 0,
-            items: vec![pilot],
-        };
-        contents.apply(library, vec![store]).await.unwrap();
-        let item = contents.files(library).await.unwrap()[0].items[0].id;
-        let season_1 = dark.seasons.into_iter().next().unwrap();
-        let scan = Decisions {
-            items: vec![(
-                item,
-                matched(ExternalIds::default(), tmdb(dark.show_tmdb_id)),
-            )],
-            seasons: vec![(dark.show_tmdb_id, season_1)],
-        };
-        contents.record(scan).await.unwrap();
+        let stores = episodes
+            .iter()
+            .map(|&episode| Change::Store {
+                path: format!("/media/Dark/Season {season}/Dark - S{season}E{episode}.mkv"),
+                size: 1,
+                modified_ns: 0,
+                items: vec![Item::Episode {
+                    show: "Dark".to_owned(),
+                    year: None,
+                    hint: Some(ExternalId::Tmdb(DARK)),
+                    season,
+                    episode,
+                }],
+            })
+            .collect();
+        contents.apply(library, stores).await.unwrap();
+        let decided: Vec<_> = contents
+            .files(library)
+            .await
+            .unwrap()
+            .into_iter()
+            .flat_map(|file| file.items)
+            .map(|stored| (stored.id, matched(ExternalIds::default(), tmdb(DARK))))
+            .collect();
+        contents.record(Decisions::from(decided)).await.unwrap();
+    }
+
+    /// A scan that fetched each of the Seasons `numbers` of Dark, as [`dark_season`] gives them,
+    /// tells Requests in a Library's write. Returns the events for what it changed.
+    async fn scan_dark(db: &Database, numbers: &[u32]) -> Vec<Event> {
+        let seasons = numbers
+            .iter()
+            .map(|&number| (DARK, dark_season(number)))
+            .collect();
+        db.write(move |tx| Box::pin(make_seasons_available(tx, seasons)))
+            .await
+            .unwrap()
     }
 
     #[tokio::test]
@@ -3511,7 +3536,8 @@ mod tests {
             .unwrap()
             .value[0]
             .id;
-        match_dark_pilot(&db).await;
+        match_dark_episodes(&db, 1, &[1]).await;
+        scan_dark(&db, &[1]).await;
 
         let mut cancelled = Vec::new();
         for id in [
@@ -3873,5 +3899,148 @@ mod tests {
             "{withdrawn:?}"
         );
         assert_eq!(unfollowed_shows(&unfollowing).await, [dark().show_tmdb_id]);
+    }
+
+    /// Dark's Season Requests as a later read shows them, oldest first: each one's Season, state
+    /// and Requesters, first asker first.
+    async fn dark_seasons(db: &Database) -> Vec<(u32, RequestState, Vec<i64>)> {
+        let newest_first = db.write(|tx| Box::pin(load(tx, None, None))).await.unwrap();
+        newest_first
+            .into_iter()
+            .rev()
+            .map(|request| {
+                let requesters = request.requesters.iter().map(|one| one.user_id).collect();
+                let state = request.state.as_known().unwrap_or_default();
+                (request.season.season_number, state, requesters)
+            })
+            .collect()
+    }
+
+    /// Seasons 1 and 2 of Dark, as Ada following it Approved asks for them.
+    fn ada_follows_dark() -> [(u32, RequestState, Vec<i64>); 2] {
+        [1, 2].map(|season| (season, RequestState::Approved, vec![ADA]))
+    }
+
+    #[tokio::test]
+    async fn a_scan_opens_a_new_season_of_an_approved_followed_show_for_its_requesters_in_the_order_they_asked()
+     {
+        let (_data, db) = ada_and_bob().await;
+        follow_as(&db, BOB, dark(), RequestState::Approved).await;
+        follow_as(&db, ADA, dark(), RequestState::Pending).await;
+        match_dark_episodes(&db, 3, &[1, 2]).await;
+
+        let scanned = scan_dark(&db, &[3]).await;
+
+        assert_eq!(said(&scanned), [("created", RequestState::Available)]);
+        assert_eq!(
+            dark_seasons(&db).await.last(),
+            Some(&(3, RequestState::Available, vec![BOB, ADA]))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_season_a_scan_opens_is_partially_available_until_every_aired_episode_is_matched() {
+        let (_data, db) = ada_and_bob().await;
+        follow_as(&db, ADA, dark(), RequestState::Approved).await;
+        match_dark_episodes(&db, 3, &[1]).await;
+        match_dark_episodes(&db, 4, &[1, 2]).await;
+
+        let scanned = scan_dark(&db, &[3, 4]).await;
+
+        assert_eq!(
+            said(&scanned),
+            [
+                ("created", RequestState::PartiallyAvailable),
+                ("created", RequestState::Available)
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_scan_opens_no_season_without_matched_episodes() {
+        let (_data, db) = ada_and_bob().await;
+        follow_as(&db, ADA, dark(), RequestState::Approved).await;
+
+        let scanned = scan_dark(&db, &[3]).await;
+
+        assert_eq!(said(&scanned), []);
+        assert_eq!(dark_seasons(&db).await, ada_follows_dark());
+    }
+
+    #[tokio::test]
+    async fn a_scan_opens_no_season_for_a_followed_show_not_yet_approved() {
+        let (_data, db) = ada_and_bob().await;
+        follow_as(&db, ADA, dark(), RequestState::Pending).await;
+        match_dark_episodes(&db, 3, &[1, 2]).await;
+
+        let scanned = scan_dark(&db, &[3]).await;
+
+        assert_eq!(said(&scanned), []);
+        assert_eq!(
+            dark_seasons(&db).await,
+            [1, 2].map(|season| (season, RequestState::Pending, vec![ADA]))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_scan_opens_no_season_the_followed_show_already_covers() {
+        let (_data, db) = ada_and_bob().await;
+        let followed = follow_as(&db, ADA, dark(), RequestState::Approved).await;
+        let season_2 = season_ids(&followed)[1];
+        db.write(move |tx| Box::pin(cancel(tx, season_2)))
+            .await
+            .unwrap();
+        match_dark_episodes(&db, 2, &[1, 2]).await;
+
+        let scanned = scan_dark(&db, &[2]).await;
+
+        assert_eq!(said(&scanned), []);
+        assert_eq!(
+            dark_seasons(&db).await,
+            [(1, RequestState::Approved, vec![ADA])]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_scan_opens_no_season_that_was_once_available() {
+        let (_data, db) = ada_and_bob().await;
+        follow_as(&db, ADA, dark(), RequestState::Approved).await;
+        let season_3 = WantedSeasons {
+            seasons: vec![dark_season(3)],
+            ..dark()
+        };
+        db.write(|tx| Box::pin(ask_seasons(tx, BOB, season_3, RequestState::Pending)))
+            .await
+            .unwrap();
+        match_dark_episodes(&db, 3, &[1, 2]).await;
+        scan_dark(&db, &[3]).await;
+
+        let scanned_again = scan_dark(&db, &[3]).await;
+
+        assert_eq!(said(&scanned_again), []);
+        assert_eq!(
+            dark_seasons(&db).await.last(),
+            Some(&(3, RequestState::Available, vec![BOB]))
+        );
+    }
+
+    #[tokio::test]
+    async fn a_season_a_scan_opened_does_not_open_again_once_cancelled() {
+        let (_data, db) = ada_and_bob().await;
+        follow_as(&db, ADA, dark(), RequestState::Approved).await;
+        match_dark_episodes(&db, 3, &[1]).await;
+        let opened = scan_dark(&db, &[3]).await;
+        let Some(Happened::RequestCreated(created)) = opened[0].event.as_ref() else {
+            panic!("the scan opened no Request: {opened:?}");
+        };
+        let season_3 = created.request.id;
+        db.write(move |tx| Box::pin(cancel(tx, season_3)))
+            .await
+            .unwrap();
+
+        let scanned_again = scan_dark(&db, &[3]).await;
+
+        assert_eq!(said(&scanned_again), []);
+        assert_eq!(dark_seasons(&db).await, ada_follows_dark());
     }
 }
