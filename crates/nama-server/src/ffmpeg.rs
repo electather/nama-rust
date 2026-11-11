@@ -1223,7 +1223,7 @@ fn write_test_media(
 
 // The fakes are shell scripts.
 #[cfg(all(test, unix))]
-mod tests {
+pub(crate) mod tests {
     use std::{
         ffi::OsStr,
         fs,
@@ -1238,7 +1238,7 @@ mod tests {
     /// Held to write a fake, and shared to run them. A child forked while another test has a fake
     /// open for writing keeps it open until it execs, and running that fake then fails with
     /// "Text file busy".
-    static WRITING_FAKES: RwLock<()> = RwLock::new(());
+    pub(crate) static WRITING_FAKES: RwLock<()> = RwLock::new(());
 
     /// Writes a fake `name` into `dir` that prints `version_line` as `-version` does.
     #[expect(
@@ -1503,7 +1503,7 @@ mod tests {
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    fn fake_ffmpeg(dir: &Path, script: &str) -> Ffmpeg {
+    pub(crate) fn fake_ffmpeg(dir: &Path, script: &str) -> Ffmpeg {
         let path = dir.join("ffmpeg");
         {
             let _writing = WRITING_FAKES
