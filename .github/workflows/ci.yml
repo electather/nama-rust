@@ -303,8 +303,15 @@ jobs:
       - if: runner.os != 'macOS'
         uses: FedericoCarboni/setup-ffmpeg@37062fbf7149fc5578d6c57e08aed62458b375d6 # v3.1
       # setup-ffmpeg has no macOS build for arm64, which `macos-latest` is.
+      # Homebrew's `ffmpeg` lacks zimg, so zscale, which the HDR tone-mapping tests need
+      # (crates/nama-server/README.md, "ffmpeg"); `ffmpeg-full` has it but is keg-only.
       - if: runner.os == 'macOS'
-        run: brew install ffmpeg
+        run: |
+          brew install ffmpeg-full
+          echo "$(brew --prefix ffmpeg-full)/bin" >> "$GITHUB_PATH"
+      # Only main's push run tests on macOS, so a wrong install should fail here, not as test failures.
+      - if: runner.os == 'macOS'
+        run: ffmpeg -hide_banner -filters | grep -w zscale
       # The tests that load the test Plugin build it themselves into `CARGO_TARGET_TMPDIR`'s
       # `test-plugin` (crates/nama-server/tests/support/test_plugin.rs). Its dependencies take over a
       # minute to build in release on a runner, and the first test to need them would pay that
