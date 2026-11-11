@@ -267,15 +267,7 @@ async fn with_nothing_stored_a_builtin_plugin_starts_enabled_and_an_installed_on
             .stored
             .enabled
     );
-    assert!(
-        !plugins
-            .get(&dropped_in())
-            .await
-            .unwrap()
-            .unwrap()
-            .stored
-            .enabled
-    );
+    assert!(!stored_enabled(&plugins, &dropped_in()).await);
     let listed: Vec<_> = plugins
         .list()
         .await
@@ -574,7 +566,7 @@ async fn a_crash_queued_before_shutdown_is_saved_so_it_stays_disabled_after_a_re
 }
 
 #[tokio::test]
-async fn a_crashed_builtin_plugin_is_disabled_but_not_saved_so() {
+async fn a_crashed_builtin_plugin_is_disabled_but_stays_stored_as_enabled() {
     let (data_dir, db) = open().await;
     let registry = registry();
     registry.describe_builtin(|| {
@@ -590,6 +582,7 @@ async fn a_crashed_builtin_plugin_is_disabled_but_not_saved_so() {
     crash_fulfiller(&plugins).await;
     plugins.shutdown().await;
 
+    assert!(!plugins.registry().enabled().contains(&crashes()));
     assert!(stored_enabled(&plugins, &crashes()).await);
 }
 
@@ -628,4 +621,28 @@ async fn listing_drops_an_installed_plugin_gone_since_unless_it_is_enabled() {
     );
     // A Built-in Plugin stays listed, enabled or not.
     assert!(listed.contains(&greeter()), "{listed:?}");
+}
+
+#[tokio::test]
+async fn an_installed_plugin_with_a_builtin_ones_id_is_listed_refused_apart_from_it() {
+    let (data_dir, db) = open().await;
+    let registry = registry();
+    registry.list_as_installed(vec![|| {
+        Arc::new(Fake {
+            id: "greeter",
+            panics: false,
+        })
+    }]);
+
+    let plugins = PluginSettings::start(db, registry, &config(data_dir.path(), ""))
+        .await
+        .unwrap();
+
+    let refused = PluginId::from_static("greeter.in-process");
+    let listed = plugins.get(&refused).await.unwrap().unwrap().plugin;
+    assert_eq!(
+        listed.manifest.err().as_deref(),
+        Some("its id greeter is another Plugin's")
+    );
+    assert!(plugins.registry().enabled().contains(&greeter()));
 }

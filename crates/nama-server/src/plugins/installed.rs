@@ -645,14 +645,15 @@ impl Registry {
         self.write(|state| state.as_installed = plugins);
     }
 
-    /// The Plugins [`Registry::list_as_installed`] lists, each as if found in a file named by its
-    /// id. One that panics saying what it is is logged and left out.
+    /// The Plugins [`Registry::list_as_installed`] lists, each as if found in a file named after
+    /// its id. One that panics saying what it is is logged and left out.
     #[cfg(feature = "testing")]
     fn made_as_installed(&self) -> Vec<(PathBuf, Result<Listable, Refused>)> {
         let plugins = self.read(|state| state.as_installed.clone());
         let listable = |make: fn() -> Arc<dyn Plugin>| {
             let (manifest, checks_settings) = super::builtin::what_it_says(&make)?;
-            let file = Path::new("<in-process>").join(manifest.id.as_str());
+            // Not the id itself, so one refused for its id taken is listed apart from the holder.
+            let file = PathBuf::from(format!("{}.in-process", manifest.id));
             let make = Arc::new(make);
             Some((
                 file,
