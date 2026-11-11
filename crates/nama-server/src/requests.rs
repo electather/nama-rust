@@ -3909,16 +3909,36 @@ mod tests {
     }
 
     /// `user` asks for the Movie 949 or follows Dark, as `kind` says, joining it if it is open.
-    /// Returns its id and the events asking published.
-    async fn ask_kind(db: &Database, kind: asked::Asked, user: i64) -> (i64, Vec<Event>) {
+    /// Returns what that applied, with the id of the one asked for as its value.
+    async fn ask_kind(db: &Database, kind: asked::Asked, user: i64) -> Applied<i64> {
         match kind {
             asked::Asked::Request => {
-                let applied = ask_for(db, user, 949, RequestState::Pending).await;
-                (applied.value.id, applied.events)
+                let Applied {
+                    value,
+                    events,
+                    hand_off,
+                    unfollow,
+                } = ask_for(db, user, 949, RequestState::Pending).await;
+                Applied {
+                    value: value.id,
+                    events,
+                    hand_off,
+                    unfollow,
+                }
             }
             asked::Asked::FollowedShow => {
-                let followed = follow_as(db, user, dark(), RequestState::Pending).await;
-                (followed.value.0.id, followed.events)
+                let Applied {
+                    value: (followed, _),
+                    events,
+                    hand_off,
+                    unfollow,
+                } = follow_as(db, user, dark(), RequestState::Pending).await;
+                Applied {
+                    value: followed.id,
+                    events,
+                    hand_off,
+                    unfollow,
+                }
             }
         }
     }
@@ -3955,7 +3975,7 @@ mod tests {
         let requests = requests_on(Arc::clone(&db), Registry::new());
 
         for kind in KINDS {
-            let (id, _) = ask_kind(&db, kind, BOB).await;
+            let id = ask_kind(&db, kind, BOB).await.value;
             ask_kind(&db, kind, ADA).await;
             let page = requests
                 .list(&ada(Permissions::ADMIN), None, 100, "")
@@ -3971,20 +3991,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn joining_an_open_one_says_so() {
+    async fn asking_for_an_open_one_joins_it_and_says_so() {
         let (_data, db) = ada_and_bob().await;
 
         for kind in KINDS {
-            let (opened, _) = ask_kind(&db, kind, ADA).await;
-            let (joined, events) = ask_kind(&db, kind, BOB).await;
+            let opened = ask_kind(&db, kind, ADA).await.value;
+            let joined = ask_kind(&db, kind, BOB).await;
             let says = match kind {
                 asked::Asked::Request => "joined",
                 asked::Asked::FollowedShow => "joined the Show",
             };
 
-            assert_eq!(joined, opened, "{kind:?}");
+            assert_eq!(joined.value, opened, "{kind:?}");
             assert_eq!(
-                said(&events).first(),
+                said(&joined.events).first(),
                 Some(&(says, RequestState::Pending)),
                 "{kind:?}"
             );
@@ -3997,17 +4017,18 @@ mod tests {
         let requests = requests_on(Arc::clone(&db), Registry::new());
 
         for kind in KINDS {
-            let (opened, _) = ask_kind(&db, kind, ADA).await;
-            let (again, events) = ask_kind(&db, kind, ADA).await;
+            let opened = ask_kind(&db, kind, ADA).await.value;
+            let again = ask_kind(&db, kind, ADA).await;
             let page = requests
                 .list(&ada(Permissions::ADMIN), None, 100, "")
                 .await
                 .unwrap();
 
-            assert_eq!(again, opened, "{kind:?}");
-            assert_eq!(said(&events), [], "{kind:?}");
+            assert_eq!(again.value, opened, "{kind:?}");
+            assert_eq!(said(&again.events), [], "{kind:?}");
+            assert_eq!(handed_off(&again), NOTHING, "{kind:?}");
             assert_eq!(
-                listed_requesters(&page, kind, again),
+                listed_requesters(&page, kind, again.value),
                 Some(vec![ADA]),
                 "{kind:?}"
             );
@@ -4028,7 +4049,7 @@ mod tests {
         let view_requests = Permissions::from_iter([Permission::ViewRequests]);
 
         for kind in KINDS {
-            let (id, _) = ask_kind(&db, kind, ADA).await;
+            let id = ask_kind(&db, kind, ADA).await.value;
             let seen = [
                 sees(&requests, &ada(nothing), kind, id).await,
                 sees(&requests, &user(BOB, nothing), kind, id).await,
