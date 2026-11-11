@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
 # Usage: buf-breaking.sh <base>
 # Runs `buf breaking` on the working tree's proto/ against <base>'s. A break passes only when
-# proto/BREAKING.md has more entries than at <base> (ADR 0032); otherwise it fails as buf does.
+# proto/BREAKING.md has more entries than at <base>; otherwise it fails as buf does.
+# The rule this enforces: crates/nama-proto/AGENTS.md.
 set -euo pipefail
 
 base=$(git rev-parse --verify "${1:?usage: buf-breaking.sh <base>}^{commit}")
 cd "$(git rev-parse --show-toplevel)/proto"
 
-# buf exits 100 for compile errors as well as breaks, and no entry may excuse those.
+# buf exits 100 for compile errors on either side as well as for breaks; no entry excuses those.
 buf build
+buf build "../.git#ref=$base,subdir=proto"
 status=0
 buf breaking --against "../.git#ref=$base,subdir=proto" || status=$?
 if [ "$status" -ne 100 ]; then
   exit "$status"
 fi
 
-# Entries are counted, not compared, so editing or deleting one never passes a break; an entry
-# added in the change that deletes another fails too.
+# Entries are counted, not compared (ADR 0032).
 entry='^## [0-9]{4}-[0-9]{2}-[0-9]{2}, #[0-9]+'
 entries_before=$(git show "$base:proto/BREAKING.md" 2>/dev/null | grep -cE "$entry" || true)
 entries_now=$(grep -cE "$entry" BREAKING.md 2>/dev/null || true)
