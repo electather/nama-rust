@@ -3852,7 +3852,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn upgrading_makes_a_season_a_scan_moved_before_hand_off_pending_and_leaves_a_followed_shows_season()
+    async fn upgrading_makes_a_season_a_scan_moved_before_hand_off_pending_and_leaves_handed_off_and_followed_shows_seasons()
      {
         let data_dir = tempfile::tempdir().unwrap();
         let options = sqlx::sqlite::SqliteConnectOptions::new()
