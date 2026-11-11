@@ -1,4 +1,5 @@
-//! Running ffprobe on a stored file and reading what it prints, which only Probing does.
+//! Running ffprobe on a stored file and reading what it prints, private to Probing
+//! (`AGENTS.md`, "One owner for probing").
 
 use std::{collections::HashMap, time::Duration};
 
