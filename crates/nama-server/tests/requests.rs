@@ -41,14 +41,14 @@ use nama_proto::nama::v1::{
     ApproveFollowedShowRequest, ApproveRequestRequest, CancelFollowedShowRequest,
     CancelRequestRequest, CountPendingRequestsRequest, CreateFollowedShowRequest,
     CreateRequestRequest, CreateSeasonRequestsRequest, DeclineFollowedShowRequest,
-    DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow,
-    FoundMovie, FoundShow, GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest,
-    ListMovieQualitiesRequest, ListOfferedQualitiesRequest, ListPluginsRequest,
-    ListQualitiesRequest, ListRequestsRequest, ListRequestsResponse, LookUpMovieRequest,
-    LookUpShowRequest, Permission, PluginServiceClient, Quality, RefusalReason, Request,
-    RequestServiceClient, RequestState, RetryRequestRequest, SearchMoviesRequest,
-    SearchShowsRequest, SetDefaultQualityRequest, TitleKind, UpdatePluginSettingsRequest,
-    WithdrawFollowedShowRequest, event, request::MovieOrSeason, setting_value,
+    DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundShow,
+    GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest, ListMovieQualitiesRequest,
+    ListOfferedQualitiesRequest, ListPluginsRequest, ListQualitiesRequest, ListRequestsRequest,
+    ListRequestsResponse, LookUpMovieRequest, LookUpShowRequest, MovieHit, Permission,
+    PluginServiceClient, Quality, RefusalReason, Request, RequestServiceClient, RequestState,
+    RetryRequestRequest, SearchMoviesRequest, SearchShowsRequest, SetDefaultQualityRequest,
+    TitleKind, UpdatePluginSettingsRequest, WithdrawFollowedShowRequest, event,
+    request::MovieOrSeason, setting_value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -353,7 +353,7 @@ async fn list_once_handed_off(client: &RequestServiceClient<HttpClient>) -> Vec<
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn search_alien(config: ClientConfig) -> Vec<FoundMovie> {
+async fn search_alien(config: ClientConfig) -> Vec<MovieHit> {
     requests(config)
         .search_movies(SearchMoviesRequest {
             title: "Alien".to_owned(),
