@@ -310,6 +310,8 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
         E::LibraryItemAdded(e) => (T::EVENT_TYPE_LIBRARY_ITEM_ADDED, Library(e.library_id)),
         E::LibraryItemRemoved(e) => (T::EVENT_TYPE_LIBRARY_ITEM_REMOVED, Library(e.library_id)),
         E::ItemMatched(e) => (T::EVENT_TYPE_ITEM_MATCHED, Library(e.library_id)),
+        E::MatchingFinished(e) => (T::EVENT_TYPE_MATCHING_FINISHED, Library(e.library_id)),
+        E::ProbingFinished(e) => (T::EVENT_TYPE_PROBING_FINISHED, Library(e.library_id)),
         E::RequestCreated(e) => (
             T::EVENT_TYPE_REQUEST_CREATED,
             Request(e.request.as_option()?),

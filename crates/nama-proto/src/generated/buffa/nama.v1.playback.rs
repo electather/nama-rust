@@ -1383,7 +1383,8 @@ pub struct PlaybackPlan {
     )]
     pub id: u64,
     /// The Playback Limit it keeps to: the one asked for, or else the Server's default for remote
-    /// playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`.
+    /// playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`, as when it
+    /// can't keep to the one that applies.
     ///
     /// Field 7: `playback_limit`
     #[serde(
@@ -1393,6 +1394,61 @@ pub struct PlaybackPlan {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub playback_limit: ::buffa::EnumValue<PlaybackLimit>,
+    /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
+    /// asked for, or else the one the Version plays by default. Unset when it has no audio or its
+    /// Tracks aren't known.
+    ///
+    /// Field 8: `audio_track`
+    #[serde(
+        rename = "audioTrack",
+        alias = "audio_track",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub audio_track: ::core::option::Option<u32>,
+    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`. Unset
+    /// for none, as when the one asked for can't be burned in.
+    ///
+    /// Field 9: `subtitle_track`
+    #[serde(
+        rename = "subtitleTrack",
+        alias = "subtitle_track",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub subtitle_track: ::core::option::Option<u32>,
+    /// The choices a plan for this Version can ever honour on this Server and Device, whatever a
+    /// busy Server or a method that failed on the Device rules out for now: the audio Tracks it can
+    /// play, by their place in the Version's `tracks`, in that order.
+    ///
+    /// Field 10: `audio_tracks`
+    #[serde(
+        rename = "audioTracks",
+        alias = "audio_tracks",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub audio_tracks: ::buffa::alloc::vec::Vec<u32>,
+    /// The subtitle Tracks it can burn into the picture, likewise.
+    ///
+    /// Field 11: `burn_in_tracks`
+    #[serde(
+        rename = "burnInTracks",
+        alias = "burn_in_tracks",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub burn_in_tracks: ::buffa::alloc::vec::Vec<u32>,
+    /// The Playback Limits below Original it can scale the picture down to, largest first.
+    ///
+    /// Field 12: `playback_limits`
+    #[serde(
+        rename = "playbackLimits",
+        alias = "playback_limits",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub playback_limits: ::buffa::alloc::vec::Vec<::buffa::EnumValue<PlaybackLimit>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1407,6 +1463,11 @@ impl ::core::fmt::Debug for PlaybackPlan {
             .field("subtitles", &self.subtitles)
             .field("id", &self.id)
             .field("playback_limit", &self.playback_limit)
+            .field("audio_track", &self.audio_track)
+            .field("subtitle_track", &self.subtitle_track)
+            .field("audio_tracks", &self.audio_tracks)
+            .field("burn_in_tracks", &self.burn_in_tracks)
+            .field("playback_limits", &self.playback_limits)
             .finish()
     }
 }
@@ -1416,6 +1477,22 @@ impl PlaybackPlan {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.PlaybackPlan";
+}
+impl PlaybackPlan {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::audio_track`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_audio_track(mut self, value: u32) -> Self {
+        self.audio_track = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::subtitle_track`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_subtitle_track(mut self, value: u32) -> Self {
+        self.subtitle_track = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(PlaybackPlan);
 impl ::buffa::MessageName for PlaybackPlan {
@@ -1474,6 +1551,36 @@ impl ::buffa::Message for PlaybackPlan {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if let Some(v) = self.audio_track {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.subtitle_track {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        if !self.audio_tracks.is_empty() {
+            let payload: u64 = self
+                .audio_tracks
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.burn_in_tracks.is_empty() {
+            let payload: u64 = self
+                .burn_in_tracks
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.playback_limits.is_empty() {
+            let payload: u64 = self
+                .playback_limits
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1519,6 +1626,45 @@ impl ::buffa::Message for PlaybackPlan {
             let val = self.playback_limit.to_i32();
             if val != 0 {
                 ::buffa::types::put_int32_field(7u32, val, buf);
+            }
+        }
+        if let Some(v) = self.audio_track {
+            ::buffa::types::put_uint32_field(8u32, v, buf);
+        }
+        if let Some(v) = self.subtitle_track {
+            ::buffa::types::put_uint32_field(9u32, v, buf);
+        }
+        if !self.audio_tracks.is_empty() {
+            let payload: u64 = self
+                .audio_tracks
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(10u32, payload, buf);
+            for &v in &self.audio_tracks {
+                ::buffa::types::encode_uint32(v, buf);
+            }
+        }
+        if !self.burn_in_tracks.is_empty() {
+            let payload: u64 = self
+                .burn_in_tracks
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(11u32, payload, buf);
+            for &v in &self.burn_in_tracks {
+                ::buffa::types::encode_uint32(v, buf);
+            }
+        }
+        if !self.playback_limits.is_empty() {
+            let payload: u64 = self
+                .playback_limits
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(12u32, payload, buf);
+            for v in &self.playback_limits {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -1601,6 +1747,142 @@ impl ::buffa::Message for PlaybackPlan {
                     ::buffa::types::decode_int32(buf)?,
                 );
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.audio_track = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.subtitle_track = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
+            10u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_uint32(
+                            &buf.chunk()[..len],
+                            &mut self.audio_tracks,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.audio_tracks.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.audio_tracks
+                                .push(::buffa::types::decode_uint32_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.audio_tracks.push(::buffa::types::decode_uint32(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            11u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_uint32(
+                            &buf.chunk()[..len],
+                            &mut self.burn_in_tracks,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.burn_in_tracks.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.burn_in_tracks
+                                .push(::buffa::types::decode_uint32_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.burn_in_tracks.push(::buffa::types::decode_uint32(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            12u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.playback_limits.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.playback_limits
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.playback_limits
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1616,6 +1898,11 @@ impl ::buffa::Message for PlaybackPlan {
         self.subtitles.clear();
         self.id = 0u64;
         self.playback_limit = ::buffa::EnumValue::from(0);
+        self.audio_track = ::core::option::Option::None;
+        self.subtitle_track = ::core::option::Option::None;
+        self.audio_tracks.clear();
+        self.burn_in_tracks.clear();
+        self.playback_limits.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

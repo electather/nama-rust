@@ -17,6 +17,7 @@ use std::{
 };
 
 use futures_util::StreamExt;
+use nama_proto::nama::v1::ProbingFinished;
 use tokio::sync::watch;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
@@ -139,18 +140,35 @@ impl Probing {
 
     /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
     /// since they were cached, then probes the Library `library`'s files without current Tracks
-    /// in the background, unless the Server has no ffprobe or is shutting down.
-    pub(crate) async fn files_changed(&self, library: i64) {
+    /// in the background, unless the Server has no ffprobe or is shutting down. Calls `finished`
+    /// with what the pass found once Probing has caught up, or not at all if the pass is
+    /// cancelled or fails.
+    pub(crate) async fn files_changed(
+        &self,
+        library: i64,
+        finished: impl FnOnce(ProbingFinished) + Send + 'static,
+    ) {
         self.clean_subtitles().await;
         // Closing the tracker doesn't refuse spawns, so a pass after shutdown is refused here.
-        if !self.inner.ffmpeg.can_probe() || self.inner.cancel.is_cancelled() {
+        if self.inner.cancel.is_cancelled() {
+            return;
+        }
+        if !self.inner.ffmpeg.can_probe() {
+            finished(ProbingFinished {
+                library_id: library,
+                ..Default::default()
+            });
             return;
         }
         let probing = self.clone();
         self.inner.tasks.spawn(async move {
             let pass = probing.probe_stale(library);
-            if let Some(Err(err)) = probing.inner.cancel.run_until_cancelled(pass).await {
-                tracing::error!(library, "probing a Library's files failed: {err}");
+            match probing.inner.cancel.run_until_cancelled(pass).await {
+                Some(Ok(probed)) => finished(probed),
+                Some(Err(err)) => {
+                    tracing::error!(library, "probing a Library's files failed: {err}");
+                }
+                None => {}
             }
         });
     }
@@ -178,10 +196,16 @@ impl Probing {
         }
     }
 
-    /// Probes the Library `library`'s files without current Tracks and stores what each holds.
-    /// A file that can't be probed is logged, and for a lasting reason skipped by later passes
-    /// until it changes.
-    async fn probe_stale(&self, library: i64) -> Result<(), sqlx::Error> {
+    /// Probes the Library `library`'s files without current Tracks and stores what each holds,
+    /// and waits for those another prober holds. A file that can't be probed is logged, and for a
+    /// lasting reason skipped by later passes until it changes. Returns how many files were
+    /// probed and how many ffprobe couldn't read.
+    ///
+    /// # Errors
+    ///
+    /// If the database can't be read, or what a file holds can't be stored, once every other file
+    /// is probed: the Library hasn't caught up.
+    async fn probe_stale(&self, library: i64) -> Result<ProbingFinished, sqlx::Error> {
         let stored = self.inner.contents.stored(library).await?;
         let files: Vec<Stored> = stored.values().copied().collect();
         let current = self.inner.tracks.current(&files).await?;
@@ -189,12 +213,26 @@ impl Probing {
             .into_iter()
             .filter(|(_, file)| !current.contains(&file.id));
         let ffprobe_runs = AtomicBool::new(true);
-        futures_util::stream::iter(stale)
-            .for_each_concurrent(PROBES_AT_ONCE, |(path, file)| {
-                self.probe(path, file, &ffprobe_runs)
-            })
-            .await;
-        Ok(())
+        let mut outcomes = futures_util::stream::iter(stale)
+            .map(|(path, file)| self.probe(path, file, &ffprobe_runs))
+            .buffer_unordered(PROBES_AT_ONCE);
+        let mut probed = ProbingFinished {
+            library_id: library,
+            ..Default::default()
+        };
+        let mut unstored = None;
+        while let Some(outcome) = outcomes.next().await {
+            match outcome {
+                Ok(Some(Ok(_))) => probed.probed += 1,
+                // ffprobe didn't run, so the file is left for the next scan.
+                Ok(Some(Err(err)))
+                    if matches!(*err, ProbeError::Unavailable | ProbeError::Run(_)) => {}
+                Ok(Some(Err(_))) => probed.failed += 1,
+                Ok(None) => {}
+                Err(err) => unstored = Some(err),
+            }
+        }
+        unstored.map_or(Ok(probed), Err)
     }
 
     /// Claims the stored file `file`, or if something is probing it, hands back where that will
@@ -215,35 +253,71 @@ impl Probing {
     }
 
     /// Probes the file at `path`, stored as `file`, and stores what it holds, or logs why not and
-    /// forgets what it held before. Leaves it to whoever else is probing it. Once a failure stops
-    /// the pass, clears `ffprobe_runs` and leaves this and the pass's other files for the next.
-    async fn probe(&self, path: String, file: Stored, ffprobe_runs: &AtomicBool) {
-        // The semaphore is never closed.
-        let Ok(_running) = self.inner.running.acquire().await else {
-            return;
-        };
-        if !ffprobe_runs.load(Ordering::Relaxed) {
-            return;
+    /// forgets what it held before. If something else is probing it, waits for what that found, or
+    /// probes it after all if that gave up without finding anything. Once a failure stops the
+    /// pass, clears `ffprobe_runs` and leaves this and the pass's other files for the next.
+    /// Returns what was found, or `None` if nothing was.
+    ///
+    /// # Errors
+    ///
+    /// If the database can't be read or what the file holds can't be stored, which is logged.
+    async fn probe(
+        &self,
+        path: String,
+        file: Stored,
+        ffprobe_runs: &AtomicBool,
+    ) -> Result<Option<Probed>, sqlx::Error> {
+        loop {
+            // The semaphore is never closed.
+            let Ok(running) = self.inner.running.acquire().await else {
+                return Ok(None);
+            };
+            if !ffprobe_runs.load(Ordering::Relaxed) {
+                return Ok(None);
+            }
+            // Claimed only now, so `current` doesn't wait for a file still queued here.
+            let mut prober = match self.try_claim(file) {
+                Ok(claim) => return self.probe_logged(&path, claim, ffprobe_runs).await,
+                Err(prober) => prober,
+            };
+            drop(running);
+            // An error means the prober gave up without a result, as when it was cancelled
+            // midway, so it's probed here instead.
+            if let Ok(found) = prober.wait_for(Option::is_some).await
+                && let Some(found) = Option::clone(&found)
+            {
+                return Ok(Some(found));
+            }
         }
-        // Claimed only now, so `current` doesn't wait for a file still queued here.
-        let Ok(claim) = self.try_claim(file) else {
-            return;
-        };
-        match self.probe_claimed(&path, claim).await {
-            Ok(_) => {}
+    }
+
+    /// Probes the file at `path` as [`Self::probe`] does, once `claim` is held for it.
+    async fn probe_logged(
+        &self,
+        path: &str,
+        claim: Claim<'_>,
+        ffprobe_runs: &AtomicBool,
+    ) -> Result<Option<Probed>, sqlx::Error> {
+        match self.probe_claimed(path, claim).await {
+            Ok(probe) => Ok(Some(Ok(probe))),
             Err(Unprobed::Database(err)) => {
                 tracing::error!("could not read or store what {path} holds: {err}");
+                Err(err)
             }
             Err(Unprobed::Probe(err, ProbeFailure::StopsPass)) => {
                 // It would fail the same way on every other file, logging each.
                 if ffprobe_runs.swap(false, Ordering::Relaxed) {
                     tracing::error!("stopped probing a Library's files until its next scan: {err}");
                 }
+                Ok(Some(Err(err)))
             }
             Err(Unprobed::Probe(
                 err,
                 ProbeFailure::Retried | ProbeFailure::Lasting(_) | ProbeFailure::Passing(_),
-            )) => tracing::warn!("could not probe {path}: {err}"),
+            )) => {
+                tracing::warn!("could not probe {path}: {err}");
+                Ok(Some(Err(err)))
+            }
         }
     }
 
@@ -351,6 +425,7 @@ mod tests {
     use std::{fs, path::PathBuf, sync::Arc, time::Duration};
 
     use nama_plugin_api::{PluginId, metadata::ExternalIds};
+    use nama_proto::nama::v1::ProbingFinished;
     use tempfile::TempDir;
 
     use super::{Error, PROBES_AT_ONCE, Probing};
@@ -453,7 +528,7 @@ mod tests {
 
         /// Tells Probing the Library's files changed, then waits for the pass it starts.
         async fn probe_changed(&self) {
-            self.probing.files_changed(self.library).await;
+            self.probing.files_changed(self.library, |_| {}).await;
             self.probing.idle().await;
         }
 
@@ -717,7 +792,7 @@ EOF"#,
         let bin = tempfile::tempdir().unwrap();
         let media = Fixture::with_ffmpeg(fake_ffprobe(bin.path(), "exec sleep 60")).await;
         media.write("Alien (1979)/Alien (1979).mkv", 10).await;
-        media.probing.files_changed(media.library).await;
+        media.probing.files_changed(media.library, |_| {}).await;
 
         let stopped = tokio::time::timeout(Duration::from_secs(5), media.probing.shutdown()).await;
 
@@ -760,12 +835,124 @@ EOF"#,
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
 
-        media.probing.files_changed(media.library).await;
+        media.probing.files_changed(media.library, |_| {}).await;
         wait_for_probe(&runs).await;
         media.probe_changed().await;
 
         assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
         assert!(media.probe(alien).await.is_some());
+    }
+
+    /// Tells Probing the Library's files changed, and returns what its pass reports once done.
+    async fn files_changed_reporting(
+        media: &Fixture,
+    ) -> tokio::sync::mpsc::UnboundedReceiver<ProbingFinished> {
+        let (told, reported) = tokio::sync::mpsc::unbounded_channel();
+        media
+            .probing
+            .files_changed(media.library, move |probed| {
+                drop(told.send(probed));
+            })
+            .await;
+        reported
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_pass_waits_for_the_file_another_prober_holds_and_counts_it_as_probed() {
+        let bin = tempfile::tempdir().unwrap();
+        let runs = bin.path().join("runs");
+        let media = Fixture::with_ffmpeg(slow_ffprobe(bin.path(), &runs)).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10).await;
+        let mut first = files_changed_reporting(&media).await;
+        wait_for_probe(&runs).await;
+
+        let mut second = files_changed_reporting(&media).await;
+
+        let caught_up = ProbingFinished {
+            library_id: media.library,
+            probed: 1,
+            ..Default::default()
+        };
+        assert_eq!(first.recv().await, Some(caught_up.clone()));
+        assert_eq!(second.recv().await, Some(caught_up));
+        assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_pass_probes_a_file_itself_once_the_prober_it_waited_for_gives_up() {
+        let bin = tempfile::tempdir().unwrap();
+        let runs = bin.path().join("runs");
+        let media = Fixture::with_ffmpeg(slow_ffprobe(bin.path(), &runs)).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10).await;
+        media.match_to_alien().await;
+        // Holds the background pass back until `current` has claimed the file.
+        let busy = media
+            .probing
+            .inner
+            .running
+            .acquire_many(u32::try_from(PROBES_AT_ONCE).unwrap())
+            .await
+            .unwrap();
+        let mut reported = files_changed_reporting(&media).await;
+        let probing = media.probing.clone();
+        let version = media.file_id(alien).await;
+        let gives_up = tokio::spawn(async move { probing.current(version).await });
+        wait_for_probe(&runs).await;
+        drop(busy);
+        // ponytail: no hook says when the pass is waiting; this gives it time to find the claim.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        gives_up.abort();
+
+        let caught_up = ProbingFinished {
+            library_id: media.library,
+            probed: 1,
+            ..Default::default()
+        };
+        assert_eq!(reported.recv().await, Some(caught_up));
+        assert_eq!(fs::read_to_string(&runs).unwrap(), "run\nrun\n");
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_pass_counts_the_files_probed_and_those_ffprobe_couldnt_read() {
+        let bin = tempfile::tempdir().unwrap();
+        // Reads a file of up to 10 bytes, failing on a bigger one.
+        let ffmpeg = fake_ffprobe(
+            bin.path(),
+            r#"for file; do :; done
+[ "$(wc -c < "$file")" -le 10 ] || exit 1
+echo '{"format": {"format_name": "matroska,webm"}}'"#,
+        );
+        let media = Fixture::with_ffmpeg(ffmpeg).await;
+        media.write("Alien (1979)/Alien (1979).mkv", 10).await;
+        media.write("Heat (1995)/Heat (1995).mkv", 20).await;
+
+        let mut first = files_changed_reporting(&media).await;
+
+        let counted = ProbingFinished {
+            library_id: media.library,
+            probed: 1,
+            failed: 1,
+            ..Default::default()
+        };
+        assert_eq!(first.recv().await, Some(counted));
+
+        // Nothing is left to probe: Alien's Tracks are current, and Heat failed for good.
+        let mut second = files_changed_reporting(&media).await;
+
+        let nothing = ProbingFinished {
+            library_id: media.library,
+            ..Default::default()
+        };
+        assert_eq!(second.recv().await, Some(nothing));
     }
 
     // The fake ffprobe is a shell script.
@@ -778,7 +965,7 @@ EOF"#,
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
         media.match_to_alien().await;
-        media.probing.files_changed(media.library).await;
+        media.probing.files_changed(media.library, |_| {}).await;
         wait_for_probe(&runs).await;
 
         let probe = media.current(alien).await.unwrap();
@@ -802,7 +989,7 @@ EOF"#,
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
         media.match_to_alien().await;
-        media.probing.files_changed(media.library).await;
+        media.probing.files_changed(media.library, |_| {}).await;
         wait_for_probe(&runs).await;
 
         let probed = media.current(alien).await;
@@ -830,7 +1017,7 @@ EOF"#,
             .acquire_many(u32::try_from(PROBES_AT_ONCE).unwrap())
             .await
             .unwrap();
-        media.probing.files_changed(media.library).await;
+        media.probing.files_changed(media.library, |_| {}).await;
 
         let probed = tokio::time::timeout(Duration::from_secs(5), media.current(alien)).await;
 

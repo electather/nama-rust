@@ -11,11 +11,16 @@
 //! are ignored.
 //!
 //! A scan publishes its start, then after each batch is written its progress and the Items it
-//! added and removed, then its finish (see [`crate::events`]).
+//! added and removed, then its finish, then once Matching has decided what it could
+//! `MatchingFinished`, then once Probing has caught up `ProbingFinished` (see [`crate::events`]).
 //!
 //! After each scan the Library's items are Matched (see [`crate::matching`]), still under the
 //! Library's scan lock, so Matching sees the items the scan stored. Then [`crate::probing`] is told
 //! its files changed, and probes them in the background without holding up the next scan.
+//!
+//! Probing passes of one Library overlap, so `ProbingFinished` says the Library has caught up, not
+//! that one pass is done (ADR 0030): a pass waits for the files it left to another prober, and
+//! one whose Probing ends after a later scan of the Library started sends nothing.
 
 mod names;
 
@@ -29,7 +34,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use nama_proto::nama::v1::{ScanFinished, ScanProgress, ScanStarted};
+use nama_proto::nama::v1::{
+    MatchingFinished, ProbingFinished, ScanFinished, ScanProgress, ScanStarted,
+};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use walkdir::{DirEntry, WalkDir};
 
@@ -113,6 +120,9 @@ struct Inner {
     cancel: CancellationToken,
     /// Libraries with a background scan waiting to start.
     queued: Mutex<HashSet<i64>>,
+    /// How many scans of each Library have published `ScanStarted`, so Probing knows whether a
+    /// later scan has. Held while publishing either, so none comes out of order.
+    started: Mutex<HashMap<i64, u64>>,
     /// Each Library's scan lock, handed out as a [`ScanLock`].
     running: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
 }
@@ -150,6 +160,7 @@ impl Scanner {
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
                 queued: Mutex::default(),
+                started: Mutex::default(),
                 running: Mutex::default(),
             }),
         }
@@ -224,10 +235,7 @@ impl Scanner {
             return Err(Error::Cancelled);
         }
         let library = self.inner.libraries.get(id).await?;
-        self.inner.events.publish(vec![event(ScanStarted {
-            library_id: id,
-            ..Default::default()
-        })]);
+        let scan_number = self.publish_started(id);
         let stored = self.inner.contents.stored(id).await?;
         let walking = cancel.clone();
         let found = tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;
@@ -264,11 +272,55 @@ impl Scanner {
             unchanged: summary.unchanged,
             ..Default::default()
         })]);
-        self.inner.matcher.match_library(scan, &cancel).await?;
-        if let Some(probing) = &self.inner.probing {
-            probing.files_changed(id).await;
+        let matched = self.inner.matcher.match_library(scan, &cancel).await?;
+        self.inner.events.publish(vec![event(MatchingFinished {
+            library_id: id,
+            matched: matched.matched,
+            unmatched: matched.unmatched,
+            undecided: matched.undecided,
+            ..Default::default()
+        })]);
+        match &self.inner.probing {
+            Some(probing) => {
+                let scanner = self.clone();
+                probing
+                    .files_changed(id, move |probed| {
+                        scanner.publish_probed(scan_number, probed);
+                    })
+                    .await;
+            }
+            // Nothing probes, so Probing has caught up already.
+            None => self.publish_probed(
+                scan_number,
+                ProbingFinished {
+                    library_id: id,
+                    ..Default::default()
+                },
+            ),
         }
         Ok(summary)
+    }
+
+    /// Publishes that a scan of the Library `library` started, and returns which scan of it this
+    /// is.
+    fn publish_started(&self, library: i64) -> u64 {
+        let mut started = lock(&self.inner.started);
+        let scan_number = started.entry(library).or_default();
+        *scan_number += 1;
+        self.inner.events.publish(vec![event(ScanStarted {
+            library_id: library,
+            ..Default::default()
+        })]);
+        *scan_number
+    }
+
+    /// Publishes `probed`, which the scan `scan_number` of its Library found, unless a later scan
+    /// of it has started, which reports instead.
+    fn publish_probed(&self, scan_number: u64, probed: ProbingFinished) {
+        let started = lock(&self.inner.started);
+        if started.get(&probed.library_id) == Some(&scan_number) {
+            self.inner.events.publish(vec![event(probed)]);
+        }
     }
 }
 
@@ -774,10 +826,10 @@ mod tests {
             tokio::time::timeout(Duration::from_secs(5), media.scanner.scan(media.library)).await;
         assert!(matches!(scanned, Ok(Ok(_))), "{scanned:?}");
 
-        // The scan published 23 events: its start, one batch's progress, 20 Items and its finish.
-        // Only the last 8 were kept.
+        // The scan published 25 events: its start, one batch's progress, 20 Items, its finish, and
+        // Matching's and Probing's finish. Only the last 8 were kept.
         let lagged = Lagged {
-            dropped: 15,
+            dropped: 17,
             ..Default::default()
         };
         assert_eq!(
