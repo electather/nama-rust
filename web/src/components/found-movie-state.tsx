@@ -31,7 +31,7 @@ export function FoundMovieState({
   primary?: boolean;
 }) {
   if (movie.libraryId !== undefined) {
-    return <InYourLibrary libraryId={movie.libraryId} tmdbId={movie.tmdbId} />;
+    return <InYourLibrary movie={movie} libraryId={movie.libraryId} />;
   }
   const { request } = movie;
   return (
@@ -43,13 +43,14 @@ export function FoundMovieState({
   );
 }
 
-/** The Movie `tmdbId`'s page in the Library `libraryId`. */
-function InYourLibrary({ libraryId, tmdbId }: { libraryId: bigint; tmdbId: bigint }) {
+/** A link to `movie`'s page in the Library `libraryId`, which has it. */
+function InYourLibrary({ movie, libraryId }: { movie: FoundMovie; libraryId: bigint }) {
   return (
     <Link
       to="/libraries/$libraryId/movies/$movieId"
-      params={{ libraryId: String(libraryId), movieId: `tmdb-${tmdbId}` }}
-      className="rounded-full outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+      params={{ libraryId: String(libraryId), movieId: `tmdb-${movie.tmdbId}` }}
+      aria-label={`${movie.title} in your Library`}
+      className="rounded-full outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <StateLabel label="In your Library" Icon={Library} />
     </Link>

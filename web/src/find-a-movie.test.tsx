@@ -80,10 +80,10 @@ test("a Movie found in a Library links to it there, with no Request button", asy
 
   const results = await search("Alien");
 
-  const inYourLibrary = await within(results).findByRole("link", { name: "In your Library" });
+  const inYourLibrary = await within(results).findByRole("link", { name: "Alien in your Library" });
   expect(inYourLibrary.getAttribute("href")).toBe("/libraries/4/movies/tmdb-348");
   expect(within(results).queryByRole("button", { name: "Request Alien" })).toBeNull();
-  const poster = within(results).getByRole("link", { name: /Alien/u });
+  const poster = within(results).getByRole("link", { name: /^Alien 1979/u });
   expect(poster.getAttribute("href")).toBe("/libraries/4/movies/tmdb-348");
 });
 
@@ -178,6 +178,6 @@ test("Requesting a Movie a scan Matched meanwhile shows it in its Library", asyn
   const results = await search("Dune");
   fireEvent.click(await within(results).findByRole("button", { name: "Request Dune" }));
 
-  expect(await within(results).findByRole("link", { name: "In your Library" })).toBeDefined();
+  expect(await within(results).findByRole("link", { name: "Dune in your Library" })).toBeDefined();
   expect(within(results).queryByRole("button", { name: "Request Dune" })).toBeNull();
 });
