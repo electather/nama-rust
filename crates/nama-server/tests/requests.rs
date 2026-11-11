@@ -33,7 +33,7 @@ use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     fulfiller::{Download, DownloadStatus},
     notifier::{Notification, Notifier, Recipient},
-    settings::{SettingValue, SettingsSchema},
+    settings::SettingValue,
 };
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_test_choices as test_choices;
@@ -4061,13 +4061,9 @@ struct NotifierPlugin(&'static str, FakeNotifier);
 impl Plugin for NotifierPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
-            id: PluginId::from_static(self.0),
-            name: String::new(),
-            description: String::new(),
             version: "0.0.0".to_owned(),
-            settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Notifier>()],
-            logo_svg: None,
+            ..Manifest::new(PluginId::from_static(self.0))
         }
     }
 

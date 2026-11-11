@@ -319,7 +319,7 @@ mod tests {
 
     use nama_plugin_api::{
         BoxFuture, Manifest, Plugin, PluginError, PointKey, Priority, Registrar,
-        connector::ConnectionStarted, settings::SettingsSchema,
+        connector::ConnectionStarted,
     };
 
     use super::*;
@@ -330,13 +330,9 @@ mod tests {
     impl Plugin for NeverConnected {
         fn manifest(&self) -> Manifest {
             Manifest {
-                id: PluginId::from_static("chat"),
-                name: String::new(),
-                description: String::new(),
                 version: "1.0.0".to_owned(),
-                settings: SettingsSchema::default(),
                 extension_points: vec![PointKey::provide::<dyn Connector>()],
-                logo_svg: None,
+                ..Manifest::new(PluginId::from_static("chat"))
             }
         }
 

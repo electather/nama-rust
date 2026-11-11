@@ -46,20 +46,16 @@ impl Registry {
         let said = what_it_says(&*plugin);
         // A panic dropping it is moot: what it said about itself is already read.
         let _dropped = contain_sync(|| drop(plugin));
-        let Some((manifest, checks_settings)) = said else {
+        let Some((mut manifest, checks_settings)) = said else {
             return;
         };
-        let id = manifest.id;
+        let logo = manifest.logo_svg.take();
+        manifest.logo_svg = logo.and_then(|logo| kept_logo(&manifest.id, logo));
+        let id = manifest.id.clone();
         let described = Described {
             kind: PluginKind::PLUGIN_KIND_BUILT_IN,
-            make: Ok(Arc::new(make)),
-            name: manifest.name,
-            description: manifest.description,
-            version: manifest.version,
-            settings_schema: manifest.settings,
+            plugin: Ok((Arc::new(make), manifest)),
             checks_settings,
-            extension_points: manifest.extension_points,
-            logo_svg: manifest.logo_svg.and_then(|logo| kept_logo(&id, logo)),
         };
         self.write(|state| state.known.insert(id, described));
     }

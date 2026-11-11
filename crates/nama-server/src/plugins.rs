@@ -61,17 +61,11 @@ type Make = Arc<dyn Fn() -> Arc<dyn Plugin> + Send + Sync>;
 /// runs no Plugin code.
 struct Described {
     kind: PluginKind,
-    /// Makes the Plugin anew for each enablement, or says why the Server refused it. Keeping one
-    /// instance instead would hold it past disabling, so its `Drop` would run uncontained when the
-    /// registry goes.
-    make: Result<Make, String>,
-    name: String,
-    description: String,
-    version: String,
-    settings_schema: SettingsSchema,
+    /// What makes the Plugin anew for each enablement, kept beside its Manifest, or why the Server
+    /// refused it. Keeping one instance instead would hold it past disabling, so its `Drop` would
+    /// run uncontained when the registry goes.
+    plugin: Result<(Make, Manifest), String>,
     checks_settings: bool,
-    extension_points: Vec<PointKey>,
-    logo_svg: Option<String>,
 }
 
 struct Enabled {
@@ -107,24 +101,13 @@ pub struct Listed {
     pub id: PluginId,
     /// Whether it is Built-in or Installed.
     pub kind: PluginKind,
-    /// Why the Server refused it, if it did, in which case it can't be enabled.
-    pub refused_reason: Option<String>,
-    /// What admins know it by. Empty if it gives none.
-    pub name: String,
-    /// What it does, in one sentence. Empty if it gives none.
-    pub description: String,
-    /// Its version.
-    pub version: String,
-    /// The settings it takes.
-    pub settings_schema: SettingsSchema,
+    /// What it said about itself when the Server read it, without a logo the Server dropped, or
+    /// why the Server refused it, in which case it can't be enabled.
+    pub manifest: Result<Manifest, String>,
     /// Whether it has a settings check, which [`Registry::check_settings`] runs.
     pub checks_settings: bool,
     /// Whether it is enabled now.
     pub enabled: bool,
-    /// The Extension Points its Manifest names.
-    pub extension_points: Vec<PointKey>,
-    /// Its logo, an SVG document's text, unless it had none or the Server dropped it.
-    pub logo_svg: Option<String>,
 }
 
 /// Why a Plugin wasn't disabled: no other enabled Plugin provides a capability it may provide.
@@ -295,7 +278,16 @@ impl Registry {
     /// fails.
     pub fn enable_by_id(&self, id: &PluginId, settings: Settings) -> Result<(), EnableError> {
         let make = self
-            .read(|state| state.known.get(id).map(|known| known.make.clone()))
+            .read(|state| {
+                let known = state.known.get(id)?;
+                Some(
+                    known
+                        .plugin
+                        .as_ref()
+                        .map(|(make, _)| Arc::clone(make))
+                        .map_err(Clone::clone),
+                )
+            })
             .ok_or_else(|| EnableError::Unknown(id.clone()))?
             .map_err(|reason| EnableError::Refused {
                 plugin: id.clone(),
@@ -468,17 +460,17 @@ impl Registry {
         id: &PluginId,
         settings: Settings,
     ) -> Result<Choices, CheckError> {
-        let (make, schema) = self
+        let checkable = self
             .read(|state| {
                 let known = state.known.get(id)?;
-                Some((
-                    known.make.clone().ok().filter(|_| known.checks_settings),
-                    known.settings_schema.clone(),
-                ))
+                let checkable = known.plugin.as_ref().ok().filter(|_| known.checks_settings);
+                Some(
+                    checkable.map(|(make, manifest)| (Arc::clone(make), manifest.settings.clone())),
+                )
             })
             .ok_or_else(|| CheckError::Unknown(id.clone()))?;
         let no_check = || CheckError::Failed(format!("{id} has no settings check"));
-        let Some(make) = make else {
+        let Some((make, schema)) = checkable else {
             return Err(no_check());
         };
         let settings = settings
@@ -537,24 +529,15 @@ impl Registry {
     #[must_use]
     pub fn plugins(&self) -> Vec<Listed> {
         self.read(|state| {
-            state
-                .known
-                .iter()
-                .map(|(id, described)| Listed {
-                    id: id.clone(),
-                    kind: described.kind,
-                    refused_reason: described.make.as_ref().err().cloned(),
-                    name: described.name.clone(),
-                    description: described.description.clone(),
-                    version: described.version.clone(),
-                    settings_schema: described.settings_schema.clone(),
-                    checks_settings: described.checks_settings,
-                    enabled: state.plugins.contains_key(id),
-                    extension_points: described.extension_points.clone(),
-                    logo_svg: described.logo_svg.clone(),
-                })
-                .collect()
+            let listed = |(id, described)| state.listed(id, described);
+            state.known.iter().map(listed).collect()
         })
+    }
+
+    /// The Plugin `id`, as [`Registry::plugins`] lists it, or `None` if the Server has none.
+    #[must_use]
+    pub fn plugin(&self, id: &PluginId) -> Option<Listed> {
+        self.read(|state| Some(state.listed(id, state.known.get(id)?)))
     }
 
     /// Tells every Observer at `P` about `event`, without waiting for them.
@@ -900,6 +883,20 @@ impl Registry {
 }
 
 impl State {
+    fn listed(&self, id: &PluginId, described: &Described) -> Listed {
+        Listed {
+            id: id.clone(),
+            kind: described.kind,
+            manifest: described
+                .plugin
+                .as_ref()
+                .map(|(_, manifest)| manifest.clone())
+                .map_err(Clone::clone),
+            checks_settings: described.checks_settings,
+            enabled: self.plugins.contains_key(id),
+        }
+    }
+
     /// The refusal of enabling `id` with `registrations`, if they include a Fulfiller for a kind of
     /// title another enabled Plugin already provides one for.
     fn fulfiller_taken(
