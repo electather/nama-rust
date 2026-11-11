@@ -400,6 +400,27 @@ async fn a_refused_plugin_is_listed_and_shown_with_why_and_enabling_it_is_refuse
 }
 
 #[tokio::test]
+async fn a_plugin_naming_a_point_without_its_exports_is_refused_naming_the_export() {
+    let started = Started::new().await;
+
+    started.drop_in("unexported.wasm", "unexported-connector");
+
+    let listed = started.listed("unexported.wasm").await.unwrap();
+    assert_eq!(
+        listed.refused_reason,
+        "its Manifest names PROVIDE_POINT_CONNECTOR, and it has no start_connection export"
+    );
+    assert_refused(
+        started
+            .client()
+            .enable_plugin(enable("unexported.wasm"))
+            .await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
+    );
+}
+
+#[tokio::test]
 async fn a_second_file_with_a_plugins_id_is_refused() {
     let started = Started::new().await;
 

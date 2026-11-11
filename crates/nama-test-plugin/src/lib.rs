@@ -38,7 +38,8 @@ mod exports {
     // its settings: a URL whose host it may reach, one it requests, how its Observer, Fulfiller
     // and Notifier behave, a profile its check offers, and how its check fails, and its logo. With
     // the `out-of-range` feature it wants a Nama API no Server has, with `unnamed` it gives no name
-    // or description, and with `panic` it panics instead.
+    // or description, with `unexported-connector` it names a Connector it doesn't export, and
+    // with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -84,6 +85,11 @@ mod exports {
         #[cfg(feature = "out-of-range")]
         let manifest = Manifest {
             nama_api: "<0.1".to_owned(),
+            ..manifest
+        };
+        #[cfg(feature = "unexported-connector")]
+        let manifest = Manifest {
+            providers: vec![ProvidePoint::PROVIDE_POINT_CONNECTOR.into()],
             ..manifest
         };
         #[cfg(feature = "unnamed")]
