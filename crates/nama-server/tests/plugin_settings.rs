@@ -478,8 +478,12 @@ async fn crash_test_plugin(plugins: &PluginSettings) {
     }
 }
 
-#[tokio::test]
-async fn a_crashed_plugin_is_saved_as_disabled_unless_an_admin_enabled_it_again() {
+/// A database and config whose Installed test Plugin is set to panic when asked to fulfil.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn with_test_plugin_that_panics() -> (TempDir, Arc<Database>, Config) {
     let (data_dir, db) = open().await;
     let dir = data_dir.path().join("plugins");
     std::fs::create_dir_all(&dir).unwrap();
@@ -488,6 +492,12 @@ async fn a_crashed_plugin_is_saved_as_disabled_unless_an_admin_enabled_it_again(
         data_dir.path(),
         "[plugins.test-plugin]\nfulfiller = \"panic\"",
     );
+    (data_dir, db, config)
+}
+
+#[tokio::test]
+async fn a_crashed_plugin_is_saved_as_disabled_unless_an_admin_enabled_it_again() {
+    let (_data_dir, db, config) = with_test_plugin_that_panics().await;
     let plugins = PluginSettings::start(db, registry(), &config)
         .await
         .unwrap();
@@ -507,4 +517,23 @@ async fn a_crashed_plugin_is_saved_as_disabled_unless_an_admin_enabled_it_again(
 
     assert!(plugins.registry().enabled().contains(&test_plugin));
     assert!(stored_enabled(&plugins, &test_plugin).await);
+}
+
+#[tokio::test]
+async fn a_crash_queued_before_shutdown_is_saved_so_it_stays_disabled_after_a_restart() {
+    let (_data_dir, db, config) = with_test_plugin_that_panics().await;
+    let plugins = PluginSettings::start(Arc::clone(&db), registry(), &config)
+        .await
+        .unwrap();
+
+    // On this one-thread runtime nothing yields between the crash and `shutdown`, so the saving
+    // task hasn't taken the id yet.
+    crash_test_plugin(&plugins).await;
+    plugins.shutdown().await;
+    let restarted = PluginSettings::start(db, registry(), &config)
+        .await
+        .unwrap();
+
+    let test_plugin = PluginId::from_static("test-plugin");
+    assert!(!restarted.registry().enabled().contains(&test_plugin));
 }
