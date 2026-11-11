@@ -19,6 +19,7 @@ use crate::{
     codes::random_secret,
     db::{BoxFuture, Database, now},
     plugins::Registry,
+    rate_limits::Attempt,
 };
 
 /// How many characters a User's or Device's name may have, once trimmed.
@@ -503,7 +504,16 @@ impl Users {
     }
 
     /// Checks that `password` is `user`'s, refusing it with [`Error::WrongPassword`] if not.
-    pub(crate) async fn confirm_password(&self, user: &User, password: &str) -> Result<(), Error> {
+    ///
+    /// `_admitted` is a guess `SignInLimits::admit` let through: see "Guessable requests go through
+    /// `SignIn`" in `crates/nama-server/AGENTS.md`. ponytail: a fresh `SignInLimits` can still mint
+    /// one, and it isn't checked against `user`.
+    pub(crate) async fn confirm_password(
+        &self,
+        _admitted: &Attempt,
+        user: &User,
+        password: &str,
+    ) -> Result<(), Error> {
         // Users are never renamed, so their name still finds them.
         let found = self.user_named(&user.name).await?;
         let stored = found.as_ref().and_then(|(_, stored)| stored.as_ref());
@@ -544,7 +554,16 @@ impl Users {
     /// The User named `name`, ignoring case, and the id of their password Sign-in Method, if
     /// `password` is theirs. An unknown name takes as long as a wrong password, and is refused the
     /// same way.
-    pub(crate) async fn verify(&self, name: &str, password: &str) -> Result<(User, i64), Error> {
+    ///
+    /// `_admitted` is a guess `SignInLimits::admit` let through: see "Guessable requests go through
+    /// `SignIn`" in `crates/nama-server/AGENTS.md`. ponytail: a fresh `SignInLimits` can still mint
+    /// one, and it isn't checked against `name`.
+    pub(crate) async fn verify(
+        &self,
+        _admitted: &Attempt,
+        name: &str,
+        password: &str,
+    ) -> Result<(User, i64), Error> {
         let found = self.user_named(name).await?;
         let stored = found.as_ref().and_then(|(_, stored)| stored.as_ref());
         let method = self.verify_password(&Arc::from(password), stored).await?;
@@ -1590,9 +1609,16 @@ mod tests {
         }
     }
 
+    /// A guess let through by a throwaway rate limiter, which `verify` asks for.
+    fn admitted() -> Attempt {
+        crate::rate_limits::SignInLimits::default()
+            .admit(laptop().ip_address, None, std::time::Instant::now())
+            .unwrap()
+    }
+
     /// Signs [`laptop`] in as the User named `name`, whose password is [`PASSWORD`].
     async fn sign_in_with_password(users: &Users, name: &str) -> SignedIn {
-        let (user, method) = users.verify(name, PASSWORD).await.unwrap();
+        let (user, method) = users.verify(&admitted(), name, PASSWORD).await.unwrap();
         users
             .sign_in_as(Proved::Method { user, method }, laptop())
             .await
@@ -1709,7 +1735,7 @@ mod tests {
         let ada = users.create_first_admin("Ada", PASSWORD, laptop()).await;
         let ada = ada.unwrap().caller.user;
         let grace = users.create(&ada, "Grace", PASSWORD).await.unwrap();
-        let (user, method) = users.verify("Grace", PASSWORD).await.unwrap();
+        let (user, method) = users.verify(&admitted(), "Grace", PASSWORD).await.unwrap();
         users.delete(&ada, grace).await.unwrap();
 
         let refused = users
@@ -1826,7 +1852,7 @@ mod tests {
 
         users.reset_password(&admin(), ada, PASSWORD).await.unwrap();
 
-        users.verify("Ada", PASSWORD).await.unwrap();
+        users.verify(&admitted(), "Ada", PASSWORD).await.unwrap();
         let password = password_method(&users, ada).await;
         // Refused if it were Ada's last Sign-in Method.
         delete_sign_in_method(&users, password).await.unwrap();

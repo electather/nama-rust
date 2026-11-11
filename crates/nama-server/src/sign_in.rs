@@ -127,7 +127,7 @@ impl SignIn {
         let device = named(device)?;
         let Proof::Password { name, password } = proof;
         let attempt = self.limits.admit(device.ip_address, Some(&name), now)?;
-        let (user, method) = self.users.verify(&name, &password).await?;
+        let (user, method) = self.users.verify(&attempt, &name, &password).await?;
         self.limits.succeeded(&attempt);
         Ok(self
             .users
@@ -238,7 +238,9 @@ impl SignIn {
         if users::name_key(&name) != users::name_key(&caller.user.name) {
             return Err(users::Error::WrongPassword.into());
         }
-        self.users.confirm_password(&caller.user, &password).await?;
+        self.users
+            .confirm_password(&attempt, &caller.user, &password)
+            .await?;
         // Before recording, so a Device found signed out after the right password isn't a guess.
         self.limits.succeeded(&attempt);
         Ok(self.users.record_authentication(caller.device.id).await?)
