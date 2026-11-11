@@ -148,7 +148,7 @@ struct Wanted {
     title: String,
     /// The Movie's `YYYY-MM-DD` release date, or the Season's first air date.
     release_date: Option<String>,
-    /// For a Season, its Show's ids; none for a Movie.
+    /// For a Season, its Show's ids if its asker knows them; none for a Movie.
     show_ids: ExternalIds,
     /// The Followed Show a new Request for it is opened for, if any.
     followed_show: Option<i64>,
@@ -1299,7 +1299,16 @@ impl Asker for Scanning {
 /// Seasons of a Show to ask for, at the Quality the Show's Quality rules give their new Requests.
 #[derive(Debug)]
 struct SeasonsToAsk {
-    show: WantedSeasons,
+    show_tmdb_id: i64,
+    /// The Show's ids, or `None` for a scan.
+    // ponytail: a Followed Show stores no Show ids, and a Season a scan asks for opens already in a
+    // Library.
+    show_ids: Option<ExternalIds>,
+    show_title: String,
+    seasons: Vec<Season>,
+    quality: Option<RequestedQuality>,
+    /// Whether the asker chose `quality`, as [`Wanted::quality_chosen`] says.
+    quality_chosen: bool,
 }
 
 impl SeasonsToAsk {
@@ -1309,18 +1318,19 @@ impl SeasonsToAsk {
         // (ADR 0025).
         let (quality, quality_chosen) = show_requests(conn, show.show_tmdb_id)
             .await?
-            .for_seasons((show.quality.clone(), show.quality_chosen), show.chosen)?;
+            .for_seasons((show.quality, show.quality_chosen), show.chosen)?;
         Ok(Self {
-            show: WantedSeasons {
-                quality,
-                quality_chosen,
-                ..show
-            },
+            show_tmdb_id: show.show_tmdb_id,
+            show_ids: Some(show.show_ids),
+            show_title: show.show_title,
+            seasons: show.seasons,
+            quality,
+            quality_chosen,
         })
     }
 
     /// The Season `season` of the Show `followed_show` follows, at the Show's Quality, as a scan
-    /// asks for it.
+    /// asks for it. A scan names no Quality, so unlike [`Self::read`] it refuses none.
     async fn for_scan(
         conn: &mut SqliteConnection,
         followed_show: &FollowedShow,
@@ -1329,17 +1339,12 @@ impl SeasonsToAsk {
         let show_tmdb_id = followed_show.show_tmdb_id;
         let quality = show_requests(conn, show_tmdb_id).await?.quality().cloned();
         Ok(Self {
-            show: WantedSeasons {
-                show_tmdb_id,
-                // ponytail: a Followed Show stores no Show ids, and this Season opens already in a
-                // Library.
-                show_ids: ExternalIds::default(),
-                show_title: followed_show.show_title.clone(),
-                seasons: vec![season],
-                quality,
-                quality_chosen: false,
-                chosen: None,
-            },
+            show_tmdb_id,
+            show_ids: None,
+            show_title: followed_show.show_title.clone(),
+            seasons: vec![season],
+            quality,
+            quality_chosen: false,
         })
     }
 
@@ -1350,10 +1355,10 @@ impl SeasonsToAsk {
         conn: &mut SqliteConnection,
         asking: A,
     ) -> Result<Applied<Vec<Request>>, A::Error> {
-        let show = self.show.show_tmdb_id;
+        let show = self.show_tmdb_id;
         let today = today(conn).await?;
-        let mut asked = Applied::quiet(Vec::with_capacity(self.show.seasons.len()));
-        for season in &self.show.seasons {
+        let mut asked = Applied::quiet(Vec::with_capacity(self.seasons.len()));
+        for season in &self.seasons {
             let matched = contents::matched_episodes(conn, show, season.number.into()).await?;
             let has = availability(&season.episodes, &matched, &today);
             let Some(opens_in) = asking.opens_in(conn, show, season.number, has).await? else {
@@ -1372,14 +1377,14 @@ impl SeasonsToAsk {
     /// What a new Request for `season` stores, opened for `followed_show` if given.
     fn wanted(&self, season: &Season, followed_show: Option<i64>) -> Wanted {
         Wanted {
-            tmdb_id: self.show.show_tmdb_id,
+            tmdb_id: self.show_tmdb_id,
             season: Some(season.number),
-            title: self.show.show_title.clone(),
+            title: self.show_title.clone(),
             release_date: season.air_date.clone(),
-            show_ids: self.show.show_ids.clone(),
+            show_ids: self.show_ids.clone().unwrap_or_default(),
             followed_show,
-            quality: self.show.quality.clone(),
-            quality_chosen: self.show.quality_chosen,
+            quality: self.quality.clone(),
+            quality_chosen: self.quality_chosen,
         }
     }
 }
@@ -2018,7 +2023,7 @@ async fn follow(
 ) -> Result<Applied<(FollowedShow, Vec<Request>)>, Error> {
     let now = now();
     let asking = SeasonsToAsk::read(conn, show).await?;
-    let already_open = open_followed_show(conn, asking.show.show_tmdb_id).await?;
+    let already_open = open_followed_show(conn, asking.show_tmdb_id).await?;
     let id = if let Some(id) = already_open {
         id
     } else {
@@ -2058,7 +2063,7 @@ async fn follow(
 /// Opens a Followed Show of `show` at the Quality its Seasons take, in `state`, returning its id.
 async fn open_followed(
     conn: &mut SqliteConnection,
-    SeasonsToAsk { show }: &SeasonsToAsk,
+    show: &SeasonsToAsk,
     state: RequestState,
     now: i64,
 ) -> Result<i64, sqlx::Error> {
