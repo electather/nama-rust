@@ -23,7 +23,7 @@ use crate::{
     contents::Contents,
     db::{Database, now},
     events::EventBus,
-    ffmpeg::Ffmpeg,
+    ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
     libraries::Libraries,
     matching::Matcher,
@@ -101,12 +101,13 @@ pub(crate) fn router(
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let playback = settings.playback();
+    let abilities = Abilities::new(Arc::clone(&ffmpeg));
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
             settings,
-            running: running.clone(),
+            abilities: abilities.clone(),
             ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
@@ -125,6 +126,7 @@ pub(crate) fn router(
         .add_service(Arc::new(WatchStateServiceHandler { browse }))
         .add_service(Arc::new(PlaybackServiceHandler {
             probing,
+            abilities,
             running,
             settings: playback,
         }))

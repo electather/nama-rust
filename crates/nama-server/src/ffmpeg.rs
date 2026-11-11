@@ -10,6 +10,7 @@ use std::{
     io,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    sync::Arc,
     time::Duration,
 };
 
@@ -189,7 +190,7 @@ impl Ffmpeg {
     /// Whether ffmpeg has the zscale filter, which [`Self::transcode`] tone-maps with in software
     /// and a system ffmpeg may lack (ADR 0026), or why ffmpeg couldn't say, such as a timeout on a
     /// busy host.
-    pub(crate) async fn has_zscale(&self) -> Result<bool, String> {
+    async fn has_zscale(&self) -> Result<bool, String> {
         // Each filter is a line such as ` .SC zscale  V->V  Apply resizing, ...`.
         Ok(self
             .listed("-filters")
@@ -199,7 +200,7 @@ impl Ffmpeg {
 
     /// Whether ffmpeg has the libx264 encoder, which [`Self::transcode`] encodes with in software
     /// and a system ffmpeg may lack (ADR 0026), or why ffmpeg couldn't say.
-    pub(crate) async fn has_libx264(&self) -> Result<bool, String> {
+    async fn has_libx264(&self) -> Result<bool, String> {
         Ok(self
             .listed("-encoders")
             .await?
@@ -232,7 +233,7 @@ impl Ffmpeg {
     /// The hardware acceleration APIs that ffmpeg lists an encoder for and that pass a test
     /// encode, as a Transcode would run it, in [`Accel::ALL`]'s order, each with whether it passes
     /// a test tone-map too. Takes a few seconds while each opens its device.
-    pub(crate) async fn find_hardware(&self) -> Vec<Hardware> {
+    async fn find_hardware(&self) -> Vec<Hardware> {
         let encoders = match self.listed("-encoders").await {
             Ok(encoders) => encoders,
             Err(err) => {
@@ -518,6 +519,109 @@ impl Ffmpeg {
             return Err(SubtitleError::Failed(stderr.trim().to_owned()));
         }
         Ok(output.stdout)
+    }
+}
+
+/// What the Server's ffmpeg can do, as [`Abilities`] hands it back.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each is a separate thing ffmpeg can do, not a state"
+)]
+pub(crate) struct CanDo {
+    /// Whether the Server has ffmpeg and ffprobe, which every method but Direct Play needs.
+    pub(crate) runs: bool,
+    /// Whether ffmpeg has zscale, which a Transcode tone-maps HDR to SDR with in software.
+    pub(crate) zscale: bool,
+    /// Whether ffmpeg has libx264, which a Transcode encodes its video with in software.
+    pub(crate) libx264: bool,
+    /// The hardware acceleration that passed its test, in the order Automatic picks.
+    pub(crate) hardware: Vec<Hardware>,
+}
+
+/// Asks the Server's ffmpeg what it can do and remembers each answer, so planning and the
+/// Playback status read the same [`CanDo`].
+#[derive(Clone)]
+pub(crate) struct Abilities {
+    inner: Arc<AbilitiesInner>,
+}
+
+struct AbilitiesInner {
+    ffmpeg: Arc<Ffmpeg>,
+    zscale: tokio::sync::OnceCell<bool>,
+    libx264: tokio::sync::OnceCell<bool>,
+    hardware: tokio::sync::OnceCell<Vec<Hardware>>,
+}
+
+impl Abilities {
+    /// Asks `ffmpeg`, starting its hardware test in the background, as it takes a few seconds;
+    /// the first [`Self::can_do`] waits for it.
+    pub(crate) fn new(ffmpeg: Arc<Ffmpeg>) -> Self {
+        let abilities = Self {
+            inner: Arc::new(AbilitiesInner {
+                ffmpeg,
+                zscale: tokio::sync::OnceCell::new(),
+                libx264: tokio::sync::OnceCell::new(),
+                hardware: tokio::sync::OnceCell::new(),
+            }),
+        };
+        let testing = abilities.clone();
+        // Holds nothing but ffmpeg, so the Server shutting down mid-test still closes the
+        // database cleanly (#554); the runtime's end kills its test encode.
+        tokio::spawn(async move {
+            testing.hardware().await;
+        });
+        abilities
+    }
+
+    /// What ffmpeg can do. An answer ffmpeg couldn't give, such as on a busy host whose listing
+    /// timed out, counts as `false` and is asked again next time.
+    pub(crate) async fn can_do(&self) -> CanDo {
+        let ffmpeg = &self.inner.ffmpeg;
+        // Together, so a busy host waits out one listing's timeout, not two.
+        let (zscale, libx264, hardware) = tokio::join!(
+            answered_once(&self.inner.zscale, "zscale", ffmpeg.has_zscale()),
+            answered_once(&self.inner.libx264, "libx264", ffmpeg.has_libx264()),
+            self.hardware(),
+        );
+        CanDo {
+            runs: ffmpeg.can_remux(),
+            zscale,
+            libx264,
+            hardware: hardware.to_vec(),
+        }
+    }
+
+    /// The hardware acceleration that passed its test encode, tested the first time it's asked
+    /// for and kept.
+    async fn hardware(&self) -> &[Hardware] {
+        let ffmpeg = &self.inner.ffmpeg;
+        self.inner
+            .hardware
+            .get_or_init(|| async {
+                let found = ffmpeg.find_hardware().await;
+                let names: Vec<&str> = found.iter().map(|found| found.accel.name()).collect();
+                tracing::info!(hardware = ?names, "tested hardware acceleration");
+                found
+            })
+            .await
+    }
+}
+
+/// Whether ffmpeg has `feature`, as `cell` keeps from `ask`'s first answer, or `false` while it
+/// can't say.
+async fn answered_once(
+    cell: &tokio::sync::OnceCell<bool>,
+    feature: &str,
+    ask: impl Future<Output = Result<bool, String>>,
+) -> bool {
+    // Only an answer is kept, so a check that timed out on a busy host is asked again.
+    match cell.get_or_try_init(|| ask).await {
+        Ok(&has) => has,
+        Err(err) => {
+            tracing::warn!("could not ask ffmpeg whether it has {feature}: {err}");
+            false
+        }
     }
 }
 
@@ -1294,10 +1398,10 @@ pub(crate) mod tests {
         fs,
         os::unix::fs::PermissionsExt,
         path::Path,
-        sync::{PoisonError, RwLock},
+        sync::{Arc, PoisonError, RwLock},
     };
 
-    use super::{Accel, Ffmpeg, FoundProgram, Hardware};
+    use super::{Abilities, Accel, CanDo, Ffmpeg, FoundProgram, Hardware};
     use crate::config::Config;
 
     /// Held to write a fake, and shared to run them. A child forked while another test has a fake
@@ -1512,30 +1616,72 @@ pub(crate) mod tests {
         assert_eq!(found.direct_play_only_because(), None);
     }
 
-    #[tokio::test]
+    /// What `ffmpeg` can do, as its [`Abilities`] first say, while no fake is being written.
     #[expect(
         clippy::await_holding_lock,
         reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
     )]
-    async fn only_ffmpeg_listing_zscale_among_its_filters_can_tone_map() {
+    async fn can_do(ffmpeg: Ffmpeg) -> CanDo {
+        let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
+        Abilities::new(Arc::new(ffmpeg)).can_do().await
+    }
+
+    #[tokio::test]
+    async fn ffmpeg_can_do_what_it_lists_and_what_passes_its_test_encode() {
         let bin = tempfile::tempdir().unwrap();
-        let with = fake_ffmpeg(
+        let ffmpeg = fake_ffmpeg(
             bin.path(),
-            "*-filters*) echo ' .SC zscale  V->V  Apply resizing, colorspace and bit depth' ;;",
+            "*-filters*) echo ' .SC zscale  V->V  Apply resizing, colorspace and bit depth' ;;
+             *-encoders*) echo ' V....D libx264  libx264 H.264 / AVC (codec h264)'; \
+                          echo ' V....D h264_vaapi  H.264/AVC (VAAPI)' ;;
+             *tonemap_vaapi*) exit 1 ;;
+             *h264_vaapi*) exit 0 ;;
+             *) exit 1 ;;",
         );
-        // Prints its arguments, not a filter.
-        let echo = Ffmpeg {
-            ffmpeg: Ok(FoundProgram {
-                path: "/bin/echo".into(),
+        let with_ffprobe = Ffmpeg {
+            ffprobe: Ok(FoundProgram {
+                path: "/bin/true".into(),
                 version: "7.1.1".to_owned(),
             }),
-            ..Ffmpeg::default()
+            ..ffmpeg
         };
 
-        let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
-        assert_eq!(with.has_zscale().await, Ok(true));
-        assert_eq!(echo.has_zscale().await, Ok(false));
-        assert_eq!(Ffmpeg::default().has_zscale().await, Ok(false));
+        assert_eq!(
+            can_do(with_ffprobe).await,
+            CanDo {
+                runs: true,
+                zscale: true,
+                libx264: true,
+                hardware: vec![Hardware {
+                    accel: Accel::Vaapi,
+                    tone_maps: false,
+                }],
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn ffmpeg_without_zscale_or_libx264_or_ffprobe_can_only_direct_play() {
+        let bin = tempfile::tempdir().unwrap();
+        // As Fedora's ffmpeg-free lists them.
+        let ffmpeg = fake_ffmpeg(
+            bin.path(),
+            "*-filters*) echo ' ... scale  V->V  Scale the input video size' ;;
+             *-encoders*) echo ' V....D libopenh264  OpenH264 H.264 / AVC (codec h264)' ;;",
+        );
+
+        let can = can_do(ffmpeg).await;
+
+        assert_eq!(
+            can,
+            CanDo {
+                runs: false,
+                zscale: false,
+                libx264: false,
+                hardware: vec![],
+            }
+        );
+        assert_eq!(can_do(Ffmpeg::default()).await, can);
     }
 
     #[tokio::test]
@@ -1543,23 +1689,26 @@ pub(crate) mod tests {
         clippy::await_holding_lock,
         reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
     )]
-    async fn only_ffmpeg_listing_libx264_among_its_encoders_has_it() {
+    async fn what_ffmpeg_couldnt_answer_is_asked_again() {
         let bin = tempfile::tempdir().unwrap();
-        let with = fake_ffmpeg(
+        let answered = bin.path().join("answered");
+        // Fails to list its filters the first time, as one that timed out on a busy host.
+        let ffmpeg = fake_ffmpeg(
             bin.path(),
-            "*-encoders*) echo ' V....D libx264  libx264 H.264 / AVC (codec h264)' ;;",
-        );
-        let without_dir = tempfile::tempdir().unwrap();
-        // As Fedora's ffmpeg-free lists it.
-        let without = fake_ffmpeg(
-            without_dir.path(),
-            "*-encoders*) echo ' V....D libopenh264  OpenH264 H.264 / AVC (codec h264)' ;;",
+            &format!(
+                "*-filters*) if [ -e '{answered}' ]; then echo ' .SC zscale  V->V  zscale'; \
+                             else touch '{answered}'; exit 1; fi ;;",
+                answered = answered.display()
+            ),
         );
 
         let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
-        assert_eq!(with.has_libx264().await, Ok(true));
-        assert_eq!(without.has_libx264().await, Ok(false));
-        assert_eq!(Ffmpeg::default().has_libx264().await, Ok(false));
+        let abilities = Abilities::new(Arc::new(ffmpeg));
+        let first = abilities.can_do().await;
+        let then = abilities.can_do().await;
+
+        assert!(!first.zscale);
+        assert!(then.zscale);
     }
 
     /// Writes a fake ffmpeg into `dir` that runs `script`, a shell `case` over its arguments, and

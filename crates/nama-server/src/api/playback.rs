@@ -8,6 +8,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
+    ffmpeg::Abilities,
     playback::{
         self, Asked, DeviceDecoding, Method, PickedLimit, Planned, PlaybackLimit, StartedPlan,
         method_to_proto,
@@ -23,6 +24,7 @@ use super::{caller, client_ip, database_failed, refuse, version_not_found};
 /// `nama.v1.PlaybackService`: how each signed-in User's Device plays a Version.
 pub(super) struct PlaybackServiceHandler {
     pub(super) probing: Probing,
+    pub(super) abilities: Abilities,
     pub(super) running: RunningPlans,
     pub(super) settings: PlaybackSettings,
 }
@@ -61,6 +63,7 @@ impl PlaybackService for PlaybackServiceHandler {
         };
         let plan = playback::plan(
             &self.probing,
+            &self.abilities,
             &self.running,
             caller,
             asked,
