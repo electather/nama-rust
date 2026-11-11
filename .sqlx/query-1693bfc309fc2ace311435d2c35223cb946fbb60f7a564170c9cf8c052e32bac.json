@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.library_id AS library, library_items.season,\n                      library_items.episode, item_matches.plugin AS \"plugin!\",\n                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,\n                      item_matches.show_tmdb_id, item_matches.show_imdb_id,\n                      item_matches.show_tvdb_id, item_matches.title AS \"title!\",\n                      item_matches.show_title, item_matches.release_date, item_matches.poster\n               FROM title_search\n               JOIN item_matches ON item_matches.item_id = title_search.rowid\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE title_search MATCH ?\n               ORDER BY title_search.rank",
+  "query": "SELECT library_files.library_id AS library,\n                      library_items.kind AS \"kind: ItemKind\", library_items.season,\n                      library_items.episode, item_matches.plugin AS \"plugin!\",\n                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,\n                      item_matches.show_tmdb_id, item_matches.show_imdb_id,\n                      item_matches.show_tvdb_id, item_matches.title AS \"title!\",\n                      item_matches.show_title, item_matches.release_date, item_matches.poster\n               FROM title_search\n               JOIN item_matches ON item_matches.item_id = title_search.rowid\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE title_search MATCH ?\n               ORDER BY title_search.rank",
   "describe": {
     "columns": [
       {
@@ -15,8 +15,19 @@
         }
       },
       {
-        "name": "season",
+        "name": "kind: ItemKind",
         "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "season",
+        "ordinal": 2,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -27,7 +38,7 @@
       },
       {
         "name": "episode",
-        "ordinal": 2,
+        "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -38,7 +49,7 @@
       },
       {
         "name": "plugin!",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -49,7 +60,7 @@
       },
       {
         "name": "tmdb_id",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -60,7 +71,7 @@
       },
       {
         "name": "imdb_id",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +82,7 @@
       },
       {
         "name": "tvdb_id",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -82,7 +93,7 @@
       },
       {
         "name": "show_tmdb_id",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -93,7 +104,7 @@
       },
       {
         "name": "show_imdb_id",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -104,7 +115,7 @@
       },
       {
         "name": "show_tvdb_id",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -115,7 +126,7 @@
       },
       {
         "name": "title!",
-        "ordinal": 10,
+        "ordinal": 11,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -126,7 +137,7 @@
       },
       {
         "name": "show_title",
-        "ordinal": 11,
+        "ordinal": 12,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -137,7 +148,7 @@
       },
       {
         "name": "release_date",
-        "ordinal": 12,
+        "ordinal": 13,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -148,7 +159,7 @@
       },
       {
         "name": "poster",
-        "ordinal": 13,
+        "ordinal": 14,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -162,6 +173,7 @@
       "Right": 1
     },
     "nullable": [
+      false,
       false,
       true,
       true,
@@ -178,5 +190,5 @@
       true
     ]
   },
-  "hash": "9affe8c6aa1ebf4dea38a349683764094fe0f5d43f1e145355373a391c05f5f1"
+  "hash": "1693bfc309fc2ace311435d2c35223cb946fbb60f7a564170c9cf8c052e32bac"
 }

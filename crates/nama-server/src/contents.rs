@@ -796,17 +796,26 @@ impl Contents {
             let Some(id) = primary_id(row.ids()) else {
                 continue;
             };
-            match (row.season, row.episode, primary_id(row.show_ids())) {
-                (Some(season), Some(number), Some(show)) => found.episodes.push(FoundEpisode {
-                    library: row.library,
-                    id,
-                    show,
-                    show_title: row.show_title.unwrap_or_default(),
-                    season,
-                    number,
-                    title: row.title,
-                }),
-                _ => found.movies.push(FoundMovie {
+            match (
+                row.kind,
+                row.season,
+                row.episode,
+                primary_id(row.show_ids()),
+            ) {
+                (ItemKind::Episode, Some(season), Some(number), Some(show)) => {
+                    found.episodes.push(FoundEpisode {
+                        library: row.library,
+                        id,
+                        show,
+                        show_title: row.show_title.unwrap_or_default(),
+                        season,
+                        number,
+                        title: row.title,
+                    });
+                }
+                // Skipped as `Contents::shows` skips it, so browsing can open what's found.
+                (ItemKind::Episode, ..) => {}
+                (ItemKind::Movie, ..) => found.movies.push(FoundMovie {
                     library: row.library,
                     id,
                     plugin: row.plugin,
@@ -848,7 +857,8 @@ impl Contents {
     async fn search_rows(&self, fts_query: &str) -> Result<Vec<SearchRow>, sqlx::Error> {
         sqlx::query_as!(
             SearchRow,
-            r#"SELECT library_files.library_id AS library, library_items.season,
+            r#"SELECT library_files.library_id AS library,
+                      library_items.kind AS "kind: ItemKind", library_items.season,
                       library_items.episode, item_matches.plugin AS "plugin!",
                       item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,
                       item_matches.show_tmdb_id, item_matches.show_imdb_id,
@@ -982,6 +992,7 @@ fn primary_id(ids: ExternalIds) -> Option<ExternalId> {
 /// An Item a search found, as [`Contents::search_rows`] reads it.
 struct SearchRow {
     library: i64,
+    kind: ItemKind,
     /// Set for an Episode.
     season: Option<i64>,
     /// Set for an Episode.
@@ -2171,22 +2182,27 @@ mod tests {
 
     const THE_OFFICE: i64 = 2316;
 
-    #[tokio::test]
-    async fn a_search_finds_a_show_once_by_its_title_and_episodes_by_their_own() {
-        let fx = Fixture::new().await;
-        let folder = tempfile::tempdir().unwrap();
-        let root = folder.path().canonicalize().unwrap();
-        let library = fx
-            .libraries
-            .create(
-                "Shows",
-                Kind::Shows,
-                vec![root.to_str().unwrap().to_owned()],
-            )
-            .await
-            .unwrap()
-            .id;
-        for (number, tmdb, title) in [(1, 9001, "Pilot"), (2, 9002, "Office Olympics")] {
+    impl Fixture {
+        /// A new Shows Library, and the folder it watches, which it lives no longer than.
+        async fn shows_library(&self) -> (i64, TempDir) {
+            let folder = tempfile::tempdir().unwrap();
+            let root = folder.path().canonicalize().unwrap();
+            let library = self
+                .libraries
+                .create(
+                    "Shows",
+                    Kind::Shows,
+                    vec![root.to_str().unwrap().to_owned()],
+                )
+                .await
+                .unwrap()
+                .id;
+            (library, folder)
+        }
+
+        /// Stores a file of its own in `library` for Episode `number` of Season 1 of The Office,
+        /// and decides it as `decided`.
+        async fn decide_office_episode(&self, library: i64, number: i64, decided: Decided) {
             let file = Change::Store {
                 path: format!("/shows/The Office - S01E0{number}.mkv"),
                 size: 10,
@@ -2199,10 +2215,19 @@ mod tests {
                     episode: number,
                 }],
             };
-            fx.contents.apply(library, vec![file]).await.unwrap();
-            let (item, _, _) = fx.contents.undecided(library).await.unwrap().remove(0);
-            let decided = office_episode(tmdb, title);
-            fx.contents.record(vec![(item, decided)]).await.unwrap();
+            self.contents.apply(library, vec![file]).await.unwrap();
+            let (item, _, _) = self.contents.undecided(library).await.unwrap().remove(0);
+            self.contents.record(vec![(item, decided)]).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn a_search_finds_a_show_once_by_its_title_and_episodes_by_their_own() {
+        let fx = Fixture::new().await;
+        let (library, _folder) = fx.shows_library().await;
+        for (number, tmdb, title) in [(1, 9001, "Pilot"), (2, 9002, "Office Olympics")] {
+            fx.decide_office_episode(library, number, office_episode(tmdb, title))
+                .await;
         }
 
         let found = fx.contents.search("office").await.unwrap();
@@ -2248,5 +2273,22 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(fx.found_movies("ronin").await, Vec::<String>::new());
+    }
+
+    #[tokio::test]
+    async fn a_search_skips_an_episode_whose_match_has_no_show_id() {
+        let fx = Fixture::new().await;
+        let (library, _folder) = fx.shows_library().await;
+        let Decided::Matched(mut showless) = office_episode(9001, "Pilot") else {
+            panic!("office_episode Matches");
+        };
+        showless.show_ids = ExternalIds::default();
+        fx.decide_office_episode(library, 1, Decided::Matched(showless))
+            .await;
+
+        let found = fx.contents.search("pilot").await.unwrap();
+
+        assert!(found.movies.is_empty(), "{:?}", found.movies);
+        assert!(found.episodes.is_empty(), "{:?}", found.episodes);
     }
 }
