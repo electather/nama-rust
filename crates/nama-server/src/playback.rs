@@ -1,10 +1,11 @@
 //! Playback Plans: how the Server plays one Version on one Device, and why (ADR 0027).
 //!
 //! [`plan`] gathers what a plan is based on, probing the Version first if its Tracks aren't
-//! current, and runs the steps over it in order. Each step gives a Playback Reason for each method
-//! it rules out, and the plan keeps only what no reason rules out, so no step can widen what an
-//! earlier one ruled out. The steps for the User's choices run last, and a choice no method is
-//! left for is dropped instead (ADR 0031). A step that changes nothing gives no reason (ADR 0034).
+//! current, and runs the steps over it in order. A step gives a Playback Reason for each fact that
+//! rules a method out, changes what plays, drops a choice or assumes what it couldn't know, and
+//! none when it changes nothing (ADR 0034). The plan keeps only the methods no reason rules out,
+//! so no step can widen what an earlier one ruled out. The steps for the User's choices run last,
+//! and a choice no method is left for is dropped instead (ADR 0031).
 //!
 //! Each playable plan is kept in [`running::RunningPlans`] until it stops, and Remuxes serve their
 //! own files there.

@@ -8,6 +8,7 @@ import {
   type PlaybackMethod,
   type PlaybackPlan,
   PlaybackPlanSchema,
+  PlaybackReasonKind,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
@@ -241,7 +242,14 @@ function usePlan(versionId: bigint, asking: Asking) {
         const { reason, params } = refusalOf(error);
         if (reason !== RefusalReason.SERVER_BUSY) throw error;
         return create(PlaybackPlanSchema, {
-          reasons: [{ text: serverBusy(params["maxTranscodes"]) }],
+          reasons: [
+            {
+              kind: PlaybackReasonKind.SERVER_BUSY,
+              params,
+              text: serverBusy(params["maxTranscodes"]),
+              decided: true,
+            },
+          ],
         });
       }
     },
