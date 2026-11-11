@@ -11,7 +11,8 @@
 //! are ignored.
 //!
 //! A scan publishes its start, then after each batch is written its progress and the Items it
-//! added and removed, then its finish (see [`crate::events`]).
+//! added and removed, then its finish, then once Matching has decided what it could
+//! `MatchingFinished`, then once Probing has caught up `ProbingFinished` (see [`crate::events`]).
 //!
 //! After each scan the Library's items are Matched (see [`crate::matching`]), still under the
 //! Library's scan lock, so Matching sees the items the scan stored. Then its files without current
@@ -21,6 +22,10 @@
 //! probing it again would fail again. One that failed for a passing reason, such as a timeout,
 //! is tried again on the next few passes first. A Version can also be probed right away
 //! ([`Scanner::probe_now`]), which waits for a background probe of it rather than probe it twice.
+//!
+//! Probing passes of one Library overlap, so `ProbingFinished` says the Library has caught up, not
+//! that one pass is done (ADR 0030): a pass waits for the files it left to another prober, and
+//! one whose Probing ends after a later scan of the Library started sends nothing.
 
 mod names;
 
@@ -38,7 +43,9 @@ use std::{
 };
 
 use futures_util::StreamExt;
-use nama_proto::nama::v1::{ScanFinished, ScanProgress, ScanStarted};
+use nama_proto::nama::v1::{
+    MatchingFinished, ProbingFinished, ScanFinished, ScanProgress, ScanStarted,
+};
 use tokio::sync::watch;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use walkdir::{DirEntry, WalkDir};
@@ -152,6 +159,9 @@ struct Inner {
     cancel: CancellationToken,
     /// Libraries with a background scan waiting to start.
     queued: Mutex<HashSet<i64>>,
+    /// How many scans of each Library have published `ScanStarted`, so Probing knows whether a
+    /// later scan has. Held while publishing either, so none comes out of order.
+    started: Mutex<HashMap<i64, u64>>,
     /// Each Library's scan lock, handed out as a [`ScanLock`].
     running: Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>,
     /// A permit per probe running, [`PROBES_AT_ONCE`] in all.
@@ -199,6 +209,7 @@ impl Scanner {
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
                 queued: Mutex::default(),
+                started: Mutex::default(),
                 running: Mutex::default(),
                 probing: tokio::sync::Semaphore::new(PROBES_AT_ONCE),
                 claimed: Mutex::default(),
@@ -275,10 +286,7 @@ impl Scanner {
             return Err(Error::Cancelled);
         }
         let library = self.inner.libraries.get(id).await?;
-        self.inner.events.publish(vec![event(ScanStarted {
-            library_id: id,
-            ..Default::default()
-        })]);
+        let scan_number = self.publish_started(id);
         let stored = self.inner.contents.stored(id).await?;
         let walking = cancel.clone();
         let found = tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;
@@ -316,9 +324,38 @@ impl Scanner {
             unchanged: summary.unchanged,
             ..Default::default()
         })]);
-        self.inner.matcher.match_library(scan, &cancel).await?;
-        self.probe_in_background(id);
+        let matched = self.inner.matcher.match_library(scan, &cancel).await?;
+        self.inner.events.publish(vec![event(MatchingFinished {
+            library_id: id,
+            matched: matched.matched,
+            unmatched: matched.unmatched,
+            undecided: matched.undecided,
+            ..Default::default()
+        })]);
+        self.probe_in_background(id, scan_number);
         Ok(summary)
+    }
+
+    /// Publishes that a scan of the Library `library` started, and returns which scan of it this
+    /// is.
+    fn publish_started(&self, library: i64) -> u64 {
+        let mut started = lock(&self.inner.started);
+        let scan_number = started.entry(library).or_default();
+        *scan_number += 1;
+        self.inner.events.publish(vec![event(ScanStarted {
+            library_id: library,
+            ..Default::default()
+        })]);
+        *scan_number
+    }
+
+    /// Publishes `probed`, which the scan `scan_number` of its Library found, unless a later scan
+    /// of it has started, which reports instead.
+    fn publish_probed(&self, scan_number: u64, probed: ProbingFinished) {
+        let started = lock(&self.inner.started);
+        if started.get(&probed.library_id) == Some(&scan_number) {
+            self.inner.events.publish(vec![event(probed)]);
+        }
     }
 
     /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
@@ -339,24 +376,42 @@ impl Scanner {
     }
 
     /// Probes the Library `library`'s files without current Tracks in the background, unless the
-    /// Server has no ffprobe.
-    fn probe_in_background(&self, library: i64) {
+    /// Server has no ffprobe, then publishes that Probing has caught up as the scan `scan_number`
+    /// of it.
+    fn probe_in_background(&self, library: i64, scan_number: u64) {
         if !self.inner.ffmpeg.can_probe() {
+            self.publish_probed(
+                scan_number,
+                ProbingFinished {
+                    library_id: library,
+                    ..Default::default()
+                },
+            );
             return;
         }
         let scanner = self.clone();
         self.inner.tasks.spawn(async move {
             let probing = scanner.probe_stale(library);
-            if let Some(Err(err)) = scanner.inner.cancel.run_until_cancelled(probing).await {
-                tracing::error!(library, "probing a Library's files failed: {err}");
+            match scanner.inner.cancel.run_until_cancelled(probing).await {
+                Some(Ok(probed)) => scanner.publish_probed(scan_number, probed),
+                Some(Err(err)) => {
+                    tracing::error!(library, "probing a Library's files failed: {err}");
+                }
+                None => {}
             }
         });
     }
 
-    /// Probes the Library `library`'s files without current Tracks and stores what each holds.
-    /// A file that can't be probed is logged, and for a lasting reason skipped by later passes
-    /// until it changes.
-    async fn probe_stale(&self, library: i64) -> Result<(), sqlx::Error> {
+    /// Probes the Library `library`'s files without current Tracks and stores what each holds,
+    /// and waits for those another prober holds. A file that can't be probed is logged, and for a
+    /// lasting reason skipped by later passes until it changes. Returns how many files were
+    /// probed and how many ffprobe couldn't read.
+    ///
+    /// # Errors
+    ///
+    /// If the database can't be read, or what a file holds can't be stored, once every other file
+    /// is probed: the Library hasn't caught up.
+    async fn probe_stale(&self, library: i64) -> Result<ProbingFinished, sqlx::Error> {
         let stored = self.inner.contents.stored(library).await?;
         let files: Vec<Stored> = stored.values().copied().collect();
         let current = self.inner.tracks.current(&files).await?;
@@ -364,12 +419,26 @@ impl Scanner {
             .into_iter()
             .filter(|(_, file)| !current.contains(&file.id));
         let ffprobe_runs = AtomicBool::new(true);
-        futures_util::stream::iter(stale)
-            .for_each_concurrent(PROBES_AT_ONCE, |(path, file)| {
-                self.probe(path, file, &ffprobe_runs)
-            })
-            .await;
-        Ok(())
+        let mut outcomes = futures_util::stream::iter(stale)
+            .map(|(path, file)| self.probe(path, file, &ffprobe_runs))
+            .buffer_unordered(PROBES_AT_ONCE);
+        let mut probed = ProbingFinished {
+            library_id: library,
+            ..Default::default()
+        };
+        let mut unstored = None;
+        while let Some(outcome) = outcomes.next().await {
+            match outcome {
+                Ok(Some(Ok(_))) => probed.probed += 1,
+                // ffprobe didn't run, so the file is left for the next scan.
+                Ok(Some(Err(err)))
+                    if matches!(*err, ProbeError::Unavailable | ProbeError::Run(_)) => {}
+                Ok(Some(Err(_))) => probed.failed += 1,
+                Ok(None) => {}
+                Err(err) => unstored = Some(err),
+            }
+        }
+        unstored.map_or(Ok(probed), Err)
     }
 
     /// Probes the Version `version` now, without waiting for a background pass to reach it, and
@@ -414,32 +483,70 @@ impl Scanner {
     }
 
     /// Probes the file at `path`, stored as `file`, and stores what it holds, or logs why not and
-    /// forgets what it held before. Leaves it to whoever else is probing it. Once ffprobe can't be
-    /// run, clears `ffprobe_runs` and leaves this and the pass's other files for the next pass.
-    async fn probe(&self, path: String, file: Stored, ffprobe_runs: &AtomicBool) {
-        // The semaphore is never closed.
-        let Ok(_running) = self.inner.probing.acquire().await else {
-            return;
-        };
-        if !ffprobe_runs.load(Ordering::Relaxed) {
-            return;
+    /// forgets what it held before. If something else is probing it, waits for what that found, or
+    /// probes it after all if that gave up without finding anything.
+    /// Once ffprobe can't be run, clears `ffprobe_runs` and leaves this and the pass's other files
+    /// for the next pass. Returns what was found, or `None` if nothing was.
+    ///
+    /// # Errors
+    ///
+    /// If the database can't be read or what the file holds can't be stored, which is logged.
+    async fn probe(
+        &self,
+        path: String,
+        file: Stored,
+        ffprobe_runs: &AtomicBool,
+    ) -> Result<Option<Probed>, sqlx::Error> {
+        loop {
+            // The semaphore is never closed.
+            let Ok(running) = self.inner.probing.acquire().await else {
+                return Ok(None);
+            };
+            if !ffprobe_runs.load(Ordering::Relaxed) {
+                return Ok(None);
+            }
+            // Claimed only now, so `probe_now` doesn't wait for a file still queued here.
+            let mut prober = match self.try_claim(file) {
+                Ok(claim) => return self.probe_logged(&path, claim, ffprobe_runs).await,
+                Err(prober) => prober,
+            };
+            drop(running);
+            // An error means the prober gave up without a result, as when it was cancelled
+            // midway, so it's probed here instead.
+            if let Ok(found) = prober.wait_for(Option::is_some).await
+                && let Some(found) = Option::clone(&found)
+            {
+                return Ok(Some(found));
+            }
         }
-        // Claimed only now, so `probe_now` doesn't wait for a file still queued here.
-        let Ok(claim) = self.try_claim(file) else {
-            return;
-        };
-        match self.probe_claimed(&path, claim).await {
+    }
+
+    /// Probes the file at `path` as [`Self::probe`] does, once `claim` is held for it.
+    async fn probe_logged(
+        &self,
+        path: &str,
+        claim: Claim<'_>,
+        ffprobe_runs: &AtomicBool,
+    ) -> Result<Option<Probed>, sqlx::Error> {
+        let probed = self.probe_claimed(path, claim).await;
+        match &probed {
             Ok(_) => {}
             Err(ProbeNowError::Database(err)) => {
                 tracing::error!("could not read or store what {path} holds: {err}");
             }
-            Err(ProbeNowError::Probe(err)) if matches!(*err, ProbeError::Run(_)) => {
+            Err(ProbeNowError::Probe(err)) if matches!(**err, ProbeError::Run(_)) => {
                 // It would fail the same way on every other file, logging each.
                 if ffprobe_runs.swap(false, Ordering::Relaxed) {
                     tracing::error!("stopped probing a Library's files until its next scan: {err}");
                 }
             }
             Err(err) => tracing::warn!("could not probe {path}: {err}"),
+        }
+        match probed {
+            Ok(probe) => Ok(Some(Ok(probe))),
+            Err(ProbeNowError::Probe(err)) => Ok(Some(Err(err))),
+            Err(ProbeNowError::Database(err)) => Err(err),
+            Err(ProbeNowError::NoSuchVersion(_)) => Ok(None),
         }
     }
 
@@ -672,7 +779,7 @@ mod tests {
         PluginId,
         metadata::{ExternalId, ExternalIds},
     };
-    use nama_proto::nama::v1::{Lagged, subscribe_response};
+    use nama_proto::nama::v1::{EventType, Lagged, ProbingFinished, subscribe_response};
     use tempfile::TempDir;
 
     use super::{PROBES_AT_ONCE, ProbeNowError, Scanner, Summary};
@@ -680,7 +787,7 @@ mod tests {
         config::Config,
         contents::{Change, Contents, Decided, File, Item, Metadata, Stored},
         db::Database,
-        events::{EventBus, Filter},
+        events::{EventBus, Filter, event},
         ffmpeg::{self, Ffmpeg, FoundProgram, ProbeError},
         libraries::{self, Kind, Libraries},
         playback::{self, running::RunningPlans},
@@ -1083,10 +1190,10 @@ mod tests {
             tokio::time::timeout(Duration::from_secs(5), media.scanner.scan(media.library)).await;
         assert!(matches!(scanned, Ok(Ok(_))), "{scanned:?}");
 
-        // The scan published 23 events: its start, one batch's progress, 20 Items and its finish.
-        // Only the last 8 were kept.
+        // The scan published 25 events: its start, one batch's progress, 20 Items, its finish, and
+        // Matching's and Probing's finish. Only the last 8 were kept.
         let lagged = Lagged {
-            dropped: 15,
+            dropped: 17,
             ..Default::default()
         };
         assert_eq!(
@@ -1421,11 +1528,28 @@ EOF"#,
         media.write(alien, 10);
 
         media.scan().await;
+        // Subscribed only now, so the first scan's events don't make it lag.
+        let only = Filter {
+            types: vec![EventType::EVENT_TYPE_PROBING_FINISHED],
+            ..Filter::default()
+        };
+        let mut probed = Box::pin(media.events.subscribe(only));
         wait_for_probe(&runs).await;
         media.scan_and_probe().await;
 
         assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
         assert!(media.probe(alien).await.is_some());
+        // The first pass's Probing ended after the second scan started, so only the second, which
+        // waited for the file the first held, says Probing caught up.
+        let caught_up = ProbingFinished {
+            library_id: media.library,
+            probed: 1,
+            ..Default::default()
+        };
+        let told = probed.next().await.and_then(|response| response.message);
+        assert_eq!(told, Some(event(caught_up).into()));
+        let more = tokio::time::timeout(Duration::from_millis(100), probed.next()).await;
+        assert!(more.is_err(), "{more:?}");
     }
 
     // The fake ffprobe is a shell script.
@@ -1506,6 +1630,47 @@ EOF"#,
         drop(busy);
         media.scanner.idle().await;
         assert_eq!(fs::read_to_string(&runs).unwrap(), "run\n");
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_pass_probes_a_file_itself_once_the_prober_it_waited_for_gives_up() {
+        let bin = tempfile::tempdir().unwrap();
+        let runs = bin.path().join("runs");
+        let media = Fixture::with_ffmpeg(Kind::Movies, slow_ffprobe(bin.path(), &runs)).await;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        media.write(alien, 10);
+        // Holds the background pass back until `probe_now` has claimed the file.
+        let busy = (media.scanner.inner.probing)
+            .acquire_many(u32::try_from(PROBES_AT_ONCE).unwrap())
+            .await
+            .unwrap();
+        media.scan().await;
+        media.match_to_alien().await;
+        let only = Filter {
+            types: vec![EventType::EVENT_TYPE_PROBING_FINISHED],
+            ..Filter::default()
+        };
+        let mut probed = Box::pin(media.events.subscribe(only));
+        let scanner = media.scanner.clone();
+        let version = media.file_id(alien).await;
+        let gives_up = tokio::spawn(async move { scanner.probe_now(version).await });
+        wait_for_probe(&runs).await;
+        drop(busy);
+        // ponytail: no hook says when the pass is waiting; this gives it time to find the claim.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        gives_up.abort();
+
+        let caught_up = ProbingFinished {
+            library_id: media.library,
+            probed: 1,
+            ..Default::default()
+        };
+        let told = probed.next().await.and_then(|response| response.message);
+        assert_eq!(told, Some(event(caught_up).into()));
+        assert_eq!(fs::read_to_string(&runs).unwrap(), "run\nrun\n");
     }
 
     /// A fake ffprobe in `bin` that logs each run to `bin/runs` and reads every file as one audio
@@ -1663,6 +1828,49 @@ echo '{{"format": {{"format_name": "matroska,webm"}}, "streams": [{{"codec_type"
 
         assert_eq!(probe_runs(bin.path()), 2);
         assert_eq!(media.channels(alien).await, Some(2));
+    }
+
+    // The fake ffprobe is a shell script.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn probing_finished_counts_the_files_probed_and_those_ffprobe_couldnt_read_or_none() {
+        let bin = tempfile::tempdir().unwrap();
+        // Reads a file of up to 10 bytes, failing on a bigger one.
+        let ffmpeg = fake_ffprobe(
+            bin.path(),
+            r#"for file; do :; done
+[ "$(wc -c < "$file")" -le 10 ] || exit 1
+echo '{"format": {"format_name": "matroska,webm"}}'"#,
+        );
+        let media = Fixture::with_ffmpeg(Kind::Movies, ffmpeg).await;
+        media.write("Alien (1979)/Alien (1979).mkv", 10);
+        media.write("Heat (1995)/Heat (1995).mkv", 20);
+        let only = Filter {
+            types: vec![EventType::EVENT_TYPE_PROBING_FINISHED],
+            ..Filter::default()
+        };
+        let mut probed = Box::pin(media.events.subscribe(only));
+
+        media.scan().await;
+
+        let counted = ProbingFinished {
+            library_id: media.library,
+            probed: 1,
+            failed: 1,
+            ..Default::default()
+        };
+        let first = probed.next().await.and_then(|response| response.message);
+        assert_eq!(first, Some(event(counted).into()));
+
+        // Nothing is left to probe: Alien's Tracks are current, and Heat failed for good.
+        media.scan().await;
+
+        let nothing = ProbingFinished {
+            library_id: media.library,
+            ..Default::default()
+        };
+        let second = probed.next().await.and_then(|response| response.message);
+        assert_eq!(second, Some(event(nothing).into()));
     }
 
     // The fake ffprobe is a shell script.

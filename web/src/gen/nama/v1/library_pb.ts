@@ -393,6 +393,10 @@ export const LibraryService: GenService<{
    * changes made since the running scan began are picked up. Fails with `not_found` if there is
    * no such Library.
    *
+   * To wait for the scan, subscribe to events about the Library first, then call this, then skip
+   * to the next `ScanStarted`: the first `MatchingFinished` and `ProbingFinished` after it cover
+   * this call.
+   *
    * @generated from rpc nama.v1.LibraryService.ScanLibrary
    */
   scanLibrary: {

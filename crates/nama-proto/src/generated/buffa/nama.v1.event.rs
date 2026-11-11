@@ -29,6 +29,8 @@ pub enum EventType {
     EVENT_TYPE_PLAYBACK_STARTED = 20i32,
     EVENT_TYPE_PLAYBACK_ENDED = 21i32,
     EVENT_TYPE_PLAYBACK_CHANGED = 22i32,
+    EVENT_TYPE_MATCHING_FINISHED = 23i32,
+    EVENT_TYPE_PROBING_FINISHED = 24i32,
 }
 impl EventType {
     ///Idiomatic alias for [`Self::EVENT_TYPE_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -100,6 +102,12 @@ impl EventType {
     ///Idiomatic alias for [`Self::EVENT_TYPE_PLAYBACK_CHANGED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const PlaybackChanged: Self = Self::EVENT_TYPE_PLAYBACK_CHANGED;
+    ///Idiomatic alias for [`Self::EVENT_TYPE_MATCHING_FINISHED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const MatchingFinished: Self = Self::EVENT_TYPE_MATCHING_FINISHED;
+    ///Idiomatic alias for [`Self::EVENT_TYPE_PROBING_FINISHED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ProbingFinished: Self = Self::EVENT_TYPE_PROBING_FINISHED;
 }
 impl ::core::default::Default for EventType {
     fn default() -> Self {
@@ -234,6 +242,8 @@ impl ::buffa::Enumeration for EventType {
             20i32 => ::core::option::Option::Some(Self::EVENT_TYPE_PLAYBACK_STARTED),
             21i32 => ::core::option::Option::Some(Self::EVENT_TYPE_PLAYBACK_ENDED),
             22i32 => ::core::option::Option::Some(Self::EVENT_TYPE_PLAYBACK_CHANGED),
+            23i32 => ::core::option::Option::Some(Self::EVENT_TYPE_MATCHING_FINISHED),
+            24i32 => ::core::option::Option::Some(Self::EVENT_TYPE_PROBING_FINISHED),
             _ => ::core::option::Option::None,
         }
     }
@@ -275,6 +285,8 @@ impl ::buffa::Enumeration for EventType {
             Self::EVENT_TYPE_PLAYBACK_STARTED => "EVENT_TYPE_PLAYBACK_STARTED",
             Self::EVENT_TYPE_PLAYBACK_ENDED => "EVENT_TYPE_PLAYBACK_ENDED",
             Self::EVENT_TYPE_PLAYBACK_CHANGED => "EVENT_TYPE_PLAYBACK_CHANGED",
+            Self::EVENT_TYPE_MATCHING_FINISHED => "EVENT_TYPE_MATCHING_FINISHED",
+            Self::EVENT_TYPE_PROBING_FINISHED => "EVENT_TYPE_PROBING_FINISHED",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -354,6 +366,12 @@ impl ::buffa::Enumeration for EventType {
             "EVENT_TYPE_PLAYBACK_CHANGED" => {
                 ::core::option::Option::Some(Self::EVENT_TYPE_PLAYBACK_CHANGED)
             }
+            "EVENT_TYPE_MATCHING_FINISHED" => {
+                ::core::option::Option::Some(Self::EVENT_TYPE_MATCHING_FINISHED)
+            }
+            "EVENT_TYPE_PROBING_FINISHED" => {
+                ::core::option::Option::Some(Self::EVENT_TYPE_PROBING_FINISHED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -382,6 +400,8 @@ impl ::buffa::Enumeration for EventType {
             Self::EVENT_TYPE_PLAYBACK_STARTED,
             Self::EVENT_TYPE_PLAYBACK_ENDED,
             Self::EVENT_TYPE_PLAYBACK_CHANGED,
+            Self::EVENT_TYPE_MATCHING_FINISHED,
+            Self::EVENT_TYPE_PROBING_FINISHED,
         ]
     }
 }
@@ -1255,6 +1275,22 @@ impl ::buffa::Message for Event {
                         += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
                             + inner as u64;
                 }
+                __buffa::oneof::event::Event::MatchingFinished(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::event::Event::ProbingFinished(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 2u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -1440,6 +1476,22 @@ impl ::buffa::Message for Event {
                 __buffa::oneof::event::Event::PlaybackChanged(x) => {
                     ::buffa::types::put_len_delimited_header(
                         22u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::event::Event::MatchingFinished(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        23u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::event::Event::ProbingFinished(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        24u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -1901,6 +1953,46 @@ impl ::buffa::Message for Event {
                     ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
                     self.event = ::core::option::Option::Some(
                         __buffa::oneof::event::Event::PlaybackChanged(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            23u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::event::Event::MatchingFinished(ref mut existing),
+                ) = self.event
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.event = ::core::option::Option::Some(
+                        __buffa::oneof::event::Event::MatchingFinished(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            24u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::event::Event::ProbingFinished(ref mut existing),
+                ) = self.event
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.event = ::core::option::Option::Some(
+                        __buffa::oneof::event::Event::ProbingFinished(
                             ::buffa::alloc::boxed::Box::new(val),
                         ),
                     );
@@ -2482,6 +2574,54 @@ impl<'de> ::serde::Deserialize<'de> for Event {
                                 );
                             }
                         }
+                        "matchingFinished" | "matching_finished" => {
+                            let v: ::core::option::Option<MatchingFinished> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            MatchingFinished,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_event.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'event'",
+                                        ),
+                                    );
+                                }
+                                __oneof_event = Some(
+                                    __buffa::oneof::event::Event::MatchingFinished(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "probingFinished" | "probing_finished" => {
+                            let v: ::core::option::Option<ProbingFinished> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            ProbingFinished,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_event.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'event'",
+                                        ),
+                                    );
+                                }
+                                __oneof_event = Some(
+                                    __buffa::oneof::event::Event::ProbingFinished(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
                         _ => {
                             map.next_value::<::serde::de::IgnoredAny>()?;
                         }
@@ -2828,8 +2968,8 @@ pub const __SCAN_PROGRESS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     from_json: ::buffa::type_registry::any_from_json::<ScanProgress>,
     is_wkt: false,
 };
-/// A scan stored every change it found. Matching the new Items follows. A scan that fails or is
-/// cancelled sends none.
+/// A scan stored every change it found. Matching the new Items follows, and `MatchingFinished` says
+/// when it has. A scan that fails or is cancelled sends none.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -3052,6 +3192,393 @@ pub const __SCAN_FINISHED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     type_url: "type.googleapis.com/nama.v1.ScanFinished",
     to_json: ::buffa::type_registry::any_to_json::<ScanFinished>,
     from_json: ::buffa::type_registry::any_from_json::<ScanFinished>,
+    is_wkt: false,
+};
+/// A scan's Matching decided what it could about the Library's Items. Sent even when no metadata
+/// Provider could answer, which leaves Items undecided; a scan that fails or is cancelled sends
+/// none. To wait for the one covering a `ScanLibrary` call, subscribe to events about the Library
+/// first, then make the call, then skip to the next `ScanStarted`: the first `MatchingFinished`
+/// after it covers the call.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct MatchingFinished {
+    /// Field 1: `library_id`
+    #[serde(
+        rename = "libraryId",
+        alias = "library_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub library_id: i64,
+    /// Items that now have a Match.
+    ///
+    /// Field 2: `matched`
+    #[serde(
+        rename = "matched",
+        with = "::buffa::json_helpers::uint64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
+    )]
+    pub matched: u64,
+    /// Items that are now Unmatched.
+    ///
+    /// Field 3: `unmatched`
+    #[serde(
+        rename = "unmatched",
+        with = "::buffa::json_helpers::uint64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
+    )]
+    pub unmatched: u64,
+    /// Items Matching couldn't decide, because no metadata Provider is enabled or it failed. The next
+    /// scan tries them again.
+    ///
+    /// Field 4: `undecided`
+    #[serde(
+        rename = "undecided",
+        with = "::buffa::json_helpers::uint64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
+    )]
+    pub undecided: u64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for MatchingFinished {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("MatchingFinished")
+            .field("library_id", &self.library_id)
+            .field("matched", &self.matched)
+            .field("unmatched", &self.unmatched)
+            .field("undecided", &self.undecided)
+            .finish()
+    }
+}
+impl MatchingFinished {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.MatchingFinished";
+}
+::buffa::impl_default_instance!(MatchingFinished);
+impl ::buffa::MessageName for MatchingFinished {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "MatchingFinished";
+    const FULL_NAME: &'static str = "nama.v1.MatchingFinished";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.MatchingFinished";
+}
+impl ::buffa::Message for MatchingFinished {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.library_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        }
+        if self.matched != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.matched) as u64;
+        }
+        if self.unmatched != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.unmatched) as u64;
+        }
+        if self.undecided != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.undecided) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.library_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        if self.matched != 0u64 {
+            ::buffa::types::put_uint64_field(2u32, self.matched, buf);
+        }
+        if self.unmatched != 0u64 {
+            ::buffa::types::put_uint64_field(3u32, self.unmatched, buf);
+        }
+        if self.undecided != 0u64 {
+            ::buffa::types::put_uint64_field(4u32, self.undecided, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.library_id = ::buffa::types::decode_int64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.matched = ::buffa::types::decode_uint64(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.unmatched = ::buffa::types::decode_uint64(buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.undecided = ::buffa::types::decode_uint64(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.library_id = 0i64;
+        self.matched = 0u64;
+        self.unmatched = 0u64;
+        self.undecided = 0u64;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for MatchingFinished {
+    const PROTO_FQN: &'static str = "nama.v1.MatchingFinished";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for MatchingFinished {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __MATCHING_FINISHED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.MatchingFinished",
+    to_json: ::buffa::type_registry::any_to_json::<MatchingFinished>,
+    from_json: ::buffa::type_registry::any_from_json::<MatchingFinished>,
+    is_wkt: false,
+};
+/// Probing has caught up with a Library after a scan: every file without current Tracks that the
+/// scan left was probed, or ffprobe couldn't be run, which leaves the rest for the next scan. Sent
+/// after `MatchingFinished`, at once on a Server without ffprobe. Probing that ends after a later
+/// scan of the Library started sends none, leaving it to that scan; one that fails or is cancelled
+/// sends none. To wait for the one covering a `ScanLibrary` call, subscribe to events about the
+/// Library first, then make the call, then skip to the next `ScanStarted`: the first
+/// `ProbingFinished` after it covers the call.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ProbingFinished {
+    /// Field 1: `library_id`
+    #[serde(
+        rename = "libraryId",
+        alias = "library_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub library_id: i64,
+    /// Files whose Tracks were stored.
+    ///
+    /// Field 2: `probed`
+    #[serde(
+        rename = "probed",
+        with = "::buffa::json_helpers::uint64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
+    )]
+    pub probed: u64,
+    /// Files ffprobe couldn't read.
+    ///
+    /// Field 3: `failed`
+    #[serde(
+        rename = "failed",
+        with = "::buffa::json_helpers::uint64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
+    )]
+    pub failed: u64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ProbingFinished {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ProbingFinished")
+            .field("library_id", &self.library_id)
+            .field("probed", &self.probed)
+            .field("failed", &self.failed)
+            .finish()
+    }
+}
+impl ProbingFinished {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ProbingFinished";
+}
+::buffa::impl_default_instance!(ProbingFinished);
+impl ::buffa::MessageName for ProbingFinished {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ProbingFinished";
+    const FULL_NAME: &'static str = "nama.v1.ProbingFinished";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ProbingFinished";
+}
+impl ::buffa::Message for ProbingFinished {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.library_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        }
+        if self.probed != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.probed) as u64;
+        }
+        if self.failed != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.failed) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.library_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        if self.probed != 0u64 {
+            ::buffa::types::put_uint64_field(2u32, self.probed, buf);
+        }
+        if self.failed != 0u64 {
+            ::buffa::types::put_uint64_field(3u32, self.failed, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.library_id = ::buffa::types::decode_int64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.probed = ::buffa::types::decode_uint64(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.failed = ::buffa::types::decode_uint64(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.library_id = 0i64;
+        self.probed = 0u64;
+        self.failed = 0u64;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ProbingFinished {
+    const PROTO_FQN: &'static str = "nama.v1.ProbingFinished";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ProbingFinished {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PROBING_FINISHED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.ProbingFinished",
+    to_json: ::buffa::type_registry::any_to_json::<ProbingFinished>,
+    from_json: ::buffa::type_registry::any_from_json::<ProbingFinished>,
     is_wkt: false,
 };
 /// A scan stored an Item, for a new file, one that changed or one a newer name parser read.

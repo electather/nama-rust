@@ -11,11 +11,10 @@ mod refused;
 mod server;
 
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashMap},
     fs,
     path::{Path, PathBuf},
     slice,
-    sync::Arc,
     time::Duration,
 };
 
@@ -32,14 +31,13 @@ use nama_proto::nama::v1::{
     ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
     MatchServiceClient, Movie, PlanPlaybackRequest, Playback, PlaybackEnded, PlaybackLimit,
     PlaybackMethod, PlaybackPlan, PlaybackServiceClient, PlaybackSettings, PlaybackStarted,
-    RefusalReason, ReportProgressRequest, Season, ServerServiceClient, SetMatchRequest,
-    SetPlayedRequest, Show, ShowSeason, StopPlaybackRequest, Track, UpdatePlaybackSettingsRequest,
-    Version, VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry, external_id,
-    set_played_request::Target,
+    ProbingFinished, RefusalReason, ReportProgressRequest, Season, ServerServiceClient,
+    SetMatchRequest, SetPlayedRequest, Show, ShowSeason, StopPlaybackRequest, Track,
+    UpdatePlaybackSettingsRequest, Version, VideoTrack, WatchState, WatchStateServiceClient,
+    continue_watching_entry, event, external_id, set_played_request::Target,
 };
 use nama_server::{
     config::Config,
-    contents::Contents,
     ffmpeg::{self, Ffmpeg, FoundProgram},
 };
 use refused::assert_refused;
@@ -80,7 +78,9 @@ struct Fixture {
     folder: PathBuf,
     browse: BrowseServiceClient<HttpClient>,
     matches: MatchServiceClient<HttpClient>,
-    contents: Contents,
+    /// The first Item of each file, by its path in the Library, as the scan that set the fixture
+    /// up stored them.
+    items: HashMap<String, i64>,
     server: TestServer,
     media: Library,
 }
@@ -115,7 +115,7 @@ impl Fixture {
             folder: media.folder().to_owned(),
             browse: BrowseServiceClient::new(HttpClient::plaintext(), config.clone()),
             matches: MatchServiceClient::new(HttpClient::plaintext(), config),
-            contents: Contents::new(Arc::clone(server.db())),
+            items: HashMap::new(),
             server,
             media,
         }
@@ -123,12 +123,12 @@ impl Fixture {
 
     /// Starts a Server with a Shows Library holding Dark and The Office, scanned and Matched.
     async fn shows() -> Self {
-        let fx = Self::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
+        let mut fx = Self::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
         fx.write(DARK_S01E01_E02, b"two episodes");
         fx.write(DARK_S01E01, b"one episode");
         fx.write(DARK_S02E01, b"video");
         fx.write(THE_OFFICE, b"video");
-        fx.scan_until_decided(4).await;
+        fx.items = fx.scan_and_match().await;
         fx
     }
 
@@ -154,7 +154,7 @@ impl Fixture {
         let file = fx.folder.join(file);
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         write(&file);
-        fx.scan_until_decided(1).await;
+        fx.scan_and_match().await;
         fx
     }
 
@@ -186,62 +186,21 @@ impl Fixture {
     async fn alien_on(builder: Builder) -> Self {
         let server = builder.tmdb().start().await;
         let media = server
-            .matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P])
+            .create_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P])
             .await;
-        Self::over(server, media)
+        let mut fx = Self::over(server, media);
+        fx.items = fx.scan_and_match().await;
+        fx
     }
 
     fn write(&self, relative: &str, contents: &[u8]) {
         self.media.write(relative, contents);
     }
 
-    /// Scans the Library, and waits until `files` files are stored and Matching has decided
-    /// about all their items.
-    async fn scan_until_decided(&self, files: usize) {
-        self.scan_until(self.library, async || {
-            self.all_decided(self.library, files).await
-        })
-        .await;
-    }
-
-    /// Scans the Library `library`, and waits until `done` says so.
-    async fn scan_until(&self, library: i64, mut done: impl AsyncFnMut() -> bool) {
-        self.server.scan(library).await;
-        tokio::time::timeout(WAIT, async {
-            while !done().await {
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .unwrap();
-    }
-
-    /// Whether `files` files are stored for the Library `library`, and Matching has decided about
-    /// every item they hold.
-    async fn all_decided(&self, library: i64, files: usize) -> bool {
-        let stored = self.contents.files(library).await.unwrap();
-        stored.len() == files
-            && stored
-                .iter()
-                .flat_map(|file| &file.items)
-                .all(|item| item.recorded.is_some())
-    }
-
-    /// Rescans the Library after the file at `relative`, which held the item `before`, changed,
-    /// and waits until a new item has replaced it and Matching has decided about that.
-    async fn rescan_until_replaced(&self, relative: &str, before: i64) {
-        self.scan_until(self.library, async || self.replaced(relative, before).await)
-            .await;
-    }
-
-    /// Whether the file at `relative` holds an item other than `before`, which Matching has
-    /// decided about.
-    async fn replaced(&self, relative: &str, before: i64) -> bool {
-        let path = self.folder.join(relative);
-        let files = self.contents.files(self.library).await.unwrap();
-        let file = files.iter().find(|file| path == *file.path).unwrap();
-        let item = file.items.first().unwrap();
-        item.id != before && item.recorded.is_some()
+    /// Scans the Library until Matching has finished, and returns the first Item the scan stored
+    /// for each file, by its path in the Library.
+    async fn scan_and_match(&self) -> HashMap<String, i64> {
+        self.server.scan_and_match(&self.media).await
     }
 
     /// The Admin, browsing and playing.
@@ -333,12 +292,14 @@ impl Fixture {
         movie.versions.iter().map(|version| version.id).collect()
     }
 
-    /// The id of the first item stored for the file at `relative`.
-    async fn item(&self, relative: &str) -> i64 {
-        let path = self.folder.join(relative);
-        let files = self.contents.files(self.library).await.unwrap();
-        let file = files.into_iter().find(|file| path == *file.path).unwrap();
-        file.items.first().unwrap().id
+    /// The id of the first Item the scan that set the fixture up stored for the file at
+    /// `relative`.
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "a test helper fails its test by panicking"
+    )]
+    fn item(&self, relative: &str) -> i64 {
+        self.items[relative]
     }
 
     async fn list_movies(&self, library: i64) -> Result<Vec<Movie>, ConnectError> {
@@ -576,7 +537,7 @@ async fn two_files_matching_one_movie_are_one_movie_with_two_versions() {
     fx.write(ALIEN_1080P, b"1080p");
     fx.write(ALIEN_2160P, b"a bigger 2160p copy");
     fx.write(HOME_MOVIES, b"video");
-    fx.scan_until_decided(3).await;
+    fx.scan_and_match().await;
 
     let listed = fx.list_movies(fx.library).await.unwrap();
     let got = fx.get_movie(fx.library, ALIEN).await.unwrap();
@@ -607,7 +568,7 @@ async fn two_files_matching_one_movie_are_one_movie_with_two_versions() {
 }
 
 #[tokio::test]
-async fn a_version_has_the_tracks_probing_found_once_a_scan_has_probed_it() {
+async fn a_version_has_the_tracks_probing_found_once_probing_finished_says_so() {
     let path = std::env::var_os("PATH").unwrap_or_default();
     let ffmpeg = Ffmpeg::find(&Config::default(), &path);
     assert!(ffmpeg.ffprobe.is_ok(), "this test needs ffprobe on PATH");
@@ -616,16 +577,19 @@ async fn a_version_has_the_tracks_probing_found_once_a_scan_has_probed_it() {
     fs::create_dir_all(file.parent().unwrap()).unwrap();
     ffmpeg::write_4k_with_5_1(&file, "smpte2084").unwrap();
 
-    fx.scan_until(fx.library, async || {
-        fx.get_movie(fx.library, ALIEN).await.is_ok_and(|movie| {
-            movie
-                .versions
-                .iter()
-                .all(|version| !version.tracks.is_empty())
+    let events = fx
+        .server
+        .scan_until(fx.library, |event| {
+            matches!(event, event::Event::ProbingFinished(_))
         })
-    })
-    .await;
+        .await;
 
+    let probed = ProbingFinished {
+        library_id: fx.library,
+        probed: 1,
+        ..Default::default()
+    };
+    assert_eq!(events.last(), Some(&probed.into()));
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     let version = movie.versions.first().unwrap();
     assert_eq!(
@@ -661,7 +625,7 @@ async fn a_version_has_the_tracks_probing_found_once_a_scan_has_probed_it() {
 #[tokio::test]
 async fn an_unmatched_item_is_in_neither_list_movies_nor_get_movie() {
     let fx = Fixture::alien().await;
-    let item = fx.item(ALIEN_1080P).await;
+    let item = fx.item(ALIEN_1080P);
     fx.matches
         .clear_match(ClearMatchRequest {
             item_id: item,
@@ -838,7 +802,7 @@ async fn a_file_holding_two_episodes_is_a_version_of_each() {
 async fn an_unmatched_item_is_in_no_show_season_or_episode_list() {
     let fx = Fixture::shows().await;
     // Unmatches every Episode in the `Dark {tmdb-70523}` folder.
-    let item = fx.item(DARK_S02E01).await;
+    let item = fx.item(DARK_S02E01);
     fx.matches
         .clear_match(ClearMatchRequest {
             item_id: item,
@@ -1069,7 +1033,7 @@ async fn an_unknown_version_is_not_found() {
 async fn a_file_whose_match_was_cleared_is_not_found() {
     let fx = Fixture::alien().await;
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    let item = fx.item(ALIEN_1080P).await;
+    let item = fx.item(ALIEN_1080P);
     fx.matches
         .clear_match(ClearMatchRequest {
             item_id: item,
@@ -1157,7 +1121,7 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
     let ffmpeg = ffprobe_reading_h264_and_aac(bin.path());
     let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
     fx.write("Alien (1979)/Alien (1979).mp4", b"video");
-    fx.scan_until_decided(1).await;
+    fx.scan_and_match().await;
     let version = fx.version_ids(ALIEN).await[0];
 
     let plan = fx.plan(version).await.unwrap();
@@ -1238,7 +1202,7 @@ impl Fixture {
         .await;
         fx.write(ALIEN_1080P, b"video");
         fx.write(ALIEN_2160P, b"video");
-        fx.scan_until_decided(2).await;
+        fx.scan_and_match().await;
         ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
             .update_playback_settings(UpdatePlaybackSettingsRequest {
                 settings: PlaybackSettings {
@@ -1350,7 +1314,7 @@ async fn an_unprobed_version_whose_direct_play_failed_cant_be_played_and_starts_
     };
     let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
     fx.write(ALIEN_1080P, b"video");
-    fx.scan_until_decided(1).await;
+    fx.scan_and_match().await;
     let version = fx.version_ids(ALIEN).await[0];
     let started = [EventType::EVENT_TYPE_PLAYBACK_STARTED];
     let mut subscription = subscribe(&fx.server.client_config(), &started).await;
@@ -1536,7 +1500,7 @@ impl Fixture {
         let file = fx.folder.join("Alien (1979)/Alien (1979).mkv");
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         write(&file).unwrap();
-        fx.scan_until_decided(1).await;
+        fx.scan_and_match().await;
         let version = fx.version_ids(ALIEN).await[0];
         (fx, version)
     }
@@ -2255,10 +2219,9 @@ async fn a_replaced_file_probed_again_serves_its_own_subtitles_not_the_cached_on
     let old_french = &fx.plan(version).await.unwrap().subtitles[1].url;
     let cached = fetch(&fx.server, old_french, token).await;
     assert!(String::from_utf8(cached.body).unwrap().contains("Bonjour"));
-    let before = fx.item(ALIEN_1080P).await;
 
     write_english_and_french_srt(&fx.folder.join(ALIEN_1080P), "Salut");
-    fx.rescan_until_replaced(ALIEN_1080P, before).await;
+    fx.scan_and_match().await;
     let french = &fx.plan(version).await.unwrap().subtitles[1].url;
     let replaced = fetch(&fx.server, french, token).await;
 
@@ -2276,8 +2239,9 @@ async fn a_removed_versions_cached_subtitles_are_removed() {
 
     fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
 
-    fx.scan_until(fx.library, async || fx.cached_subtitles().is_empty())
-        .await;
+    fx.scan_and_match().await;
+
+    assert_eq!(fx.cached_subtitles(), Vec::<PathBuf>::new());
 }
 
 #[tokio::test]
@@ -2462,11 +2426,10 @@ async fn progress_survives_a_rescan_that_replaces_the_item() {
     let [version] = fx.version_ids(ALIEN).await[..] else {
         panic!("Alien has one Version");
     };
-    let before = fx.item(ALIEN_1080P).await;
 
     viewer.report(version, 60_000, TWO_HOURS).await.unwrap();
     fx.write(ALIEN_1080P, b"a re-encoded copy of the video");
-    fx.rescan_until_replaced(ALIEN_1080P, before).await;
+    fx.scan_and_match().await;
 
     let state = viewer.watch_state(fx.library, ALIEN).await.unwrap();
     assert_eq!((state.position_ms, state.duration_ms), (60_000, TWO_HOURS));
@@ -2479,7 +2442,7 @@ async fn progress_reported_on_one_version_shows_on_the_movie_for_every_version()
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     fx.write(ALIEN_1080P, b"1080p");
     fx.write(ALIEN_2160P, b"a bigger 2160p copy");
-    fx.scan_until_decided(2).await;
+    fx.scan_and_match().await;
     let viewer = fx.admin();
     let [hd, uhd] = fx.version_ids(ALIEN).await[..] else {
         panic!("Alien has two Versions");
@@ -2521,7 +2484,7 @@ async fn a_version_of_an_unmatched_item_is_accepted_and_stores_nothing() {
     let [version] = fx.version_ids(ALIEN).await[..] else {
         panic!("Alien has one Version");
     };
-    let item = fx.item(ALIEN_1080P).await;
+    let item = fx.item(ALIEN_1080P);
     fx.matches
         .clear_match(ClearMatchRequest {
             item_id: item,
@@ -2677,11 +2640,10 @@ async fn progress_on_an_episode_survives_a_rescan_that_replaces_the_item() {
     let fx = Fixture::shows().await;
     let viewer = fx.admin();
     let version = fx.dark_version(2, "Dark - S02E01.mkv").await;
-    let before = fx.item(DARK_S02E01).await;
 
     viewer.report(version, MINUTE, TWO_HOURS).await.unwrap();
     fx.write(DARK_S02E01, b"a re-encoded copy of the video");
-    fx.rescan_until_replaced(DARK_S02E01, before).await;
+    fx.scan_and_match().await;
 
     let states = viewer.dark_watch_states(fx.library, 2).await;
     assert_eq!(episode_progress(states), [Some((MINUTE, TWO_HOURS, false))]);
@@ -2813,11 +2775,10 @@ async fn a_movie_whose_file_has_gone_is_listed_again_once_a_rescan_matches_it() 
     viewer.report(version, MINUTE, TWO_HOURS).await.unwrap();
 
     fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
-    fx.scan_until(fx.library, async || fx.all_decided(fx.library, 0).await)
-        .await;
+    fx.scan_and_match().await;
     let gone = viewer.continue_watching().await;
     fx.write(ALIEN_1080P, b"video");
-    fx.scan_until_decided(1).await;
+    fx.scan_and_match().await;
     let back = viewer.continue_watching().await;
 
     assert_eq!(gone, []);
