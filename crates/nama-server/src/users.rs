@@ -309,7 +309,8 @@ impl Users {
     }
 
     /// Creates the first Admin, named `name` with `password`, and signs `device`, whose name has
-    /// been checked, in as them. Checking the Setup Code is the caller's job.
+    /// been checked, in as them, unless the Server already has a User. Checking the Setup Code is
+    /// the caller's job, as is checking for Users before the slow hashing.
     pub(crate) async fn create_first_admin(
         &self,
         name: &str,
@@ -317,10 +318,6 @@ impl Users {
         device: NewDevice,
     ) -> Result<SignedIn, Error> {
         let name = checked_name("name", "a User's name", name)?;
-        // Before hashing, which is slow, though only the check in the write below is race-free.
-        if self.any().await? {
-            return Err(Error::AlreadySetUp);
-        }
         let credential = self.hash_password("password", password).await?;
         let token = new_token()?;
         let token_hash = hash_token(&token);

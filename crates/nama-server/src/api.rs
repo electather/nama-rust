@@ -110,8 +110,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(SignInServiceHandler {
             users: users.clone(),
-            setup_code,
-            sign_in: SignIn::new(users.clone()),
+            sign_in: SignIn::new(users.clone(), setup_code),
             sign_in_codes: SignInCodes::default(),
             sign_in_code_limits: SignInCodeLimits::default(),
         }))

@@ -1019,17 +1019,6 @@ async fn fail_setup(server: &TestServer, times: usize, forwarded_for: impl Fn(us
 }
 
 #[tokio::test]
-async fn the_51st_failure_from_one_ip_mixing_sign_in_and_setup_is_blocked() {
-    let server = start().await;
-    fail_setup(&server, 40, |i| format!("203.0.113.{i}")).await;
-    fail_sign_in(&server, "Grace", 10).await;
-
-    let blocked = set_up(&server).await;
-
-    assert_blocked(&blocked);
-}
-
-#[tokio::test]
 async fn x_forwarded_for_from_an_untrusted_peer_doesnt_change_which_ip_is_counted() {
     let server = start().await;
     fail_setup(&server, 50, |i| format!("203.0.113.{i}")).await;
