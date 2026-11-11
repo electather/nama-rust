@@ -31,13 +31,21 @@ const PLAYER = "/libraries/1/movies/tmdb-348/play";
 const ENGLISH = "/media/versions/7/subtitles/1";
 const JAPANESE = "/media/versions/7/subtitles/3";
 
+/** The subtitle a plan the Server chooses for starts with, and where to put each pick reported. */
+interface Choosing {
+  preferred?: number;
+  picked?: (number | undefined)[];
+}
+
 /**
  * A fake Server with Alien in Library 1, whose one Version holds an English SRT, an English PGS
  * titled Signs and a Japanese ASS subtitle, the SRT and the ASS offered as text, and the PGS and
  * ASS ones offered to burn in, unless `burnInTracks` says otherwise. It Direct Plays it, or
- * Transcodes it when asked to burn a subtitle in, and each plan request goes in `asked`.
+ * Transcodes it when asked to burn a subtitle in, and each plan request goes in `asked`. A plan
+ * left to choose a subtitle starts with the one at `preferred`, and each subtitle pick reported
+ * goes in `picked`, by its Track's place.
  */
-function server(asked: PlanPlaybackRequest[], burnInTracks = [2, 3]) {
+function server(asked: PlanPlaybackRequest[], burnInTracks = [2, 3], choosing: Choosing = {}) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const text = { case: "subtitle", value: { image: false } } as const;
   const tracks = [
@@ -53,8 +61,8 @@ function server(asked: PlanPlaybackRequest[], burnInTracks = [2, 3]) {
     { codec: "aac", default: true, kind: { case: "audio", value: { channels: 2 } } },
   ] as const;
   const subtitles = [
-    { track: tracks[1], url: ENGLISH, format: SubtitleFormat.WEBVTT },
-    { track: tracks[3], url: JAPANESE, format: SubtitleFormat.WEBVTT },
+    { track: tracks[1], url: ENGLISH, place: 1, format: SubtitleFormat.WEBVTT },
+    { track: tracks[3], url: JAPANESE, place: 3, format: SubtitleFormat.WEBVTT },
   ];
   return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
@@ -69,15 +77,26 @@ function server(asked: PlanPlaybackRequest[], burnInTracks = [2, 3]) {
     router.service(PlaybackService, {
       planPlayback: (request) => {
         asked.push(request);
-        const { subtitleTrack } = request;
+        const { subtitleTrack, noSubtitles } = request;
         const plan =
           subtitleTrack === undefined
             ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
             : { method: PlaybackMethod.TRANSCODE, url: `/media/plans/${asked.length}/index.m3u8` };
-        return { plan: { ...plan, subtitles, subtitleTrack, burnInTracks } };
+        const startingSubtitle = subtitleTrack ?? (noSubtitles ? undefined : choosing.preferred);
+        return { plan: { ...plan, subtitles, subtitleTrack, burnInTracks, startingSubtitle } };
+      },
+      reportTrackPick: ({ track }) => {
+        choosing.picked?.push(track);
+        return {};
       },
     });
   });
+}
+
+/** Picks the subtitle `name` names, once the player shows its menu. */
+async function pick(name: RegExp | string) {
+  fireEvent.click(await screen.findByRole("button", { name: "Subtitles" }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name }));
 }
 
 function openSubtitles() {
@@ -176,4 +195,41 @@ test("a text subtitle chosen while one is burned in asks for a plan without it a
   await replaced(burnedIn);
   const checked = openSubtitles().map((item) => item.getAttribute("aria-checked"));
   expect(checked).toEqual(["false", "false", "true", "false", "false"]);
+});
+
+test("the first plan starts with the subtitle the Server chose, and later ones ask for what's on screen", async () => {
+  const asked: PlanPlaybackRequest[] = [];
+  openApp(PLAYER, server(asked, [2, 3], { preferred: 3 }));
+  const directPlay = await screen.findByLabelText<HTMLVideoElement>("Alien");
+  Object.defineProperty(directPlay, "readyState", { value: HTMLMediaElement.HAVE_METADATA });
+
+  const checked = openSubtitles().map((item) => item.getAttribute("aria-checked"));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: /Signs/u }));
+  const burnedIn = await replaced(directPlay);
+  Object.defineProperty(burnedIn, "readyState", { value: HTMLMediaElement.HAVE_METADATA });
+  openSubtitles();
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "Off" }));
+
+  expect(checked).toEqual(["false", "false", "true", "false", "false"]);
+  await waitFor(() => {
+    expect(asked.map(({ subtitleTrack, noSubtitles }) => [subtitleTrack, noSubtitles])).toEqual([
+      [undefined, false],
+      [2, false],
+      [undefined, true],
+    ]);
+  });
+});
+
+test("each subtitle pick is reported by its Track's place, and Off as none", async () => {
+  const picked: (number | undefined)[] = [];
+  openApp(PLAYER, server([], [2, 3], { picked }));
+  await screen.findByLabelText("Alien");
+
+  await pick(/^English$/u);
+  await pick(/Signs/u);
+  await pick("Off");
+
+  await waitFor(() => {
+    expect(picked).toEqual([1, 2, undefined]);
+  });
 });

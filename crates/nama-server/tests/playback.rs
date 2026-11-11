@@ -17,7 +17,7 @@ use std::{
     time::Duration,
 };
 
-use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture};
+use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
 use buffa::EnumValue;
 use connectrpc::{
     ConnectError, ErrorCode,
@@ -25,12 +25,14 @@ use connectrpc::{
 };
 use http::{fetch, fetch_range};
 use nama_proto::nama::v1::{
-    AudioCodec, ClearMatchRequest, Container, DeleteLibraryRequest, DeviceDecoding, EventType, Gpu,
-    HardwareAcceleration, HdrFormat, LibraryKind, LibraryServiceClient, PlanPlaybackRequest,
-    Playback, PlaybackEnded, PlaybackLimit, PlaybackMethod, PlaybackPlan, PlaybackReason,
-    PlaybackReasonKind, PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason,
-    ServerServiceClient, StopPlaybackRequest, SubtitleFormat, Track, UpdatePlaybackSettingsRequest,
-    Version, VideoCodec, VideoTrack,
+    AudioCodec, ClearMatchRequest, Container, DeleteLibraryRequest, DeleteUserRequest,
+    DeviceDecoding, EventType, Gpu, HardwareAcceleration, HdrFormat, LibraryKind,
+    LibraryServiceClient, ListEpisodesRequest, PickedTrackKind, PlanPlaybackRequest, Playback,
+    PlaybackEnded, PlaybackLimit, PlaybackMethod, PlaybackPlan, PlaybackReason, PlaybackReasonKind,
+    PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason,
+    ReportTrackPickRequest, ServerServiceClient, SetMatchRequest, StopPlaybackRequest,
+    SubtitleFormat, Track, UpdatePlaybackSettingsRequest, UserServiceClient, Version, VideoCodec,
+    VideoTrack,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::{fake, fake::script};
@@ -39,7 +41,10 @@ use nama_server::{
     ffmpeg::{self, Ffmpeg},
 };
 use refused::assert_refused;
-use server::{Builder, SignedIn, TestServer, WAIT, subscribe, tmdb::ALIEN};
+use server::{
+    Builder, SignedIn, TestServer, WAIT, subscribe,
+    tmdb::{ALIEN, DARK},
+};
 
 #[expect(
     clippy::unwrap_used,
@@ -1749,4 +1754,246 @@ async fn a_track_that_isnt_a_subtitle_is_not_found_as_one() {
 
     assert_eq!(fetch(&fx.server, &video, token).await.status, 404);
     assert_eq!(fetch(&fx.server, &beyond, token).await.status, 404);
+}
+
+const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
+const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
+/// The place of the German subtitle in each of Dark's Episodes, as
+/// [`ffprobe_reading_english_and_german_subtitles`] reads them.
+const GERMAN: u32 = 3;
+
+/// A Server whose ffprobe, a shell script in `bin`, reads every file as an H.264 + AAC MP4 with
+/// English, then German, SRT subtitles, tagged with ISO 639-2/B codes as files often are.
+#[cfg(unix)]
+fn ffprobe_reading_english_and_german_subtitles(bin: &Path) -> Ffmpeg {
+    let ffprobe = r#"#!/bin/sh
+cat <<'EOF'
+{"streams": [{"codec_name": "h264", "codec_type": "video"},
+             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}},
+             {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"language": "eng"}},
+             {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"language": "ger"}}],
+ "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "1.000000"}}
+EOF
+"#;
+    Ffmpeg {
+        ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
+        ..Ffmpeg::default()
+    }
+}
+
+#[cfg(unix)]
+#[expect(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+impl Fixture {
+    /// Starts a Server with a Shows Library holding Dark's S01E01 and S02E01, each with English and
+    /// German subtitles, scanned and Matched, and gives the Versions of those two Episodes.
+    async fn subtitled_dark(bin: &Path) -> (Self, [i64; 2]) {
+        let ffmpeg = ffprobe_reading_english_and_german_subtitles(bin);
+        let mut fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_SHOWS, ffmpeg).await;
+        fx.write(DARK_S01E01, b"video");
+        fx.write(DARK_S02E01, b"video");
+        fx.items = fx.scan_and_match().await;
+        let first = fx.dark_version(1).await;
+        let second = fx.dark_version(2).await;
+        (fx, [first, second])
+    }
+
+    /// The Version of the first Episode of Dark's Season `season`.
+    async fn dark_version(&self, season: u32) -> i64 {
+        let episodes = (self.browse)
+            .list_episodes(ListEpisodesRequest {
+                library_id: self.library,
+                show_id: tmdb_id(DARK).into(),
+                season_number: season,
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned()
+            .episodes;
+        episodes[0].versions[0].id
+    }
+
+    /// Reports that the Admin, playing the Version `version`, picked the subtitle at `track`, or
+    /// turned subtitles off.
+    async fn pick_subtitle(&self, version: i64, track: Option<u32>) -> Result<(), ConnectError> {
+        PlaybackServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+            .report_track_pick(ReportTrackPickRequest {
+                version_id: version,
+                kind: PickedTrackKind::PICKED_TRACK_KIND_SUBTITLE.into(),
+                track,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_subtitle_picked_in_an_episode_starts_the_shows_next_episode_until_turned_off() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let before = fx.plan(first).await.unwrap();
+
+    fx.pick_subtitle(first, Some(GERMAN)).await.unwrap();
+    let next = fx.plan(second).await.unwrap();
+    fx.pick_subtitle(second, None).await.unwrap();
+    let after_off = fx.plan(first).await.unwrap();
+
+    assert_eq!(before.starting_subtitle, None);
+    assert_eq!(next.starting_subtitle, Some(GERMAN));
+    assert_eq!(
+        next.subtitle_track, None,
+        "the Device shows it, so none is burned in"
+    );
+    let places: Vec<_> = next
+        .subtitles
+        .iter()
+        .map(|subtitle| subtitle.place)
+        .collect();
+    assert_eq!(places, [2, GERMAN]);
+    assert_eq!(after_off.starting_subtitle, None);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_shows_subtitle_preference_is_its_users_alone_and_a_request_for_none_gets_none() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let ripley = fx.server.user("Ripley", &[]).await;
+    fx.pick_subtitle(first, Some(GERMAN)).await.unwrap();
+
+    let ripleys = plan_as(&ripley, second).await.unwrap();
+    let none = fx
+        .ask_for_plan(PlanPlaybackRequest {
+            version_id: second,
+            no_subtitles: true,
+            device_decoding: chrome().into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(ripleys.starting_subtitle, None);
+    assert_eq!(none.starting_subtitle, None);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn picking_a_track_that_isnt_a_subtitle_or_on_no_version_is_refused() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, _]) = Fixture::subtitled_dark(bin.path()).await;
+
+    let audio = fx.pick_subtitle(first, Some(1)).await;
+    let past_the_end = fx.pick_subtitle(first, Some(9)).await;
+    let no_version = fx.pick_subtitle(first + 100, None).await;
+
+    for refused in [audio, past_the_end] {
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_TRACK_NOT_FOUND,
+        );
+        assert_eq!(refusal.field, "track");
+    }
+    assert_refused(
+        no_version,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_subtitle_picked_in_one_version_of_a_movie_starts_its_other_versions() {
+    let bin = tempfile::tempdir().unwrap();
+    let ffmpeg = ffprobe_reading_english_and_german_subtitles(bin.path());
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    fx.write(ALIEN_1080P, b"video");
+    fx.write(ALIEN_2160P, b"video");
+    fx.scan_and_match().await;
+    let [hd, uhd] = fx.version_ids(ALIEN).await[..] else {
+        panic!("Alien should have two Versions");
+    };
+
+    fx.pick_subtitle(hd, Some(GERMAN)).await.unwrap();
+
+    assert_eq!(fx.plan(uhd).await.unwrap().starting_subtitle, Some(GERMAN));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_plan_request_that_names_a_subtitle_is_no_pick() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+
+    fx.ask_for_plan(PlanPlaybackRequest {
+        version_id: first,
+        subtitle_track: Some(GERMAN),
+        device_decoding: chrome().into(),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(fx.plan(second).await.unwrap().starting_subtitle, None);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_pick_in_a_version_of_an_unmatched_item_is_accepted_and_keeps_nothing() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let item = fx.item(DARK_S01E01);
+    fx.matches
+        .clear_match(ClearMatchRequest {
+            item_id: item,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let picked = fx.pick_subtitle(first, Some(GERMAN)).await;
+    fx.matches
+        .set_match(SetMatchRequest {
+            item_id: item,
+            title_id: tmdb_id(DARK).into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert!(picked.is_ok(), "{picked:?}");
+    assert_eq!(fx.plan(second).await.unwrap().starting_subtitle, None);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_user_with_a_subtitle_preference_can_be_deleted() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, _]) = Fixture::subtitled_dark(bin.path()).await;
+    let ripley = fx.server.user("Ripley", &[]).await;
+    PlaybackServiceClient::new(HttpClient::plaintext(), ripley.client_config())
+        .report_track_pick(ReportTrackPickRequest {
+            version_id: first,
+            kind: PickedTrackKind::PICKED_TRACK_KIND_SUBTITLE.into(),
+            track: Some(GERMAN),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let deleted = UserServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        .delete_user(DeleteUserRequest {
+            user_id: ripley.id,
+            ..Default::default()
+        })
+        .await;
+
+    assert!(deleted.is_ok(), "{deleted:?}");
 }

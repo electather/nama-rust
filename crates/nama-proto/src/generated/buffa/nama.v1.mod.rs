@@ -114,6 +114,8 @@ pub mod __buffa {
         reg.register_json_any(super::__MOVIE_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__SHOW_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__EPISODE_IN_LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__REPORT_TRACK_PICK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REPORT_TRACK_PICK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__STOP_PLAYBACK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__STOP_PLAYBACK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAN_PLAYBACK_REQUEST_JSON_ANY);
@@ -508,6 +510,14 @@ pub use self::__buffa::view::ShowInLibraryOwnedView;
 pub use self::__buffa::view::EpisodeInLibraryView;
 #[doc(inline)]
 pub use self::__buffa::view::EpisodeInLibraryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportTrackPickRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportTrackPickRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportTrackPickResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportTrackPickResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::StopPlaybackRequestView;
 #[doc(inline)]

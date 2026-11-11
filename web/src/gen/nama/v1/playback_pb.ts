@@ -12,7 +12,54 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/playback.proto.
  */
 export const file_nama_v1_playback: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxIiYKE1N0b3BQbGF5YmFja1JlcXVlc3QSDwoHcGxhbl9pZBgBIAEoBCIWChRTdG9wUGxheWJhY2tSZXNwb25zZSKxAgoTUGxhblBsYXliYWNrUmVxdWVzdBISCgp2ZXJzaW9uX2lkGAEgASgDEhkKEXN0YXJ0X3Bvc2l0aW9uX21zGAIgASgEEhgKC2F1ZGlvX3RyYWNrGAMgASgNSACIAQESGwoOc3VidGl0bGVfdHJhY2sYBCABKA1IAYgBARIuCg5wbGF5YmFja19saW1pdBgFIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIwCg9kZXZpY2VfZGVjb2RpbmcYBiABKAsyFy5uYW1hLnYxLkRldmljZURlY29kaW5nEi8KDmZhaWxlZF9tZXRob2RzGAcgAygOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIpwCCg5EZXZpY2VEZWNvZGluZxImCgpjb250YWluZXJzGAYgAygOMhIubmFtYS52MS5Db250YWluZXISKQoMdmlkZW9fY29kZWNzGAcgAygOMhMubmFtYS52MS5WaWRlb0NvZGVjEikKDGF1ZGlvX2NvZGVjcxgIIAMoDjITLm5hbWEudjEuQXVkaW9Db2RlYxILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgSFgoOYXVkaW9fY2hhbm5lbHMYBSABKA0SMQoQc3VidGl0bGVfZm9ybWF0cxgJIAMoDjIXLm5hbWEudjEuU3VidGl0bGVGb3JtYXRKBAgBEAJSDWNvbnRlbnRfdHlwZXMiOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuIrcDCgxQbGF5YmFja1BsYW4SJwoGbWV0aG9kGAEgASgOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZBILCgN1cmwYAiABKAkSHgoGdHJhY2tzGAMgAygLMg4ubmFtYS52MS5UcmFjaxIoCgdyZWFzb25zGA0gAygLMhcubmFtYS52MS5QbGF5YmFja1JlYXNvbhIsCglzdWJ0aXRsZXMYBSADKAsyGS5uYW1hLnYxLlBsYXliYWNrU3VidGl0bGUSCgoCaWQYBiABKAQSLgoOcGxheWJhY2tfbGltaXQYByABKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXQSGAoLYXVkaW9fdHJhY2sYCCABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgJIAEoDUgBiAEBEhQKDGF1ZGlvX3RyYWNrcxgKIAMoDRIWCg5idXJuX2luX3RyYWNrcxgLIAMoDRIvCg9wbGF5YmFja19saW1pdHMYDCADKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXRCDgoMX2F1ZGlvX3RyYWNrQhEKD19zdWJ0aXRsZV90cmFja0oECAQQBSJ6ChBQbGF5YmFja1N1YnRpdGxlEh0KBXRyYWNrGAEgASgLMg4ubmFtYS52MS5UcmFjaxILCgN1cmwYAiABKAkSJwoGZm9ybWF0GAMgASgOMhcubmFtYS52MS5TdWJ0aXRsZUZvcm1hdBIRCglmb250X3VybHMYBCADKAkivgEKDlBsYXliYWNrUmVhc29uEikKBGtpbmQYASABKA4yGy5uYW1hLnYxLlBsYXliYWNrUmVhc29uS2luZBIzCgZwYXJhbXMYAiADKAsyIy5uYW1hLnYxLlBsYXliYWNrUmVhc29uLlBhcmFtc0VudHJ5EgwKBHRleHQYAyABKAkSDwoHZGVjaWRlZBgEIAEoCBotCgtQYXJhbXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBKpgBCg1QbGF5YmFja0xpbWl0Eh4KGlBMQVlCQUNLX0xJTUlUX1VOU1BFQ0lGSUVEEAASGwoXUExBWUJBQ0tfTElNSVRfT1JJR0lOQUwQARIYChRQTEFZQkFDS19MSU1JVF8xMDgwUBACEhcKE1BMQVlCQUNLX0xJTUlUXzcyMFAQAxIXChNQTEFZQkFDS19MSU1JVF80ODBQEAQqfwoOU3VidGl0bGVGb3JtYXQSHwobU1VCVElUTEVfRk9STUFUX1VOU1BFQ0lGSUVEEAASGgoWU1VCVElUTEVfRk9STUFUX1dFQlZUVBABEhcKE1NVQlRJVExFX0ZPUk1BVF9QR1MQAhIXChNTVUJUSVRMRV9GT1JNQVRfQVNTEAMqZQoJQ29udGFpbmVyEhkKFUNPTlRBSU5FUl9VTlNQRUNJRklFRBAAEhEKDUNPTlRBSU5FUl9NUDQQARISCg5DT05UQUlORVJfV0VCTRACEhYKEkNPTlRBSU5FUl9NQVRST1NLQRADKpQBCgpWaWRlb0NvZGVjEhsKF1ZJREVPX0NPREVDX1VOU1BFQ0lGSUVEEAASFAoQVklERU9fQ09ERUNfSDI2NBABEhQKEFZJREVPX0NPREVDX0hFVkMQAhITCg9WSURFT19DT0RFQ19WUDgQAxITCg9WSURFT19DT0RFQ19WUDkQBBITCg9WSURFT19DT0RFQ19BVjEQBSrvAQoKQXVkaW9Db2RlYxIbChdBVURJT19DT0RFQ19VTlNQRUNJRklFRBAAEhMKD0FVRElPX0NPREVDX0FBQxABEhMKD0FVRElPX0NPREVDX01QMxACEhMKD0FVRElPX0NPREVDX0FDMxADEhQKEEFVRElPX0NPREVDX0VBQzMQBBIUChBBVURJT19DT0RFQ19PUFVTEAUSFgoSQVVESU9fQ09ERUNfVk9SQklTEAYSFAoQQVVESU9fQ09ERUNfRkxBQxAHEhMKD0FVRElPX0NPREVDX0RUUxAIEhYKEkFVRElPX0NPREVDX1RSVUVIRBAJKowBCg5QbGF5YmFja01ldGhvZBIfChtQTEFZQkFDS19NRVRIT0RfVU5TUEVDSUZJRUQQABIfChtQTEFZQkFDS19NRVRIT0RfRElSRUNUX1BMQVkQARIZChVQTEFZQkFDS19NRVRIT0RfUkVNVVgQAhIdChlQTEFZQkFDS19NRVRIT0RfVFJBTlNDT0RFEAMqtgwKElBsYXliYWNrUmVhc29uS2luZBIkCiBQTEFZQkFDS19SRUFTT05fS0lORF9VTlNQRUNJRklFRBAAEicKI1BMQVlCQUNLX1JFQVNPTl9LSU5EX1RSQUNLU19VTktOT1dOEAESJwojUExBWUJBQ0tfUkVBU09OX0tJTkRfTEVOR1RIX1VOS05PV04QAhI1CjFQTEFZQkFDS19SRUFTT05fS0lORF9ERVZJQ0VfQ0FOVF9ERUNPREVfQ09OVEFJTkVSEAMSMQotUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfREVDT0RFX1ZJREVPEAQSMQotUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfREVDT0RFX0FVRElPEAUSLQopUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfU0hPV19IRFIQBhItCilQTEFZQkFDS19SRUFTT05fS0lORF9ERVZJQ0VfQ0FOVF9QTEFZX0hMUxAHEiwKKFBMQVlCQUNLX1JFQVNPTl9LSU5EX1NFUlZFUl9MQUNLU19GRk1QRUcQCBIxCi1QTEFZQkFDS19SRUFTT05fS0lORF9TRVJWRVJfQ0FOVF9FTkNPREVfVklERU8QCRI2CjJQTEFZQkFDS19SRUFTT05fS0lORF9ET0xCWV9WSVNJT05fTkVFRFNfQkFTRV9MQVlFUhAKEjAKLFBMQVlCQUNLX1JFQVNPTl9LSU5EX01FVEhPRF9GQUlMRURfT05fREVWSUNFEAsSJAogUExBWUJBQ0tfUkVBU09OX0tJTkRfU0VSVkVSX0JVU1kQDBIzCi9QTEFZQkFDS19SRUFTT05fS0lORF9DSE9TRU5fQVVESU9fTk9UX0ZJTEVTX09XThANEiwKKFBMQVlCQUNLX1JFQVNPTl9LSU5EX1BJQ1RVUkVfU0NBTEVEX0RPV04QDhIsCihQTEFZQkFDS19SRUFTT05fS0lORF9TVUJUSVRMRVNfQlVSTkVEX0lOEA8SOAo0UExBWUJBQ0tfUkVBU09OX0tJTkRfU1VCVElUTEVTX0ZJTEVfQ0FSUklFU19OT19GT05UUxAfEjQKMFBMQVlCQUNLX1JFQVNPTl9LSU5EX0RFVklDRV9QTEFZU19GRVdFUl9DSEFOTkVMUxAQEjAKLFBMQVlCQUNLX1JFQVNPTl9LSU5EX0RFVklDRV9DSEFOTkVMU19VTktOT1dOEBESMwovUExBWUJBQ0tfUkVBU09OX0tJTkRfQ09OVkVSU0lPTl9DSEFOTkVMU19DQVBQRUQQEhIoCiRQTEFZQkFDS19SRUFTT05fS0lORF9IRFJfVE9ORV9NQVBQRUQQExIsCihQTEFZQkFDS19SRUFTT05fS0lORF9IRFJfTk9UX1RPTkVfTUFQUEVEEBQSLQopUExBWUJBQ0tfUkVBU09OX0tJTkRfUkVNT1RFX0RFRkFVTFRfTElNSVQQFRItCilQTEFZQkFDS19SRUFTT05fS0lORF9QSUNUVVJFX1NJWkVfVU5LTk9XThAWEi0KKVBMQVlCQUNLX1JFQVNPTl9LSU5EX0NIT1NFTl9BVURJT19EUk9QUEVEEBcSLworUExBWUJBQ0tfUkVBU09OX0tJTkRfUExBWUJBQ0tfTElNSVRfRFJPUFBFRBAYEjEKLVBMQVlCQUNLX1JFQVNPTl9LSU5EX0NIT1NFTl9TVUJUSVRMRVNfRFJPUFBFRBAZEi8KK1BMQVlCQUNLX1JFQVNPTl9LSU5EX1RSQU5TQ09ERVNfT05fSEFSRFdBUkUQGhIyCi5QTEFZQkFDS19SRUFTT05fS0lORF9IQVJEV0FSRV9BQ0NFTEVSQVRJT05fT0ZGEBsSOAo0UExBWUJBQ0tfUkVBU09OX0tJTkRfTk9fSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1BBU1NFRBAcEjoKNlBMQVlCQUNLX1JFQVNPTl9LSU5EX0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9GQUlMRURfVEVTVBAdEjAKLFBMQVlCQUNLX1JFQVNPTl9LSU5EX0hBUkRXQVJFX0ZBSUxFRF9QQVJUV0FZEB4ytQEKD1BsYXliYWNrU2VydmljZRJQCgxQbGFuUGxheWJhY2sSHC5uYW1hLnYxLlBsYW5QbGF5YmFja1JlcXVlc3QaHS5uYW1hLnYxLlBsYW5QbGF5YmFja1Jlc3BvbnNlIgOQAgISUAoMU3RvcFBsYXliYWNrEhwubmFtYS52MS5TdG9wUGxheWJhY2tSZXF1ZXN0Gh0ubmFtYS52MS5TdG9wUGxheWJhY2tSZXNwb25zZSIDkAICYgZwcm90bzM", [file_nama_v1_browse]);
+  fileDesc("ChZuYW1hL3YxL3BsYXliYWNrLnByb3RvEgduYW1hLnYxInIKFlJlcG9ydFRyYWNrUGlja1JlcXVlc3QSEgoKdmVyc2lvbl9pZBgBIAEoAxImCgRraW5kGAIgASgOMhgubmFtYS52MS5QaWNrZWRUcmFja0tpbmQSEgoFdHJhY2sYAyABKA1IAIgBAUIICgZfdHJhY2siGQoXUmVwb3J0VHJhY2tQaWNrUmVzcG9uc2UiJgoTU3RvcFBsYXliYWNrUmVxdWVzdBIPCgdwbGFuX2lkGAEgASgEIhYKFFN0b3BQbGF5YmFja1Jlc3BvbnNlIscCChNQbGFuUGxheWJhY2tSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSGQoRc3RhcnRfcG9zaXRpb25fbXMYAiABKAQSGAoLYXVkaW9fdHJhY2sYAyABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgEIAEoDUgBiAEBEi4KDnBsYXliYWNrX2xpbWl0GAUgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjAKD2RldmljZV9kZWNvZGluZxgGIAEoCzIXLm5hbWEudjEuRGV2aWNlRGVjb2RpbmcSLwoOZmFpbGVkX21ldGhvZHMYByADKA4yFy5uYW1hLnYxLlBsYXliYWNrTWV0aG9kEhQKDG5vX3N1YnRpdGxlcxgIIAEoCEIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrIpwCCg5EZXZpY2VEZWNvZGluZxImCgpjb250YWluZXJzGAYgAygOMhIubmFtYS52MS5Db250YWluZXISKQoMdmlkZW9fY29kZWNzGAcgAygOMhMubmFtYS52MS5WaWRlb0NvZGVjEikKDGF1ZGlvX2NvZGVjcxgIIAMoDjITLm5hbWEudjEuQXVkaW9Db2RlYxILCgNoZHIYAiABKAgSEgoKbmF0aXZlX2hscxgDIAEoCBILCgNtc2UYBCABKAgSFgoOYXVkaW9fY2hhbm5lbHMYBSABKA0SMQoQc3VidGl0bGVfZm9ybWF0cxgJIAMoDjIXLm5hbWEudjEuU3VidGl0bGVGb3JtYXRKBAgBEAJSDWNvbnRlbnRfdHlwZXMiOwoUUGxhblBsYXliYWNrUmVzcG9uc2USIwoEcGxhbhgBIAEoCzIVLm5hbWEudjEuUGxheWJhY2tQbGFuIu0DCgxQbGF5YmFja1BsYW4SJwoGbWV0aG9kGAEgASgOMhcubmFtYS52MS5QbGF5YmFja01ldGhvZBILCgN1cmwYAiABKAkSHgoGdHJhY2tzGAMgAygLMg4ubmFtYS52MS5UcmFjaxIoCgdyZWFzb25zGA0gAygLMhcubmFtYS52MS5QbGF5YmFja1JlYXNvbhIsCglzdWJ0aXRsZXMYBSADKAsyGS5uYW1hLnYxLlBsYXliYWNrU3VidGl0bGUSCgoCaWQYBiABKAQSLgoOcGxheWJhY2tfbGltaXQYByABKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXQSGAoLYXVkaW9fdHJhY2sYCCABKA1IAIgBARIbCg5zdWJ0aXRsZV90cmFjaxgJIAEoDUgBiAEBEhQKDGF1ZGlvX3RyYWNrcxgKIAMoDRIWCg5idXJuX2luX3RyYWNrcxgLIAMoDRIvCg9wbGF5YmFja19saW1pdHMYDCADKA4yFi5uYW1hLnYxLlBsYXliYWNrTGltaXQSHgoRc3RhcnRpbmdfc3VidGl0bGUYDiABKA1IAogBAUIOCgxfYXVkaW9fdHJhY2tCEQoPX3N1YnRpdGxlX3RyYWNrQhQKEl9zdGFydGluZ19zdWJ0aXRsZUoECAQQBSKJAQoQUGxheWJhY2tTdWJ0aXRsZRIdCgV0cmFjaxgBIAEoCzIOLm5hbWEudjEuVHJhY2sSDQoFcGxhY2UYBSABKA0SCwoDdXJsGAIgASgJEicKBmZvcm1hdBgDIAEoDjIXLm5hbWEudjEuU3VidGl0bGVGb3JtYXQSEQoJZm9udF91cmxzGAQgAygJIr4BCg5QbGF5YmFja1JlYXNvbhIpCgRraW5kGAEgASgOMhsubmFtYS52MS5QbGF5YmFja1JlYXNvbktpbmQSMwoGcGFyYW1zGAIgAygLMiMubmFtYS52MS5QbGF5YmFja1JlYXNvbi5QYXJhbXNFbnRyeRIMCgR0ZXh0GAMgASgJEg8KB2RlY2lkZWQYBCABKAgaLQoLUGFyYW1zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASpUCg9QaWNrZWRUcmFja0tpbmQSIQodUElDS0VEX1RSQUNLX0tJTkRfVU5TUEVDSUZJRUQQABIeChpQSUNLRURfVFJBQ0tfS0lORF9TVUJUSVRMRRABKpgBCg1QbGF5YmFja0xpbWl0Eh4KGlBMQVlCQUNLX0xJTUlUX1VOU1BFQ0lGSUVEEAASGwoXUExBWUJBQ0tfTElNSVRfT1JJR0lOQUwQARIYChRQTEFZQkFDS19MSU1JVF8xMDgwUBACEhcKE1BMQVlCQUNLX0xJTUlUXzcyMFAQAxIXChNQTEFZQkFDS19MSU1JVF80ODBQEAQqfwoOU3VidGl0bGVGb3JtYXQSHwobU1VCVElUTEVfRk9STUFUX1VOU1BFQ0lGSUVEEAASGgoWU1VCVElUTEVfRk9STUFUX1dFQlZUVBABEhcKE1NVQlRJVExFX0ZPUk1BVF9QR1MQAhIXChNTVUJUSVRMRV9GT1JNQVRfQVNTEAMqZQoJQ29udGFpbmVyEhkKFUNPTlRBSU5FUl9VTlNQRUNJRklFRBAAEhEKDUNPTlRBSU5FUl9NUDQQARISCg5DT05UQUlORVJfV0VCTRACEhYKEkNPTlRBSU5FUl9NQVRST1NLQRADKpQBCgpWaWRlb0NvZGVjEhsKF1ZJREVPX0NPREVDX1VOU1BFQ0lGSUVEEAASFAoQVklERU9fQ09ERUNfSDI2NBABEhQKEFZJREVPX0NPREVDX0hFVkMQAhITCg9WSURFT19DT0RFQ19WUDgQAxITCg9WSURFT19DT0RFQ19WUDkQBBITCg9WSURFT19DT0RFQ19BVjEQBSrvAQoKQXVkaW9Db2RlYxIbChdBVURJT19DT0RFQ19VTlNQRUNJRklFRBAAEhMKD0FVRElPX0NPREVDX0FBQxABEhMKD0FVRElPX0NPREVDX01QMxACEhMKD0FVRElPX0NPREVDX0FDMxADEhQKEEFVRElPX0NPREVDX0VBQzMQBBIUChBBVURJT19DT0RFQ19PUFVTEAUSFgoSQVVESU9fQ09ERUNfVk9SQklTEAYSFAoQQVVESU9fQ09ERUNfRkxBQxAHEhMKD0FVRElPX0NPREVDX0RUUxAIEhYKEkFVRElPX0NPREVDX1RSVUVIRBAJKowBCg5QbGF5YmFja01ldGhvZBIfChtQTEFZQkFDS19NRVRIT0RfVU5TUEVDSUZJRUQQABIfChtQTEFZQkFDS19NRVRIT0RfRElSRUNUX1BMQVkQARIZChVQTEFZQkFDS19NRVRIT0RfUkVNVVgQAhIdChlQTEFZQkFDS19NRVRIT0RfVFJBTlNDT0RFEAMqtgwKElBsYXliYWNrUmVhc29uS2luZBIkCiBQTEFZQkFDS19SRUFTT05fS0lORF9VTlNQRUNJRklFRBAAEicKI1BMQVlCQUNLX1JFQVNPTl9LSU5EX1RSQUNLU19VTktOT1dOEAESJwojUExBWUJBQ0tfUkVBU09OX0tJTkRfTEVOR1RIX1VOS05PV04QAhI1CjFQTEFZQkFDS19SRUFTT05fS0lORF9ERVZJQ0VfQ0FOVF9ERUNPREVfQ09OVEFJTkVSEAMSMQotUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfREVDT0RFX1ZJREVPEAQSMQotUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfREVDT0RFX0FVRElPEAUSLQopUExBWUJBQ0tfUkVBU09OX0tJTkRfREVWSUNFX0NBTlRfU0hPV19IRFIQBhItCilQTEFZQkFDS19SRUFTT05fS0lORF9ERVZJQ0VfQ0FOVF9QTEFZX0hMUxAHEiwKKFBMQVlCQUNLX1JFQVNPTl9LSU5EX1NFUlZFUl9MQUNLU19GRk1QRUcQCBIxCi1QTEFZQkFDS19SRUFTT05fS0lORF9TRVJWRVJfQ0FOVF9FTkNPREVfVklERU8QCRI2CjJQTEFZQkFDS19SRUFTT05fS0lORF9ET0xCWV9WSVNJT05fTkVFRFNfQkFTRV9MQVlFUhAKEjAKLFBMQVlCQUNLX1JFQVNPTl9LSU5EX01FVEhPRF9GQUlMRURfT05fREVWSUNFEAsSJAogUExBWUJBQ0tfUkVBU09OX0tJTkRfU0VSVkVSX0JVU1kQDBIzCi9QTEFZQkFDS19SRUFTT05fS0lORF9DSE9TRU5fQVVESU9fTk9UX0ZJTEVTX09XThANEiwKKFBMQVlCQUNLX1JFQVNPTl9LSU5EX1BJQ1RVUkVfU0NBTEVEX0RPV04QDhIsCihQTEFZQkFDS19SRUFTT05fS0lORF9TVUJUSVRMRVNfQlVSTkVEX0lOEA8SOAo0UExBWUJBQ0tfUkVBU09OX0tJTkRfU1VCVElUTEVTX0ZJTEVfQ0FSUklFU19OT19GT05UUxAfEjQKMFBMQVlCQUNLX1JFQVNPTl9LSU5EX0RFVklDRV9QTEFZU19GRVdFUl9DSEFOTkVMUxAQEjAKLFBMQVlCQUNLX1JFQVNPTl9LSU5EX0RFVklDRV9DSEFOTkVMU19VTktOT1dOEBESMwovUExBWUJBQ0tfUkVBU09OX0tJTkRfQ09OVkVSU0lPTl9DSEFOTkVMU19DQVBQRUQQEhIoCiRQTEFZQkFDS19SRUFTT05fS0lORF9IRFJfVE9ORV9NQVBQRUQQExIsCihQTEFZQkFDS19SRUFTT05fS0lORF9IRFJfTk9UX1RPTkVfTUFQUEVEEBQSLQopUExBWUJBQ0tfUkVBU09OX0tJTkRfUkVNT1RFX0RFRkFVTFRfTElNSVQQFRItCilQTEFZQkFDS19SRUFTT05fS0lORF9QSUNUVVJFX1NJWkVfVU5LTk9XThAWEi0KKVBMQVlCQUNLX1JFQVNPTl9LSU5EX0NIT1NFTl9BVURJT19EUk9QUEVEEBcSLworUExBWUJBQ0tfUkVBU09OX0tJTkRfUExBWUJBQ0tfTElNSVRfRFJPUFBFRBAYEjEKLVBMQVlCQUNLX1JFQVNPTl9LSU5EX0NIT1NFTl9TVUJUSVRMRVNfRFJPUFBFRBAZEi8KK1BMQVlCQUNLX1JFQVNPTl9LSU5EX1RSQU5TQ09ERVNfT05fSEFSRFdBUkUQGhIyCi5QTEFZQkFDS19SRUFTT05fS0lORF9IQVJEV0FSRV9BQ0NFTEVSQVRJT05fT0ZGEBsSOAo0UExBWUJBQ0tfUkVBU09OX0tJTkRfTk9fSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1BBU1NFRBAcEjoKNlBMQVlCQUNLX1JFQVNPTl9LSU5EX0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9GQUlMRURfVEVTVBAdEjAKLFBMQVlCQUNLX1JFQVNPTl9LSU5EX0hBUkRXQVJFX0ZBSUxFRF9QQVJUV0FZEB4ykAIKD1BsYXliYWNrU2VydmljZRJQCgxQbGFuUGxheWJhY2sSHC5uYW1hLnYxLlBsYW5QbGF5YmFja1JlcXVlc3QaHS5uYW1hLnYxLlBsYW5QbGF5YmFja1Jlc3BvbnNlIgOQAgISUAoMU3RvcFBsYXliYWNrEhwubmFtYS52MS5TdG9wUGxheWJhY2tSZXF1ZXN0Gh0ubmFtYS52MS5TdG9wUGxheWJhY2tSZXNwb25zZSIDkAICElkKD1JlcG9ydFRyYWNrUGljaxIfLm5hbWEudjEuUmVwb3J0VHJhY2tQaWNrUmVxdWVzdBogLm5hbWEudjEuUmVwb3J0VHJhY2tQaWNrUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_browse]);
+
+/**
+ * @generated from message nama.v1.ReportTrackPickRequest
+ */
+export type ReportTrackPickRequest = Message<"nama.v1.ReportTrackPickRequest"> & {
+  /**
+   * The Version playing, as browsing gave it.
+   *
+   * @generated from field: int64 version_id = 1;
+   */
+  versionId: bigint;
+
+  /**
+   * The kind of Track picked.
+   *
+   * @generated from field: nama.v1.PickedTrackKind kind = 2;
+   */
+  kind: PickedTrackKind;
+
+  /**
+   * The Track picked, by its place in the Version's `tracks`, counting from 0. Unset when the
+   * User turned that kind off.
+   *
+   * @generated from field: optional uint32 track = 3;
+   */
+  track?: number | undefined;
+};
+
+/**
+ * Describes the message nama.v1.ReportTrackPickRequest.
+ * Use `create(ReportTrackPickRequestSchema)` to create a new message.
+ */
+export const ReportTrackPickRequestSchema: GenMessage<ReportTrackPickRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_playback, 0);
+
+/**
+ * @generated from message nama.v1.ReportTrackPickResponse
+ */
+export type ReportTrackPickResponse = Message<"nama.v1.ReportTrackPickResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.ReportTrackPickResponse.
+ * Use `create(ReportTrackPickResponseSchema)` to create a new message.
+ */
+export const ReportTrackPickResponseSchema: GenMessage<ReportTrackPickResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_playback, 1);
 
 /**
  * @generated from message nama.v1.StopPlaybackRequest
@@ -31,7 +78,7 @@ export type StopPlaybackRequest = Message<"nama.v1.StopPlaybackRequest"> & {
  * Use `create(StopPlaybackRequestSchema)` to create a new message.
  */
 export const StopPlaybackRequestSchema: GenMessage<StopPlaybackRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 0);
+  messageDesc(file_nama_v1_playback, 2);
 
 /**
  * @generated from message nama.v1.StopPlaybackResponse
@@ -44,7 +91,7 @@ export type StopPlaybackResponse = Message<"nama.v1.StopPlaybackResponse"> & {
  * Use `create(StopPlaybackResponseSchema)` to create a new message.
  */
 export const StopPlaybackResponseSchema: GenMessage<StopPlaybackResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 1);
+  messageDesc(file_nama_v1_playback, 3);
 
 /**
  * @generated from message nama.v1.PlanPlaybackRequest
@@ -76,8 +123,8 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
    * The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
    * as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
    * styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
-   * from 0. Unset for none, as when the player shows a subtitle from `PlaybackPlan.subtitles`
-   * itself.
+   * from 0. Unset, with `no_subtitles` unset too, for the Server to choose by the User's Subtitle
+   * Preference, which `PlaybackPlan.starting_subtitle` then says.
    *
    * @generated from field: optional uint32 subtitle_track = 4;
    */
@@ -104,6 +151,14 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
    * @generated from field: repeated nama.v1.PlaybackMethod failed_methods = 7;
    */
   failedMethods: PlaybackMethod[];
+
+  /**
+   * Set, with `subtitle_track` unset, for none burned in and none chosen, as when the player
+   * shows no subtitle or a text one from `PlaybackPlan.subtitles` itself.
+   *
+   * @generated from field: bool no_subtitles = 8;
+   */
+  noSubtitles: boolean;
 };
 
 /**
@@ -111,7 +166,7 @@ export type PlanPlaybackRequest = Message<"nama.v1.PlanPlaybackRequest"> & {
  * Use `create(PlanPlaybackRequestSchema)` to create a new message.
  */
 export const PlanPlaybackRequestSchema: GenMessage<PlanPlaybackRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 2);
+  messageDesc(file_nama_v1_playback, 4);
 
 /**
  * What a Device can decode.
@@ -183,7 +238,7 @@ export type DeviceDecoding = Message<"nama.v1.DeviceDecoding"> & {
  * Use `create(DeviceDecodingSchema)` to create a new message.
  */
 export const DeviceDecodingSchema: GenMessage<DeviceDecoding> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 3);
+  messageDesc(file_nama_v1_playback, 5);
 
 /**
  * @generated from message nama.v1.PlanPlaybackResponse
@@ -200,7 +255,7 @@ export type PlanPlaybackResponse = Message<"nama.v1.PlanPlaybackResponse"> & {
  * Use `create(PlanPlaybackResponseSchema)` to create a new message.
  */
 export const PlanPlaybackResponseSchema: GenMessage<PlanPlaybackResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 4);
+  messageDesc(file_nama_v1_playback, 6);
 
 /**
  * How the Server will play one Version on one Device, and why.
@@ -304,6 +359,15 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
    * @generated from field: repeated nama.v1.PlaybackLimit playback_limits = 12;
    */
   playbackLimits: PlaybackLimit[];
+
+  /**
+   * The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
+   * burns in, or else, when the request left the choice to the Server, one of `subtitles` that
+   * the player shows itself. Unset for none.
+   *
+   * @generated from field: optional uint32 starting_subtitle = 14;
+   */
+  startingSubtitle?: number | undefined;
 };
 
 /**
@@ -311,7 +375,7 @@ export type PlaybackPlan = Message<"nama.v1.PlaybackPlan"> & {
  * Use `create(PlaybackPlanSchema)` to create a new message.
  */
 export const PlaybackPlanSchema: GenMessage<PlaybackPlan> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 5);
+  messageDesc(file_nama_v1_playback, 7);
 
 /**
  * A subtitle the Device shows itself: a text one as a WebVTT `<track>`, or one it draws.
@@ -325,6 +389,13 @@ export type PlaybackSubtitle = Message<"nama.v1.PlaybackSubtitle"> & {
    * @generated from field: nama.v1.Track track = 1;
    */
   track?: Track | undefined;
+
+  /**
+   * Its Track's place in the Version's `tracks`, counting from 0.
+   *
+   * @generated from field: uint32 place = 5;
+   */
+  place: number;
 
   /**
    * Where to fetch it in `format`, on this Server. The first fetch can take minutes while the
@@ -355,7 +426,7 @@ export type PlaybackSubtitle = Message<"nama.v1.PlaybackSubtitle"> & {
  * Use `create(PlaybackSubtitleSchema)` to create a new message.
  */
 export const PlaybackSubtitleSchema: GenMessage<PlaybackSubtitle> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 6);
+  messageDesc(file_nama_v1_playback, 8);
 
 /**
  * One fact that shaped a Playback Plan (ADR 0034).
@@ -399,7 +470,37 @@ export type PlaybackReason = Message<"nama.v1.PlaybackReason"> & {
  * Use `create(PlaybackReasonSchema)` to create a new message.
  */
 export const PlaybackReasonSchema: GenMessage<PlaybackReason> = /*@__PURE__*/
-  messageDesc(file_nama_v1_playback, 7);
+  messageDesc(file_nama_v1_playback, 9);
+
+/**
+ * The kind of Track a User picks while playing.
+ *
+ * @generated from enum nama.v1.PickedTrackKind
+ */
+export const PickedTrackKind = {
+  /**
+   * @generated from enum value: PICKED_TRACK_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * @generated from enum value: PICKED_TRACK_KIND_SUBTITLE = 1;
+   */
+  SUBTITLE: 1,
+} as const;
+
+/**
+ * The kind of Track a User picks while playing.
+ *
+ * @generated from enum nama.v1.PickedTrackKind
+ */
+export type PickedTrackKind = (typeof PickedTrackKind)[keyof typeof PickedTrackKind] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.PickedTrackKind.
+ */
+export const PickedTrackKindSchema: GenEnum<PickedTrackKind> = /*@__PURE__*/
+  enumDesc(file_nama_v1_playback, 0);
 
 /**
  * The most a User asks playback to send.
@@ -448,7 +549,7 @@ export type PlaybackLimit = (typeof PlaybackLimit)[keyof typeof PlaybackLimit] |
  * Describes the enum nama.v1.PlaybackLimit.
  */
 export const PlaybackLimitSchema: GenEnum<PlaybackLimit> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 0);
+  enumDesc(file_nama_v1_playback, 1);
 
 /**
  * A format the Server serves a subtitle Track in, for a Device to show it itself.
@@ -494,7 +595,7 @@ export type SubtitleFormat = (typeof SubtitleFormat)[keyof typeof SubtitleFormat
  * Describes the enum nama.v1.SubtitleFormat.
  */
 export const SubtitleFormatSchema: GenEnum<SubtitleFormat> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 1);
+  enumDesc(file_nama_v1_playback, 2);
 
 /**
  * A container the Server knows whether a Device plays.
@@ -534,7 +635,7 @@ export type Container = (typeof Container)[keyof typeof Container] | UnknownEnum
  * Describes the enum nama.v1.Container.
  */
 export const ContainerSchema: GenEnum<Container> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 2);
+  enumDesc(file_nama_v1_playback, 3);
 
 /**
  * A video codec the Server knows whether a Device decodes.
@@ -584,7 +685,7 @@ export type VideoCodec = (typeof VideoCodec)[keyof typeof VideoCodec] | UnknownE
  * Describes the enum nama.v1.VideoCodec.
  */
 export const VideoCodecSchema: GenEnum<VideoCodec> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 3);
+  enumDesc(file_nama_v1_playback, 4);
 
 /**
  * An audio codec the Server knows whether a Device decodes.
@@ -654,7 +755,7 @@ export type AudioCodec = (typeof AudioCodec)[keyof typeof AudioCodec] | UnknownE
  * Describes the enum nama.v1.AudioCodec.
  */
 export const AudioCodecSchema: GenEnum<AudioCodec> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 4);
+  enumDesc(file_nama_v1_playback, 5);
 
 /**
  * How a Playback Plan plays a Version.
@@ -703,7 +804,7 @@ export type PlaybackMethod = (typeof PlaybackMethod)[keyof typeof PlaybackMethod
  * Describes the enum nama.v1.PlaybackMethod.
  */
 export const PlaybackMethodSchema: GenEnum<PlaybackMethod> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 5);
+  enumDesc(file_nama_v1_playback, 6);
 
 /**
  * The kinds of fact that shape a Playback Plan. A kind, its params and the methods it rules out
@@ -968,7 +1069,7 @@ export type PlaybackReasonKind = (typeof PlaybackReasonKind)[keyof typeof Playba
  * Describes the enum nama.v1.PlaybackReasonKind.
  */
 export const PlaybackReasonKindSchema: GenEnum<PlaybackReasonKind> = /*@__PURE__*/
-  enumDesc(file_nama_v1_playback, 6);
+  enumDesc(file_nama_v1_playback, 7);
 
 /**
  * How the signed-in caller's Device plays a Version.
@@ -1006,6 +1107,20 @@ export const PlaybackService: GenService<{
     methodKind: "unary";
     input: typeof StopPlaybackRequestSchema;
     output: typeof StopPlaybackResponseSchema;
+  },
+  /**
+   * Keeps the Track the caller picked while playing a Version, or that they turned it off, as
+   * their Preference for the Show or Movie the Version is of, which later plans of any of its
+   * Versions start with (ADR 0035). A Version of an Unmatched Item keeps nothing. Fails with
+   * `not_found` if there is no such Version, and is refused with
+   * `REFUSAL_REASON_TRACK_NOT_FOUND` if the Version has no Track of that kind at that place.
+   *
+   * @generated from rpc nama.v1.PlaybackService.ReportTrackPick
+   */
+  reportTrackPick: {
+    methodKind: "unary";
+    input: typeof ReportTrackPickRequestSchema;
+    output: typeof ReportTrackPickResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_playback, 0);

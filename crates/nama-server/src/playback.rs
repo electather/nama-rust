@@ -42,6 +42,7 @@ use crate::{
     },
     probing::{self, ProbeError, Probing},
     server_settings::{HardwareChoice, PlaybackValues},
+    track_preferences::{SubtitlePreference, same_language},
     tracks::{Hdr, Probe, Track, TrackKind, Tracks, hdr_to_proto},
     users::{Caller, User},
 };
@@ -143,6 +144,9 @@ pub(crate) struct Plan {
     pub(crate) audio: Option<usize>,
     /// The place in the Version's Tracks of the subtitle Track it burns in, if any.
     pub(crate) burn_in: Option<usize>,
+    /// The place in the Version's Tracks of the subtitle Track playback starts with, if any: the
+    /// one it burns in, or else a text one the Server chose for the Device to show.
+    pub(crate) starting_subtitle: Option<usize>,
     pub(crate) offers: Offers,
 }
 
@@ -288,6 +292,8 @@ enum Choice {
 #[derive(Debug, PartialEq)]
 pub(crate) struct Subtitle {
     pub(crate) track: Track,
+    /// Its Track's place in the Version's Tracks.
+    pub(crate) place: usize,
     pub(crate) format: proto::SubtitleFormat,
     /// Where it's served in `format`, on this Server.
     pub(crate) url: String,
@@ -325,12 +331,22 @@ pub(crate) struct Asked {
     pub(crate) failed: BTreeSet<Method>,
     /// The audio Track chosen, by its place in the Version's Tracks, if one was.
     pub(crate) audio: Option<usize>,
-    /// The subtitle Track chosen to burn into the picture, by its place in the Version's Tracks,
-    /// if one was.
-    pub(crate) subtitle: Option<usize>,
+    pub(crate) subtitle: AskedSubtitle,
     pub(crate) limit: PickedLimit,
     /// The Device's address, which says whether it's on the local network.
     pub(crate) client: IpAddr,
+}
+
+/// What a request for a plan asks of subtitles.
+#[derive(Debug)]
+pub(crate) enum AskedSubtitle {
+    /// The subtitle Track chosen to burn into the picture, by its place in the Version's Tracks.
+    BurnIn(usize),
+    /// None burned in, and none for the Server to choose.
+    None,
+    /// The Server's choice, by the User's Subtitle Preference for what the Version is of, if they
+    /// have one (ADR 0035).
+    Preferred(Option<SubtitlePreference>),
 }
 
 /// Plans what `asked` asks on `caller`'s Device, by the Playback settings `settings`, and starts
@@ -373,6 +389,7 @@ pub(crate) async fn plan(
         Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
         Err(probing::Error::Database(err)) => return Err(err.into()),
     };
+    let (subtitle, shown_subtitle) = subtitles_asked(subtitle, probe.as_ref(), &decoding);
     let mut facts = Facts {
         version,
         probe,
@@ -388,6 +405,7 @@ pub(crate) async fn plan(
             Network::Remote(settings.remote_limit)
         },
         subtitle,
+        shown_subtitle,
         hardware_choice: settings.hardware,
         dropped: BTreeSet::new(),
     };
@@ -403,6 +421,30 @@ pub(crate) async fn plan(
     }
     let started = running.start(caller, plan).await?;
     Ok(started.map(Planned::Started))
+}
+
+/// The subtitle Track `asked` asks to burn in and the one it asks the Device to show, each by its
+/// place in `probe`'s Tracks: a Track the Server chose by the User's Subtitle Preference is shown
+/// by the Device if it can, since that is no input to the plan (ADR 0033), and burned in if not.
+fn subtitles_asked(
+    asked: AskedSubtitle,
+    probe: Option<&Probe>,
+    device: &DeviceDecoding,
+) -> (Option<usize>, Option<usize>) {
+    match asked {
+        AskedSubtitle::BurnIn(place) => (Some(place), None),
+        AskedSubtitle::None | AskedSubtitle::Preferred(None) => (None, None),
+        AskedSubtitle::Preferred(Some(preference)) => {
+            let Some(probe) = probe else {
+                return (None, None);
+            };
+            let place = preferred_subtitle(&preference, probe, device);
+            match place.and_then(|place| probe.tracks.get(place)) {
+                Some(track) if shown_as(device, probe, track).is_some() => (None, place),
+                _ => (place, None),
+            }
+        }
+    }
 }
 
 /// Whose playback events `viewer` may see: everyone's (`None`) with `ADMIN`, or else only their own.
@@ -486,9 +528,12 @@ struct Facts {
     transcodes_full: Option<u32>,
     picked_limit: PickedLimit,
     network: Network,
-    /// The subtitle Track the User chose to burn into the picture, by its place in the Version's
-    /// Tracks, if they chose one.
+    /// The subtitle Track the User chose to burn into the picture, or the Server chose by their
+    /// Subtitle Preference, by its place in the Version's Tracks, if one was.
     subtitle: Option<usize>,
+    /// The text subtitle Track the Server chose by the User's Subtitle Preference for the Device
+    /// to show itself, by its place in the Version's Tracks, if it chose one.
+    shown_subtitle: Option<usize>,
     /// What the admin chose for Transcodes to run on.
     hardware_choice: HardwareChoice,
     /// The User's choices the plan doesn't honour, as [`build`] found.
@@ -589,10 +634,12 @@ fn build(facts: &mut Facts) -> Plan {
         *on_failure = fallback(facts, transcode, &reasons);
     }
     let audio = candidates.and_then(|candidates| candidates.audio);
-    let burns_in = matches!(
-        &playing,
-        Some(Playing::Transcode { transcode, .. }) if transcode.video.burn_in.is_some()
-    );
+    let burned_in = facts.subtitle.filter(|_| {
+        matches!(
+            &playing,
+            Some(Playing::Transcode { transcode, .. }) if transcode.video.burn_in.is_some()
+        )
+    });
     let tracks = (facts.probe.as_ref())
         .map(|probe| played_by(playing.as_ref(), played_tracks(probe, audio)))
         .unwrap_or_default();
@@ -608,7 +655,8 @@ fn build(facts: &mut Facts) -> Plan {
             .unwrap_or_default(),
         limit: limit_in_effect(facts),
         audio,
-        burn_in: facts.subtitle.filter(|_| burns_in),
+        burn_in: burned_in,
+        starting_subtitle: burned_in.or(facts.shown_subtitle),
         offers: offers(facts, &lasting),
     }
 }
@@ -1323,6 +1371,36 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
     )
 }
 
+/// The place in `probe`'s Tracks of the subtitle Track `preference` starts playback with, `None` for off or
+/// when none matches. A Track in its language and as forced matches; among those, the same SDH
+/// wins, then the same title, then one the Device shows itself over one that needs Burn-in, then
+/// the first.
+fn preferred_subtitle(
+    preference: &SubtitlePreference,
+    probe: &Probe,
+    device: &DeviceDecoding,
+) -> Option<usize> {
+    let SubtitlePreference::Like(wanted) = preference else {
+        return None;
+    };
+    let title = |title: Option<&str>| title.map(str::to_lowercase);
+    (probe.tracks.iter().enumerate())
+        .filter(|(_, track)| shown_as(device, probe, track).is_some() || burns_in(device, probe, track))
+        .filter(|(_, track)| {
+            track.forced == wanted.forced
+                && same_language(track.language.as_deref(), wanted.language.as_deref())
+        })
+        // `min_by_key` keeps the first of equals.
+        .min_by_key(|(_, track)| {
+            (
+                track.sdh != wanted.sdh,
+                title(track.title.as_deref()) != title(wanted.title.as_deref()),
+                shown_as(device, probe, track).is_none(),
+            )
+        })
+        .map(|(place, _)| place)
+}
+
 /// Whether `track`, in the file `probe` read, is a subtitle `device` can't show as it should, so a
 /// Transcode burns it in: an image one it doesn't draw, such as PGS, or an ASS or SSA one it
 /// doesn't draw, whose styling its WebVTT drops.
@@ -1680,7 +1758,7 @@ const fn is_audio(track: &Track) -> bool {
 /// The Version's subtitle Tracks that `device` shows itself.
 fn shown_subtitles(version: i64, probe: &Probe, device: &DeviceDecoding) -> Vec<Subtitle> {
     (probe.tracks.iter().enumerate())
-        .filter_map(|(position, track)| {
+        .filter_map(|(place, track)| {
             let format = shown_as(device, probe, track)?;
             let fonts = if format == ASS {
                 probe.font_attachments.len()
@@ -1689,8 +1767,9 @@ fn shown_subtitles(version: i64, probe: &Probe, device: &DeviceDecoding) -> Vec<
             };
             Some(Subtitle {
                 track: track.clone(),
+                place,
                 format,
-                url: subtitles::url(version, position, format),
+                url: subtitles::url(version, place, format),
                 font_urls: (0..fonts)
                     .map(|font| subtitles::font_url(version, font))
                     .collect(),
@@ -1763,9 +1842,9 @@ mod tests {
     };
 
     use super::{
-        Candidates, DeviceDecoding, Facts, Fallback, Method, Network, Offers, PickedLimit, Plan,
-        PlaybackLimit, Playing, Reason, Subtitle, build, default_max_transcodes, narrowed,
-        on_local_network, too_busy_to_play,
+        AskedSubtitle, Candidates, DeviceDecoding, Facts, Fallback, Method, Network, Offers,
+        PickedLimit, Plan, PlaybackLimit, Playing, Reason, Subtitle, build, default_max_transcodes,
+        narrowed, on_local_network, preferred_subtitle, subtitles_asked, too_busy_to_play,
     };
     use crate::{
         ffmpeg::{
@@ -1773,6 +1852,7 @@ mod tests {
             VideoLimit,
         },
         server_settings::{HardwareChoice, PickedGpu},
+        track_preferences::{Description, SubtitlePreference},
         tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
     };
 
@@ -1884,6 +1964,7 @@ mod tests {
             picked_limit: PickedLimit::Unpicked,
             network: Network::Local,
             subtitle: None,
+            shown_subtitle: None,
             hardware_choice: HardwareChoice::Automatic,
             dropped: BTreeSet::new(),
         }
@@ -1970,6 +2051,7 @@ mod tests {
                 limit: None,
                 audio: Some(1),
                 burn_in: None,
+                starting_subtitle: None,
                 offers: Offers {
                     audio: vec![1],
                     burn_in: vec![],
@@ -2368,12 +2450,14 @@ mod tests {
         let offered = [
             Subtitle {
                 track: english,
+                place: 1,
                 format: SubtitleFormat::SUBTITLE_FORMAT_WEBVTT,
                 url: "/media/versions/7/subtitles/1".to_owned(),
                 font_urls: vec![],
             },
             Subtitle {
                 track: french,
+                place: 5,
                 format: SubtitleFormat::SUBTITLE_FORMAT_WEBVTT,
                 url: "/media/versions/7/subtitles/5".to_owned(),
                 font_urls: vec![],
@@ -3052,12 +3136,14 @@ mod tests {
                 [
                     Subtitle {
                         track: pgs(),
+                        place: 2,
                         format: SubtitleFormat::SUBTITLE_FORMAT_PGS,
                         url: "/media/versions/7/subtitles/2".to_owned(),
                         font_urls: vec![],
                     },
                     Subtitle {
                         track: subtitle(),
+                        place: 3,
                         format: SubtitleFormat::SUBTITLE_FORMAT_WEBVTT,
                         url: "/media/versions/7/subtitles/3".to_owned(),
                         font_urls: vec![],
@@ -3128,6 +3214,7 @@ mod tests {
             plan.subtitles,
             [Subtitle {
                 track: ass(),
+                place: 2,
                 format: SubtitleFormat::SUBTITLE_FORMAT_ASS,
                 url: "/media/versions/7/subtitles/2/ass".to_owned(),
                 font_urls: vec![
@@ -3171,6 +3258,7 @@ mod tests {
             plan.subtitles,
             [Subtitle {
                 track: ass(),
+                place: 2,
                 format: SubtitleFormat::SUBTITLE_FORMAT_WEBVTT,
                 url: "/media/versions/7/subtitles/2".to_owned(),
                 font_urls: vec![],
@@ -3253,6 +3341,179 @@ mod tests {
                 .map(|hardware| hardware.accel);
             assert_eq!(accel, on, "{label}");
         }
+    }
+
+    /// A subtitle Track of `codec` in `language`, forced or not, SDH or not, and titled `title`.
+    fn subtitle_in(
+        codec: &str,
+        language: Option<&str>,
+        (forced, sdh): (bool, bool),
+        title: Option<&str>,
+    ) -> Track {
+        let image = codec == "hdmv_pgs_subtitle";
+        Track {
+            language: language.map(str::to_owned),
+            title: title.map(str::to_owned),
+            forced,
+            sdh,
+            ..track(codec, false, TrackKind::Subtitle { image })
+        }
+    }
+
+    /// The place [`preferred_subtitle`] picks among `tracks`, in a file that carries no fonts.
+    fn preferred_among(
+        preference: &SubtitlePreference,
+        tracks: &[Track],
+        device: &DeviceDecoding,
+    ) -> Option<usize> {
+        let probe = facts(Some(tracks.to_vec())).probe.unwrap();
+        preferred_subtitle(preference, &probe, device)
+    }
+
+    /// A Subtitle Preference for a Track like `track`.
+    fn like(track: &Track) -> SubtitlePreference {
+        SubtitlePreference::Like(Description::of(track))
+    }
+
+    const NOT_FORCED_OR_SDH: (bool, bool) = (false, false);
+
+    #[test]
+    fn a_preferred_subtitle_must_be_in_its_language_and_as_forced() {
+        let device = firefox();
+        let english = subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, None);
+        let tracks = [
+            video("h264"),
+            subtitle_in("subrip", Some("eng"), (true, false), None),
+            subtitle_in("subrip", Some("ger"), NOT_FORCED_OR_SDH, None),
+            subtitle_in("subrip", Some("en"), NOT_FORCED_OR_SDH, None),
+            subtitle_in("subrip", None, NOT_FORCED_OR_SDH, None),
+        ];
+
+        assert_eq!(preferred_among(&like(&english), &tracks, &device), Some(3));
+        let unlabelled = subtitle_in("subrip", None, NOT_FORCED_OR_SDH, None);
+        assert_eq!(
+            preferred_among(&like(&unlabelled), &tracks, &device),
+            Some(4)
+        );
+        let french = subtitle_in("subrip", Some("fre"), NOT_FORCED_OR_SDH, None);
+        assert_eq!(preferred_among(&like(&french), &tracks, &device), None);
+        assert_eq!(
+            preferred_among(&SubtitlePreference::Off, &tracks, &device),
+            None
+        );
+    }
+
+    #[test]
+    fn a_preferred_subtitle_ranks_sdh_then_title_then_one_the_device_shows_then_the_first() {
+        let device = firefox();
+        let wanted = subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, Some("Full"));
+        let cases = [
+            (
+                "the same SDH beats the same title",
+                vec![
+                    subtitle_in("subrip", Some("eng"), (false, true), Some("Full")),
+                    subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, Some("Signs")),
+                ],
+                Some(1),
+            ),
+            (
+                "the same title, in any case, beats one the Device shows",
+                vec![
+                    subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, None),
+                    subtitle_in(
+                        "hdmv_pgs_subtitle",
+                        Some("eng"),
+                        NOT_FORCED_OR_SDH,
+                        Some("FULL"),
+                    ),
+                ],
+                Some(1),
+            ),
+            (
+                "one the Device shows beats one that needs Burn-in",
+                vec![
+                    subtitle_in(
+                        "hdmv_pgs_subtitle",
+                        Some("eng"),
+                        NOT_FORCED_OR_SDH,
+                        Some("Full"),
+                    ),
+                    subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, Some("Full")),
+                ],
+                Some(1),
+            ),
+            (
+                "a tie goes to the first",
+                vec![
+                    subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, Some("Full")),
+                    subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, Some("Full")),
+                ],
+                Some(0),
+            ),
+            (
+                "one neither shown nor burned in never matches",
+                vec![subtitle_in(
+                    "dvb_teletext",
+                    Some("eng"),
+                    NOT_FORCED_OR_SDH,
+                    Some("Full"),
+                )],
+                None,
+            ),
+        ];
+
+        for (case, tracks, place) in cases {
+            let preferred = preferred_among(&like(&wanted), &tracks, &device);
+            assert_eq!(preferred, place, "{case}");
+        }
+    }
+
+    #[test]
+    fn a_preferred_text_subtitle_is_shown_by_the_device_and_the_plan_starts_with_it() {
+        let english = subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, None);
+        let tracks = vec![video("h264"), audio("aac", true), english.clone()];
+        let mut facts = facts(Some(tracks));
+        let asked = AskedSubtitle::Preferred(Some(like(&english)));
+        (facts.subtitle, facts.shown_subtitle) =
+            subtitles_asked(asked, facts.probe.as_ref(), &facts.device);
+
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), Some(Method::DirectPlay));
+        assert_eq!((plan.burn_in, plan.starting_subtitle), (None, Some(2)));
+    }
+
+    #[test]
+    fn a_preferred_image_subtitle_is_burned_in_or_dropped_as_a_chosen_one_is() {
+        let pgs = subtitle_in("hdmv_pgs_subtitle", Some("eng"), NOT_FORCED_OR_SDH, None);
+        let tracks = vec![video("h264"), audio("aac", true), pgs.clone()];
+        let preferred = || {
+            let mut facts = facts(Some(tracks.clone()));
+            let asked = AskedSubtitle::Preferred(Some(like(&pgs)));
+            (facts.subtitle, facts.shown_subtitle) =
+                subtitles_asked(asked, facts.probe.as_ref(), &facts.device);
+            facts
+        };
+
+        let burned_in = build(&mut preferred());
+        let mut no_ffmpeg = preferred();
+        without_ffmpeg(&mut no_ffmpeg);
+        let dropped = build(&mut no_ffmpeg);
+
+        assert_eq!(burned_in.method(), Some(Method::Transcode));
+        assert_eq!(
+            (burned_in.burn_in, burned_in.starting_subtitle),
+            (Some(2), Some(2))
+        );
+        assert_eq!(dropped.method(), Some(Method::DirectPlay));
+        assert_eq!((dropped.burn_in, dropped.starting_subtitle), (None, None));
+        assert!(
+            reason_of(
+                &dropped,
+                Kind::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED
+            )
+            .decided
+        );
     }
 
     #[test]
@@ -3599,7 +3860,9 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             db::Database,
             events::EventBus,
             ffmpeg::{Abilities, Ffmpeg},
-            playback::{Asked, Planned, StartedPlan, plan, running::RunningPlans, subtitles},
+            playback::{
+                Asked, AskedSubtitle, Planned, StartedPlan, plan, running::RunningPlans, subtitles,
+            },
             plugins::ExtensionPoints,
             probing::Probing,
             server_settings::{ServerUrl, Settings},
@@ -3632,7 +3895,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             decoding: DeviceDecoding::default(),
             failed: BTreeSet::new(),
             audio: None,
-            subtitle: None,
+            subtitle: AskedSubtitle::None,
             limit: PickedLimit::Unpicked,
             client: std::net::Ipv4Addr::LOCALHOST.into(),
         };

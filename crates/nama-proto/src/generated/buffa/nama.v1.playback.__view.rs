@@ -2,6 +2,566 @@
 // source: nama/v1/playback.proto
 
 #[derive(Clone, Debug, Default)]
+pub struct ReportTrackPickRequestView<'a> {
+    /// The Version playing, as browsing gave it.
+    ///
+    /// Field 1: `version_id`
+    pub version_id: i64,
+    /// The kind of Track picked.
+    ///
+    /// Field 2: `kind`
+    pub kind: ::buffa::EnumValue<super::super::PickedTrackKind>,
+    /// The Track picked, by its place in the Version's `tracks`, counting from 0. Unset when the
+    /// User turned that kind off.
+    ///
+    /// Field 3: `track`
+    pub track: ::core::option::Option<u32>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ReportTrackPickRequestView<'a> {
+    type Owned = super::super::ReportTrackPickRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.version_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.kind = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.track = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ReportTrackPickRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ReportTrackPickRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ReportTrackPickRequest {
+            version_id: self.version_id,
+            kind: self.kind,
+            track: self.track,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ReportTrackPickRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.version_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.version_id) as u64;
+        }
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if let Some(v) = self.track {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.version_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.version_id, buf);
+        }
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
+            }
+        }
+        if let Some(v) = self.track {
+            ::buffa::types::put_uint32_field(3u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ReportTrackPickRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.version_id) {
+            __map
+                .serialize_entry(
+                    "versionId",
+                    &::buffa::json_helpers::ProtoJson(&self.version_id),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.kind) {
+            __map.serialize_entry("kind", &self.kind)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.track {
+            __map.serialize_entry("track", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ReportTrackPickRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ReportTrackPickRequest";
+    const FULL_NAME: &'static str = "nama.v1.ReportTrackPickRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ReportTrackPickRequest";
+}
+::buffa::impl_default_view_instance!(ReportTrackPickRequestView);
+::buffa::impl_view_reborrow!(ReportTrackPickRequestView);
+/** Self-contained, `'static` owned view of a `ReportTrackPickRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ReportTrackPickRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ReportTrackPickRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ReportTrackPickRequestOwnedView(
+    ::buffa::OwnedView<ReportTrackPickRequestView<'static>>,
+);
+impl ReportTrackPickRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ReportTrackPickRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ReportTrackPickRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ReportTrackPickRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ReportTrackPickRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ReportTrackPickRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ReportTrackPickRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ReportTrackPickRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Version playing, as browsing gave it.
+    ///
+    /// Field 1: `version_id`
+    #[must_use]
+    pub fn version_id(&self) -> i64 {
+        self.0.reborrow().version_id
+    }
+    /// The kind of Track picked.
+    ///
+    /// Field 2: `kind`
+    #[must_use]
+    pub fn kind(&self) -> ::buffa::EnumValue<super::super::PickedTrackKind> {
+        self.0.reborrow().kind
+    }
+    /// The Track picked, by its place in the Version's `tracks`, counting from 0. Unset when the
+    /// User turned that kind off.
+    ///
+    /// Field 3: `track`
+    #[must_use]
+    pub fn track(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().track
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ReportTrackPickRequestView<'static>>>
+for ReportTrackPickRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<ReportTrackPickRequestView<'static>>) -> Self {
+        ReportTrackPickRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ReportTrackPickRequestOwnedView>
+for ::buffa::OwnedView<ReportTrackPickRequestView<'static>> {
+    fn from(wrapper: ReportTrackPickRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ReportTrackPickRequestView<'static>>>
+for ReportTrackPickRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ReportTrackPickRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ReportTrackPickRequest {
+    type View<'a> = ReportTrackPickRequestView<'a>;
+    type ViewHandle = ReportTrackPickRequestOwnedView;
+}
+impl ::serde::Serialize for ReportTrackPickRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct ReportTrackPickResponseView<'a> {
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ReportTrackPickResponseView<'a> {
+    type Owned = super::super::ReportTrackPickResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ReportTrackPickResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ReportTrackPickResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ReportTrackPickResponse {
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ReportTrackPickResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ReportTrackPickResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ReportTrackPickResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ReportTrackPickResponse";
+    const FULL_NAME: &'static str = "nama.v1.ReportTrackPickResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ReportTrackPickResponse";
+}
+::buffa::impl_default_view_instance!(ReportTrackPickResponseView);
+::buffa::impl_view_reborrow!(ReportTrackPickResponseView);
+/** Self-contained, `'static` owned view of a `ReportTrackPickResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ReportTrackPickResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ReportTrackPickResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ReportTrackPickResponseOwnedView(
+    ::buffa::OwnedView<ReportTrackPickResponseView<'static>>,
+);
+impl ReportTrackPickResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ReportTrackPickResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ReportTrackPickResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ReportTrackPickResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ReportTrackPickResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ReportTrackPickResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ReportTrackPickResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ReportTrackPickResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ReportTrackPickResponseView<'static>>>
+for ReportTrackPickResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<ReportTrackPickResponseView<'static>>) -> Self {
+        ReportTrackPickResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ReportTrackPickResponseOwnedView>
+for ::buffa::OwnedView<ReportTrackPickResponseView<'static>> {
+    fn from(wrapper: ReportTrackPickResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ReportTrackPickResponseView<'static>>>
+for ReportTrackPickResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ReportTrackPickResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ReportTrackPickResponse {
+    type View<'a> = ReportTrackPickResponseView<'a>;
+    type ViewHandle = ReportTrackPickResponseOwnedView;
+}
+impl ::serde::Serialize for ReportTrackPickResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
 pub struct StopPlaybackRequestView<'a> {
     /// The plan, as `PlaybackPlan.id` names it.
     ///
@@ -513,8 +1073,8 @@ pub struct PlanPlaybackRequestView<'a> {
     /// The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
     /// as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
     /// styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
-    /// from 0. Unset for none, as when the player shows a subtitle from `PlaybackPlan.subtitles`
-    /// itself.
+    /// from 0. Unset, with `no_subtitles` unset too, for the Server to choose by the User's Subtitle
+    /// Preference, which `PlaybackPlan.starting_subtitle` then says.
     ///
     /// Field 4: `subtitle_track`
     pub subtitle_track: ::core::option::Option<u32>,
@@ -536,6 +1096,11 @@ pub struct PlanPlaybackRequestView<'a> {
         'a,
         ::buffa::EnumValue<super::super::PlaybackMethod>,
     >,
+    /// Set, with `subtitle_track` unset, for none burned in and none chosen, as when the player
+    /// shows no subtitle or a text one from `PlaybackPlan.subtitles` itself.
+    ///
+    /// Field 8: `no_subtitles`
+    pub no_subtitles: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlanPlaybackRequestView<'a> {
@@ -626,6 +1191,13 @@ impl<'a> ::buffa::MessageView<'a> for PlanPlaybackRequestView<'a> {
                     }
                 }
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.no_subtitles = ::buffa::types::decode_bool(&mut cur)?;
+            }
             7u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let payload = ::buffa::types::borrow_bytes(&mut cur)?;
@@ -699,6 +1271,7 @@ impl<'a> ::buffa::MessageView<'a> for PlanPlaybackRequestView<'a> {
                 None => ::buffa::MessageField::none(),
             },
             failed_methods: self.failed_methods.to_vec(),
+            no_subtitles: self.no_subtitles,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -745,6 +1318,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlanPlaybackRequestView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if self.no_subtitles {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -793,6 +1369,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlanPlaybackRequestView<'a> {
             for v in &self.failed_methods {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
+        }
+        if self.no_subtitles {
+            ::buffa::types::put_bool_field(8u32, self.no_subtitles, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -854,6 +1433,9 @@ impl<'__a> ::serde::Serialize for PlanPlaybackRequestView<'__a> {
                     "failedMethods",
                     &::buffa::json_helpers::EnumSeqJson(&self.failed_methods),
                 )?;
+        }
+        if self.no_subtitles {
+            __map.serialize_entry("noSubtitles", &self.no_subtitles)?;
         }
         __map.end()
     }
@@ -975,8 +1557,8 @@ impl PlanPlaybackRequestOwnedView {
     /// The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
     /// as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
     /// styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
-    /// from 0. Unset for none, as when the player shows a subtitle from `PlaybackPlan.subtitles`
-    /// itself.
+    /// from 0. Unset, with `no_subtitles` unset too, for the Server to choose by the User's Subtitle
+    /// Preference, which `PlaybackPlan.starting_subtitle` then says.
     ///
     /// Field 4: `subtitle_track`
     #[must_use]
@@ -1010,6 +1592,14 @@ impl PlanPlaybackRequestOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::PlaybackMethod>> {
         &self.0.reborrow().failed_methods
+    }
+    /// Set, with `subtitle_track` unset, for none burned in and none chosen, as when the player
+    /// shows no subtitle or a text one from `PlaybackPlan.subtitles` itself.
+    ///
+    /// Field 8: `no_subtitles`
+    #[must_use]
+    pub fn no_subtitles(&self) -> bool {
+        self.0.reborrow().no_subtitles
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlanPlaybackRequestView<'static>>>
@@ -2042,6 +2632,12 @@ pub struct PlaybackPlanView<'a> {
         'a,
         ::buffa::EnumValue<super::super::PlaybackLimit>,
     >,
+    /// The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
+    /// burns in, or else, when the request left the choice to the Server, one of `subtitles` that
+    /// the player shows itself. Unset for none.
+    ///
+    /// Field 14: `starting_subtitle`
+    pub starting_subtitle: ::core::option::Option<u32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
@@ -2119,6 +2715,13 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.subtitle_track = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.starting_subtitle = Some(::buffa::types::decode_uint32(&mut cur)?);
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -2292,6 +2895,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
             audio_tracks: self.audio_tracks.to_vec(),
             burn_in_tracks: self.burn_in_tracks.to_vec(),
             playback_limits: self.playback_limits.to_vec(),
+            starting_subtitle: self.starting_subtitle,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2374,6 +2978,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
+        }
+        if let Some(v) = self.starting_subtitle {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -2467,6 +3074,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        if let Some(v) = self.starting_subtitle {
+            ::buffa::types::put_uint32_field(14u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -2539,6 +3149,13 @@ impl<'__a> ::serde::Serialize for PlaybackPlanView<'__a> {
                 .serialize_entry(
                     "playbackLimits",
                     &::buffa::json_helpers::EnumSeqJson(&self.playback_limits),
+                )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.starting_subtitle {
+            __map
+                .serialize_entry(
+                    "startingSubtitle",
+                    &::buffa::json_helpers::ProtoJson(&__v),
                 )?;
         }
         __map.end()
@@ -2743,6 +3360,15 @@ impl PlaybackPlanOwnedView {
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::PlaybackLimit>> {
         &self.0.reborrow().playback_limits
     }
+    /// The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
+    /// burns in, or else, when the request left the choice to the Server, one of `subtitles` that
+    /// the player shows itself. Unset for none.
+    ///
+    /// Field 14: `starting_subtitle`
+    #[must_use]
+    pub fn starting_subtitle(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().starting_subtitle
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackPlanView<'static>>>
 for PlaybackPlanOwnedView {
@@ -2781,6 +3407,10 @@ pub struct PlaybackSubtitleView<'a> {
     ///
     /// Field 1: `track`
     pub track: ::buffa::MessageFieldView<super::super::__buffa::view::TrackView<'a>>,
+    /// Its Track's place in the Version's `tracks`, counting from 0.
+    ///
+    /// Field 5: `place`
+    pub place: u32,
     /// Where to fetch it in `format`, on this Server. The first fetch can take minutes while the
     /// Server reads it out of the file; later ones are answered at once.
     ///
@@ -2848,6 +3478,13 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSubtitleView<'a> {
                     }
                 }
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.place = ::buffa::types::decode_uint32(&mut cur)?;
+            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2906,6 +3543,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSubtitleView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            place: self.place,
             url: self.url.to_string(),
             format: self.format,
             font_urls: self.font_urls.iter().map(|s| s.to_string()).collect(),
@@ -2940,6 +3578,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSubtitleView<'a> {
         for v in &self.font_urls {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.place != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.place) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2971,6 +3612,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSubtitleView<'a> {
         for v in &self.font_urls {
             ::buffa::types::put_string_field(4u32, v, buf);
         }
+        if self.place != 0u32 {
+            ::buffa::types::put_uint32_field(5u32, self.place, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -2996,6 +3640,13 @@ impl<'__a> ::serde::Serialize for PlaybackSubtitleView<'__a> {
             if let ::core::option::Option::Some(__v) = self.track.as_option() {
                 __map.serialize_entry("track", __v)?;
             }
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.place) {
+            __map
+                .serialize_entry(
+                    "place",
+                    &::buffa::json_helpers::ProtoJson(&self.place),
+                )?;
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.url) {
             __map.serialize_entry("url", self.url)?;
@@ -3107,6 +3758,13 @@ impl PlaybackSubtitleOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::TrackView<'_>> {
         &self.0.reborrow().track
+    }
+    /// Its Track's place in the Version's `tracks`, counting from 0.
+    ///
+    /// Field 5: `place`
+    #[must_use]
+    pub fn place(&self) -> u32 {
+        self.0.reborrow().place
     }
     /// Where to fetch it in `format`, on this Server. The first fetch can take minutes while the
     /// Server reads it out of the file; later ones are answered at once.

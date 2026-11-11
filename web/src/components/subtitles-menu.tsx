@@ -1,4 +1,3 @@
-import { equals } from "@bufbuild/protobuf";
 import { Captions } from "lucide-react";
 import type { RefObject } from "react";
 
@@ -10,10 +9,16 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { type Track, TrackSchema } from "@/gen/nama/v1/browse_pb";
+import type { Track } from "@/gen/nama/v1/browse_pb";
 import { type PlaybackSubtitle, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
 import type { SubtitleChoice, usePlaybackPlan } from "@/lib/playback-plan";
-import { type SubtitleState, trackLabel, useDrawnSubtitle, useSubtitles } from "@/lib/subtitles";
+import {
+  type SubtitleState,
+  trackLabel,
+  useDrawnSubtitle,
+  usePickReporter,
+  useSubtitles,
+} from "@/lib/subtitles";
 
 /**
  * The `<video>`'s `<track>`s, one per text subtitle, which the browser fetches only once shown.
@@ -42,7 +47,8 @@ function browserMenuLabel(track: Track | undefined) {
  * Picks the subtitle shown, or none: one of the plan's subtitles, which the Device shows itself,
  * saying which is still being read out of the file, or one of the Version's `tracks` the plan
  * offers to burn into the picture, an image one it can't draw or an ASS one it doesn't draw, with
- * its styling. Absent when there's none to pick.
+ * its styling. Each pick is reported, so the Server keeps it for the Show or Movie the Version is
+ * of. Absent when there's none to pick.
  */
 export function SubtitlesMenu({
   tracks,
@@ -56,9 +62,10 @@ export function SubtitlesMenu({
   /** Where the menu opens: inside the player, so it shows in full screen. */
   container: RefObject<HTMLDivElement | null>;
 }) {
-  const { plan, shownSubtitle: shown, chooseSubtitle } = planned;
+  const { versionId, plan, shownSubtitle: shown, chooseSubtitle } = planned;
   const { subtitles, burnInTracks: burnable, subtitleTrack: burnedIn } = plan;
-  const states = useShownSubtitles(tracks, planned, videoRef);
+  const states = useShownSubtitles(planned, videoRef);
+  const reportPick = usePickReporter(versionId);
   if (subtitles.length + burnable.length === 0) return null;
   return (
     <DropdownMenu>
@@ -68,9 +75,10 @@ export function SubtitlesMenu({
       <DropdownMenuContent container={container}>
         <DropdownMenuRadioGroup
           value={shown ?? burnedIn ?? ""}
-          onValueChange={(choice: SubtitleChoice) => {
-            if (videoRef.current)
-              chooseSubtitle(videoRef.current, choice === "" ? undefined : choice);
+          onValueChange={(value: SubtitleChoice) => {
+            const choice = value === "" ? undefined : value;
+            if (videoRef.current) chooseSubtitle(videoRef.current, choice);
+            reportPick(pickedPlace(choice, subtitles));
           }}
         >
           <DropdownMenuRadioItem value="">Off</DropdownMenuRadioItem>
@@ -86,12 +94,17 @@ export function SubtitlesMenu({
   );
 }
 
+/** The place in the Version's Tracks of the subtitle `choice` picks, `undefined` for Off. */
+function pickedPlace(choice: SubtitleChoice, subtitles: PlaybackSubtitle[]) {
+  if (typeof choice === "number") return choice;
+  return subtitles.find(({ url }) => url === choice)?.place;
+}
+
 /**
  * Shows the plan's subtitle at the URL `shownSubtitle`, as a `<track>` or drawn, and says how each
  * shown so far is getting on. One drawn that fails to draw is chosen to burn in instead (ADR 0033).
  */
 function useShownSubtitles(
-  tracks: Track[],
   {
     plan,
     shownSubtitle: shown,
@@ -105,23 +118,9 @@ function useShownSubtitles(
   return {
     ...useSubtitles(videoRef, shown),
     ...useDrawnSubtitle(videoRef, drawn, () => {
-      if (videoRef.current && drawn)
-        chooseSubtitle(videoRef.current, placeIn(tracks, plan.subtitles, drawn));
+      if (videoRef.current && drawn) chooseSubtitle(videoRef.current, drawn.place);
     }),
   };
-}
-
-/**
- * The place in the Version's `tracks` of `drawn`'s Track, one of the plan's `subtitles`, if it's
- * among them. Tracks carry no id, and two can look alike, as two untitled English ones do, so it's
- * matched by its turn among those alike: both lists keep the Version's order, and the plan lists
- * every Track in a format it draws.
- */
-function placeIn(tracks: Track[], subtitles: PlaybackSubtitle[], drawn: PlaybackSubtitle) {
-  const alike = (track: Track | undefined) =>
-    track !== undefined && drawn.track !== undefined && equals(TrackSchema, track, drawn.track);
-  const turn = subtitles.filter(({ track }) => alike(track)).indexOf(drawn);
-  return tracks.flatMap((track, place) => (alike(track) ? [place] : []))[turn];
 }
 
 function isImageSubtitle(track: Track | undefined) {

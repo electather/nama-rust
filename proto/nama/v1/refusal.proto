@@ -206,4 +206,7 @@ enum RefusalReason {
   // Automatic, Off, NVENC or VideoToolbox, which take none. `field` is `settings.gpu`. Params:
   // `gpuId`.
   REFUSAL_REASON_GPU_NOT_OFFERED = 61;
+  // `not_found`: the Version has no Track of the kind picked at the place named. `field` is
+  // `track`.
+  REFUSAL_REASON_TRACK_NOT_FOUND = 62;
 }

@@ -93,12 +93,19 @@ function server(asked: PlanPlaybackRequest[]) {
         asked.push(request);
         const { subtitleTrack, deviceDecoding } = request;
         if (deviceDecoding?.subtitleFormats.includes(SubtitleFormat.ASS) ?? false) {
-          const drawn = { track: SIGNS, url: STYLED, format: SubtitleFormat.ASS, fontUrls: [FONT] };
+          const drawn = {
+            track: SIGNS,
+            url: STYLED,
+            place: 1,
+            format: SubtitleFormat.ASS,
+            fontUrls: [FONT],
+          };
           return { plan: { method: PlaybackMethod.DIRECT_PLAY, url: "/v", subtitles: [drawn] } };
         }
         const plain = {
           track: SIGNS,
           url: "/media/versions/7/subtitles/1",
+          place: 1,
           format: SubtitleFormat.WEBVTT,
         };
         const plan = { method: PlaybackMethod.TRANSCODE, url: "/p.m3u8", subtitleTrack };

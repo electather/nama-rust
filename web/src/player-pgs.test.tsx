@@ -79,10 +79,11 @@ function server(asked: PlanPlaybackRequest[], twins = 0) {
     { codec: "subrip", language: "eng", kind: { case: "subtitle", value: {} } },
     ...Array.from({ length: 1 + twins }, () => PGS_SIGNS),
   ];
-  const english = { track: tracks[1], url: ENGLISH, format: SubtitleFormat.WEBVTT };
+  const english = { track: tracks[1], url: ENGLISH, place: 1, format: SubtitleFormat.WEBVTT };
   const signs = tracks.slice(2).map((track, turn) => ({
     track,
     url: `/media/versions/7/subtitles/${turn + 2}`,
+    place: turn + 2,
     format: SubtitleFormat.PGS,
   }));
   const burnInTracks = signs.map((_, turn) => turn + 2);

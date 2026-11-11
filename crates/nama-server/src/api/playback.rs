@@ -3,23 +3,25 @@
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
-    self as proto, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService, RefusalReason,
-    StopPlaybackRequest, StopPlaybackResponse,
+    self as proto, PickedTrackKind, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService,
+    RefusalReason, ReportTrackPickRequest, ReportTrackPickResponse, StopPlaybackRequest,
+    StopPlaybackResponse,
 };
 
 use crate::{
     ffmpeg::Abilities,
     playback::{
-        self, Asked, DeviceDecoding, Method, NAMED_LIMITS, PickedLimit, Planned, PlaybackLimit,
-        StartedPlan, limit_to_proto, method_to_proto, reason_to_proto,
+        self, Asked, AskedSubtitle, DeviceDecoding, Method, NAMED_LIMITS, PickedLimit, Planned,
+        PlaybackLimit, StartedPlan, limit_to_proto, method_to_proto, reason_to_proto,
         running::{RunningPlans, StartError},
     },
-    probing::Probing,
+    probing::{self, Probing},
     server_settings::PlaybackSettings,
-    tracks::track_to_proto,
+    track_preferences::{self, Description, SubtitlePreference, TrackPreferences},
+    tracks::{TrackKind, track_to_proto},
 };
 
-use super::{caller, client_ip, database_failed, refuse, version_not_found};
+use super::{caller, client_ip, database_failed, refuse, unknown_enum_value, version_not_found};
 
 /// `nama.v1.PlaybackService`: how each signed-in User's Device plays a Version.
 pub(super) struct PlaybackServiceHandler {
@@ -27,6 +29,7 @@ pub(super) struct PlaybackServiceHandler {
     pub(super) abilities: Abilities,
     pub(super) running: RunningPlans,
     pub(super) settings: PlaybackSettings,
+    pub(super) preferences: TrackPreferences,
 }
 
 #[expect(
@@ -45,6 +48,19 @@ impl PlaybackService for PlaybackServiceHandler {
         // The rest of the request is for steps still to come (ADR 0027).
         let request = request.to_owned_message();
         let decoding = request.device_decoding.into_option().unwrap_or_default();
+        let subtitle = match (request.subtitle_track, request.no_subtitles) {
+            // A place past `usize::MAX` is in no file ffprobe reads.
+            (Some(place), _) => {
+                usize::try_from(place).map_or(AskedSubtitle::None, AskedSubtitle::BurnIn)
+            }
+            (None, true) => AskedSubtitle::None,
+            (None, false) => AskedSubtitle::Preferred(
+                (self.preferences)
+                    .subtitle(caller.user.id, request.version_id)
+                    .await
+                    .map_err(database_failed)?,
+            ),
+        };
         let asked = Asked {
             version: request.version_id,
             decoding: DeviceDecoding {
@@ -60,7 +76,7 @@ impl PlaybackService for PlaybackServiceHandler {
                 .filter_map(|method| method_from_proto(*method))
                 .collect(),
             audio: (request.audio_track).and_then(|place| usize::try_from(place).ok()),
-            subtitle: (request.subtitle_track).and_then(|place| usize::try_from(place).ok()),
+            subtitle,
             limit: picked_limit(request.playback_limit),
             client,
         };
@@ -107,6 +123,67 @@ impl PlaybackService for PlaybackServiceHandler {
         let device = caller(&ctx)?.device.id;
         self.running.stop_for(request.plan_id, device).await;
         Response::ok(StopPlaybackResponse::default())
+    }
+
+    async fn report_track_pick(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ReportTrackPickRequest>,
+    ) -> ServiceResult<ReportTrackPickResponse> {
+        let user = caller(&ctx)?.user.id;
+        if request.kind != EnumValue::Known(PickedTrackKind::PICKED_TRACK_KIND_SUBTITLE) {
+            return Err(unknown_enum_value(
+                "kind",
+                "say which kind of Track was picked: only subtitles are kept",
+            ));
+        }
+        let kept_for =
+            (self.preferences.kept_for(request.version_id).await).map_err(|err| match err {
+                track_preferences::Error::NoSuchVersion => version_not_found(),
+                track_preferences::Error::Database(err) => database_failed(err),
+            })?;
+        // An Unmatched Item keeps nothing, as it keeps no Watch State (ADR 0013): its Tracks aren't
+        // read, so the pick never fails, whatever it names.
+        let Some(kept_for) = kept_for else {
+            return Response::ok(ReportTrackPickResponse::default());
+        };
+        let preference = match request.track {
+            None => SubtitlePreference::Off,
+            Some(place) => {
+                SubtitlePreference::Like(self.picked_subtitle(request.version_id, place).await?)
+            }
+        };
+        (self.preferences)
+            .keep_subtitle(user, kept_for, preference)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(ReportTrackPickResponse::default())
+    }
+}
+
+impl PlaybackServiceHandler {
+    /// What describes the subtitle Track at `place` in the Version `version`'s Tracks, probing it
+    /// first if they aren't current.
+    async fn picked_subtitle(&self, version: i64, place: u32) -> Result<Description, ConnectError> {
+        let probe = match self.probing.current(version).await {
+            Ok(probe) => Some(probe),
+            // Its Tracks aren't known, so no plan offered one to pick.
+            Err(probing::Error::Probe(_)) => None,
+            Err(probing::Error::NoSuchVersion(_)) => return Err(version_not_found()),
+            Err(probing::Error::Database(err)) => return Err(database_failed(err)),
+        };
+        let track = (probe.as_ref())
+            .zip(usize::try_from(place).ok())
+            .and_then(|(probe, place)| probe.tracks.get(place))
+            .filter(|track| matches!(track.kind, TrackKind::Subtitle { .. }));
+        track.map(Description::of).ok_or_else(|| {
+            refuse(
+                RefusalReason::REFUSAL_REASON_TRACK_NOT_FOUND,
+                "the Version has no subtitle Track at that place",
+            )
+            .field("track")
+            .into()
+        })
     }
 }
 
@@ -165,6 +242,7 @@ fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
         playback_limit: limit_to_proto(plan.limit).into(),
         audio_track: plan.audio.and_then(place),
         subtitle_track: plan.burn_in.and_then(place),
+        starting_subtitle: plan.starting_subtitle.and_then(place),
         audio_tracks: places(plan.offers.audio),
         burn_in_tracks: places(plan.offers.burn_in),
         playback_limits: (plan.offers.limits.into_iter())
@@ -173,6 +251,7 @@ fn plan_to_proto(planned: Planned) -> proto::PlaybackPlan {
         subtitles: (plan.subtitles.iter())
             .map(|subtitle| proto::PlaybackSubtitle {
                 track: track_to_proto(&subtitle.track).into(),
+                place: place(subtitle.place).unwrap_or_default(),
                 url: subtitle.url.clone(),
                 format: subtitle.format.into(),
                 font_urls: subtitle.font_urls.clone(),

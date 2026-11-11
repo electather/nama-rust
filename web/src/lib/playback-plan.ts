@@ -30,6 +30,11 @@ interface Asking {
   playbackLimit: PlaybackLimit;
   /** The place of the subtitle Track burned into the picture, if any, in the Version's Tracks. */
   subtitleTrack: number | undefined;
+  /**
+   * Whether none is burned in, as the player says once it has a plan; until then, with no
+   * `subtitleTrack`, the Server chooses by the User's Subtitle Preference (ADR 0035).
+   */
+  noSubtitles: boolean;
   /** What the User chose for this ask, which the plan may drop. */
   justChose: Choice;
   /**
@@ -52,9 +57,9 @@ export type SubtitleChoice = string | number | undefined;
  * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't
  * make the player ask forever. `chooseAudio` asks for a new plan from there with the audio Track
  * at a place in the Version's Tracks, and `chooseLimit` with a Playback Limit. `chooseSubtitle`
- * shows a subtitle the Device shows itself, which `shownSubtitle` then holds, or asks for a new
- * plan from there with a subtitle Track burned in. The plan says which of these it honoured, which
- * may drop `justChose` (ADR 0031).
+ * shows a subtitle the Device shows itself, which `shownSubtitle` then holds, starting as the first
+ * plan's `startingSubtitle`, or asks for a new plan from there with a subtitle Track burned in. The
+ * plan says which of these it honoured, which may drop `justChose` (ADR 0031).
  */
 export function usePlaybackPlan({
   versionId,
@@ -71,16 +76,18 @@ export function usePlaybackPlan({
     audioTrack: undefined,
     playbackLimit: PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED,
     subtitleTrack: undefined,
+    noSubtitles: false,
     justChose: {},
     asks: 0,
   }));
   const { startPositionMs } = asking;
   const plan = usePlan(versionId, asking);
   const askFromHere = asker(setAsking, plan, startPositionMs);
-  const subtitles = useSubtitleChoice(askFromHere, plan.subtitleTrack);
+  const subtitles = useSubtitleChoice(askFromHere, plan);
   const failing = useCantPlay(plan, asking, setAsking);
   const { justChose, asks } = asking;
   return {
+    versionId,
     plan,
     startPositionMs,
     justChose,
@@ -133,6 +140,7 @@ export interface Choice {
   audioTrack?: number | undefined;
   playbackLimit?: PlaybackLimit;
   subtitleTrack?: number | undefined;
+  noSubtitles?: boolean;
 }
 
 /**
@@ -145,6 +153,7 @@ function honoured(plan: PlaybackPlan, before: Asking): Choice {
   return {
     audioTrack: plan.audioTrack,
     subtitleTrack: plan.subtitleTrack,
+    noSubtitles: plan.subtitleTrack === undefined,
     playbackLimit: unpicked ? before.playbackLimit : plan.playbackLimit,
   };
 }
@@ -188,17 +197,18 @@ function choosers(askFromHere: ReturnType<typeof asker>) {
 /**
  * The subtitle the Device shows itself, by URL, kept here so the `<video>` a new plan plays in
  * shows it too, and `chooseSubtitle`, which shows one, and will `askFromHere` when what's burned
- * in changes from `subtitleTrack`.
+ * in changes from `plan`'s. Only the first plan says which it starts with: after that it's the
+ * User's.
  */
-function useSubtitleChoice(
-  askFromHere: ReturnType<typeof asker>,
-  subtitleTrack: number | undefined,
-) {
-  const [shownSubtitle, setShownSubtitle] = useState<string>();
+function useSubtitleChoice(askFromHere: ReturnType<typeof asker>, plan: PlaybackPlan) {
+  const [shownSubtitle, setShownSubtitle] = useState(
+    () => plan.subtitles.find(({ place }) => place === plan.startingSubtitle)?.url,
+  );
   const chooseSubtitle = (video: HTMLVideoElement, choice: SubtitleChoice) => {
     setShownSubtitle(typeof choice === "string" ? choice : undefined);
     const burnIn = typeof choice === "number" ? choice : undefined;
-    if (burnIn !== subtitleTrack) askFromHere(video, { subtitleTrack: burnIn });
+    if (burnIn !== plan.subtitleTrack)
+      askFromHere(video, { subtitleTrack: burnIn, noSubtitles: burnIn === undefined });
   };
   return { shownSubtitle, chooseSubtitle };
 }
@@ -209,7 +219,8 @@ function useSubtitleChoice(
  */
 function usePlan(versionId: bigint, asking: Asking) {
   const transport = useTransport();
-  const { failedMethods, startPositionMs, audioTrack, playbackLimit, subtitleTrack } = asking;
+  const { failedMethods, startPositionMs, audioTrack, playbackLimit, subtitleTrack, noSubtitles } =
+    asking;
   return useSuspenseQuery({
     queryKey: [
       "planPlayback",
@@ -219,6 +230,7 @@ function usePlan(versionId: bigint, asking: Asking) {
       audioTrack,
       playbackLimit,
       subtitleTrack,
+      noSubtitles,
     ],
     queryFn: async () => {
       const deviceDecoding = await findDeviceDecoding();
@@ -230,6 +242,7 @@ function usePlan(versionId: bigint, asking: Asking) {
         audioTrack,
         playbackLimit,
         subtitleTrack,
+        noSubtitles,
       };
       try {
         const response = await callUnaryMethod(
@@ -241,21 +254,19 @@ function usePlan(versionId: bigint, asking: Asking) {
       } catch (error) {
         const { reason, params } = refusalOf(error);
         if (reason !== RefusalReason.SERVER_BUSY) throw error;
-        return create(PlaybackPlanSchema, {
-          reasons: [
-            {
-              kind: PlaybackReasonKind.SERVER_BUSY,
-              params,
-              text: serverMessage(error),
-              decided: true,
-            },
-          ],
-        });
+        return serverBusyPlan(params, serverMessage(error));
       }
     },
     staleTime: "static",
     gcTime: 0,
   }).data;
+}
+
+/** A plan that can't play, as a Server too busy to Transcode gives. */
+function serverBusyPlan(params: Record<string, string>, text: string) {
+  return create(PlaybackPlanSchema, {
+    reasons: [{ kind: PlaybackReasonKind.SERVER_BUSY, params, text, decided: true }],
+  });
 }
 
 /**
