@@ -30,9 +30,9 @@ const MINIMUM: (u32, u32) = (4, 4);
 /// How long ffprobe may take over one file, such as one on a network share that stopped answering.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// How long ffprobe may take to list a file's keyframes, which reads all of it, such as a 60 GB
-/// file from a slow network share.
-const KEYFRAMES_TIMEOUT: Duration = Duration::from_mins(10);
+/// How long ffprobe may take to read all of a file, as listing its keyframes or finding where its
+/// video ends does, such as a 60 GB file from a slow network share.
+const WHOLE_FILE_TIMEOUT: Duration = Duration::from_mins(10);
 
 /// A keyframe of a Version's video that a Remux starts at.
 #[derive(Clone, Copy, Debug)]
@@ -306,11 +306,38 @@ impl Ffmpeg {
     }
 
     /// The facts of the file at `path` and its video, audio and subtitle Tracks, as ffprobe reads
-    /// them.
+    /// them. Reads the whole file when its format doesn't say how long it is, or says so only from
+    /// a placeholder header.
     pub(crate) async fn probe(&self, path: &str) -> Result<Probe, ProbeError> {
         let args = ["-print_format", "json", "-show_format", "-show_streams"];
         let output = self.run_ffprobe(&args, path, PROBE_TIMEOUT).await?;
-        Ok(parse_probe(&output)?)
+        let mut probe = parse_probe(&output)?;
+        if probe.duration_ms.is_none() {
+            probe.duration_ms = match self.video_end(path).await {
+                // Its Tracks were read, so a packet it can't read, as in a damaged file, leaves
+                // only its length unknown rather than failing the probe for good.
+                Err(ProbeError::Failed(_)) => None,
+                end => end?,
+            };
+        }
+        Ok(probe)
+    }
+
+    /// When the first video in the file at `path` ends, in milliseconds from its start, or `None`
+    /// if it has none. Reads the whole file, for one such as a Matroska written to a pipe, which
+    /// couldn't seek back to write its length.
+    async fn video_end(&self, path: &str) -> Result<Option<i64>, ProbeError> {
+        let packets = "packet=pts_time,dts_time,duration_time:format=start_time";
+        let args = [
+            "-select_streams",
+            "V:0",
+            "-show_entries",
+            packets,
+            "-of",
+            "csv=p=0",
+        ];
+        let output = self.run_ffprobe(&args, path, WHOLE_FILE_TIMEOUT).await?;
+        Ok(parse_video_end(&String::from_utf8_lossy(&output)))
     }
 
     /// When each keyframe of the first video in the file at `path` falls, in milliseconds from
@@ -326,7 +353,7 @@ impl Ffmpeg {
             "-of",
             "csv=p=0",
         ];
-        let output = self.run_ffprobe(&args, path, KEYFRAMES_TIMEOUT).await?;
+        let output = self.run_ffprobe(&args, path, WHOLE_FILE_TIMEOUT).await?;
         Ok(parse_keyframes(&String::from_utf8_lossy(&output)))
     }
 
@@ -783,11 +810,7 @@ fn hls_output(mut command: tokio::process::Command, version: &str, dir: &Path, n
 /// csv=p=0` printed, packets such as `2.002000,K__` and then the file's start time, in
 /// milliseconds from that start, in order.
 fn parse_keyframes(csv: &str) -> Vec<i64> {
-    // ffmpeg shifts a file that starts late, as an MPEG-TS often does, to start at 0.
-    let start = (csv.lines())
-        .find(|line| !line.contains(','))
-        .and_then(millis)
-        .unwrap_or_default();
+    let start = file_start(csv);
     let mut keyframes: Vec<i64> = csv
         .lines()
         .filter_map(|line| {
@@ -799,6 +822,35 @@ fn parse_keyframes(csv: &str) -> Vec<i64> {
     // Packets come in decoding order.
     keyframes.sort_unstable();
     keyframes
+}
+
+/// When the video ends in what `ffprobe -show_entries
+/// packet=pts_time,dts_time,duration_time:format=start_time -of csv=p=0` printed, packets such
+/// as `2.002000,1.960000,0.041000` and then the file's start time: the latest end of a packet, in
+/// milliseconds from that start, or `None` if there is none past it.
+fn parse_video_end(csv: &str) -> Option<i64> {
+    let start = file_start(csv);
+    let ends = csv.lines().filter_map(|line| {
+        let mut times = line.split(',');
+        let (pts, dts, duration) = (times.next()?, times.next()?, times.next()?);
+        // An AVI's packets carry only when they decode.
+        let at = millis(pts).or_else(|| millis(dts))?;
+        Some(at + millis(duration).unwrap_or_default())
+    });
+    // Packets come in decoding order, so the last isn't always the latest.
+    ends.max()
+        .map(|end| end - start)
+        .filter(|&length| length > 0)
+}
+
+/// The file's start time in ffprobe's CSV of packets, the one line that isn't a packet, in
+/// milliseconds.
+fn file_start(csv: &str) -> i64 {
+    // ffmpeg shifts a file that starts late, as an MPEG-TS often does, to start at 0.
+    (csv.lines())
+        .find(|line| !line.contains(','))
+        .and_then(millis)
+        .unwrap_or_default()
 }
 
 /// `ms` milliseconds as seconds, such as `"5.120"`, as ffmpeg takes a time.
@@ -845,6 +897,7 @@ struct ProbedStream {
     #[serde(default)]
     side_data_list: Vec<ProbedSideData>,
     channels: Option<i64>,
+    nb_frames: Option<String>,
     #[serde(default)]
     disposition: HashMap<String, u8>,
     #[serde(default)]
@@ -862,13 +915,25 @@ struct ProbedSideData {
     dv_bl_signal_compatibility_id: Option<i64>,
 }
 
+/// The frame count ffmpeg's AVI muxer writes until it knows the real one, 2^30.
+const AVI_PLACEHOLDER_FRAMES: &str = "1073741824";
+
 /// The [`Probe`] ffprobe's JSON output describes.
 fn parse_probe(json: &[u8]) -> Result<Probe, serde_json::Error> {
     let output: ProbeOutput = serde_json::from_slice(json)?;
     let format = output.format;
+    // An AVI written to a pipe can't go back to fill in its header, which keeps ffmpeg's
+    // placeholder frame counts, and ffprobe works its duration out from those.
+    let header_unfilled = format.format_name == "avi"
+        && (output.streams.iter())
+            .any(|stream| stream.nb_frames.as_deref() == Some(AVI_PLACEHOLDER_FRAMES));
     Ok(Probe {
         container: format.format_name,
-        duration_ms: format.duration.as_deref().and_then(millis),
+        duration_ms: (format.duration.as_deref())
+            .filter(|_| !header_unfilled)
+            .and_then(millis)
+            // A playlist can't be cut from a length of 0, so it reads as unknown.
+            .filter(|&ms| ms > 0),
         bitrate: format.bit_rate.and_then(|bitrate| bitrate.parse().ok()),
         tracks: output.streams.into_iter().filter_map(track).collect(),
     })
@@ -1223,7 +1288,7 @@ fn write_test_media(
 
 // The fakes are shell scripts.
 #[cfg(all(test, unix))]
-mod tests {
+pub(crate) mod tests {
     use std::{
         ffi::OsStr,
         fs,
@@ -1238,7 +1303,7 @@ mod tests {
     /// Held to write a fake, and shared to run them. A child forked while another test has a fake
     /// open for writing keeps it open until it execs, and running that fake then fails with
     /// "Text file busy".
-    static WRITING_FAKES: RwLock<()> = RwLock::new(());
+    pub(crate) static WRITING_FAKES: RwLock<()> = RwLock::new(());
 
     /// Writes a fake `name` into `dir` that prints `version_line` as `-version` does.
     #[expect(
@@ -1503,7 +1568,7 @@ mod tests {
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    fn fake_ffmpeg(dir: &Path, script: &str) -> Ffmpeg {
+    pub(crate) fn fake_ffmpeg(dir: &Path, script: &str) -> Ffmpeg {
         let path = dir.join("ffmpeg");
         {
             let _writing = WRITING_FAKES
@@ -2145,6 +2210,61 @@ mod probe_output_tests {
         assert_eq!(super::parse_keyframes(csv), [0, 1001, 2002]);
     }
 
+    #[test]
+    fn a_missing_or_zero_format_duration_reads_as_unknown() {
+        let with_format = |format: &str| {
+            let json = format!(r#"{{"format": {{"format_name": "matroska,webm"{format}}}}}"#);
+            parse_probe(json.as_bytes()).unwrap().duration_ms
+        };
+
+        assert_eq!(with_format(""), None);
+        assert_eq!(with_format(r#", "duration": "0.000000""#), None);
+        assert_eq!(with_format(r#", "duration": "2.000000""#), Some(2000));
+    }
+
+    #[test]
+    fn an_avi_with_the_placeholder_frame_count_has_no_known_duration() {
+        let avi_with = |nb_frames: &str| {
+            let json = format!(
+                r#"{{"format": {{"format_name": "avi", "duration": "2866.375000"}},
+                "streams": [{{"codec_type": "video", "nb_frames": "{nb_frames}"}}]}}"#
+            );
+            parse_probe(json.as_bytes()).unwrap().duration_ms
+        };
+
+        assert_eq!(avi_with("1073741824"), None);
+        assert_eq!(avi_with("68793"), Some(2_866_375));
+    }
+
+    #[test]
+    fn only_an_avi_reads_the_placeholder_frame_count_as_unfilled() {
+        let json = r#"{"format": {"format_name": "matroska,webm", "duration": "2.000000"},
+            "streams": [{"codec_type": "video", "nb_frames": "1073741824"}]}"#;
+
+        assert_eq!(
+            parse_probe(json.as_bytes()).unwrap().duration_ms,
+            Some(2000)
+        );
+    }
+
+    #[test]
+    fn video_ends_where_its_latest_packet_does_from_the_files_start() {
+        // In decoding order, with a packet whose duration isn't known.
+        let csv = "1.523000,1.440000,0.041000\n3.523000,3.440000,0.041000\n\
+                   3.481000,3.481000,N/A\nN/A,N/A,0.041000\n1.500000\n";
+
+        assert_eq!(super::parse_video_end(csv), Some(2064));
+        assert_eq!(super::parse_video_end("0.000000\n"), None);
+    }
+
+    #[test]
+    fn a_packet_without_a_presentation_time_ends_by_its_decoding_time() {
+        // As an AVI's packets have.
+        let csv = "N/A,0.000000,0.040000\nN/A,19.960000,0.040000\n0.000000\n";
+
+        assert_eq!(super::parse_video_end(csv), Some(20_000));
+    }
+
     /// ffmpeg shifts a file that starts late to start at 0, and cuts its segments from there.
     #[test]
     fn keyframes_are_timed_from_the_files_start() {
@@ -2348,6 +2468,68 @@ mod hls_tests {
             assert!(dir.join(format!("{n}.m4s")).exists(), "{n}.m4s");
         }
         assert!(!dir.join("4.m4s").exists(), "a keyframe of its own");
+    }
+
+    #[tokio::test]
+    async fn an_mkv_written_to_a_pipe_probes_to_its_real_length() {
+        let ffmpeg = system_ffmpeg();
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("captured.mkv");
+        // A source that just ends, unlike `-t`, leaves the muxer no length to write up front, and
+        // on a pipe it can't seek back to write it at the end, as with a stream capture.
+        let status = std::process::Command::new("ffmpeg")
+            .args(["-v", "error", "-f", "lavfi"])
+            .args(["-i", "testsrc=size=320x240:rate=24:duration=2"])
+            .args([
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-f",
+                "matroska",
+                "pipe:1",
+            ])
+            .stdout(fs::File::create(&file).unwrap())
+            .status()
+            .unwrap();
+        assert!(status.success());
+
+        let probe = ffmpeg.probe(file.to_str().unwrap()).await.unwrap();
+
+        // Within a frame, a 24th of a second, of 2 seconds.
+        assert!(
+            probe
+                .duration_ms
+                .is_some_and(|ms| (1958..=2042).contains(&ms)),
+            "{probe:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_avi_written_to_a_pipe_probes_to_its_real_length() {
+        let ffmpeg = system_ffmpeg();
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("piped.avi");
+        let status = std::process::Command::new("ffmpeg")
+            .args(["-v", "error", "-f", "lavfi"])
+            .args(["-i", "testsrc=duration=20:size=320x240:rate=24"])
+            .args(["-f", "lavfi", "-i", "sine=duration=20"])
+            // Not `ultrafast`, whose AVI skips a frame's time after the first packet.
+            .args(["-c:v", "libx264", "-c:a", "aac", "-f", "avi", "pipe:1"])
+            .stdout(fs::File::create(&file).unwrap())
+            .status()
+            .unwrap();
+        assert!(status.success());
+
+        let probe = ffmpeg.probe(file.to_str().unwrap()).await.unwrap();
+
+        // Within a frame, a 24th of a second, of 20 seconds.
+        assert!(
+            probe
+                .duration_ms
+                .is_some_and(|ms| (19_958..=20_042).contains(&ms)),
+            "{probe:?}"
+        );
     }
 
     #[tokio::test]

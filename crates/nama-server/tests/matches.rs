@@ -9,13 +9,14 @@ mod server;
 
 use std::{collections::HashMap, fs, path::Path};
 
+use buffa::EnumValue;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     BrowseServiceClient, ClearMatchRequest, CreateRequestRequest, CreateSeasonRequestsRequest,
     ExternalId, GetRequestRequest, LibraryKind, ListEpisodesRequest, ListMoviesRequest,
     ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, MatchServiceClient, RefusalReason,
     RequestServiceClient, RequestState, SearchMetadataRequest, SetMatchRequest, SetMatchResponse,
-    TitleKind, UnmatchedItem, external_id,
+    TitleCandidate, TitleKind, UnmatchedItem, UnmatchedReason, external_id,
 };
 use refused::assert_refused;
 use server::{Builder, Library, TestServer};
@@ -420,7 +421,8 @@ async fn re_matching_a_show_by_hand_re_matches_its_episodes() {
     assert_eq!(uk, [tmdb(2_996_001), tmdb(2_996_002)]);
 }
 
-/// The Movie `title` from `year` held by the file at `path`, as `ListUnmatchedItems` lists it.
+/// The Movie `title` from `year` held by the file at `path`, as `ListUnmatchedItems` lists it
+/// when no title fits it.
 fn unmatched_movie(item: i64, path: String, title: &str, year: i32) -> UnmatchedItem {
     UnmatchedItem {
         item_id: item,
@@ -428,8 +430,72 @@ fn unmatched_movie(item: i64, path: String, title: &str, year: i32) -> Unmatched
         kind: TitleKind::TITLE_KIND_MOVIE.into(),
         title: title.to_owned(),
         year: Some(year),
+        reason: UnmatchedReason::UNMATCHED_REASON_NO_TITLE_FITS.into(),
         ..Default::default()
     }
+}
+
+/// The Show "The Office" first aired in `year`, as `ListUnmatchedItems` lists a tied title.
+fn the_office(tmdb: i64, year: i32) -> TitleCandidate {
+    TitleCandidate {
+        id: tmdb_id(tmdb).into(),
+        title: "The Office".to_owned(),
+        original_title: Some("The Office".to_owned()),
+        year: Some(year),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn an_ambiguous_item_is_listed_with_the_titles_that_tied() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
+    fx.write("The Office/Season 01/The Office - S01E01.mkv", VIDEO);
+    fx.scan_and_match().await;
+
+    let listed = fx.listed().await;
+
+    assert_eq!(
+        listed
+            .iter()
+            .map(|item| (item.reason, item.tied_titles.clone()))
+            .collect::<Vec<_>>(),
+        [(
+            EnumValue::from(UnmatchedReason::UNMATCHED_REASON_AMBIGUOUS),
+            vec![the_office(2316, 2005), the_office(2996, 2001)]
+        )]
+    );
+}
+
+#[tokio::test]
+async fn an_item_whose_id_hint_names_no_title_is_listed_as_such() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write("Lost Reel (1950) {tmdb-1}/Lost Reel (1950).mkv", VIDEO);
+    fx.scan_and_match().await;
+
+    let listed = fx.listed().await;
+
+    assert_eq!(
+        listed.iter().map(|item| item.reason).collect::<Vec<_>>(),
+        [EnumValue::from(
+            UnmatchedReason::UNMATCHED_REASON_UNKNOWN_ID_HINT
+        )]
+    );
+}
+
+#[tokio::test]
+async fn an_item_not_matched_yet_is_listed_without_a_reason() {
+    let fx = Fixture::start_without_metadata(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_MOVIES, VIDEO);
+    fx.scan_and_match().await;
+
+    let listed = fx.listed().await;
+
+    assert_eq!(
+        listed.iter().map(|item| item.reason).collect::<Vec<_>>(),
+        [EnumValue::from(
+            UnmatchedReason::UNMATCHED_REASON_UNSPECIFIED
+        )]
+    );
 }
 
 #[tokio::test]

@@ -46,6 +46,7 @@ use axum::{
 };
 use nama_proto::nama::v1::{Playback, PlaybackChanged, PlaybackEnded, PlaybackStarted};
 use tokio::{process::Child, task::JoinHandle};
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use super::{Method, Playing, StartedPlan, direct_play_url, method_to_proto};
 use crate::{
@@ -140,6 +141,10 @@ struct Inner {
     events: EventBus,
     next_id: AtomicU64,
     plans: Mutex<HashMap<u64, Arc<Plan>>>,
+    /// The hardware test and [`stop_unused_plans`], so shutting down can wait for them.
+    tasks: TaskTracker,
+    /// Cancelled when the Server shuts down.
+    cancel: CancellationToken,
 }
 
 /// One playable plan.
@@ -204,8 +209,8 @@ struct Segment {
 
 impl RunningPlans {
     /// Runs plans with `ffmpeg`, writing their files to the segment folder in `settings` as it
-    /// is when each starts, and publishing on `events` when each stops. Until these are dropped,
-    /// stops the plans gone unused in the background.
+    /// is when each starts, and publishing on `events` when each stops. Until these are dropped
+    /// or shut down, stops the plans gone unused in the background.
     pub(crate) fn new(
         settings: PlaybackSettings,
         ffmpeg: Arc<Ffmpeg>,
@@ -225,15 +230,22 @@ impl RunningPlans {
             // From 1, as the API's plan id 0 is no plan.
             next_id: AtomicU64::new(1),
             plans: Mutex::default(),
+            tasks: TaskTracker::new(),
+            cancel: CancellationToken::new(),
         });
-        tokio::spawn(stop_unused_plans(Arc::downgrade(&inner)));
+        inner.tasks.spawn(stop_unused_plans(
+            Arc::downgrade(&inner),
+            inner.cancel.clone(),
+        ));
         let plans = Self { inner };
         // At startup, in the background, as it takes a few seconds; the first plan or status asked
-        // for waits for it.
+        // for waits for it. Cancelling it leaves the hardware untested and kills its test encode.
         let testing = plans.clone();
-        tokio::spawn(async move {
+        plans.inner.tasks.spawn(async move {
             // Only for testing once; what was found is kept, and a task's output must be owned.
-            let _: usize = testing.found_hardware().await.len();
+            let _: Option<usize> = (testing.inner.cancel)
+                .run_until_cancelled(async { testing.found_hardware().await.len() })
+                .await;
         });
         plans
     }
@@ -293,7 +305,7 @@ impl RunningPlans {
     /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
     /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file, whose
     /// length is `duration_ms` if known. `None` if there is no such Version, or `plan` can't be
-    /// played.
+    /// played, as a Remux or a Transcode can't without a length.
     pub(crate) async fn start(
         &self,
         caller: &Caller,
@@ -304,14 +316,16 @@ impl RunningPlans {
             return Ok(None);
         };
         let playback = playback(caller, &plan);
-        let started = match playing {
-            Playing::DirectPlay => {
+        let started = match (playing, duration_ms) {
+            (Playing::DirectPlay, _) => {
                 Some((self.direct_play(playback), direct_play_url(plan.version)))
             }
-            Playing::Remux(remux) => self.remux(playback, remux, duration_ms).await?,
-            Playing::Transcode(transcode) => {
-                self.transcode(playback, transcode, duration_ms).await?
+            (Playing::Remux(remux), Some(ms)) => self.remux(playback, remux, ms).await?,
+            (Playing::Transcode(transcode), Some(ms)) => {
+                self.transcode(playback, transcode, ms).await?
             }
+            // The plan rules both out without a length, which their playlists list.
+            (Playing::Remux(_) | Playing::Transcode(_), None) => None,
         };
         Ok(started.map(|(id, url)| StartedPlan { id, url, plan }))
     }
@@ -323,14 +337,14 @@ impl RunningPlans {
         &self,
         playback: Playback,
         remux: Remux,
-        duration_ms: Option<i64>,
+        duration_ms: i64,
     ) -> Result<Option<(u64, String)>, StartError> {
         let version = playback.version_id;
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
             return Ok(None);
         };
         let keyframes = self.keyframes(version, &path).await?;
-        let timeline = Timeline::new(keyframes, duration_ms.unwrap_or_default());
+        let timeline = Timeline::new(keyframes, duration_ms);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |dir: &Path, from| ffmpeg.remux(&path, &remux, dir, from)?.spawn();
         let runs = Runs {
@@ -352,7 +366,7 @@ impl RunningPlans {
         &self,
         playback: Playback,
         transcode: Transcode,
-        duration_ms: Option<i64>,
+        duration_ms: i64,
     ) -> Result<Option<(u64, String)>, StartError> {
         let Some((path, _)) = (self.inner.contents)
             .version_file(playback.version_id)
@@ -360,11 +374,8 @@ impl RunningPlans {
         else {
             return Ok(None);
         };
-        let duration_ms = duration_ms.unwrap_or_default();
-        // At least one, so a Version whose length isn't known still has a segment.
-        let segments = (duration_ms.max(1) + SEGMENT_MS - 1) / SEGMENT_MS;
-        let cuts: Vec<i64> = (0..segments).map(|n| n * SEGMENT_MS).collect();
-        let timeline = Timeline::new(cuts.clone(), duration_ms);
+        let timeline = Timeline::transcoded(duration_ms);
+        let cuts = timeline.keyframes.clone();
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
         let run = move |attempt: Transcode| -> Box<Run> {
             let (ffmpeg, path, cuts) = (Arc::clone(&ffmpeg), path.clone(), cuts.clone());
@@ -539,9 +550,13 @@ impl RunningPlans {
         }
     }
 
-    /// Stops every plan and deletes its files, as the Server shuts down, so none is left in a
+    /// As the Server shuts down, stops its background tasks and waits for them, so none holds
+    /// the database still, then stops every plan and deletes its files, so none is left in a
     /// segment folder the next run's sweep may not know of.
-    pub(crate) async fn stop_all(&self) {
+    pub(crate) async fn shutdown(&self) {
+        self.inner.cancel.cancel();
+        self.inner.tasks.close();
+        self.inner.tasks.wait().await;
         let plans: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans).drain().collect();
         for (id, plan) in plans {
             self.stop(id, &plan).await;
@@ -584,11 +599,15 @@ fn playlist_url(plan: u64) -> String {
 }
 
 /// Every [`CHECK_UNUSED_EVERY`], stops the plans unused for [`STOP_UNUSED_AFTER`], until `inner`
-/// is dropped.
-async fn stop_unused_plans(inner: Weak<Inner>) {
+/// is dropped or `cancel` is cancelled.
+async fn stop_unused_plans(inner: Weak<Inner>, cancel: CancellationToken) {
     let mut every = tokio::time::interval(CHECK_UNUSED_EVERY);
     loop {
-        every.tick().await;
+        // Only between rounds: a plan a round took out isn't in `shutdown`'s drain, so ending
+        // mid-round would leave its ffmpeg and files behind.
+        if cancel.run_until_cancelled(every.tick()).await.is_none() {
+            return;
+        }
         let Some(inner) = inner.upgrade() else {
             return;
         };
@@ -627,25 +646,32 @@ async fn sweep(path: &Path) -> io::Result<()> {
 
 impl Timeline {
     /// A video with `keyframes`, in milliseconds, cut at the first keyframe at or after each
-    /// multiple of [`SEGMENT_MS`] past the last cut's multiple. The last segment ends at
-    /// `duration_ms`.
+    /// multiple of [`SEGMENT_MS`] past the last cut's multiple. No cut falls at or after
+    /// `duration_ms`, where the last segment ends, so none lasts 0 ms.
     fn new(keyframes: Vec<i64>, duration_ms: i64) -> Self {
         let mut segments = vec![];
         let (mut first_keyframe, mut start, mut cut_after) = (0, 0, SEGMENT_MS);
         for (n, &keyframe) in keyframes.iter().enumerate() {
-            if keyframe >= cut_after {
+            if keyframe >= cut_after && keyframe < duration_ms {
                 let ms = keyframe - start;
                 segments.push(Segment { first_keyframe, ms });
                 (first_keyframe, start) = (n, keyframe);
                 cut_after += SEGMENT_MS;
             }
         }
-        let ms = (duration_ms - start).max(0);
+        let ms = duration_ms - start;
         segments.push(Segment { first_keyframe, ms });
         Self {
             keyframes,
             segments,
         }
+    }
+
+    /// A Transcode of a video `duration_ms` long, with a keyframe forced at each multiple of
+    /// [`SEGMENT_MS`] before its end, so each is a segment's first.
+    fn transcoded(duration_ms: i64) -> Self {
+        let segments = (duration_ms + SEGMENT_MS - 1) / SEGMENT_MS;
+        Self::new((0..segments).map(|n| n * SEGMENT_MS).collect(), duration_ms)
     }
 
     /// The keyframes whose files segment `n` joins, by number.
@@ -1049,6 +1075,11 @@ mod tests {
         plugins::Registry,
         server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
         tracks::Tracks,
+    };
+    #[cfg(unix)]
+    use {
+        crate::ffmpeg::tests::{WRITING_FAKES, fake_ffmpeg},
+        std::sync::PoisonError,
     };
 
     fn plans_in(db: &Arc<Database>, settings: PlaybackSettings) -> RunningPlans {
@@ -1547,6 +1578,45 @@ mod tests {
         assert_eq!(timeline.keyframes_of(4), 10..12);
     }
 
+    #[test]
+    fn a_keyframe_at_the_length_joins_the_last_segment() {
+        let keyframes: Vec<i64> = (0..4).map(|n| n * 2000).collect();
+
+        let timeline = Timeline::new(keyframes, 6000);
+
+        let segment_ms: Vec<i64> = timeline.segments.iter().map(|segment| segment.ms).collect();
+        assert_eq!(segment_ms, [6000]);
+        assert_eq!(timeline.keyframes_of(0), 0..4);
+        assert!(!timeline.playlist().contains("#EXTINF:0.000"));
+    }
+
+    #[test]
+    fn a_keyframe_past_the_length_joins_the_last_segment() {
+        let timeline = Timeline::new(vec![0, 2500, 5000, 7500], 7400);
+
+        let segment_ms: Vec<i64> = timeline.segments.iter().map(|segment| segment.ms).collect();
+        assert_eq!(segment_ms, [7400]);
+        assert!(!timeline.playlist().contains("#EXTINF:0.000"));
+    }
+
+    #[test]
+    fn a_transcode_lists_a_segment_for_each_six_seconds_of_its_length() {
+        let playlist = Timeline::transcoded(13_999).playlist();
+
+        let listed: Vec<&str> = (playlist.lines())
+            .filter(|line| line.starts_with("#EXT-X-TARGETDURATION") || line.starts_with("#EXTINF"))
+            .collect();
+        assert_eq!(
+            listed,
+            [
+                "#EXT-X-TARGETDURATION:6",
+                "#EXTINF:6.000,",
+                "#EXTINF:6.000,",
+                "#EXTINF:1.999,",
+            ]
+        );
+    }
+
     /// Starts a plan for the Device `device` whose ffmpeg is `sleep`, and returns its id.
     async fn start_sleeping(plans: &RunningPlans, device: i64) -> u64 {
         plans
@@ -1691,7 +1761,7 @@ mod tests {
     // The stand-in ffmpeg is `sleep`.
     #[cfg(unix)]
     #[tokio::test]
-    async fn stopping_all_plans_deletes_every_plans_files() {
+    async fn shutting_down_deletes_every_plans_files() {
         let data = tempfile::tempdir().unwrap();
         let db = database(data.path()).await;
         let plans = plans_in(
@@ -1701,10 +1771,58 @@ mod tests {
         let id = start_sleeping(&plans, 7).await;
         let dir = hls(&plans, id, 7).dir.clone();
 
-        plans.stop_all().await;
+        plans.shutdown().await;
 
         assert!(plans.ask(id, 7).is_none());
         assert!(!dir.exists());
+    }
+
+    // The fakes are shell scripts.
+    #[cfg(unix)]
+    #[tokio::test]
+    #[expect(
+        clippy::await_holding_lock,
+        reason = "the fakes' lock is held while the hardware test forks ffmpeg; a test waits on no other"
+    )]
+    async fn shutting_down_mid_hardware_test_leaves_the_database_free_to_close() {
+        let data = tempfile::tempdir().unwrap();
+        let db = database(data.path()).await;
+        let settings = settings(&db, data.path().join("transcodes"));
+        let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
+        let bin = tempfile::tempdir().unwrap();
+        let started = bin.path().join("started");
+        let ffmpeg = fake_ffmpeg(
+            bin.path(),
+            &format!(
+                "*-encoders*) echo ' V....D h264_vaapi  H.264/AVC (VAAPI)' ;;
+                 *) touch '{}'; exec sleep 60 ;;",
+                started.display()
+            ),
+        );
+        let running_fakes = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
+        let plans = RunningPlans::new(
+            settings.playback(),
+            Arc::new(ffmpeg),
+            Contents::new(Arc::clone(&db)),
+            Tracks::new(Arc::clone(&db)),
+            events.clone(),
+        );
+        let waiting = tokio::time::Instant::now();
+        while !started.exists() {
+            assert!(
+                waiting.elapsed() < Duration::from_secs(5),
+                "no test encode started"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        drop(running_fakes);
+
+        tokio::time::timeout(Duration::from_secs(5), plans.shutdown())
+            .await
+            .unwrap();
+
+        drop((plans, settings, events));
+        assert!(Arc::into_inner(db).is_some());
     }
 
     #[tokio::test]

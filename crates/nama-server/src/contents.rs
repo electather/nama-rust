@@ -91,6 +91,8 @@ pub(crate) struct Unmatched {
     pub(crate) id: i64,
     pub(crate) path: String,
     pub(crate) item: Item,
+    /// `None` while Matching hasn't decided, or for an Unmatched reason not stored.
+    pub(crate) reason: Option<UnmatchedReason>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -126,7 +128,38 @@ pub(crate) enum Change {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Decided {
     Matched(Box<Metadata>),
-    Unmatched,
+    Unmatched(Option<UnmatchedReason>),
+}
+
+/// Why automatic Matching left an Item Unmatched, which says how an admin fixes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum UnmatchedReason {
+    /// More than one title fits about as well: these, best fit first.
+    Ambiguous(Vec<TiedTitle>),
+    /// No title the search found fits well enough.
+    NoTitleFits,
+    /// The Item's ID Hint names no title the metadata source has.
+    UnknownIdHint,
+}
+
+/// A title that fit an Ambiguous Item about as well as the others.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TiedTitle {
+    pub(crate) id: ExternalId,
+    pub(crate) title: String,
+    pub(crate) original_title: Option<String>,
+    pub(crate) year: Option<i32>,
+}
+
+impl From<metadata::Candidate> for TiedTitle {
+    fn from(candidate: metadata::Candidate) -> Self {
+        Self {
+            id: candidate.id,
+            title: candidate.title,
+            original_title: candidate.original_title,
+            year: candidate.year,
+        }
+    }
 }
 
 /// What Matching decided about some Items, as one write stores it.
@@ -259,6 +292,58 @@ pub(crate) struct Episode {
     pub(crate) runtime_minutes: Option<i64>,
     /// The files Matched to it, by path. A file holding two Episodes is a Version of each.
     pub(crate) versions: Vec<Version>,
+}
+
+/// What [`Contents::search`] found in every Library, each kind best fit first, and each Movie,
+/// Show or Episode once per Library that has it.
+#[derive(Debug, Default)]
+pub(crate) struct Found {
+    pub(crate) movies: Vec<FoundMovie>,
+    /// Found by their own titles.
+    pub(crate) shows: Vec<FoundShow>,
+    /// Found by their own titles, not their Shows'.
+    pub(crate) episodes: Vec<FoundEpisode>,
+}
+
+/// A Movie a search found, with the metadata the Match of its best-fitting Item stores.
+#[derive(Debug)]
+pub(crate) struct FoundMovie {
+    pub(crate) library: i64,
+    /// As browsing identifies it: see [`primary_id`].
+    pub(crate) id: ExternalId,
+    /// The Plugin whose metadata Provider made the Match, which the poster's path is for.
+    pub(crate) plugin: String,
+    pub(crate) title: String,
+    pub(crate) release_date: Option<String>,
+    pub(crate) poster: Option<String>,
+}
+
+/// A Show a search found, with the metadata the Match of its best-fitting Episode stores.
+#[derive(Debug)]
+pub(crate) struct FoundShow {
+    pub(crate) library: i64,
+    /// As browsing identifies it: see [`primary_id`].
+    pub(crate) id: ExternalId,
+    /// The Plugin whose metadata Provider made the Match, which the poster's path is for.
+    pub(crate) plugin: String,
+    pub(crate) title: String,
+    /// The best-fitting Episode's Season's.
+    pub(crate) poster: Option<String>,
+}
+
+/// An Episode a search found, with what browsing needs to find it: its Show and Season.
+#[derive(Debug)]
+pub(crate) struct FoundEpisode {
+    pub(crate) library: i64,
+    /// As browsing identifies it: see [`primary_id`].
+    pub(crate) id: ExternalId,
+    /// Its Show's id, as browsing identifies it.
+    pub(crate) show: ExternalId,
+    pub(crate) show_title: String,
+    pub(crate) season: i64,
+    /// The episode number within its Season.
+    pub(crate) number: i64,
+    pub(crate) title: String,
 }
 
 impl Contents {
@@ -531,7 +616,9 @@ impl Contents {
             r#"SELECT library_items.id AS "id!", library_files.path,
                       library_items.kind AS "kind: ItemKind", library_items.title,
                       library_items.year, library_items.hint, library_items.season,
-                      library_items.episode
+                      library_items.episode,
+                      item_matches.unmatched_reason AS "unmatched_reason?: ReasonColumn",
+                      item_matches.tied_titles AS "tied_titles?"
                FROM library_items
                JOIN library_files ON library_files.id = library_items.file_id
                LEFT JOIN item_matches ON item_matches.item_id = library_items.id
@@ -551,9 +638,12 @@ impl Contents {
         )
         .fetch_all(self.db.reader())
         .await?;
-        Ok(rows
-            .into_iter()
+        rows.into_iter()
             .filter_map(|row| {
+                let reason = row
+                    .unmatched_reason
+                    .map(|column| column.reason(row.tied_titles.as_deref()))
+                    .transpose();
                 let item = ItemRow {
                     kind: row.kind,
                     title: Cow::Owned(row.title),
@@ -563,13 +653,14 @@ impl Contents {
                     episode: row.episode,
                 }
                 .into_item()?;
-                Some(Unmatched {
+                Some(reason.map(|reason| Unmatched {
                     id: row.id,
                     path: row.path,
                     item,
-                })
+                    reason,
+                }))
             })
-            .collect())
+            .collect()
     }
 
     /// Files whose names don't follow the naming conventions, so they hold no Items, by path.
@@ -732,6 +823,98 @@ impl Contents {
         Ok(shows)
     }
 
+    /// The Matched Movies, Shows and Episodes of every Library whose titles have each of the
+    /// words of `query`, ignoring case, accents and the marks that join words. A year after
+    /// other words keeps only those of that year, or with it in their title.
+    pub(crate) async fn search(&self, query: &str) -> Result<Found, sqlx::Error> {
+        let mut found = Found::default();
+        let Some(words) = SearchWords::of(query) else {
+            return Ok(found);
+        };
+        for row in self.search_rows(&words.in_column("title")).await? {
+            let Some(id) = primary_id(row.ids()) else {
+                continue;
+            };
+            match (
+                row.kind,
+                row.season,
+                row.episode,
+                primary_id(row.show_ids()),
+            ) {
+                (ItemKind::Episode, Some(season), Some(number), Some(show)) => {
+                    found.episodes.push(FoundEpisode {
+                        library: row.library,
+                        id,
+                        show,
+                        show_title: row.show_title.unwrap_or_default(),
+                        season,
+                        number,
+                        title: row.title,
+                    });
+                }
+                // Skipped as `Contents::shows` skips it, so browsing can open what's found.
+                (ItemKind::Episode, ..) => {}
+                (ItemKind::Movie, ..) => found.movies.push(FoundMovie {
+                    library: row.library,
+                    id,
+                    plugin: row.plugin,
+                    title: row.title,
+                    release_date: row.release_date,
+                    poster: row.poster,
+                }),
+            }
+        }
+        for row in self.search_rows(&words.in_column("show_title")).await? {
+            let (Some(id), Some(title)) = (primary_id(row.show_ids()), row.show_title) else {
+                continue;
+            };
+            found.shows.push(FoundShow {
+                library: row.library,
+                id,
+                plugin: row.plugin,
+                title,
+                poster: row.poster,
+            });
+        }
+        // A Movie, Show or Episode has a row per Item; the first fits best.
+        let mut seen = HashSet::new();
+        found
+            .movies
+            .retain(|movie| seen.insert((movie.library, movie.id.clone())));
+        seen.clear();
+        found
+            .shows
+            .retain(|show| seen.insert((show.library, show.id.clone())));
+        seen.clear();
+        found
+            .episodes
+            .retain(|episode| seen.insert((episode.library, episode.id.clone())));
+        Ok(found)
+    }
+
+    /// The Matched Items whose `title_search` row fits the FTS5 query `fts_query`, best fit first.
+    async fn search_rows(&self, fts_query: &str) -> Result<Vec<SearchRow>, sqlx::Error> {
+        sqlx::query_as!(
+            SearchRow,
+            r#"SELECT library_files.library_id AS library,
+                      library_items.kind AS "kind: ItemKind", library_items.season,
+                      library_items.episode, item_matches.plugin AS "plugin!",
+                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,
+                      item_matches.show_tmdb_id, item_matches.show_imdb_id,
+                      item_matches.show_tvdb_id, item_matches.title AS "title!",
+                      item_matches.show_title, item_matches.release_date, item_matches.poster
+               FROM title_search
+               JOIN item_matches ON item_matches.item_id = title_search.rowid
+               JOIN library_items ON library_items.id = item_matches.item_id
+               JOIN library_files ON library_files.id = library_items.file_id
+               WHERE title_search MATCH ?
+               ORDER BY title_search.rank"#,
+            fts_query
+        )
+        .fetch_all(self.db.reader())
+        .await
+    }
+
     /// Replaces any pin the Items called `name` had, in one write with `decided`. Returns the
     /// events for the Requests the Matches make Available or Partially Available, or `None`,
     /// having stored nothing, if the Library is gone.
@@ -843,6 +1026,87 @@ fn primary_id(ids: ExternalIds) -> Option<ExternalId> {
         .map(ExternalId::Tmdb)
         .or_else(|| ids.imdb.map(ExternalId::Imdb))
         .or_else(|| ids.tvdb.map(ExternalId::Tvdb))
+}
+
+/// An Item a search found, as [`Contents::search_rows`] reads it.
+struct SearchRow {
+    library: i64,
+    kind: ItemKind,
+    /// Set for an Episode.
+    season: Option<i64>,
+    /// Set for an Episode.
+    episode: Option<i64>,
+    plugin: String,
+    tmdb_id: Option<i64>,
+    imdb_id: Option<String>,
+    tvdb_id: Option<i64>,
+    show_tmdb_id: Option<i64>,
+    show_imdb_id: Option<String>,
+    show_tvdb_id: Option<i64>,
+    title: String,
+    show_title: Option<String>,
+    release_date: Option<String>,
+    poster: Option<String>,
+}
+
+impl SearchRow {
+    fn ids(&self) -> ExternalIds {
+        ExternalIds {
+            tmdb: self.tmdb_id,
+            imdb: self.imdb_id.clone(),
+            tvdb: self.tvdb_id,
+        }
+    }
+
+    fn show_ids(&self) -> ExternalIds {
+        ExternalIds {
+            tmdb: self.show_tmdb_id,
+            imdb: self.show_imdb_id.clone(),
+            tvdb: self.show_tvdb_id,
+        }
+    }
+}
+
+/// A search query's words, and the year it ends with, if any.
+#[derive(Debug, PartialEq, Eq)]
+struct SearchWords<'a> {
+    words: Vec<&'a str>,
+    year: Option<&'a str>,
+}
+
+impl<'a> SearchWords<'a> {
+    /// `query`'s runs of letters and digits, or `None` if it has none. A last word of four digits
+    /// after others is the year.
+    fn of(query: &'a str) -> Option<Self> {
+        let mut words: Vec<&str> = query
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|word| !word.is_empty())
+            .collect();
+        let year = match words.as_slice() {
+            [_, .., last] if last.len() == 4 && last.bytes().all(|b| b.is_ascii_digit()) => {
+                words.pop()
+            }
+            _ => None,
+        };
+        (!words.is_empty()).then_some(Self { words, year })
+    }
+
+    /// The FTS5 query for `title_search` rows whose `column` has a word starting with each word,
+    /// so a client can search as the User types, and of the year, if any.
+    fn in_column(&self, column: &str) -> String {
+        // Every word is letters and digits, so quoting it keeps FTS5 from reading it as `AND`,
+        // `NOT` or the like.
+        let words: Vec<String> = self
+            .words
+            .iter()
+            .map(|word| format!("\"{word}\"*"))
+            .collect();
+        let words = format!("{column} : ({})", words.join(" "));
+        match self.year {
+            Some(year) => format!("{words} AND (year : \"{year}\" OR {column} : \"{year}\")"),
+            None => words,
+        }
+    }
 }
 
 /// The ID Hint stored as `text`, which is how [`ExternalId`] displays.
@@ -1137,8 +1401,9 @@ async fn insert_decisions(
             "INSERT OR REPLACE INTO item_matches (
                  item_id, state, plugin, tmdb_id, imdb_id, tvdb_id,
                  show_tmdb_id, show_imdb_id, show_tvdb_id, title, original_title, show_title,
-                 overview, release_date, runtime_minutes, poster, backdrop, decided_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                 overview, release_date, runtime_minutes, poster, backdrop, unmatched_reason,
+                 tied_titles, decided_at)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
@@ -1157,6 +1422,8 @@ async fn insert_decisions(
             row.metadata.runtime_minutes,
             row.metadata.poster,
             row.metadata.backdrop,
+            row.unmatched_reason,
+            row.tied_titles,
             now,
             item,
         )
@@ -1256,6 +1523,60 @@ enum MatchState {
     Unmatched,
 }
 
+/// An [`UnmatchedReason`] as `item_matches.unmatched_reason`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[sqlx(rename_all = "snake_case")]
+enum ReasonColumn {
+    Ambiguous,
+    NoTitleFits,
+    UnknownIdHint,
+}
+
+impl ReasonColumn {
+    const fn of(reason: &UnmatchedReason) -> Self {
+        match reason {
+            UnmatchedReason::Ambiguous(_) => Self::Ambiguous,
+            UnmatchedReason::NoTitleFits => Self::NoTitleFits,
+            UnmatchedReason::UnknownIdHint => Self::UnknownIdHint,
+        }
+    }
+
+    /// The reason this column and `tied_titles`, the JSON the migration describes, store.
+    fn reason(self, tied_titles: Option<&str>) -> Result<UnmatchedReason, sqlx::Error> {
+        Ok(match self {
+            Self::Ambiguous => UnmatchedReason::Ambiguous(parse_tied(tied_titles.unwrap_or("[]"))?),
+            Self::NoTitleFits => UnmatchedReason::NoTitleFits,
+            Self::UnknownIdHint => UnmatchedReason::UnknownIdHint,
+        })
+    }
+}
+
+fn parse_tied(json: &str) -> Result<Vec<TiedTitle>, sqlx::Error> {
+    let decode = |err: Box<dyn std::error::Error + Send + Sync>| sqlx::Error::Decode(err);
+    let rows: Vec<(String, String, Option<String>, Option<i32>)> =
+        serde_json::from_str(json).map_err(|err| decode(err.into()))?;
+    rows.into_iter()
+        .map(|(id, title, original_title, year)| {
+            let id =
+                parse_hint(&id).ok_or_else(|| decode(format!("bad tied title id {id}").into()))?;
+            Ok(TiedTitle {
+                id,
+                title,
+                original_title,
+                year,
+            })
+        })
+        .collect()
+}
+
+fn tied_json(tied: &[TiedTitle]) -> String {
+    let rows: Vec<serde_json::Value> = tied
+        .iter()
+        .map(|t| serde_json::json!([t.id.to_string(), t.title, t.original_title, t.year]))
+        .collect();
+    serde_json::Value::from(rows).to_string()
+}
+
 #[derive(Debug)]
 struct MatchRow<'a> {
     state: MatchState,
@@ -1263,6 +1584,8 @@ struct MatchRow<'a> {
     ids: ExternalIds,
     show_ids: ExternalIds,
     metadata: MetadataColumns<'a>,
+    unmatched_reason: Option<ReasonColumn>,
+    tied_titles: Option<String>,
 }
 
 /// A Match's metadata as columns of `item_matches`; all empty for an Unmatched Item.
@@ -1281,12 +1604,19 @@ struct MetadataColumns<'a> {
 impl<'a> From<&'a Decided> for MatchRow<'a> {
     fn from(decided: &'a Decided) -> Self {
         match decided {
-            Decided::Unmatched => Self {
+            Decided::Unmatched(reason) => Self {
                 state: MatchState::Unmatched,
                 plugin: None,
                 ids: ExternalIds::default(),
                 show_ids: ExternalIds::default(),
                 metadata: MetadataColumns::default(),
+                unmatched_reason: reason.as_ref().map(ReasonColumn::of),
+                tied_titles: match reason {
+                    Some(UnmatchedReason::Ambiguous(tied)) => Some(tied_json(tied)),
+                    Some(UnmatchedReason::NoTitleFits | UnmatchedReason::UnknownIdHint) | None => {
+                        None
+                    }
+                },
             },
             Decided::Matched(metadata) => Self {
                 state: MatchState::Matched,
@@ -1303,6 +1633,8 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     poster: metadata.poster.as_deref(),
                     backdrop: metadata.backdrop.as_deref(),
                 },
+                unmatched_reason: None,
+                tied_titles: None,
             },
         }
     }
@@ -1453,10 +1785,13 @@ impl Contents {
 mod tests {
     use std::sync::Arc;
 
-    use nama_plugin_api::metadata::ExternalId;
+    use nama_plugin_api::{
+        PluginId,
+        metadata::{ExternalId, ExternalIds},
+    };
     use tempfile::TempDir;
 
-    use super::{Change, Contents, Decided, FileItem, Item, Pin};
+    use super::{Change, Contents, Decided, FileItem, Item, Metadata, Pin};
     use crate::{
         db::Database,
         libraries::{Kind, Libraries},
@@ -1551,7 +1886,7 @@ mod tests {
         fx.store(ALIEN, 10, movie("Alien", 1979)).await;
         let old = fx.item(ALIEN).await;
         fx.contents
-            .record(vec![(old, Decided::Unmatched)])
+            .record(vec![(old, Decided::Unmatched(None))])
             .await
             .unwrap();
 
@@ -1573,7 +1908,7 @@ mod tests {
         fx.store(ALIEN, 10, movie("Alien", 1979)).await;
         let item = fx.item(ALIEN).await;
         fx.contents
-            .record(vec![(item, Decided::Unmatched)])
+            .record(vec![(item, Decided::Unmatched(None))])
             .await
             .unwrap();
         let file = fx.contents.stored(fx.library).await.unwrap()[ALIEN].id;
@@ -1596,7 +1931,7 @@ mod tests {
         let heat = fx.item("/media/Heat (1995).mkv").await;
 
         fx.contents
-            .record(vec![(alien, Decided::Unmatched)])
+            .record(vec![(alien, Decided::Unmatched(None))])
             .await
             .unwrap();
 
@@ -1616,7 +1951,7 @@ mod tests {
             .contents
             .record(
                 read.iter()
-                    .map(|&id| (id, Decided::Unmatched))
+                    .map(|&id| (id, Decided::Unmatched(None)))
                     .collect::<Vec<_>>(),
             )
             .await;
@@ -1680,7 +2015,7 @@ mod tests {
         ];
         for (item, pin) in pins.clone() {
             let named = fx.contents.named_like(item).await.unwrap().unwrap();
-            let decided = vec![(item, Decided::Unmatched)];
+            let decided = vec![(item, Decided::Unmatched(None))];
             fx.contents
                 .pin(named.library, named.name, pin, decided)
                 .await
@@ -1841,7 +2176,10 @@ mod tests {
                 named.library,
                 named.name,
                 Pin::Unmatched,
-                vec![(item, Decided::Unmatched), (heat, Decided::Unmatched)],
+                vec![
+                    (item, Decided::Unmatched(None)),
+                    (heat, Decided::Unmatched(None)),
+                ],
             )
             .await;
 
@@ -1855,5 +2193,212 @@ mod tests {
             .map(|(id, _, _)| id)
             .collect();
         assert_eq!(undecided, [heat]);
+    }
+
+    /// What TMDB says of the Movie `tmdb`, called `title` and released on `release_date`.
+    fn movie_match(tmdb: i64, title: &str, release_date: &str) -> Decided {
+        Decided::Matched(Box::new(Metadata {
+            plugin: PluginId::from_static("tmdb"),
+            ids: ExternalIds {
+                tmdb: Some(tmdb),
+                ..ExternalIds::default()
+            },
+            show_ids: ExternalIds::default(),
+            title: title.to_owned(),
+            original_title: None,
+            show_title: None,
+            overview: None,
+            release_date: Some(release_date.to_owned()),
+            runtime_minutes: None,
+            poster: None,
+            backdrop: None,
+        }))
+    }
+
+    impl Fixture {
+        /// Stores a file of its own for the Movie `tmdb` and Matches it to `title`, released on
+        /// `release_date`.
+        async fn match_movie(&self, tmdb: i64, title: &str, release_date: &str) {
+            let path = format!("/media/{tmdb}.mkv");
+            let year = release_date.get(..4).unwrap().parse().unwrap();
+            self.store(&path, 10, movie(title, year)).await;
+            let item = self.item(&path).await;
+            let decided = movie_match(tmdb, title, release_date);
+            self.contents.record(vec![(item, decided)]).await.unwrap();
+        }
+
+        /// The titles of the Movies a search for `query` finds, best fit first.
+        async fn found_movies(&self, query: &str) -> Vec<String> {
+            let found = self.contents.search(query).await.unwrap();
+            found.movies.into_iter().map(|movie| movie.title).collect()
+        }
+    }
+
+    #[tokio::test]
+    async fn a_search_forgives_case_accents_and_punctuation() {
+        let fx = Fixture::new().await;
+        fx.match_movie(194, "Amélie", "2001-04-25").await;
+        fx.match_movie(557, "Spider-Man", "2002-05-01").await;
+
+        assert_eq!(fx.found_movies("AMELIE").await, ["Amélie"]);
+        assert_eq!(fx.found_movies("spiderman").await, ["Spider-Man"]);
+        assert_eq!(fx.found_movies("spider-man").await, ["Spider-Man"]);
+    }
+
+    #[tokio::test]
+    async fn a_year_after_the_words_narrows_a_search_to_that_year_or_titles_with_it() {
+        let fx = Fixture::new().await;
+        fx.match_movie(841, "Dune", "1984-12-14").await;
+        fx.match_movie(438_631, "Dune", "2021-09-15").await;
+        fx.match_movie(335_984, "Blade Runner 2049", "2017-10-04")
+            .await;
+
+        assert_eq!(fx.found_movies("dune").await, ["Dune", "Dune"]);
+        let dune_2021 = fx.contents.search("dune 2021").await.unwrap().movies;
+        let found: Vec<_> = dune_2021
+            .iter()
+            .map(|movie| movie.release_date.as_deref())
+            .collect();
+        assert_eq!(found, [Some("2021-09-15")]);
+        assert_eq!(
+            fx.found_movies("blade runner 2049").await,
+            ["Blade Runner 2049"]
+        );
+        assert_eq!(fx.found_movies("2049").await, ["Blade Runner 2049"]);
+    }
+
+    /// What TMDB says of an Episode of The Office (US): its id `tmdb` and `title`.
+    fn office_episode(tmdb: i64, title: &str) -> Decided {
+        Decided::Matched(Box::new(Metadata {
+            plugin: PluginId::from_static("tmdb"),
+            ids: ExternalIds {
+                tmdb: Some(tmdb),
+                ..ExternalIds::default()
+            },
+            show_ids: ExternalIds {
+                tmdb: Some(THE_OFFICE),
+                ..ExternalIds::default()
+            },
+            title: title.to_owned(),
+            original_title: None,
+            show_title: Some("The Office".to_owned()),
+            overview: None,
+            release_date: Some("2005-03-24".to_owned()),
+            runtime_minutes: None,
+            poster: None,
+            backdrop: None,
+        }))
+    }
+
+    const THE_OFFICE: i64 = 2316;
+
+    impl Fixture {
+        /// A new Shows Library, and the folder it watches, which it lives no longer than.
+        async fn shows_library(&self) -> (i64, TempDir) {
+            let folder = tempfile::tempdir().unwrap();
+            let root = folder.path().canonicalize().unwrap();
+            let library = self
+                .libraries
+                .create(
+                    "Shows",
+                    Kind::Shows,
+                    vec![root.to_str().unwrap().to_owned()],
+                )
+                .await
+                .unwrap()
+                .id;
+            (library, folder)
+        }
+
+        /// Stores a file of its own in `library` for Episode `number` of Season 1 of The Office,
+        /// and decides it as `decided`.
+        async fn decide_office_episode(&self, library: i64, number: i64, decided: Decided) {
+            let file = Change::Store {
+                path: format!("/shows/The Office - S01E0{number}.mkv"),
+                size: 10,
+                modified_ns: 0,
+                items: vec![Item::Episode {
+                    show: "The Office".to_owned(),
+                    year: None,
+                    hint: None,
+                    season: 1,
+                    episode: number,
+                }],
+            };
+            self.contents.apply(library, vec![file]).await.unwrap();
+            let (item, _, _) = self.contents.undecided(library).await.unwrap().remove(0);
+            self.contents.record(vec![(item, decided)]).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn a_search_finds_a_show_once_by_its_title_and_episodes_by_their_own() {
+        let fx = Fixture::new().await;
+        let (library, _folder) = fx.shows_library().await;
+        for (number, tmdb, title) in [(1, 9001, "Pilot"), (2, 9002, "Office Olympics")] {
+            fx.decide_office_episode(library, number, office_episode(tmdb, title))
+                .await;
+        }
+
+        let found = fx.contents.search("office").await.unwrap();
+
+        let shows: Vec<_> = found
+            .shows
+            .iter()
+            .map(|show| (show.library, show.title.as_str()))
+            .collect();
+        assert_eq!(shows, [(library, "The Office")]);
+        let found_episodes: Vec<_> = found
+            .episodes
+            .iter()
+            .map(|episode| {
+                (
+                    &episode.show,
+                    episode.season,
+                    episode.number,
+                    episode.title.as_str(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            found_episodes,
+            [(&ExternalId::Tmdb(THE_OFFICE), 1, 2, "Office Olympics")]
+        );
+        assert!(found.movies.is_empty(), "{:?}", found.movies);
+    }
+
+    #[tokio::test]
+    async fn a_search_finds_an_item_by_its_latest_match_and_not_once_it_is_unmatched() {
+        let fx = Fixture::new().await;
+        fx.match_movie(949, "Heat", "1995-12-15").await;
+        let item = fx.item("/media/949.mkv").await;
+
+        let ronin = movie_match(8195, "Ronin", "1998-09-25");
+        fx.contents.record(vec![(item, ronin)]).await.unwrap();
+
+        assert_eq!(fx.found_movies("heat").await, Vec::<String>::new());
+        assert_eq!(fx.found_movies("ronin").await, ["Ronin"]);
+        fx.contents
+            .record(vec![(item, Decided::Unmatched(None))])
+            .await
+            .unwrap();
+        assert_eq!(fx.found_movies("ronin").await, Vec::<String>::new());
+    }
+
+    #[tokio::test]
+    async fn a_search_skips_an_episode_whose_match_has_no_show_id() {
+        let fx = Fixture::new().await;
+        let (library, _folder) = fx.shows_library().await;
+        let Decided::Matched(mut showless) = office_episode(9001, "Pilot") else {
+            panic!("office_episode Matches");
+        };
+        showless.show_ids = ExternalIds::default();
+        fx.decide_office_episode(library, 1, Decided::Matched(showless))
+            .await;
+
+        let found = fx.contents.search("pilot").await.unwrap();
+
+        assert!(found.movies.is_empty(), "{:?}", found.movies);
+        assert!(found.episodes.is_empty(), "{:?}", found.episodes);
     }
 }

@@ -142,7 +142,7 @@ pub fn serve(
             events.close();
         })
         .await;
-        running.stop_all().await;
+        running.shutdown().await;
         // The Scanner first, so a scan finishing now can't start a pass once Probing has stopped.
         scanner.shutdown().await;
         probing.shutdown().await;

@@ -2,6 +2,9 @@
 
 #[path = "support/refused.rs"]
 mod refused;
+#[cfg(unix)]
+#[path = "support/script.rs"]
+mod script;
 #[path = "support/server.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
@@ -17,6 +20,8 @@ use nama_proto::nama::v1::{
 };
 use nama_server::{config::Config, ffmpeg::Ffmpeg};
 use refused::assert_refused;
+#[cfg(unix)]
+use script::script;
 use server::TestServer;
 
 fn config_named(name: &str) -> Config {
@@ -233,6 +238,59 @@ async fn the_playback_status_shows_the_path_and_version_of_the_ffmpeg_and_ffprob
     };
     assert_eq!(status.ffmpeg.as_option(), Some(&shown("/usr/bin/ffmpeg")));
     assert_eq!(status.ffprobe.as_option(), Some(&shown("/usr/bin/ffprobe")));
+}
+
+/// The status of a Server whose ffmpeg, a shell script in `bin`, lists `encoder` as its one
+/// encoder and `filter` as its one filter.
+#[cfg(unix)]
+async fn playback_status_listing(
+    bin: &std::path::Path,
+    encoder: &str,
+    filter: &str,
+) -> GetPlaybackStatusResponse {
+    let ffmpeg = format!(
+        "#!/bin/sh\ncase \"$*\" in *-encoders*) echo ' V....D {encoder}  H.264' ;; \
+         *-filters*) echo ' ... {filter}  V->V  A filter' ;; esac\n"
+    );
+    playback_status(Ffmpeg {
+        ffmpeg: Ok(script(bin, "ffmpeg", &ffmpeg)),
+        ffprobe: Ok(script(bin, "ffprobe", "#!/bin/sh\n")),
+    })
+    .await
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_playback_status_says_an_ffmpeg_like_fedoras_lacks_libx264_and_zscale() {
+    let bin = tempfile::tempdir().unwrap();
+
+    let status = playback_status_listing(bin.path(), "libopenh264", "scale").await;
+
+    assert!(!status.has_libx264, "{status:?}");
+    assert!(!status.has_zscale, "{status:?}");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_playback_status_says_an_ffmpeg_listing_libx264_and_zscale_has_them() {
+    let bin = tempfile::tempdir().unwrap();
+
+    let status = playback_status_listing(bin.path(), "libx264", "zscale").await;
+
+    assert!(status.has_libx264, "{status:?}");
+    assert!(status.has_zscale, "{status:?}");
+}
+
+#[tokio::test]
+async fn without_ffmpeg_the_playback_status_says_it_has_neither_libx264_nor_zscale() {
+    let status = playback_status(Ffmpeg {
+        ffmpeg: Err("ffmpeg wasn't found on PATH".to_owned()),
+        ffprobe: Err("ffprobe wasn't found on PATH".to_owned()),
+    })
+    .await;
+
+    assert!(!status.has_libx264, "{status:?}");
+    assert!(!status.has_zscale, "{status:?}");
 }
 
 #[tokio::test]

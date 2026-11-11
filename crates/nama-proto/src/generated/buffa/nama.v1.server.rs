@@ -1283,6 +1283,28 @@ pub struct GetPlaybackStatusResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub hardware: ::buffa::alloc::vec::Vec<FoundHardware>,
+    /// Whether ffmpeg has libx264, which a Transcode encodes with in software. Without it no
+    /// Transcode runs, even on hardware. False when the Server can't use ffmpeg.
+    ///
+    /// Field 6: `has_libx264`
+    #[serde(
+        rename = "hasLibx264",
+        alias = "has_libx264",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub has_libx264: bool,
+    /// Whether ffmpeg has zscale, which tone-maps HDR to SDR in software. Without it, a Transcode
+    /// tone-maps only on hardware whose `tone_maps` is set. False when the Server can't use ffmpeg.
+    ///
+    /// Field 7: `has_zscale`
+    #[serde(
+        rename = "hasZscale",
+        alias = "has_zscale",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub has_zscale: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1295,6 +1317,8 @@ impl ::core::fmt::Debug for GetPlaybackStatusResponse {
             .field("ffmpeg_problem", &self.ffmpeg_problem)
             .field("ffprobe_problem", &self.ffprobe_problem)
             .field("hardware", &self.hardware)
+            .field("has_libx264", &self.has_libx264)
+            .field("has_zscale", &self.has_zscale)
             .finish()
     }
 }
@@ -1359,6 +1383,12 @@ impl ::buffa::Message for GetPlaybackStatusResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.has_libx264 {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.has_zscale {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1398,6 +1428,12 @@ impl ::buffa::Message for GetPlaybackStatusResponse {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.has_libx264 {
+            ::buffa::types::put_bool_field(6u32, self.has_libx264, buf);
+        }
+        if self.has_zscale {
+            ::buffa::types::put_bool_field(7u32, self.has_zscale, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1460,6 +1496,20 @@ impl ::buffa::Message for GetPlaybackStatusResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.hardware.push(elem);
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.has_libx264 = ::buffa::types::decode_bool(buf)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.has_zscale = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1473,6 +1523,8 @@ impl ::buffa::Message for GetPlaybackStatusResponse {
         self.ffmpeg_problem.clear();
         self.ffprobe_problem.clear();
         self.hardware.clear();
+        self.has_libx264 = false;
+        self.has_zscale = false;
         self.__buffa_unknown_fields.clear();
     }
 }

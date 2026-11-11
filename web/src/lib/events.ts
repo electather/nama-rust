@@ -44,6 +44,7 @@ const types = [
   EventType.SCAN_STARTED,
   EventType.SCAN_PROGRESS,
   EventType.SCAN_FINISHED,
+  EventType.MATCHING_FINISHED,
   EventType.LIBRARY_ITEM_REMOVED,
   EventType.ITEM_MATCHED,
   EventType.REQUEST_CREATED,
@@ -112,7 +113,8 @@ async function follow(
 function apply({ message }: SubscribeResponse, queryClient: QueryClient) {
   if (message.case === "event") {
     recordScan(message.value, queryClient);
-    refreshUnmatched(message.value, queryClient);
+    relistUnmatched(message.value, queryClient);
+    dropDecided(message.value, queryClient);
     refreshBrowsing(message.value, queryClient);
     refreshRequests(message.value, queryClient);
   } else if (message.case === "lagged") {
@@ -139,11 +141,19 @@ function recordScan({ event }: Event, queryClient: QueryClient) {
   }
 }
 
-/** Lists the Items a finished scan left Unmatched, and drops each one Matched or gone. */
-function refreshUnmatched({ event }: Event, queryClient: QueryClient) {
-  if (event.case === "scanFinished") {
+/**
+ * Lists the Items a finished scan left Unmatched, and again once Matching finishes: why it left
+ * each one Unmatched is stored only then.
+ */
+function relistUnmatched({ event }: Event, queryClient: QueryClient) {
+  if (event.case === "scanFinished" || event.case === "matchingFinished") {
     void queryClient.invalidateQueries({ queryKey: unmatchedKey(event.value.libraryId) });
-  } else if (event.case === "itemMatched" || event.case === "libraryItemRemoved") {
+  }
+}
+
+/** Drops each Unmatched Item that is Matched or gone. */
+function dropDecided({ event }: Event, queryClient: QueryClient) {
+  if (event.case === "itemMatched" || event.case === "libraryItemRemoved") {
     dropUnmatched(queryClient, event.value.libraryId, event.value.itemId);
   }
 }

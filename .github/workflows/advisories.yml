@@ -39,7 +39,8 @@ jobs:
           .github/scripts/advisories.sh > "$RUNNER_TEMP/found.jsonl"
           # Every state: a closed issue means someone decided, and reopening it daily would be
           # noise. To silence one for good, ignore it in deny.toml with a reason.
-          gh issue list --app github-actions --state all --limit 1000 --json title \
+          # Not `--app github-actions`: it returns none of the issues github-actions opened.
+          gh issue list --search "author:app/github-actions" --state all --limit 1000 --json title \
             --jq '.[].title' > "$RUNNER_TEMP/titles.txt"
           while read -r found; do
             field() { jq -r ".$1 // empty" <<< "$found"; }
