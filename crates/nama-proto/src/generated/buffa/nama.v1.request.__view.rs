@@ -15111,8 +15111,440 @@ impl ::serde::Serialize for ListOfferedQualitiesResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A Movie in the metadata source, and how close it is to being on the Server: in a Library, asked
-/// for in a Request, or neither, in which case `CreateRequest` asks for it.
+/// A Movie a search found, and how close it is to being on the Server: in a Library, asked for in
+/// a Request, or neither, in which case `CreateRequest` asks for it. Numbered as `FoundMovie`, so a
+/// client built when searches gave `FoundMovie`s still decodes it.
+#[derive(Clone, Debug, Default)]
+pub struct MovieHitView<'a> {
+    /// The Movie's TMDB id.
+    ///
+    /// Field 1: `tmdb_id`
+    pub tmdb_id: i64,
+    /// The title, in the metadata Provider's language.
+    ///
+    /// Field 2: `title`
+    pub title: &'a str,
+    /// The year it was released, if known.
+    ///
+    /// Field 3: `year`
+    pub year: ::core::option::Option<i32>,
+    /// The poster's URL, under `/media/artwork/` on this Server.
+    ///
+    /// Field 6: `poster_url`
+    pub poster_url: ::core::option::Option<&'a str>,
+    /// The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
+    /// by `tmdb_id`.
+    ///
+    /// Field 8: `library_id`
+    pub library_id: ::core::option::Option<i64>,
+    /// The Movie's open Request, if it has one the caller may see.
+    ///
+    /// Field 9: `request`
+    pub request: ::buffa::MessageFieldView<super::super::__buffa::view::RequestView<'a>>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for MovieHitView<'a> {
+    type Owned = super::super::MovieHit;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.tmdb_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.year = Some(::buffa::types::decode_int32(&mut cur)?);
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.poster_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.library_id = Some(::buffa::types::decode_int64(&mut cur)?);
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.request.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.request = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::RequestView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::MovieHit, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::MovieHit, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::MovieHit {
+            tmdb_id: self.tmdb_id,
+            title: self.title.to_string(),
+            year: self.year,
+            poster_url: self.poster_url.map(|s| s.to_string()),
+            library_id: self.library_id,
+            request: match self.request.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::Request,
+                        ::buffa::Inline<super::super::Request>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for MovieHitView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.tmdb_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.tmdb_id) as u64;
+        }
+        if !self.title.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
+        }
+        if let Some(v) = self.year {
+            size += 1u64 + ::buffa::types::int32_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.poster_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.library_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
+        if self.request.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.request.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.tmdb_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.tmdb_id, buf);
+        }
+        if !self.title.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.title, buf);
+        }
+        if let Some(v) = self.year {
+            ::buffa::types::put_int32_field(3u32, v, buf);
+        }
+        if let Some(ref v) = self.poster_url {
+            ::buffa::types::put_string_field(6u32, v, buf);
+        }
+        if let Some(v) = self.library_id {
+            ::buffa::types::put_int64_field(8u32, v, buf);
+        }
+        if self.request.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                9u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.request.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for MovieHitView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.tmdb_id) {
+            __map
+                .serialize_entry(
+                    "tmdbId",
+                    &::buffa::json_helpers::ProtoJson(&self.tmdb_id),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.title) {
+            __map.serialize_entry("title", self.title)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.year {
+            __map.serialize_entry("year", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.poster_url {
+            __map.serialize_entry("posterUrl", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.library_id {
+            __map.serialize_entry("libraryId", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.request.as_option() {
+                __map.serialize_entry("request", __v)?;
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for MovieHitView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "MovieHit";
+    const FULL_NAME: &'static str = "nama.v1.MovieHit";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.MovieHit";
+}
+::buffa::impl_default_view_instance!(MovieHitView);
+::buffa::impl_view_reborrow!(MovieHitView);
+/** Self-contained, `'static` owned view of a `MovieHit` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`MovieHitView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`MovieHitView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct MovieHitOwnedView(::buffa::OwnedView<MovieHitView<'static>>);
+impl MovieHitOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(MovieHitOwnedView(::buffa::OwnedView::decode(bytes)?))
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            MovieHitOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::MovieHit,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            MovieHitOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`MovieHitView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &MovieHitView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::MovieHit {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Movie's TMDB id.
+    ///
+    /// Field 1: `tmdb_id`
+    #[must_use]
+    pub fn tmdb_id(&self) -> i64 {
+        self.0.reborrow().tmdb_id
+    }
+    /// The title, in the metadata Provider's language.
+    ///
+    /// Field 2: `title`
+    #[must_use]
+    pub fn title(&self) -> &'_ str {
+        self.0.reborrow().title
+    }
+    /// The year it was released, if known.
+    ///
+    /// Field 3: `year`
+    #[must_use]
+    pub fn year(&self) -> ::core::option::Option<i32> {
+        self.0.reborrow().year
+    }
+    /// The poster's URL, under `/media/artwork/` on this Server.
+    ///
+    /// Field 6: `poster_url`
+    #[must_use]
+    pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().poster_url
+    }
+    /// The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
+    /// by `tmdb_id`.
+    ///
+    /// Field 8: `library_id`
+    #[must_use]
+    pub fn library_id(&self) -> ::core::option::Option<i64> {
+        self.0.reborrow().library_id
+    }
+    /// The Movie's open Request, if it has one the caller may see.
+    ///
+    /// Field 9: `request`
+    #[must_use]
+    pub fn request(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::RequestView<'_>> {
+        &self.0.reborrow().request
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<MovieHitView<'static>>>
+for MovieHitOwnedView {
+    fn from(inner: ::buffa::OwnedView<MovieHitView<'static>>) -> Self {
+        MovieHitOwnedView(inner)
+    }
+}
+impl ::core::convert::From<MovieHitOwnedView>
+for ::buffa::OwnedView<MovieHitView<'static>> {
+    fn from(wrapper: MovieHitOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<MovieHitView<'static>>>
+for MovieHitOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<MovieHitView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::MovieHit {
+    type View<'a> = MovieHitView<'a>;
+    type ViewHandle = MovieHitOwnedView;
+}
+impl ::serde::Serialize for MovieHitOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A Movie looked up in the metadata source, and how close it is to being on the Server, as a
+/// `MovieHit` has it.
 #[derive(Clone, Debug, Default)]
 pub struct FoundMovieView<'a> {
     /// The Movie's TMDB id.
@@ -15127,19 +15559,17 @@ pub struct FoundMovieView<'a> {
     ///
     /// Field 3: `year`
     pub year: ::core::option::Option<i32>,
-    /// Only `LookUpMovie` gives it.
+    /// What it is about, in the metadata Provider's language.
     ///
     /// Field 4: `overview`
     pub overview: ::core::option::Option<&'a str>,
-    /// Only `LookUpMovie` gives it.
-    ///
     /// Field 5: `runtime_minutes`
     pub runtime_minutes: ::core::option::Option<u32>,
     /// The poster's URL, under `/media/artwork/` on this Server.
     ///
     /// Field 6: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server. Only `LookUpMovie` gives it.
+    /// The backdrop's URL, under `/media/artwork/` on this Server.
     ///
     /// Field 7: `backdrop_url`
     pub backdrop_url: ::core::option::Option<&'a str>,
@@ -15556,15 +15986,13 @@ impl FoundMovieOwnedView {
     pub fn year(&self) -> ::core::option::Option<i32> {
         self.0.reborrow().year
     }
-    /// Only `LookUpMovie` gives it.
+    /// What it is about, in the metadata Provider's language.
     ///
     /// Field 4: `overview`
     #[must_use]
     pub fn overview(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().overview
     }
-    /// Only `LookUpMovie` gives it.
-    ///
     /// Field 5: `runtime_minutes`
     #[must_use]
     pub fn runtime_minutes(&self) -> ::core::option::Option<u32> {
@@ -15577,7 +16005,7 @@ impl FoundMovieOwnedView {
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
     }
-    /// The backdrop's URL, under `/media/artwork/` on this Server. Only `LookUpMovie` gives it.
+    /// The backdrop's URL, under `/media/artwork/` on this Server.
     ///
     /// Field 7: `backdrop_url`
     #[must_use]
@@ -15894,10 +16322,7 @@ impl ::serde::Serialize for SearchMoviesRequestOwnedView {
 #[derive(Clone, Debug, Default)]
 pub struct SearchMoviesResponseView<'a> {
     /// Field 1: `movies`
-    pub movies: ::buffa::RepeatedView<
-        'a,
-        super::super::__buffa::view::FoundMovieView<'a>,
-    >,
+    pub movies: ::buffa::RepeatedView<'a, super::super::__buffa::view::MovieHitView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SearchMoviesResponseView<'a> {
@@ -15938,11 +16363,11 @@ impl<'a> ::buffa::MessageView<'a> for SearchMoviesResponseView<'a> {
                 let __sub_ctx = ctx.descend()?;
                 let sub = ::buffa::types::borrow_bytes(&mut cur)?;
                 ctx.register_element_memory(
-                    ::core::mem::size_of::<super::super::__buffa::view::FoundMovieView>(),
+                    ::core::mem::size_of::<super::super::__buffa::view::MovieHitView>(),
                 )?;
                 view.movies
                     .push(
-                        <super::super::__buffa::view::FoundMovieView as ::buffa::MessageView>::decode_view_ctx(
+                        <super::super::__buffa::view::MovieHitView as ::buffa::MessageView>::decode_view_ctx(
                             sub,
                             __sub_ctx,
                         )?,
@@ -16142,7 +16567,7 @@ impl SearchMoviesResponseOwnedView {
     #[must_use]
     pub fn movies(
         &self,
-    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::FoundMovieView<'_>> {
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::MovieHitView<'_>> {
         &self.0.reborrow().movies
     }
 }
@@ -16726,7 +17151,344 @@ impl ::serde::Serialize for LookUpMovieResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A Show in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
+/// A Show a search found. Numbered as `FoundShow`, so a client built when searches gave
+/// `FoundShow`s still decodes it.
+#[derive(Clone, Debug, Default)]
+pub struct ShowHitView<'a> {
+    /// The Show's TMDB id.
+    ///
+    /// Field 1: `tmdb_id`
+    pub tmdb_id: i64,
+    /// The title, in the metadata Provider's language.
+    ///
+    /// Field 2: `title`
+    pub title: &'a str,
+    /// The year it first aired, if known.
+    ///
+    /// Field 3: `year`
+    pub year: ::core::option::Option<i32>,
+    /// The poster's URL, under `/media/artwork/` on this Server.
+    ///
+    /// Field 5: `poster_url`
+    pub poster_url: ::core::option::Option<&'a str>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ShowHitView<'a> {
+    type Owned = super::super::ShowHit;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.tmdb_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.year = Some(::buffa::types::decode_int32(&mut cur)?);
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.poster_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::ShowHit, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::ShowHit, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ShowHit {
+            tmdb_id: self.tmdb_id,
+            title: self.title.to_string(),
+            year: self.year,
+            poster_url: self.poster_url.map(|s| s.to_string()),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ShowHitView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.tmdb_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.tmdb_id) as u64;
+        }
+        if !self.title.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
+        }
+        if let Some(v) = self.year {
+            size += 1u64 + ::buffa::types::int32_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.poster_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.tmdb_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.tmdb_id, buf);
+        }
+        if !self.title.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.title, buf);
+        }
+        if let Some(v) = self.year {
+            ::buffa::types::put_int32_field(3u32, v, buf);
+        }
+        if let Some(ref v) = self.poster_url {
+            ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ShowHitView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.tmdb_id) {
+            __map
+                .serialize_entry(
+                    "tmdbId",
+                    &::buffa::json_helpers::ProtoJson(&self.tmdb_id),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.title) {
+            __map.serialize_entry("title", self.title)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.year {
+            __map.serialize_entry("year", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.poster_url {
+            __map.serialize_entry("posterUrl", __v)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ShowHitView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ShowHit";
+    const FULL_NAME: &'static str = "nama.v1.ShowHit";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ShowHit";
+}
+::buffa::impl_default_view_instance!(ShowHitView);
+::buffa::impl_view_reborrow!(ShowHitView);
+/** Self-contained, `'static` owned view of a `ShowHit` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ShowHitView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ShowHitView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ShowHitOwnedView(::buffa::OwnedView<ShowHitView<'static>>);
+impl ShowHitOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(ShowHitOwnedView(::buffa::OwnedView::decode(bytes)?))
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ShowHitOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ShowHit,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ShowHitOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ShowHitView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ShowHitView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ShowHit {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Show's TMDB id.
+    ///
+    /// Field 1: `tmdb_id`
+    #[must_use]
+    pub fn tmdb_id(&self) -> i64 {
+        self.0.reborrow().tmdb_id
+    }
+    /// The title, in the metadata Provider's language.
+    ///
+    /// Field 2: `title`
+    #[must_use]
+    pub fn title(&self) -> &'_ str {
+        self.0.reborrow().title
+    }
+    /// The year it first aired, if known.
+    ///
+    /// Field 3: `year`
+    #[must_use]
+    pub fn year(&self) -> ::core::option::Option<i32> {
+        self.0.reborrow().year
+    }
+    /// The poster's URL, under `/media/artwork/` on this Server.
+    ///
+    /// Field 5: `poster_url`
+    #[must_use]
+    pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().poster_url
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ShowHitView<'static>>>
+for ShowHitOwnedView {
+    fn from(inner: ::buffa::OwnedView<ShowHitView<'static>>) -> Self {
+        ShowHitOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ShowHitOwnedView>
+for ::buffa::OwnedView<ShowHitView<'static>> {
+    fn from(wrapper: ShowHitOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ShowHitView<'static>>>
+for ShowHitOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ShowHitView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ShowHit {
+    type View<'a> = ShowHitView<'a>;
+    type ViewHandle = ShowHitOwnedView;
+}
+impl ::serde::Serialize for ShowHitOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A Show looked up in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
 #[derive(Clone, Debug, Default)]
 pub struct FoundShowView<'a> {
     /// The Show's TMDB id.
@@ -16741,7 +17503,7 @@ pub struct FoundShowView<'a> {
     ///
     /// Field 3: `year`
     pub year: ::core::option::Option<i32>,
-    /// Only `LookUpShow` gives it.
+    /// What it is about, in the metadata Provider's language.
     ///
     /// Field 4: `overview`
     pub overview: ::core::option::Option<&'a str>,
@@ -16749,18 +17511,18 @@ pub struct FoundShowView<'a> {
     ///
     /// Field 5: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server. Only `LookUpShow` gives it.
+    /// The backdrop's URL, under `/media/artwork/` on this Server.
     ///
     /// Field 6: `backdrop_url`
     pub backdrop_url: ::core::option::Option<&'a str>,
-    /// Its Seasons, in order. Only `LookUpShow` gives them.
+    /// Its Seasons, in order.
     ///
     /// Field 7: `seasons`
     pub seasons: ::buffa::RepeatedView<
         'a,
         super::super::__buffa::view::FoundSeasonView<'a>,
     >,
-    /// The Show's open Followed Show, if it has one the caller may see. Only `LookUpShow` gives it.
+    /// The Show's open Followed Show, if it has one the caller may see.
     ///
     /// Field 8: `followed_show`
     pub followed_show: ::buffa::MessageFieldView<
@@ -16769,7 +17531,7 @@ pub struct FoundShowView<'a> {
     /// The Show's Quality, which each of its Season Requests takes, as Sonarr keeps one profile per
     /// series (ADR 0025): that of its earliest Season Request that has one and is open or was handed
     /// off, else that of its open Followed Show. Unset if it has none, so a new Season Request or
-    /// Followed Show may pick one. Only `LookUpShow` gives it.
+    /// Followed Show may pick one.
     ///
     /// Field 9: `quality`
     pub quality: ::buffa::MessageFieldView<
@@ -17236,7 +17998,7 @@ impl FoundShowOwnedView {
     pub fn year(&self) -> ::core::option::Option<i32> {
         self.0.reborrow().year
     }
-    /// Only `LookUpShow` gives it.
+    /// What it is about, in the metadata Provider's language.
     ///
     /// Field 4: `overview`
     #[must_use]
@@ -17250,14 +18012,14 @@ impl FoundShowOwnedView {
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
     }
-    /// The backdrop's URL, under `/media/artwork/` on this Server. Only `LookUpShow` gives it.
+    /// The backdrop's URL, under `/media/artwork/` on this Server.
     ///
     /// Field 6: `backdrop_url`
     #[must_use]
     pub fn backdrop_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().backdrop_url
     }
-    /// Its Seasons, in order. Only `LookUpShow` gives them.
+    /// Its Seasons, in order.
     ///
     /// Field 7: `seasons`
     #[must_use]
@@ -17266,7 +18028,7 @@ impl FoundShowOwnedView {
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::FoundSeasonView<'_>> {
         &self.0.reborrow().seasons
     }
-    /// The Show's open Followed Show, if it has one the caller may see. Only `LookUpShow` gives it.
+    /// The Show's open Followed Show, if it has one the caller may see.
     ///
     /// Field 8: `followed_show`
     #[must_use]
@@ -17278,7 +18040,7 @@ impl FoundShowOwnedView {
     /// The Show's Quality, which each of its Season Requests takes, as Sonarr keeps one profile per
     /// series (ADR 0025): that of its earliest Season Request that has one and is open or was handed
     /// off, else that of its open Followed Show. Unset if it has none, so a new Season Request or
-    /// Followed Show may pick one. Only `LookUpShow` gives it.
+    /// Followed Show may pick one.
     ///
     /// Field 9: `quality`
     #[must_use]
@@ -17953,7 +18715,7 @@ impl ::serde::Serialize for SearchShowsRequestOwnedView {
 #[derive(Clone, Debug, Default)]
 pub struct SearchShowsResponseView<'a> {
     /// Field 1: `shows`
-    pub shows: ::buffa::RepeatedView<'a, super::super::__buffa::view::FoundShowView<'a>>,
+    pub shows: ::buffa::RepeatedView<'a, super::super::__buffa::view::ShowHitView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SearchShowsResponseView<'a> {
@@ -17994,11 +18756,11 @@ impl<'a> ::buffa::MessageView<'a> for SearchShowsResponseView<'a> {
                 let __sub_ctx = ctx.descend()?;
                 let sub = ::buffa::types::borrow_bytes(&mut cur)?;
                 ctx.register_element_memory(
-                    ::core::mem::size_of::<super::super::__buffa::view::FoundShowView>(),
+                    ::core::mem::size_of::<super::super::__buffa::view::ShowHitView>(),
                 )?;
                 view.shows
                     .push(
-                        <super::super::__buffa::view::FoundShowView as ::buffa::MessageView>::decode_view_ctx(
+                        <super::super::__buffa::view::ShowHitView as ::buffa::MessageView>::decode_view_ctx(
                             sub,
                             __sub_ctx,
                         )?,
@@ -18198,7 +18960,7 @@ impl SearchShowsResponseOwnedView {
     #[must_use]
     pub fn shows(
         &self,
-    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::FoundShowView<'_>> {
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::ShowHitView<'_>> {
         &self.0.reborrow().shows
     }
 }

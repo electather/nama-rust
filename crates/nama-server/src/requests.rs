@@ -130,19 +130,18 @@ pub(crate) struct Found<M> {
     pub(crate) request: Option<Request>,
 }
 
-/// A Show the metadata source has, as `S` holds it.
+/// A Show looked up in the metadata source, and how close it is to being on the Server.
 #[derive(Debug)]
-pub(crate) struct FoundShow<S> {
+pub(crate) struct FoundShow {
     pub(crate) tmdb_id: i64,
     /// The Plugin whose metadata Provider gave the Show, which its image paths are for.
     pub(crate) plugin: PluginId,
-    pub(crate) show: S,
-    /// Its Seasons, in order, as the viewer sees them. Only a lookup fills them.
+    pub(crate) show: Show,
+    /// Its Seasons, in order, as the viewer sees them.
     pub(crate) seasons: Vec<FoundSeason>,
-    /// Its open Followed Show, if it has one the viewer may see. Only a lookup fills it.
+    /// Its open Followed Show, if it has one the viewer may see.
     pub(crate) followed_show: Option<FollowedShow>,
-    /// Its Quality, which each of its Season Requests takes, if it has one. Only a lookup fills
-    /// it.
+    /// Its Quality, which each of its Season Requests takes, if it has one.
     pub(crate) quality: Option<RequestedQuality>,
 }
 
@@ -858,23 +857,13 @@ impl Requests {
         Ok(found)
     }
 
-    /// The Shows the metadata source finds titled like `title`, best fit first.
+    /// The Shows the metadata source finds titled like `title`, best fit first, each with its
+    /// TMDB id and the Plugin whose Provider found it, which its image paths are for.
     pub(crate) async fn search_shows(
         &self,
         title: String,
-    ) -> Result<Vec<FoundShow<Candidate>>, Error> {
-        let candidates = self.find(TitleKind::Show, title).await?;
-        Ok(candidates
-            .into_iter()
-            .map(|(tmdb_id, plugin, show)| FoundShow {
-                tmdb_id,
-                plugin,
-                show,
-                seasons: Vec::new(),
-                followed_show: None,
-                quality: None,
-            })
-            .collect())
+    ) -> Result<Vec<(i64, PluginId, Candidate)>, Error> {
+        self.find(TitleKind::Show, title).await
     }
 
     /// The titles of `kind` the metadata source finds titled like `title`, best fit first, each
@@ -910,7 +899,7 @@ impl Requests {
         &self,
         viewer: &User,
         tmdb_id: i64,
-    ) -> Result<FoundShow<Show>, Error> {
+    ) -> Result<FoundShow, Error> {
         let (plugin, show) = self
             .metadata
             .show(&ExternalId::Tmdb(tmdb_id))

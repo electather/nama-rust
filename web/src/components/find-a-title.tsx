@@ -6,7 +6,7 @@ import { FormField } from "@/components/form-field";
 import { Poster, PosterGrid, posterLink } from "@/components/poster";
 import { FoundMovieState } from "@/components/found-movie-state";
 import { Button } from "@/components/ui/button";
-import { type FoundMovie, type FoundShow, RequestService } from "@/gen/nama/v1/request_pb";
+import { type MovieHit, RequestService, type ShowHit } from "@/gen/nama/v1/request_pb";
 import { formText, onSubmitted } from "@/lib/forms";
 
 /** Which kinds of title the signed-in User may Request, and so search for. */
@@ -120,7 +120,7 @@ function Found({
   );
 }
 
-function ShowCard({ show }: { show: FoundShow }) {
+function ShowCard({ show }: { show: ShowHit }) {
   return (
     <li>
       <Link to="/shows/$showId" params={{ showId: `tmdb-${show.tmdbId}` }} className={posterLink}>
@@ -131,7 +131,7 @@ function ShowCard({ show }: { show: FoundShow }) {
 }
 
 /** A Movie found: its poster opens its page, in its Library if one has it. */
-function MovieCard({ movie, you }: { movie: FoundMovie; you: bigint | undefined }) {
+function MovieCard({ movie, you }: { movie: MovieHit; you: bigint | undefined }) {
   const movieId = `tmdb-${movie.tmdbId}`;
   const poster = (
     <Poster url={movie.posterUrl} title={movie.title} detail={movie.year?.toString()} />
