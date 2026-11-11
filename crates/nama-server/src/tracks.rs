@@ -318,9 +318,8 @@ impl Tracks {
         ignore_removed(stored)
     }
 
-    /// When each keyframe of the Version `file`'s first video falls, in milliseconds, if they've
-    /// been kept since it was last probed, at the size and modified time `Contents` stores for it
-    /// now.
+    /// When each keyframe of the stored file `file`'s first video falls, in milliseconds, if
+    /// they've been kept since it was last probed at `file`'s size and modified time.
     pub(crate) async fn keyframes(&self, file: Stored) -> Result<Option<Vec<i64>>, sqlx::Error> {
         let keyframes = sqlx::query_scalar!(
             "SELECT keyframes_ms FROM version_probes

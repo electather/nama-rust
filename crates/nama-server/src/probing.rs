@@ -157,6 +157,8 @@ impl Probing {
     pub(crate) async fn keyframes(&self, version: i64) -> Result<Vec<i64>, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
+        // ponytail: not held to PROBES_AT_ONCE, as `current` isn't; limit it apart if many
+        // whole-file reads at once swamp the disk.
         loop {
             let mut lister = match try_claim(&self.inner.listing, file) {
                 Ok(claim) => return self.list_claimed(&path, claim).await,
