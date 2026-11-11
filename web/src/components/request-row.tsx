@@ -48,7 +48,10 @@ export function RequestRow({ request }: { request: Request | FollowedShow }) {
         <p className="truncate font-medium">{titleOf(request)}</p>
         <p className="text-sm text-muted-foreground">{aboutRequest(request, signedIn.user?.id)}</p>
         <Reason reason={reasonOf(request)} />
-        <FulfillerLink request={request} mayFix={may(signedIn.user, Permission.MANAGE_SETTINGS)} />
+        <FulfillerLink
+          pluginId={failedBy(request)}
+          mayFix={may(signedIn.user, Permission.MANAGE_SETTINGS)}
+        />
       </div>
       <RequestStateLabel state={request.state} />
       {request.$typeName === "nama.v1.Request" && <RequestProgress request={request} />}
@@ -123,19 +126,24 @@ function Reason({ reason }: { reason: string | undefined }) {
   );
 }
 
+/** The Plugin whose Fulfiller didn't take a Failed Request, if it names one. */
+function failedBy(request: Request | FollowedShow) {
+  return request.$typeName === "nama.v1.Request" && request.state === RequestState.FAILED
+    ? request.fulfillerPluginId
+    : undefined;
+}
+
 /**
- * For a Failed Request, the link to its Fulfiller's Plugin, where the reason it failed is fixed,
- * shown only to a User who `mayFix` it there: one with Manage settings.
+ * The link to the Plugin `pluginId`, whose settings fix why its Fulfiller didn't take a Request,
+ * shown only to a User who `mayFix` them there: one with Manage settings.
  */
-function FulfillerLink({ request, mayFix }: { request: Request | FollowedShow; mayFix: boolean }) {
+function FulfillerLink({ pluginId, mayFix }: { pluginId: string | undefined; mayFix: boolean }) {
   return (
-    request.$typeName === "nama.v1.Request" &&
-    request.state === RequestState.FAILED &&
-    request.fulfillerPluginId !== undefined &&
+    pluginId !== undefined &&
     mayFix && (
       <Link
         to="/admin/plugins/$pluginId"
-        params={{ pluginId: request.fulfillerPluginId }}
+        params={{ pluginId }}
         className="rounded-sm text-sm underline decoration-muted-foreground underline-offset-4 outline-none hover:decoration-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         Fix it in the Plugin’s settings

@@ -125,7 +125,6 @@ test("a User without Manage Requests isn't offered Approve, Decline, Cancel or R
   await screen.findByText("Heat");
   expect(screen.getByText("Reason: Radarr is unreachable")).toBeDefined();
   expect(screen.queryByRole("button", { name: /^(Approve|Decline|Cancel|Retry)/u })).toBeNull();
-  expect(screen.queryByRole("link", { name: "Fix it in the Plugin’s settings" })).toBeNull();
 });
 
 test("a Failed Request links a User with Manage settings to its Fulfiller's Plugin", async () => {
@@ -137,6 +136,17 @@ test("a Failed Request links a User with Manage settings to its Fulfiller's Plug
   const link = await screen.findByRole("link", { name: "Fix it in the Plugin’s settings" });
 
   expect(link.getAttribute("href")).toBe("/admin/plugins/radarr");
+});
+
+test("a Failed Request doesn't link a User without Manage settings to its Fulfiller's Plugin", async () => {
+  openApp(
+    "/requests",
+    managedServer([...newUser, Permission.MANAGE_REQUESTS], create(RequestSchema, alien)),
+  );
+
+  await screen.findByRole("button", { name: "Retry Alien" });
+
+  expect(screen.queryByRole("link", { name: "Fix it in the Plugin’s settings" })).toBeNull();
 });
 
 test("approving a Pending Request shows it Approved", async () => {
