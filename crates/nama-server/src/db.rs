@@ -142,18 +142,44 @@ impl Database {
             + Send
             + 'static,
     {
+        self.write_then(write, || {}).await
+    }
+
+    /// Like [`Database::write`], then runs `after_commit` on the writer only once the commit has
+    /// succeeded, before this returns and before the next write begins, even if the caller stopped
+    /// waiting. Use it to change state in memory that must match the database, in the order the
+    /// writes commit.
+    ///
+    /// `after_commit` is synchronous and must be short: every other write waits for it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Database::write`], and then `after_commit` doesn't run. If `after_commit` panics, the
+    /// write stays committed but this returns [`sqlx::Error::WorkerCrashed`].
+    pub async fn write_then<T, E, F>(
+        &self,
+        write: F,
+        after_commit: impl FnOnce() + Send + 'static,
+    ) -> Result<T, E>
+    where
+        T: Send + 'static,
+        E: From<sqlx::Error> + Send + 'static,
+        F: for<'t> FnOnce(&'t mut Transaction<'_, Sqlite>) -> BoxFuture<'t, Result<T, E>>
+            + Send
+            + 'static,
+    {
         let (done, result) = oneshot::channel();
         let job: Job = Box::new(move |conn| {
             Box::pin(async move {
                 // The caller may have stopped waiting; the write still happened.
-                let _: Result<(), _> = done.send(in_transaction(conn, write).await);
+                let _: Result<(), _> = done.send(in_transaction(conn, write, after_commit).await);
             })
         });
         // The writer runs until the last handle is dropped, so it's there to take the job.
         if self.jobs.send(job).await.is_err() {
             return Err(sqlx::Error::PoolClosed.into());
         }
-        // The job only drops its reply unsent if `write` panicked.
+        // The job only drops its reply unsent if `write` or `after_commit` panicked.
         result
             .await
             .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
@@ -207,14 +233,15 @@ where
 /// Runs queued writes one at a time until every [`Database`] handle is gone.
 async fn run_writer(mut conn: SqliteConnection, mut queue: mpsc::Receiver<Job>) {
     while let Some(job) = queue.recv().await {
-        // A write that panics fails alone: its caller gets an error, and the transaction it
-        // left open is rolled back before the next write begins.
+        // A write that panics fails alone: its caller gets an error, and a transaction it left
+        // open is rolled back before the next write begins. An `after_commit` that panics comes
+        // after its commit, so that write stays.
         if AssertUnwindSafe(job(&mut conn))
             .catch_unwind()
             .await
             .is_err()
         {
-            tracing::error!("a database write panicked; it was rolled back");
+            tracing::error!("a database write panicked");
         }
     }
     if let Err(err) = conn.close().await {
@@ -222,7 +249,11 @@ async fn run_writer(mut conn: SqliteConnection, mut queue: mpsc::Receiver<Job>) 
     }
 }
 
-async fn in_transaction<T, E, F>(conn: &mut SqliteConnection, write: F) -> Result<T, E>
+async fn in_transaction<T, E, F>(
+    conn: &mut SqliteConnection,
+    write: F,
+    after_commit: impl FnOnce(),
+) -> Result<T, E>
 where
     E: From<sqlx::Error>,
     F: for<'t> FnOnce(&'t mut Transaction<'_, Sqlite>) -> BoxFuture<'t, Result<T, E>>,
@@ -234,6 +265,7 @@ where
     match write(&mut tx).await {
         Ok(value) => {
             tx.commit().await?;
+            after_commit();
             Ok(value)
         }
         Err(err) => {

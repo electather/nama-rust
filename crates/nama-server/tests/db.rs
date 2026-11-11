@@ -1,6 +1,12 @@
 //! The Server's SQLite database: opening, migrating, and reading while the single writer works.
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
 
 use nama_server::db::{self, Database};
 use tokio::sync::oneshot;
@@ -126,6 +132,64 @@ async fn a_failed_write_commits_nothing() {
 
     assert!(result.is_err());
     assert_eq!(count_rows(&db).await, 0);
+}
+
+#[tokio::test]
+async fn a_failed_commit_returns_its_error_skips_after_commit_and_later_writes_work() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Database::open(data_dir.path()).await.unwrap();
+    let wrote = Arc::new(AtomicBool::new(false));
+    let write_finished = Arc::clone(&wrote);
+    let ran = Arc::new(AtomicBool::new(false));
+    let after_commit = Arc::clone(&ran);
+
+    let result: Result<(), sqlx::Error> = db
+        .write_then(
+            |tx| {
+                Box::pin(async move {
+                    // Temporary tables, so no domain table's owner is bypassed. A deferred foreign
+                    // key is checked only at COMMIT, so the write succeeds and the commit fails.
+                    sqlx::raw_sql(
+                        "CREATE TEMP TABLE parent (id INTEGER PRIMARY KEY);
+                         CREATE TEMP TABLE child (parent_id INTEGER REFERENCES parent (id));
+                         PRAGMA defer_foreign_keys = ON;
+                         INSERT INTO child (parent_id) VALUES (1);",
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    write_finished.store(true, Ordering::SeqCst);
+                    Ok(())
+                })
+            },
+            move || after_commit.store(true, Ordering::SeqCst),
+        )
+        .await;
+
+    assert!(wrote.load(Ordering::SeqCst), "the write itself failed");
+    assert!(result.is_err(), "the commit should have failed");
+    assert!(
+        !ran.load(Ordering::SeqCst),
+        "the closure ran after a failed commit"
+    );
+    insert_rows(&db, 0, 1).await.unwrap();
+    assert_eq!(count_rows(&db).await, 1, "a later write failed");
+}
+
+#[tokio::test]
+async fn the_after_commit_closure_has_run_when_a_committed_write_returns() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Database::open(data_dir.path()).await.unwrap();
+    let ran = Arc::new(AtomicBool::new(false));
+    let after_commit = Arc::clone(&ran);
+
+    db.write_then(
+        |_| Box::pin(async { Ok::<_, sqlx::Error>(()) }),
+        move || after_commit.store(true, Ordering::SeqCst),
+    )
+    .await
+    .unwrap();
+
+    assert!(ran.load(Ordering::SeqCst));
 }
 
 #[tokio::test]
