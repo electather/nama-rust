@@ -34,6 +34,9 @@ pub(crate) enum Error {
     /// The Device's name, the proof, a Device signed out meanwhile or the database.
     #[error(transparent)]
     Users(#[from] users::Error),
+    /// Reauthenticating gave no proof of who the caller is.
+    #[error("the proof of who you are is missing")]
+    ProofMissing,
 }
 
 impl SignIn {
@@ -62,15 +65,17 @@ impl SignIn {
     }
 
     /// Gives `caller`'s Device Recent Authentication if `password` is their User's, as asked from
-    /// `ip` at `now`. A Device found signed out once the password checked out is refused with
-    /// [`users::Error::SignedOut`], which is no guess.
+    /// `ip` at `now`. A missing password is refused with [`Error::ProofMissing`] and a Device found
+    /// signed out once the password checked out with [`users::Error::SignedOut`]; neither is a
+    /// guess.
     pub(crate) async fn reauthenticate(
         &self,
         caller: &Caller,
-        password: &str,
+        password: Option<&str>,
         ip: IpAddr,
         now: Instant,
     ) -> Result<(), Error> {
+        let password = password.ok_or(Error::ProofMissing)?;
         let attempt = self.limits.admit_at(ip, Some(&caller.user.name), now)?;
         self.users.confirm_password(&caller.user, password).await?;
         // Before recording, so a Device found signed out after the right password isn't a guess.
@@ -291,7 +296,7 @@ mod tests {
     ) -> Result<(), Error> {
         let ip = LAPTOP_IP.parse().unwrap();
         sign_in
-            .reauthenticate(caller, password_given, ip, now)
+            .reauthenticate(caller, Some(password_given), ip, now)
             .await
     }
 
@@ -385,5 +390,20 @@ mod tests {
         }
 
         attempt(&sign_in, "Ada", PASSWORD, now).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_reauthentication_without_a_proof_is_refused_without_counting_as_a_guess() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let sign_in = sign_in_with_ada(data_dir.path()).await;
+        let ada = ada_without_recent_authentication(&sign_in).await;
+        let ip = LAPTOP_IP.parse().unwrap();
+        let now = Instant::now();
+        for _ in 0..50 {
+            let refused = sign_in.reauthenticate(&ada, None, ip, now).await;
+            assert!(matches!(refused, Err(Error::ProofMissing)), "{refused:?}");
+        }
+
+        reauthenticate(&sign_in, &ada, PASSWORD, now).await.unwrap();
     }
 }

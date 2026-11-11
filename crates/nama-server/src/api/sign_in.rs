@@ -167,16 +167,17 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, ReauthenticateRequest>,
     ) -> ServiceResult<ReauthenticateResponse> {
         let caller = caller(&ctx)?;
-        let Some(Proof::Password(password)) = request.to_owned_message().proof else {
-            return Err(refuse(
-                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                "the proof of who you are is missing",
-            )
-            .field("proof")
-            .into());
-        };
+        let password = request
+            .to_owned_message()
+            .proof
+            .map(|Proof::Password(password)| password);
         self.sign_in
-            .reauthenticate(caller, &password, client_ip(&ctx)?, Instant::now())
+            .reauthenticate(
+                caller,
+                password.as_deref(),
+                client_ip(&ctx)?,
+                Instant::now(),
+            )
             .await?;
         Response::ok(ReauthenticateResponse::default())
     }
@@ -387,6 +388,12 @@ impl From<sign_in::Error> for ConnectError {
         match err {
             sign_in::Error::Blocked(blocked) => blocked.into(),
             sign_in::Error::Users(err) => err.into(),
+            err @ sign_in::Error::ProofMissing => refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                err.to_string(),
+            )
+            .field("proof")
+            .into(),
         }
     }
 }

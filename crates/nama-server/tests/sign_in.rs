@@ -1384,16 +1384,3 @@ async fn reauthenticating_without_a_proof_is_refused() {
     );
     assert_eq!(refusal.field, "proof");
 }
-
-#[tokio::test]
-async fn a_reauthentication_without_proof_doesnt_count_as_a_guess() {
-    let server = start().await;
-    let ada = token(&set_up(&server).await);
-    for _ in 0..10 {
-        reauthenticate(&server, &ada, &json!({})).await;
-    }
-
-    let reauthenticated = reauthenticate(&server, &ada, &json!({ "password": PASSWORD })).await;
-
-    assert_eq!(reauthenticated.status, 200, "{}", reauthenticated.body);
-}
