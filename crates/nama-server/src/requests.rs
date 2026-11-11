@@ -1125,51 +1125,129 @@ async fn ask_movie(
     ask_approving(conn, user, wanted, state).await
 }
 
-/// [`ask_approving`]s for each of the Seasons `show`, unless a Library has any of them. Returns the
-/// Requests in the order of `show.seasons`.
+/// Asks for each of the Seasons `show` as `user`, whose new Requests open in `state`, unless a
+/// Library has any of them. Returns the Requests in the order of `show.seasons`.
 async fn ask_seasons(
     conn: &mut SqliteConnection,
     user: i64,
     show: WantedSeasons,
     state: RequestState,
 ) -> Result<Applied<Vec<Request>>, Error> {
-    // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities.
-    let (quality, quality_chosen) = show_requests(conn, show.show_tmdb_id)
-        .await?
-        .for_seasons((show.quality.clone(), show.quality_chosen), show.chosen)?;
-    let WantedSeasons {
-        show_tmdb_id,
-        show_ids,
-        show_title,
-        seasons,
-        ..
-    } = show;
-    let today = today(conn).await?;
-    let mut asked = Applied::quiet(Vec::with_capacity(seasons.len()));
-    for season in seasons {
-        let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
-        if availability(&season.episodes, &matched, &today) == Some(RequestState::Available) {
-            return Err(Error::SeasonInLibrary {
-                show: show_tmdb_id,
-                season: season.number,
-            });
+    let asking = SeasonsToAsk::read(conn, show).await?;
+    asking.ask(conn, Way::Asking { user, state }).await
+}
+
+/// How Seasons of a Show are asked for, which decides what is done with each:
+///
+/// | Library has | asking | following |
+/// |---|---|---|
+/// | all of it | refuse | skip |
+/// | some or none of it | open as asked | open as asked |
+#[derive(Debug, Clone, Copy)]
+enum Way<'a> {
+    /// `user` asking for Seasons on their own, apart from the Show's Followed Show. Their new
+    /// Requests open in `state`.
+    Asking { user: i64, state: RequestState },
+    /// `user`, whose new Requests would open in `state`, following the Show through
+    /// `followed_show`, which new Requests open for and in the state of.
+    Following {
+        user: i64,
+        state: RequestState,
+        followed_show: &'a FollowedShow,
+    },
+}
+
+impl Way<'_> {
+    /// Refuses the Season `season` of the Show `show`, which a Library has in full, if this way
+    /// refuses such a Season rather than skipping it.
+    fn refuse_in_library(self, show: i64, season: u32) -> Result<(), Error> {
+        match self {
+            Way::Asking { .. } => Err(Error::SeasonInLibrary { show, season }),
+            Way::Following { .. } => Ok(()),
         }
-        let wanted = Wanted {
-            tmdb_id: show_tmdb_id,
-            season: Some(season.number),
-            title: show_title.clone(),
-            release_date: season.air_date,
-            show_ids: show_ids.clone(),
-            followed_show: None,
-            quality: quality.clone(),
-            quality_chosen,
-        };
-        let one = ask_approving(conn, user, wanted, state).await?;
-        asked.value.push(one.value);
-        asked.events.extend(one.events);
-        asked.hand_off.extend(one.hand_off);
     }
-    Ok(asked)
+}
+
+/// Seasons of a Show to ask for, at the Quality the Show's Quality rules give their new Requests.
+#[derive(Debug)]
+struct SeasonsToAsk {
+    show: WantedSeasons,
+}
+
+impl SeasonsToAsk {
+    /// `show`'s Seasons at the Show's one Quality, refusing another Quality the asker named.
+    async fn read(conn: &mut SqliteConnection, show: WantedSeasons) -> Result<Self, Error> {
+        // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities
+        // (ADR 0025).
+        let (quality, quality_chosen) = show_requests(conn, show.show_tmdb_id)
+            .await?
+            .for_seasons((show.quality.clone(), show.quality_chosen), show.chosen)?;
+        Ok(Self {
+            show: WantedSeasons {
+                quality,
+                quality_chosen,
+                ..show
+            },
+        })
+    }
+
+    /// Opens or joins a Request for each Season, the [`Way`] `way` asks for it. Returns the
+    /// Requests in Season order.
+    async fn ask(
+        self,
+        conn: &mut SqliteConnection,
+        way: Way<'_>,
+    ) -> Result<Applied<Vec<Request>>, Error> {
+        let (user, state, followed_show) = match way {
+            Way::Asking { user, state } => (user, state, None),
+            Way::Following {
+                user,
+                state,
+                followed_show,
+            } => (user, state, Some(followed_show)),
+        };
+        // An Approved Followed Show was approved once for every Season, so needs no approving again.
+        let opens_in = followed_show
+            .and_then(|followed| followed.state.as_known())
+            .unwrap_or(state);
+        let today = today(conn).await?;
+        let mut asked = Applied::quiet(Vec::with_capacity(self.show.seasons.len()));
+        for season in &self.show.seasons {
+            let matched =
+                contents::matched_episodes(conn, self.show.show_tmdb_id, season.number.into())
+                    .await?;
+            if availability(&season.episodes, &matched, &today) == Some(RequestState::Available) {
+                way.refuse_in_library(self.show.show_tmdb_id, season.number)?;
+                continue;
+            }
+            let wanted = self.wanted(season, followed_show.map(|followed| followed.id));
+            // Only `user`'s own auto-approve approves a Pending Season Request they join, whichever
+            // way they ask: the state of a Followed Show they join doesn't.
+            let one = if state == RequestState::Approved {
+                ask_approving(conn, user, wanted, opens_in).await?
+            } else {
+                ask(conn, user, wanted, opens_in).await?
+            };
+            asked.value.push(one.value);
+            asked.events.extend(one.events);
+            asked.hand_off.extend(one.hand_off);
+        }
+        Ok(asked)
+    }
+
+    /// What a new Request for `season` stores, opened for `followed_show` if given.
+    fn wanted(&self, season: &Season, followed_show: Option<i64>) -> Wanted {
+        Wanted {
+            tmdb_id: self.show.show_tmdb_id,
+            season: Some(season.number),
+            title: self.show.show_title.clone(),
+            release_date: season.air_date.clone(),
+            show_ids: self.show.show_ids.clone(),
+            followed_show,
+            quality: self.show.quality.clone(),
+            quality_chosen: self.show.quality_chosen,
+        }
+    }
 }
 
 /// [`ask`]s for `wanted`, then approves the open Request `user` joined if it is Pending and `state`
@@ -1786,9 +1864,8 @@ async fn withdraw(
 }
 
 /// Adds `user` as a Requester of the open Followed Show for `show`, opening one in `state` if there
-/// is none, then [`ask`]s for each of its Seasons not in a Library, opening missing ones for the
-/// Followed Show in its state, and [`ask_approving`]s instead if `user` may auto-approve. Returns
-/// the Followed Show and the Season Requests, with the Followed Show's event first.
+/// is none, then asks for each of its Seasons not in a Library by following it. Returns the
+/// Followed Show and the Season Requests, with the Followed Show's event first.
 async fn follow(
     conn: &mut SqliteConnection,
     user: i64,
@@ -1796,23 +1873,13 @@ async fn follow(
     state: RequestState,
 ) -> Result<Applied<(FollowedShow, Vec<Request>)>, Error> {
     let now = now();
-    // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities.
-    let (quality, quality_chosen) = show_requests(conn, show.show_tmdb_id)
-        .await?
-        .for_seasons((show.quality.clone(), show.quality_chosen), show.chosen)?;
-    let already_open = open_followed_show(conn, show.show_tmdb_id).await?;
+    let asking = SeasonsToAsk::read(conn, show).await?;
+    let already_open = open_followed_show(conn, asking.show.show_tmdb_id).await?;
     let id = if let Some(id) = already_open {
         id
     } else {
-        open_followed(conn, &show, quality.as_ref(), state, now).await?
+        open_followed(conn, &asking, state, now).await?
     };
-    let WantedSeasons {
-        show_tmdb_id,
-        show_ids,
-        show_title,
-        seasons,
-        ..
-    } = show;
     let joined = sqlx::query!(
         "INSERT INTO followed_show_requesters (followed_show_id, user_id, requested_at) VALUES (?, ?, ?)
          ON CONFLICT DO NOTHING",
@@ -1839,55 +1906,29 @@ async fn follow(
             ..Default::default()
         }));
     }
-    let may_auto_approve = state == RequestState::Approved;
-    // An Approved Followed Show was approved once for every Season, so needs no approving again.
-    let state = followed.state.as_known().unwrap_or(state);
-    let today = today(conn).await?;
-    let mut requests = Vec::with_capacity(seasons.len());
-    let mut hand_off = Vec::new();
-    for season in seasons {
-        let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
-        if availability(&season.episodes, &matched, &today) == Some(RequestState::Available) {
-            continue;
-        }
-        let wanted = Wanted {
-            tmdb_id: show_tmdb_id,
-            season: Some(season.number),
-            title: show_title.clone(),
-            release_date: season.air_date,
-            show_ids: show_ids.clone(),
-            followed_show: Some(id),
-            quality: quality.clone(),
-            quality_chosen,
-        };
-        // Only `user`'s own auto-approve approves someone else's Pending Season Request: joining an
-        // Approved Followed Show doesn't.
-        let asked = if may_auto_approve {
-            ask_approving(conn, user, wanted, state).await?
-        } else {
-            ask(conn, user, wanted, state).await?
-        };
-        requests.push(asked.value);
-        happened.extend(asked.events);
-        hand_off.extend(asked.hand_off);
-    }
+    let way = Way::Following {
+        user,
+        state,
+        followed_show: &followed,
+    };
+    let seasons = asking.ask(conn, way).await?;
+    happened.extend(seasons.events);
     Ok(Applied {
-        value: (followed, requests),
+        value: (followed, seasons.value),
         events: happened,
-        hand_off,
+        hand_off: seasons.hand_off,
         unfollow: None,
     })
 }
 
-/// Opens a Followed Show of `show` at `quality` in `state`, returning its id.
+/// Opens a Followed Show of `show` at the Quality its Seasons take, in `state`, returning its id.
 async fn open_followed(
     conn: &mut SqliteConnection,
-    show: &WantedSeasons,
-    quality: Option<&RequestedQuality>,
+    SeasonsToAsk { show }: &SeasonsToAsk,
     state: RequestState,
     now: i64,
 ) -> Result<i64, sqlx::Error> {
-    let (quality_id, quality_name, quality_profile_id) = quality_columns(quality);
+    let (quality_id, quality_name, quality_profile_id) = quality_columns(show.quality.as_ref());
     sqlx::query_scalar!(
         "INSERT INTO followed_shows (tmdb_id, title, state, latest_season, created_at, quality_id,
                                      quality_name, quality_profile_id)
