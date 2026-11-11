@@ -77,7 +77,7 @@ function server(
             ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
             : { method: PlaybackMethod.TRANSCODE, url: `/media/plans/${asked.length}/index.m3u8` };
         const audioTrack = request.audioTrack ?? 1;
-        const reasons = cantTranscode ? ["It can’t be Transcoded here"] : [];
+        const reasons = cantTranscode ? [{ text: "It can’t be Transcoded here" }] : [];
         const offers = { playbackLimits: offered, audioTracks: [1, 2] };
         return { plan: { ...played, playbackLimit: limit, audioTrack, reasons, ...offers } };
       },

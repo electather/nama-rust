@@ -50,7 +50,9 @@ export interface PlayerProps {
 export function Player(props: PlayerProps) {
   const planned = usePlaybackPlan(props);
   const { plan } = planned;
-  if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
+  if (plan.url === "") {
+    return <CantPlay back={props.back} reasons={plan.reasons.map(({ text }) => text)} />;
+  }
   if (planned.gaveUp) return <CantPlay back={props.back} reasons={[]} />;
   const topBar = (
     <TopBar

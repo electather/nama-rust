@@ -109,7 +109,7 @@ A Plugin's implementation of a capability the Server needs, such as metadata, ch
 _Avoid_: driver, backend, adapter
 
 **Fulfiller**:
-A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, and reports how they're progressing.
+A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, reports how they're progressing, and has the service stop monitoring what's been deleted, so it doesn't download it again.
 _Avoid_: downloader, *arr, client
 
 **Notifier**:

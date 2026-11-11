@@ -1,10 +1,10 @@
 //! Watch State: how far each User has got through a Movie or Episode, and whether they've played
 //! it.
 //!
-//! [`WatchStates`] is the only code that reads or writes `watch_states`. It keeps Watch State
-//! against a Movie's or Episode's external id, never against an Item or file (ADR 0013), so it
-//! survives rescans, renames and new Versions. Which Movie or Episodes a Version or a marked title
-//! stands for is for [`crate::browse::Browse`] to work out.
+//! [`WatchStates`] owns `watch_states` (see the crate's `AGENTS.md`). It keeps Watch State against
+//! a Movie's or Episode's external id, never against an Item or file (ADR 0013), so it survives
+//! rescans, renames and new Versions. Which Movie or Episodes a Version or a marked title stands
+//! for is for [`crate::browse::Browse`] to work out.
 
 use std::{collections::HashMap, sync::Arc};
 
