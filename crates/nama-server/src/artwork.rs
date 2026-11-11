@@ -31,7 +31,7 @@ use nama_plugin_api::PluginId;
 use crate::{
     contents::Contents,
     metadata::{self, MetadataSource},
-    plugins::Registry,
+    plugins::ExtensionPoints,
 };
 
 const DIR: &str = "artwork";
@@ -76,7 +76,7 @@ pub enum Error {
 impl Artwork {
     /// The cache in `data_dir`, fetching through the metadata Providers enabled in `plugins`.
     #[must_use]
-    pub fn new(data_dir: &Path, plugins: Registry) -> Self {
+    pub fn new(data_dir: &Path, plugins: ExtensionPoints) -> Self {
         Self {
             dir: data_dir.join(DIR),
             metadata: MetadataSource::new(plugins),

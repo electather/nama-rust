@@ -9,15 +9,15 @@ use nama_plugin_api::PluginId;
 use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_server::{
     artwork::{Artwork, Error},
-    plugins::Registry,
+    plugins::{ExtensionPoints, Registry},
 };
 
 const POSTER: &str = "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg";
 
-/// A fake TMDB, and a registry with the TMDB Plugin enabled against it.
-async fn tmdb() -> (FakeTmdb, Registry) {
+/// A fake TMDB, and the TMDB Plugin enabled against it.
+async fn tmdb() -> (FakeTmdb, ExtensionPoints) {
     let plugins = Registry::new();
-    (tmdb::enable(&plugins).await, plugins)
+    (tmdb::enable(&plugins).await, plugins.extension_points())
 }
 
 #[tokio::test]

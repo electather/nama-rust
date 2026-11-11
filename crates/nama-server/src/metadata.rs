@@ -15,7 +15,7 @@ use nama_plugin_api::{
 
 use crate::{
     contents::Metadata,
-    plugins::{Answer, Failure, ProviderError, Registry},
+    plugins::{Answer, ExtensionPoints, Failure, ProviderError},
 };
 
 /// Why the metadata Provider gave no answer.
@@ -29,14 +29,14 @@ pub(crate) enum Error {
     Unavailable,
 }
 
-/// The metadata Providers enabled in a [`Registry`], asked through the one that comes first.
+/// The metadata Providers among [`ExtensionPoints`], asked through the one that comes first.
 #[derive(Debug, Clone)]
 pub(crate) struct MetadataSource {
-    plugins: Registry,
+    plugins: ExtensionPoints,
 }
 
 impl MetadataSource {
-    pub(crate) const fn new(plugins: Registry) -> Self {
+    pub(crate) const fn new(plugins: ExtensionPoints) -> Self {
         Self { plugins }
     }
 
@@ -254,7 +254,7 @@ mod tests {
         if let Some(failure) = failure {
             plugins.enable(Arc::new(FailingPlugin(failure))).unwrap();
         }
-        let source = MetadataSource::new(plugins);
+        let source = MetadataSource::new(plugins.extension_points());
         let show = source.show(&ExternalId::Tmdb(1399)).await.unwrap_err();
         let image = source
             .image(&PluginId::from_static("failing"), "/poster.jpg")

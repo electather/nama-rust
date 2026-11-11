@@ -297,7 +297,7 @@ mod tests {
         plugins
             .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
             .unwrap();
-        Users::new(db, plugins)
+        Users::new(db, plugins.extension_points())
     }
 
     /// [`SignIn`] on a fresh database in `data_dir`, set up with one User, Ada, whose password is

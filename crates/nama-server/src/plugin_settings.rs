@@ -23,7 +23,8 @@ use crate::{
     config::{Config, InvalidPluginTable, PluginConfig},
     db::Database,
     plugins::{
-        CheckError, EnableError, LastProvider, Listed, Registry, installed, log_not_enabled,
+        CheckError, EnableError, ExtensionPoints, LastProvider, Listed, Registry, installed,
+        log_not_enabled,
     },
     qualities,
 };
@@ -319,7 +320,14 @@ impl PluginSettings {
         let _: Result<(), _> = self.came_up.send(id.clone());
     }
 
-    /// The registry the Plugins are enabled in, which the Kernel calls them through.
+    /// How the rest of the Kernel calls the Plugins, which can't change them.
+    #[must_use]
+    pub fn extension_points(&self) -> ExtensionPoints {
+        self.registry.extension_points()
+    }
+
+    /// The registry the Plugins are enabled in, for tests to check which are.
+    #[cfg(feature = "testing")]
     #[must_use]
     pub fn registry(&self) -> &Registry {
         &self.registry
