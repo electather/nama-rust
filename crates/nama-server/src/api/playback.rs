@@ -11,8 +11,8 @@ use nama_proto::nama::v1::{
 use crate::{
     ffmpeg::Abilities,
     playback::{
-        self, Asked, AskedSubtitle, DeviceDecoding, Method, NAMED_LIMITS, PickedLimit, Planned,
-        PlaybackLimit, StartedPlan, limit_to_proto, method_to_proto, reason_to_proto,
+        self, Asked, AskedAudio, AskedSubtitle, DeviceDecoding, Method, NAMED_LIMITS, PickedLimit,
+        Planned, PlaybackLimit, StartedPlan, limit_to_proto, method_to_proto, reason_to_proto,
         running::{RunningPlans, StartError},
     },
     probing::{self, Probing},
@@ -61,6 +61,8 @@ impl PlaybackService for PlaybackServiceHandler {
                     .map_err(database_failed)?,
             ),
         };
+        let audio =
+            (self.asked_audio(caller.user.id, request.version_id, request.audio_track)).await?;
         let asked = Asked {
             version: request.version_id,
             decoding: DeviceDecoding {
@@ -75,7 +77,7 @@ impl PlaybackService for PlaybackServiceHandler {
             failed: (request.failed_methods.iter())
                 .filter_map(|method| method_from_proto(*method))
                 .collect(),
-            audio: (request.audio_track).and_then(|place| usize::try_from(place).ok()),
+            audio,
             subtitle,
             limit: picked_limit(request.playback_limit),
             client,
@@ -131,12 +133,28 @@ impl PlaybackService for PlaybackServiceHandler {
         request: ServiceRequest<'_, ReportTrackPickRequest>,
     ) -> ServiceResult<ReportTrackPickResponse> {
         let user = caller(&ctx)?.user.id;
-        if request.kind != EnumValue::Known(PickedTrackKind::PICKED_TRACK_KIND_SUBTITLE) {
-            return Err(unknown_enum_value(
-                "kind",
-                "say which kind of Track was picked: only subtitles are kept",
-            ));
-        }
+        let pick = match (request.kind, request.track) {
+            (EnumValue::Known(PickedTrackKind::PICKED_TRACK_KIND_SUBTITLE), track) => {
+                Pick::Subtitle(track)
+            }
+            (EnumValue::Known(PickedTrackKind::PICKED_TRACK_KIND_AUDIO), Some(track)) => {
+                Pick::Audio(track)
+            }
+            (EnumValue::Known(PickedTrackKind::PICKED_TRACK_KIND_AUDIO), None) => {
+                return Err(refuse(
+                    RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                    "say which audio Track was picked: audio is never off",
+                )
+                .field("track")
+                .into());
+            }
+            _ => {
+                return Err(unknown_enum_value(
+                    "kind",
+                    "say which kind of Track was picked: a subtitle or audio",
+                ));
+            }
+        };
         let kept_for =
             (self.preferences.kept_for(request.version_id).await).map_err(|err| match err {
                 track_preferences::Error::NoSuchVersion => version_not_found(),
@@ -147,24 +165,75 @@ impl PlaybackService for PlaybackServiceHandler {
         let Some(kept_for) = kept_for else {
             return Response::ok(ReportTrackPickResponse::default());
         };
-        let preference = match request.track {
-            None => SubtitlePreference::Off,
-            Some(place) => {
-                SubtitlePreference::Like(self.picked_subtitle(request.version_id, place).await?)
+        let version = request.version_id;
+        let kept = match pick {
+            Pick::Subtitle(None) => {
+                (self.preferences)
+                    .keep_subtitle(user, kept_for, SubtitlePreference::Off)
+                    .await
+            }
+            Pick::Subtitle(Some(place)) => {
+                let picked = self.picked(version, place, is_subtitle).await?;
+                (self.preferences)
+                    .keep_subtitle(user, kept_for, SubtitlePreference::Like(picked))
+                    .await
+            }
+            Pick::Audio(place) => {
+                let picked = self.picked(version, place, is_audio).await?;
+                self.preferences.keep_audio(user, kept_for, picked).await
             }
         };
-        (self.preferences)
-            .keep_subtitle(user, kept_for, preference)
-            .await
-            .map_err(database_failed)?;
+        kept.map_err(database_failed)?;
         Response::ok(ReportTrackPickResponse::default())
     }
 }
 
+/// The Track a `ReportTrackPick` call says the User picked, by its place in the Version's Tracks.
+enum Pick {
+    /// A subtitle, or `None` for subtitles turned off.
+    Subtitle(Option<u32>),
+    Audio(u32),
+}
+
+const fn is_subtitle(kind: &TrackKind) -> bool {
+    matches!(kind, TrackKind::Subtitle { .. })
+}
+
+const fn is_audio(kind: &TrackKind) -> bool {
+    matches!(kind, TrackKind::Audio { .. })
+}
+
 impl PlaybackServiceHandler {
-    /// What describes the subtitle Track at `place` in the Version `version`'s Tracks, probing it
-    /// first if they aren't current.
-    async fn picked_subtitle(&self, version: i64, place: u32) -> Result<Description, ConnectError> {
+    /// What a plan request from the User `user` for the Version `version` asks of audio: the
+    /// Track at `place`, or else the Server's choice by their Audio Preference.
+    async fn asked_audio(
+        &self,
+        user: i64,
+        version: i64,
+        place: Option<u32>,
+    ) -> Result<AskedAudio, ConnectError> {
+        Ok(match place {
+            // As for subtitles, a place past `usize::MAX` is in no file.
+            Some(place) => {
+                usize::try_from(place).map_or(AskedAudio::Preferred(None), AskedAudio::Chosen)
+            }
+            None => AskedAudio::Preferred(
+                (self.preferences)
+                    .audio(user, version)
+                    .await
+                    .map_err(database_failed)?,
+            ),
+        })
+    }
+
+    /// What describes the Track at `place` in the Version `version`'s Tracks, probing it first if
+    /// they aren't current. Refused unless `is_kind` says it is of the kind picked.
+    async fn picked(
+        &self,
+        version: i64,
+        place: u32,
+        is_kind: fn(&TrackKind) -> bool,
+    ) -> Result<Description, ConnectError> {
         let probe = match self.probing.current(version).await {
             Ok(probe) => Some(probe),
             // Its Tracks aren't known, so no plan offered one to pick.
@@ -175,11 +244,11 @@ impl PlaybackServiceHandler {
         let track = (probe.as_ref())
             .zip(usize::try_from(place).ok())
             .and_then(|(probe, place)| probe.tracks.get(place))
-            .filter(|track| matches!(track.kind, TrackKind::Subtitle { .. }));
+            .filter(|track| is_kind(&track.kind));
         track.map(Description::of).ok_or_else(|| {
             refuse(
                 RefusalReason::REFUSAL_REASON_TRACK_NOT_FOUND,
-                "the Version has no subtitle Track at that place",
+                "the Version has no Track of the kind picked at that place",
             )
             .field("track")
             .into()

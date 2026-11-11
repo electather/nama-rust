@@ -1,5 +1,5 @@
 //! Track Preferences: what a User wants a kind of Track to start as when they play something (ADR
-//! 0035). So far only the Subtitle Preference a User's pick keeps for a Show or Movie.
+//! 0035). So far only the Subtitle and Audio Preferences a User's pick keeps for a Show or Movie.
 //!
 //! [`TrackPreferences`] alone reads and writes `track_preferences` (`AGENTS.md`, "Data"). It keeps
 //! them against a Show's or Movie's external id, as Watch State is kept (ADR 0013), so an
@@ -15,8 +15,9 @@ use crate::{
     tracks::Track,
 };
 
-// The `kind` of a Preference, part of its key; audio is to come (#691).
+// The `kind` of a Preference, part of its key.
 const SUBTITLE: &str = "subtitle";
+const AUDIO: &str = "audio";
 
 /// Reads and keeps each User's Track Preferences.
 #[derive(Debug, Clone)]
@@ -84,13 +85,72 @@ impl TrackPreferences {
     pub(crate) async fn keep_subtitle(
         &self,
         user: i64,
-        KeptFor { scope, title_id }: KeptFor,
+        kept_for: KeptFor,
         preference: SubtitlePreference,
     ) -> Result<(), sqlx::Error> {
-        let (off, description) = match preference {
-            SubtitlePreference::Off => (true, Description::default()),
-            SubtitlePreference::Like(description) => (false, description),
+        let like = match preference {
+            SubtitlePreference::Off => None,
+            SubtitlePreference::Like(description) => Some(description),
         };
+        self.keep(user, kept_for, SUBTITLE, like).await
+    }
+
+    /// Keeps a Track like `picked` as the User `user`'s Audio Preference for `kept_for`, in place
+    /// of any they had. Only its language and title are kept: forced and SDH describe subtitles.
+    pub(crate) async fn keep_audio(
+        &self,
+        user: i64,
+        kept_for: KeptFor,
+        picked: Description,
+    ) -> Result<(), sqlx::Error> {
+        let description = Description {
+            language: picked.language,
+            title: picked.title,
+            ..Description::default()
+        };
+        self.keep(user, kept_for, AUDIO, Some(description)).await
+    }
+
+    /// The User `user`'s Subtitle Preference for the Show or Movie the Version `version` is of,
+    /// `None` if they have none, or it's of nothing that keeps one.
+    pub(crate) async fn subtitle(
+        &self,
+        user: i64,
+        version: i64,
+    ) -> Result<Option<SubtitlePreference>, sqlx::Error> {
+        let kept = self.kept(user, version, SUBTITLE).await?;
+        Ok(kept.map(|(off, description)| {
+            if off {
+                SubtitlePreference::Off
+            } else {
+                SubtitlePreference::Like(description)
+            }
+        }))
+    }
+
+    /// What describes the audio Track the User `user` wants for the Show or Movie the Version
+    /// `version` is of: their Audio Preference, `None` if they have none, or it's of nothing that
+    /// keeps one.
+    pub(crate) async fn audio(
+        &self,
+        user: i64,
+        version: i64,
+    ) -> Result<Option<Description>, sqlx::Error> {
+        let kept = self.kept(user, version, AUDIO).await?;
+        Ok(kept.map(|(_, description)| description))
+    }
+
+    /// Keeps a Track like `like`, or `None` for off, as the User `user`'s `kind` Preference for
+    /// `kept_for`.
+    async fn keep(
+        &self,
+        user: i64,
+        KeptFor { scope, title_id }: KeptFor,
+        kind: &'static str,
+        like: Option<Description>,
+    ) -> Result<(), sqlx::Error> {
+        let off = like.is_none();
+        let description = like.unwrap_or_default();
         self.db
             .write(move |tx| {
                 Box::pin(async move {
@@ -104,7 +164,7 @@ impl TrackPreferences {
                         user,
                         scope,
                         title_id,
-                        SUBTITLE,
+                        kind,
                         off,
                         description.language,
                         description.forced,
@@ -119,13 +179,14 @@ impl TrackPreferences {
             .await
     }
 
-    /// The User `user`'s Subtitle Preference for the Show or Movie the Version `version` is of,
-    /// `None` if they have none, or it's of nothing that keeps one.
-    pub(crate) async fn subtitle(
+    /// The User `user`'s `kind` Preference for the Show or Movie the Version `version` is of:
+    /// whether it is off, and what describes the Track it wants.
+    async fn kept(
         &self,
         user: i64,
         version: i64,
-    ) -> Result<Option<SubtitlePreference>, sqlx::Error> {
+        kind: &str,
+    ) -> Result<Option<(bool, Description)>, sqlx::Error> {
         let KeptFor { scope, title_id } = match self.kept_for(version).await {
             Ok(Some(kept_for)) => kept_for,
             Ok(None) | Err(Error::NoSuchVersion) => return Ok(None),
@@ -139,21 +200,18 @@ impl TrackPreferences {
             user,
             scope,
             title_id,
-            SUBTITLE,
+            kind,
         )
         .fetch_optional(self.db.reader())
         .await?;
         Ok(row.map(|row| {
-            if row.off {
-                SubtitlePreference::Off
-            } else {
-                SubtitlePreference::Like(Description {
-                    language: row.language,
-                    forced: row.forced,
-                    sdh: row.sdh,
-                    title: row.title,
-                })
-            }
+            let description = Description {
+                language: row.language,
+                forced: row.forced,
+                sdh: row.sdh,
+                title: row.title,
+            };
+            (row.off, description)
         }))
     }
 

@@ -1759,19 +1759,24 @@ async fn a_track_that_isnt_a_subtitle_is_not_found_as_one() {
 const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
 const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
 /// The place of the German subtitle in each of Dark's Episodes, as
-/// [`ffprobe_reading_english_and_german_subtitles`] reads them.
+/// [`ffprobe_reading_english_and_german_tracks`] reads them.
 const GERMAN: u32 = 3;
+/// The place of the German audio, after the subtitles.
+const GERMAN_AUDIO: u32 = 4;
 
-/// A Server whose ffprobe, a shell script in `bin`, reads every file as an H.264 + AAC MP4 with
-/// English, then German, SRT subtitles, tagged with ISO 639-2/B codes as files often are.
+/// A Server whose ffprobe, a shell script in `bin`, reads every file as an H.264 MP4 with English
+/// AAC audio played by default, English, then German, SRT subtitles, and a German AAC dub, tagged
+/// with ISO 639-2/B codes as files often are.
 #[cfg(unix)]
-fn ffprobe_reading_english_and_german_subtitles(bin: &Path) -> Ffmpeg {
+fn ffprobe_reading_english_and_german_tracks(bin: &Path) -> Ffmpeg {
     let ffprobe = r#"#!/bin/sh
 cat <<'EOF'
 {"streams": [{"codec_name": "h264", "codec_type": "video"},
-             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}},
+             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1},
+              "tags": {"language": "eng"}},
              {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"language": "eng"}},
-             {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"language": "ger"}}],
+             {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"language": "ger"}},
+             {"codec_name": "aac", "codec_type": "audio", "tags": {"language": "ger"}}],
  "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "1.000000"}}
 EOF
 "#;
@@ -1791,7 +1796,7 @@ impl Fixture {
     /// Starts a Server with a Shows Library holding Dark's S01E01 and S02E01, each with English and
     /// German subtitles, scanned and Matched, and gives the Versions of those two Episodes.
     async fn subtitled_dark(bin: &Path) -> (Self, [i64; 2]) {
-        let ffmpeg = ffprobe_reading_english_and_german_subtitles(bin);
+        let ffmpeg = ffprobe_reading_english_and_german_tracks(bin);
         let mut fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_SHOWS, ffmpeg).await;
         fx.write(DARK_S01E01, b"video");
         fx.write(DARK_S02E01, b"video");
@@ -1820,10 +1825,22 @@ impl Fixture {
     /// Reports that the Admin, playing the Version `version`, picked the subtitle at `track`, or
     /// turned subtitles off.
     async fn pick_subtitle(&self, version: i64, track: Option<u32>) -> Result<(), ConnectError> {
+        self.pick(version, PickedTrackKind::PICKED_TRACK_KIND_SUBTITLE, track)
+            .await
+    }
+
+    /// Reports that the Admin, playing the Version `version`, picked the `kind` Track at `track`,
+    /// or turned that kind off.
+    async fn pick(
+        &self,
+        version: i64,
+        kind: PickedTrackKind,
+        track: Option<u32>,
+    ) -> Result<(), ConnectError> {
         PlaybackServiceClient::new(HttpClient::plaintext(), self.server.client_config())
             .report_track_pick(ReportTrackPickRequest {
                 version_id: version,
-                kind: PickedTrackKind::PICKED_TRACK_KIND_SUBTITLE.into(),
+                kind: kind.into(),
                 track,
                 ..Default::default()
             })
@@ -1912,7 +1929,7 @@ async fn picking_a_track_that_isnt_a_subtitle_or_on_no_version_is_refused() {
 #[tokio::test]
 async fn a_subtitle_picked_in_one_version_of_a_movie_starts_its_other_versions() {
     let bin = tempfile::tempdir().unwrap();
-    let ffmpeg = ffprobe_reading_english_and_german_subtitles(bin.path());
+    let ffmpeg = ffprobe_reading_english_and_german_tracks(bin.path());
     let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
     fx.write(ALIEN_1080P, b"video");
     fx.write(ALIEN_2160P, b"video");
@@ -1996,4 +2013,53 @@ async fn a_user_with_a_subtitle_preference_can_be_deleted() {
         .await;
 
     assert!(deleted.is_ok(), "{deleted:?}");
+}
+
+const AUDIO: PickedTrackKind = PickedTrackKind::PICKED_TRACK_KIND_AUDIO;
+
+// With no ffmpeg on this Server, a dub the Device would need Remuxed is dropped, and the reason
+// says the Server chose it.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_audio_track_picked_in_an_episode_is_chosen_for_the_shows_next_episode() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let ripley = fx.server.user("Ripley", &[]).await;
+    let before = fx.plan(second).await.unwrap();
+
+    fx.pick(first, AUDIO, Some(GERMAN_AUDIO)).await.unwrap();
+    let next = fx.plan(second).await.unwrap();
+    let ripleys = plan_as(&ripley, second).await.unwrap();
+
+    let dropped = PlaybackReasonKind::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED;
+    let drops = |plan: &PlaybackPlan| plan.reasons.iter().any(|reason| reason.kind == dropped);
+    assert!(!drops(&before));
+    assert!(drops(&next), "{:?}", next.reasons);
+    assert_eq!(next.audio_track, Some(1), "the file's own plays instead");
+    assert!(!drops(&ripleys), "it is the Admin's alone");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn picking_no_audio_track_or_one_that_isnt_audio_is_refused() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, _]) = Fixture::subtitled_dark(bin.path()).await;
+
+    let none = fx.pick(first, AUDIO, None).await;
+    let subtitle = fx.pick(first, AUDIO, Some(GERMAN)).await;
+
+    let missing = assert_refused(
+        none,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    let not_audio = assert_refused(
+        subtitle,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_TRACK_NOT_FOUND,
+    );
+    assert_eq!(
+        (missing.field.as_str(), not_audio.field.as_str()),
+        ("track", "track")
+    );
 }

@@ -21,7 +21,10 @@ import { toMs } from "@/lib/watch-state";
 interface Asking {
   failedMethods: PlaybackMethod[];
   startPositionMs: bigint;
-  /** The chosen audio Track's place in the Version's Tracks, `undefined` being the file's own. */
+  /**
+   * The chosen audio Track's place in the Version's Tracks; until the player has a plan,
+   * `undefined`, for the Server to choose by the User's Audio Preference (ADR 0035).
+   */
   audioTrack: number | undefined;
   /**
    * The Playback Limit chosen, `PLAYBACK_LIMIT_UNSPECIFIED` until the User picks one, when the
