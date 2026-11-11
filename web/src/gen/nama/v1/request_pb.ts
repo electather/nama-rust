@@ -1402,8 +1402,7 @@ export const MovieHitSchema: GenMessage<MovieHit> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 49);
 
 /**
- * A Movie looked up in the metadata source, and how close it is to being on the Server, as a
- * `MovieHit` has it.
+ * A Movie looked up in the metadata source: all a `MovieHit` has, and what only a look-up fetches.
  *
  * @generated from message nama.v1.FoundMovie
  */

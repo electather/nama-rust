@@ -585,8 +585,7 @@ message MovieHit {
   Request request = 9;
 }
 
-// A Movie looked up in the metadata source, and how close it is to being on the Server, as a
-// `MovieHit` has it.
+// A Movie looked up in the metadata source: all a `MovieHit` has, and what only a look-up fetches.
 message FoundMovie {
   // The Movie's TMDB id.
   int64 tmdb_id = 1;

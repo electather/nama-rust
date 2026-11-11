@@ -9295,8 +9295,7 @@ pub const __MOVIE_HIT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::
     from_json: ::buffa::type_registry::any_from_json::<MovieHit>,
     is_wkt: false,
 };
-/// A Movie looked up in the metadata source, and how close it is to being on the Server, as a
-/// `MovieHit` has it.
+/// A Movie looked up in the metadata source: all a `MovieHit` has, and what only a look-up fetches.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

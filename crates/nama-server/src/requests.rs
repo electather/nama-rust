@@ -130,6 +130,15 @@ pub(crate) struct Found<M> {
     pub(crate) request: Option<Request>,
 }
 
+/// A title a search found, which a Request can name by its TMDB id.
+#[derive(Debug)]
+pub(crate) struct Hit {
+    pub(crate) tmdb_id: i64,
+    /// The Plugin whose metadata Provider found it, which its image paths are for.
+    pub(crate) plugin: PluginId,
+    pub(crate) candidate: Candidate,
+}
+
 /// A Show looked up in the metadata source, and how close it is to being on the Server.
 #[derive(Debug)]
 pub(crate) struct FoundShow {
@@ -848,7 +857,12 @@ impl Requests {
         let mut conn = self.db.reader().acquire().await?;
         let mut found = Vec::with_capacity(candidates.len());
         // ponytail: two queries per Movie found, which a search caps at a page of 20.
-        for (tmdb_id, plugin, candidate) in candidates {
+        for Hit {
+            tmdb_id,
+            plugin,
+            candidate,
+        } in candidates
+        {
             let movie = self
                 .look_around(&mut conn, viewer, tmdb_id, plugin, candidate)
                 .await?;
@@ -857,22 +871,13 @@ impl Requests {
         Ok(found)
     }
 
-    /// The Shows the metadata source finds titled like `title`, best fit first, each with its
-    /// TMDB id and the Plugin whose Provider found it, which its image paths are for.
-    pub(crate) async fn search_shows(
-        &self,
-        title: String,
-    ) -> Result<Vec<(i64, PluginId, Candidate)>, Error> {
+    /// The Shows the metadata source finds titled like `title`, best fit first.
+    pub(crate) async fn search_shows(&self, title: String) -> Result<Vec<Hit>, Error> {
         self.find(TitleKind::Show, title).await
     }
 
-    /// The titles of `kind` the metadata source finds titled like `title`, best fit first, each
-    /// with its TMDB id and the Plugin whose Provider found it.
-    async fn find(
-        &self,
-        kind: TitleKind,
-        title: String,
-    ) -> Result<Vec<(i64, PluginId, Candidate)>, Error> {
+    /// The titles of `kind` the metadata source finds titled like `title`, best fit first.
+    async fn find(&self, kind: TitleKind, title: String) -> Result<Vec<Hit>, Error> {
         let query = SearchQuery {
             kind,
             title,
@@ -887,7 +892,11 @@ impl Requests {
         Ok(candidates
             .into_iter()
             .filter_map(|candidate| match candidate.id {
-                ExternalId::Tmdb(tmdb_id) => Some((tmdb_id, plugin.clone(), candidate)),
+                ExternalId::Tmdb(tmdb_id) => Some(Hit {
+                    tmdb_id,
+                    plugin: plugin.clone(),
+                    candidate,
+                }),
                 ExternalId::Imdb(_) | ExternalId::Tvdb(_) => None,
             })
             .collect())

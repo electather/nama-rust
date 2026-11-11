@@ -27,7 +27,7 @@ use crate::{
     artwork::Artwork,
     contents::Metadata,
     qualities,
-    requests::{self, Asked, Found, FoundShow, Requests},
+    requests::{self, Asked, Found, FoundShow, Hit, Requests},
 };
 
 use super::{Refused, caller, database_failed, refuse, title_kind_from_proto};
@@ -457,10 +457,12 @@ impl RequestServiceHandler {
     }
 
     /// A Show a search found, as clients see it, with its poster offered to them.
-    fn searched_show_to_proto(
-        &self,
-        (tmdb_id, plugin, show): (i64, PluginId, Candidate),
-    ) -> proto::ShowHit {
+    fn searched_show_to_proto(&self, hit: Hit) -> proto::ShowHit {
+        let Hit {
+            tmdb_id,
+            plugin,
+            candidate: show,
+        } = hit;
         proto::ShowHit {
             tmdb_id,
             title: show.title,
