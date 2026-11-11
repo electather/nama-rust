@@ -3,8 +3,8 @@
 // ponytail: replays every event on each change; trim events.jsonl if it ever gets slow.
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
-export type Stage = "claimed" | "implement" | "review" | "pr" | "ci" | "merging";
-export type Outcome = "merged" | "pr opened" | "handed back" | "cancelled" | "crashed" | "interrupted";
+export type Stage = "claimed" | "triage" | "implement" | "review" | "pr" | "ci" | "merging";
+export type Outcome = "merged" | "pr opened" | "triaged" | "handed back" | "cancelled" | "crashed" | "interrupted";
 export type Waiting = { issue: number; why: string };
 
 export type Event = { t: string; run: string } & (
@@ -70,7 +70,7 @@ export function render(events: Event[], repoUrl: string, now: Date): string {
   const waiting = end ? [] : (events.findLast((e) => e.kind === "waiting" && e.run === run) as { list: Waiting[] } | undefined)?.list ?? [];
 
   const link = (kind: "issues" | "pull", n: string | number) => `[#${n}](${repoUrl}/${kind}/${n})`;
-  const icon = { merged: "✓", "pr opened": "→", "handed back": "⚠", cancelled: "⊘", crashed: "✗", interrupted: "⏸" };
+  const icon = { merged: "✓", "pr opened": "→", triaged: "◆", "handed back": "⚠", cancelled: "⊘", crashed: "✗", interrupted: "⏸" };
   const counts = (notes: string[]) =>
     [...new Set(notes)].map((n) => `${notes.filter((x) => x === n).length}× ${n}`).join(", ");
 
