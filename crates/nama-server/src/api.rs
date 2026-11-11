@@ -127,7 +127,7 @@ pub(crate) fn router(
             browse,
         }))
         .add_service(Arc::new(PlaybackServiceHandler {
-            probing: probing.clone(),
+            probing,
             running,
             settings: playback,
         }))
@@ -136,7 +136,6 @@ pub(crate) fn router(
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
             scanner,
-            probing,
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,
