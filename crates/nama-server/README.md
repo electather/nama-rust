@@ -4,7 +4,7 @@ The Nama Server: owns Libraries, streams media and handles Requests. Its databas
 
 ## Writing to the database
 
-Every write goes through `Database::write`, which hands it to the single writer task that owns the only writable connection. Never open another writable connection. Long jobs such as a scan write in small batches so other writes and reads aren't held up. `src/db.rs` explains why.
+Every write goes through `Database::write` or `Database::write_then`, which hands it to the single writer task that owns the only writable connection. Never open another writable connection. Long jobs such as a scan write in small batches so other writes and reads aren't held up. `src/db.rs` explains why.
 
 ## Behind a reverse proxy
 
