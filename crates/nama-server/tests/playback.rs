@@ -23,7 +23,7 @@ use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
 };
-use http::{fetch, fetch_range};
+use http::{fetch, fetch_with};
 use nama_proto::nama::v1::{
     AudioCodec, ClearMatchRequest, Container, DeleteLibraryRequest, DeleteUserRequest,
     DeviceDecoding, EventType, Gpu, HardwareAcceleration, HdrFormat, LibraryKind,
@@ -206,11 +206,11 @@ async fn a_range_of_a_version_is_served_as_exactly_those_bytes() {
     let fx = Fixture::alien().await;
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
 
-    let reply = fetch_range(
+    let reply = fetch_with(
         &fx.server,
         &version_url(&movie.versions[0]),
         Some(&fx.server.admin_token),
-        Some("bytes=1-3"),
+        &[("range", "bytes=1-3")],
     )
     .await;
 

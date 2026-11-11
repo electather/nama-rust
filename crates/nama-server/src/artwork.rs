@@ -1,28 +1,26 @@
-//! Posters and backdrops, cached on disk.
+//! Posters and backdrops, downloaded on first use and kept in the image store.
 //!
 //! A Match stores its title's images as paths the metadata Provider handed out, along with the
 //! Plugin whose Provider that was. An image is downloaded through that Provider only when
-//! something first asks for it, then kept under `artwork/` in the data directory and served from
-//! there, across restarts too. Callers should only ask for images some Match stores, or that a
-//! search or lookup offered to clients, so clients can't use the cache to fetch arbitrary images.
+//! something first asks for it, then kept in the [`ImageStore`] and served from there, across
+//! restarts too. Callers should only ask for images some Match stores, or that a
+//! search or lookup offered to clients, so clients can't use the store to fetch arbitrary images.
 //!
 //! Clients fetch them over plain HTTP at `/media/artwork/<plugin>/<path>` (ADR 0007: media bytes
-//! are not RPC), which is served to anyone with a session.
+//! are not RPC), which is served to anyone with a session. A Provider's path names bytes that
+//! never change, so a browser caches what it fetched there for good.
 
 use std::{
     collections::HashSet,
     io,
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex, PoisonError,
-        atomic::{AtomicU64, Ordering},
-    },
+    path::Path,
+    sync::{Arc, Mutex, PoisonError},
 };
 
 use axum::{
     Router,
-    extract::{Path as UrlPath, State},
-    http::{StatusCode, header},
+    extract::{Path as UrlPath, Request, State},
+    http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -30,6 +28,7 @@ use nama_plugin_api::PluginId;
 
 use crate::{
     contents::Contents,
+    images::{ImageStore, file_name},
     metadata::{self, MetadataSource},
     plugins::ExtensionPoints,
 };
@@ -39,23 +38,13 @@ const DIR: &str = "artwork";
 /// How many offered images are remembered before [`Artwork::offer`] forgets them all.
 const MAX_OFFERED: usize = 10_000;
 
-/// Images on disk, fetched from metadata Providers on first use.
+/// Stored images, fetched from metadata Providers on first use.
 #[derive(Debug, Clone)]
 pub struct Artwork {
-    dir: PathBuf,
+    store: ImageStore,
     metadata: MetadataSource,
     /// The `(plugin, path)` of each image a search or lookup handed out since the Server started.
     offered: Arc<Mutex<HashSet<(String, String)>>>,
-}
-
-/// An image in the cache.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CachedImage {
-    /// The file holding it.
-    pub path: PathBuf,
-    /// Its media type, such as `image/jpeg`, by its extension. Only raster image types are
-    /// named; anything else is `application/octet-stream`.
-    pub content_type: &'static str,
 }
 
 /// Why an image couldn't be had.
@@ -68,17 +57,18 @@ pub enum Error {
     /// trying again later.
     #[error("the image is unavailable: {0}")]
     Unavailable(String),
-    /// The cache couldn't be read or written.
-    #[error("artwork cache error: {0}")]
+    /// The store couldn't be read or written.
+    #[error("artwork store error: {0}")]
     Io(#[from] io::Error),
 }
 
 impl Artwork {
-    /// The cache in `data_dir`, fetching through the metadata Providers enabled in `plugins`.
+    /// The images stored in `data_dir`, fetching through the metadata Providers enabled in
+    /// `plugins`.
     #[must_use]
     pub fn new(data_dir: &Path, plugins: ExtensionPoints) -> Self {
         Self {
-            dir: data_dir.join(DIR),
+            store: ImageStore::new(data_dir),
             metadata: MetadataSource::new(plugins),
             offered: Arc::default(),
         }
@@ -103,22 +93,16 @@ impl Artwork {
         offered.contains(&(plugin.to_owned(), path.to_owned()))
     }
 
-    /// The image at `path` from the Plugin `plugin`'s metadata Provider, downloading it first if
-    /// it isn't cached yet.
+    /// Stores the image at `path` from the Plugin `plugin`'s metadata Provider, downloading it
+    /// unless it is stored already.
     ///
     /// # Errors
     ///
-    /// If the Provider has no such image, can't be reached, or the cache can't be written.
-    pub async fn get(&self, plugin: &PluginId, path: &str) -> Result<CachedImage, Error> {
-        let cached = CachedImage {
-            path: self
-                .dir
-                .join(file_name(plugin.as_str()))
-                .join(file_name(path)),
-            content_type: content_type(path),
-        };
-        if tokio::fs::try_exists(&cached.path).await? {
-            return Ok(cached);
+    /// If the Provider has no such image, can't be reached, or the store can't be written.
+    pub async fn keep(&self, plugin: &PluginId, path: &str) -> Result<(), Error> {
+        let key = key(plugin.as_str(), path);
+        if self.store.contains(&key).await? {
+            return Ok(());
         }
         let image = self
             .metadata
@@ -130,15 +114,29 @@ impl Artwork {
                     "{plugin} isn't enabled, doesn't provide metadata, or failed"
                 )),
             })?;
-        write_atomically(&cached.path, &image.bytes).await?;
-        Ok(cached)
+        Ok(self.store.write(&key, &image.bytes).await?)
     }
 
-    async fn read(&self, plugin: &PluginId, path: &str) -> Result<(&'static str, Vec<u8>), Error> {
-        let image = self.get(plugin, path).await?;
-        let bytes = tokio::fs::read(&image.path).await?;
-        Ok((image.content_type, bytes))
+    /// The image at `path` from `plugin`'s Provider as the answer to `request`, stored first if it
+    /// isn't yet.
+    async fn serve_image(
+        &self,
+        plugin: &str,
+        path: &str,
+        request: Request,
+    ) -> Result<Response, Error> {
+        self.keep(&PluginId::from(plugin.to_owned()), path).await?;
+        Ok(self
+            .store
+            .serve(&key(plugin, path), content_type(path), request)
+            .await?)
     }
+}
+
+/// Where the store keeps `plugin`'s image at `path`. It is where images were kept before the store
+/// existed, so changing it downloads every image again.
+fn key<'a>(plugin: &'a str, path: &'a str) -> [&'a str; 3] {
+    [DIR, plugin, path]
 }
 
 /// Where clients fetch the image: `/media/artwork/<plugin>/<path>`, each part one URL path segment
@@ -158,6 +156,7 @@ pub(crate) fn router(artwork: Artwork, contents: Contents) -> Router {
 async fn serve(
     State((artwork, contents)): State<(Artwork, Contents)>,
     UrlPath((plugin, path)): UrlPath<(String, String)>,
+    request: Request,
 ) -> Response {
     let allowed = if artwork.was_offered(&plugin, &path) {
         Ok(true)
@@ -172,16 +171,8 @@ async fn serve(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     }
-    match artwork.read(&PluginId::from(plugin), &path).await {
-        Ok((content_type, bytes)) => (
-            [
-                (header::CONTENT_TYPE, content_type),
-                // An unnamed type stays a download: no browser guesses it is HTML.
-                (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
-            ],
-            bytes,
-        )
-            .into_response(),
+    match artwork.serve_image(&plugin, &path, request).await {
+        Ok(response) => response,
         Err(Error::NotFound) => StatusCode::NOT_FOUND.into_response(),
         Err(err @ Error::Unavailable(_)) => {
             tracing::warn!("could not serve {path}: {err}");
@@ -192,49 +183,6 @@ async fn serve(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
-}
-
-/// Writes `bytes` to `path` so no reader ever sees a partial file, even if two downloads of the
-/// same image race.
-pub(crate) async fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    static NEXT: AtomicU64 = AtomicU64::new(0);
-    if let Some(dir) = path.parent() {
-        tokio::fs::create_dir_all(dir).await?;
-    }
-    let mut partial = path.as_os_str().to_owned();
-    partial.push(format!(
-        ".{}-{}.part",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    let partial = PathBuf::from(partial);
-    tokio::fs::write(&partial, bytes).await?;
-    if let Err(err) = tokio::fs::rename(&partial, path).await {
-        let _: io::Result<()> = tokio::fs::remove_file(&partial).await;
-        return Err(err);
-    }
-    Ok(())
-}
-
-/// `text` as one safe file name: letters, digits, `-`, `_` and (except first) `.` are kept, and
-/// every other byte is written as `%XX`. Distinct texts give distinct names, and no name is `.`
-/// or `..` or holds a separator.
-fn file_name(text: &str) -> String {
-    let mut name = String::with_capacity(text.len());
-    for (i, byte) in text.bytes().enumerate() {
-        let kept =
-            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_') || (byte == b'.' && i > 0);
-        if kept {
-            name.push(char::from(byte));
-        } else {
-            name.push('%');
-            for nibble in [byte >> 4, byte & 0xF] {
-                let digit = char::from_digit(u32::from(nibble), 16).unwrap_or('0');
-                name.push(digit.to_ascii_uppercase());
-            }
-        }
-    }
-    name
 }
 
 fn content_type(path: &str) -> &'static str {
@@ -249,5 +197,34 @@ fn content_type(path: &str) -> &'static str {
         Some("gif") => "image/gif",
         // Anything else, SVG included, isn't served as an image: an SVG can carry script.
         _ => "application/octet-stream",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::{body::Body, extract::Request, http::header};
+
+    use super::Artwork;
+    use crate::{images::ImageStore, plugins::Registry};
+
+    #[tokio::test]
+    async fn an_svg_is_never_served_as_an_image() {
+        let data = tempfile::tempdir().unwrap();
+        let key = ["artwork", "tmdb", "/logo.svg"];
+        ImageStore::new(data.path())
+            .write(&key, b"<svg><script/></svg>")
+            .await
+            .unwrap();
+        let artwork = Artwork::new(data.path(), Registry::new().extension_points());
+
+        let request = Request::get("/").body(Body::empty()).unwrap();
+        let response = artwork
+            .serve_image("tmdb", "/logo.svg", request)
+            .await
+            .unwrap();
+
+        let headers = response.headers();
+        assert_eq!(headers[header::CONTENT_TYPE], "application/octet-stream");
+        assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
     }
 }

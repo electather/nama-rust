@@ -41,6 +41,9 @@ pub trait MetadataProvider: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<Episode, MetadataError>>;
 
     /// The image at `path`, as this Provider gave it in a poster, backdrop or still.
+    ///
+    /// A path names bytes that never change, as TMDB's do: the Server keeps an image under its
+    /// path and browsers cache it for good, so a changed image needs a new path.
     fn image<'a>(&'a self, path: &'a str) -> BoxFuture<'a, Result<Image, MetadataError>>;
 }
 
