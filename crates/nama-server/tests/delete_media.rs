@@ -24,8 +24,8 @@ use log::Log;
 use nama_proto::nama::v1::{
     BrowseServiceClient, DeleteMediaRequest, DeleteMediaResponse, GetMovieRequest, LibraryKind,
     LibraryServiceClient, ListMoviesRequest, MediaFile, MediaToDelete, MovieToDelete, Permission,
-    PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason, SubscribeRequest, event,
-    media_to_delete,
+    PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason, SubscribeRequest,
+    UpdateLibraryRequest, event, media_to_delete,
 };
 use refused::assert_refused;
 use server::{
@@ -410,7 +410,31 @@ async fn only_someone_who_may_delete_media_is_told_which_folder_refuses_it() {
 
     fx.rescan_with_mode(0o555).await;
     let told = fx.read_only_folder(&as_grace, ALIEN).await;
+    // Writable again before asserting, so the temporary folder is cleaned up even if it fails.
     fx.rescan_with_mode(0o755).await;
 
     assert_eq!(told, None);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn renaming_a_library_keeps_its_folder_read_only_until_a_scan_finds_otherwise() {
+    let fx = Fixture::alien_and_dune().await;
+    let folder = fx.folder.to_str().unwrap().to_owned();
+    fx.rescan_with_mode(0o555).await;
+
+    fx.library_service()
+        .update_library(UpdateLibraryRequest {
+            id: fx.library,
+            name: "Renamed".to_owned(),
+            folders: vec![folder.clone()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let told = fx.read_only_folder(&fx.browse, ALIEN).await;
+    // Writable again before asserting, so the temporary folder is cleaned up even if it fails.
+    fx.rescan_with_mode(0o755).await;
+
+    assert_eq!(told, Some(folder));
 }

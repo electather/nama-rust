@@ -508,7 +508,7 @@ fn writable(folder: &Path) -> bool {
     rustix::fs::access(folder, rustix::fs::Access::WRITE_OK).is_ok()
 }
 
-// shortcut: Windows folders count as writable, so a delete there fails file by file instead of
+// ponytail: Windows folders count as writable, so a delete there fails file by file instead of
 // being refused; read their ACLs once a Server runs on Windows.
 #[cfg(not(unix))]
 const fn writable(_folder: &Path) -> bool {

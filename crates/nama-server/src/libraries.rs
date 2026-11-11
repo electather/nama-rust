@@ -233,16 +233,28 @@ async fn update(
     .await?
     .ok_or(Error::NotFound(id))?;
     ensure_folders_free(conn, &folders, Some(id)).await?;
+    // A folder it keeps stays read-only until a scan says otherwise; a new one holds nothing to
+    // delete until a scan, which checks it.
+    let read_only: Vec<String> = sqlx::query_scalar!(
+        "SELECT path FROM library_folders WHERE library_id = ? AND read_only = 1",
+        id
+    )
+    .fetch_all(&mut *conn)
+    .await?;
     sqlx::query!("DELETE FROM library_folders WHERE library_id = ?", id)
         .execute(&mut *conn)
         .await?;
     insert_folders(conn, id, &folders).await?;
+    let read_only: Vec<String> = (read_only.into_iter())
+        .filter(|folder| folders.contains(folder))
+        .collect();
+    set_read_only(conn, id, read_only.clone()).await?;
     Ok(Library {
         id,
         name,
         kind,
         folders,
-        read_only: Vec::new(),
+        read_only,
     })
 }
 
