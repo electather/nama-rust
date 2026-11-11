@@ -25,23 +25,20 @@ use nama_proto::nama::v1::{
     ApproveRequestResponse, BrowseService, CancelFollowedShowRequest, CancelFollowedShowResponse,
     CancelRequestRequest, CancelRequestResponse, ClearMatchRequest, ClearMatchResponse,
     CountPendingRequestsRequest, CountPendingRequestsResponse, CreateFollowedShowRequest,
-    CreateFollowedShowResponse, CreateLibraryRequest, CreateLibraryResponse, CreateRequestRequest,
-    CreateRequestResponse, CreateSeasonRequestsRequest, CreateSeasonRequestsResponse,
-    DeclineFollowedShowRequest, DeclineFollowedShowResponse, DeclineRequestRequest,
-    DeclineRequestResponse, DeleteLibraryRequest, DeleteLibraryResponse, EventService, EventType,
-    GetLibraryRequest, GetLibraryResponse, GetMovieRequest, GetMovieResponse, GetRequestRequest,
-    GetRequestResponse, GetShowRequest, GetShowResponse, LibraryKind, LibraryService,
-    ListContinueWatchingRequest, ListContinueWatchingResponse, ListEpisodesRequest,
-    ListEpisodesResponse, ListLibrariesRequest, ListLibrariesResponse, ListMoviesRequest,
-    ListMoviesResponse, ListRequestsRequest, ListRequestsResponse, ListShowsRequest,
-    ListShowsResponse, ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, LookUpMovieRequest,
-    LookUpMovieResponse, LookUpShowRequest, LookUpShowResponse, MatchService, Permission, Refusal,
-    RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService, RequestState,
-    RetryRequestRequest, RetryRequestResponse, ScanLibraryRequest, ScanLibraryResponse,
-    SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse,
-    SearchShowsRequest, SearchShowsResponse, SetMatchRequest, SetMatchResponse, SetPlayedRequest,
-    SetPlayedResponse, SubscribeRequest, SubscribeResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, WatchStateService, WithdrawFollowedShowRequest,
+    CreateFollowedShowResponse, CreateRequestRequest, CreateRequestResponse,
+    CreateSeasonRequestsRequest, CreateSeasonRequestsResponse, DeclineFollowedShowRequest,
+    DeclineFollowedShowResponse, DeclineRequestRequest, DeclineRequestResponse, EventService,
+    EventType, GetMovieRequest, GetMovieResponse, GetRequestRequest, GetRequestResponse,
+    GetShowRequest, GetShowResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
+    ListEpisodesRequest, ListEpisodesResponse, ListMoviesRequest, ListMoviesResponse,
+    ListRequestsRequest, ListRequestsResponse, ListShowsRequest, ListShowsResponse,
+    ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, LookUpMovieRequest, LookUpMovieResponse,
+    LookUpShowRequest, LookUpShowResponse, MatchService, Permission, Refusal, RefusalReason,
+    ReportProgressRequest, ReportProgressResponse, RequestService, RequestState,
+    RetryRequestRequest, RetryRequestResponse, SearchMetadataRequest, SearchMetadataResponse,
+    SearchMoviesRequest, SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse,
+    SetMatchRequest, SetMatchResponse, SetPlayedRequest, SetPlayedResponse, SubscribeRequest,
+    SubscribeResponse, WatchStateService, WithdrawFollowedShowRequest,
     WithdrawFollowedShowResponse, WithdrawRequestRequest, WithdrawRequestResponse, external_id,
     set_played_request::Target,
 };
@@ -52,11 +49,11 @@ use crate::{
     config::Config,
     connections::Connections,
     contents::{Contents, Episode, Item, MatchedTo, Metadata, Movie, Show, Unmatched, Version},
-    db::{Database, detached, now},
+    db::{Database, now},
     events::{EventBus, Filter},
     ffmpeg::Ffmpeg,
     forwarded::{RequestSource, identify_source},
-    libraries::{self, FolderProblem, Kind, Libraries, Library},
+    libraries::{Kind, Libraries},
     matching::{ManualError, Matcher},
     playback::running::RunningPlans,
     plugin_settings::PluginSettings,
@@ -72,12 +69,14 @@ use crate::{
     watch_states::{Progress, WatchState, WatchStates},
 };
 
+mod libraries;
 mod playback;
 mod plugins;
 mod server;
 mod sign_in;
 mod users;
 
+use libraries::LibraryServiceHandler;
 use playback::PlaybackServiceHandler;
 use plugins::PluginServiceHandler;
 use server::ServerServiceHandler;
@@ -387,119 +386,6 @@ fn unlisted(path: &str) -> ConnectError {
     let path = path.strip_prefix('/').unwrap_or(path);
     ConnectError::unimplemented(format!("method not found: {path}"))
         .with_http_status(StatusCode::NOT_FOUND)
-}
-
-/// `nama.v1.LibraryService`: managing the Server's Libraries. Needs `PERMISSION_MANAGE_LIBRARIES`,
-/// which [`require_access`] enforces, except listing them, which any signed-in User may do to
-/// browse.
-struct LibraryServiceHandler {
-    libraries: Libraries,
-    scanner: Scanner,
-}
-
-#[expect(
-    refining_impl_trait,
-    reason = "plain `async fn` returning the owned response is the form the generated trait \
-              documents; the refined signature isn't visible outside this crate"
-)]
-impl LibraryService for LibraryServiceHandler {
-    async fn create_library(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, CreateLibraryRequest>,
-    ) -> ServiceResult<CreateLibraryResponse> {
-        let request = request.to_owned_message();
-        let kind = kind_from_proto(request.kind)?;
-        let library = self
-            .libraries
-            .create(&request.name, kind, request.folders)
-            .await?;
-        Response::ok(CreateLibraryResponse {
-            library: library_to_proto(library).into(),
-            ..Default::default()
-        })
-    }
-
-    async fn list_libraries(
-        &self,
-        ctx: RequestContext,
-        _request: ServiceRequest<'_, ListLibrariesRequest>,
-    ) -> ServiceResult<ListLibrariesResponse> {
-        // Disk paths are for those who manage Libraries (see AGENTS.md).
-        let sees_folders = caller(&ctx)?
-            .user
-            .permissions
-            .allow(Permission::ManageLibraries);
-        let libraries = self.libraries.list().await?;
-        Response::ok(ListLibrariesResponse {
-            libraries: libraries
-                .into_iter()
-                .map(|library| Library {
-                    folders: if sees_folders {
-                        library.folders
-                    } else {
-                        Vec::new()
-                    },
-                    ..library
-                })
-                .map(library_to_proto)
-                .collect(),
-            ..Default::default()
-        })
-    }
-
-    async fn get_library(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, GetLibraryRequest>,
-    ) -> ServiceResult<GetLibraryResponse> {
-        let library = self.libraries.get(request.id).await?;
-        Response::ok(GetLibraryResponse {
-            library: library_to_proto(library).into(),
-            ..Default::default()
-        })
-    }
-
-    async fn update_library(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, UpdateLibraryRequest>,
-    ) -> ServiceResult<UpdateLibraryResponse> {
-        let request = request.to_owned_message();
-        let library = self
-            .libraries
-            .update(request.id, &request.name, request.folders)
-            .await?;
-        Response::ok(UpdateLibraryResponse {
-            library: library_to_proto(library).into(),
-            ..Default::default()
-        })
-    }
-
-    async fn delete_library(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, DeleteLibraryRequest>,
-    ) -> ServiceResult<DeleteLibraryResponse> {
-        let (libraries, scanner, id) = (self.libraries.clone(), self.scanner.clone(), request.id);
-        // The delete commits even if the caller stops waiting, so its cleanup must follow (ADR 0029).
-        detached(async move {
-            libraries.delete(id).await?;
-            scanner.clean_subtitles().await;
-            Ok::<_, libraries::Error>(())
-        })
-        .await?;
-        Response::ok(DeleteLibraryResponse::default())
-    }
-
-    async fn scan_library(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, ScanLibraryRequest>,
-    ) -> ServiceResult<ScanLibraryResponse> {
-        self.scanner.start(request.id).await?;
-        Response::ok(ScanLibraryResponse::default())
-    }
 }
 
 /// `nama.v1.MatchService`: fixing Matches by hand. Needs `PERMISSION_MANAGE_LIBRARIES`, which
@@ -1617,30 +1503,6 @@ fn external_id_to_proto(id: ExternalId) -> proto::ExternalId {
     }
 }
 
-fn kind_from_proto(kind: EnumValue<LibraryKind>) -> Result<Kind, ConnectError> {
-    match kind {
-        EnumValue::Known(LibraryKind::LIBRARY_KIND_MOVIES) => Ok(Kind::Movies),
-        EnumValue::Known(LibraryKind::LIBRARY_KIND_SHOWS) => Ok(Kind::Shows),
-        EnumValue::Known(LibraryKind::LIBRARY_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
-            unknown_enum_value("kind", "a Library's kind must be movies or shows"),
-        ),
-    }
-}
-
-fn library_to_proto(library: Library) -> proto::Library {
-    proto::Library {
-        id: library.id,
-        name: library.name,
-        kind: match library.kind {
-            Kind::Movies => LibraryKind::LIBRARY_KIND_MOVIES,
-            Kind::Shows => LibraryKind::LIBRARY_KIND_SHOWS,
-        }
-        .into(),
-        folders: library.folders,
-        ..Default::default()
-    }
-}
-
 /// A refusal of a client's request on its way to becoming a [`ConnectError`]: [`refuse`] starts
 /// one, [`Refused::field`] and [`Refused::param`] fill it in.
 struct Refused {
@@ -1912,55 +1774,6 @@ fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
         tracing::error!("a request came without its peer's address");
         ConnectError::internal("the Server failed")
     })
-}
-
-/// The Connect error a client gets for a Library request that failed. Database failures are
-/// logged, not sent: they say nothing the client can act on.
-impl From<libraries::Error> for ConnectError {
-    fn from(err: libraries::Error) -> Self {
-        use RefusalReason as R;
-        let message = err.to_string();
-        let refused = match err {
-            libraries::Error::NameBlank => {
-                refuse(R::REFUSAL_REASON_FIELD_REQUIRED, message).field("name")
-            }
-            libraries::Error::FoldersEmpty => {
-                refuse(R::REFUSAL_REASON_FIELD_REQUIRED, message).field("folders")
-            }
-            libraries::Error::Folder {
-                index,
-                folder,
-                problem,
-            } => {
-                let reason = match problem {
-                    FolderProblem::NotAbsolute => R::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
-                    FolderProblem::NotFound(_) => R::REFUSAL_REASON_FOLDER_NOT_FOUND,
-                    FolderProblem::NotReadable(_) => R::REFUSAL_REASON_FOLDER_NOT_READABLE,
-                    FolderProblem::NotUtf8(_) => R::REFUSAL_REASON_FOLDER_NOT_UTF8,
-                    FolderProblem::Repeated => R::REFUSAL_REASON_FOLDER_REPEATED,
-                };
-                let refused = refuse(reason, message)
-                    .field(&format!("folders[{index}]"))
-                    .param("folder", &folder);
-                if let FolderProblem::NotUtf8(resolved) = problem {
-                    refused.param("resolvedPath", &resolved)
-                } else {
-                    refused
-                }
-            }
-            libraries::Error::NotFound(id) => {
-                refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message).param("libraryId", &id)
-            }
-            libraries::Error::FolderTaken { folder, library } => {
-                refuse(R::REFUSAL_REASON_FOLDER_TAKEN, message)
-                    .field("folders")
-                    .param("folder", &folder)
-                    .param("library", &library)
-            }
-            libraries::Error::Database(err) => return database_failed(err),
-        };
-        refused.into()
-    }
 }
 
 /// The Connect error a client gets for a Library, title or Season that Browse didn't find. Database
