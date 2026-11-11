@@ -1116,7 +1116,7 @@ fn ffprobe_reading_h264_and_aac(bin: &Path) -> Ffmpeg {
 cat <<'EOF'
 {"streams": [{"codec_name": "h264", "codec_type": "video"},
              {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
- "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2"}}
+ "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "1.000000"}}
 EOF
 "#;
     Ffmpeg {
@@ -1152,6 +1152,7 @@ async fn an_h264_and_aac_mp4_direct_plays_through_its_plans_url() {
         plan.reasons,
         [
             "Its Tracks need no change",
+            "Its length is known",
             "This Device decodes its container and Tracks",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "No hardware acceleration passed its test when this Server started, so a Transcode \
@@ -1178,7 +1179,7 @@ case "$*" in *2160p*) video=hevc ;; *) video=h264 ;; esac
 cat <<EOF
 {"streams": [{"codec_name": "$video", "codec_type": "video"},
              {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
- "format": {"format_name": "matroska,webm"}}
+ "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
 EOF
 "#;
     let ffmpeg = format!(
@@ -1296,7 +1297,7 @@ async fn with_the_cap_full_a_device_that_plays_a_remux_gets_one_and_the_plan_say
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
     assert_eq!(
-        plan.reasons.get(5).map(String::as_str),
+        plan.reasons.get(6).map(String::as_str),
         Some(
             "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
              Transcode it"
@@ -1347,7 +1348,7 @@ async fn with_an_ffmpeg_lacking_libx264_a_version_needing_a_transcode_cant_be_pl
         PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED
     );
     assert_eq!(
-        needs_transcode.reasons[2],
+        needs_transcode.reasons[3],
         "This Server's ffmpeg lacks libx264, so it can't Transcode"
     );
     assert_eq!(remux.method, PlaybackMethod::PLAYBACK_METHOD_REMUX);
@@ -1406,6 +1407,8 @@ async fn without_ffprobe_a_version_direct_plays_and_its_plan_says_its_tracks_are
         [
             "Its Tracks aren't known, so they're taken to need no change, and it can only be \
              Direct Played",
+            "Its length isn't known, which a Remux's or a Transcode's playlist needs, so it can \
+             only be Direct Played",
             "Its Tracks aren't known, so this Device is taken to decode them",
             "This Server lacks ffmpeg or ffprobe, so it can only Direct Play",
             "No hardware acceleration passed its test when this Server started, so a Transcode \
@@ -1915,9 +1918,9 @@ async fn behind_a_trusted_proxy_the_forwarded_client_address_decides_whether_pla
         .await
         .unwrap();
 
-    assert_eq!(remote.reasons[7], REMOTE_720P);
+    assert_eq!(remote.reasons[8], REMOTE_720P);
     assert_eq!(remote.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_720P);
-    assert_eq!(local.reasons[7], LOCAL);
+    assert_eq!(local.reasons[8], LOCAL);
     assert_eq!(local.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -1936,7 +1939,7 @@ async fn behind_an_untrusted_proxy_the_peers_address_decides_whether_playback_is
         .await
         .unwrap();
 
-    assert_eq!(plan.reasons[7], LOCAL);
+    assert_eq!(plan.reasons[8], LOCAL);
     assert_eq!(plan.playback_limit, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
 }
 
@@ -2047,7 +2050,7 @@ async fn a_version_whose_direct_play_just_failed_on_the_device_cant_be_played_an
 
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_UNSPECIFIED);
     assert_eq!(plan.url, "");
-    assert_eq!(plan.reasons[4], "Direct Play failed on this Device");
+    assert_eq!(plan.reasons[5], "Direct Play failed on this Device");
 }
 
 /// The pure tests in `src/playback.rs` cover what these choices do; this checks they reach it.
@@ -2064,9 +2067,9 @@ async fn a_picked_playback_limit_and_a_failed_transcode_reach_the_plan() {
         .await
         .unwrap();
 
-    assert_eq!(plan.reasons[4], "Transcode failed on this Device");
+    assert_eq!(plan.reasons[5], "Transcode failed on this Device");
     assert_eq!(
-        plan.reasons[8],
+        plan.reasons[9],
         "Its picture size isn't known, so it's taken to fit the 480p Playback Limit"
     );
 }

@@ -17,7 +17,7 @@ use crate::{contents::Stored, db::Database, ffmpeg::TEXT_SUBTITLES};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
-pub(crate) const PROBE_VERSION: i64 = 4;
+pub(crate) const PROBE_VERSION: i64 = 5;
 
 /// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on at an older one is tried
 /// again, and those it read are left alone; when to bump it is in `AGENTS.md`. A
