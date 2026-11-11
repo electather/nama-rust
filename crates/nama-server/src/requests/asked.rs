@@ -100,7 +100,6 @@ pub(crate) fn may_see(viewer: Option<i64>, requesters: &[Requester]) -> bool {
     viewer.is_none_or(|user| is_requester(user, requesters))
 }
 
-/// Whether the User `user` is among `requesters`.
 fn is_requester(user: i64, requesters: &[Requester]) -> bool {
     requesters.iter().any(|requester| requester.user_id == user)
 }

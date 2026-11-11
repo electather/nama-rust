@@ -4163,7 +4163,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_non_requester_withdrawing_is_not_found_unless_they_may_see_it_whatever_its_state() {
+    async fn a_non_requester_withdrawing_is_not_found_unless_they_may_see_it_even_once_approved() {
         let (_data, db) = ada_and_bob().await;
         let requests = requests_on(Arc::clone(&db), Registry::new());
         let viewer = user(BOB, Permissions::from_iter([Permission::ViewRequests]));
