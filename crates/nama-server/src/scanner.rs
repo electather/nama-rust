@@ -102,7 +102,8 @@ impl From<matching::Error> for Error {
     }
 }
 
-/// Scans Libraries, one scan per Library at a time, either now or in the background.
+/// Scans Libraries, one scan per Library at a time, either now or in the background, and makes
+/// every change to a Library along with what must follow it.
 #[derive(Debug, Clone)]
 pub(crate) struct Scanner {
     inner: Arc<Inner>,
@@ -114,7 +115,7 @@ struct Inner {
     libraries: Libraries,
     matcher: Matcher,
     events: EventBus,
-    /// Told when a scan finishes, unless nothing probes.
+    /// Told when a scan finishes and asked to clean subtitles, unless nothing probes.
     probing: Option<Probing>,
     /// Background scans, so shutting down can wait for them.
     tasks: TaskTracker,
@@ -146,7 +147,8 @@ impl ScanLock {
 }
 
 impl Scanner {
-    /// Tells `probing` each Library whose scan finished, or nothing where nothing probes.
+    /// Tells `probing` each Library whose scan finished and has it clean subtitles, or does
+    /// neither where nothing probes.
     pub(crate) fn new(
         db: Arc<Database>,
         plugins: Registry,
