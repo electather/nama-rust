@@ -24,7 +24,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 use crate::{
-    connections, db::Database, plugins::Registry, server_settings::ServerUrl, users::User,
+    connections, db::Database, plugins::Registry, requests, server_settings::ServerUrl, users::User,
 };
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
@@ -182,10 +182,7 @@ impl Filter {
 
     /// Whether an event about something with `requesters`, and no Library, gets through.
     fn lets_through_requesters(&self, requesters: &[Requester]) -> bool {
-        self.libraries.is_empty()
-            && self
-                .requester
-                .is_none_or(|user| requesters.iter().any(|requester| requester.user_id == user))
+        self.libraries.is_empty() && requests::may_see(self.requester, requesters)
     }
 }
 

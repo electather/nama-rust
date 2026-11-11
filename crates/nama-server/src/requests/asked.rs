@@ -92,8 +92,9 @@ pub(super) async fn requesters(
 }
 
 /// Whether `viewer`, as [`super::visible_to`] gives one, may see something `requesters` asked
-/// for: everyone's if `None`, else only what that User is among the Requesters of.
-pub(super) fn may_see(viewer: Option<i64>, requesters: &[Requester]) -> bool {
+/// for: everyone's if `None`, else only what that User is among the Requesters of. The events
+/// filter asks it too, so a User's event stream and Request list agree.
+pub(crate) fn may_see(viewer: Option<i64>, requesters: &[Requester]) -> bool {
     viewer.is_none_or(|user| is_requester(user, requesters))
 }
 

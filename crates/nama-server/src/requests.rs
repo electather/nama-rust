@@ -47,7 +47,7 @@ use crate::{
 mod asked;
 mod hand_off;
 
-pub(crate) use asked::Asked;
+pub(crate) use asked::{Asked, may_see};
 use hand_off::{HandOff, PROGRESS_EVERY, lock};
 
 /// Each Request state as `requests.state` stores it.
@@ -2247,7 +2247,7 @@ async fn load_followed(
                 .into(),
             ..Default::default()
         })
-        .filter(|followed| asked::may_see(requester, &followed.requesters))
+        .filter(|followed| may_see(requester, &followed.requesters))
         .collect())
 }
 
@@ -2333,7 +2333,7 @@ async fn load(
             }
             request
         })
-        .filter(|request| asked::may_see(requester, &request.requesters))
+        .filter(|request| may_see(requester, &request.requesters))
         .collect())
 }
 
