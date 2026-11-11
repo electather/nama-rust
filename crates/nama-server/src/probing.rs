@@ -10,6 +10,8 @@
 //! timeout, is tried again on the next few passes first. A Version can also be probed right away
 //! ([`Probing::current`]), which waits for a background probe of it rather than probe it twice.
 
+mod ffprobe;
+
 use std::{
     collections::{HashMap, hash_map::Entry},
     sync::{
@@ -26,7 +28,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use crate::{
     contents::{Contents, Stored},
     db::Database,
-    ffmpeg::{Ffmpeg, ProbeError},
+    ffmpeg::Ffmpeg,
     playback::subtitles,
     tracks::{LastingReason, PassingReason, Probe, ProbeFailure, Tracks},
 };
@@ -34,6 +36,21 @@ use crate::{
 /// How many files background passes probe at once, across all Libraries. Each probe reads only a
 /// file's headers, but from a disk, or a network share, that playback is reading from too.
 const PROBES_AT_ONCE: usize = 3;
+
+/// Why probing a file failed.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ProbeError {
+    #[error("the Server has no ffprobe")]
+    Unavailable,
+    #[error("ffprobe couldn't be run: {0}")]
+    Run(#[from] std::io::Error),
+    #[error("ffprobe took too long")]
+    TimedOut(#[from] tokio::time::error::Elapsed),
+    #[error("ffprobe failed: {0}")]
+    Failed(String),
+    #[error("ffprobe's output couldn't be read: {0}")]
+    Output(#[from] serde_json::Error),
+}
 
 /// Why probing a Version right away failed.
 #[derive(Debug, thiserror::Error)]
@@ -361,7 +378,7 @@ impl Probing {
         {
             return Ok(probe);
         }
-        match self.inner.ffmpeg.probe(path).await {
+        match ffprobe::probe(&self.inner.ffmpeg, path).await {
             Ok(probe) => {
                 self.inner.tracks.store(file, probe.clone()).await?;
                 Ok(probe)
@@ -380,7 +397,9 @@ impl Probing {
         if let Some(kept) = self.inner.tracks.keyframes(claim.file).await? {
             return Ok(kept);
         }
-        let listed = self.inner.ffmpeg.keyframes(path).await.map_err(Arc::new);
+        let listed = ffprobe::keyframes(&self.inner.ffmpeg, path)
+            .await
+            .map_err(Arc::new);
         claim.found.send_replace(Some(listed.clone()));
         let keyframes = listed.map_err(Error::Probe)?;
         (self.inner.tracks)
@@ -480,12 +499,12 @@ mod tests {
     use nama_proto::nama::v1::ProbingFinished;
     use tempfile::TempDir;
 
-    use super::{Error, PROBES_AT_ONCE, Probing};
+    use super::{Error, PROBES_AT_ONCE, ProbeError, Probing, ffprobe};
     use crate::{
         config::Config,
         contents::{Change, Contents, Decided, Item, Metadata, Stored},
         db::Database,
-        ffmpeg::{self, Ffmpeg, ProbeError},
+        ffmpeg::{self, Ffmpeg},
         libraries::{Kind, Libraries},
         playback::subtitles,
         tracks::{
@@ -1558,5 +1577,71 @@ echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}}}'"
         media.keyframes(alien).await;
 
         assert_eq!(probe_runs(bin.path()), 2);
+    }
+
+    #[tokio::test]
+    async fn an_mkv_written_to_a_pipe_probes_to_its_real_length() {
+        let ffmpeg = system_ffmpeg();
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("captured.mkv");
+        // A source that just ends, unlike `-t`, leaves the muxer no length to write up front, and
+        // on a pipe it can't seek back to write it at the end, as with a stream capture.
+        let status = std::process::Command::new("ffmpeg")
+            .args(["-v", "error", "-f", "lavfi"])
+            .args(["-i", "testsrc=size=320x240:rate=24:duration=2"])
+            .args([
+                "-c:v",
+                "libx264",
+                "-preset",
+                "ultrafast",
+                "-f",
+                "matroska",
+                "pipe:1",
+            ])
+            .stdout(fs::File::create(&file).unwrap())
+            .status()
+            .unwrap();
+        assert!(status.success());
+
+        let probe = ffprobe::probe(&ffmpeg, file.to_str().unwrap())
+            .await
+            .unwrap();
+
+        // Within a frame, a 24th of a second, of 2 seconds.
+        assert!(
+            probe
+                .duration_ms
+                .is_some_and(|ms| (1958..=2042).contains(&ms)),
+            "{probe:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_avi_written_to_a_pipe_probes_to_its_real_length() {
+        let ffmpeg = system_ffmpeg();
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("piped.avi");
+        let status = std::process::Command::new("ffmpeg")
+            .args(["-v", "error", "-f", "lavfi"])
+            .args(["-i", "testsrc=duration=20:size=320x240:rate=24"])
+            .args(["-f", "lavfi", "-i", "sine=duration=20"])
+            // Not `ultrafast`, whose AVI skips a frame's time after the first packet.
+            .args(["-c:v", "libx264", "-c:a", "aac", "-f", "avi", "pipe:1"])
+            .stdout(fs::File::create(&file).unwrap())
+            .status()
+            .unwrap();
+        assert!(status.success());
+
+        let probe = ffprobe::probe(&ffmpeg, file.to_str().unwrap())
+            .await
+            .unwrap();
+
+        // Within a frame, a 24th of a second, of 20 seconds.
+        assert!(
+            probe
+                .duration_ms
+                .is_some_and(|ms| (19_958..=20_042).contains(&ms)),
+            "{probe:?}"
+        );
     }
 }
