@@ -1173,17 +1173,17 @@ fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<String> {
     cant
 }
 
-/// `codec`, as ffprobe names it, in plain words from `known` if it has it, unless `decoded` lists
-/// it.
+/// The codec ffprobe names `ffprobe_name`, in plain words from `codecs` if it has it, unless
+/// `decoded` lists it.
 fn undecodable_codec<'a, C: PartialEq>(
-    codec: &'a str,
-    known: &[(&str, C, &'static str)],
+    ffprobe_name: &'a str,
+    codecs: &[(&str, C, &'static str)],
     decoded: &[C],
 ) -> Option<&'a str> {
-    match known.iter().find(|(name, ..)| *name == codec) {
+    match codecs.iter().find(|(name, ..)| *name == ffprobe_name) {
         Some((_, codec, _)) if decoded.contains(codec) => None,
         Some((_, _, name)) => Some(name),
-        None => Some(codec),
+        None => Some(ffprobe_name),
     }
 }
 
