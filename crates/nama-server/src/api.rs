@@ -5,6 +5,7 @@ use std::{
     ffi::OsStr,
     future,
     net::IpAddr,
+    num::NonZeroU32,
     path::Path,
     sync::Arc,
     time::Instant,
@@ -65,25 +66,24 @@ use nama_proto::nama::v1::{
     ListUnmatchedItemsResponse, ListUsersRequest, ListUsersResponse, LookUpMovieRequest,
     LookUpMovieResponse, LookUpShowRequest, LookUpShowResponse, LookUpSignInCodeRequest,
     LookUpSignInCodeResponse, MatchService, Permission, PlanPlaybackRequest, PlanPlaybackResponse,
-    PlaybackService, PlaybackSettings, PluginConnection, PluginConnectionState, PluginService,
-    PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse,
-    Refusal, RefusalReason, ReportProgressRequest, ReportProgressResponse, RequestService,
-    RequestState, ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest,
-    RetryRequestResponse, RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest,
-    ScanLibraryResponse, SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest,
-    SearchMoviesResponse, SearchShowsRequest, SearchShowsResponse, ServerService, ServerSettings,
-    SessionDelivery, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest,
-    SetMatchResponse, SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest,
-    SetPlayedResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
-    SignInResponse, SignInService, SignOutRequest, SignOutResponse, StartPluginConnectionRequest,
-    StartPluginConnectionResponse, StartSignInCodeRequest, StartSignInCodeResponse,
-    StopPlaybackRequest, StopPlaybackResponse, SubscribeRequest, SubscribeResponse,
-    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdateLibraryRequest,
-    UpdateLibraryResponse, UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse,
-    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, UpdateServerSettingsRequest,
-    UpdateServerSettingsResponse, UserService, WatchStateService, WhoAmIRequest, WhoAmIResponse,
-    WithdrawFollowedShowRequest, WithdrawFollowedShowResponse, WithdrawRequestRequest,
-    WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
+    PlaybackService, PluginConnection, PluginConnectionState, PluginService, PollSignInCodeRequest,
+    PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse, Refusal, RefusalReason,
+    ReportProgressRequest, ReportProgressResponse, RequestService, RequestState,
+    ResetPasswordRequest, ResetPasswordResponse, RetryRequestRequest, RetryRequestResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, ScanLibraryRequest, ScanLibraryResponse,
+    SearchMetadataRequest, SearchMetadataResponse, SearchMoviesRequest, SearchMoviesResponse,
+    SearchShowsRequest, SearchShowsResponse, ServerService, ServerSettings, SessionDelivery,
+    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetMatchRequest, SetMatchResponse,
+    SetPermissionsRequest, SetPermissionsResponse, SetPlayedRequest, SetPlayedResponse,
+    SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse, SignInService,
+    SignOutRequest, SignOutResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    StartSignInCodeRequest, StartSignInCodeResponse, StopPlaybackRequest, StopPlaybackResponse,
+    SubscribeRequest, SubscribeResponse, TestPluginSettingsRequest, TestPluginSettingsResponse,
+    UpdateLibraryRequest, UpdateLibraryResponse, UpdatePlaybackSettingsRequest,
+    UpdatePlaybackSettingsResponse, UpdatePluginSettingsRequest, UpdatePluginSettingsResponse,
+    UpdateServerSettingsRequest, UpdateServerSettingsResponse, UserService, WatchStateService,
+    WhoAmIRequest, WhoAmIResponse, WithdrawFollowedShowRequest, WithdrawFollowedShowResponse,
+    WithdrawRequestRequest, WithdrawRequestResponse, external_id, reauthenticate_request::Proof,
     set_played_request::Target, setting_value,
 };
 
@@ -109,7 +109,9 @@ use crate::{
     rate_limits::{Blocked, SignInCodeLimits},
     requests::{self, Found, FoundShow, Requests},
     scanner::Scanner,
-    server_settings::{HardwareChoice, RemotePlaybackLimit, SegmentFolder, ServerUrl},
+    server_settings::{
+        self, HardwareChoice, Invalid, PlaybackChange, PlaybackSettings, PlaybackValues,
+    },
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie, session_cookie},
     sign_in::{self, SignIn},
     sign_in_codes::{self, Poll, SignInCodes},
@@ -132,9 +134,7 @@ pub(crate) fn router(
     scanner: Scanner,
     events: EventBus,
     requests: Requests,
-    server_url: ServerUrl,
-    segment_folder: SegmentFolder,
-    remote_limit: RemotePlaybackLimit,
+    settings: server_settings::Settings,
     running: RunningPlans,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
@@ -155,14 +155,12 @@ pub(crate) fn router(
     .merge(playback::running::router(running.clone()));
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
+    let playback = settings.playback();
     connectrpc::Router::new()
         .add_service(Arc::new(ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
-            db: Arc::clone(&db),
-            server_url,
-            segment_folder,
-            remote_limit: remote_limit.clone(),
+            settings,
             running: running.clone(),
             ffmpeg,
         }))
@@ -190,7 +188,7 @@ pub(crate) fn router(
         .add_service(Arc::new(PlaybackServiceHandler {
             scanner: scanner.clone(),
             running,
-            remote_limit,
+            settings: playback,
         }))
         .add_service(Arc::new(RequestServiceHandler { requests, artwork }))
         .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
@@ -431,11 +429,8 @@ fn unlisted(path: &str) -> ConnectError {
 struct ServerServiceHandler {
     name: String,
     users: Users,
-    db: Arc<Database>,
-    server_url: ServerUrl,
-    segment_folder: SegmentFolder,
-    remote_limit: RemotePlaybackLimit,
-    /// For the Transcode cap, what Transcodes run on, and the hardware found.
+    settings: server_settings::Settings,
+    /// For the hardware found.
     running: RunningPlans,
     ffmpeg: Arc<Ffmpeg>,
 }
@@ -468,7 +463,7 @@ impl ServerService for ServerServiceHandler {
         Output = ServiceResult<impl Encodable<GetServerSettingsResponse> + Send + use<'a>>,
     > + Send {
         future::ready(Response::ok(GetServerSettingsResponse {
-            settings: self.server_settings().into(),
+            settings: server_settings_to_proto(self.settings.now().url).into(),
             ..Default::default()
         }))
     }
@@ -478,22 +473,10 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, UpdateServerSettingsRequest>,
     ) -> ServiceResult<UpdateServerSettingsResponse> {
-        let url = request.settings.url.trim().to_owned();
-        if !ServerUrl::accepts(&url) {
-            return Err(refuse(
-                RefusalReason::REFUSAL_REASON_NOT_A_URL,
-                "the Server URL must be an http or https URL with no ? or #, such as \
-                 https://nama.example.com",
-            )
-            .field("settings.url")
-            .into());
-        }
-        self.server_url
-            .save(&self.db, url)
-            .await
-            .map_err(database_failed)?;
+        let url =
+            (self.settings.set_url(request.settings.url).await).map_err(settings_change_failed)?;
         Response::ok(UpdateServerSettingsResponse {
-            settings: self.server_settings().into(),
+            settings: server_settings_to_proto(url).into(),
             ..Default::default()
         })
     }
@@ -538,7 +521,7 @@ impl ServerService for ServerServiceHandler {
         Output = ServiceResult<impl Encodable<GetPlaybackSettingsResponse> + Send + use<'a>>,
     > + Send {
         future::ready(Response::ok(GetPlaybackSettingsResponse {
-            settings: self.playback_settings().into(),
+            settings: playback_settings_to_proto(self.settings.now().playback).into(),
             ..Default::default()
         }))
     }
@@ -548,74 +531,64 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, UpdatePlaybackSettingsRequest>,
     ) -> ServiceResult<UpdatePlaybackSettingsResponse> {
-        let folder = request.settings.segment_folder.trim().to_owned();
-        if !SegmentFolder::accepts(&folder) {
-            return Err(refuse(
-                RefusalReason::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
-                "the segment folder must be an absolute path, such as /dev/shm/nama",
-            )
-            .field("settings.segment_folder")
-            .param("folder", &folder)
-            .into());
-        }
-        let max_transcodes = request.settings.max_transcodes;
-        if max_transcodes == Some(0) {
-            // A cap of 0 would refuse every Transcode; a client asks for the default by leaving
-            // it out.
-            return Err(refuse(
-                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                "the most Transcodes at once must be at least 1",
-            )
-            .field("settings.max_transcodes")
-            .into());
-        }
-        self.segment_folder
-            .save(&self.db, folder)
-            .await
-            .map_err(database_failed)?;
-        self.running
-            .max_transcodes()
-            .save(&self.db, max_transcodes)
-            .await
-            .map_err(database_failed)?;
-        let remote_limit = limit_from_proto(request.settings.remote_playback_limit);
-        self.remote_limit
-            .save(&self.db, remote_limit)
-            .await
-            .map_err(database_failed)?;
-        let choice = hardware_choice(request.settings.hardware_acceleration);
-        self.running
-            .hardware_acceleration()
-            .save(&self.db, choice)
-            .await
-            .map_err(database_failed)?;
+        let change = PlaybackChange {
+            segment_folder: request.settings.segment_folder,
+            max_transcodes: request.settings.max_transcodes,
+            hardware: hardware_choice(request.settings.hardware_acceleration),
+            remote_limit: limit_from_proto(request.settings.remote_playback_limit),
+        };
+        let stored =
+            (self.settings.change_playback(change).await).map_err(settings_change_failed)?;
         Response::ok(UpdatePlaybackSettingsResponse {
-            settings: self.playback_settings().into(),
+            settings: playback_settings_to_proto(stored).into(),
             ..Default::default()
         })
     }
 }
 
-impl ServerServiceHandler {
-    fn server_settings(&self) -> ServerSettings {
-        ServerSettings {
-            url: self.server_url.get(),
-            ..Default::default()
-        }
+/// The Server settings as the API has them.
+fn server_settings_to_proto(url: String) -> ServerSettings {
+    ServerSettings {
+        url,
+        ..Default::default()
     }
+}
 
-    fn playback_settings(&self) -> PlaybackSettings {
-        PlaybackSettings {
-            segment_folder: self.segment_folder.get(),
-            max_transcodes: self.running.max_transcodes().get(),
-            remote_playback_limit: limit_to_proto(self.remote_limit.get()).into(),
-            hardware_acceleration: hardware_choice_to_proto(
-                self.running.hardware_acceleration().get(),
-            )
-            .into(),
-            ..Default::default()
-        }
+/// The Playback settings as the API has them.
+fn playback_settings_to_proto(settings: PlaybackValues) -> proto::PlaybackSettings {
+    proto::PlaybackSettings {
+        segment_folder: settings.segment_folder,
+        max_transcodes: settings.max_transcodes.map(NonZeroU32::get),
+        remote_playback_limit: limit_to_proto(settings.remote_limit).into(),
+        hardware_acceleration: hardware_choice_to_proto(settings.hardware).into(),
+        ..Default::default()
     }
+}
+
+/// The refusal naming the field whose value broke a rule, or a generic error if storing failed.
+fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
+    use server_settings::ChangeError::{Database, Invalid as Refused};
+    match err {
+        Database(err) => return database_failed(err),
+        Refused(Invalid::NotAUrl) => refuse(
+            RefusalReason::REFUSAL_REASON_NOT_A_URL,
+            "the Server URL must be an http or https URL with no ? or #, such as \
+             https://nama.example.com",
+        )
+        .field("settings.url"),
+        Refused(Invalid::FolderNotAbsolute { folder }) => refuse(
+            RefusalReason::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
+            "the segment folder must be an absolute path, such as /dev/shm/nama",
+        )
+        .field("settings.segment_folder")
+        .param("folder", &folder),
+        Refused(Invalid::NoTranscodes) => refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            "the most Transcodes at once must be at least 1",
+        )
+        .field("settings.max_transcodes"),
+    }
+    .into()
 }
 
 /// The choice of what Transcodes run on that `choice` names, Automatic for one this Server
@@ -1370,7 +1343,7 @@ fn version_not_found() -> ConnectError {
 struct PlaybackServiceHandler {
     scanner: Scanner,
     running: RunningPlans,
-    remote_limit: RemotePlaybackLimit,
+    settings: PlaybackSettings,
 }
 
 #[expect(
@@ -1410,7 +1383,7 @@ impl PlaybackService for PlaybackServiceHandler {
             audio,
             picked_limit(request.playback_limit),
             client,
-            self.remote_limit.get(),
+            self.settings.now(),
             subtitle,
         )
         .await
@@ -2570,6 +2543,9 @@ fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method>
 }
 
 fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
+    // A place past `u32::MAX` is in no file ffprobe reads.
+    let place = |place: usize| u32::try_from(place).ok();
+    let places = |places: Vec<usize>| places.into_iter().filter_map(place).collect();
     proto::PlaybackPlan {
         id: plan.id.unwrap_or_default(),
         method: method_to_proto(plan.method).into(),
@@ -2577,6 +2553,13 @@ fn plan_to_proto(plan: Plan) -> proto::PlaybackPlan {
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
         reasons: plan.reasons,
         playback_limit: limit_to_proto(plan.limit).into(),
+        audio_track: plan.audio.and_then(place),
+        subtitle_track: plan.burn_in.and_then(place),
+        audio_tracks: places(plan.offers.audio),
+        burn_in_tracks: places(plan.offers.burn_in),
+        playback_limits: (plan.offers.limits.into_iter())
+            .map(|limit| limit_to_proto(Some(limit)).into())
+            .collect(),
         subtitles: (plan.subtitles.iter())
             .map(|subtitle| proto::PlaybackSubtitle {
                 track: track_to_proto(&subtitle.track).into(),

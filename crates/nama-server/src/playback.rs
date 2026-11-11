@@ -1,9 +1,10 @@
 //! Playback Plans: how the Server plays one Version on one Device, and why (ADR 0027).
 //!
 //! [`plan`] gathers what a plan is based on, probing the Version first if its Tracks aren't
-//! current, and runs [`STEPS`] over it in order. Each step says which methods it allows and why,
+//! current, and runs the steps over it in order. Each step says which methods it allows and why,
 //! and the plan keeps only what every step allows, so no step can widen what an earlier one ruled
-//! out.
+//! out. The steps for the User's choices run last, and a choice no method is left for is dropped
+//! instead (ADR 0031).
 //!
 //! Each playable plan is kept in [`running::RunningPlans`] until it stops, and Remuxes serve their
 //! own files there.
@@ -17,7 +18,7 @@
 pub(crate) mod running;
 pub(crate) mod subtitles;
 
-use std::{collections::BTreeSet, net::IpAddr, sync::Arc};
+use std::{collections::BTreeSet, net::IpAddr, num::NonZeroU32, sync::Arc};
 
 use axum::{
     Router,
@@ -33,7 +34,7 @@ use crate::{
     contents::Contents,
     ffmpeg::{BurnIn, Ffmpeg, Hardware, ProbeError, ToneMapper, VideoConversion, VideoLimit},
     scanner::{ProbeNowError, Scanner},
-    server_settings::HardwareChoice,
+    server_settings::{HardwareChoice, PlaybackValues},
     tracks::{Hdr, Probe, Track, TrackKind, Tracks, track_to_proto},
     users::{Caller, User},
 };
@@ -134,6 +135,31 @@ pub(crate) struct Plan {
     pub(crate) subtitles: Vec<Subtitle>,
     /// The Playback Limit it keeps to, `None` being Original.
     pub(crate) limit: Option<PlaybackLimit>,
+    /// The place in the Version's Tracks of the audio Track it plays, if it has audio.
+    pub(crate) audio: Option<usize>,
+    /// The place in the Version's Tracks of the subtitle Track it burns in, if any.
+    pub(crate) burn_in: Option<usize>,
+    pub(crate) offers: Offers,
+}
+
+/// The choices a plan for a Version can ever honour on a Server and Device: what the lasting
+/// facts allow, whatever a busy Server or a method that failed on the Device rules out for now.
+#[derive(Debug, Default, PartialEq)]
+pub(crate) struct Offers {
+    /// The audio Tracks it can play, by their place in the Version's Tracks.
+    pub(crate) audio: Vec<usize>,
+    /// The subtitle Tracks it can burn in, by their place in the Version's Tracks.
+    pub(crate) burn_in: Vec<usize>,
+    /// The Playback Limits below Original it can scale the picture down to, largest first.
+    pub(crate) limits: Vec<PlaybackLimit>,
+}
+
+/// One of the User's choices, which a plan drops when no method is left to honour it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Choice {
+    Audio,
+    Limit,
+    Subtitle,
 }
 
 /// A text subtitle a player shows as a WebVTT `<track>`.
@@ -170,12 +196,13 @@ impl DeviceDecoding {
 /// Plans playing the Version `version` on `caller`'s Device, which decodes `decoding`, by any
 /// method but those that just `failed` there, with the audio Track at the place `audio` in the
 /// Version's Tracks, or else its own, within the Playback Limit the User `picked`, or else,
-/// while they haven't picked one, `remote_default` (`None` being Original) if the Device's address
+/// while they haven't picked one, the remote Playback Limit in `settings` if the Device's address
 /// `client` is outside the local network, with the subtitle Track at the place `subtitle` burned
-/// into the picture, if any. It probes the Version first unless its Tracks are
-/// current, and keeps a playable plan in `running`, which starts its ffmpeg if it needs one. `None`
-/// if there is no such Version, and [`StartError::Busy`] if only a Transcode would play it and the
-/// Server is running as many as it may.
+/// into the picture, if any, by the Transcode cap and hardware choice in `settings`. It probes the
+/// Version first unless its Tracks are current, and keeps a playable plan in `running`, which
+/// starts its ffmpeg if it needs one. `None` if there is no such Version, and
+/// [`StartError::Busy`] if only a Transcode would play it and the Server is running as many as it
+/// may.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is its own fact about the request or a service it needs, and a struct would \
@@ -191,7 +218,7 @@ pub(crate) async fn plan(
     audio: Option<usize>,
     picked: PickedLimit,
     client: IpAddr,
-    remote_default: Option<PlaybackLimit>,
+    settings: PlaybackValues,
     subtitle: Option<usize>,
 ) -> Result<Option<Plan>, StartError> {
     let probe = match scanner.probe_now(version).await {
@@ -221,15 +248,17 @@ pub(crate) async fn plan(
         network: if on_local_network(client) {
             Network::Local
         } else {
-            Network::Remote(remote_default)
+            Network::Remote(settings.remote_limit)
         },
         subtitle,
-        hardware_choice: running.hardware_acceleration().get(),
+        hardware_choice: settings.hardware,
         hardware: running.found_hardware().await.to_vec(),
+        dropped: BTreeSet::new(),
     };
-    facts.transcodes_full =
-        running.transcodes_full(caller.device.id, default_max_transcodes(&facts));
-    let mut plan = build(&facts, &STEPS);
+    let max_transcodes =
+        (settings.max_transcodes).map_or_else(|| default_max_transcodes(&facts), NonZeroU32::get);
+    facts.transcodes_full = running.transcodes_full(caller.device.id, max_transcodes);
+    let mut plan = build(&mut facts);
     let Some(playback) = playback(caller, version, &plan) else {
         return match too_busy_to_play(facts) {
             Some(max) => Err(StartError::Busy(max)),
@@ -320,6 +349,8 @@ struct Facts {
     hardware_choice: HardwareChoice,
     /// The hardware acceleration that passed its test at startup, in the order Automatic picks.
     hardware: Vec<Hardware>,
+    /// The User's choices the plan doesn't honour, as [`build`] found.
+    dropped: BTreeSet<Choice>,
 }
 
 /// What one step lets a plan be, and why.
@@ -330,37 +361,57 @@ struct Narrowing {
 
 type Step = fn(&Facts) -> Narrowing;
 
-/// In ADR 0027's order. A new input is a new step here.
-const STEPS: [Step; 10] = [
+// The steps run in ADR 0027's order, split by ADR 0031. A new input is a new step in one of these.
+
+/// The steps for what the Version, Device and Server allow that lasts, so what they allow is what
+/// the User's choices can ever have.
+const LASTING_STEPS: [Step; 4] = [
     version_tracks,
     device_decoding,
     server_ffmpeg,
     server_encoders,
-    failed_on_device,
-    chosen_audio,
-    network,
-    playback_limit,
-    chosen_subtitle,
-    server_busy,
 ];
 
-/// The plan for `facts` that every one of `steps` allows.
-fn build(facts: &Facts, steps: &[Step]) -> Plan {
-    let mut allowed = BTreeSet::from(Method::ALL);
-    let mut reasons = Vec::with_capacity(steps.len());
-    for step in steps {
+/// The steps for what rules a method out only for now.
+const NOW_STEPS: [Step; 2] = [failed_on_device, server_busy];
+
+/// The steps for the User's choices, which narrow only while a method is left.
+const CHOICE_STEPS: [(Choice, Step); 4] = [
+    (Choice::Audio, chosen_audio),
+    (Choice::Limit, network),
+    (Choice::Limit, playback_limit),
+    (Choice::Subtitle, chosen_subtitle),
+];
+
+/// The plan for `facts` that every step allows. A choice that would leave no method is added to
+/// `facts.dropped` and the steps run again without it, since what the earlier steps see, such as
+/// the audio the Device must decode, may change with it.
+fn build(facts: &mut Facts) -> Plan {
+    let mut reasons = vec![];
+    let lasting = narrowed(
+        facts,
+        &LASTING_STEPS,
+        BTreeSet::from(Method::ALL),
+        &mut reasons,
+    );
+    let mut allowed = narrowed(facts, &NOW_STEPS, lasting.clone(), &mut reasons);
+    for (choice, step) in CHOICE_STEPS {
         let Narrowing { allows, reason } = step(facts);
+        // A step allowing every method has no choice in effect to drop.
+        if allowed.is_disjoint(&allows) && allows != BTreeSet::from(Method::ALL) {
+            facts.dropped.insert(choice);
+            return build(facts);
+        }
         allowed.retain(|method| allows.contains(method));
         reasons.push(reason);
     }
-    let method = allowed.into_iter().next();
-    let tracks = played_as(method, facts);
+    let method = allowed.first().copied();
     Plan {
         id: None,
         method,
         // A Remux's or Transcode's URL is its running plan's, which `plan` starts.
         url: (method == Some(Method::DirectPlay)).then(|| direct_play_url(facts.version)),
-        tracks,
+        tracks: played_as(method, facts),
         reasons,
         subtitles: facts
             .probe
@@ -368,6 +419,57 @@ fn build(facts: &Facts, steps: &[Step]) -> Plan {
             .map(|probe| text_subtitles(facts.version, probe))
             .unwrap_or_default(),
         limit: limit_in_effect(facts),
+        audio: played_audio_place(facts),
+        burn_in: facts.subtitle.filter(|_| burn_in(facts).is_some()),
+        offers: offers(facts, &lasting),
+    }
+}
+
+/// What `allowed` leaves once each of `steps` narrows it, saying why in `reasons`.
+fn narrowed(
+    facts: &Facts,
+    steps: &[Step],
+    mut allowed: BTreeSet<Method>,
+    reasons: &mut Vec<String>,
+) -> BTreeSet<Method> {
+    for step in steps {
+        let Narrowing { allows, reason } = step(facts);
+        allowed.retain(|method| allows.contains(method));
+        reasons.push(reason);
+    }
+    allowed
+}
+
+/// What a plan for `facts` can ever honour, with only the methods in `lasting` allowed.
+fn offers(facts: &Facts, lasting: &BTreeSet<Method>) -> Offers {
+    let Some(probe) = &facts.probe else {
+        return Offers::default();
+    };
+    let transcodes = lasting.contains(&Method::Transcode);
+    let places = |keep: fn(&Track) -> bool| {
+        (probe.tracks.iter().enumerate())
+            .filter(move |(_, track)| keep(track))
+            .map(|(place, _)| place)
+    };
+    // Only the file's own audio plays without a Remux or a Transcode.
+    let audio = if transcodes || lasting.contains(&Method::Remux) {
+        places(is_audio).collect()
+    } else {
+        file_audio(probe).into_iter().collect()
+    };
+    if !transcodes {
+        return Offers {
+            audio,
+            ..Offers::default()
+        };
+    }
+    let picture = picture(facts);
+    Offers {
+        audio,
+        burn_in: places(burns_in).collect(),
+        limits: (PlaybackLimit::ALL.into_iter())
+            .filter(|&limit| picture.and_then(|picture| fitted(picture, limit)).is_some())
+            .collect(),
     }
 }
 
@@ -572,8 +674,16 @@ fn video_conversion(facts: &Facts) -> VideoConversion {
 /// The step for the audio Track the User chose: Direct Play only if it's the one browsers play
 /// from the file, since only Safari switches audio inside a file.
 fn chosen_audio(facts: &Facts) -> Narrowing {
+    if facts.dropped.contains(&Choice::Audio) {
+        return Narrowing {
+            allows: BTreeSet::from(Method::ALL),
+            reason: "The audio Track chosen needs a Remux or a Transcode, and neither can play it \
+                     here, so it's dropped for the file's own"
+                .to_owned(),
+        };
+    }
     match &facts.probe {
-        Some(probe) if played_audio(facts) != file_audio(probe) => Narrowing {
+        Some(probe) if played_audio_place(facts) != file_audio(probe) => Narrowing {
             allows: BTreeSet::from([Method::Remux, Method::Transcode]),
             reason: "The audio Track chosen isn't the one browsers play from its file, so it \
                      can't be Direct Played"
@@ -605,14 +715,15 @@ fn server_busy(facts: &Facts) -> Narrowing {
 
 /// The most Transcodes the Server may run at once, if running that many is all that keeps the
 /// plan for `facts` from playing: a Transcode would play it otherwise. A plan nothing else plays
-/// is refused as busy rather than shown as unplayable, since trying again later may play it.
+/// is refused as busy rather than shown as unplayable, since trying again later may play it. Only
+/// what the Device needs counts: a choice that needs a Transcode is dropped first.
 fn too_busy_to_play(facts: Facts) -> Option<u32> {
     let max = facts.transcodes_full?;
-    let not_busy = Facts {
+    let mut not_busy = Facts {
         transcodes_full: None,
         ..facts
     };
-    (build(&not_busy, &STEPS).method == Some(Method::Transcode)).then_some(max)
+    (build(&mut not_busy).method == Some(Method::Transcode)).then_some(max)
 }
 
 /// The step for what just failed to play on the Device: it rules out each method that did, so
@@ -665,9 +776,14 @@ fn on_local_network(address: IpAddr) -> bool {
     }
 }
 
-/// The Playback Limit in effect: the one the User picked, or else, outside the local network, the
-/// remote default. `None` is Original.
+/// The Playback Limit in effect: [`limit_asked`], unless the plan dropped it. `None` is Original.
 fn limit_in_effect(facts: &Facts) -> Option<PlaybackLimit> {
+    limit_asked(facts).filter(|_| !facts.dropped.contains(&Choice::Limit))
+}
+
+/// The Playback Limit the User picked, or else, outside the local network, the remote default.
+/// `None` is Original.
+fn limit_asked(facts: &Facts) -> Option<PlaybackLimit> {
     match (facts.picked_limit, facts.network) {
         (PickedLimit::Picked(limit), _) | (PickedLimit::Unpicked, Network::Remote(limit)) => limit,
         (PickedLimit::Unpicked, Network::Local) => None,
@@ -677,6 +793,17 @@ fn limit_in_effect(facts: &Facts) -> Option<PlaybackLimit> {
 /// The step for the Playback Limit in effect: only a Transcode, which scales the picture down to
 /// fit it, when the Version's picture is larger.
 fn playback_limit(facts: &Facts) -> Narrowing {
+    if let Some(PlaybackLimit { name, .. }) = limit_asked(facts)
+        && facts.dropped.contains(&Choice::Limit)
+    {
+        return Narrowing {
+            allows: BTreeSet::from(Method::ALL),
+            reason: format!(
+                "The {name} Playback Limit needs a Transcode, which can't play it here, so it's \
+                 dropped for Original"
+            ),
+        };
+    }
     let Some(PlaybackLimit { name, .. }) = limit_in_effect(facts) else {
         return Narrowing {
             allows: BTreeSet::from(Method::ALL),
@@ -706,6 +833,14 @@ fn playback_limit(facts: &Facts) -> Narrowing {
 /// The step for the subtitle Track the User chose to burn in: only a Transcode draws it into the
 /// picture.
 fn chosen_subtitle(facts: &Facts) -> Narrowing {
+    if facts.dropped.contains(&Choice::Subtitle) {
+        return Narrowing {
+            allows: BTreeSet::from(Method::ALL),
+            reason: "The subtitles chosen need a Transcode to burn them in, which can't play it \
+                     here, so they're dropped"
+                .to_owned(),
+        };
+    }
     if burn_in(facts).is_some() {
         return Narrowing {
             allows: BTreeSet::from([Method::Transcode]),
@@ -719,23 +854,34 @@ fn chosen_subtitle(facts: &Facts) -> Narrowing {
     }
 }
 
-/// How a Transcode burns in the subtitle Track the User chose, if it's one a browser can't show as
-/// it should: an image one, such as PGS, or ASS or SSA, with its styling. Any other choice, as when
-/// the Version changed since the User saw it, is the same as none.
+/// How a Transcode burns in the subtitle Track the User chose, unless the plan dropped it, if it's
+/// one that [`burns_in`]. Any other choice, as when the Version changed since the User saw it, is
+/// the same as none.
 fn burn_in(facts: &Facts) -> Option<BurnIn> {
     let probe = facts.probe.as_ref()?;
-    let place = facts.subtitle?;
-    let track = probe.tracks.get(place)?;
+    let place = facts
+        .subtitle
+        .filter(|_| !facts.dropped.contains(&Choice::Subtitle))?;
+    let track = probe.tracks.get(place).filter(|track| burns_in(track))?;
     let subtitle = probe.subtitle_stream(place);
+    Some(
+        if matches!(track.kind, TrackKind::Subtitle { image: true }) {
+            BurnIn::Image {
+                subtitle,
+                picture: picture(facts),
+            }
+        } else {
+            BurnIn::Text { subtitle }
+        },
+    )
+}
+
+/// Whether `track` is a subtitle a browser can't show as it should, so a Transcode burns it in:
+/// an image one, such as PGS, or ASS or SSA, with its styling.
+fn burns_in(track: &Track) -> bool {
     match track.kind {
-        TrackKind::Subtitle { image: true } => Some(BurnIn::Image {
-            subtitle,
-            picture: picture(facts),
-        }),
-        TrackKind::Subtitle { image: false } if track.is_ass_subtitle() => {
-            Some(BurnIn::Text { subtitle })
-        }
-        TrackKind::Video { .. } | TrackKind::Audio { .. } | TrackKind::Subtitle { .. } => None,
+        TrackKind::Subtitle { image } => image || track.is_ass_subtitle(),
+        TrackKind::Video { .. } | TrackKind::Audio { .. } => false,
     }
 }
 
@@ -1042,35 +1188,41 @@ fn transcoded_hdr(facts: &Facts) -> Option<Hdr> {
     }
 }
 
-/// The Track [`played_audio`] counts to.
+/// The Track at [`played_audio_place`].
 fn played_audio_track(facts: &Facts) -> Option<&Track> {
-    let probe = facts.probe.as_ref()?;
-    played_audio(facts).and_then(|n| audio_tracks(probe).nth(n))
+    facts.probe.as_ref()?.tracks.get(played_audio_place(facts)?)
 }
 
-/// Which of the Version's audio Tracks the plan plays, counting only its audio from 0: the one
-/// chosen, or else [`file_audio`]. A choice that isn't an audio Track, as when the Version
-/// changed since the User saw it, is the same as none.
+/// Which of the Version's audio Tracks the plan plays, counting only its audio from 0, as ffmpeg
+/// does.
 fn played_audio(facts: &Facts) -> Option<usize> {
     let probe = facts.probe.as_ref()?;
-    let chosen = (facts.audio).filter(|&place| probe.tracks.get(place).is_some_and(is_audio));
-    let audio_before = |place| {
+    let place = played_audio_place(facts)?;
+    Some(
         (probe.tracks.iter().take(place))
             .filter(|track| is_audio(track))
-            .count()
-    };
-    chosen.map(audio_before).or_else(|| file_audio(probe))
+            .count(),
+    )
 }
 
-/// Which of `probe`'s audio Tracks a browser plays from the file, counting from 0: the one the
+/// The place in the Version's Tracks of the audio Track the plan plays: the one chosen, unless the
+/// plan dropped it, or else [`file_audio`]. A choice that isn't an audio Track, as when the
+/// Version changed since the User saw it, is the same as none.
+fn played_audio_place(facts: &Facts) -> Option<usize> {
+    let probe = facts.probe.as_ref()?;
+    let chosen = (facts.audio)
+        .filter(|_| !facts.dropped.contains(&Choice::Audio))
+        .filter(|&place| probe.tracks.get(place).is_some_and(is_audio));
+    chosen.or_else(|| file_audio(probe))
+}
+
+/// The place in `probe`'s Tracks of the audio Track a browser plays from the file: the one the
 /// file marks to play by default, or else its first.
 fn file_audio(probe: &Probe) -> Option<usize> {
-    (audio_tracks(probe).position(|track| track.default))
-        .or_else(|| audio_tracks(probe).next().map(|_| 0))
-}
-
-fn audio_tracks(probe: &Probe) -> impl Iterator<Item = &Track> {
-    (probe.tracks.iter()).filter(|track| is_audio(track))
+    let audio = || (probe.tracks.iter().enumerate()).filter(|(_, track)| is_audio(track));
+    (audio().find(|(_, track)| track.default))
+        .or_else(|| audio().next())
+        .map(|(place, _)| place)
 }
 
 const fn is_audio(track: &Track) -> bool {
@@ -1148,9 +1300,10 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::{
-        DeviceDecoding, Facts, Method, Narrowing, Network, PickedLimit, Plan, PlaybackLimit, STEPS,
-        Subtitle, aac_channels, build, default_max_transcodes, device_decoding, failed_on_device,
-        fitted, on_local_network, played_audio, tone_maps, too_busy_to_play, video_conversion,
+        DeviceDecoding, Facts, Method, Narrowing, Network, Offers, PickedLimit, Plan,
+        PlaybackLimit, Subtitle, aac_channels, build, default_max_transcodes, device_decoding,
+        failed_on_device, fitted, narrowed, on_local_network, played_audio, tone_maps,
+        too_busy_to_play, video_conversion,
     };
     use crate::{
         ffmpeg::{Accel, Hardware, ToneMapper, VideoConversion},
@@ -1258,6 +1411,7 @@ mod tests {
             subtitle: None,
             hardware_choice: HardwareChoice::Automatic,
             hardware: vec![],
+            dropped: BTreeSet::new(),
         }
     }
 
@@ -1267,10 +1421,7 @@ mod tests {
 
     #[test]
     fn an_h264_and_aac_mp4_direct_plays_from_its_versions_url_because_its_tracks_need_no_change() {
-        let plan = build(
-            &facts(Some(vec![video("h264"), audio("aac", true)])),
-            &STEPS,
-        );
+        let plan = build(&mut facts(Some(vec![video("h264"), audio("aac", true)])));
 
         assert_eq!(
             plan,
@@ -1287,14 +1438,21 @@ mod tests {
                      Transcode runs in software"
                         .to_owned(),
                     "Nothing has failed to play it on this Device".to_owned(),
+                    "This Server isn't running as many Transcodes as it may at once".to_owned(),
                     "It plays the file's own audio Track".to_owned(),
                     "This Device is on the local network".to_owned(),
                     "The Playback Limit is Original".to_owned(),
                     "No subtitles are burned into its picture".to_owned(),
-                    "This Server isn't running as many Transcodes as it may at once".to_owned(),
                 ],
                 subtitles: vec![],
                 limit: None,
+                audio: Some(1),
+                burn_in: None,
+                offers: Offers {
+                    audio: vec![1],
+                    burn_in: vec![],
+                    limits: vec![PlaybackLimit::P720, PlaybackLimit::P480],
+                },
             }
         );
     }
@@ -1320,7 +1478,7 @@ mod tests {
             ),
         ];
         for (container, tracks, cant) in cases {
-            let plan = build(&in_container(container, Some(tracks)), &STEPS);
+            let plan = build(&mut in_container(container, Some(tracks)));
 
             assert_eq!(plan.method, Some(Method::Transcode), "{cant}");
             let cant_direct_play =
@@ -1354,12 +1512,12 @@ mod tests {
             ),
         ];
         for (container, tracks, device) in cases {
-            let facts = Facts {
+            let mut facts = Facts {
                 device,
                 ..in_container(container, Some(tracks.clone()))
             };
 
-            let plan = build(&facts, &STEPS);
+            let plan = build(&mut facts);
 
             assert_eq!(plan.method, Some(Method::DirectPlay), "{tracks:?}");
         }
@@ -1405,7 +1563,7 @@ mod tests {
 
     #[test]
     fn a_version_whose_tracks_arent_known_direct_plays_and_says_so() {
-        let plan = build(&facts(None), &STEPS);
+        let plan = build(&mut facts(None));
 
         assert_eq!(plan.method, Some(Method::DirectPlay));
         assert_eq!(plan.tracks, []);
@@ -1419,23 +1577,23 @@ mod tests {
                 "No hardware acceleration passed its test when this Server started, so a \
                  Transcode runs in software",
                 "Nothing has failed to play it on this Device",
+                "This Server isn't running as many Transcodes as it may at once",
                 "It plays the file's own audio Track",
                 "This Device is on the local network",
                 "The Playback Limit is Original",
                 "No subtitles are burned into its picture",
-                "This Server isn't running as many Transcodes as it may at once",
             ]
         );
     }
 
     #[test]
     fn a_version_whose_tracks_arent_known_cant_be_played_once_direct_play_failed() {
-        let facts = Facts {
+        let mut facts = Facts {
             failed: BTreeSet::from([Method::DirectPlay]),
             ..facts(None)
         };
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!((plan.method, plan.url), (None, None));
     }
@@ -1464,7 +1622,7 @@ mod tests {
         for (tracks, played) in cases {
             let with_subtitle = [tracks.clone(), vec![subtitle()]].concat();
 
-            let plan = build(&facts(Some(with_subtitle)), &STEPS);
+            let plan = build(&mut facts(Some(with_subtitle)));
 
             assert_eq!(plan.tracks, [video("h264"), played], "{tracks:?}");
         }
@@ -1473,7 +1631,7 @@ mod tests {
     #[test]
     fn a_chosen_audio_track_other_than_the_files_own_is_remuxed_and_the_plan_says_so() {
         let (english, commentary) = (audio("aac", true), audio("aac", false));
-        let facts = Facts {
+        let mut facts = Facts {
             audio: Some(3),
             ..facts(Some(vec![
                 video("h264"),
@@ -1483,13 +1641,13 @@ mod tests {
             ]))
         };
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, Some(Method::Remux));
         assert_eq!(plan.tracks, [video("h264"), commentary]);
         assert_eq!(played_audio(&facts), Some(1), "counting only audio");
         assert_eq!(
-            plan.reasons[5],
+            plan.reasons[6],
             "The audio Track chosen isn't the one browsers play from its file, so it can't be \
              Direct Played"
         );
@@ -1500,12 +1658,12 @@ mod tests {
         let (mp3, english) = (audio("mp3", false), audio("aac", true));
         let tracks = vec![video("h264"), mp3, english.clone(), subtitle()];
         for chosen in [Some(2), Some(0), Some(3), Some(9)] {
-            let facts = Facts {
+            let mut facts = Facts {
                 audio: chosen,
                 ..facts(Some(tracks.clone()))
             };
 
-            let plan = build(&facts, &STEPS);
+            let plan = build(&mut facts);
 
             assert_eq!(plan.method, Some(Method::DirectPlay), "{chosen:?}");
             assert_eq!(plan.tracks, [video("h264"), english.clone()]);
@@ -1514,7 +1672,7 @@ mod tests {
 
     #[test]
     fn a_chosen_audio_track_the_device_cant_decode_is_converted_to_aac() {
-        let facts = Facts {
+        let mut facts = Facts {
             audio: Some(2),
             ..facts(Some(vec![
                 video("h264"),
@@ -1523,7 +1681,7 @@ mod tests {
             ]))
         };
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.tracks[1], audio("aac", false));
         assert_eq!(aac_channels(&facts), Some(2));
@@ -1531,10 +1689,10 @@ mod tests {
 
     #[test]
     fn a_version_only_its_container_keeps_from_direct_playing_is_remuxed() {
-        let plan = build(
-            &in_container(MKV, Some(vec![video("h264"), audio("aac", true)])),
-            &STEPS,
-        );
+        let plan = build(&mut in_container(
+            MKV,
+            Some(vec![video("h264"), audio("aac", true)]),
+        ));
 
         assert_eq!(plan.method, Some(Method::Remux));
         assert_eq!(plan.url, None, "a Remux's URL is its running plan's");
@@ -1547,11 +1705,11 @@ mod tests {
                 "No hardware acceleration passed its test when this Server started, so a \
                  Transcode runs in software",
                 "Nothing has failed to play it on this Device",
+                "This Server isn't running as many Transcodes as it may at once",
                 "It plays the file's own audio Track",
                 "This Device is on the local network",
                 "The Playback Limit is Original",
                 "No subtitles are burned into its picture",
-                "This Server isn't running as many Transcodes as it may at once",
             ]
         );
     }
@@ -1623,7 +1781,7 @@ mod tests {
         ];
 
         for (container, method) in [(MP4, Method::DirectPlay), (MKV, Method::Remux)] {
-            let plan = build(&in_container(container, Some(tracks.clone())), &STEPS);
+            let plan = build(&mut in_container(container, Some(tracks.clone())));
 
             assert_eq!(plan.method, Some(method), "{container}");
             assert_eq!(plan.subtitles, offered, "{container}");
@@ -1633,15 +1791,15 @@ mod tests {
     #[test]
     fn without_ffmpeg_on_the_server_or_hls_on_the_device_a_version_isnt_remuxed() {
         let tracks = Some(vec![video("h264"), audio("aac", true)]);
-        let no_ffmpeg = Facts {
+        let mut no_ffmpeg = Facts {
             ffmpeg: false,
             ..in_container(MKV, tracks.clone())
         };
         let mut no_hls = in_container(MKV, tracks);
         no_hls.device.hls = false;
 
-        let without_ffmpeg = build(&no_ffmpeg, &STEPS);
-        let without_hls = build(&no_hls, &STEPS);
+        let without_ffmpeg = build(&mut no_ffmpeg);
+        let without_hls = build(&mut no_hls);
 
         assert_eq!(without_ffmpeg.method, None);
         assert_eq!(
@@ -1672,13 +1830,17 @@ mod tests {
 
     #[test]
     fn a_later_step_cant_allow_what_an_earlier_step_ruled_out() {
-        let plan = build(&facts(None), &[rules_out_direct_play, allows_every_method]);
+        let mut reasons = vec![];
 
-        assert_eq!(plan.method, Some(Method::Remux));
-        assert_eq!(
-            plan.reasons,
-            ["ruled out Direct Play", "allowed every method"]
+        let allowed = narrowed(
+            &facts(None),
+            &[rules_out_direct_play, allows_every_method],
+            BTreeSet::from(Method::ALL),
+            &mut reasons,
         );
+
+        assert_eq!(allowed, BTreeSet::from([Method::Remux, Method::Transcode]));
+        assert_eq!(reasons, ["ruled out Direct Play", "allowed every method"]);
     }
 
     #[test]
@@ -1687,7 +1849,7 @@ mod tests {
         let mut facts = in_container(MKV, Some(vec![video("h264"), dts.clone()]));
         facts.device.audio_channels = 6;
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, Some(Method::Remux));
         let aac = Track {
@@ -1736,7 +1898,7 @@ mod tests {
             );
             facts.device.audio_channels = plays;
 
-            let plan = build(&facts, &STEPS);
+            let plan = build(&mut facts);
 
             assert_eq!(
                 plan.tracks[1],
@@ -1765,9 +1927,9 @@ mod tests {
             },
             ..video("hevc")
         };
-        let facts = in_container(MKV, Some(vec![hevc, audio_with("aac", true, Some(6))]));
+        let mut facts = in_container(MKV, Some(vec![hevc, audio_with("aac", true, Some(6))]));
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, Some(Method::Transcode));
         assert_eq!(plan.url, None, "a Transcode's URL is its running plan's");
@@ -1792,9 +1954,9 @@ mod tests {
             (dolby_vision_8(Some(BaseLayer::Hlg)), "Dolby Vision"),
         ];
         for (hdr, name) in cases {
-            let facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(hdr))]));
+            let mut facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(hdr))]));
 
-            let plan = build(&facts, &STEPS);
+            let plan = build(&mut facts);
 
             assert_eq!(plan.method, Some(Method::Transcode), "{name}");
             assert!(tone_maps(&facts), "{name}");
@@ -1810,12 +1972,12 @@ mod tests {
 
     #[test]
     fn without_zscale_hdr_isnt_tone_mapped_and_the_plan_says_its_colours_look_washed_out() {
-        let facts = Facts {
+        let mut facts = Facts {
             zscale: false,
             ..in_container(MP4, Some(vec![hdr_video("hevc", Some(Hdr::Hdr10))]))
         };
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, Some(Method::Transcode));
         assert!(!tone_maps(&facts));
@@ -1836,7 +1998,7 @@ mod tests {
         let mut facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(Hdr::Hdr10))]));
         facts.device.hdr = true;
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, Some(Method::Transcode));
         assert!(!tone_maps(&facts));
@@ -1856,7 +2018,7 @@ mod tests {
             let mut facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(hdr))]));
             facts.device.hdr = true;
 
-            let plan = build(&facts, &STEPS);
+            let plan = build(&mut facts);
 
             assert_eq!(plan.method, Some(Method::Transcode), "{hdr:?}");
             assert!(!tone_maps(&facts), "{hdr:?}");
@@ -1867,9 +2029,9 @@ mod tests {
     #[test]
     fn dolby_vision_over_sdr_isnt_tone_mapped_for_a_device_that_cant_show_hdr() {
         let hdr = dolby_vision_8(Some(BaseLayer::Sdr));
-        let facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(hdr))]));
+        let mut facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(hdr))]));
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, Some(Method::Transcode));
         assert!(!tone_maps(&facts));
@@ -1884,9 +2046,9 @@ mod tests {
             profile: 5,
             base_layer: None,
         };
-        let facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(profile_5))]));
+        let mut facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(profile_5))]));
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, None);
         assert_eq!(
@@ -1898,9 +2060,9 @@ mod tests {
 
     #[test]
     fn a_transcode_of_a_version_without_audio_says_only_h264() {
-        let facts = in_container(MP4, Some(vec![video("hevc")]));
+        let mut facts = in_container(MP4, Some(vec![video("hevc")]));
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, Some(Method::Transcode));
         assert_eq!(
@@ -1912,16 +2074,16 @@ mod tests {
 
     #[test]
     fn a_busy_server_remuxes_what_the_device_can_play_remuxed_and_the_plan_says_so() {
-        let facts = Facts {
+        let mut facts = Facts {
             transcodes_full: Some(1),
             ..in_container(MKV, Some(vec![video("h264"), audio("aac", true)]))
         };
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, Some(Method::Remux));
         assert_eq!(
-            plan.reasons[9],
+            plan.reasons[5],
             "This Server is busy, running as many Transcodes as it may at once (1), so it can't \
              Transcode it"
         );
@@ -1938,7 +2100,7 @@ mod tests {
         let mut without_hls = busy(facts(hevc()));
         without_hls.device.hls = false;
 
-        assert_eq!(build(&busy(facts(hevc())), &STEPS).method, None);
+        assert_eq!(build(&mut busy(facts(hevc()))).method, None);
         assert_eq!(too_busy_to_play(busy(facts(hevc()))), Some(2));
         assert_eq!(too_busy_to_play(facts(hevc())), None, "not busy");
         assert_eq!(too_busy_to_play(without_hls), None, "nothing plays it");
@@ -1946,9 +2108,9 @@ mod tests {
 
     #[test]
     fn audio_the_device_decodes_is_copied_into_a_remux() {
-        let facts = in_container(MKV, Some(vec![video("h264"), audio("aac", true)]));
+        let mut facts = in_container(MKV, Some(vec![video("h264"), audio("aac", true)]));
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, Some(Method::Remux));
         assert_eq!(plan.tracks, [video("h264"), audio("aac", true)]);
@@ -1957,12 +2119,12 @@ mod tests {
 
     #[test]
     fn a_playback_limit_below_the_versions_picture_transcodes_it_down_to_fit_and_says_so() {
-        let facts = Facts {
+        let mut facts = Facts {
             picked_limit: PickedLimit::Picked(Some(PlaybackLimit::P720)),
             ..facts(Some(vec![video("h264"), audio("aac", true)]))
         };
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, Some(Method::Transcode));
         let scaled = TrackKind::Video {
@@ -1977,7 +2139,7 @@ mod tests {
             [track("h264", false, scaled), audio("aac", true)]
         );
         assert_eq!(
-            plan.reasons[7],
+            plan.reasons[8],
             "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to \
              1280×720"
         );
@@ -1991,20 +2153,20 @@ mod tests {
             ..facts(Some(vec![video("h264"), audio("aac", true)]))
         };
 
-        let defaulted = build(&remote(PickedLimit::Unpicked), &STEPS);
-        let picked = build(&remote(PickedLimit::Picked(None)), &STEPS);
+        let defaulted = build(&mut remote(PickedLimit::Unpicked));
+        let picked = build(&mut remote(PickedLimit::Picked(None)));
 
         assert_eq!(defaulted.method, Some(Method::Transcode));
         assert_eq!(defaulted.limit, Some(PlaybackLimit::P720));
         assert_eq!(
-            defaulted.reasons[6],
+            defaulted.reasons[7],
             "This Device is outside the local network, so the default Playback Limit for remote \
              playback, 720p, applies"
         );
         assert_eq!(picked.method, Some(Method::DirectPlay));
         assert_eq!(picked.limit, None);
         assert_eq!(
-            picked.reasons[6],
+            picked.reasons[7],
             "This Device is outside the local network, but its User picked a Playback Limit in \
              the player, which applies instead of the default for remote playback"
         );
@@ -2051,15 +2213,15 @@ mod tests {
             ),
         ];
         for (limit, tracks, reason) in cases {
-            let facts = Facts {
+            let mut facts = Facts {
                 picked_limit: PickedLimit::Picked(limit),
                 ..facts(tracks)
             };
 
-            let plan = build(&facts, &STEPS);
+            let plan = build(&mut facts);
 
             assert_eq!(plan.method, Some(Method::DirectPlay), "{reason}");
-            assert_eq!(plan.reasons[7], reason);
+            assert_eq!(plan.reasons[8], reason);
         }
     }
 
@@ -2089,7 +2251,7 @@ mod tests {
         );
         let ass = track("ass", false, TrackKind::Subtitle { image: false });
         for chosen in [pgs, ass] {
-            let facts = Facts {
+            let mut facts = Facts {
                 subtitle: Some(2),
                 ..facts(Some(vec![
                     video("h264"),
@@ -2098,26 +2260,22 @@ mod tests {
                 ]))
             };
 
-            let plan = build(&facts, &STEPS);
+            let plan = build(&mut facts);
 
             assert_eq!(plan.method, Some(Method::Transcode), "{}", chosen.codec);
             assert_eq!(
-                plan.reasons[8],
+                plan.reasons[9],
                 "The subtitles chosen are burned into its picture, which only a Transcode does"
             );
-            let busy = Facts {
-                transcodes_full: Some(1),
-                ..facts
-            };
-            assert_eq!(too_busy_to_play(busy), Some(1), "{}", chosen.codec);
+            assert_eq!(plan.burn_in, Some(2), "{}", chosen.codec);
         }
     }
 
     #[test]
     fn automatic_transcodes_on_the_first_hardware_found_and_the_plan_says_so() {
-        let facts = hevc_on(HardwareChoice::Automatic, vec![QSV, VAAPI], None);
+        let mut facts = hevc_on(HardwareChoice::Automatic, vec![QSV, VAAPI], None);
 
-        let plan = build(&facts, &STEPS);
+        let plan = build(&mut facts);
 
         assert_eq!(plan.method, Some(Method::Transcode));
         assert_eq!(
@@ -2167,9 +2325,9 @@ mod tests {
             ),
         ];
         for (choice, found, on, reason) in cases {
-            let facts = hevc_on(choice, found, None);
+            let mut facts = hevc_on(choice, found, None);
 
-            let plan = build(&facts, &STEPS);
+            let plan = build(&mut facts);
 
             assert_eq!(plan.method, Some(Method::Transcode), "{reason}");
             assert_eq!(plan.reasons[3], reason);
@@ -2182,15 +2340,15 @@ mod tests {
         let teletext = track("dvb_teletext", false, TrackKind::Subtitle { image: false });
         let tracks = vec![video("h264"), audio("aac", true), teletext, subtitle()];
         for chosen in [None, Some(1), Some(2), Some(3), Some(9)] {
-            let facts = Facts {
+            let mut facts = Facts {
                 subtitle: chosen,
                 ..facts(Some(tracks.clone()))
             };
 
-            let plan = build(&facts, &STEPS);
+            let plan = build(&mut facts);
 
             assert_eq!(plan.method, Some(Method::DirectPlay), "{chosen:?}");
-            assert_eq!(plan.reasons[8], "No subtitles are burned into its picture");
+            assert_eq!(plan.reasons[9], "No subtitles are burned into its picture");
         }
     }
 
@@ -2230,9 +2388,9 @@ mod tests {
             ),
         ];
         for (hardware, tone_map, reason) in cases {
-            let facts = hevc_on(HardwareChoice::Automatic, vec![hardware], Some(Hdr::Hdr10));
+            let mut facts = hevc_on(HardwareChoice::Automatic, vec![hardware], Some(Hdr::Hdr10));
 
-            let plan = build(&facts, &STEPS);
+            let plan = build(&mut facts);
 
             assert_eq!(plan.reasons[3], reason);
             assert_eq!(video_conversion(&facts).tone_map, tone_map, "{reason}");
@@ -2267,5 +2425,241 @@ mod tests {
             default_max_transcodes(&hevc_on(HardwareChoice::Automatic, vec![], None)),
             2
         );
+    }
+
+    /// A 1080p H.264 Version this Device Direct Plays, with a second audio Track and a PGS one.
+    fn direct_played() -> Facts {
+        let pgs = track(
+            "hdmv_pgs_subtitle",
+            false,
+            TrackKind::Subtitle { image: true },
+        );
+        facts(Some(vec![
+            video("h264"),
+            audio("aac", true),
+            audio("aac", false),
+            pgs,
+        ]))
+    }
+
+    fn without_ffmpeg(facts: &mut Facts) {
+        facts.ffmpeg = false;
+    }
+
+    /// A Dolby Vision profile 5 picture, which this Device shows, in place of the video.
+    fn in_dolby_vision_5(facts: &mut Facts) {
+        let profile_5 = Hdr::DolbyVision {
+            profile: 5,
+            base_layer: None,
+        };
+        if let Some(probe) = &mut facts.probe {
+            probe.tracks[0] = hdr_video("h264", Some(profile_5));
+        }
+        facts.device.hdr = true;
+    }
+
+    fn after_a_failed_transcode(facts: &mut Facts) {
+        facts.failed = BTreeSet::from([Method::Transcode]);
+    }
+
+    fn while_busy(facts: &mut Facts) {
+        facts.transcodes_full = Some(2);
+    }
+
+    /// What a test changes in the facts it plans for.
+    type Change = fn(&mut Facts);
+
+    /// Each way a Transcode is ruled out, by a lasting fact or only for now, no ffmpeg first.
+    const NO_TRANSCODE: [(&str, Change); 4] = [
+        ("no ffmpeg", without_ffmpeg),
+        ("Dolby Vision profile 5", in_dolby_vision_5),
+        ("a failed Transcode", after_a_failed_transcode),
+        ("a busy Server", while_busy),
+    ];
+
+    fn picking_720p(facts: &mut Facts) {
+        facts.picked_limit = PickedLimit::Picked(Some(PlaybackLimit::P720));
+    }
+
+    fn remote_at_720p(facts: &mut Facts) {
+        facts.network = Network::Remote(Some(PlaybackLimit::P720));
+    }
+
+    fn burning_in_pgs(facts: &mut Facts) {
+        facts.subtitle = Some(3);
+    }
+
+    #[test]
+    fn a_choice_only_a_transcode_honours_is_dropped_when_it_cant_transcode_and_the_plan_says_why() {
+        const LIMIT_DROPPED: &str = "The 720p Playback Limit needs a Transcode, which can't play it here, so it's \
+             dropped for Original";
+        let choices: [(&str, Change, usize, &str); 3] = [
+            ("720p", picking_720p, 8, LIMIT_DROPPED),
+            ("the remote default", remote_at_720p, 8, LIMIT_DROPPED),
+            (
+                "PGS",
+                burning_in_pgs,
+                9,
+                "The subtitles chosen need a Transcode to burn them in, which can't play it here, \
+                 so they're dropped",
+            ),
+        ];
+        for (chosen, choose, step, reason) in choices {
+            for (ruled_out, rule_out) in NO_TRANSCODE {
+                let mut facts = direct_played();
+                choose(&mut facts);
+                rule_out(&mut facts);
+
+                let plan = build(&mut facts);
+
+                let case = format!("{chosen} with {ruled_out}");
+                assert_eq!(plan.method, Some(Method::DirectPlay), "{case}");
+                assert_eq!((plan.limit, plan.burn_in), (None, None), "{case}");
+                assert_eq!(plan.reasons[step], reason, "{case}");
+                assert_eq!(too_busy_to_play(facts), None, "{case}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_choice_only_a_transcode_honours_is_kept_while_it_can_transcode() {
+        for choose in [picking_720p, remote_at_720p, burning_in_pgs] {
+            let mut facts = direct_played();
+            choose(&mut facts);
+
+            let plan = build(&mut facts);
+
+            assert_eq!(plan.method, Some(Method::Transcode));
+            assert!(facts.dropped.is_empty());
+        }
+    }
+
+    /// [`direct_played`] with its second audio Track `chosen`, and chosen.
+    fn choosing_audio(chosen: &Track) -> Facts {
+        let mut facts = direct_played();
+        if let Some(probe) = &mut facts.probe {
+            probe.tracks[2] = chosen.clone();
+        }
+        facts.audio = Some(2);
+        facts
+    }
+
+    fn after_a_failed_remux_and_transcode(facts: &mut Facts) {
+        facts.failed = BTreeSet::from([Method::Remux, Method::Transcode]);
+    }
+
+    fn after_a_failed_remux_while_busy(facts: &mut Facts) {
+        facts.failed = BTreeSet::from([Method::Remux]);
+        while_busy(facts);
+    }
+
+    /// Commentary audio this Device decodes, and DTS, which it can't: DTS keeps it from Direct
+    /// Playing only while it's chosen.
+    fn commentaries() -> [Track; 2] {
+        [audio("aac", false), audio("dts", false)]
+    }
+
+    #[test]
+    fn a_chosen_audio_track_is_dropped_when_neither_a_remux_nor_a_transcode_is_left() {
+        let cases: [(&str, Change); 3] = [
+            ("no ffmpeg", without_ffmpeg),
+            (
+                "a failed Remux and Transcode",
+                after_a_failed_remux_and_transcode,
+            ),
+            (
+                "a failed Remux on a busy Server",
+                after_a_failed_remux_while_busy,
+            ),
+        ];
+        for chosen in commentaries() {
+            for (ruled_out, rule_out) in cases {
+                let mut facts = choosing_audio(&chosen);
+                rule_out(&mut facts);
+
+                let plan = build(&mut facts);
+
+                let case = format!("{} with {ruled_out}", chosen.codec);
+                assert_eq!(plan.method, Some(Method::DirectPlay), "{case}");
+                assert_eq!(plan.audio, Some(1), "{case}");
+                assert_eq!(
+                    plan.reasons[6],
+                    "The audio Track chosen needs a Remux or a Transcode, and neither can play it \
+                     here, so it's dropped for the file's own",
+                    "{case}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_chosen_audio_track_is_remuxed_while_only_a_transcode_is_ruled_out() {
+        for chosen in commentaries() {
+            for (ruled_out, rule_out) in &NO_TRANSCODE[1..] {
+                let mut facts = choosing_audio(&chosen);
+                rule_out(&mut facts);
+
+                let plan = build(&mut facts);
+
+                let case = format!("{} with {ruled_out}", chosen.codec);
+                assert_eq!(plan.method, Some(Method::Remux), "{case}");
+                assert_eq!(plan.audio, Some(2), "{case}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_plan_offers_the_choices_its_lasting_facts_allow_whatever_is_busy_or_failed() {
+        let everything = || Offers {
+            audio: vec![1, 2],
+            burn_in: vec![3],
+            limits: vec![PlaybackLimit::P720, PlaybackLimit::P480],
+        };
+        let cases: [(&str, Change, Offers); 4] = [
+            (
+                "no ffmpeg",
+                without_ffmpeg,
+                Offers {
+                    audio: vec![1],
+                    ..Offers::default()
+                },
+            ),
+            (
+                "Dolby Vision profile 5",
+                in_dolby_vision_5,
+                Offers {
+                    audio: vec![1, 2],
+                    ..Offers::default()
+                },
+            ),
+            ("a failed Transcode", after_a_failed_transcode, everything()),
+            ("a busy Server", while_busy, everything()),
+        ];
+        for (ruled_out, rule_out, offers) in cases {
+            let mut facts = direct_played();
+            rule_out(&mut facts);
+
+            assert_eq!(build(&mut facts).offers, offers, "{ruled_out}");
+        }
+    }
+
+    #[test]
+    fn a_plan_offers_no_playback_limit_its_picture_already_fits() {
+        let mut facts = facts(Some(vec![
+            track(
+                "h264",
+                false,
+                TrackKind::Video {
+                    width: Some(1280),
+                    height: Some(720),
+                    frame_rate: None,
+                    bit_depth: None,
+                    hdr: None,
+                },
+            ),
+            audio("aac", true),
+        ]));
+
+        assert_eq!(build(&mut facts).offers.limits, [PlaybackLimit::P480]);
     }
 }

@@ -6,6 +6,7 @@ import { type Dispatch, type SetStateAction, useCallback, useState } from "react
 import {
   PlaybackLimit,
   type PlaybackMethod,
+  type PlaybackPlan,
   PlaybackPlanSchema,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
@@ -28,6 +29,13 @@ interface Asking {
   playbackLimit: PlaybackLimit;
   /** The place of the subtitle Track burned into the picture, if any, in the Version's Tracks. */
   subtitleTrack: number | undefined;
+  /** What the User chose for this ask, which the plan may drop. */
+  justChose: Choice;
+  /**
+   * How many times the player asked again, so each plan plays in a new `<video>`: one that keeps
+   * the last plan's URL, as Direct Play does when its choice is dropped, would stay paused.
+   */
+  asks: number;
 }
 
 /**
@@ -42,10 +50,10 @@ export type SubtitleChoice = string | number | undefined;
  * to play it. `onCantPlay` asks for a new plan from where the `<video>` stands, without the method
  * that failed, or else sets `gaveUp`: only once per method, so a Server that plans it again can't
  * make the player ask forever. `chooseAudio` asks for a new plan from there with the audio Track
- * at a place in the Version's Tracks, which `audioTrack` then holds, and `chooseLimit` with a
- * Playback Limit, which the plan's `playbackLimit` then holds. `chooseSubtitle` shows a text subtitle, which
- * `shownSubtitle` then holds, or asks for a new plan from there with a subtitle Track burned in,
- * which `subtitleTrack` then holds.
+ * at a place in the Version's Tracks, and `chooseLimit` with a Playback Limit. `chooseSubtitle`
+ * shows a text subtitle, which `shownSubtitle` then holds, or asks for a new plan from there with a
+ * subtitle Track burned in. The plan says which of these it honoured, which may drop
+ * `justChose` (ADR 0031).
  */
 export function usePlaybackPlan({
   versionId,
@@ -62,12 +70,36 @@ export function usePlaybackPlan({
     audioTrack: undefined,
     playbackLimit: PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED,
     subtitleTrack: undefined,
+    justChose: {},
+    asks: 0,
   }));
-  const { failedMethods, startPositionMs, audioTrack, subtitleTrack } = asking;
-  const askFromHere = asker(setAsking, startPositionMs);
-  const subtitles = useSubtitleChoice(askFromHere, subtitleTrack);
-  const [gaveUp, setGaveUp] = useState(false);
+  const { startPositionMs } = asking;
   const plan = usePlan(versionId, asking);
+  const askFromHere = asker(setAsking, plan, startPositionMs);
+  const subtitles = useSubtitleChoice(askFromHere, plan.subtitleTrack);
+  const failing = useCantPlay(plan, asking, setAsking);
+  const { justChose, asks } = asking;
+  return {
+    plan,
+    startPositionMs,
+    justChose,
+    asks,
+    ...failing,
+    ...choosers(askFromHere),
+    ...subtitles,
+  };
+}
+
+/**
+ * `onCantPlay`, which asks for a new plan without `plan`'s method, which just failed, by
+ * `setAsking`, or else sets `gaveUp` if `asking` already ruled it out.
+ */
+function useCantPlay(
+  plan: PlaybackPlan,
+  { failedMethods, startPositionMs }: Asking,
+  setAsking: Dispatch<SetStateAction<Asking>>,
+) {
+  const [gaveUp, setGaveUp] = useState(false);
   // Stable until the plan changes, so hls.js isn't restarted each time the player renders.
   const onCantPlay = useCallback(
     (video: HTMLVideoElement) => {
@@ -83,30 +115,60 @@ export function usePlaybackPlan({
             ? before
             : {
                 ...before,
+                ...honoured(plan, before),
                 failedMethods: [...before.failedMethods, plan.method],
                 startPositionMs: resumeFrom,
+                asks: before.asks + 1,
               },
         );
     },
-    [failedMethods, plan.method, startPositionMs],
+    [failedMethods, plan, setAsking, startPositionMs],
   );
-  const chosen = { audioTrack, subtitleTrack, ...choosers(askFromHere) };
-  return { plan, startPositionMs, gaveUp, onCantPlay, ...chosen, ...subtitles };
+  return { gaveUp, onCantPlay };
 }
 
 /** What the User chose, as `Asking` holds it. */
-type Choice = Partial<Pick<Asking, "audioTrack" | "playbackLimit" | "subtitleTrack">>;
+export interface Choice {
+  audioTrack?: number | undefined;
+  playbackLimit?: PlaybackLimit;
+  subtitleTrack?: number | undefined;
+}
 
 /**
- * What asks for a new plan with the User's choice, from where the `<video>` stands, or else from
- * `startPositionMs`, by `setAsking`.
+ * The choices `plan` honoured, which the next ask carries in place of those `before` asked for, so
+ * a dropped one is forgotten rather than honoured later when something else is chosen. A remote
+ * default the User never picked stays unpicked.
  */
-function asker(setAsking: Dispatch<SetStateAction<Asking>>, startPositionMs: bigint) {
+function honoured(plan: PlaybackPlan, before: Asking): Choice {
+  const unpicked = before.playbackLimit === PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED;
+  return {
+    audioTrack: plan.audioTrack,
+    subtitleTrack: plan.subtitleTrack,
+    playbackLimit: unpicked ? before.playbackLimit : plan.playbackLimit,
+  };
+}
+
+/**
+ * What asks for a new plan with the User's choice, on top of what `plan` honoured, from where the
+ * `<video>` stands, or else from `startPositionMs`, by `setAsking`.
+ */
+function asker(
+  setAsking: Dispatch<SetStateAction<Asking>>,
+  plan: PlaybackPlan,
+  startPositionMs: bigint,
+) {
   return (video: HTMLVideoElement, choice: Choice) => {
     // As for a failure, so it isn't heard behind the loading screen.
     video.pause();
     const resumeFrom = resumeFromMs(video, startPositionMs);
-    setAsking((before) => ({ ...before, ...choice, startPositionMs: resumeFrom }));
+    setAsking((before) => ({
+      ...before,
+      ...honoured(plan, before),
+      ...choice,
+      justChose: choice,
+      startPositionMs: resumeFrom,
+      asks: before.asks + 1,
+    }));
   };
 }
 
@@ -159,7 +221,15 @@ function usePlan(versionId: bigint, asking: Asking) {
     ],
     queryFn: async () => {
       const deviceDecoding = await findDeviceDecoding();
-      const input = { versionId, deviceDecoding, ...asking };
+      const input = {
+        versionId,
+        deviceDecoding,
+        failedMethods,
+        startPositionMs,
+        audioTrack,
+        playbackLimit,
+        subtitleTrack,
+      };
       try {
         const response = await callUnaryMethod(
           transport,

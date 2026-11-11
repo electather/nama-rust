@@ -32,10 +32,11 @@ const JAPANESE = "/media/versions/7/subtitles/3";
 
 /**
  * A fake Server with Alien in Library 1, whose one Version holds an English SRT, an English PGS
- * titled Signs and a Japanese ASS subtitle, the SRT and the ASS offered as text. It Direct Plays
- * it, or Transcodes it when asked to burn a subtitle in, and each plan request goes in `asked`.
+ * titled Signs and a Japanese ASS subtitle, the SRT and the ASS offered as text, and the PGS and
+ * ASS ones offered to burn in, unless `burnInTracks` says otherwise. It Direct Plays it, or
+ * Transcodes it when asked to burn a subtitle in, and each plan request goes in `asked`.
  */
-function server(asked: PlanPlaybackRequest[]) {
+function server(asked: PlanPlaybackRequest[], burnInTracks = [2, 3]) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const text = { case: "subtitle", value: { image: false } } as const;
   const tracks = [
@@ -67,11 +68,12 @@ function server(asked: PlanPlaybackRequest[]) {
     router.service(PlaybackService, {
       planPlayback: (request) => {
         asked.push(request);
+        const { subtitleTrack } = request;
         const plan =
-          request.subtitleTrack === undefined
+          subtitleTrack === undefined
             ? { method: PlaybackMethod.DIRECT_PLAY, url: "/media/versions/7" }
             : { method: PlaybackMethod.TRANSCODE, url: `/media/plans/${asked.length}/index.m3u8` };
-        return { plan: { ...plan, subtitles } };
+        return { plan: { ...plan, subtitles, subtitleTrack, burnInTracks } };
       },
     });
   });
@@ -117,6 +119,13 @@ test("the picker lists the image subtitles and the ASS ones with their styling a
     "English Signs",
     "Japanese With styling",
   ]);
+});
+
+test("a Server that can’t burn subtitles in offers only the text ones", async () => {
+  openApp(PLAYER, server([], []));
+  await screen.findByLabelText("Alien");
+
+  expect(openSubtitles().map((item) => item.textContent)).toEqual(["Off", "English", "Japanese"]);
 });
 
 test("turning on a PGS Track mid-play asks for a plan from where the video stands with it burned in", async () => {
