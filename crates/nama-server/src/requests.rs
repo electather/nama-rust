@@ -3330,6 +3330,7 @@ mod tests {
     fn dark_season(number: u32) -> Season {
         Season {
             number,
+            title: format!("Season {number}"),
             ..season_1("2017-12-08")
         }
     }
@@ -4035,7 +4036,9 @@ mod tests {
         follow_as(&db, ADA, dark(), RequestState::Approved).await;
         match_dark_episodes(&db, 3, &[1]).await;
         let opened = scan_dark(&db, &[3]).await;
-        let Some(Happened::RequestCreated(created)) = opened[0].event.as_ref() else {
+        let Some(Happened::RequestCreated(created)) =
+            opened.first().and_then(|one| one.event.as_ref())
+        else {
             panic!("the scan opened no Request: {opened:?}");
         };
         let season_3 = created.request.id;
