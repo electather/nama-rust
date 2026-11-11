@@ -17,6 +17,7 @@ use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason, ex
 use crate::{
     artwork::{self, Artwork},
     browse::Browse,
+    codes::SetupCode,
     config::Config,
     connections::Connections,
     contents::Contents,
@@ -34,7 +35,7 @@ use crate::{
     server_settings,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie},
     tracks::Tracks,
-    users::{Caller, SetupCode, Users},
+    users::{Caller, Users},
     watch_states::WatchStates,
 };
 
@@ -109,7 +110,6 @@ pub(crate) fn router(
             ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
-            users: users.clone(),
             sign_in: SignIn::new(users.clone(), setup_code),
         }))
         .add_service(Arc::new(MatchServiceHandler {

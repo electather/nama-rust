@@ -1,17 +1,18 @@
 //! Sign-in attempts, Setup included: one place that names the signing-in Device, lets the attempt
 //! past the sign-in limits, checks its proof or the Setup Code and has [`Users`] issue the session,
 //! in that order. Sign-in Codes go through it too. Reauthenticating follows the same order, giving
-//! an existing Device Recent Authentication in place of a session.
+//! an existing Device Recent Authentication in place of a session, and signing out ends one.
 //!
 //! Guessable requests go through it (the crate's `AGENTS.md`, "Guessable requests").
 
 use std::{net::IpAddr, time::Instant};
 
 use crate::{
+    codes::SetupCode,
     device_names,
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     sign_in_codes::{self, Delivery, Poll, SignInCodes, Started},
-    users::{self, ApprovingDevice, Caller, NewDevice, Proved, SetupCode, SignedIn, Users},
+    users::{self, ApprovingDevice, Caller, NewDevice, Proved, SignedIn, Users},
 };
 
 /// Signs Devices in, with a proof or a Sign-in Code, under the sign-in limits.
@@ -27,8 +28,8 @@ pub(crate) struct SignIn {
     code_limits: SignInCodeLimits,
 }
 
-/// Who a Device claims to sign in as, and what proves it. Not `Debug`, so the password can't end up
-/// in a log.
+/// Who a Device claims to be, and what proves it, when it signs in or reauthenticates. Not `Debug`,
+/// so the password can't end up in a log.
 pub(crate) enum Proof {
     /// A User's name, matched ignoring case, and their password.
     Password { name: String, password: String },
@@ -221,23 +222,31 @@ impl SignIn {
         Ok(used?)
     }
 
-    /// Gives `caller`'s Device Recent Authentication if `password` is their User's, as asked from
-    /// `ip` at `now`. A missing password is refused with [`Error::ProofMissing`] and a Device found
-    /// signed out once the password checked out with [`users::Error::SignedOut`]; neither is a
-    /// guess.
+    /// Gives `caller`'s Device Recent Authentication if `proof` proves it is their User, as asked
+    /// from `ip` at `now`. A missing proof is refused with [`Error::ProofMissing`] and a Device
+    /// found signed out once the proof checked out with [`users::Error::SignedOut`]; neither is a
+    /// guess. A proof of another User is refused like a wrong password.
     pub(crate) async fn reauthenticate(
         &self,
         caller: &Caller,
-        password: Option<&str>,
+        proof: Option<Proof>,
         ip: IpAddr,
         now: Instant,
     ) -> Result<(), Error> {
-        let password = password.ok_or(Error::ProofMissing)?;
+        let Proof::Password { name, password } = proof.ok_or(Error::ProofMissing)?;
         let attempt = self.limits.admit(ip, Some(&caller.user.name), now)?;
-        self.users.confirm_password(&caller.user, password).await?;
+        if users::name_key(&name) != users::name_key(&caller.user.name) {
+            return Err(users::Error::WrongPassword.into());
+        }
+        self.users.confirm_password(&caller.user, &password).await?;
         // Before recording, so a Device found signed out after the right password isn't a guess.
         self.limits.succeeded(&attempt);
         Ok(self.users.record_authentication(caller.device.id).await?)
+    }
+
+    /// Signs the Device `device` out, so its session stops working.
+    pub(crate) async fn sign_out(&self, device: i64) -> Result<(), sqlx::Error> {
+        self.users.sign_out(device).await
     }
 }
 
@@ -262,11 +271,7 @@ mod tests {
     use std::{net::IpAddr, sync::Arc, time::Duration};
 
     use super::*;
-    use crate::{
-        db::Database,
-        plugins::Registry,
-        users::{Permissions, SetupCode},
-    };
+    use crate::{db::Database, plugins::Registry, users::Permissions};
 
     const PASSWORD: &str = "correct horse battery staple";
 
@@ -594,7 +599,12 @@ mod tests {
     ) -> Result<(), Error> {
         let ip = LAPTOP_IP.parse().unwrap();
         sign_in
-            .reauthenticate(caller, Some(password_given), ip, now)
+            .reauthenticate(
+                caller,
+                Some(password(&caller.user.name, password_given)),
+                ip,
+                now,
+            )
             .await
     }
 
@@ -677,7 +687,7 @@ mod tests {
         let data_dir = tempfile::tempdir().unwrap();
         let (sign_in, _) = sign_in_with_ada(data_dir.path()).await;
         let ada = ada_without_recent_authentication(&sign_in).await;
-        sign_in.users.sign_out(ada.device.id).await.unwrap();
+        sign_in.sign_out(ada.device.id).await.unwrap();
         let now = Instant::now();
         for _ in 0..10 {
             let refused = reauthenticate(&sign_in, &ada, PASSWORD, now).await;
@@ -688,6 +698,29 @@ mod tests {
         }
 
         attempt(&sign_in, "Ada", PASSWORD, now).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn reauthenticating_with_another_users_name_and_password_is_refused_as_a_wrong_password()
+    {
+        let data_dir = tempfile::tempdir().unwrap();
+        let (sign_in, _) = sign_in_with_ada(data_dir.path()).await;
+        let ada = ada_without_recent_authentication(&sign_in).await;
+        sign_in
+            .users
+            .create(&ada.user, "Grace", PASSWORD)
+            .await
+            .unwrap();
+        let ip = LAPTOP_IP.parse().unwrap();
+
+        let refused = sign_in
+            .reauthenticate(&ada, Some(password("Grace", PASSWORD)), ip, Instant::now())
+            .await;
+
+        assert!(
+            matches!(refused, Err(Error::Users(users::Error::WrongPassword))),
+            "{refused:?}"
+        );
     }
 
     #[tokio::test]
@@ -823,7 +856,7 @@ mod tests {
         let ada = ada_on_a_new_device(&sign_in, now).await;
         let started = start_code(&sign_in, now);
         sign_in.approve_code(&ada, &started.code, now).unwrap();
-        sign_in.users.sign_out(ada.device.id).await.unwrap();
+        sign_in.sign_out(ada.device.id).await.unwrap();
 
         let polled = poll_code(&sign_in, &started.handle, now).await;
 
