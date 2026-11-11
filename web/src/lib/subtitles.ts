@@ -164,6 +164,7 @@ const renderAss: Render = async (video, { url, fontUrls }, ready, failed) => {
   // Handed over as fetched, so "Loading…" lasts until they all are.
   const fetched = fonts.map((font) => URL.createObjectURL(new Blob([font])));
   const worker = assWorker();
+  let disposedItself = false;
   // It mounts its canvas beside the `<video>`, in the player, which full screen carries.
   const renderer = new SubtitlesOctopus({
     video,
@@ -172,11 +173,15 @@ const renderAss: Render = async (video, { url, fontUrls }, ready, failed) => {
     fallbackFont: absolute(fallbackFont),
     workerUrl: worker,
     onReady: ready,
-    onError: failed,
+    onError: () => {
+      // It disposes of itself after an error, and throws if disposed of again.
+      disposedItself = true;
+      failed();
+    },
   });
   return {
     dispose: () => {
-      renderer.dispose();
+      if (!disposedItself) renderer.dispose();
       for (const blob of [worker, ...fetched]) URL.revokeObjectURL(blob);
     },
   };

@@ -27,16 +27,23 @@ vi.mock("@jellyfin/libass-wasm", () => ({
       onError: (error: unknown) => void;
     }) {
       libass.made.push(options);
-      // As its worker reports a renderer that won't start: after it's made.
+      // As its worker reports a renderer that won't start: after it's made, and then it disposes
+      // of itself.
       queueMicrotask(
         libass.failsToStart
           ? () => {
               options.onError("no wasm");
+              this.dispose();
             }
           : options.onReady,
       );
     }
-    dispose() {}
+    disposed = false;
+    dispose() {
+      // As the package's does, which posts to the worker it has dropped.
+      if (this.disposed) throw new TypeError("Cannot read properties of null");
+      this.disposed = true;
+    }
   },
 }));
 
@@ -182,7 +189,7 @@ test("an ASS Track whose font can't be fetched says so, and isn't drawn", async 
 test("a renderer that won't start has the ASS Track burned in by a plan that doesn't list ASS", async () => {
   const asked: PlanPlaybackRequest[] = [];
   libass.failsToStart = true;
-  await playingWith(asked, SERVED);
+  const directPlay = await playingWith(asked, SERVED);
 
   fireEvent.click(screen.getByRole("menuitemradio", { name: /Signs/u }));
 
@@ -191,4 +198,7 @@ test("a renderer that won't start has the ASS Track burned in by a plan that doe
   });
   expect(asked[1]?.subtitleTrack).toBe(1);
   expect(asked[1]?.deviceDecoding?.subtitleFormats).toEqual([SubtitleFormat.PGS]);
+  await waitFor(() => {
+    expect(screen.getByLabelText("Alien")).not.toBe(directPlay);
+  });
 });

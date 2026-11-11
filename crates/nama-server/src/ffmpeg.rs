@@ -464,21 +464,11 @@ impl Ffmpeg {
         codec: &str,
         muxer: &str,
     ) -> Result<Vec<u8>, SubtitleError> {
-        let Ok(ffmpeg) = &self.ffmpeg else {
-            return Err(SubtitleError::Unavailable);
-        };
-        let output = tokio::process::Command::new(&ffmpeg.path)
-            .args(["-v", "error", "-nostdin", "-i"])
-            .arg(path)
-            .args(["-map", &format!("0:s:{subtitle}")])
-            .args(["-c:s", codec, "-f", muxer, "-"])
-            // A fetch given up on, or cancelled at shutdown, stops ffmpeg too.
-            .kill_on_drop(true)
-            .output();
-        let output = tokio::time::timeout(SUBTITLE_TIMEOUT, output).await??;
+        let map = format!("0:s:{subtitle}");
+        let args = ["-i", path, "-map", &map, "-c:s", codec, "-f", muxer, "-"];
+        let output = self.read_out(&args).await?;
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(SubtitleError::Failed(stderr.trim().to_owned()));
+            return Err(failed(&output));
         }
         Ok(output.stdout)
     }
@@ -490,24 +480,35 @@ impl Ffmpeg {
         path: &str,
         attachment: usize,
     ) -> Result<Vec<u8>, SubtitleError> {
+        let dump = format!("-dump_attachment:t:{attachment}");
+        let output = self.read_out(&[&dump, "pipe:1", "-i", path]).await?;
+        // With no output file named, ffmpeg dumps it and then fails for want of one, so only
+        // what it wrote says whether it worked.
+        if output.stdout.is_empty() {
+            return Err(failed(&output));
+        }
+        Ok(output.stdout)
+    }
+
+    /// What ffmpeg, quiet but for errors, writes given `args`, within [`SUBTITLE_TIMEOUT`].
+    async fn read_out(&self, args: &[&str]) -> Result<std::process::Output, SubtitleError> {
         let Ok(ffmpeg) = &self.ffmpeg else {
             return Err(SubtitleError::Unavailable);
         };
         let output = tokio::process::Command::new(&ffmpeg.path)
             .args(["-v", "error", "-nostdin"])
-            .args([&format!("-dump_attachment:t:{attachment}"), "pipe:1", "-i"])
-            .arg(path)
+            .args(args)
+            // A fetch given up on, or cancelled at shutdown, stops ffmpeg too.
             .kill_on_drop(true)
             .output();
-        let output = tokio::time::timeout(SUBTITLE_TIMEOUT, output).await??;
-        // With no output file named, ffmpeg dumps it and then fails for want of one, so only
-        // what it wrote says whether it worked.
-        if output.stdout.is_empty() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(SubtitleError::Failed(stderr.trim().to_owned()));
-        }
-        Ok(output.stdout)
+        Ok(tokio::time::timeout(SUBTITLE_TIMEOUT, output).await??)
     }
+}
+
+/// A failed read-out, saying what ffmpeg wrote to stderr.
+fn failed(output: &std::process::Output) -> SubtitleError {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    SubtitleError::Failed(stderr.trim().to_owned())
 }
 
 /// What the Server's ffmpeg can do, as [`Abilities`] hands it back.

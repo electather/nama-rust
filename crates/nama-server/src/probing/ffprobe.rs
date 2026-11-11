@@ -25,8 +25,8 @@ const IMAGE_SUBTITLES: &[&str] = &["dvb_subtitle", "dvd_subtitle", "hdmv_pgs_sub
 const FONT_EXTENSIONS: &[&str] = &[".ttf", ".otf", ".ttc"];
 
 /// The facts of the file at `path`, its video, audio and subtitle Tracks and the fonts it carries,
-/// as ffprobe reads them. Reads the whole file when its format doesn't say how long it is, or says so only from
-/// a placeholder header.
+/// as ffprobe reads them. Reads the whole file when its format doesn't say how long it is, or says
+/// so only from a placeholder header.
 pub(super) async fn probe(ffmpeg: &Ffmpeg, path: &str) -> Result<Probe, ProbeError> {
     let args = ["-print_format", "json", "-show_format", "-show_streams"];
     let output = run(ffmpeg, &args, path, PROBE_TIMEOUT).await?;
@@ -365,7 +365,7 @@ mod tests {
     }
 
     #[test]
-    fn ffprobe_output_reads_as_tracks_without_cover_art_and_a_font_attachment() {
+    fn ffprobe_output_reads_as_tracks_without_cover_art_and_its_attachment_as_a_font() {
         let probe = parse_probe(BLU_RAY_REMUX.as_bytes()).unwrap();
 
         let Some(TrackKind::Video { frame_rate, .. }) = probe.tracks.first().map(|t| &t.kind)

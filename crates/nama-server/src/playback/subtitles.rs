@@ -154,9 +154,7 @@ async fn serve_font(
     let Some(&attachment) = probe.font_attachments.get(font) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let key = Path::new("versions")
-        .join(cache_folder(file))
-        .join(format!("font-{font}"));
+    let key = cache_key(file, &format!("font-{font}"));
     let read = async { Ok::<_, Error>(subtitles.ffmpeg.attachment(&path, attachment).await?) };
     match subtitles.cache.get_or_make(&key, read).await {
         // The renderer reads a font's bytes whatever its type, and nothing should guess one.
@@ -240,9 +238,7 @@ impl Embedded {
             ASS => format!("{}.ass", self.track),
             UNSPECIFIED | WEBVTT => format!("{}.v{WEBVTT_VERSION}.vtt", self.track),
         };
-        Path::new("versions")
-            .join(cache_folder(self.file))
-            .join(name)
+        cache_key(self.file, &name)
     }
 
     const fn content_type(&self) -> &'static str {
@@ -269,6 +265,11 @@ impl Embedded {
             UNSPECIFIED | WEBVTT => Ok(ffmpeg.subtitle(path, subtitle, "webvtt", "webvtt").await?),
         }
     }
+}
+
+/// Where the file `name`, cached for the Version stored as `file`, goes in the [`Cache`].
+fn cache_key(file: Stored, name: &str) -> PathBuf {
+    Path::new("versions").join(cache_folder(file)).join(name)
 }
 
 /// The folder the subtitles cached for the Version stored as `file` go in, named so it changes
