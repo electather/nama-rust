@@ -1,9 +1,7 @@
 //! The images the Server keeps, as plain files in the data directory (ADR 0037).
 //!
 //! Only [`ImageStore`] reads or writes them (`AGENTS.md`). A key names an image by a few parts,
-//! each escaped to one file name, so no key reaches outside the store: a downloaded Poster's is
-//! `artwork`, its Plugin and its Provider's path, which is where it was kept before the store
-//! existed.
+//! each escaped to one file name, so no key reaches outside the store.
 
 use std::{
     io::{self, Write as _},
@@ -12,6 +10,7 @@ use std::{
 
 use axum::{
     extract::Request,
+    http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use tower_http::services::ServeFile;
@@ -50,15 +49,47 @@ impl ImageStore {
         tokio::fs::try_exists(self.path(key)).await
     }
 
-    /// The image at `key` as the answer to `request`: 404 if none is stored, 304 for a matching
-    /// `If-None-Match`, else the bytes with an `ETag`. The caller sets the content type.
+    /// The image at `key` as the answer to `request`, sent as `content_type`: 404 if none is
+    /// stored, 304 for a matching `If-None-Match`, else the bytes with an `ETag`.
+    ///
+    /// Browsers keep the response for good, so serve it only at a URL that names these bytes
+    /// alone: a Provider's path, or a version taken from the bytes.
     ///
     /// # Errors
     ///
-    /// If the file can't be read.
-    pub async fn serve(&self, key: &[&str], request: Request) -> io::Result<Response> {
-        let response = ServeFile::new(self.path(key)).try_call(request).await?;
-        Ok(response.into_response())
+    /// If the file is there but can't be read.
+    pub async fn serve(
+        &self,
+        key: &[&str],
+        content_type: &'static str,
+        request: Request,
+    ) -> io::Result<Response> {
+        let mut response = match ServeFile::new(self.path(key)).try_call(request).await {
+            Ok(response) => response.into_response(),
+            // Without a fallback, `try_call` hands a missing file back as an error.
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                StatusCode::NOT_FOUND.into_response()
+            }
+            Err(err) => return Err(err),
+        };
+        let status = response.status();
+        let headers = response.headers_mut();
+        // An unnamed type stays a download: no browser guesses it is HTML.
+        headers.insert(
+            header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        );
+        if status.is_success() {
+            // `ServeFile` guesses by extension, and would send an SVG as an image.
+            headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+        }
+        if status.is_success() || status == StatusCode::NOT_MODIFIED {
+            headers.insert(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("private, max-age=31536000, immutable"),
+            );
+        }
+        Ok(response)
     }
 
     /// Deletes the image at `key`, if one is stored.
@@ -120,6 +151,8 @@ pub(crate) fn file_name(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use axum::{body::Body, extract::Request};
+
     use super::ImageStore;
 
     const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
@@ -152,5 +185,18 @@ mod tests {
 
         assert!(!store.contains(KEY).await.unwrap());
         store.delete(KEY).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn an_image_not_stored_is_not_found() {
+        let data = tempfile::tempdir().unwrap();
+        let request = Request::get("/").body(Body::empty()).unwrap();
+
+        let response = ImageStore::new(data.path())
+            .serve(KEY, "image/jpeg", request)
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), 404);
     }
 }

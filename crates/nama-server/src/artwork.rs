@@ -1,10 +1,10 @@
-//! Posters and backdrops, cached on disk.
+//! Posters and backdrops, downloaded on first use and kept in the image store.
 //!
 //! A Match stores its title's images as paths the metadata Provider handed out, along with the
 //! Plugin whose Provider that was. An image is downloaded through that Provider only when
 //! something first asks for it, then kept in the [`ImageStore`] and served from there, across
 //! restarts too. Callers should only ask for images some Match stores, or that a
-//! search or lookup offered to clients, so clients can't use the cache to fetch arbitrary images.
+//! search or lookup offered to clients, so clients can't use the store to fetch arbitrary images.
 //!
 //! Clients fetch them over plain HTTP at `/media/artwork/<plugin>/<path>` (ADR 0007: media bytes
 //! are not RPC), which is served to anyone with a session. A Provider's path names bytes that
@@ -20,7 +20,7 @@ use std::{
 use axum::{
     Router,
     extract::{Path as UrlPath, Request, State},
-    http::{HeaderValue, StatusCode, header},
+    http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -100,7 +100,7 @@ impl Artwork {
     ///
     /// If the Provider has no such image, can't be reached, or the store can't be written.
     pub async fn keep(&self, plugin: &PluginId, path: &str) -> Result<(), Error> {
-        let key = [DIR, plugin.as_str(), path];
+        let key = key(plugin.as_str(), path);
         if self.store.contains(&key).await? {
             return Ok(());
         }
@@ -126,28 +126,17 @@ impl Artwork {
         request: Request,
     ) -> Result<Response, Error> {
         self.keep(&PluginId::from(plugin.to_owned()), path).await?;
-        let mut response = self.store.serve(&[DIR, plugin, path], request).await?;
-        let status = response.status();
-        let headers = response.headers_mut();
-        // An unnamed type stays a download: no browser guesses it is HTML.
-        headers.insert(
-            header::X_CONTENT_TYPE_OPTIONS,
-            HeaderValue::from_static("nosniff"),
-        );
-        if status.is_success() {
-            headers.insert(
-                header::CONTENT_TYPE,
-                HeaderValue::from_static(content_type(path)),
-            );
-        }
-        if status.is_success() || status == StatusCode::NOT_MODIFIED {
-            headers.insert(
-                header::CACHE_CONTROL,
-                HeaderValue::from_static("private, max-age=31536000, immutable"),
-            );
-        }
-        Ok(response)
+        Ok(self
+            .store
+            .serve(&key(plugin, path), content_type(path), request)
+            .await?)
     }
+}
+
+/// Where the store keeps `plugin`'s image at `path`. It is where images were kept before the store
+/// existed, so changing it downloads every image again.
+fn key<'a>(plugin: &'a str, path: &'a str) -> [&'a str; 3] {
+    [DIR, plugin, path]
 }
 
 /// Where clients fetch the image: `/media/artwork/<plugin>/<path>`, each part one URL path segment
