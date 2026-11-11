@@ -821,7 +821,8 @@ fn decode(bytes: &[u8]) -> Result<wire::Manifest, Refused> {
     wire::Manifest::decode_from_slice(bytes).map_err(Refused::Decode)
 }
 
-/// The `nama_api` of the encoded Manifest `bytes`, its field 3, read alone.
+/// The `nama_api` of the encoded Manifest `bytes`, its field 3, read alone. `manifest.proto`
+/// keeps that number in every Nama API version.
 fn nama_api(mut bytes: &[u8]) -> Result<String, DecodeError> {
     let mut wants = String::new();
     while !bytes.is_empty() {

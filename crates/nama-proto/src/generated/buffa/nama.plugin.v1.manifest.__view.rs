@@ -20,7 +20,8 @@ pub struct ManifestView<'a> {
     /// Field 2: `version`
     pub version: &'a str,
     /// The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
-    /// such as "^0.1.0". A Server whose Nama API version doesn't match refuses the Plugin.
+    /// such as "^0.2.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
+    /// reads this field before the rest of the Manifest, so it keeps field number 3 in every version.
     ///
     /// Field 3: `nama_api`
     pub nama_api: &'a str,
@@ -550,7 +551,8 @@ impl ManifestOwnedView {
         self.0.reborrow().version
     }
     /// The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
-    /// such as "^0.1.0". A Server whose Nama API version doesn't match refuses the Plugin.
+    /// such as "^0.2.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
+    /// reads this field before the rest of the Manifest, so it keeps field number 3 in every version.
     ///
     /// Field 3: `nama_api`
     #[must_use]

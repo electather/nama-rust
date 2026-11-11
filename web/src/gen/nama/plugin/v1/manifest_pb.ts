@@ -46,7 +46,8 @@ export type Manifest = Message<"nama.plugin.v1.Manifest"> & {
 
   /**
    * The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
-   * such as "^0.1.0". A Server whose Nama API version doesn't match refuses the Plugin.
+   * such as "^0.2.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
+   * reads this field before the rest of the Manifest, so it keeps field number 3 in every version.
    *
    * @generated from field: string nama_api = 3;
    */
