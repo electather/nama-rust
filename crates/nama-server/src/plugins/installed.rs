@@ -518,11 +518,11 @@ impl Registry {
         });
         let mut described = Vec::new();
         for (file, plugin) in found.0 {
-            let (id, listing) = describe(&file, plugin, &taken);
-            if listing.plugin.is_ok() {
+            let (id, known) = describe(&file, plugin, &taken);
+            if known.plugin.is_ok() {
                 taken.push(id.clone());
             }
-            described.push((id, listing));
+            described.push((id, known));
         }
         self.write(|state| {
             let enabled = &state.plugins;
