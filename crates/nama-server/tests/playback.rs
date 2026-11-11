@@ -25,12 +25,12 @@ use connectrpc::{
 };
 use http::{fetch, fetch_range};
 use nama_proto::nama::v1::{
-    AudioCodec, ClearMatchRequest, Container, DeleteLibraryRequest, DeviceDecoding, EventType,
-    HdrFormat, LibraryKind, LibraryServiceClient, ListEpisodesRequest, PickedTrackKind,
-    PlanPlaybackRequest, Playback, PlaybackEnded, PlaybackLimit, PlaybackMethod, PlaybackPlan,
-    PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason,
-    ReportTrackPickRequest, ServerServiceClient, StopPlaybackRequest, Track,
-    UpdatePlaybackSettingsRequest, Version, VideoCodec, VideoTrack,
+    AudioCodec, ClearMatchRequest, Container, DeleteLibraryRequest, DeleteUserRequest,
+    DeviceDecoding, EventType, HdrFormat, LibraryKind, LibraryServiceClient, ListEpisodesRequest,
+    PickedTrackKind, PlanPlaybackRequest, Playback, PlaybackEnded, PlaybackLimit, PlaybackMethod,
+    PlaybackPlan, PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason,
+    ReportTrackPickRequest, ServerServiceClient, SetMatchRequest, StopPlaybackRequest, Track,
+    UpdatePlaybackSettingsRequest, UserServiceClient, Version, VideoCodec, VideoTrack,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::fake::script;
@@ -1562,10 +1562,10 @@ impl Fixture {
     /// German subtitles, scanned and Matched, and gives the Versions of those two Episodes.
     async fn subtitled_dark(bin: &Path) -> (Self, [i64; 2]) {
         let ffmpeg = ffprobe_reading_english_and_german_subtitles(bin);
-        let fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_SHOWS, ffmpeg).await;
+        let mut fx = Self::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_SHOWS, ffmpeg).await;
         fx.write(DARK_S01E01, b"video");
         fx.write(DARK_S02E01, b"video");
-        fx.scan_and_match().await;
+        fx.items = fx.scan_and_match().await;
         let first = fx.dark_version(1).await;
         let second = fx.dark_version(2).await;
         (fx, [first, second])
@@ -1694,4 +1694,76 @@ async fn a_subtitle_picked_in_one_version_of_a_movie_starts_its_other_versions()
     fx.pick_subtitle(hd, Some(GERMAN)).await.unwrap();
 
     assert_eq!(fx.plan(uhd).await.unwrap().starting_subtitle, Some(GERMAN));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_plan_request_that_names_a_subtitle_is_no_pick() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+
+    fx.ask_for_plan(PlanPlaybackRequest {
+        version_id: first,
+        subtitle_track: Some(GERMAN),
+        device_decoding: chrome().into(),
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(fx.plan(second).await.unwrap().starting_subtitle, None);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_pick_in_a_version_of_an_unmatched_item_is_accepted_and_keeps_nothing() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::subtitled_dark(bin.path()).await;
+    let item = fx.item(DARK_S01E01);
+    fx.matches
+        .clear_match(ClearMatchRequest {
+            item_id: item,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let picked = fx.pick_subtitle(first, Some(GERMAN)).await;
+    fx.matches
+        .set_match(SetMatchRequest {
+            item_id: item,
+            title_id: tmdb_id(DARK).into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert!(picked.is_ok(), "{picked:?}");
+    assert_eq!(fx.plan(second).await.unwrap().starting_subtitle, None);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_user_with_a_subtitle_preference_can_be_deleted() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, _]) = Fixture::subtitled_dark(bin.path()).await;
+    let ripley = fx.server.user("Ripley", &[]).await;
+    PlaybackServiceClient::new(HttpClient::plaintext(), ripley.client_config())
+        .report_track_pick(ReportTrackPickRequest {
+            version_id: first,
+            kind: PickedTrackKind::PICKED_TRACK_KIND_SUBTITLE.into(),
+            track: Some(GERMAN),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let deleted = UserServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        .delete_user(DeleteUserRequest {
+            user_id: ripley.id,
+            ..Default::default()
+        })
+        .await;
+
+    assert!(deleted.is_ok(), "{deleted:?}");
 }

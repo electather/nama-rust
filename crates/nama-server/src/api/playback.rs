@@ -136,6 +136,16 @@ impl PlaybackService for PlaybackServiceHandler {
                 "say which kind of Track was picked: only subtitles are kept",
             ));
         }
+        let kept_for =
+            (self.preferences.kept_for(request.version_id).await).map_err(|err| match err {
+                track_preferences::Error::NoSuchVersion => version_not_found(),
+                track_preferences::Error::Database(err) => database_failed(err),
+            })?;
+        // An Unmatched Item keeps nothing, as it keeps no Watch State (ADR 0013): its Tracks aren't
+        // read, so the pick never fails, whatever it names.
+        let Some(kept_for) = kept_for else {
+            return Response::ok(ReportTrackPickResponse::default());
+        };
         let preference = match request.track {
             None => SubtitlePreference::Off,
             Some(place) => {
@@ -143,12 +153,9 @@ impl PlaybackService for PlaybackServiceHandler {
             }
         };
         (self.preferences)
-            .keep_subtitle(user, request.version_id, preference)
+            .keep_subtitle(user, kept_for, preference)
             .await
-            .map_err(|err| match err {
-                track_preferences::Error::NoSuchVersion => version_not_found(),
-                track_preferences::Error::Database(err) => database_failed(err),
-            })?;
+            .map_err(database_failed)?;
         Response::ok(ReportTrackPickResponse::default())
     }
 }

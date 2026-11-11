@@ -1,9 +1,9 @@
 //! Track Preferences: what a User wants a kind of Track to start as when they play something (ADR
 //! 0035). So far only the Subtitle Preference a User's pick keeps for a Show or Movie.
 //!
-//! [`TrackPreferences`] is the only code that reads or writes `track_preferences`. It keeps them
-//! against a Show's or Movie's external id, as Watch State is kept (ADR 0013), so an Unmatched
-//! Item keeps none.
+//! [`TrackPreferences`] alone reads and writes `track_preferences` (`AGENTS.md`, "Data"). It keeps
+//! them against a Show's or Movie's external id, as Watch State is kept (ADR 0013), so an
+//! Unmatched Item keeps none.
 
 use std::sync::Arc;
 
@@ -55,7 +55,14 @@ impl Description {
     }
 }
 
-/// Why a Preference couldn't be kept.
+/// The Show or Movie a Preference is kept for: its scope and external id, the key after the User.
+#[derive(Debug)]
+pub(crate) struct KeptFor {
+    scope: &'static str,
+    title_id: String,
+}
+
+/// Why what a Version is of couldn't be found.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
     #[error("there is no such Version")]
@@ -72,17 +79,14 @@ impl TrackPreferences {
         }
     }
 
-    /// Keeps `preference` as the User `user`'s Subtitle Preference for the Show or Movie the
-    /// Version `version` is of, in place of any they had. Keeps nothing for an Unmatched Item.
+    /// Keeps `preference` as the User `user`'s Subtitle Preference for `kept_for`, in place of any
+    /// they had.
     pub(crate) async fn keep_subtitle(
         &self,
         user: i64,
-        version: i64,
+        KeptFor { scope, title_id }: KeptFor,
         preference: SubtitlePreference,
-    ) -> Result<(), Error> {
-        let Some((scope, title_id)) = self.kept_for(version).await? else {
-            return Ok(());
-        };
+    ) -> Result<(), sqlx::Error> {
         let (off, description) = match preference {
             SubtitlePreference::Off => (true, Description::default()),
             SubtitlePreference::Like(description) => (false, description),
@@ -112,8 +116,7 @@ impl TrackPreferences {
                     Ok::<_, sqlx::Error>(())
                 })
             })
-            .await?;
-        Ok(())
+            .await
     }
 
     /// The User `user`'s Subtitle Preference for the Show or Movie the Version `version` is of,
@@ -123,8 +126,8 @@ impl TrackPreferences {
         user: i64,
         version: i64,
     ) -> Result<Option<SubtitlePreference>, sqlx::Error> {
-        let (scope, title_id) = match self.kept_for(version).await {
-            Ok(Some(key)) => key,
+        let KeptFor { scope, title_id } = match self.kept_for(version).await {
+            Ok(Some(kept_for)) => kept_for,
             Ok(None) | Err(Error::NoSuchVersion) => return Ok(None),
             Err(Error::Database(err)) => return Err(err),
         };
@@ -154,14 +157,20 @@ impl TrackPreferences {
         }))
     }
 
-    /// The key, after the User, of a Preference for what the Version `version` is of: its scope
-    /// and external id. `None` for an Unmatched Item.
-    async fn kept_for(&self, version: i64) -> Result<Option<(&'static str, String)>, Error> {
+    /// The Show or Movie the Version `version` is of, which a Preference picked in it is kept
+    /// for. `None` for an Unmatched Item, which keeps none.
+    pub(crate) async fn kept_for(&self, version: i64) -> Result<Option<KeptFor>, Error> {
         Ok(match self.contents.matched_to(version).await? {
             MatchedTo::NoSuchVersion => return Err(Error::NoSuchVersion),
             MatchedTo::Nothing => None,
-            MatchedTo::Movie(movie) => Some(("movie", movie.to_string())),
-            MatchedTo::Episodes { show, .. } => show.map(|show| ("show", show.to_string())),
+            MatchedTo::Movie(movie) => Some(KeptFor {
+                scope: "movie",
+                title_id: movie.to_string(),
+            }),
+            MatchedTo::Episodes { show, .. } => show.map(|show| KeptFor {
+                scope: "show",
+                title_id: show.to_string(),
+            }),
         })
     }
 }
