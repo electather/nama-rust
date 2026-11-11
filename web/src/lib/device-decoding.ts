@@ -33,15 +33,15 @@ const AUDIO_CODECS: Record<Named<typeof AudioCodec>, string> = {
 /** A 1080p film's video, which `decodingInfo` needs to judge a video codec. */
 const FILM = { width: 1920, height: 1080, bitrate: 10_000_000, framerate: 24 };
 
-/** Whether this page still draws PGS subtitles: not once their renderer failed, until a reload. */
-let drawsPgs = true;
+/** The subtitle formats whose renderer failed on this page, which it no longer draws until a reload. */
+const failedRenderers = new Set<SubtitleFormat>();
 
 /**
- * Stops saying this Device draws PGS subtitles until the page is reloaded, as when their renderer
- * failed, so the next plan burns them in or drops them (ADR 0033).
+ * Stops saying this Device draws subtitles in `format` until the page is reloaded, as when their
+ * renderer failed, so the next plan burns them in or drops them (ADR 0033).
  */
-export function stopDrawingPgs() {
-  drawsPgs = false;
+export function stopDrawing(format: SubtitleFormat) {
+  failedRenderers.add(format);
 }
 
 /** What this Device decodes, found out afresh: the Server never stores it. */
@@ -61,9 +61,15 @@ export async function findDeviceDecoding() {
     nativeHls: playsHlsNatively(),
     mse: "MediaSource" in window || "ManagedMediaSource" in window,
     audioChannels: audioChannels(),
-    // The PGS renderer is WebAssembly.
-    subtitleFormats: drawsPgs && "WebAssembly" in globalThis ? [SubtitleFormat.PGS] : [],
+    subtitleFormats: drawnFormats().filter((format) => !failedRenderers.has(format)),
   };
+}
+
+/** The subtitle formats this Device has what their renderers need to draw. */
+function drawnFormats() {
+  if (!("WebAssembly" in globalThis)) return [];
+  // ASS's renderer runs in a Web Worker.
+  return "Worker" in globalThis ? [SubtitleFormat.PGS, SubtitleFormat.ASS] : [SubtitleFormat.PGS];
 }
 
 /** How many audio channels this Device plays out at once, such as 6 for 5.1, or 0 if it can't say. */
