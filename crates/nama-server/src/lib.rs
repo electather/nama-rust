@@ -12,6 +12,7 @@ mod device_names;
 mod events;
 pub mod ffmpeg;
 mod forwarded;
+pub mod images;
 mod libraries;
 mod matching;
 mod metadata;
