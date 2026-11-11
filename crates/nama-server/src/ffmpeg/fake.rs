@@ -64,10 +64,10 @@ pub fn script(bin: &Path, name: &str, body: &str) -> FoundProgram {
     reason = "a test helper fails its test by panicking"
 )]
 pub fn gpu(sys: &Path, dri: &Path, node: &str, address: &str, vendor: &str) {
-    let device = pci_function(sys, address, vendor);
+    let function = pci_function(sys, address, vendor);
     let drm = sys.join("class/drm").join(node);
     std::fs::create_dir_all(&drm).unwrap();
-    std::os::unix::fs::symlink(device, drm.join("device")).unwrap();
+    std::os::unix::fs::symlink(function, drm.join("device")).unwrap();
     std::fs::create_dir_all(dri).unwrap();
     std::fs::write(dri.join(node), "").unwrap();
 }
@@ -88,8 +88,8 @@ pub fn gpu(sys: &Path, dri: &Path, node: &str, address: &str, vendor: &str) {
 )]
 pub fn pci_function(sys: &Path, address: &str, vendor: &str) -> std::path::PathBuf {
     let (bus, _) = address.rsplit_once(':').unwrap();
-    let device = sys.join("devices").join(bus).join(address);
-    std::fs::create_dir_all(&device).unwrap();
-    std::fs::write(device.join("vendor"), format!("{vendor}\n")).unwrap();
-    device
+    let function = sys.join("devices").join(bus).join(address);
+    std::fs::create_dir_all(&function).unwrap();
+    std::fs::write(function.join("vendor"), format!("{vendor}\n")).unwrap();
+    function
 }

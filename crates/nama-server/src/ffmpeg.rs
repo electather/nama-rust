@@ -135,8 +135,8 @@ impl Default for Ffmpeg {
 
 impl Ffmpeg {
     /// Runs ffmpeg and ffprobe at the paths `config` sets, or else the first of each in the
-    /// directories of `path`, a `PATH` value, to read their versions, and finds the GPUs in
-    /// `/dev/dri`. Blocks while they run.
+    /// directories of `path`, a `PATH` value, to read their versions, and finds the GPUs with
+    /// [`find_gpus`]. Blocks while they run.
     #[must_use]
     pub fn find(config: &Config, path: &OsStr) -> Self {
         Self {
@@ -843,13 +843,13 @@ fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
     // encodes.
     let on_gpu = accel
         .filter(|_| video.tone_map != Some(ToneMapper::Software) && video.burn_in.is_none())
-        .and_then(|on| {
+        .and_then(|api| {
             let tone_map = video.tone_map == Some(ToneMapper::Hardware);
-            Some((on, on.gpu_filters(tone_map, size)?))
+            Some((api, api.gpu_filters(tone_map, size)?))
         });
-    if let Some((on, filters)) = on_gpu {
+    if let Some((api, filters)) = on_gpu {
         return VideoArgs {
-            input: on.input(gpu, true),
+            input: api.input(gpu, true),
             video: ["-map", "0:V:0", "-vf", &filters].map(str::to_owned).into(),
             codec,
         };

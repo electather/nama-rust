@@ -91,12 +91,12 @@ impl Gpu {
         &self.id
     }
 
-    /// The GPU with the render node `node`, whose `device` link in `/sys/class/drm` is `device`,
-    /// if that resolves to a PCI function.
-    fn at(node: PathBuf, device: &Path) -> Option<Self> {
-        let device = fs::canonicalize(device).ok()?;
-        let id = device.file_name()?.to_str()?.to_owned();
-        let vendor = pci_vendor(&device)?;
+    /// The GPU with the render node `node`, whose `device` link in `/sys/class/drm` is `link`, if
+    /// that resolves to a PCI function.
+    fn at(node: PathBuf, link: &Path) -> Option<Self> {
+        let function = fs::canonicalize(link).ok()?;
+        let id = function.file_name()?.to_str()?.to_owned();
+        let vendor = pci_vendor(&function)?;
         // A domain past `ffff`, as behind Intel's VMD, takes more digits.
         let is_pci_address = id.split_once(':').is_some_and(|(domain, slot)| {
             domain.len() >= 4
@@ -106,7 +106,7 @@ impl Gpu {
                     .eq(*b"xx:xx.x")
         });
         is_pci_address.then(|| Self {
-            integrated: is_integrated(&device, &id, &vendor),
+            integrated: is_integrated(&function, &id, &vendor),
             id,
             node,
             vendor,
@@ -147,22 +147,22 @@ impl Gpu {
     }
 }
 
-/// The PCI vendor of the function in the folder `device`, such as `0x1002`.
-fn pci_vendor(device: &Path) -> Option<String> {
+/// The PCI vendor of the function in the folder `function`, such as `0x1002`.
+fn pci_vendor(function: &Path) -> Option<String> {
     Some(
-        fs::read_to_string(device.join("vendor"))
+        fs::read_to_string(function.join("vendor"))
             .ok()?
             .trim()
             .to_owned(),
     )
 }
 
-/// Whether the GPU at the PCI address `id` from `vendor`, in the folder `device`, is built into
+/// Whether the GPU at the PCI address `id` from `vendor`, in the folder `function`, is built into
 /// the CPU.
 // Not `boot_vga`: it marks the GPU driving the display, which is the dedicated one on a desktop but
 // the integrated one on a laptop or a headless box. Nor a benchmark, which would slow every startup
 // and vary with whatever else the GPUs are doing.
-fn is_integrated(device: &Path, id: &str, vendor: &str) -> bool {
+fn is_integrated(function: &Path, id: &str, vendor: &str) -> bool {
     match vendor {
         // Intel's integrated GPU is always at this address.
         INTEL => id == "0000:00:02.0",
@@ -171,15 +171,15 @@ fn is_integrated(device: &Path, id: &str, vendor: &str) -> bool {
             let Some((bus, _)) = id.rsplit_once(':') else {
                 return false;
             };
-            let Some(Ok(functions)) = device.parent().map(fs::read_dir) else {
+            let Some(Ok(siblings)) = function.parent().map(fs::read_dir) else {
                 return false;
             };
-            functions.flatten().any(|function| {
-                function
+            siblings.flatten().any(|sibling| {
+                sibling
                     .file_name()
                     .to_string_lossy()
                     .starts_with(&format!("{bus}:"))
-                    && pci_vendor(&function.path()).as_deref() == Some(AMD_CPU)
+                    && pci_vendor(&sibling.path()).as_deref() == Some(AMD_CPU)
             })
         }
         _ => false,
@@ -400,7 +400,7 @@ mod tests {
         gpu(root.path(), "renderD128", "0000:18:00.0", "0x1002");
         fake::pci_function(&root.path().join("sys"), "0000:18:00.2", "0x1022");
         gpu(root.path(), "renderD129", "0000:03:00.0", "0x1002");
-        // The dedicated GPU's own audio function.
+        // An AMD GPU's own functions, such as its audio, don't make it integrated: only a CPU's do.
         fake::pci_function(&root.path().join("sys"), "0000:03:00.1", "0x1002");
 
         let gpus = found(root.path());
@@ -477,7 +477,7 @@ mod tests {
     fn name(address: &str, vendor: &str, integrated: bool, log: &str) -> String {
         let root = tempfile::tempdir().unwrap();
         gpu(root.path(), "renderD128", address, vendor);
-        if integrated && vendor == "0x1002" {
+        if integrated && vendor == super::AMD {
             let (slot, _) = address.rsplit_once('.').unwrap();
             fake::pci_function(&root.path().join("sys"), &format!("{slot}.2"), "0x1022");
         }
