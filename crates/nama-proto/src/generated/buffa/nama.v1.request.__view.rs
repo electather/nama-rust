@@ -46,7 +46,8 @@ pub struct RequestView<'a> {
     /// Field 9: `followed_show_id`
     pub followed_show_id: ::core::option::Option<i64>,
     /// What its Fulfiller's service is downloading for it, as the Server last heard, which it asks
-    /// every minute while any Request is Processing. Only a Processing Request has any. The Server
+    /// every minute while any Request its Fulfiller has isn't Available yet. Only a Processing or
+    /// Partially Available Request has any. The Server
     /// keeps them in memory only, so after it restarts a Request has none until it asks again, and
     /// `EventService` sends a `RequestProgress` whenever they change.
     ///
@@ -793,7 +794,8 @@ impl RequestOwnedView {
         self.0.reborrow().followed_show_id
     }
     /// What its Fulfiller's service is downloading for it, as the Server last heard, which it asks
-    /// every minute while any Request is Processing. Only a Processing Request has any. The Server
+    /// every minute while any Request its Fulfiller has isn't Available yet. Only a Processing or
+    /// Partially Available Request has any. The Server
     /// keeps them in memory only, so after it restarts a Request has none until it asks again, and
     /// `EventService` sends a `RequestProgress` whenever they change.
     ///

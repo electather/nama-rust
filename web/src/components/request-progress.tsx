@@ -14,7 +14,7 @@ const statuses: Partial<Record<DownloadStatus, Shown>> = {
 };
 
 /**
- * How far a Processing Request's downloads have got: one bar for them all, then each download.
+ * How far a Request's downloads have got: one bar for them all, then each download.
  * Nothing until its Fulfiller has said what it is downloading.
  */
 export function RequestProgress({ request }: { request: Request | undefined }) {
