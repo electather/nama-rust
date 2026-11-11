@@ -1,5 +1,6 @@
 //! The Radarr Installed Plugin: hands Approved Movie Requests to Radarr (ADR 0003), says how
-//! their downloads are progressing, and has Radarr stop monitoring a deleted Movie (ADR 0038). The Server builds it for wasm32 and bundles it in its binary.
+//! their downloads are progressing, and has Radarr stop monitoring a deleted Movie (ADR 0038). The
+//! Server builds it for wasm32 and bundles it in its binary.
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.

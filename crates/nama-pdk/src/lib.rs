@@ -172,8 +172,8 @@ pub trait Fulfiller {
     fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error>;
 }
 
-/// Exports a [`Fulfiller`] as the Plugin's `fulfill`, `unfollow`, `stop_monitoring` and `progress`, taking and
-/// returning the `nama.plugin.v1` messages the Server exchanges with them.
+/// Exports a [`Fulfiller`] as the Plugin's `fulfill`, `unfollow`, `stop_monitoring` and `progress`,
+/// taking and returning the `nama.plugin.v1` messages the Server exchanges with them.
 #[macro_export]
 macro_rules! fulfiller {
     ($fulfiller:ty) => {

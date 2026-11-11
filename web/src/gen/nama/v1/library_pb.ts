@@ -644,7 +644,7 @@ export const LibraryService: GenService<{
    * by `.` or `-`, and that aren't videos), and the folders that leaves empty, never a Library's
    * own folder or above it. The Versions whose files went are removed as a scan removes them, with
    * `LibraryItemRemoved`. A file that can't be deleted is listed with why, and the rest still go.
-   * Before deleting anything, it asks the enabled Fulfiller of its kind, such as Radarr, to stop
+   * Before deleting anything, it asks every enabled Fulfiller of its kind, such as Radarr, to stop
    * monitoring the title, which it keeps; one that can't be told is listed, and doesn't stop it.
    * Needs `PERMISSION_DELETE_MEDIA` and Recent Authentication. Fails with `invalid_argument` if
    * the target is missing, or names a Shows Library as a Movie's, and with `not_found` if there

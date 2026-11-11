@@ -435,13 +435,11 @@ impl<Kind: 'static> Fulfiller<Kind> for Running {
         &'a self,
         title: &'a StopMonitoring,
     ) -> BoxFuture<'a, Result<(), PluginError>> {
+        if !self.stops_monitoring {
+            return Box::pin(async { Ok(()) });
+        }
         let input = title.encode_to_vec();
-        Box::pin(async move {
-            if !self.stops_monitoring {
-                return Ok(());
-            }
-            self.provide(STOP_MONITORING, input).await.map(drop)
-        })
+        Box::pin(async move { self.provide(STOP_MONITORING, input).await.map(drop) })
     }
 
     fn progress<'a>(

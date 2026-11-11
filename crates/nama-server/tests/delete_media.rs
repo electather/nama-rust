@@ -359,6 +359,17 @@ fn unmonitored_alien(still_there: bool) -> Changed {
 }
 
 #[tokio::test]
+async fn a_fulfiller_that_panics_when_asked_is_named_and_the_delete_still_happens() {
+    let fx = Fixture::alien_and_dune_on(TestServer::builder().fulfiller(&[])).await;
+    fx.server.fulfiller().panic_stopping_monitoring();
+
+    let deleted = fx.delete(movie(fx.library, DUNE)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, [MOVIE_FULFILLER]);
+    assert!(!fx.exists(DUNE_VIDEO));
+}
+
+#[tokio::test]
 async fn deleting_a_movie_or_one_of_its_versions_has_radarr_unmonitor_it_first_and_keep_it() {
     let fx = Fixture::alien_and_dune().await;
     let radarr = FakeRadarr::start(&[ALIEN], &[]).await;

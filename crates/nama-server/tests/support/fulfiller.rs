@@ -85,6 +85,8 @@ pub(crate) struct FakeFulfiller {
     unfollowed: Arc<Mutex<Vec<i64>>>,
     /// The TMDB id of each Movie it was told to stop monitoring, in order.
     stopped_monitoring: Arc<Mutex<Vec<i64>>>,
+    /// Whether it panics when told to stop monitoring.
+    panics_stopping_monitoring: Arc<AtomicBool>,
     /// What it says it is downloading, by reference.
     downloading: Arc<Mutex<HashMap<String, Vec<Download>>>>,
     /// Whether it fails to say what it is downloading.
@@ -182,6 +184,12 @@ impl FakeFulfiller {
             .clone()
     }
 
+    /// Panics when told to stop monitoring from now on, which disables its Plugin.
+    pub(crate) fn panic_stopping_monitoring(&self) {
+        self.panics_stopping_monitoring
+            .store(true, Ordering::Relaxed);
+    }
+
     /// The TMDB id of each Movie it was told to stop monitoring, in order.
     pub(crate) fn stopped_monitoring(&self) -> Vec<i64> {
         self.stopped_monitoring
@@ -249,6 +257,10 @@ impl Fulfiller<Movies> for FakeFulfiller {
         let Some(stop_monitoring::Title::MovieTmdbId(tmdb_id)) = title.title else {
             panic!("a Movies Fulfiller was told to stop monitoring {title:?}");
         };
+        assert!(
+            !self.panics_stopping_monitoring.load(Ordering::Relaxed),
+            "the test made it panic"
+        );
         self.stopped_monitoring
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

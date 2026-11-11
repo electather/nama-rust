@@ -271,7 +271,7 @@ impl Scanner {
         Ok(tokio::task::spawn_blocking(move || deleting::preview(&doomed)).await?)
     }
 
-    /// Asks the Movies Fulfiller to stop monitoring `doomed`, then deletes it from disk for good,
+    /// Asks every Movies Fulfiller to stop monitoring `doomed`, then deletes it from disk for good,
     /// removes the Versions whose files went as a scan removes them, and logs that `by` deleted
     /// them. The one way to delete media (see AGENTS.md, "One path for deleting media"). It holds
     /// the Library's scan lock, so a scan racing it sees either everything or nothing gone, and
@@ -319,28 +319,39 @@ impl Scanner {
         .await
     }
 
-    /// Asks the Movies Fulfiller, if one is enabled, to stop monitoring `doomed`'s Movie. Returns
-    /// the name of a Fulfiller that couldn't be told, which isn't asked again.
-    async fn stop_monitoring(&self, doomed: &Doomed) -> Option<String> {
+    /// Asks each enabled Movies Fulfiller to stop monitoring `doomed`'s Movie. Returns the name of
+    /// each that couldn't be told, failing or panicking, which isn't asked again.
+    async fn stop_monitoring(&self, doomed: &Doomed) -> Vec<String> {
+        let Some(tmdb_id) = doomed.tmdb_id else {
+            return Vec::new();
+        };
         let title = StopMonitoring {
-            title: Some(Title::MovieTmdbId(doomed.tmdb_id?)),
+            title: Some(Title::MovieTmdbId(tmdb_id)),
             ..Default::default()
         };
+        let stop = |fulfiller: Arc<dyn Fulfiller<Movies>>| {
+            let title = &title;
+            async move { fulfiller.stop_monitoring(title).await }
+        };
         let plugins = &self.inner.plugins;
-        let answer = plugins
-            .ask_first(|fulfiller: Arc<dyn Fulfiller<Movies>>| {
-                let title = &title;
-                async move { fulfiller.stop_monitoring(title).await }
-            })
-            .await?;
-        let failure = answer.result.err()?;
-        tracing::warn!(
-            plugin = %answer.plugin,
-            title = %doomed.title,
-            reason = failure.message,
-            "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
-        );
-        Some(plugins.name(&answer.plugin))
+        let mut not_told = Vec::new();
+        for plugin in plugins.providers::<dyn Fulfiller<Movies>>() {
+            let answer = plugins.ask(&plugin, &stop).await;
+            // `None`: it panicked, which disabled it, or was disabled meanwhile.
+            let reason = match answer.map(|answer| answer.result) {
+                Some(Ok(())) => continue,
+                Some(Err(failure)) => failure.message,
+                None => "it panicked or was disabled".to_owned(),
+            };
+            tracing::warn!(
+                plugin = %plugin,
+                title = %doomed.title,
+                reason,
+                "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
+            );
+            not_told.push(plugins.name(&plugin));
+        }
+        not_told
     }
 
     /// The Matcher that fixes a Match by hand, waiting for a scan of the item's Library.
