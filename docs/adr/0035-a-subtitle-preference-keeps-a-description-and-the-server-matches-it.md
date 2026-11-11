@@ -19,6 +19,8 @@ Only the User's own pick changes a Preference. The player reports each pick in i
 
 - A plan request that names no subtitle now asks the Server to choose, so a player says outright that it wants none. It takes the plan's starting subtitle only for the first plan of a playback, and after that sends what the User has on screen.
 - An Unmatched Item keeps no Preference, as it keeps no Watch State.
+- The User's own Preference still applies where no Show's or Movie's does, an Unmatched Item's included. A Show's or Movie's that matches nothing doesn't fall back to it.
+- Matching the User's own Preference skips the title: it was set without one, so no title can't mean an untitled Track.
 - A dropped Burn-in, a renderer that failed and an Episode where nothing matched all leave the Preference as it was. So does a subtitle turned on for one scene, until the User turns it off.
 - A Show's Preference doesn't follow a later change to the User's. A new pick replaces it, and nothing else clears it.
 - Languages are compared as languages, so `eng` matches `en`. A Track with no language matches only another with none.
