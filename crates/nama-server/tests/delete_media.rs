@@ -23,15 +23,13 @@ use std::fs;
 
 use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
-use fake_radarr::{API_KEY as RADARR_KEY, Changed, FakeRadarr};
+use fake_radarr::{Changed, FakeRadarr};
 use http::fetch;
 use log::Log;
 use nama_proto::nama::v1::{
-    DeleteMediaRequest, DeleteMediaResponse, EnablePluginRequest, LibraryKind,
-    LibraryServiceClient, ListMoviesRequest, MediaFile, MediaToDelete, MovieToDelete, Permission,
-    PluginServiceClient, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason,
-    SettingValue, SubscribeRequest, UpdatePluginSettingsRequest, event, media_to_delete,
-    setting_value,
+    DeleteMediaRequest, DeleteMediaResponse, LibraryKind, LibraryServiceClient, ListMoviesRequest,
+    MediaFile, MediaToDelete, MovieToDelete, Permission, PreviewDeleteMediaRequest,
+    PreviewDeleteMediaResponse, RefusalReason, SubscribeRequest, event, media_to_delete,
 };
 use refused::assert_refused;
 use serde_json::json;
@@ -49,6 +47,8 @@ const ALIEN_FOLDER_ART: &str = "Alien (1979)/folder.jpg";
 /// Straight in the Library's folder, with nothing else of its own.
 const DUNE_VIDEO: &str = "Dune (2021).mkv";
 const DUNE_NFO: &str = "Dune (2021).nfo";
+/// One of the fake Radarr's quality profiles, which a delete never reads.
+const ANY_PROFILE: &str = "1";
 
 /// Every Version of the Movie with the TMDB id `tmdb` in `library`.
 fn movie(library: i64, tmdb: i64) -> MediaToDelete {
@@ -92,40 +92,6 @@ impl Fixture {
         fx.write(DUNE_NFO, b"nfo");
         fx.scan_and_match().await;
         fx
-    }
-
-    /// Enables the Radarr Plugin against `radarr`, as an Admin sets it up.
-    async fn enable_radarr(&self, radarr: &FakeRadarr) {
-        let plugins =
-            PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config());
-        let settings = [
-            ("url", radarr.url()),
-            ("api_key", RADARR_KEY.to_owned()),
-            ("quality_profile", "4".to_owned()),
-            ("root_folder", "/movies".to_owned()),
-        ]
-        .map(|(key, value)| {
-            let value = SettingValue {
-                value: Some(setting_value::Value::TextValue(value)),
-                ..Default::default()
-            };
-            (key.to_owned(), value)
-        });
-        plugins
-            .update_plugin_settings(UpdatePluginSettingsRequest {
-                id: "radarr".to_owned(),
-                settings: settings.into_iter().collect(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        plugins
-            .enable_plugin(EnablePluginRequest {
-                id: "radarr".to_owned(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
     }
 
     fn library_service(&self) -> LibraryServiceClient<HttpClient> {
@@ -373,7 +339,7 @@ async fn a_fulfiller_that_panics_when_asked_is_named_and_the_delete_still_happen
 async fn deleting_a_movie_or_one_of_its_versions_has_radarr_unmonitor_it_first_and_keep_it() {
     let fx = Fixture::alien_and_dune().await;
     let radarr = FakeRadarr::start(&[ALIEN], &[]).await;
-    fx.enable_radarr(&radarr).await;
+    radarr.enable_on(&fx.server, ANY_PROFILE).await;
     let first = fx.version_ids(ALIEN).await[0];
 
     radarr.watch(fx.folder.join(ALIEN_1080P));
@@ -394,7 +360,7 @@ async fn deleting_a_movie_or_one_of_its_versions_has_radarr_unmonitor_it_first_a
 async fn a_movie_radarr_doesnt_have_deletes_with_nothing_reported() {
     let fx = Fixture::alien_and_dune().await;
     let radarr = FakeRadarr::start(&[], &[]).await;
-    fx.enable_radarr(&radarr).await;
+    radarr.enable_on(&fx.server, ANY_PROFILE).await;
 
     let deleted = fx.delete(movie(fx.library, ALIEN)).await.unwrap();
 
@@ -407,7 +373,7 @@ async fn a_movie_radarr_doesnt_have_deletes_with_nothing_reported() {
 async fn with_radarr_down_the_delete_goes_ahead_and_names_radarr() {
     let fx = Fixture::alien_and_dune().await;
     let mut radarr = FakeRadarr::start(&[ALIEN], &[]).await;
-    fx.enable_radarr(&radarr).await;
+    radarr.enable_on(&fx.server, ANY_PROFILE).await;
     radarr.go_down();
 
     let deleted = fx.delete(movie(fx.library, ALIEN)).await.unwrap();

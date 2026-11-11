@@ -10,7 +10,7 @@ import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { libraryFromParam, queryOrNotFound, titleParam, yearOf } from "@/lib/browse";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/")({
-  // A title just deleted, with the Fulfillers that couldn't be told, which the page says.
+  // The Movie whose page had the delete's result is gone, so the Fulfillers not told come here.
   validateSearch: (
     search: Record<string, unknown>,
   ): { deleted?: string | undefined; notTold?: string[] | undefined } => {
