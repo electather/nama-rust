@@ -1314,7 +1314,7 @@ async fn an_unprobed_version_whose_direct_play_failed_cant_be_played_and_starts_
     };
     let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
     fx.write(ALIEN_1080P, b"video");
-    fx.scan_until_decided(1).await;
+    fx.scan_and_match().await;
     let version = fx.version_ids(ALIEN).await[0];
     let started = [EventType::EVENT_TYPE_PLAYBACK_STARTED];
     let mut subscription = subscribe(&fx.server.client_config(), &started).await;
