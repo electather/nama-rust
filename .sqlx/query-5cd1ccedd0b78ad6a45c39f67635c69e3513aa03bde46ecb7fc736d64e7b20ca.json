@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO requesters (request_id, user_id, requested_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "5cd1ccedd0b78ad6a45c39f67635c69e3513aa03bde46ecb7fc736d64e7b20ca"
+}

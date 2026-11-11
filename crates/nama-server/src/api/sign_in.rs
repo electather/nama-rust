@@ -144,24 +144,18 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, ReauthenticateRequest>,
     ) -> ServiceResult<ReauthenticateResponse> {
         let caller = caller(&ctx)?;
-        let attempt = self
-            .sign_in
-            .limits
-            .admit(client_ip(&ctx)?, Some(&caller.user.name))?;
-        let Some(Proof::Password(password)) = request.to_owned_message().proof else {
-            return Err(refuse(
-                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                "the proof of who you are is missing",
+        let password = request
+            .to_owned_message()
+            .proof
+            .map(|Proof::Password(password)| password);
+        self.sign_in
+            .reauthenticate(
+                caller,
+                password.as_deref(),
+                client_ip(&ctx)?,
+                Instant::now(),
             )
-            .field("proof")
-            .into());
-        };
-        let reauthenticated = self.users.reauthenticate(caller, &password).await;
-        // The Device is only found signed out after the password checked out, so that is no guess.
-        if matches!(reauthenticated, Ok(()) | Err(users::Error::SignedOut)) {
-            self.sign_in.limits.succeeded(&attempt);
-        }
-        reauthenticated?;
+            .await?;
         Response::ok(ReauthenticateResponse::default())
     }
 
@@ -374,6 +368,12 @@ impl From<sign_in::Error> for ConnectError {
             sign_in::Error::Blocked(blocked) => blocked.into(),
             sign_in::Error::Users(err) => err.into(),
             sign_in::Error::Code(err) => err.into(),
+            err @ sign_in::Error::ProofMissing => refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                err.to_string(),
+            )
+            .field("proof")
+            .into(),
         }
     }
 }
