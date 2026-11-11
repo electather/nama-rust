@@ -2574,7 +2574,7 @@ mod tests {
     use crate::{
         contents::{
             Change, Contents, Decided, Decisions, Item, Metadata,
-            fixture::{MatchedMovie, tmdb_movie},
+            fixture::{MatchedMovie, movies_library, tmdb_movie},
         },
         db::Database,
         events::{EventBus, Filter},
@@ -2987,19 +2987,16 @@ mod tests {
         applied.value.id
     }
 
-    /// A new Library Matches a file to each of the Movies `tmdb_ids`, as a scan does, which makes
-    /// their open Requests Available.
+    /// A new Library Matches a file to each of the Movies `tmdb_ids` in turn, which makes their
+    /// open Requests Available.
     async fn match_in_a_library(db: &Arc<Database>, tmdb_ids: &[i64]) {
         let folder = tempfile::tempdir().unwrap();
-        let movie = |tmdb_id: i64| tmdb_movie(tmdb_id, &format!("Movie {tmdb_id}"));
-        let (first, rest) = tmdb_ids.split_first().unwrap();
-        let library = MatchedMovie::new(db, folder.path(), movie(*first))
-            .await
-            .library;
+        let library = movies_library(db, folder.path()).await;
         let contents = Contents::new(Arc::clone(db));
-        for &tmdb_id in rest {
+        for &tmdb_id in tmdb_ids {
             let path = format!("/media/{tmdb_id}.mkv");
-            MatchedMovie::store(&contents, library, &path, movie(tmdb_id)).await;
+            let movie = tmdb_movie(tmdb_id, &format!("Movie {tmdb_id}"));
+            MatchedMovie::store(&contents, library, &path, movie).await;
         }
     }
 

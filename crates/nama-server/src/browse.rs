@@ -488,7 +488,8 @@ mod tests {
             items,
         };
         contents.apply(library, vec![file]).await.unwrap();
-        decide(&contents, library, &path, decided).await.0
+        let (version, _items) = decide(&contents, library, &path, decided).await;
+        version
     }
 
     /// Stores the file at `path` in `library`, holding `item`, and Matches the Item to `matched`.

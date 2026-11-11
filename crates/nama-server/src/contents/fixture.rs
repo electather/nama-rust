@@ -11,7 +11,7 @@ use crate::{
     libraries::{Kind, Libraries},
 };
 
-/// A file stored in a Library and Matched to a Movie, by the ids tests ask for.
+/// A file stored in a Library and Matched to a Movie, by the ids tests need.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct MatchedMovie {
     pub(crate) library: i64,
@@ -23,17 +23,11 @@ pub(crate) struct MatchedMovie {
 impl MatchedMovie {
     /// Creates a Movies Library on `folder` holding one file, Matched to `matched`.
     pub(crate) async fn new(db: &Arc<Database>, folder: &Path, matched: Metadata) -> Self {
-        let root = folder.canonicalize().unwrap();
-        let library = Libraries::new(Arc::clone(db))
-            .create(
-                "Movies",
-                Kind::Movies,
-                vec![root.to_str().unwrap().to_owned()],
-            )
-            .await
+        let library = movies_library(db, folder).await;
+        let path = folder
+            .canonicalize()
             .unwrap()
-            .id;
-        let path = root.join(format!("{}.mkv", matched.title));
+            .join(format!("{}.mkv", matched.title));
         let contents = Contents::new(Arc::clone(db));
         Self::store(&contents, library, path.to_str().unwrap(), matched).await
     }
@@ -64,6 +58,20 @@ impl MatchedMovie {
             version,
         }
     }
+}
+
+/// Creates an empty Movies Library on `folder` and returns its id.
+pub(crate) async fn movies_library(db: &Arc<Database>, folder: &Path) -> i64 {
+    let root = folder.canonicalize().unwrap();
+    Libraries::new(Arc::clone(db))
+        .create(
+            "Movies",
+            Kind::Movies,
+            vec![root.to_str().unwrap().to_owned()],
+        )
+        .await
+        .unwrap()
+        .id
 }
 
 /// Records `decided` for the Items of the file stored at `path` in `library`, in the order they
