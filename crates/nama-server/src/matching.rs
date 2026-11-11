@@ -33,14 +33,11 @@
 
 mod confidence;
 
-use std::{collections::BTreeMap, future::Future, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{
-        Candidate, Episode, ExternalId, ExternalIds, MetadataError, MetadataProvider, Movie,
-        SearchQuery, Season, Show, TitleKind,
-    },
+    metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{Event, ItemMatched};
 use tokio_util::sync::CancellationToken;
@@ -51,6 +48,7 @@ use crate::{
     },
     db::{Database, detached},
     events::{EventBus, event},
+    metadata::{self, MetadataSource},
     plugins::Registry,
     scanner::{ScanLock, country_tag},
 };
@@ -96,7 +94,7 @@ pub(crate) enum ManualError {
 #[derive(Debug, Clone)]
 pub(crate) struct Matcher {
     contents: Contents,
-    plugins: Registry,
+    metadata: MetadataSource,
     events: EventBus,
 }
 
@@ -188,33 +186,26 @@ enum Miss {
     Undecided,
 }
 
-impl Miss {
+impl From<metadata::Error> for Miss {
+    fn from(err: metadata::Error) -> Self {
+        match err {
+            metadata::Error::NotFound => Self::Unmatched(None),
+            metadata::Error::Unavailable => Self::Undecided,
+        }
+    }
+}
+
+impl ManualError {
     /// Why looking up the title `id` by hand failed.
-    fn looking_up(self, id: &ExternalId) -> ManualError {
-        match self {
-            Self::Unmatched(_) => ManualError::NoSuchTitle(id.clone()),
-            Self::Undecided => ManualError::Unavailable,
+    fn looking_up(id: &ExternalId) -> impl FnOnce(metadata::Error) -> Self {
+        |err| match err {
+            metadata::Error::NotFound => Self::NoSuchTitle(id.clone()),
+            metadata::Error::Unavailable => Self::Unavailable,
         }
     }
 }
 
 impl Metadata {
-    fn movie(plugin: PluginId, movie: Movie) -> Self {
-        Self {
-            plugin,
-            ids: movie.ids,
-            show_ids: ExternalIds::default(),
-            title: movie.title,
-            original_title: movie.original_title,
-            show_title: None,
-            overview: movie.overview,
-            release_date: movie.release_date,
-            runtime_minutes: movie.runtime_minutes,
-            poster: movie.poster,
-            backdrop: movie.backdrop,
-        }
-    }
-
     fn episode(plugin: &PluginId, show: &Show, season: &Season, episode: &Episode) -> Self {
         Self {
             plugin: plugin.clone(),
@@ -236,30 +227,8 @@ impl Matcher {
     pub(crate) const fn new(db: Arc<Database>, plugins: Registry, events: EventBus) -> Self {
         Self {
             contents: Contents::new(db),
-            plugins,
+            metadata: MetadataSource::new(plugins),
             events,
-        }
-    }
-
-    /// The titles the metadata Provider finds for `query`, best fit first, with the Plugin whose
-    /// Provider found them, which their image paths are for.
-    pub(crate) async fn search_metadata(
-        &self,
-        query: &SearchQuery,
-    ) -> Result<Vec<(PluginId, Candidate)>, ManualError> {
-        let found = self
-            .ask(|metadata| {
-                let query = query.clone();
-                async move { metadata.search(&query).await }
-            })
-            .await;
-        match found {
-            Ok((plugin, candidates)) => Ok(candidates
-                .into_iter()
-                .map(|candidate| (plugin.clone(), candidate))
-                .collect()),
-            Err(Miss::Unmatched(_)) => Ok(Vec::new()),
-            Err(Miss::Undecided) => Err(ManualError::Unavailable),
         }
     }
 
@@ -277,9 +246,10 @@ impl Matcher {
         let outcomes = match named.name.kind() {
             TitleKind::Movie => {
                 let movie = self
-                    .fetch_movie(id)
+                    .metadata
+                    .movie(id)
                     .await
-                    .map_err(|miss| miss.looking_up(id))?;
+                    .map_err(ManualError::looking_up(id))?;
                 named
                     .items
                     .iter()
@@ -290,7 +260,7 @@ impl Matcher {
                 let show = self
                     .fetch_show(id)
                     .await
-                    .map_err(|miss| miss.looking_up(id))?;
+                    .map_err(ManualError::looking_up(id))?;
                 let episodes: Vec<PendingEpisode> = named
                     .items
                     .iter()
@@ -304,33 +274,6 @@ impl Matcher {
         }
         self.pin(item, named, Pin::Title(id.clone()), outcomes)
             .await
-    }
-
-    /// The metadata of the Movie with the id `id`, fetched now.
-    pub(crate) async fn movie(&self, id: &ExternalId) -> Result<Metadata, ManualError> {
-        self.fetch_movie(id)
-            .await
-            .map_err(|miss| miss.looking_up(id))
-    }
-
-    /// The Show with the id `id`, fetched now, and the Plugin whose Provider gave it.
-    pub(crate) async fn show(&self, id: &ExternalId) -> Result<(PluginId, Show), ManualError> {
-        self.fetch_show(id)
-            .await
-            .map(|found| (found.plugin, found.show))
-            .map_err(|miss| miss.looking_up(id))
-    }
-
-    /// The Season `number` of the Show with the id `show`, with its Episodes, fetched now. Fails
-    /// with [`ManualError::NoSuchTitle`] naming the Show if it has no such Season.
-    pub(crate) async fn show_season(
-        &self,
-        show: &ExternalId,
-        number: u32,
-    ) -> Result<Season, ManualError> {
-        self.season(show, number.into())
-            .await
-            .map_err(|miss| miss.looking_up(show))
     }
 
     /// Removes the Match of the item `item` and of every item named like it, and pins them
@@ -430,19 +373,10 @@ impl Matcher {
 
     async fn match_movie(&self, key: &TitleKey) -> Result<Metadata, Miss> {
         let id = self.find(TitleKind::Movie, key).await?;
-        self.fetch_movie(&id)
+        self.metadata
+            .movie(&id)
             .await
-            .map_err(|miss| key.blame_id_hint(miss))
-    }
-
-    async fn fetch_movie(&self, id: &ExternalId) -> Result<Metadata, Miss> {
-        let (plugin, movie) = self
-            .ask(|metadata| {
-                let id = id.clone();
-                async move { metadata.movie(&id).await }
-            })
-            .await?;
-        Ok(Metadata::movie(plugin, movie))
+            .map_err(|err| key.blame_id_hint(err.into()))
     }
 
     async fn match_episodes(&self, key: &TitleKey, episodes: &[PendingEpisode]) -> Outcomes {
@@ -450,7 +384,7 @@ impl Matcher {
             Ok(id) => self
                 .fetch_show(&id)
                 .await
-                .map_err(|miss| key.blame_id_hint(miss)),
+                .map_err(|err| key.blame_id_hint(err.into())),
             Err(miss) => Err(miss),
         };
         match show {
@@ -462,13 +396,8 @@ impl Matcher {
         }
     }
 
-    async fn fetch_show(&self, id: &ExternalId) -> Result<FoundShow, Miss> {
-        let (plugin, show) = self
-            .ask(|metadata| {
-                let id = id.clone();
-                async move { metadata.show(&id).await }
-            })
-            .await?;
+    async fn fetch_show(&self, id: &ExternalId) -> Result<FoundShow, metadata::Error> {
+        let (plugin, show) = self.metadata.show(id).await?;
         // Seasons are fetched by the Show's TMDB id, which an ID Hint from TVDB or IMDb isn't.
         let id = show.ids.tmdb.map_or_else(|| id.clone(), ExternalId::Tmdb);
         Ok(FoundShow { plugin, id, show })
@@ -507,12 +436,7 @@ impl Matcher {
 
     async fn season(&self, show: &ExternalId, number: i64) -> Result<Season, Miss> {
         let number = u32::try_from(number).map_err(|_negative| Miss::Unmatched(None))?;
-        self.ask(|metadata| {
-            let show = show.clone();
-            async move { metadata.season(&show, number).await }
-        })
-        .await
-        .map(|(_, season)| season)
+        Ok(self.metadata.season(show, number).await?)
     }
 
     /// The id of the title `key` names: what an admin pinned, its ID hint, or else the search
@@ -566,43 +490,11 @@ impl Matcher {
         query: &SearchQuery,
         country: Option<&str>,
     ) -> Result<Vec<Candidate>, Miss> {
-        let (_, mut candidates) = self
-            .ask(|metadata| {
-                let query = query.clone();
-                async move { metadata.search(&query).await }
-            })
-            .await?;
+        let (_, mut candidates) = self.metadata.search(query).await?;
         if let Some(country) = country {
             candidates.retain(|candidate| candidate.origin_country.iter().any(|c| c == country));
         }
         Ok(candidates)
-    }
-
-    async fn ask<R, F>(
-        &self,
-        call: impl Fn(Arc<dyn MetadataProvider>) -> F,
-    ) -> Result<(PluginId, R), Miss>
-    where
-        F: Future<Output = Result<R, MetadataError>>,
-    {
-        match self
-            .plugins
-            .call_provider_with_id::<dyn MetadataProvider, _, _>(call)
-            .await
-        {
-            Some((plugin, Ok(answer))) => Ok((plugin, answer)),
-            Some((_, Err(MetadataError::NotFound | MetadataError::UnsupportedId(_)))) => {
-                Err(Miss::Unmatched(None))
-            }
-            Some((plugin, Err(MetadataError::Failed(error)))) => {
-                tracing::warn!(%plugin, %error, "the metadata provider failed; will try again");
-                Err(Miss::Undecided)
-            }
-            None => {
-                tracing::debug!("no metadata provider is enabled; nothing can be Matched");
-                Err(Miss::Undecided)
-            }
-        }
     }
 
     async fn store(
