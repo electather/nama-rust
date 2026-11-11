@@ -33,6 +33,10 @@ service LibraryService {
   // scan to finish. If the Library is already being scanned, one more scan follows it, so
   // changes made since the running scan began are picked up. Fails with `not_found` if there is
   // no such Library.
+  //
+  // To wait for the scan, subscribe to events about the Library first, then call this, then skip
+  // to the next `ScanStarted`: the first `MatchingFinished` and `ProbingFinished` after it cover
+  // this call.
   rpc ScanLibrary(ScanLibraryRequest) returns (ScanLibraryResponse) {
     option idempotency_level = IDEMPOTENT;
   }

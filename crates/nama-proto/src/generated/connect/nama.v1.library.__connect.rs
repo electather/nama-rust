@@ -466,6 +466,10 @@ pub trait LibraryService: Send + Sync + 'static {
     /// changes made since the running scan began are picked up. Fails with `not_found` if there is
     /// no such Library.
     ///
+    /// To wait for the scan, subscribe to events about the Library first, then call this, then skip
+    /// to the next `ScanStarted`: the first `MatchingFinished` and `ProbingFinished` after it cover
+    /// this call.
+    ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
     /// `request` is borrowed from the request body and is valid for the

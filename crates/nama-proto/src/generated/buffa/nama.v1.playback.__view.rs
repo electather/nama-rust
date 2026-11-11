@@ -1744,10 +1744,39 @@ pub struct PlaybackPlanView<'a> {
     /// Field 6: `id`
     pub id: u64,
     /// The Playback Limit it keeps to: the one asked for, or else the Server's default for remote
-    /// playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`.
+    /// playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`, as when it
+    /// can't keep to the one that applies.
     ///
     /// Field 7: `playback_limit`
     pub playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
+    /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
+    /// asked for, or else the one the Version plays by default. Unset when it has no audio or its
+    /// Tracks aren't known.
+    ///
+    /// Field 8: `audio_track`
+    pub audio_track: ::core::option::Option<u32>,
+    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`. Unset
+    /// for none, as when the one asked for can't be burned in.
+    ///
+    /// Field 9: `subtitle_track`
+    pub subtitle_track: ::core::option::Option<u32>,
+    /// The choices a plan for this Version can ever honour on this Server and Device, whatever a
+    /// busy Server or a method that failed on the Device rules out for now: the audio Tracks it can
+    /// play, by their place in the Version's `tracks`, in that order.
+    ///
+    /// Field 10: `audio_tracks`
+    pub audio_tracks: ::buffa::RepeatedView<'a, u32>,
+    /// The subtitle Tracks it can burn into the picture, likewise.
+    ///
+    /// Field 11: `burn_in_tracks`
+    pub burn_in_tracks: ::buffa::RepeatedView<'a, u32>,
+    /// The Playback Limits below Original it can scale the picture down to, largest first.
+    ///
+    /// Field 12: `playback_limits`
+    pub playback_limits: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::PlaybackLimit>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
@@ -1812,6 +1841,20 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.audio_track = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.subtitle_track = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -1861,6 +1904,74 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                         )?,
                     );
             }
+            10u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    ::buffa::types::extend_packed_uint32(
+                        payload,
+                        view.audio_tracks.as_mut_vec(),
+                        ::buffa::encoding::count_varints(payload),
+                    )?;
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.audio_tracks.push(::buffa::types::decode_uint32(&mut cur)?);
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            11u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    ::buffa::types::extend_packed_uint32(
+                        payload,
+                        view.burn_in_tracks.as_mut_vec(),
+                        ::buffa::encoding::count_varints(payload),
+                    )?;
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.burn_in_tracks.push(::buffa::types::decode_uint32(&mut cur)?);
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            12u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.playback_limits
+                        .reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.playback_limits
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.playback_limits
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -1898,6 +2009,11 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             id: self.id,
             playback_limit: self.playback_limit,
+            audio_track: self.audio_track,
+            subtitle_track: self.subtitle_track,
+            audio_tracks: self.audio_tracks.to_vec(),
+            burn_in_tracks: self.burn_in_tracks.to_vec(),
+            playback_limits: self.playback_limits.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1945,6 +2061,36 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
             if val != 0 {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
+        }
+        if let Some(v) = self.audio_track {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.subtitle_track {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        if !self.audio_tracks.is_empty() {
+            let payload: u64 = self
+                .audio_tracks
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.burn_in_tracks.is_empty() {
+            let payload: u64 = self
+                .burn_in_tracks
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.playback_limits.is_empty() {
+            let payload: u64 = self
+                .playback_limits
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -1994,6 +2140,45 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
                 ::buffa::types::put_int32_field(7u32, val, buf);
             }
         }
+        if let Some(v) = self.audio_track {
+            ::buffa::types::put_uint32_field(8u32, v, buf);
+        }
+        if let Some(v) = self.subtitle_track {
+            ::buffa::types::put_uint32_field(9u32, v, buf);
+        }
+        if !self.audio_tracks.is_empty() {
+            let payload: u64 = self
+                .audio_tracks
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(10u32, payload, buf);
+            for &v in &self.audio_tracks {
+                ::buffa::types::encode_uint32(v, buf);
+            }
+        }
+        if !self.burn_in_tracks.is_empty() {
+            let payload: u64 = self
+                .burn_in_tracks
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(11u32, payload, buf);
+            for &v in &self.burn_in_tracks {
+                ::buffa::types::encode_uint32(v, buf);
+            }
+        }
+        if !self.playback_limits.is_empty() {
+            let payload: u64 = self
+                .playback_limits
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(12u32, payload, buf);
+            for v in &self.playback_limits {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -2035,6 +2220,38 @@ impl<'__a> ::serde::Serialize for PlaybackPlanView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.playback_limit) {
             __map.serialize_entry("playbackLimit", &self.playback_limit)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.audio_track {
+            __map
+                .serialize_entry("audioTrack", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.subtitle_track {
+            __map
+                .serialize_entry(
+                    "subtitleTrack",
+                    &::buffa::json_helpers::ProtoJson(&__v),
+                )?;
+        }
+        if !self.audio_tracks.is_empty() {
+            __map
+                .serialize_entry(
+                    "audioTracks",
+                    &::buffa::json_helpers::RepeatedJson(&self.audio_tracks),
+                )?;
+        }
+        if !self.burn_in_tracks.is_empty() {
+            __map
+                .serialize_entry(
+                    "burnInTracks",
+                    &::buffa::json_helpers::RepeatedJson(&self.burn_in_tracks),
+                )?;
+        }
+        if !self.playback_limits.is_empty() {
+            __map
+                .serialize_entry(
+                    "playbackLimits",
+                    &::buffa::json_helpers::EnumSeqJson(&self.playback_limits),
+                )?;
         }
         __map.end()
     }
@@ -2180,12 +2397,55 @@ impl PlaybackPlanOwnedView {
         self.0.reborrow().id
     }
     /// The Playback Limit it keeps to: the one asked for, or else the Server's default for remote
-    /// playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`.
+    /// playback on a Device outside the local network, or else `PLAYBACK_LIMIT_ORIGINAL`, as when it
+    /// can't keep to the one that applies.
     ///
     /// Field 7: `playback_limit`
     #[must_use]
     pub fn playback_limit(&self) -> ::buffa::EnumValue<super::super::PlaybackLimit> {
         self.0.reborrow().playback_limit
+    }
+    /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
+    /// asked for, or else the one the Version plays by default. Unset when it has no audio or its
+    /// Tracks aren't known.
+    ///
+    /// Field 8: `audio_track`
+    #[must_use]
+    pub fn audio_track(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().audio_track
+    }
+    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`. Unset
+    /// for none, as when the one asked for can't be burned in.
+    ///
+    /// Field 9: `subtitle_track`
+    #[must_use]
+    pub fn subtitle_track(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().subtitle_track
+    }
+    /// The choices a plan for this Version can ever honour on this Server and Device, whatever a
+    /// busy Server or a method that failed on the Device rules out for now: the audio Tracks it can
+    /// play, by their place in the Version's `tracks`, in that order.
+    ///
+    /// Field 10: `audio_tracks`
+    #[must_use]
+    pub fn audio_tracks(&self) -> &::buffa::RepeatedView<'_, u32> {
+        &self.0.reborrow().audio_tracks
+    }
+    /// The subtitle Tracks it can burn into the picture, likewise.
+    ///
+    /// Field 11: `burn_in_tracks`
+    #[must_use]
+    pub fn burn_in_tracks(&self) -> &::buffa::RepeatedView<'_, u32> {
+        &self.0.reborrow().burn_in_tracks
+    }
+    /// The Playback Limits below Original it can scale the picture down to, largest first.
+    ///
+    /// Field 12: `playback_limits`
+    #[must_use]
+    pub fn playback_limits(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::PlaybackLimit>> {
+        &self.0.reborrow().playback_limits
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackPlanView<'static>>>
