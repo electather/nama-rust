@@ -1642,6 +1642,88 @@ async fn a_pgs_track_is_read_out_as_sup_once_and_thrown_away_with_its_versions_w
     assert_eq!(fx.cached_subtitles(), Vec::<PathBuf>::new());
 }
 
+/// A Server whose ffmpeg and ffprobe are shell scripts in `bin`: ffprobe reads every file as an
+/// H.264 and AAC MKV with an ASS subtitle, a cover picture and a font, and ffmpeg, which writes
+/// the arguments of each run to `log`, reads the subtitle out as `ASS` and an attachment as `FONT`.
+#[cfg(unix)]
+fn ffmpeg_reading_ass_and_a_font(bin: &Path, log: &Path) -> Ffmpeg {
+    let ffprobe = r#"#!/bin/sh
+cat <<'EOF'
+{"streams": [{"codec_name": "h264", "codec_type": "video"},
+             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}},
+             {"codec_name": "ass", "codec_type": "subtitle"},
+             {"codec_type": "attachment", "tags": {"filename": "cover.jpg", "mimetype": "image/jpeg"}},
+             {"codec_type": "attachment", "tags": {"filename": "vazir.ttf", "mimetype": "font/ttf"}}],
+ "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
+EOF
+"#;
+    // Like ffmpeg, it fails for want of an output file once it has dumped an attachment.
+    let ffmpeg = format!(
+        "#!/bin/sh\necho \"$*\" >> '{}'\ncase \"$*\" in *'-f ass'*) printf ASS ;; \
+         *'-dump_attachment'*) printf FONT; exit 1 ;; esac\n",
+        log.display()
+    );
+    Ffmpeg {
+        ffmpeg: Ok(script(bin, "ffmpeg", &ffmpeg)),
+        ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
+        gpus: vec![],
+    }
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn an_ass_track_is_served_as_ass_with_its_files_fonts_to_a_session_alone() {
+    let bin = tempfile::tempdir().unwrap();
+    let log = bin.path().join("runs.log");
+    let ffmpeg = ffmpeg_reading_ass_and_a_font(bin.path(), &log);
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    fx.write(ALIEN_1080P, b"video");
+    fx.scan_and_match().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let token = Some(fx.server.admin_token.as_str());
+    let plan = fx
+        .ask_for_plan(PlanPlaybackRequest {
+            version_id: version,
+            device_decoding: DeviceDecoding {
+                subtitle_formats: vec![SubtitleFormat::SUBTITLE_FORMAT_ASS.into()],
+                ..chrome()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let [ass] = plan.subtitles.as_slice() else {
+        panic!("not one subtitle: {:?}", plan.subtitles);
+    };
+    assert_eq!(ass.format, SubtitleFormat::SUBTITLE_FORMAT_ASS);
+    assert_eq!(plan.burn_in_tracks, Vec::<u32>::new());
+    let [font] = ass.font_urls.as_slice() else {
+        panic!("not one font: {:?}", ass.font_urls);
+    };
+
+    let styled = fetch(&fx.server, &ass.url, token).await;
+    let first = fetch(&fx.server, font, token).await;
+    let again = fetch(&fx.server, font, token).await;
+
+    assert_eq!((styled.status, styled.body), (200, b"ASS".to_vec()));
+    assert_eq!(first.status, 200);
+    assert_eq!(first.header("x-content-type-options"), "nosniff");
+    assert_eq!(
+        (first.body, again.body),
+        (b"FONT".to_vec(), b"FONT".to_vec())
+    );
+    let runs = fs::read_to_string(&log).unwrap();
+    let dumps: Vec<_> = runs.lines().filter(|run| run.contains("dump")).collect();
+    // The font is the file's second attachment, after the cover.
+    assert_eq!(dumps.len(), 1, "{runs}");
+    assert!(dumps[0].contains("-dump_attachment:t:1 pipe:1"), "{runs}");
+    let beyond = format!("/media/versions/{version}/fonts/1");
+    assert_eq!(fetch(&fx.server, &beyond, token).await.status, 404);
+    assert_eq!(fetch(&fx.server, font, None).await.status, 401);
+}
+
 /// Anyone who may play a Version may fetch its subtitles: anyone with a session.
 #[tokio::test]
 async fn a_subtitle_without_a_session_is_refused() {

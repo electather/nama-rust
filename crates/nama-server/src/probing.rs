@@ -495,14 +495,16 @@ impl Probing {
 mod tests {
     use std::{fs, path::PathBuf, sync::Arc, time::Duration};
 
-    use nama_plugin_api::{PluginId, metadata::ExternalIds};
     use nama_proto::nama::v1::ProbingFinished;
     use tempfile::TempDir;
 
     use super::{Error, PROBES_AT_ONCE, ProbeError, Probing, ffprobe};
     use crate::{
         config::Config,
-        contents::{Change, Contents, Decided, Item, Metadata, Stored},
+        contents::{
+            Change, Contents, Decided, Item, Stored,
+            fixture::{decide, tmdb_movie},
+        },
         db::Database,
         ffmpeg::{self, Ffmpeg},
         libraries::{Kind, Libraries},
@@ -635,30 +637,11 @@ mod tests {
             self.tracks.of(&[file]).await.unwrap().remove(&file.id)
         }
 
-        /// Matches every undecided Item to Alien, which makes its file a Version.
-        async fn match_to_alien(&self) {
-            let alien = Metadata {
-                plugin: PluginId::from_static("tmdb"),
-                ids: ExternalIds {
-                    tmdb: Some(348),
-                    ..ExternalIds::default()
-                },
-                show_ids: ExternalIds::default(),
-                title: "Alien".to_owned(),
-                original_title: None,
-                show_title: None,
-                overview: None,
-                release_date: None,
-                runtime_minutes: None,
-                poster: None,
-                backdrop: None,
-            };
-            let undecided = self.contents.undecided(self.library).await.unwrap();
-            let decided = undecided
-                .into_iter()
-                .map(|(item, _, _)| (item, Decided::Matched(Box::new(alien.clone()))))
-                .collect::<Vec<_>>();
-            self.contents.record(decided).await.unwrap();
+        /// Matches the Item of the file stored at `relative` to Alien, which makes it a Version.
+        async fn match_to_alien(&self, relative: &str) {
+            let path = self.path(relative);
+            let alien = vec![Decided::Matched(Box::new(tmdb_movie(348, "Alien")))];
+            decide(&self.contents, self.library, path.to_str().unwrap(), alien).await;
         }
 
         /// Probes the Version stored at `relative` right away.
@@ -685,7 +668,7 @@ mod tests {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         ffmpeg::write_4k_with_5_1(&path, transfer).unwrap();
         media.store(relative).await;
-        media.match_to_alien().await;
+        media.match_to_alien(relative).await;
     }
 
     #[tokio::test]
@@ -778,7 +761,7 @@ mod tests {
         let media = Fixture::new().await;
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
-        media.match_to_alien().await;
+        media.match_to_alien(alien).await;
 
         let probed = media.current(alien).await;
 
@@ -831,7 +814,7 @@ EOF"#,
         let media = Fixture::with_ffmpeg(ffmpeg).await;
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
-        media.match_to_alien().await;
+        media.match_to_alien(alien).await;
 
         let probe = media.current(alien).await.unwrap();
 
@@ -865,7 +848,7 @@ echo '{"format": {"format_name": "matroska,webm"}, "streams": [{"codec_type": "a
         let media = Fixture::with_ffmpeg(ffmpeg).await;
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
-        media.match_to_alien().await;
+        media.match_to_alien(alien).await;
 
         let probe = media.current(alien).await.unwrap();
 
@@ -975,7 +958,7 @@ echo '{"format": {"format_name": "matroska,webm"}, "streams": [{"codec_type": "a
         let media = Fixture::with_ffmpeg(slow_ffprobe(bin.path(), &runs)).await;
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
-        media.match_to_alien().await;
+        media.match_to_alien(alien).await;
         // Holds the background pass back until `current` has claimed the file.
         let busy = media
             .probing
@@ -1049,7 +1032,7 @@ echo '{"format": {"format_name": "matroska,webm", "duration": "1.000000"}}'"#,
         let media = Fixture::with_ffmpeg(slow_ffprobe(bin.path(), &runs)).await;
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
-        media.match_to_alien().await;
+        media.match_to_alien(alien).await;
         media.probing.files_changed(media.library, |_| {});
         wait_for_probe(&runs).await;
 
@@ -1073,7 +1056,7 @@ echo '{"format": {"format_name": "matroska,webm", "duration": "1.000000"}}'"#,
         let media = Fixture::with_ffmpeg(ffmpeg).await;
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
-        media.match_to_alien().await;
+        media.match_to_alien(alien).await;
         media.probing.files_changed(media.library, |_| {});
         wait_for_probe(&runs).await;
 
@@ -1096,7 +1079,7 @@ echo '{"format": {"format_name": "matroska,webm", "duration": "1.000000"}}'"#,
         let media = Fixture::with_ffmpeg(slow_ffprobe(bin.path(), &runs)).await;
         let alien = "Alien (1979)/Alien (1979).mkv";
         media.write(alien, 10).await;
-        media.match_to_alien().await;
+        media.match_to_alien(alien).await;
         // The background pass is busy with other files.
         let busy = (media.probing.inner.running)
             .acquire_many(u32::try_from(PROBES_AT_ONCE).unwrap())
@@ -1492,7 +1475,7 @@ echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}}}'"
         /// Writes `size` bytes to the file at `relative`, stores it as a Version, and probes it.
         async fn write_probed(&self, relative: &str, size: usize) {
             self.write(relative, size).await;
-            self.match_to_alien().await;
+            self.match_to_alien(relative).await;
             self.current(relative).await.unwrap();
         }
 
@@ -1549,7 +1532,7 @@ echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}}}'"
 
         // Stored as a scan would, but not probed again, so its Tracks were read from the old file.
         media.write(alien, 20).await;
-        media.match_to_alien().await;
+        media.match_to_alien(alien).await;
 
         assert_eq!(media.keyframes(alien).await, [0, 20_000]);
         assert_eq!(probe_runs(bin.path()), 2);
@@ -1573,7 +1556,7 @@ echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}}}'"
             .set_modified(touched)
             .unwrap();
         media.store(alien).await;
-        media.match_to_alien().await;
+        media.match_to_alien(alien).await;
         media.keyframes(alien).await;
 
         assert_eq!(probe_runs(bin.path()), 2);

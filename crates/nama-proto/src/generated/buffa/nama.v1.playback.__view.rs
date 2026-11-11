@@ -511,9 +511,10 @@ pub struct PlanPlaybackRequestView<'a> {
     /// Field 3: `audio_track`
     pub audio_track: ::core::option::Option<u32>,
     /// The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
-    /// as PGS on a Device that doesn't list it, or an ASS or SSA one with its styling, which makes the
-    /// plan a Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as
-    /// when the player shows a subtitle from `PlaybackPlan.subtitles` itself.
+    /// as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
+    /// styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
+    /// from 0. Unset for none, as when the player shows a subtitle from `PlaybackPlan.subtitles`
+    /// itself.
     ///
     /// Field 4: `subtitle_track`
     pub subtitle_track: ::core::option::Option<u32>,
@@ -972,9 +973,10 @@ impl PlanPlaybackRequestOwnedView {
         self.0.reborrow().audio_track
     }
     /// The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
-    /// as PGS on a Device that doesn't list it, or an ASS or SSA one with its styling, which makes the
-    /// plan a Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as
-    /// when the player shows a subtitle from `PlaybackPlan.subtitles` itself.
+    /// as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
+    /// styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
+    /// from 0. Unset for none, as when the player shows a subtitle from `PlaybackPlan.subtitles`
+    /// itself.
     ///
     /// Field 4: `subtitle_track`
     #[must_use]
@@ -2028,8 +2030,8 @@ pub struct PlaybackPlanView<'a> {
     ///
     /// Field 10: `audio_tracks`
     pub audio_tracks: ::buffa::RepeatedView<'a, u32>,
-    /// The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, and
-    /// ASS or SSA ones, whose styling their WebVTT among `subtitles` drops.
+    /// The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, such
+    /// as ASS or SSA ones it doesn't draw, whose styling their WebVTT among `subtitles` drops.
     ///
     /// Field 11: `burn_in_tracks`
     pub burn_in_tracks: ::buffa::RepeatedView<'a, u32>,
@@ -2724,8 +2726,8 @@ impl PlaybackPlanOwnedView {
     pub fn audio_tracks(&self) -> &::buffa::RepeatedView<'_, u32> {
         &self.0.reborrow().audio_tracks
     }
-    /// The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, and
-    /// ASS or SSA ones, whose styling their WebVTT among `subtitles` drops.
+    /// The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, such
+    /// as ASS or SSA ones it doesn't draw, whose styling their WebVTT among `subtitles` drops.
     ///
     /// Field 11: `burn_in_tracks`
     #[must_use]
@@ -2788,6 +2790,11 @@ pub struct PlaybackSubtitleView<'a> {
     ///
     /// Field 3: `format`
     pub format: ::buffa::EnumValue<super::super::SubtitleFormat>,
+    /// Where to fetch the fonts its file carries, on this Server, for an ASS one to be drawn with.
+    /// Empty for any other format.
+    ///
+    /// Field 4: `font_urls`
+    pub font_urls: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackSubtitleView<'a> {
@@ -2857,6 +2864,17 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSubtitleView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.font_urls.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2890,6 +2908,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackSubtitleView<'a> {
             },
             url: self.url.to_string(),
             format: self.format,
+            font_urls: self.font_urls.iter().map(|s| s.to_string()).collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2918,6 +2937,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSubtitleView<'a> {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        for v in &self.font_urls {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2945,6 +2967,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackSubtitleView<'a> {
             if val != 0 {
                 ::buffa::types::put_int32_field(3u32, val, buf);
             }
+        }
+        for v in &self.font_urls {
+            ::buffa::types::put_string_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2977,6 +3002,9 @@ impl<'__a> ::serde::Serialize for PlaybackSubtitleView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.format) {
             __map.serialize_entry("format", &self.format)?;
+        }
+        if !self.font_urls.is_empty() {
+            __map.serialize_entry("fontUrls", &*self.font_urls)?;
         }
         __map.end()
     }
@@ -3094,6 +3122,14 @@ impl PlaybackSubtitleOwnedView {
     #[must_use]
     pub fn format(&self) -> ::buffa::EnumValue<super::super::SubtitleFormat> {
         self.0.reborrow().format
+    }
+    /// Where to fetch the fonts its file carries, on this Server, for an ASS one to be drawn with.
+    /// Empty for any other format.
+    ///
+    /// Field 4: `font_urls`
+    #[must_use]
+    pub fn font_urls(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().font_urls
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackSubtitleView<'static>>>

@@ -185,6 +185,8 @@ pub enum SubtitleFormat {
     SUBTITLE_FORMAT_WEBVTT = 1i32,
     /// Blu-ray's image subtitles, as the Track's own `.sup`.
     SUBTITLE_FORMAT_PGS = 2i32,
+    /// ASS or SSA with its styling, as the Track's own `.ass`, drawn with the fonts its file carries.
+    SUBTITLE_FORMAT_ASS = 3i32,
 }
 impl SubtitleFormat {
     ///Idiomatic alias for [`Self::SUBTITLE_FORMAT_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -196,6 +198,9 @@ impl SubtitleFormat {
     ///Idiomatic alias for [`Self::SUBTITLE_FORMAT_PGS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Pgs: Self = Self::SUBTITLE_FORMAT_PGS;
+    ///Idiomatic alias for [`Self::SUBTITLE_FORMAT_ASS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Ass: Self = Self::SUBTITLE_FORMAT_ASS;
 }
 impl ::core::default::Default for SubtitleFormat {
     fn default() -> Self {
@@ -296,6 +301,7 @@ impl ::buffa::Enumeration for SubtitleFormat {
             0i32 => ::core::option::Option::Some(Self::SUBTITLE_FORMAT_UNSPECIFIED),
             1i32 => ::core::option::Option::Some(Self::SUBTITLE_FORMAT_WEBVTT),
             2i32 => ::core::option::Option::Some(Self::SUBTITLE_FORMAT_PGS),
+            3i32 => ::core::option::Option::Some(Self::SUBTITLE_FORMAT_ASS),
             _ => ::core::option::Option::None,
         }
     }
@@ -307,6 +313,7 @@ impl ::buffa::Enumeration for SubtitleFormat {
             Self::SUBTITLE_FORMAT_UNSPECIFIED => "SUBTITLE_FORMAT_UNSPECIFIED",
             Self::SUBTITLE_FORMAT_WEBVTT => "SUBTITLE_FORMAT_WEBVTT",
             Self::SUBTITLE_FORMAT_PGS => "SUBTITLE_FORMAT_PGS",
+            Self::SUBTITLE_FORMAT_ASS => "SUBTITLE_FORMAT_ASS",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -320,6 +327,9 @@ impl ::buffa::Enumeration for SubtitleFormat {
             "SUBTITLE_FORMAT_PGS" => {
                 ::core::option::Option::Some(Self::SUBTITLE_FORMAT_PGS)
             }
+            "SUBTITLE_FORMAT_ASS" => {
+                ::core::option::Option::Some(Self::SUBTITLE_FORMAT_ASS)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -328,6 +338,7 @@ impl ::buffa::Enumeration for SubtitleFormat {
             Self::SUBTITLE_FORMAT_UNSPECIFIED,
             Self::SUBTITLE_FORMAT_WEBVTT,
             Self::SUBTITLE_FORMAT_PGS,
+            Self::SUBTITLE_FORMAT_ASS,
         ]
     }
 }
@@ -1084,6 +1095,9 @@ pub enum PlaybackReasonKind {
     PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN = 14i32,
     /// Rules out Direct Play and Remux: the subtitles chosen need Burn-in.
     PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN = 15i32,
+    /// Rules out Direct Play and Remux: the ASS subtitles chosen need Burn-in on a Device that draws
+    /// ASS, because their file carries no fonts to draw them with (ADR 0033).
+    PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS = 31i32,
     /// The rest rule nothing out.
     ///
     /// The plan converts the audio to fewer channels because the Device says it plays fewer.
@@ -1175,6 +1189,9 @@ impl PlaybackReasonKind {
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SubtitlesBurnedIn: Self = Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SubtitlesFileCarriesNoFonts: Self = Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS;
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const DevicePlaysFewerChannels: Self = Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS;
@@ -1385,6 +1402,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN,
                 )
             }
+            31i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS,
+                )
+            }
             16i32 => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
@@ -1510,6 +1532,9 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN => {
                 "PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN"
             }
+            Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS => {
+                "PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS"
+            }
             Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS => {
                 "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS"
             }
@@ -1631,6 +1656,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN,
                 )
             }
+            "PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS,
+                )
+            }
             "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS" => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
@@ -1725,6 +1755,7 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_NOT_FILES_OWN,
             Self::PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN,
             Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN,
+            Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS,
             Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
             Self::PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN,
             Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED,
@@ -2009,9 +2040,10 @@ pub struct PlanPlaybackRequest {
     )]
     pub audio_track: ::core::option::Option<u32>,
     /// The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
-    /// as PGS on a Device that doesn't list it, or an ASS or SSA one with its styling, which makes the
-    /// plan a Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as
-    /// when the player shows a subtitle from `PlaybackPlan.subtitles` itself.
+    /// as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
+    /// styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
+    /// from 0. Unset for none, as when the player shows a subtitle from `PlaybackPlan.subtitles`
+    /// itself.
     ///
     /// Field 4: `subtitle_track`
     #[serde(
@@ -3076,8 +3108,8 @@ pub struct PlaybackPlan {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub audio_tracks: ::buffa::alloc::vec::Vec<u32>,
-    /// The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, and
-    /// ASS or SSA ones, whose styling their WebVTT among `subtitles` drops.
+    /// The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, such
+    /// as ASS or SSA ones it doesn't draw, whose styling their WebVTT among `subtitles` drops.
     ///
     /// Field 11: `burn_in_tracks`
     #[serde(
@@ -3626,6 +3658,17 @@ pub struct PlaybackSubtitle {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub format: ::buffa::EnumValue<SubtitleFormat>,
+    /// Where to fetch the fonts its file carries, on this Server, for an ASS one to be drawn with.
+    /// Empty for any other format.
+    ///
+    /// Field 4: `font_urls`
+    #[serde(
+        rename = "fontUrls",
+        alias = "font_urls",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub font_urls: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3636,6 +3679,7 @@ impl ::core::fmt::Debug for PlaybackSubtitle {
             .field("track", &self.track)
             .field("url", &self.url)
             .field("format", &self.format)
+            .field("font_urls", &self.font_urls)
             .finish()
     }
 }
@@ -3683,6 +3727,9 @@ impl ::buffa::Message for PlaybackSubtitle {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        for v in &self.font_urls {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3709,6 +3756,9 @@ impl ::buffa::Message for PlaybackSubtitle {
             if val != 0 {
                 ::buffa::types::put_int32_field(3u32, val, buf);
             }
+        }
+        for v in &self.font_urls {
+            ::buffa::types::put_string_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3750,6 +3800,17 @@ impl ::buffa::Message for PlaybackSubtitle {
                     ::buffa::types::decode_int32(buf)?,
                 );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.font_urls.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3761,6 +3822,7 @@ impl ::buffa::Message for PlaybackSubtitle {
         self.track = ::buffa::MessageField::none();
         self.url.clear();
         self.format = ::buffa::EnumValue::from(0);
+        self.font_urls.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

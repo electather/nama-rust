@@ -114,7 +114,7 @@ function VideoPlayer({
       >
         <SubtitleTracks subtitles={plan.subtitles} />
       </video>
-      {/* Over libbitsub's subtitle canvas (z-10). Any key shows them, so focus rings show too. */}
+      {/* Over drawn subtitles' canvas (libbitsub's is z-10). Any key shows them, so focus rings do. */}
       <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
         {topBar}
         <BottomBar video={video} playerRef={playerRef}>
