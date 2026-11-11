@@ -2838,7 +2838,6 @@ mod tests {
         }
     }
 
-    // An Admin may have picked the integrated GPU to keep the dedicated one free.
     #[cfg(unix)]
     #[test]
     fn a_picked_gpu_missing_at_startup_leaves_transcodes_in_software_though_another_passed() {
