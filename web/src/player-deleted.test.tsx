@@ -14,8 +14,8 @@ afterEach(cleanup);
 
 /**
  * A Server whose Library 1 has The Matrix, Direct Played, until someone `deletes` it. From then on
- * it refuses to plan the Version as the real Server refuses one that's gone, and `tellsTheApp`
- * sends the Event that says so.
+ * it refuses the Movie and its Version as the real Server refuses ones that are gone, and
+ * `tellsTheApp` sends the Event that says so.
  */
 function matrixUntilDeleted() {
   const events = eventFeed();
@@ -40,11 +40,19 @@ function matrixUntilDeleted() {
         },
       });
       router.service(BrowseService, {
-        getMovie: () => ({
-          movie: deleted
-            ? undefined
-            : { title: "The Matrix", versions: [{ id: 7n, fileName: "Matrix.mkv", size: 1n }] },
-        }),
+        getMovie: () => {
+          if (deleted) {
+            throw refused(Code.NotFound, "nothing is matched to that title", {
+              reason: RefusalReason.NOTHING_MATCHED,
+            });
+          }
+          return {
+            movie: {
+              title: "The Matrix",
+              versions: [{ id: 7n, fileName: "Matrix.mkv", size: 1n }],
+            },
+          };
+        },
       });
     },
   );

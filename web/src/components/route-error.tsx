@@ -13,8 +13,6 @@ export function RouteError({ error }: ErrorComponentProps) {
   if (isCode(error, Code.PermissionDenied)) return <NotAllowed />;
   // The router is already rechecking the session, and sends a signed-out visitor to /sign-in.
   if (isCode(error, Code.Unauthenticated)) return null;
-  // Only the player names a Version, so one that's gone was deleted while it played.
-  if (refusalOf(error).reason === RefusalReason.VERSION_NOT_FOUND) return <DeletedWhilePlaying />;
   return (
     <Page heading="Something went wrong">
       <p className="mt-2 text-muted-foreground">
@@ -37,6 +35,14 @@ function NotAllowed() {
       <BackToLibraries />
     </Page>
   );
+}
+
+/** What the player's page shows instead when it fails: a Version gone while it played was deleted. */
+export function PlayerError(props: ErrorComponentProps) {
+  if (refusalOf(props.error).reason === RefusalReason.VERSION_NOT_FOUND) {
+    return <DeletedWhilePlaying />;
+  }
+  return <RouteError {...props} />;
 }
 
 /** What the player shows once what it plays was deleted from the Server. */
