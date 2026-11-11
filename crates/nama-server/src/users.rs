@@ -488,7 +488,7 @@ impl Users {
         .await
     }
 
-    /// Whether `password` is `user`'s, refusing it with [`Error::WrongPassword`] if not.
+    /// Checks that `password` is `user`'s, refusing it with [`Error::WrongPassword`] if not.
     pub(crate) async fn confirm_password(&self, user: &User, password: &str) -> Result<(), Error> {
         // Users are never renamed, so their name still finds them.
         let found = self.user_named(&user.name).await?;

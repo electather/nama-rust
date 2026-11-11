@@ -1,5 +1,6 @@
 //! Sign-in attempts: one place that names the signing-in Device, lets the attempt past the sign-in
-//! limits, checks its proof and has [`Users`] issue the session, in that order.
+//! limits, checks its proof and has [`Users`] issue the session, in that order. Reauthenticating
+//! follows the same order, giving an existing Device Recent Authentication in place of a session.
 
 use std::{net::IpAddr, time::Instant};
 
@@ -30,7 +31,7 @@ pub(crate) enum Error {
     /// Too many attempts failed recently from the client IP or for the name.
     #[error(transparent)]
     Blocked(#[from] Blocked),
-    /// The Device's name, the proof or the database.
+    /// The Device's name, the proof, a Device signed out meanwhile or the database.
     #[error(transparent)]
     Users(#[from] users::Error),
 }
@@ -61,7 +62,8 @@ impl SignIn {
     }
 
     /// Gives `caller`'s Device Recent Authentication if `password` is their User's, as asked from
-    /// `ip` at `now`.
+    /// `ip` at `now`. A Device found signed out once the password checked out is refused with
+    /// [`users::Error::SignedOut`], which is no guess.
     pub(crate) async fn reauthenticate(
         &self,
         caller: &Caller,
@@ -71,6 +73,7 @@ impl SignIn {
     ) -> Result<(), Error> {
         let attempt = self.limits.admit_at(ip, Some(&caller.user.name), now)?;
         self.users.confirm_password(&caller.user, password).await?;
+        // Before recording, so a Device found signed out after the right password isn't a guess.
         self.limits.succeeded(&attempt);
         Ok(self.users.record_authentication(caller.device.id).await?)
     }
