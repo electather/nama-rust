@@ -1159,8 +1159,8 @@ enum Way<'a> {
 
 impl Way<'_> {
     /// Refuses the Season `season` of the Show `show`, which a Library has in full, if this way
-    /// does, else it is skipped.
-    fn in_library(self, show: i64, season: u32) -> Result<(), Error> {
+    /// refuses such a Season rather than skipping it.
+    fn refuse_in_library(self, show: i64, season: u32) -> Result<(), Error> {
         match self {
             Way::Asking { .. } => Err(Error::SeasonInLibrary { show, season }),
             Way::Following { .. } => Ok(()),
@@ -1168,15 +1168,10 @@ impl Way<'_> {
     }
 }
 
-/// Seasons of a Show to ask for, with the Quality their new Requests take as the Show's Quality
-/// rules decide.
+/// Seasons of a Show to ask for, at the Quality the Show's Quality rules give their new Requests.
 #[derive(Debug)]
 struct SeasonsToAsk {
-    /// The Seasons, whose own Quality is only the asker's choice.
     show: WantedSeasons,
-    quality: Option<RequestedQuality>,
-    /// Whether the asker chose `quality`, as [`Wanted::quality_chosen`] says.
-    quality_chosen: bool,
 }
 
 impl SeasonsToAsk {
@@ -1188,9 +1183,11 @@ impl SeasonsToAsk {
             .await?
             .for_seasons((show.quality.clone(), show.quality_chosen), show.chosen)?;
         Ok(Self {
-            show,
-            quality,
-            quality_chosen,
+            show: WantedSeasons {
+                quality,
+                quality_chosen,
+                ..show
+            },
         })
     }
 
@@ -1220,7 +1217,7 @@ impl SeasonsToAsk {
                 contents::matched_episodes(conn, self.show.show_tmdb_id, season.number.into())
                     .await?;
             if availability(&season.episodes, &matched, &today) == Some(RequestState::Available) {
-                way.in_library(self.show.show_tmdb_id, season.number)?;
+                way.refuse_in_library(self.show.show_tmdb_id, season.number)?;
                 continue;
             }
             let wanted = self.wanted(season, followed_show.map(|followed| followed.id));
@@ -1247,8 +1244,8 @@ impl SeasonsToAsk {
             release_date: season.air_date.clone(),
             show_ids: self.show.show_ids.clone(),
             followed_show,
-            quality: self.quality.clone(),
-            quality_chosen: self.quality_chosen,
+            quality: self.show.quality.clone(),
+            quality_chosen: self.show.quality_chosen,
         }
     }
 }
@@ -1881,7 +1878,7 @@ async fn follow(
     let id = if let Some(id) = already_open {
         id
     } else {
-        open_followed(conn, &asking.show, asking.quality.as_ref(), state, now).await?
+        open_followed(conn, &asking, state, now).await?
     };
     let joined = sqlx::query!(
         "INSERT INTO followed_show_requesters (followed_show_id, user_id, requested_at) VALUES (?, ?, ?)
@@ -1924,15 +1921,14 @@ async fn follow(
     })
 }
 
-/// Opens a Followed Show of `show` at `quality` in `state`, returning its id.
+/// Opens a Followed Show of `show` at the Quality its Seasons take, in `state`, returning its id.
 async fn open_followed(
     conn: &mut SqliteConnection,
-    show: &WantedSeasons,
-    quality: Option<&RequestedQuality>,
+    SeasonsToAsk { show }: &SeasonsToAsk,
     state: RequestState,
     now: i64,
 ) -> Result<i64, sqlx::Error> {
-    let (quality_id, quality_name, quality_profile_id) = quality_columns(quality);
+    let (quality_id, quality_name, quality_profile_id) = quality_columns(show.quality.as_ref());
     sqlx::query_scalar!(
         "INSERT INTO followed_shows (tmdb_id, title, state, latest_season, created_at, quality_id,
                                      quality_name, quality_profile_id)
