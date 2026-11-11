@@ -386,7 +386,7 @@ pub const PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC: ::connectrpc::Spec = ::connectr
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
 /// `permission_denied` without it. A secret setting's value never leaves the Server. Every call
-/// but `GetPlugin` naming a Plugin the Server refused (see `Plugin.refused_reason`) fails with
+/// but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails with
 /// `REFUSAL_REASON_PLUGIN_REFUSED`.
 ///
 /// # Implementing handlers
@@ -461,8 +461,8 @@ pub trait PluginService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Returns one Plugin with its settings. A refused Plugin comes with its `refused_reason` and no
-    /// settings. Fails with `not_found` for an unknown Plugin.
+    /// Returns one Plugin with its settings. A refused Plugin comes with its summary's
+    /// `refused_reason` and no settings. Fails with `not_found` for an unknown Plugin.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

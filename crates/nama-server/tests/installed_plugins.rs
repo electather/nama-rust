@@ -255,7 +255,7 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
         .await
         .unwrap()
         .into_owned();
-    assert!(!updated.plugin.unwrap().enabled);
+    assert!(!updated.plugin.unwrap().summary.unwrap().enabled);
 
     started
         .client()
@@ -326,10 +326,7 @@ async fn a_plugins_name_and_description_come_from_its_manifest() {
         "Stands in for an Installed Plugin in the Server's tests."
     );
     let got = started.got("test-plugin").await;
-    assert_eq!(
-        (got.name, got.description),
-        (listed.name, listed.description)
-    );
+    assert_eq!(got.summary.into_option(), Some(listed));
 }
 
 #[tokio::test]
@@ -345,7 +342,7 @@ async fn a_plugin_whose_manifest_has_no_name_or_description_still_loads_and_enab
         ("", "")
     );
     let got = started.got("test-plugin").await;
-    assert_eq!((got.name.as_str(), got.description.as_str()), ("", ""));
+    assert_eq!(got.summary.into_option(), Some(listed));
     started
         .client()
         .enable_plugin(enable("test-plugin"))
@@ -381,7 +378,7 @@ async fn a_refused_plugin_is_listed_and_shown_with_why_and_enabling_it_is_refuse
     assert_eq!(refusal.params["pluginId"], "out-of-range.wasm");
     assert_eq!(refusal.params["reason"], listed.refused_reason);
     let got = started.got("out-of-range.wasm").await;
-    assert_eq!(got.refused_reason, listed.refused_reason);
+    assert_eq!(got.summary.as_option(), Some(&listed));
     assert!(got.settings.is_empty(), "{got:?}");
     assert!(!started.listed("out-of-range.wasm").await.unwrap().enabled);
     let update = UpdatePluginSettingsRequest {
@@ -444,7 +441,8 @@ async fn a_plugins_logo_from_its_manifest_comes_through_list_and_get_plugin() {
 
     let listed = started.listed("test-plugin").await.unwrap();
     assert!(listed.logo_svg.starts_with("<svg"), "{listed:?}");
-    assert_eq!(started.got("test-plugin").await.logo_svg, listed.logo_svg);
+    let got = started.got("test-plugin").await;
+    assert_eq!(got.summary.into_option(), Some(listed));
 }
 
 #[tokio::test]
@@ -456,7 +454,8 @@ async fn a_plugin_without_a_logo_loads_without_one() {
     let listed = started.listed("test-plugin").await.unwrap();
     assert_eq!(listed.logo_svg, "", "{listed:?}");
     assert!(listed.refused_reason.is_empty(), "{listed:?}");
-    assert_eq!(started.got("test-plugin").await.logo_svg, "");
+    let got = started.got("test-plugin").await;
+    assert_eq!(got.summary.into_option(), Some(listed));
 }
 
 #[tokio::test]
@@ -473,7 +472,8 @@ async fn a_logo_over_16_kib_or_not_svg_is_dropped_with_a_warning_and_the_plugin_
 
         let listed = started.listed("test-plugin").await.unwrap();
         assert_eq!(listed.logo_svg, "", "{features}");
-        assert_eq!(started.got("test-plugin").await.logo_svg, "", "{features}");
+        let got = started.got("test-plugin").await;
+        assert_eq!(got.summary.into_option(), Some(listed), "{features}");
         log.wait_for(&["test-plugin", "dropped its logo", why], 1)
             .await;
         started

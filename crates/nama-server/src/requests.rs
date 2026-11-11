@@ -37,7 +37,7 @@ use crate::{
     contents::{self, Contents, Metadata},
     db::{BoxFuture, Database, detached, now},
     events::{EventBus, event},
-    matching::{ManualError, Matcher},
+    metadata::{self, MetadataSource},
     plugins::Registry,
     qualities,
     users::User,
@@ -99,7 +99,7 @@ pub(crate) struct Requests {
     db: Arc<Database>,
     contents: Contents,
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
-    matcher: Matcher,
+    metadata: MetadataSource,
     /// Its only way to the Fulfillers, and what publishes the changes its writes make.
     hand_off: HandOff,
     /// The loop [`Requests::start`] spawns to hand off as Fulfillers come up.
@@ -275,19 +275,14 @@ pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
 }
 
 impl Requests {
-    /// The Requests in `db`, looking Movies up through `matcher`, publishing on `events` and
-    /// handing Approved ones to the Fulfillers in `plugins`.
-    pub(crate) fn new(
-        db: Arc<Database>,
-        matcher: Matcher,
-        events: EventBus,
-        plugins: Registry,
-    ) -> Self {
+    /// The Requests in `db`, looking titles up through the metadata Provider and handing Approved
+    /// ones to the Fulfillers in `plugins`, publishing on `events`.
+    pub(crate) fn new(db: Arc<Database>, events: EventBus, plugins: Registry) -> Self {
         Self {
             contents: Contents::new(Arc::clone(&db)),
+            metadata: MetadataSource::new(plugins.clone()),
             hand_off: HandOff::new(Arc::clone(&db), events, plugins),
             db,
-            matcher,
             handing_off: Arc::default(),
             following: Arc::default(),
         }
@@ -520,7 +515,7 @@ impl Requests {
         let (quality, quality_chosen) = self.quality::<Shows>(asker, chosen).await?;
         let id = ExternalId::Tmdb(tmdb_id);
         let (_, show) = self
-            .matcher
+            .metadata
             .show(&id)
             .await
             .map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?;
@@ -535,8 +530,8 @@ impl Requests {
                 return Err(no_such_season());
             }
             let season = self
-                .matcher
-                .show_season(&id, number)
+                .metadata
+                .season(&id, number)
                 .await
                 .map_err(|err| looking_up(err, no_such_season()))?;
             seasons.push(season);
@@ -572,7 +567,7 @@ impl Requests {
         let (quality, quality_chosen) = self.quality::<Shows>(asker, chosen).await?;
         let id = ExternalId::Tmdb(tmdb_id);
         let (_, show) = self
-            .matcher
+            .metadata
             .show(&id)
             .await
             .map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?;
@@ -825,22 +820,16 @@ impl Requests {
             title,
             year: None,
         };
-        let candidates = self
-            .matcher
-            .search_metadata(&query)
-            .await
-            .map_err(|err| match err {
-                ManualError::Database(err) => Error::Database(err),
-                // A search names no item or title, so it fails only when no Provider answers.
-                ManualError::NoSuchItem(_)
-                | ManualError::NoSuchTitle(_)
-                | ManualError::Unavailable => Error::Unavailable,
-            })?;
+        let (plugin, candidates) = match self.metadata.search(&query).await {
+            Ok(found) => found,
+            Err(metadata::Error::NotFound) => return Ok(Vec::new()),
+            Err(metadata::Error::Unavailable) => return Err(Error::Unavailable),
+        };
         // Requests name titles by TMDB id, so a title without one can't be asked for.
         Ok(candidates
             .into_iter()
-            .filter_map(|(plugin, candidate)| match candidate.id {
-                ExternalId::Tmdb(tmdb_id) => Some((tmdb_id, plugin, candidate)),
+            .filter_map(|candidate| match candidate.id {
+                ExternalId::Tmdb(tmdb_id) => Some((tmdb_id, plugin.clone(), candidate)),
                 ExternalId::Imdb(_) | ExternalId::Tvdb(_) => None,
             })
             .collect())
@@ -854,7 +843,7 @@ impl Requests {
         tmdb_id: i64,
     ) -> Result<FoundShow<Show>, Error> {
         let (plugin, show) = self
-            .matcher
+            .metadata
             .show(&ExternalId::Tmdb(tmdb_id))
             .await
             .map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?;
@@ -891,7 +880,7 @@ impl Requests {
         let mut seasons = Vec::with_capacity(show.seasons.len());
         // ponytail: one metadata lookup per Season, one after another.
         for &number in &show.seasons {
-            let season = self.matcher.show_season(&id, number).await;
+            let season = self.metadata.season(&id, number).await;
             seasons.push(season.map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?);
         }
         Ok(seasons)
@@ -914,7 +903,7 @@ impl Requests {
     }
 
     async fn fetch(&self, tmdb_id: i64) -> Result<Metadata, Error> {
-        self.matcher
+        self.metadata
             .movie(&ExternalId::Tmdb(tmdb_id))
             .await
             .map_err(|err| looking_up(err, Error::NoSuchMovie(tmdb_id)))
@@ -1013,12 +1002,10 @@ fn read_page_token(token: &str, state: Option<RequestState>) -> Result<Option<Pl
 }
 
 /// `err` from looking a title up, which is `missing` if the metadata source doesn't have it.
-fn looking_up(err: ManualError, missing: Error) -> Error {
+fn looking_up(err: metadata::Error, missing: Error) -> Error {
     match err {
-        // A look-up names no item, so its only refusal is the title's.
-        ManualError::NoSuchTitle(_) | ManualError::NoSuchItem(_) => missing,
-        ManualError::Unavailable => Error::Unavailable,
-        ManualError::Database(err) => Error::Database(err),
+        metadata::Error::NotFound => missing,
+        metadata::Error::Unavailable => Error::Unavailable,
     }
 }
 
@@ -2810,8 +2797,7 @@ mod tests {
     /// Requests in `db`, handing off to the Fulfillers in `plugins`.
     fn requests_on(db: Arc<Database>, plugins: Registry) -> Requests {
         let events = EventBus::new(Arc::clone(&db), plugins.clone(), ServerUrl::default());
-        let matcher = Matcher::new(Arc::clone(&db), plugins.clone(), events.clone());
-        Requests::new(db, matcher, events, plugins)
+        Requests::new(db, events, plugins)
     }
 
     /// Waits until `asked` has been asked about `references`, sorted, in one batch.
@@ -3222,7 +3208,11 @@ mod tests {
         );
         let scan = scanner.lock(library).await;
         let mut published = subscribe(&requests);
-        let pinning = requests.matcher.clone();
+        let pinning = Matcher::new(
+            Arc::clone(&requests.db),
+            requests.hand_off.plugins.clone(),
+            requests.hand_off.events().clone(),
+        );
 
         leave_once_queued(&requests, async move {
             pinning.set_match(&scan, item, &ExternalId::Tmdb(949)).await
