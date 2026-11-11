@@ -41,7 +41,10 @@ function showServer(
     router.service(RequestService, {
       listRequests: () => ({}),
       searchMovies: () => ({}),
-      searchShows: () => ({ shows: [show] }),
+      searchShows: () => {
+        const { tmdbId, title, year, posterUrl } = show;
+        return { shows: [{ tmdbId, title, year, posterUrl }] };
+      },
       lookUpShow: () => ({ show }),
       createSeasonRequests: ({ seasonNumbers }) => {
         if (seasonNumbers.length === 0) {

@@ -10,6 +10,18 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-11, #689
+
+- `FIELD_NO_DELETE_UNLESS_NAME_RESERVED`, `nama/v1/playback.proto`: `PlaybackPlan.reasons` (4); `nama/v1/event.proto`: `Playback.reasons` (6).
+- A plan's and a playback's reasons are `PlaybackReason`s, each a `PlaybackReasonKind` with its `params`, the Server's English `text` and whether it `decided` the plan (ADR 0034), under the new numbers 13 and 7. The old numbers are reserved, and the names kept for the new fields.
+- A client built before still decodes a plan and a playback, and finds no reasons; once it regenerates it reads each reason's kind and params, or shows its `text` for a kind it doesn't know. No Installed Plugin sees either.
+
+## 2026-11-11, #623
+
+- `FIELD_SAME_TYPE`, `nama/v1/request.proto`: `SearchMoviesResponse.movies` (1) and `SearchShowsResponse.shows` (1).
+- A search now gives a `MovieHit` or a `ShowHit`, which hold only what a search fills; `LookUpMovie` and `LookUpShow` still give a `FoundMovie` and a `FoundShow`. Each hit keeps the numbers its fields had in the message it replaces, so the bytes and the JSON are unchanged.
+- A client built before still decodes a search; once it regenerates it reads a hit as a `MovieHit` or a `ShowHit`. No Installed Plugin sees a search.
+
 ## 2026-11-11, #622
 
 - `FIELD_SAME_ONEOF`, `nama/v1/request.proto`: `Request.movie` (2) and `Request.season` (7).

@@ -12,7 +12,12 @@ import {
 import { StateLabel } from "@/components/state-label";
 import { Button } from "@/components/ui/button";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { type FoundMovie, type Request, RequestService } from "@/gen/nama/v1/request_pb";
+import {
+  type FoundMovie,
+  type MovieHit,
+  type Request,
+  RequestService,
+} from "@/gen/nama/v1/request_pb";
 import { askRefusal } from "@/lib/forms";
 
 /**
@@ -26,7 +31,7 @@ export function FoundMovieState({
   you,
   primary = false,
 }: {
-  movie: FoundMovie;
+  movie: MovieHit | FoundMovie;
   you: bigint | undefined;
   primary?: boolean;
 }) {
@@ -44,7 +49,7 @@ export function FoundMovieState({
 }
 
 /** A link to `movie`'s page in the Library `libraryId`, which has it. */
-function InYourLibrary({ movie, libraryId }: { movie: FoundMovie; libraryId: bigint }) {
+function InYourLibrary({ movie, libraryId }: { movie: MovieHit | FoundMovie; libraryId: bigint }) {
   return (
     <Link
       to="/libraries/$libraryId/movies/$movieId"
@@ -73,7 +78,7 @@ function RequestStateAndQuality({ request }: { request: Request }) {
  * Asks for `movie`, then shows its Request once the Server has it. Opening a Request asks in a
  * dialog which Quality to download it at, when the signed-in User may choose and there's a choice.
  */
-function RequestButton({ movie, primary }: { movie: FoundMovie; primary: boolean }) {
+function RequestButton({ movie, primary }: { movie: MovieHit | FoundMovie; primary: boolean }) {
   const ask = useMutation(RequestService.method.createRequest, useReadBackAsked());
   const picker = useQualityPicker(movie.request === undefined, "movie");
   const whyRefused = (error: unknown) =>

@@ -17,15 +17,12 @@ use nama_proto::nama::v1::{
 
 use crate::{
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
+    playback::{accel_to_proto, limit_to_proto},
     server_settings::{self, HardwareChoice, Invalid, PickedGpu, PlaybackChange, PlaybackValues},
     users::Users,
 };
 
-use super::{
-    database_failed,
-    playback::{limit_from_proto, limit_to_proto},
-    refuse,
-};
+use super::{database_failed, playback::limit_from_proto, refuse};
 
 /// `nama.v1.ServerService`: facts about this Server, its settings, and the ffmpeg it found.
 pub(super) struct ServerServiceHandler {
@@ -257,17 +254,6 @@ const fn hardware_choice_to_proto(choice: &HardwareChoice) -> HardwareAccelerati
         HardwareChoice::Automatic => HardwareAccelerationProto::HARDWARE_ACCELERATION_UNSPECIFIED,
         HardwareChoice::Off => HardwareAccelerationProto::HARDWARE_ACCELERATION_OFF,
         HardwareChoice::Api(accel, _) => accel_to_proto(*accel),
-    }
-}
-
-/// `accel` as the API names it.
-const fn accel_to_proto(accel: Accel) -> HardwareAccelerationProto {
-    use HardwareAccelerationProto as P;
-    match accel {
-        Accel::Vaapi => P::HARDWARE_ACCELERATION_VAAPI,
-        Accel::Qsv => P::HARDWARE_ACCELERATION_QSV,
-        Accel::Nvenc => P::HARDWARE_ACCELERATION_NVENC,
-        Accel::VideoToolbox => P::HARDWARE_ACCELERATION_VIDEOTOOLBOX,
     }
 }
 

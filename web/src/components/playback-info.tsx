@@ -58,8 +58,8 @@ export function PlaybackInfo({ plan }: { plan: PlaybackPlan }) {
         >
           <h2 className="font-medium">{methodNames[plan.method]}</h2>
           <ul className="mt-1 text-muted-foreground">
-            {plan.reasons.map((reason) => (
-              <li key={reason}>{reason}</li>
+            {plan.reasons.map(({ text }) => (
+              <li key={text}>{text}</li>
             ))}
           </ul>
           {plan.tracks.length > 0 && <Tracks tracks={plan.tracks} />}

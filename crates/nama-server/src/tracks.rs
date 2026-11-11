@@ -166,6 +166,11 @@ impl Track {
         matches!(self.kind, TrackKind::Subtitle { .. })
             && matches!(self.codec.as_str(), "ass" | "ssa")
     }
+
+    /// Whether it's a PGS subtitle, Blu-ray's image ones.
+    pub(crate) fn is_pgs_subtitle(&self) -> bool {
+        matches!(self.kind, TrackKind::Subtitle { .. }) && self.codec == "hdmv_pgs_subtitle"
+    }
 }
 
 /// How a video [`Track`]'s picture is HDR.
@@ -628,7 +633,7 @@ pub(crate) fn track_to_proto(track: &Track) -> proto::Track {
 }
 
 /// `hdr` as a video Track's `hdr` and `dolby_vision`.
-fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVision>) {
+pub(crate) fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVision>) {
     match hdr {
         None => (proto::HdrFormat::HDR_FORMAT_UNSPECIFIED, None),
         Some(Hdr::Hdr10) => (proto::HdrFormat::HDR_FORMAT_HDR10, None),

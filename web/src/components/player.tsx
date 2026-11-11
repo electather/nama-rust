@@ -50,7 +50,9 @@ export interface PlayerProps {
 export function Player(props: PlayerProps) {
   const planned = usePlaybackPlan(props);
   const { plan } = planned;
-  if (plan.url === "") return <CantPlay back={props.back} reasons={plan.reasons} />;
+  if (plan.url === "") {
+    return <CantPlay back={props.back} reasons={plan.reasons.map(({ text }) => text)} />;
+  }
   if (planned.gaveUp) return <CantPlay back={props.back} reasons={[]} />;
   const topBar = (
     <TopBar
@@ -112,8 +114,8 @@ function VideoPlayer({
       >
         <SubtitleTracks subtitles={plan.subtitles} />
       </video>
-      {/* Any key brings the controls back, so a focused control shows its ring when it's used. */}
-      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
+      {/* Over libbitsub's subtitle canvas (z-10). Any key shows them, so focus rings show too. */}
+      <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between transition-opacity duration-500 ease-out-expo group-data-controls-hidden:opacity-0 motion-reduce:transition-none">
         {topBar}
         <BottomBar video={video} playerRef={playerRef}>
           <TrackMenus tracks={tracks} planned={planned} videoRef={videoRef} container={playerRef} />
