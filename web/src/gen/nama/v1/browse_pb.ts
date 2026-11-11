@@ -717,8 +717,7 @@ export type ContinueWatchingEntry = Message<"nama.v1.ContinueWatchingEntry"> & {
   libraryId: bigint;
 
   /**
-   * It, with its Versions and the caller's Watch State, as browsing describes it, and an Episode's
-   * Show.
+   * It, with its Versions and the caller's Watch State, as browsing describes it.
    *
    * @generated from oneof nama.v1.ContinueWatchingEntry.movie_or_episode
    */
@@ -745,7 +744,7 @@ export const ContinueWatchingEntrySchema: GenMessage<ContinueWatchingEntry> = /*
   messageDesc(file_nama_v1_browse, 20);
 
 /**
- * An Episode in Continue Watching, with the Show it is of.
+ * An Episode in Continue Watching, with the Show it is of. The Server sets both.
  *
  * @generated from message nama.v1.ContinueWatchingEpisode
  */
@@ -756,8 +755,6 @@ export type ContinueWatchingEpisode = Message<"nama.v1.ContinueWatchingEpisode">
   episode?: Episode | undefined;
 
   /**
-   * Always set.
-   *
    * @generated from field: nama.v1.Show show = 2;
    */
   show?: Show | undefined;

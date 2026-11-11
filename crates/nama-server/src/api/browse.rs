@@ -229,12 +229,12 @@ fn started_to_proto(started: Started) -> proto::ContinueWatchingEntry {
             episode,
             state,
         } => {
-            let episode = proto::ContinueWatchingEpisode {
+            let started_episode = proto::ContinueWatchingEpisode {
                 episode: episode_to_proto(episode, Some(state)).into(),
                 show: show_to_proto(&show).into(),
                 ..Default::default()
             };
-            (library, episode.into())
+            (library, started_episode.into())
         }
     };
     proto::ContinueWatchingEntry {

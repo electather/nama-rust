@@ -4972,7 +4972,7 @@ pub mod continue_watching_entry {
     #[doc(inline)]
     pub use super::__buffa::view::oneof::continue_watching_entry::MovieOrEpisode as MovieOrEpisodeView;
 }
-/// An Episode in Continue Watching, with the Show it is of.
+/// An Episode in Continue Watching, with the Show it is of. The Server sets both.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -4983,8 +4983,6 @@ pub struct ContinueWatchingEpisode {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub episode: ::buffa::MessageField<Episode, ::buffa::Inline<Episode>>,
-    /// Always set.
-    ///
     /// Field 2: `show`
     #[serde(
         rename = "show",
