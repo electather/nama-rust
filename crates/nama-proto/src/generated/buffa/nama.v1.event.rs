@@ -4975,8 +4975,8 @@ pub const __REQUEST_WITHDRAWN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
     from_json: ::buffa::type_registry::any_from_json::<RequestWithdrawn>,
     is_wkt: false,
 };
-/// What a Processing Request's Fulfiller is downloading for it changed, or the Server couldn't ask
-/// it, which leaves it with none.
+/// What a Processing or Partially Available Request's Fulfiller is downloading for it changed, or
+/// the Server couldn't ask it, which leaves it with none.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

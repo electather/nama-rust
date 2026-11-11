@@ -296,9 +296,9 @@ impl Requests {
 
     /// Starts, in the background so a slow Fulfiller doesn't hold up serving, handing each
     /// Approved Request, oldest first, to its Fulfiller whenever a Plugin `came_up` names provides
-    /// one, and asking the Fulfillers how their Processing Requests are progressing, every
-    /// [`PROGRESS_EVERY`] while any is Processing and at once when one becomes Processing. A
-    /// failed hand-off is only logged, and leaves the rest waiting. Call it once.
+    /// one, and asking the Fulfillers how the Requests they have that aren't Available yet are
+    /// progressing, every [`PROGRESS_EVERY`] while there are any and at once when one becomes
+    /// Processing. A failed hand-off is only logged, and leaves the rest waiting. Call it once.
     pub(crate) fn start(&self, came_up: UnboundedReceiver<PluginId>) {
         let handing = self.hand_off.clone();
         let handing_off = tokio::spawn(async move { handing.as_fulfillers_come_up(came_up).await });
@@ -1843,7 +1843,8 @@ async fn show_requests(
 
 /// Moves the Approved Request `id`, asked at the Quality `asked`, on as its Fulfiller, from the
 /// Plugin `plugin`, said: to Processing, keeping its reference and the Quality used, or to Failed,
-/// keeping why. Returns it as it is now, or `None` if it isn't Approved any more.
+/// keeping why. Either way it keeps `plugin`. Returns it as it is now, or `None` if it isn't
+/// Approved any more.
 async fn settle(
     conn: &mut SqliteConnection,
     id: i64,
@@ -1870,13 +1871,16 @@ async fn settle(
     };
     let state = stored(state);
     let (used_id, used_name, used_profile_id) = quality_columns(used.as_ref());
+    let plugin = plugin.as_ref().map(PluginId::as_str);
     let settled = sqlx::query!(
         "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?,
+                             fulfiller_plugin_id = ?,
                              quality_used_id = ?, quality_used_name = ?, quality_used_profile_id = ?
          WHERE id = ? AND state = 'approved'",
         state,
         reference,
         reason,
+        plugin,
         used_id,
         used_name,
         used_profile_id,
@@ -2265,6 +2269,7 @@ async fn load(
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, show_imdb_id,
                   show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id,
+                  fulfiller_plugin_id,
                   quality_id, quality_name, quality_profile_id, quality_changed_from,
                   quality_changed_at, quality_used_id, quality_used_name,
                   quality_used_profile_id,
@@ -2289,6 +2294,7 @@ async fn load(
                 decline_reason: row.decline_reason,
                 failure_reason: row.failure_reason,
                 followed_show_id: row.followed_show_id,
+                fulfiller_plugin_id: row.fulfiller_plugin_id,
                 quality: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
                     .into(),
                 quality_change: row
@@ -2363,8 +2369,9 @@ fn stored_quality(
     })
 }
 
-/// A Processing Request, as [`hand_off::HandOff::poll_progress`] asks its Fulfiller about it.
-struct Processing {
+/// A Request its Fulfiller has that isn't Available yet, Processing or Partially Available, as
+/// [`hand_off::HandOff::poll_progress`] asks its Fulfiller about it.
+struct Fulfilling {
     id: i64,
     /// Whether it asks for a Movie, rather than a Season.
     is_movie: bool,
@@ -2372,13 +2379,14 @@ struct Processing {
     reference: String,
 }
 
-async fn processing(conn: &mut SqliteConnection) -> Result<Vec<Processing>, sqlx::Error> {
+async fn fulfilling(conn: &mut SqliteConnection) -> Result<Vec<Fulfilling>, sqlx::Error> {
     sqlx::query_as!(
-        Processing,
+        Fulfilling,
         r#"SELECT id AS "id!", season IS NULL AS "is_movie!: bool",
                   fulfiller_reference AS "reference!"
            FROM requests
-           WHERE state = 'processing' AND fulfiller_reference IS NOT NULL"#
+           WHERE state IN ('processing', 'partially_available')
+             AND fulfiller_reference IS NOT NULL"#
     )
     .fetch_all(&mut *conn)
     .await
@@ -2579,8 +2587,9 @@ mod tests {
         }
     }
 
-    /// A Movie Fulfiller that takes every Request at once, giving its TMDB id as the reference,
-    /// and keeps each batch of references it is asked about.
+    /// A Fulfiller for Movies and Shows that takes every Request at once, giving a Movie's TMDB id
+    /// or `season-<number>` as the reference, keeps each batch of references it is asked about,
+    /// and says it is downloading [`downloading`] for each.
     #[derive(Default)]
     struct Asked(std::sync::Mutex<Vec<Vec<String>>>);
 
@@ -2589,25 +2598,64 @@ mod tests {
             &'a self,
             request: &'a Request,
         ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-            let reference = request.movie.tmdb_id.to_string();
-            Box::pin(async {
-                Ok(Fulfilled {
-                    reference,
-                    ..Fulfilled::default()
-                })
-            })
+            took(request.movie.tmdb_id.to_string())
         }
 
         fn progress<'a>(
             &'a self,
             references: &'a [String],
         ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
-            self.0.lock().unwrap().push(references.to_vec());
-            Box::pin(async { Ok(HashMap::new()) })
+            self.answer(references)
         }
     }
 
+    impl Fulfiller<Shows> for Asked {
+        fn fulfill<'a>(
+            &'a self,
+            request: &'a Request,
+        ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+            took(format!("season-{}", request.season.season_number))
+        }
+
+        fn progress<'a>(
+            &'a self,
+            references: &'a [String],
+        ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+            self.answer(references)
+        }
+    }
+
+    /// A Fulfiller's answer that it took a Request, with `reference`.
+    fn took(reference: String) -> BoxFuture<'static, Result<Fulfilled, PluginError>> {
+        Box::pin(async {
+            Ok(Fulfilled {
+                reference,
+                ..Fulfilled::default()
+            })
+        })
+    }
+
+    /// What [`Asked`] says it is downloading for `reference`.
+    fn downloading(reference: &str) -> Vec<Download> {
+        vec![Download {
+            title: reference.to_owned(),
+            ..Download::default()
+        }]
+    }
+
     impl Asked {
+        fn answer(
+            &self,
+            references: &[String],
+        ) -> BoxFuture<'static, Result<HashMap<String, Vec<Download>>, PluginError>> {
+            self.0.lock().unwrap().push(references.to_vec());
+            let answered = references
+                .iter()
+                .map(|reference| (reference.clone(), downloading(reference)))
+                .collect();
+            Box::pin(async { Ok(answered) })
+        }
+
         fn batches(&self) -> Vec<Vec<String>> {
             self.0.lock().unwrap().clone()
         }
@@ -2861,6 +2909,61 @@ mod tests {
         follow.abort();
         assert_eq!(nothing_processing, 0);
         assert_eq!(nothing_processing_again, 0);
+    }
+
+    #[tokio::test]
+    async fn a_handed_off_season_gets_progress_while_partially_available_but_not_once_available() {
+        let asked = Arc::new(Asked::default());
+        let (_data, db) = ada_and_bob().await;
+        let plugins = Registry::new();
+        let fulfiller: Arc<dyn Fulfiller<Shows>> = Arc::<Asked>::clone(&asked);
+        plugins
+            .enable(Arc::new(FulfillerPlugin("sonarr", fulfiller)))
+            .unwrap();
+        let requests = requests_on(Arc::clone(&db), plugins);
+        let season_1 = WantedSeasons {
+            seasons: vec![dark_season(1)],
+            ..dark()
+        };
+        let id = db
+            .write(|tx| Box::pin(ask_seasons(tx, ADA, season_1, RequestState::Approved)))
+            .await
+            .unwrap()
+            .value[0]
+            .id;
+        come_up(&requests, "sonarr").await;
+        match_dark_episodes(&db, 1, &[1]).await;
+        scan_dark(&db, &[1]).await;
+        let mut events = Box::pin(requests.hand_off.events().subscribe(Filter::default()));
+
+        let any = requests.hand_off.poll_progress().await.unwrap();
+        let Happened::RequestProgress(progress) = next_happened(&mut events).await else {
+            panic!("its progress was not published");
+        };
+        let partly = requests.get(&ada(Permissions::ADMIN), id).await.unwrap();
+        match_dark_episodes(&db, 1, &[2]).await;
+        scan_dark(&db, &[1]).await;
+        let batches = asked.batches().len();
+        let any_once_available = requests.hand_off.poll_progress().await.unwrap();
+        // `poll_progress` publishes before it returns, so anything it published is waiting here.
+        let published_once_available =
+            tokio::time::timeout(Duration::from_millis(100), events.next()).await;
+        let available = requests.get(&ada(Permissions::ADMIN), id).await.unwrap();
+
+        assert!(any);
+        assert_eq!(asked.last_asked_about(), ["season-1"]);
+        let published = progress.request.into_option().unwrap();
+        assert_eq!(
+            (published.id, published.state),
+            (id, RequestState::PartiallyAvailable.into())
+        );
+        assert_eq!(published.downloads, downloading("season-1"));
+        assert_eq!(partly.downloads, downloading("season-1"));
+        assert!(!any_once_available);
+        assert_eq!(asked.batches().len(), batches);
+        assert_eq!(published_once_available.ok(), None);
+        assert_eq!(available.state, RequestState::Available);
+        assert_eq!(available.downloads, []);
     }
 
     #[tokio::test]
@@ -3537,6 +3640,25 @@ mod tests {
         assert_eq!(handed_off(&failed), NOTHING);
         assert!(again.value.is_none());
         assert_eq!(again.events.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn settling_a_request_names_the_plugin_whose_fulfiller_failed_it() {
+        let (_data, db) = ada_and_bob().await;
+        let id = ask_for(&db, ADA, 949, RequestState::Approved)
+            .await
+            .value
+            .id;
+        let radarr = Some(PluginId::from_static("radarr"));
+
+        let failed = db
+            .write(move |tx| Box::pin(settle(tx, id, Err("no space".to_owned()), None, radarr)))
+            .await
+            .unwrap()
+            .value
+            .unwrap();
+
+        assert_eq!(failed.fulfiller_plugin_id.as_deref(), Some("radarr"));
     }
 
     #[tokio::test]

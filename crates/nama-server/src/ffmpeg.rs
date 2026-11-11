@@ -197,6 +197,15 @@ impl Ffmpeg {
             .contains(&"zscale".to_owned()))
     }
 
+    /// Whether ffmpeg has the libx264 encoder, which [`Self::transcode`] encodes with in software
+    /// and a system ffmpeg may lack (ADR 0026), or why ffmpeg couldn't say.
+    pub(crate) async fn has_libx264(&self) -> Result<bool, String> {
+        Ok(self
+            .listed("-encoders")
+            .await?
+            .contains(&"libx264".to_owned()))
+    }
+
     /// The names `ffmpeg -hide_banner <list>` lists, such as its filters for `-filters`, or why it
     /// couldn't say. Empty without ffmpeg.
     async fn listed(&self, list: &str) -> Result<Vec<String>, String> {
@@ -603,9 +612,9 @@ fn transcoded_video(
                 .map(str::to_owned)
                 .into();
         }
-        // ponytail: assumes ffmpeg has libass, as it does libx264 (#446). Each run reads the
-        // whole file for the subtitle first, attached fonts and all; read it once into the
-        // subtitle cache instead if seeking in a styled subtitle's Transcode is too slow.
+        // ponytail: assumes ffmpeg has libass. Each run reads the whole file for the subtitle
+        // first, attached fonts and all; read it once into the subtitle cache instead if seeking
+        // in a styled subtitle's Transcode is too slow.
         Some(BurnIn::Text { subtitle }) => Some(format!(
             "subtitles=filename={}:si={subtitle}",
             filter_value(path)
@@ -698,7 +707,6 @@ struct VideoArgs {
 fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
     let size = video.limit.and_then(|limit| limit.size);
     let mut codec = match video.hardware {
-        // ponytail: assumes the Server's ffmpeg has libx264; check it as ADR 0026 says (#446).
         None => ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"]
             .into_iter()
             // Keyframes only where forced, so each cut starts a file and nothing else does.
@@ -1508,6 +1516,30 @@ mod tests {
         let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
         assert_eq!(echo.has_zscale().await, Ok(false));
         assert_eq!(Ffmpeg::default().has_zscale().await, Ok(false));
+    }
+
+    #[tokio::test]
+    #[expect(
+        clippy::await_holding_lock,
+        reason = "the fakes' lock is held while ffmpeg runs, which forks; a test waits on no other"
+    )]
+    async fn only_ffmpeg_listing_libx264_among_its_encoders_has_it() {
+        let bin = tempfile::tempdir().unwrap();
+        let with = fake_ffmpeg(
+            bin.path(),
+            "*-encoders*) echo ' V....D libx264  libx264 H.264 / AVC (codec h264)' ;;",
+        );
+        let without_dir = tempfile::tempdir().unwrap();
+        // As Fedora's ffmpeg-free lists it.
+        let without = fake_ffmpeg(
+            without_dir.path(),
+            "*-encoders*) echo ' V....D libopenh264  OpenH264 H.264 / AVC (codec h264)' ;;",
+        );
+
+        let _running = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
+        assert_eq!(with.has_libx264().await, Ok(true));
+        assert_eq!(without.has_libx264().await, Ok(false));
+        assert_eq!(Ffmpeg::default().has_libx264().await, Ok(false));
     }
 
     /// Writes a fake ffmpeg into `dir` that runs `script`, a shell `case` over its arguments, and

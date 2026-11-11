@@ -674,8 +674,8 @@ export const RequestWithdrawnSchema: GenMessage<RequestWithdrawn> = /*@__PURE__*
   messageDesc(file_nama_v1_event, 17);
 
 /**
- * What a Processing Request's Fulfiller is downloading for it changed, or the Server couldn't ask
- * it, which leaves it with none.
+ * What a Processing or Partially Available Request's Fulfiller is downloading for it changed, or
+ * the Server couldn't ask it, which leaves it with none.
  *
  * @generated from message nama.v1.RequestProgress
  */
