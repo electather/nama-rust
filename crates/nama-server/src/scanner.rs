@@ -827,7 +827,7 @@ mod tests {
             media.write(&format!("Movie {n} (2000)/Movie {n} (2000).mkv"), 10);
         }
         // Never read while the scan runs.
-        let mut slow = Box::pin(media.events.subscribe(Filter::default()));
+        let mut slow = Box::pin(media.events.subscribe_as_admin(Filter::default()));
 
         let scanned =
             tokio::time::timeout(Duration::from_secs(5), media.scanner.scan(media.library)).await;

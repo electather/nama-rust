@@ -16,15 +16,16 @@ use nama_plugin_api::{
     points,
 };
 use nama_proto::nama::v1::{
-    Event, EventType, FollowedShow, Lagged, Permission, Request, RequestState, Requester,
-    SubscribeResponse, event, subscribe_response,
+    Event, EventType, FollowedShow, Lagged, Permission, Request, RequestState, SubscribeResponse,
+    event, subscribe_response,
 };
 use tokio::sync::broadcast::{self, error::RecvError};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 use crate::{
-    connections, db::Database, plugins::Registry, requests, server_settings::ServerUrl, users::User,
+    connections, db::Database, playback, plugins::Registry, requests, server_settings::ServerUrl,
+    users::User,
 };
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
@@ -50,17 +51,26 @@ pub(crate) struct EventBus {
     closed: CancellationToken,
 }
 
+/// What a subscriber asked to narrow their events to. It only narrows what their [`Viewer`] sees.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Filter {
     /// Only these types; empty means every type.
     pub(crate) types: Vec<EventType>,
     /// Only about these Libraries; empty means every Library, and events about none.
     pub(crate) libraries: Vec<i64>,
+}
+
+/// Which events a subscriber may see, and what of them, from their Permissions. Only this module
+/// decides that (see the crate's `AGENTS.md`, "One owner for who sees an Event").
+#[derive(Debug)]
+struct Viewer {
     /// Only Request and Followed Show events about those this User is a Requester of; `None` means
     /// every one's.
-    pub(crate) requester: Option<i64>,
+    requester: Option<i64>,
     /// Only playback events about this User's playing; `None` means every User's.
-    pub(crate) player: Option<i64>,
+    player: Option<i64>,
+    /// Whether they see where a Library's files are on the Server.
+    sees_paths: bool,
 }
 
 /// What an event is about.
@@ -138,22 +148,46 @@ impl EventBus {
             });
     }
 
-    /// The events published from now on that `filter` lets through, with a `Lagged` wherever the
-    /// subscriber fell too far behind. Ends when the bus is closed.
+    /// The events published from now on that `user` may see and `filter` lets through, as `user`
+    /// may see them, with a `Lagged` wherever the subscriber fell too far behind. Ends when the bus
+    /// is closed.
     pub(crate) fn subscribe(
         &self,
+        user: &User,
         filter: Filter,
-    ) -> impl Stream<Item = SubscribeResponse> + Send + 'static {
+    ) -> impl Stream<Item = SubscribeResponse> + Send + use<> {
         let receiver = self.sender.subscribe();
-        stream::unfold((receiver, filter), |(mut receiver, filter)| async move {
-            let message = next_message(&mut receiver, &filter).await?;
-            let response = SubscribeResponse {
-                message: Some(message),
-                ..Default::default()
-            };
-            Some((response, (receiver, filter)))
-        })
+        // ponytail: Permissions as the stream opened, like any request's, so one who loses
+        // `VIEW_REQUESTS` sees everyone's Request events until they resubscribe. End streams on a
+        // Permission change if that matters.
+        let viewer = Viewer::of(user);
+        stream::unfold(
+            (receiver, viewer, filter),
+            |(mut receiver, viewer, filter)| async move {
+                let message = next_message(&mut receiver, &viewer, &filter).await?;
+                let response = SubscribeResponse {
+                    message: Some(message),
+                    ..Default::default()
+                };
+                Some((response, (receiver, viewer, filter)))
+            },
+        )
         .take_until(self.closed.clone().cancelled_owned())
+    }
+
+    /// [`Self::subscribe`] as an Admin, who sees every event whole.
+    #[cfg(test)]
+    pub(crate) fn subscribe_as_admin(
+        &self,
+        filter: Filter,
+    ) -> impl Stream<Item = SubscribeResponse> + Send + use<> {
+        let admin = User {
+            id: 0,
+            name: "Admin".to_owned(),
+            permissions: crate::users::Permissions::ADMIN,
+            created_at: 0,
+        };
+        self.subscribe(&admin, filter)
     }
 
     /// Ends every subscription, as the Server shuts down, so none holds up the shutdown.
@@ -167,34 +201,31 @@ impl Filter {
         let Some((kind, about)) = classify(event) else {
             return false;
         };
-        let wanted = match about {
-            About::Library(library) => {
-                self.libraries.is_empty() || self.libraries.contains(&library)
-            }
-            About::Request(request) => self.lets_through_requesters(&request.requesters),
-            About::FollowedShow(followed) => self.lets_through_requesters(&followed.requesters),
-            About::Player(user) => {
-                self.libraries.is_empty() && self.player.is_none_or(|player| player == user)
-            }
+        let library = match about {
+            About::Library(library) => Some(library),
+            About::Request(_) | About::FollowedShow(_) | About::Player(_) => None,
         };
-        (self.types.is_empty() || self.types.contains(&kind)) && wanted
-    }
-
-    /// Whether an event about something with `requesters`, and no Library, gets through.
-    fn lets_through_requesters(&self, requesters: &[Requester]) -> bool {
-        self.libraries.is_empty() && requests::may_see(self.requester, requesters)
+        (self.types.is_empty() || self.types.contains(&kind))
+            && (self.libraries.is_empty()
+                || library.is_some_and(|library| self.libraries.contains(&library)))
     }
 }
 
-/// The next event from `receiver` that `filter` lets through, or a `Lagged` if events were
-/// dropped first. `None` once nothing more can be published.
+/// The next event from `receiver` that `viewer` may see and `filter` lets through, as `viewer`
+/// may see it, or a `Lagged` if events were dropped first. `None` once nothing more can be
+/// published.
 async fn next_message(
     receiver: &mut broadcast::Receiver<Event>,
+    viewer: &Viewer,
     filter: &Filter,
 ) -> Option<subscribe_response::Message> {
     loop {
         match receiver.recv().await {
-            Ok(event) if filter.lets_through(&event) => return Some(event.into()),
+            Ok(event) if filter.lets_through(&event) => {
+                if let Some(seen) = viewer.sees(event) {
+                    return Some(seen.into());
+                }
+            }
             Ok(_) => {}
             Err(RecvError::Lagged(dropped)) => {
                 let lagged = Lagged {
@@ -376,6 +407,40 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
     })
 }
 
+impl Viewer {
+    fn of(user: &User) -> Self {
+        Self {
+            requester: requests::visible_to(user),
+            player: playback::visible_to(user),
+            sees_paths: user.permissions.allow(Permission::ManageLibraries),
+        }
+    }
+
+    /// `event` as this viewer may see it, or `None` if they may not see it at all. A Library event
+    /// reaches everyone, as `ListLibraries` lists every Library, but with the path of a file left
+    /// out for those who may not see `folders` there.
+    fn sees(&self, mut event: Event) -> Option<Event> {
+        let (_, about) = classify(&event)?;
+        let visible = match about {
+            About::Library(_) => true,
+            About::Request(request) => requests::may_see(self.requester, &request.requesters),
+            About::FollowedShow(followed) => {
+                requests::may_see(self.requester, &followed.requesters)
+            }
+            About::Player(user) => self.player.is_none_or(|player| player == user),
+        };
+        if !visible {
+            return None;
+        }
+        if !self.sees_paths
+            && let Some(event::Event::LibraryItemAdded(added)) = &mut event.event
+        {
+            added.path.clear();
+        }
+        Some(event)
+    }
+}
+
 /// The IDs of the Users told about `event`, so every Notifier shares the rules (ADR 0021): a
 /// Request's Requesters when it is approved, declined, Failed, Partially Available or Available,
 /// and each of `users` with `PERMISSION_MANAGE_REQUESTS` about a new Pending Request. Nobody else,
@@ -430,11 +495,12 @@ pub(crate) fn event(happened: impl Into<event::Event>) -> Event {
 #[cfg(test)]
 mod tests {
     use nama_proto::nama::v1::{
-        Event, Permission, Playback, PlaybackStarted, Request, RequestCancelled, RequestCreated,
-        RequestState, RequestStateChanged, Requester, RequesterAdded,
+        Event, FollowedShow, FollowedShowCreated, LibraryItemAdded, Permission, Playback,
+        PlaybackStarted, Request, RequestCancelled, RequestCreated, RequestState,
+        RequestStateChanged, Requester, RequesterAdded,
     };
 
-    use super::{Filter, event, users_to_tell};
+    use super::{Filter, Viewer, event, users_to_tell};
     use crate::users::{Permissions, User};
 
     /// Users 1 and 2 have a new User's Permissions, 3 has `MANAGE_REQUESTS` and 4 has `ADMIN`.
@@ -493,22 +559,85 @@ mod tests {
     }
 
     #[test]
-    fn a_playback_event_reaches_its_player_and_subscribers_who_see_everyones() {
-        let (mine, theirs) = (playback_of(1), playback_of(2));
-        let own = Filter {
-            player: Some(1),
-            ..Default::default()
+    fn each_viewer_gets_the_events_and_paths_their_permissions_let_them_see() {
+        const REQUESTER: i64 = 3;
+        const PLAYER: i64 = 4;
+        let added = |path: &str| {
+            event(LibraryItemAdded {
+                library_id: 1,
+                item_id: 1,
+                path: path.to_owned(),
+                ..Default::default()
+            })
         };
-        let everyones = Filter::default();
+        let (with_path, without_path) = (added("/media/Alien.mkv"), added(""));
+        let requested = created(RequestState::Pending, &[REQUESTER]);
+        let followed = event(FollowedShowCreated {
+            followed_show: FollowedShow {
+                requesters: request(RequestState::Pending, &[REQUESTER]).requesters,
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        });
+        let played = playback_of(PLAYER);
+        let requesting = || std::iter::once(Permission::Request).collect();
+        let user = |id, permissions| User {
+            id,
+            name: format!("User {id}"),
+            permissions,
+            created_at: 0,
+        };
+        // Each viewer, and what they get of `with_path`, `requested`, `followed` and `played`.
+        let table = [
+            (
+                user(1, Permissions::ADMIN),
+                [
+                    Some(&with_path),
+                    Some(&requested),
+                    Some(&followed),
+                    Some(&played),
+                ],
+            ),
+            (
+                user(2, std::iter::once(Permission::ManageLibraries).collect()),
+                [Some(&with_path), None, None, None],
+            ),
+            (
+                user(REQUESTER, requesting()),
+                [Some(&without_path), Some(&requested), Some(&followed), None],
+            ),
+            (
+                user(PLAYER, requesting()),
+                [Some(&without_path), None, None, Some(&played)],
+            ),
+            (
+                user(5, requesting()),
+                [Some(&without_path), None, None, None],
+            ),
+        ];
+
+        for (subscriber, expected) in table {
+            let viewer = Viewer::of(&subscriber);
+            let got = [&with_path, &requested, &followed, &played]
+                .map(|published| viewer.sees(published.clone()));
+            assert_eq!(
+                got,
+                expected.map(Option::<&Event>::cloned),
+                "User {}",
+                subscriber.id
+            );
+        }
+    }
+
+    #[test]
+    fn naming_libraries_leaves_out_events_about_none() {
         let about_a_library = Filter {
             libraries: vec![5],
             ..Default::default()
         };
 
-        assert!(own.lets_through(&mine));
-        assert!(!own.lets_through(&theirs));
-        assert!(everyones.lets_through(&theirs));
-        assert!(!about_a_library.lets_through(&mine));
+        assert!(!about_a_library.lets_through(&playback_of(1)));
     }
 
     #[test]

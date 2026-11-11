@@ -97,6 +97,31 @@ async fn a_subscriber_receives_a_scans_start_progress_added_items_and_finishes_i
     );
 }
 
+#[tokio::test]
+async fn a_subscriber_without_manage_libraries_receives_added_items_without_their_path() {
+    let server = TestServer::builder().start().await;
+    let media = server
+        .create_library(MOVIES, &["Alien (1979)/Alien (1979).mkv"])
+        .await;
+    let ada = server.user("Ada", &[]).await;
+    let mut subscription = subscribe_with(&ada.client_config(), SubscribeRequest::default()).await;
+
+    server.scan(media.id).await;
+
+    let added = until_probing_finished(&mut subscription)
+        .await
+        .into_iter()
+        .find(|event| matches!(event.event, Some(event::Event::LibraryItemAdded(_))));
+    assert_eq!(
+        added,
+        Some(event(LibraryItemAdded {
+            library_id: media.id,
+            item_id: 1,
+            ..Default::default()
+        }))
+    );
+}
+
 /// A test Plugin whose Observer forwards each batch of events it is told.
 struct Forward(mpsc::UnboundedSender<Vec<Event>>);
 

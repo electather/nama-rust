@@ -37,8 +37,8 @@ export function unmatchedKey(libraryId?: bigint) {
 }
 
 /**
- * The Events the app acts on. Asking for these alone keeps the rest, such as each file a scan
- * adds with its path on the Server, off every signed-in browser.
+ * The Events the app acts on. Asking for these alone keeps down the traffic of the rest, such as
+ * each file a scan adds.
  */
 const types = [
   EventType.SCAN_STARTED,
