@@ -9,6 +9,7 @@
 //! also what its events carry.
 
 use std::{
+    borrow::Cow,
     cmp::Reverse,
     collections::{BTreeSet, HashSet},
     iter,
@@ -27,7 +28,7 @@ use nama_proto::nama::v1::{
     FollowedShowStateChanged, FollowedShowWithdrawn, FoundSeason, ListRequestsResponse, Permission,
     Quality, QualityChange, Request, RequestCancelled, RequestCreated, RequestState,
     RequestStateChanged, RequestWithdrawn, RequestedMovie, RequestedQuality, RequestedSeason,
-    RequesterAdded, RequesterRemoved,
+    Requester, RequesterAdded, RequesterRemoved,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
@@ -1136,10 +1137,11 @@ async fn ask_seasons(
 
 /// How Seasons of a Show are asked for, which decides what is done with each:
 ///
-/// | Library has | asking | following |
-/// |---|---|---|
-/// | all of it | refuse | skip |
-/// | some or none of it | open as asked | open as asked |
+/// | Library has | asking | following | a scan |
+/// |---|---|---|---|
+/// | all of it | refuse | skip | open as Available |
+/// | some of it | open as asked | open as asked | open as Partially Available |
+/// | none of it | open as asked | open as asked | skip |
 #[derive(Debug, Clone, Copy)]
 enum Way<'a> {
     /// `user` asking for Seasons on their own, apart from the Show's Followed Show. Their new
@@ -1152,16 +1154,119 @@ enum Way<'a> {
         state: RequestState,
         followed_show: &'a FollowedShow,
     },
+    /// A Library's write, which has no Request open for the Seasons, asking for them for the
+    /// Requesters of the Show's Approved Followed Show in the order they asked. Never hands off,
+    /// as new Requests open already in a Library.
+    Scanning,
 }
 
-impl Way<'_> {
-    /// Refuses the Season `season` of the Show `show`, which a Library has in full, if this way
-    /// refuses such a Season rather than skipping it.
-    fn refuse_in_library(self, show: i64, season: u32) -> Result<(), Error> {
-        match self {
-            Way::Asking { .. } => Err(Error::SeasonInLibrary { show, season }),
-            Way::Following { .. } => Ok(()),
+/// A [`Way`] of asking for the Seasons of a Show, with the Followed Show its new Requests open
+/// for, if any.
+#[derive(Debug)]
+struct Asker<'a> {
+    way: Way<'a>,
+    followed_show: Option<Cow<'a, FollowedShow>>,
+}
+
+impl<'a> Asker<'a> {
+    /// Asks `way` for Seasons of the Show `show`, a scan for its Approved Followed Show, if any.
+    async fn new(
+        conn: &mut SqliteConnection,
+        way: Way<'a>,
+        show: i64,
+    ) -> Result<Self, sqlx::Error> {
+        let followed_show = match way {
+            Way::Asking { .. } => None,
+            Way::Following { followed_show, .. } => Some(Cow::Borrowed(followed_show)),
+            Way::Scanning => approved_followed_show(conn, show).await?.map(Cow::Owned),
+        };
+        Ok(Self { way, followed_show })
+    }
+
+    /// The Followed Show new Requests open for, if any.
+    fn followed_show(&self) -> Option<&FollowedShow> {
+        self.followed_show.as_deref()
+    }
+
+    /// The state a new Request for the Season `season` of the Show `show` opens in, given how
+    /// much of it a Library `has`, or `None` if this way skips it. Refuses a Season a Library has
+    /// in full if this way refuses one.
+    async fn opens_in(
+        &self,
+        conn: &mut SqliteConnection,
+        show: i64,
+        season: u32,
+        has: Option<RequestState>,
+    ) -> Result<Option<RequestState>, Error> {
+        let in_full = has == Some(RequestState::Available);
+        match self.way {
+            Way::Asking { .. } if in_full => Err(Error::SeasonInLibrary { show, season }),
+            Way::Asking { state, .. } => Ok(Some(state)),
+            Way::Following { .. } if in_full => Ok(None),
+            // An Approved Followed Show was approved once for every Season, so needs no approving
+            // again.
+            Way::Following {
+                state,
+                followed_show,
+                ..
+            } => Ok(Some(followed_show.state.as_known().unwrap_or(state))),
+            Way::Scanning => {
+                // A Show with no Approved Followed Show has no one a scan could ask for.
+                let Some(followed_show) = self.followed_show() else {
+                    return Ok(None);
+                };
+                let skips = has.is_none()
+                    || covers(conn, followed_show.id, season).await?
+                    || was_available(conn, show, season).await?;
+                Ok(if skips { None } else { has })
+            }
         }
+    }
+
+    /// Opens or joins the Request for `wanted` this way, a new one opening in `opens_in`.
+    async fn ask(
+        &self,
+        conn: &mut SqliteConnection,
+        wanted: Wanted,
+        opens_in: RequestState,
+    ) -> Result<Applied<Request>, Error> {
+        match self.way {
+            // Only `user`'s own auto-approve approves a Pending Season Request they join,
+            // whichever way they ask: the state of a Followed Show they join doesn't.
+            Way::Asking { user, state } | Way::Following { user, state, .. }
+                if state == RequestState::Approved =>
+            {
+                ask_approving(conn, user, wanted, opens_in).await
+            }
+            Way::Asking { user, .. } | Way::Following { user, .. } => {
+                Ok(ask(conn, user, wanted, opens_in).await?)
+            }
+            Way::Scanning => {
+                // `opens_in` skips every Season of a Show with no Approved Followed Show, so a
+                // scan never gets here without its Requesters.
+                let requesters = self
+                    .followed_show()
+                    .map(|followed| followed.requesters.as_slice());
+                let requesters = requesters.unwrap_or_default();
+                Ok(ask_as(conn, requesters, wanted, opens_in, now()).await?)
+            }
+        }
+    }
+
+    /// Records that the Followed Show this way asks for covers the Season `season` from then on,
+    /// so one it opened and someone declined, cancelled or withdrew from isn't opened again.
+    async fn cover(&self, conn: &mut SqliteConnection, season: u32) -> Result<(), sqlx::Error> {
+        // Following covers its Seasons as it opens the Followed Show.
+        if let (Way::Scanning, Some(followed_show)) = (self.way, self.followed_show()) {
+            sqlx::query!(
+                "UPDATE followed_shows SET latest_season = ? WHERE id = ?",
+                season,
+                followed_show.id
+            )
+            .execute(&mut *conn)
+            .await?;
+        }
+        Ok(())
     }
 }
 
@@ -1191,40 +1296,27 @@ impl SeasonsToAsk {
     /// Opens or joins a Request for each Season, the [`Way`] `way` asks for it. Returns the
     /// Requests in Season order.
     async fn ask(
-        self,
+        mut self,
         conn: &mut SqliteConnection,
         way: Way<'_>,
     ) -> Result<Applied<Vec<Request>>, Error> {
-        let (user, state, followed_show) = match way {
-            Way::Asking { user, state } => (user, state, None),
-            Way::Following {
-                user,
-                state,
-                followed_show,
-            } => (user, state, Some(followed_show)),
-        };
-        // An Approved Followed Show was approved once for every Season, so needs no approving again.
-        let opens_in = followed_show
-            .and_then(|followed| followed.state.as_known())
-            .unwrap_or(state);
+        let show = self.show.show_tmdb_id;
+        let asking = Asker::new(conn, way, show).await?;
+        if let (Way::Scanning, Some(followed)) = (way, asking.followed_show()) {
+            // A Library's write knows no title for the Show, so a scan takes its Followed Show's.
+            self.show.show_title.clone_from(&followed.show_title);
+        }
         let today = today(conn).await?;
         let mut asked = Applied::quiet(Vec::with_capacity(self.show.seasons.len()));
         for season in &self.show.seasons {
-            let matched =
-                contents::matched_episodes(conn, self.show.show_tmdb_id, season.number.into())
-                    .await?;
-            if availability(&season.episodes, &matched, &today) == Some(RequestState::Available) {
-                way.refuse_in_library(self.show.show_tmdb_id, season.number)?;
+            let matched = contents::matched_episodes(conn, show, season.number.into()).await?;
+            let has = availability(&season.episodes, &matched, &today);
+            let Some(opens_in) = asking.opens_in(conn, show, season.number, has).await? else {
                 continue;
-            }
-            let wanted = self.wanted(season, followed_show.map(|followed| followed.id));
-            // Only `user`'s own auto-approve approves a Pending Season Request they join, whichever
-            // way they ask: the state of a Followed Show they join doesn't.
-            let one = if state == RequestState::Approved {
-                ask_approving(conn, user, wanted, opens_in).await?
-            } else {
-                ask(conn, user, wanted, opens_in).await?
             };
+            let wanted = self.wanted(season, asking.followed_show().map(|followed| followed.id));
+            let one = asking.ask(conn, wanted, opens_in).await?;
+            asking.cover(conn, season.number).await?;
             asked.value.push(one.value);
             asked.events.extend(one.events);
             asked.hand_off.extend(one.hand_off);
@@ -1328,9 +1420,7 @@ async fn insert_request(
     .await
 }
 
-/// Adds `user` as a Requester of the open Request for `wanted`, opening one in `state` if there
-/// is none, which is handed off if that is Approved. Joining one hands nothing off, so a Request
-/// isn't handed off twice.
+/// [`ask_as`] for `user`, asking now.
 async fn ask(
     conn: &mut SqliteConnection,
     user: i64,
@@ -1338,23 +1428,47 @@ async fn ask(
     state: RequestState,
 ) -> Result<Applied<Request>, sqlx::Error> {
     let now = now();
+    let asker = Requester {
+        user_id: user,
+        requested_at: now,
+        ..Default::default()
+    };
+    ask_as(conn, &[asker], wanted, state, now).await
+}
+
+/// Adds each of `requesters`, in order and as of when they asked, as a Requester of the open
+/// Request for `wanted`, opening one in `state` at `now` if there is none, which is handed off if
+/// that is Approved. Joining one hands nothing off, so a Request isn't handed off twice.
+async fn ask_as(
+    conn: &mut SqliteConnection,
+    requesters: &[Requester],
+    wanted: Wanted,
+    state: RequestState,
+    now: i64,
+) -> Result<Applied<Request>, sqlx::Error> {
     let open = open_request(conn, wanted.tmdb_id, wanted.season).await?;
     let opened = open.is_none();
     let id = match open {
         Some(id) => id,
         None => insert_request(conn, &wanted, stored(state), now).await?,
     };
-    let joined = sqlx::query!(
-        "INSERT INTO requesters (request_id, user_id, requested_at) VALUES (?, ?, ?)
-         ON CONFLICT DO NOTHING",
-        id,
-        user,
-        now
-    )
-    .execute(&mut *conn)
-    .await?
-    .rows_affected()
-        > 0;
+    let mut joined = Vec::new();
+    for requester in requesters {
+        let added = sqlx::query!(
+            "INSERT INTO requesters (request_id, user_id, requested_at) VALUES (?, ?, ?)
+             ON CONFLICT DO NOTHING",
+            id,
+            requester.user_id,
+            requester.requested_at
+        )
+        .execute(&mut *conn)
+        .await?
+        .rows_affected()
+            > 0;
+        if added {
+            joined.push(requester.user_id);
+        }
+    }
     let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
     if opened {
         let created = event(RequestCreated {
@@ -1367,15 +1481,17 @@ async fn ask(
             ..Applied::saying(request, created)
         });
     }
-    if joined {
-        let added = event(RequesterAdded {
+    let added = joined.into_iter().map(|user| {
+        event(RequesterAdded {
             request: request.clone().into(),
             user_id: user,
             ..Default::default()
-        });
-        return Ok(Applied::saying(request, added));
-    }
-    Ok(Applied::quiet(request))
+        })
+    });
+    Ok(Applied {
+        events: added.collect(),
+        ..Applied::quiet(request)
+    })
 }
 
 /// Makes Available the open Request for each of the Movies `tmdb_ids` that a Library now has,
@@ -1404,8 +1520,7 @@ pub(crate) async fn make_available(
 /// their Show's TMDB id, Partially Available (if Processing) or Available by how many of its
 /// aired Episodes a Library has, and returns an event for each Request that changed (ADR 0012).
 /// Declined and Available Requests are closed, so Episodes that air later don't reopen them. A
-/// Season that came out after the Show's Approved Followed Show was opened gets a Request in that
-/// state.
+/// Season with no open Request is asked for by a scan, as [`Way::Scanning`] says.
 pub(crate) async fn make_seasons_available(
     conn: &mut SqliteConnection,
     seasons: Vec<(i64, Season)>,
@@ -1417,84 +1532,90 @@ pub(crate) async fn make_seasons_available(
         let Some(state) = availability(&season.episodes, &matched, &today) else {
             continue;
         };
-        let changed = match open_request(conn, show_tmdb_id, Some(season.number)).await? {
-            Some(id) => change_state(conn, id, state).await?,
-            None => open_followed_season(conn, show_tmdb_id, &season, state).await?,
-        };
-        happened.extend(changed);
+        match open_request(conn, show_tmdb_id, Some(season.number)).await? {
+            Some(id) => happened.extend(change_state(conn, id, state).await?),
+            None => happened.extend(scan_season(conn, show_tmdb_id, season).await?),
+        }
     }
     Ok(happened)
 }
 
-/// Opens a Request in `state` for `season` of the Show `show_tmdb_id`, which has no open one, for
-/// the Requesters of the Show's Approved Followed Show, if the Season is numbered after every one
-/// the Followed Show covers and has no Available Request, so a Season once Available isn't asked
-/// for again. The Followed Show covers the Season from then on, so one it opened and someone
-/// declined, cancelled or withdrew from isn't opened again. Returns the event for it.
-async fn open_followed_season(
+/// Asks for `season` of the Show `show_tmdb_id`, which a Library's write found no open Request
+/// for, by a scan. Returns the events for it.
+async fn scan_season(
     conn: &mut SqliteConnection,
     show_tmdb_id: i64,
-    season: &Season,
-    state: RequestState,
-) -> Result<Option<Event>, sqlx::Error> {
-    // ponytail: a Season that came out but was skipped, such as a Season 0 added later, gets no
-    // Request; ask for it on its own.
-    let Some(followed) = sqlx::query!(
-        r#"SELECT id AS "id!", title FROM followed_shows
-           WHERE tmdb_id = ? AND state = 'approved'
-             AND (latest_season IS NULL OR latest_season < ?)"#,
+    season: Season,
+) -> Result<Vec<Event>, sqlx::Error> {
+    let show = WantedSeasons {
         show_tmdb_id,
-        season.number
+        // ponytail: a Followed Show stores no Show ids, and this Season opens already in a Library.
+        show_ids: ExternalIds::default(),
+        // A scan takes its Followed Show's title.
+        show_title: String::new(),
+        seasons: vec![season],
+        quality: None,
+        quality_chosen: false,
+        chosen: None,
+    };
+    let scanned = async {
+        let asking = SeasonsToAsk::read(conn, show).await?;
+        asking.ask(conn, Way::Scanning).await
+    };
+    match scanned.await {
+        Ok(scanned) => Ok(scanned.events),
+        Err(Error::Database(err)) => Err(err),
+        // A scan names no Quality and refuses no Season, so only the database can fail it.
+        Err(refused) => Err(sqlx::Error::Protocol(refused.to_string())),
+    }
+}
+
+async fn approved_followed_show(
+    conn: &mut SqliteConnection,
+    tmdb_id: i64,
+) -> Result<Option<FollowedShow>, sqlx::Error> {
+    let id = sqlx::query_scalar!(
+        "SELECT id FROM followed_shows WHERE tmdb_id = ? AND state = 'approved'",
+        tmdb_id
     )
     .fetch_optional(&mut *conn)
-    .await?
-    else {
+    .await?;
+    let Some(id) = id else {
         return Ok(None);
     };
-    let available = sqlx::query_scalar!(
+    Ok(load_followed(conn, Some(id), None).await?.pop())
+}
+
+/// Whether the Followed Show `id` covers the Season `season`: it is numbered no later than the
+/// latest one the Followed Show asked for.
+async fn covers(conn: &mut SqliteConnection, id: i64, season: u32) -> Result<bool, sqlx::Error> {
+    // ponytail: a Season that came out but was skipped, such as a Season 0 added later, gets no
+    // Request from a scan; ask for it on its own.
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM followed_shows WHERE id = ? AND latest_season >= ?)
+           AS "is!: bool""#,
+        id,
+        season
+    )
+    .fetch_one(&mut *conn)
+    .await
+}
+
+/// Whether the Season `season` of the Show `show_tmdb_id` ever had an Available Request, so its
+/// Followed Show doesn't ask for it again.
+async fn was_available(
+    conn: &mut SqliteConnection,
+    show_tmdb_id: i64,
+    season: u32,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM requests
                           WHERE tmdb_id = ? AND season = ? AND state = 'available') AS "is!: bool""#,
         show_tmdb_id,
-        season.number
+        season
     )
     .fetch_one(&mut *conn)
-    .await?;
-    if available {
-        return Ok(None);
-    }
-    let wanted = Wanted {
-        tmdb_id: show_tmdb_id,
-        season: Some(season.number),
-        title: followed.title,
-        release_date: season.air_date.clone(),
-        // ponytail: a Followed Show stores no Show ids, and this Season opens already in a Library.
-        show_ids: ExternalIds::default(),
-        followed_show: Some(followed.id),
-        quality: show_requests(conn, show_tmdb_id).await?.quality().cloned(),
-        quality_chosen: false,
-    };
-    let id = insert_request(conn, &wanted, stored(state), now()).await?;
-    sqlx::query!(
-        "UPDATE followed_shows SET latest_season = ? WHERE id = ?",
-        season.number,
-        followed.id
-    )
-    .execute(&mut *conn)
-    .await?;
-    sqlx::query!(
-        "INSERT INTO requesters (request_id, user_id, requested_at)
-         SELECT ?, user_id, requested_at FROM followed_show_requesters WHERE followed_show_id = ?
-         ORDER BY requested_at, rowid",
-        id,
-        followed.id
-    )
-    .execute(&mut *conn)
-    .await?;
-    let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
-    Ok(Some(event(RequestCreated {
-        request: request.into(),
-        ..Default::default()
-    })))
+    .await
 }
 
 /// Moves the Request `id` to `state`, Available or Partially Available, and returns the event for
@@ -2940,7 +3061,7 @@ mod tests {
     async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_made_available() {
         let tmdb = FakeTmdb::start().await;
         let folder = tempfile::tempdir().unwrap();
-        let (data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
+        let (_data, requests) = approved_for(&[949], Arc::new(Asked::default())).await;
         enable_tmdb(&requests, &tmdb);
         let root = folder.path().canonicalize().unwrap();
         let library = Libraries::new(Arc::clone(&requests.db))
@@ -2969,8 +3090,7 @@ mod tests {
             Arc::clone(&requests.db),
             requests.hand_off.plugins.clone(),
             requests.hand_off.events().clone(),
-            Arc::new(crate::ffmpeg::Ffmpeg::default()),
-            crate::playback::subtitles::Cache::new(data.path()),
+            None,
         );
         let scan = scanner.lock(library).await;
         let mut published = Box::pin(requests.hand_off.events().subscribe(Filter::default()));

@@ -12,6 +12,7 @@ use nama_proto::nama::v1::{
 use crate::{
     db::detached,
     libraries::{self, FolderProblem, Kind, Libraries, Library},
+    probing::Probing,
     scanner::Scanner,
 };
 
@@ -23,6 +24,7 @@ use super::{caller, database_failed, refuse, unknown_enum_value};
 pub(super) struct LibraryServiceHandler {
     pub(super) libraries: Libraries,
     pub(super) scanner: Scanner,
+    pub(super) probing: Probing,
 }
 
 #[expect(
@@ -109,11 +111,12 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, DeleteLibraryRequest>,
     ) -> ServiceResult<DeleteLibraryResponse> {
-        let (libraries, scanner, id) = (self.libraries.clone(), self.scanner.clone(), request.id);
+        let (libraries, probing, id) = (self.libraries.clone(), self.probing.clone(), request.id);
         // The delete commits even if the caller stops waiting, so its cleanup must follow (ADR 0029).
         detached(async move {
             libraries.delete(id).await?;
-            scanner.clean_subtitles().await;
+            // It has no stored files left, so this only cleans the subtitle cache.
+            probing.files_changed(id, |_| {}).await;
             Ok::<_, libraries::Error>(())
         })
         .await?;

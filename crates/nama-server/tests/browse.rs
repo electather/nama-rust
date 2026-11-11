@@ -203,6 +203,10 @@ impl Fixture {
         self.server.scan_and_match(&self.media).await
     }
 
+    async fn scan_and_probe(&self) {
+        self.server.scan_and_probe(&self.media).await;
+    }
+
     /// The Admin, browsing and playing.
     fn admin(&self) -> Viewer {
         Viewer::new(self.server.client_config())
@@ -2275,7 +2279,7 @@ async fn a_removed_versions_cached_subtitles_are_removed() {
 
     fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
 
-    fx.scan_and_match().await;
+    fx.scan_and_probe().await;
 
     assert_eq!(fx.cached_subtitles(), Vec::<PathBuf>::new());
 }
