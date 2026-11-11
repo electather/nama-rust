@@ -673,8 +673,6 @@ fn server_ffmpeg(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
             reason: "This Server lacks ffmpeg or ffprobe, so it can only Direct Play".to_owned(),
         };
     }
-    // ponytail: a Transcode on hardware needs no libx264, but its fallback to software does;
-    // allow a Transcode on hardware once a failed hardware run can stop instead of falling back.
     if !facts.can_do.transcodes() {
         return Narrowing {
             allows: BTreeSet::from([Method::DirectPlay, Method::Remux]),

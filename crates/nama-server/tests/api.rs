@@ -241,8 +241,8 @@ async fn the_playback_status_shows_the_path_and_version_of_the_ffmpeg_and_ffprob
     assert_eq!(status.ffprobe.as_option(), Some(&shown("/usr/bin/ffprobe")));
 }
 
-/// The status of a Server whose ffmpeg, a shell script in `bin`, lists `encoders` and `filter` as
-/// its one filter, and passes every test encode.
+/// The status of a Server whose ffmpeg, a shell script in `bin`, lists `encoders` as its encoders
+/// and `filter` as its one filter, and passes every test encode.
 #[cfg(unix)]
 async fn playback_status_listing(
     bin: &std::path::Path,

@@ -544,6 +544,9 @@ impl CanDo {
     /// Whether a Transcode runs at all: it needs ffmpeg and ffprobe, and libx264 even on hardware,
     /// which falls back to software when it fails partway.
     pub(crate) const fn transcodes(&self) -> bool {
+        // ponytail: a Transcode on hardware needs no libx264, but its fallback to software does;
+        // allow one once a failed hardware run can stop instead of falling back, and change
+        // `server_ffmpeg`'s reason with it.
         self.runs && self.libx264
     }
 
