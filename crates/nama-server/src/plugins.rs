@@ -53,6 +53,9 @@ struct State {
     known: BTreeMap<PluginId, Described>,
     /// Where [`Registry::crashed`] sends the Installed Plugins it disables for crashing.
     crashed: Option<mpsc::UnboundedSender<PluginId>>,
+    /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
+    #[cfg(feature = "testing")]
+    as_installed: Vec<fn() -> Arc<dyn Plugin>>,
 }
 
 type Make = Arc<dyn Fn() -> Arc<dyn Plugin> + Send + Sync>;
