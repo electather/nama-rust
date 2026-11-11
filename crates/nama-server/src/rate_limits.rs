@@ -65,7 +65,12 @@ impl SignInLimits {
     }
 
     /// [`SignInLimits::admit`], as of `now`.
-    fn admit_at(&self, ip: IpAddr, name: Option<&str>, now: Instant) -> Result<Attempt, Blocked> {
+    pub(crate) fn admit_at(
+        &self,
+        ip: IpAddr,
+        name: Option<&str>,
+        now: Instant,
+    ) -> Result<Attempt, Blocked> {
         let name_key = name.map(counted_name_key);
         let mut failures = self.lock();
         let ip_wait = failures.by_ip.wait(&ip, FAILURES_PER_IP, now);

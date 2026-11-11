@@ -51,7 +51,10 @@ use super::Method;
 use crate::{
     contents::Contents,
     events::{EventBus, event},
-    ffmpeg::{Ffmpeg, Hardware, Keyframe, ProbeError, ToneMapper, VideoConversion, hls_init},
+    ffmpeg::{
+        Ffmpeg, FromCut, Hardware, Keyframe, ProbeError, Remux, ToneMapper, Transcode,
+        VideoConversion, hls_init,
+    },
     server_settings::PlaybackSettings,
     tracks::{Probe, Tracks},
     users::Caller,
@@ -281,16 +284,14 @@ impl RunningPlans {
     }
 
     /// Starts Remuxing the Version `playback` plays, which probing found holds `probe`, for the
-    /// Device it plays on, with its audio Track `audio`, counting only its audio from 0, converted
-    /// to AAC with `aac_channels` channels, or else copied, and returns its id and its playlist's
+    /// Device it plays on, converting what `remux` says, and returns its id and its playlist's
     /// URL. Lists the Version's keyframes the first time and keeps them. `None` if there is no
     /// such Version.
     pub(crate) async fn remux(
         &self,
         playback: Playback,
         probe: &Probe,
-        audio: Option<usize>,
-        aac_channels: Option<i64>,
+        remux: Remux,
     ) -> Result<Option<(u64, String)>, StartError> {
         let version = playback.version_id;
         let Some((path, _)) = self.inner.contents.version_file(version).await? else {
@@ -299,7 +300,7 @@ impl RunningPlans {
         let keyframes = self.keyframes(version, &path).await?;
         let timeline = Timeline::new(keyframes, probe.duration_ms.unwrap_or_default());
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
-        let run = move |dir: &Path, from| ffmpeg.remux(&path, audio, aac_channels, dir, from);
+        let run = move |dir: &Path, from| ffmpeg.remux(&path, &remux, dir, from)?.spawn();
         let id = self
             .start(playback, Method::Remux, timeline, Box::new(run), None)
             .await?;
@@ -307,21 +308,15 @@ impl RunningPlans {
     }
 
     /// Starts Transcoding the Version `playback` plays, which probing found holds `probe`, for
-    /// the Device it plays on, with its `audio` Track, counting only its audio from 0, converted
-    /// to AAC with the channels given beside it, and its video converted as `video` says, and
-    /// returns its id and its playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a
-    /// keyframe at each. On hardware, it falls back to software, tone-mapping there only if
-    /// `zscale`. `None` if there is no such Version.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "the plan fixes each of the Transcode's conversions, as for `Ffmpeg::transcode`"
-    )]
+    /// the Device it plays on, converting what `transcode` says, and returns its id and its
+    /// playlist's URL. Its segments are [`SEGMENT_MS`] each, as it forces a keyframe at each. On
+    /// hardware, it falls back to software, tone-mapping there only if `zscale`. `None` if there
+    /// is no such Version.
     pub(crate) async fn transcode(
         &self,
         playback: Playback,
         probe: &Probe,
-        audio: Option<(usize, i64)>,
-        video: VideoConversion,
+        transcode: Transcode,
         zscale: bool,
     ) -> Result<Option<(u64, String)>, StartError> {
         let Some((path, _)) = (self.inner.contents)
@@ -336,13 +331,15 @@ impl RunningPlans {
         let cuts: Vec<i64> = (0..segments).map(|n| n * SEGMENT_MS).collect();
         let timeline = Timeline::new(cuts.clone(), duration_ms);
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
-        let run = move |conversion: VideoConversion| -> Box<Run> {
+        let run = move |attempt: Transcode| -> Box<Run> {
             let (ffmpeg, path, cuts) = (Arc::clone(&ffmpeg), path.clone(), cuts.clone());
             Box::new(move |dir: &Path, from: Keyframe| {
-                let from_on = cuts.get(from.n..).unwrap_or_default();
-                ffmpeg.transcode(&path, audio, &conversion, dir, from.n, from_on)
+                let cuts = cuts.get(from.n..).unwrap_or_default();
+                let from = FromCut { n: from.n, cuts };
+                ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()
             })
         };
+        let video = transcode.video;
         let fallback = video.hardware.map(|accel| {
             let software = VideoConversion {
                 hardware: None,
@@ -357,7 +354,10 @@ impl RunningPlans {
                 ""
             };
             Fallback {
-                run: run(software),
+                run: run(Transcode {
+                    video: software,
+                    ..transcode
+                }),
                 why: format!(
                     "{} failed partway, so the rest of it Transcodes in software{untone_mapped}",
                     accel.name()
@@ -365,7 +365,13 @@ impl RunningPlans {
             }
         });
         let id = self
-            .start(playback, Method::Transcode, timeline, run(video), fallback)
+            .start(
+                playback,
+                Method::Transcode,
+                timeline,
+                run(transcode),
+                fallback,
+            )
             .await?;
         Ok(Some((id, playlist_url(id))))
     }
