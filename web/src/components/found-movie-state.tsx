@@ -1,4 +1,5 @@
 import { useMutation } from "@connectrpc/connect-query";
+import { Link } from "@tanstack/react-router";
 import { Library, Plus } from "lucide-react";
 
 import { QualityPicker, useQualityPicker } from "@/components/quality-picker";
@@ -15,10 +16,10 @@ import { type FoundMovie, type Request, RequestService } from "@/gen/nama/v1/req
 import { askRefusal } from "@/lib/forms";
 
 /**
- * Where a Movie found in the metadata source is on its way to the Server: in a Library, or its
- * Request's state, and its downloads while Processing. Request, while the signed-in User `you`
- * isn't one of its Requesters, which `primary` makes the screen's primary action. The caller lays
- * them out.
+ * Where a Movie found in the metadata source is on its way to the Server: in a Library, linking
+ * there, or its Request's state, and its downloads while Processing. Request, while the signed-in
+ * User `you` isn't one of its Requesters, which `primary` makes the screen's primary action. The
+ * caller lays them out.
  */
 export function FoundMovieState({
   movie,
@@ -29,7 +30,9 @@ export function FoundMovieState({
   you: bigint | undefined;
   primary?: boolean;
 }) {
-  if (movie.libraryId !== undefined) return <StateLabel label="In a Library" Icon={Library} />;
+  if (movie.libraryId !== undefined) {
+    return <InYourLibrary libraryId={movie.libraryId} tmdbId={movie.tmdbId} />;
+  }
   const { request } = movie;
   return (
     <>
@@ -37,6 +40,19 @@ export function FoundMovieState({
       {!isRequester(request, you) && <RequestButton movie={movie} primary={primary} />}
       <RequestProgress request={request} />
     </>
+  );
+}
+
+/** The Movie `tmdbId`'s page in the Library `libraryId`. */
+function InYourLibrary({ libraryId, tmdbId }: { libraryId: bigint; tmdbId: bigint }) {
+  return (
+    <Link
+      to="/libraries/$libraryId/movies/$movieId"
+      params={{ libraryId: String(libraryId), movieId: `tmdb-${tmdbId}` }}
+      className="rounded-full outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <StateLabel label="In your Library" Icon={Library} />
+    </Link>
   );
 }
 
