@@ -1100,7 +1100,7 @@ fn ffprobe_reading_h264_and_aac(bin: &Path) -> Ffmpeg {
 cat <<'EOF'
 {"streams": [{"codec_name": "h264", "codec_type": "video"},
              {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
- "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2"}}
+ "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "1.000000"}}
 EOF
 "#;
     Ffmpeg {
@@ -1162,7 +1162,7 @@ case "$*" in *2160p*) video=hevc ;; *) video=h264 ;; esac
 cat <<EOF
 {"streams": [{"codec_name": "$video", "codec_type": "video"},
              {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}}],
- "format": {"format_name": "matroska,webm"}}
+ "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
 EOF
 "#;
     Ffmpeg {

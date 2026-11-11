@@ -524,18 +524,23 @@ fn offers(facts: &Facts, lasting: &BTreeSet<Method>) -> Offers {
     }
 }
 
-/// The step for the Version's own Tracks. None needs changing to play yet, so once they're known
-/// it allows every method, and before then only Direct Play, since a Remux or a Transcode needs
-/// them.
+/// The step for the Version's own Tracks and length. None needs changing to play yet, so once
+/// they're known it allows every method, and before then only Direct Play, since a Remux or a
+/// Transcode needs them: an HLS playlist lists how long each segment is.
 fn version_tracks(facts: &Facts, _: Option<&Candidates>) -> Narrowing {
-    let (allows, reason) = if facts.probe.is_some() {
-        (BTreeSet::from(Method::ALL), "Its Tracks need no change")
-    } else {
-        (
-            BTreeSet::from([Method::DirectPlay]),
+    let direct_play_only = BTreeSet::from([Method::DirectPlay]);
+    let (allows, reason) = match &facts.probe {
+        None => (
+            direct_play_only,
             "Its Tracks aren't known, so they're taken to need no change, and it can only be \
              Direct Played",
-        )
+        ),
+        Some(probe) if probe.duration_ms.is_none() => (
+            direct_play_only,
+            "Its length isn't known, which a Remux's or a Transcode's playlist needs, so it can \
+             only be Direct Played",
+        ),
+        Some(_) => (BTreeSet::from(Method::ALL), "Its Tracks need no change"),
     };
     Narrowing {
         allows,
@@ -1630,6 +1635,24 @@ mod tests {
                 plan.reasons[1]
             );
         }
+    }
+
+    #[test]
+    fn a_version_whose_length_isnt_known_isnt_remuxed_or_transcoded_and_says_why() {
+        let mut facts = in_container(MKV, Some(vec![video("h264"), audio("aac", true)]));
+        if let Some(probe) = &mut facts.probe {
+            probe.duration_ms = None;
+        }
+
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), None);
+        assert_eq!(
+            plan.reasons[0],
+            "Its length isn't known, which a Remux's or a Transcode's playlist needs, so it can \
+             only be Direct Played"
+        );
+        assert_eq!(plan.offers.audio, [1]);
     }
 
     #[test]
