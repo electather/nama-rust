@@ -28,8 +28,8 @@ use nama_proto::nama::v1::{
     AudioCodec, ClearMatchRequest, Container, DeleteLibraryRequest, DeviceDecoding, EventType,
     HdrFormat, LibraryKind, LibraryServiceClient, PlanPlaybackRequest, Playback, PlaybackEnded,
     PlaybackLimit, PlaybackMethod, PlaybackPlan, PlaybackServiceClient, PlaybackSettings,
-    PlaybackStarted, RefusalReason, ServerServiceClient, StopPlaybackRequest, Track,
-    UpdatePlaybackSettingsRequest, Version, VideoCodec, VideoTrack,
+    PlaybackStarted, RefusalReason, ServerServiceClient, StopPlaybackRequest, SubtitleFormat,
+    Track, UpdatePlaybackSettingsRequest, Version, VideoCodec, VideoTrack,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::fake::script;
@@ -1497,6 +1497,74 @@ fn write_subtitled(path: &Path, (name, contents): Script, codec: &str) {
     assert!(status.success(), "ffmpeg failed: {status}");
 }
 
+/// A Server whose ffmpeg and ffprobe are shell scripts in `bin`: ffprobe reads every file as an
+/// H.264 and AAC MKV with a PGS and an SRT subtitle, and ffmpeg, which writes the arguments of
+/// each run to `log`, reads a subtitle out as `PGS` for a `.sup` and `WEBVTT` for WebVTT.
+#[cfg(unix)]
+fn ffmpeg_reading_pgs_and_srt(bin: &Path, log: &Path) -> Ffmpeg {
+    let ffprobe = r#"#!/bin/sh
+cat <<'EOF'
+{"streams": [{"codec_name": "h264", "codec_type": "video"},
+             {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1}},
+             {"codec_name": "hdmv_pgs_subtitle", "codec_type": "subtitle"},
+             {"codec_name": "subrip", "codec_type": "subtitle"}],
+ "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
+EOF
+"#;
+    let ffmpeg = format!(
+        "#!/bin/sh\necho \"$*\" >> '{}'\ncase \"$*\" in *'-f sup'*) printf PGS ;; \
+         *'-f webvtt'*) printf WEBVTT ;; esac\n",
+        log.display()
+    );
+    Ffmpeg {
+        ffmpeg: Ok(script(bin, "ffmpeg", &ffmpeg)),
+        ffprobe: Ok(script(bin, "ffprobe", ffprobe)),
+    }
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_pgs_track_is_read_out_as_sup_once_and_thrown_away_with_its_versions_webvtt() {
+    let bin = tempfile::tempdir().unwrap();
+    let log = bin.path().join("runs.log");
+    let ffmpeg = ffmpeg_reading_pgs_and_srt(bin.path(), &log);
+    let fx = Fixture::start_with_ffmpeg(LibraryKind::LIBRARY_KIND_MOVIES, ffmpeg).await;
+    fx.write(ALIEN_1080P, b"video");
+    fx.scan_and_match().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let token = Some(fx.server.admin_token.as_str());
+    let plan = fx
+        .ask_for_plan(PlanPlaybackRequest {
+            version_id: version,
+            device_decoding: DeviceDecoding {
+                subtitle_formats: vec![SubtitleFormat::SUBTITLE_FORMAT_PGS.into()],
+                ..chrome()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let pgs = &plan.subtitles[0];
+    assert_eq!(pgs.format, SubtitleFormat::SUBTITLE_FORMAT_PGS);
+
+    let first = fetch(&fx.server, &pgs.url, token).await;
+    let again = fetch(&fx.server, &pgs.url, token).await;
+    fetch(&fx.server, &plan.subtitles[1].url, token).await;
+
+    assert_eq!(first.status, 200);
+    assert_eq!(first.header("content-type"), "application/octet-stream");
+    assert_eq!((first.body, again.body), (b"PGS".to_vec(), b"PGS".to_vec()));
+    let runs = fs::read_to_string(&log).unwrap();
+    let read_outs: Vec<_> = runs.lines().filter(|run| run.contains("0:s:0")).collect();
+    assert_eq!(read_outs.len(), 1, "{runs}");
+    assert!(read_outs[0].contains("-c:s copy -f sup"), "{runs}");
+    fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
+    fx.scan_and_probe().await;
+    assert_eq!(fx.cached_subtitles(), Vec::<PathBuf>::new());
+}
+
 /// Anyone who may play a Version may fetch its subtitles: anyone with a session.
 #[tokio::test]
 async fn a_subtitle_without_a_session_is_refused() {
@@ -1510,7 +1578,7 @@ async fn a_subtitle_without_a_session_is_refused() {
 }
 
 #[tokio::test]
-async fn a_track_that_isnt_a_text_subtitle_is_not_found_as_one() {
+async fn a_track_that_isnt_a_subtitle_is_not_found_as_one() {
     let fx = Fixture::subtitled_alien().await;
     let version = fx.version_ids(ALIEN).await[0];
     let token = Some(fx.server.admin_token.as_str());

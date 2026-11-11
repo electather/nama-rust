@@ -175,6 +175,162 @@ impl ::buffa::Enumeration for PlaybackLimit {
         ]
     }
 }
+/// A format the Server serves a subtitle Track in, for a Device to show it itself.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum SubtitleFormat {
+    SUBTITLE_FORMAT_UNSPECIFIED = 0i32,
+    /// Text, which a player shows as a `<track>`.
+    SUBTITLE_FORMAT_WEBVTT = 1i32,
+    /// Blu-ray's image subtitles, as the Track's own `.sup`.
+    SUBTITLE_FORMAT_PGS = 2i32,
+}
+impl SubtitleFormat {
+    ///Idiomatic alias for [`Self::SUBTITLE_FORMAT_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::SUBTITLE_FORMAT_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::SUBTITLE_FORMAT_WEBVTT`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Webvtt: Self = Self::SUBTITLE_FORMAT_WEBVTT;
+    ///Idiomatic alias for [`Self::SUBTITLE_FORMAT_PGS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Pgs: Self = Self::SUBTITLE_FORMAT_PGS;
+}
+impl ::core::default::Default for SubtitleFormat {
+    fn default() -> Self {
+        Self::SUBTITLE_FORMAT_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for SubtitleFormat {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for SubtitleFormat {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = SubtitleFormat;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!(
+                        "a string, integer, or null for ", stringify!(SubtitleFormat)
+                    ),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<SubtitleFormat, E> {
+                <SubtitleFormat as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<SubtitleFormat, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <SubtitleFormat as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<SubtitleFormat, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <SubtitleFormat as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<SubtitleFormat, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for SubtitleFormat {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for SubtitleFormat {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::SUBTITLE_FORMAT_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::SUBTITLE_FORMAT_WEBVTT),
+            2i32 => ::core::option::Option::Some(Self::SUBTITLE_FORMAT_PGS),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::SUBTITLE_FORMAT_UNSPECIFIED => "SUBTITLE_FORMAT_UNSPECIFIED",
+            Self::SUBTITLE_FORMAT_WEBVTT => "SUBTITLE_FORMAT_WEBVTT",
+            Self::SUBTITLE_FORMAT_PGS => "SUBTITLE_FORMAT_PGS",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "SUBTITLE_FORMAT_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::SUBTITLE_FORMAT_UNSPECIFIED)
+            }
+            "SUBTITLE_FORMAT_WEBVTT" => {
+                ::core::option::Option::Some(Self::SUBTITLE_FORMAT_WEBVTT)
+            }
+            "SUBTITLE_FORMAT_PGS" => {
+                ::core::option::Option::Some(Self::SUBTITLE_FORMAT_PGS)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::SUBTITLE_FORMAT_UNSPECIFIED,
+            Self::SUBTITLE_FORMAT_WEBVTT,
+            Self::SUBTITLE_FORMAT_PGS,
+        ]
+    }
+}
 /// A container the Server knows whether a Device plays.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -1147,10 +1303,10 @@ pub struct PlanPlaybackRequest {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub audio_track: ::core::option::Option<u32>,
-    /// The subtitle Track the caller chose to burn into the picture, an image one such as PGS or an
-    /// ASS or SSA one with its styling, which makes the plan a Transcode, by its place in the
-    /// Version's `tracks`, counting from 0. Unset for none, as when the player shows a text subtitle
-    /// from `PlaybackPlan.subtitles` itself.
+    /// The subtitle Track the caller chose to burn into the picture, one the Device can't draw such
+    /// as PGS on a Device that doesn't list it, or an ASS or SSA one with its styling, which makes the
+    /// plan a Transcode, by its place in the Version's `tracks`, counting from 0. Unset for none, as
+    /// when the player shows a subtitle from `PlaybackPlan.subtitles` itself.
     ///
     /// Field 4: `subtitle_track`
     #[serde(
@@ -1559,6 +1715,17 @@ pub struct DeviceDecoding {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub audio_channels: u32,
+    /// The subtitle formats it draws itself, over the video. WebVTT is never listed: every Device
+    /// shows it (ADR 0033).
+    ///
+    /// Field 9: `subtitle_formats`
+    #[serde(
+        rename = "subtitleFormats",
+        alias = "subtitle_formats",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub subtitle_formats: ::buffa::alloc::vec::Vec<::buffa::EnumValue<SubtitleFormat>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1573,6 +1740,7 @@ impl ::core::fmt::Debug for DeviceDecoding {
             .field("native_hls", &self.native_hls)
             .field("mse", &self.mse)
             .field("audio_channels", &self.audio_channels)
+            .field("subtitle_formats", &self.subtitle_formats)
             .finish()
     }
 }
@@ -1640,6 +1808,14 @@ impl ::buffa::Message for DeviceDecoding {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if !self.subtitle_formats.is_empty() {
+            let payload: u64 = self
+                .subtitle_formats
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1692,6 +1868,17 @@ impl ::buffa::Message for DeviceDecoding {
                 .sum::<u64>();
             ::buffa::types::put_len_delimited_header(8u32, payload, buf);
             for v in &self.audio_codecs {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if !self.subtitle_formats.is_empty() {
+            let payload: u64 = self
+                .subtitle_formats
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(9u32, payload, buf);
+            for v in &self.subtitle_formats {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
@@ -1850,6 +2037,44 @@ impl ::buffa::Message for DeviceDecoding {
                     );
                 }
             }
+            9u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.subtitle_formats.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.subtitle_formats
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.subtitle_formats
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1865,6 +2090,7 @@ impl ::buffa::Message for DeviceDecoding {
         self.containers.clear();
         self.video_codecs.clear();
         self.audio_codecs.clear();
+        self.subtitle_formats.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2077,8 +2303,9 @@ pub struct PlaybackPlan {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub reasons: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
-    /// The text subtitles the player can turn on and off without a new plan, in the order the
-    /// Version holds them. Image subtitles, such as PGS, aren't among them.
+    /// The subtitles the Device shows itself, which the player turns on and off without a new plan,
+    /// in the order the Version holds them: the text ones, and those in a format the Device draws
+    /// (ADR 0033). A Track here in a format the Device draws isn't among `burn_in_tracks`.
     ///
     /// Field 5: `subtitles`
     #[serde(
@@ -2143,7 +2370,8 @@ pub struct PlaybackPlan {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub audio_tracks: ::buffa::alloc::vec::Vec<u32>,
-    /// The subtitle Tracks it can burn into the picture, likewise.
+    /// The subtitle Tracks it can burn into the picture, likewise: those the Device can't draw, and
+    /// ASS or SSA ones, whose styling their WebVTT among `subtitles` drops.
     ///
     /// Field 11: `burn_in_tracks`
     #[serde(
@@ -2649,7 +2877,7 @@ pub const __PLAYBACK_PLAN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     from_json: ::buffa::type_registry::any_from_json::<PlaybackPlan>,
     is_wkt: false,
 };
-/// A text subtitle a player shows as a WebVTT `<track>`.
+/// A subtitle the Device shows itself: a text one as a WebVTT `<track>`, or one it draws.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -2662,8 +2890,8 @@ pub struct PlaybackSubtitle {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub track: ::buffa::MessageField<Track, ::buffa::Inline<Track>>,
-    /// Where to fetch it as WebVTT, on this Server. The first fetch can take up to a minute while
-    /// the Server reads it out of the file; later ones are answered at once.
+    /// Where to fetch it in `format`, on this Server. The first fetch can take minutes while the
+    /// Server reads it out of the file; later ones are answered at once.
     ///
     /// Field 2: `url`
     #[serde(
@@ -2672,6 +2900,15 @@ pub struct PlaybackSubtitle {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub url: ::buffa::alloc::string::String,
+    /// The format it's fetched in.
+    ///
+    /// Field 3: `format`
+    #[serde(
+        rename = "format",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub format: ::buffa::EnumValue<SubtitleFormat>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2681,6 +2918,7 @@ impl ::core::fmt::Debug for PlaybackSubtitle {
         f.debug_struct("PlaybackSubtitle")
             .field("track", &self.track)
             .field("url", &self.url)
+            .field("format", &self.format)
             .finish()
     }
 }
@@ -2722,6 +2960,12 @@ impl ::buffa::Message for PlaybackSubtitle {
         if !self.url.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.url) as u64;
         }
+        {
+            let val = self.format.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2742,6 +2986,12 @@ impl ::buffa::Message for PlaybackSubtitle {
         }
         if !self.url.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.url, buf);
+        }
+        {
+            let val = self.format.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2774,6 +3024,15 @@ impl ::buffa::Message for PlaybackSubtitle {
                 )?;
                 ::buffa::types::merge_string(&mut self.url, buf)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.format = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2784,6 +3043,7 @@ impl ::buffa::Message for PlaybackSubtitle {
     fn clear(&mut self) {
         self.track = ::buffa::MessageField::none();
         self.url.clear();
+        self.format = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }
