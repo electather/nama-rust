@@ -39,14 +39,16 @@ pub struct ManifestView<'a> {
     ///
     /// Field 5: `allowed_hosts`
     pub allowed_hosts: ::buffa::RepeatedView<'a, &'a str>,
-    /// The Extension Points the Plugin registers an Observer at.
+    /// The Extension Points the Plugin registers an Observer at. A Server refuses a Plugin naming
+    /// one it doesn't know, or lacking an export one needs.
     ///
     /// Field 6: `observers`
     pub observers: ::buffa::RepeatedView<
         'a,
         ::buffa::EnumValue<super::super::ObservePoint>,
     >,
-    /// The capabilities the Plugin registers a Provider for.
+    /// The capabilities the Plugin registers a Provider for. A Server refuses a Plugin naming one it
+    /// doesn't know, or lacking an export one needs.
     ///
     /// Field 7: `providers`
     pub providers: ::buffa::RepeatedView<
@@ -575,7 +577,8 @@ impl ManifestOwnedView {
     pub fn allowed_hosts(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().allowed_hosts
     }
-    /// The Extension Points the Plugin registers an Observer at.
+    /// The Extension Points the Plugin registers an Observer at. A Server refuses a Plugin naming
+    /// one it doesn't know, or lacking an export one needs.
     ///
     /// Field 6: `observers`
     #[must_use]
@@ -584,7 +587,8 @@ impl ManifestOwnedView {
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::ObservePoint>> {
         &self.0.reborrow().observers
     }
-    /// The capabilities the Plugin registers a Provider for.
+    /// The capabilities the Plugin registers a Provider for. A Server refuses a Plugin naming one it
+    /// doesn't know, or lacking an export one needs.
     ///
     /// Field 7: `providers`
     #[must_use]

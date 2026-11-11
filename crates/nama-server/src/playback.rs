@@ -33,8 +33,8 @@ use tower_http::services::ServeFile;
 use crate::{
     contents::Contents,
     ffmpeg::{
-        BurnIn, Ffmpeg, Hardware, ProbeError, Remux, RemuxAudio, ToneMapper, Transcode,
-        TranscodeAudio, VideoConversion, VideoLimit,
+        Abilities, BurnIn, CanDo, Ffmpeg, Hardware, ProbeError, Remux, RemuxAudio, ToneMapper,
+        Transcode, TranscodeAudio, VideoConversion, VideoLimit,
     },
     probing::{self, Probing},
     server_settings::{HardwareChoice, PlaybackValues},
@@ -172,9 +172,9 @@ pub(crate) enum Planned {
     Unplayable(Plan),
 }
 
-/// How a plan plays a Version, with what its method converts and, for a Remux or a Transcode,
-/// the Version's length, which their playlists list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// How a plan plays a Version, with what its method converts, for a Remux or a Transcode the
+/// Version's length, which their playlists list, and for a Transcode on hardware its fallback.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Playing {
     DirectPlay,
     Remux {
@@ -184,7 +184,18 @@ pub(crate) enum Playing {
     Transcode {
         transcode: Transcode,
         duration_ms: i64,
+        /// What it goes on with if it runs on hardware, kept apart from what `Ffmpeg::transcode`
+        /// reads.
+        fallback: Option<Fallback>,
     },
+}
+
+/// What a Transcode on hardware goes on with in software once the hardware fails partway.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Fallback {
+    pub(crate) transcode: Transcode,
+    /// Why, as its plan's reasons then say.
+    pub(crate) why: String,
 }
 
 /// The choices a plan for a Version can ever honour on a Server and Device: what the lasting
@@ -260,8 +271,14 @@ pub(crate) struct Asked {
 /// it in `running` if it plays. It probes the Version first unless its Tracks are current. `None`
 /// if there is no such Version, and [`StartError::Busy`] if only a Transcode would play it and
 /// the Server is running as many as it may.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the handles are the PlaybackService handler's own, and the rest is the call; \
+              passing the handler would tie planning to the API"
+)]
 pub(crate) async fn plan(
     probing: &Probing,
+    abilities: &Abilities,
     running: &RunningPlans,
     caller: &Caller,
     asked: Asked,
@@ -290,13 +307,17 @@ pub(crate) async fn plan(
         Err(probing::Error::NoSuchVersion(_)) => return Ok(None),
         Err(probing::Error::Database(err)) => return Err(err.into()),
     };
-    // Asked together, so a busy host's planning waits out one listing's timeout, not two.
-    let (zscale, libx264) = tokio::join!(running.can_tone_map(), running.can_encode_in_software());
+    let CanDo {
+        runs,
+        zscale,
+        libx264,
+        hardware,
+    } = abilities.can_do().await;
     let mut facts = Facts {
         version,
         probe,
         device: decoding,
-        ffmpeg: running.can_run(),
+        ffmpeg: runs,
         zscale,
         libx264,
         failed,
@@ -310,7 +331,7 @@ pub(crate) async fn plan(
         },
         subtitle,
         hardware_choice: settings.hardware,
-        hardware: running.found_hardware().await.to_vec(),
+        hardware,
         dropped: BTreeSet::new(),
     };
     let max_transcodes =
@@ -482,19 +503,21 @@ fn build(facts: &mut Facts) -> Plan {
         Method::Transcode => Some(Playing::Transcode {
             transcode: candidates?.transcode,
             duration_ms: duration_ms?,
+            fallback: fallback(facts, candidates?.transcode),
         }),
     });
     let audio = candidates.and_then(|candidates| candidates.audio);
     let burns_in = matches!(
-        playing,
+        &playing,
         Some(Playing::Transcode { transcode, .. }) if transcode.video.burn_in.is_some()
     );
+    let tracks = (facts.probe.as_ref())
+        .map(|probe| played_by(playing.as_ref(), played_tracks(probe, audio)))
+        .unwrap_or_default();
     Plan {
         version: facts.version,
         playing,
-        tracks: (facts.probe.as_ref())
-            .map(|probe| played_by(playing.as_ref(), played_tracks(probe, audio)))
-            .unwrap_or_default(),
+        tracks,
         reasons,
         subtitles: facts
             .probe
@@ -706,6 +729,34 @@ fn server_ffmpeg(facts: &Facts, candidates: Option<&Candidates>) -> Narrowing {
         allows: BTreeSet::from(Method::ALL),
         reason,
     }
+}
+
+/// What `transcode` goes on with in software if it runs on hardware: the same conversion,
+/// tone-mapping only if ffmpeg has zscale.
+fn fallback(facts: &Facts, transcode: Transcode) -> Option<Fallback> {
+    let accel = transcode.video.hardware?;
+    let tone_map = (transcode.video.tone_map)
+        .filter(|_| facts.zscale)
+        .map(|_| ToneMapper::Software);
+    let without_tone_mapping = if tone_map.is_none() && transcode.video.tone_map.is_some() {
+        ", without tone-mapping its HDR, as this Server's ffmpeg lacks zscale"
+    } else {
+        ""
+    };
+    Some(Fallback {
+        transcode: Transcode {
+            video: VideoConversion {
+                hardware: None,
+                tone_map,
+                ..transcode.video
+            },
+            ..transcode
+        },
+        why: format!(
+            "{} failed partway, so the rest of it Transcodes in software{without_tone_mapping}",
+            accel.name()
+        ),
+    })
 }
 
 /// What tone-maps the played video's HDR to SDR in a Transcode, when the Device can't show it: the
@@ -1424,9 +1475,9 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::{
-        Candidates, DeviceDecoding, Facts, Method, Narrowing, Network, Offers, PickedLimit, Plan,
-        PlaybackLimit, Playing, Subtitle, build, default_max_transcodes, narrowed,
-        on_local_network, too_busy_to_play,
+        Candidates, DeviceDecoding, Facts, Fallback, Method, Narrowing, Network, Offers,
+        PickedLimit, Plan, PlaybackLimit, Playing, Subtitle, build, default_max_transcodes,
+        narrowed, on_local_network, too_busy_to_play,
     };
     use crate::{
         ffmpeg::{
@@ -1548,6 +1599,15 @@ mod tests {
     fn transcoded(plan: &Plan) -> Transcode {
         match plan.playing {
             Some(Playing::Transcode { transcode, .. }) => transcode,
+            ref other => panic!("{other:?} isn't a Transcode"),
+        }
+    }
+
+    /// What `plan` Transcodes in software once its hardware fails, failing the test if it
+    /// doesn't Transcode.
+    fn falls_back_to(plan: &Plan) -> Option<Fallback> {
+        match &plan.playing {
+            Some(Playing::Transcode { fallback, .. }) => fallback.clone(),
             other => panic!("{other:?} isn't a Transcode"),
         }
     }
@@ -2707,6 +2767,59 @@ mod tests {
     }
 
     #[test]
+    fn a_hardware_transcode_of_hdr_falls_back_to_tone_mapping_in_software_with_zscale() {
+        let mut facts = hevc_on(HardwareChoice::Automatic, vec![QSV], Some(Hdr::Hdr10));
+
+        let plan = build(&mut facts);
+
+        let on_hardware = transcoded(&plan);
+        assert_eq!(
+            falls_back_to(&plan),
+            Some(Fallback {
+                transcode: Transcode {
+                    video: VideoConversion {
+                        hardware: None,
+                        tone_map: Some(ToneMapper::Software),
+                        ..on_hardware.video
+                    },
+                    ..on_hardware
+                },
+                why: "Intel QSV failed partway, so the rest of it Transcodes in software"
+                    .to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn without_zscale_a_hardware_transcode_of_hdr_falls_back_without_tone_mapping_and_says_so() {
+        let mut facts = Facts {
+            zscale: false,
+            ..hevc_on(HardwareChoice::Automatic, vec![QSV], Some(Hdr::Hdr10))
+        };
+
+        let plan = build(&mut facts);
+
+        let fallback = falls_back_to(&plan).unwrap();
+        assert_eq!(fallback.transcode.video.hardware, None);
+        assert_eq!(fallback.transcode.video.tone_map, None);
+        assert_eq!(
+            fallback.why,
+            "Intel QSV failed partway, so the rest of it Transcodes in software, without \
+             tone-mapping its HDR, as this Server's ffmpeg lacks zscale"
+        );
+    }
+
+    #[test]
+    fn a_software_transcode_has_no_fallback() {
+        let mut facts = hevc_on(HardwareChoice::Off, vec![QSV], Some(Hdr::Hdr10));
+
+        let plan = build(&mut facts);
+
+        assert_eq!(transcoded(&plan).video.hardware, None);
+        assert_eq!(falls_back_to(&plan), None);
+    }
+
+    #[test]
     fn the_transcode_cap_is_unlimited_by_default_only_with_hardware_in_use() {
         assert_eq!(
             default_max_transcodes(&hevc_on(HardwareChoice::Automatic, vec![VAAPI], None)),
@@ -2823,7 +2936,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             contents::Contents,
             db::Database,
             events::EventBus,
-            ffmpeg::Ffmpeg,
+            ffmpeg::{Abilities, Ffmpeg},
             libraries::{Kind, Libraries},
             playback::{Asked, Planned, StartedPlan, plan, running::RunningPlans, subtitles},
             plugins::Registry,
@@ -2853,9 +2966,10 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
             subtitles::Cache::new(data.path()),
         );
         let settings = Settings::new(Arc::clone(&db), data.path().join("transcodes"));
+        let ffmpeg = Arc::new(Ffmpeg::default());
         let running = RunningPlans::new(
             settings.playback(),
-            Arc::new(Ffmpeg::default()),
+            Arc::clone(&ffmpeg),
             contents,
             Tracks::new(Arc::clone(&db)),
             EventBus::new(db, Registry::new(), ServerUrl::default()),
@@ -2872,6 +2986,7 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         };
         let planned = plan(
             &probing,
+            &Abilities::new(ffmpeg),
             &running,
             &ripley_on_the_nostromo(),
             asked,

@@ -33,14 +33,11 @@
 
 mod confidence;
 
-use std::{collections::BTreeMap, future::Future, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{
-        Candidate, Episode, ExternalId, ExternalIds, MetadataError, MetadataProvider, Movie,
-        SearchQuery, Season, Show, TitleKind,
-    },
+    metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{Event, ItemMatched};
 use tokio_util::sync::CancellationToken;
@@ -51,8 +48,9 @@ use crate::{
     },
     db::{Database, detached},
     events::{EventBus, event},
+    metadata::{self, MetadataSource},
     plugins::Registry,
-    scanner::{ScanLock, country_tag},
+    scanner::{ScanLock, ScanLocks, country_tag},
 };
 
 use confidence::Decision;
@@ -96,8 +94,9 @@ pub(crate) enum ManualError {
 #[derive(Debug, Clone)]
 pub(crate) struct Matcher {
     contents: Contents,
-    plugins: Registry,
+    metadata: MetadataSource,
     events: EventBus,
+    locks: ScanLocks,
 }
 
 /// The title an item names: a Movie, or the Show an Episode is in.
@@ -188,33 +187,26 @@ enum Miss {
     Undecided,
 }
 
-impl Miss {
+impl From<metadata::Error> for Miss {
+    fn from(err: metadata::Error) -> Self {
+        match err {
+            metadata::Error::NotFound => Self::Unmatched(None),
+            metadata::Error::Unavailable => Self::Undecided,
+        }
+    }
+}
+
+impl ManualError {
     /// Why looking up the title `id` by hand failed.
-    fn looking_up(self, id: &ExternalId) -> ManualError {
-        match self {
-            Self::Unmatched(_) => ManualError::NoSuchTitle(id.clone()),
-            Self::Undecided => ManualError::Unavailable,
+    fn looking_up(id: &ExternalId) -> impl FnOnce(metadata::Error) -> Self {
+        |err| match err {
+            metadata::Error::NotFound => Self::NoSuchTitle(id.clone()),
+            metadata::Error::Unavailable => Self::Unavailable,
         }
     }
 }
 
 impl Metadata {
-    fn movie(plugin: PluginId, movie: Movie) -> Self {
-        Self {
-            plugin,
-            ids: movie.ids,
-            show_ids: ExternalIds::default(),
-            title: movie.title,
-            original_title: movie.original_title,
-            show_title: None,
-            overview: movie.overview,
-            release_date: movie.release_date,
-            runtime_minutes: movie.runtime_minutes,
-            poster: movie.poster,
-            backdrop: movie.backdrop,
-        }
-    }
-
     fn episode(plugin: &PluginId, show: &Show, season: &Season, episode: &Episode) -> Self {
         Self {
             plugin: plugin.clone(),
@@ -233,53 +225,38 @@ impl Metadata {
 }
 
 impl Matcher {
-    pub(crate) const fn new(db: Arc<Database>, plugins: Registry, events: EventBus) -> Self {
+    /// Shares `locks` with the Scanner, so a Match fixed by hand waits for a scan of its Library.
+    pub(crate) const fn new(
+        db: Arc<Database>,
+        plugins: Registry,
+        events: EventBus,
+        locks: ScanLocks,
+    ) -> Self {
         Self {
             contents: Contents::new(db),
-            plugins,
+            metadata: MetadataSource::new(plugins),
             events,
-        }
-    }
-
-    /// The titles the metadata Provider finds for `query`, best fit first, with the Plugin whose
-    /// Provider found them, which their image paths are for.
-    pub(crate) async fn search_metadata(
-        &self,
-        query: &SearchQuery,
-    ) -> Result<Vec<(PluginId, Candidate)>, ManualError> {
-        let found = self
-            .ask(|metadata| {
-                let query = query.clone();
-                async move { metadata.search(&query).await }
-            })
-            .await;
-        match found {
-            Ok((plugin, candidates)) => Ok(candidates
-                .into_iter()
-                .map(|candidate| (plugin.clone(), candidate))
-                .collect()),
-            Err(Miss::Unmatched(_)) => Ok(Vec::new()),
-            Err(Miss::Undecided) => Err(ManualError::Unavailable),
+            locks,
         }
     }
 
     /// Matches the item `item` to the title `id` by hand, with every item named like it, and
-    /// pins that Match. For an Episode, `id` names its Show, and each Episode of the Show is
-    /// Matched through its Season, or Unmatched if the Show doesn't have it. Nothing changes
-    /// unless every item could be decided.
+    /// pins that Match, after any scan of its Library. For an Episode, `id` names its Show, and
+    /// each Episode of the Show is Matched through its Season, or Unmatched if the Show doesn't
+    /// have it. Nothing changes unless every item could be decided.
     pub(crate) async fn set_match(
         &self,
-        scan: &ScanLock,
         item: i64,
         id: &ExternalId,
     ) -> Result<Summary, ManualError> {
-        let named = self.named_like(scan, item).await?;
+        let (_scan, named) = self.lock_named_like(item).await?;
         let outcomes = match named.name.kind() {
             TitleKind::Movie => {
                 let movie = self
-                    .fetch_movie(id)
+                    .metadata
+                    .movie(id)
                     .await
-                    .map_err(|miss| miss.looking_up(id))?;
+                    .map_err(ManualError::looking_up(id))?;
                 named
                     .items
                     .iter()
@@ -290,7 +267,7 @@ impl Matcher {
                 let show = self
                     .fetch_show(id)
                     .await
-                    .map_err(|miss| miss.looking_up(id))?;
+                    .map_err(ManualError::looking_up(id))?;
                 let episodes: Vec<PendingEpisode> = named
                     .items
                     .iter()
@@ -306,41 +283,10 @@ impl Matcher {
             .await
     }
 
-    /// The metadata of the Movie with the id `id`, fetched now.
-    pub(crate) async fn movie(&self, id: &ExternalId) -> Result<Metadata, ManualError> {
-        self.fetch_movie(id)
-            .await
-            .map_err(|miss| miss.looking_up(id))
-    }
-
-    /// The Show with the id `id`, fetched now, and the Plugin whose Provider gave it.
-    pub(crate) async fn show(&self, id: &ExternalId) -> Result<(PluginId, Show), ManualError> {
-        self.fetch_show(id)
-            .await
-            .map(|found| (found.plugin, found.show))
-            .map_err(|miss| miss.looking_up(id))
-    }
-
-    /// The Season `number` of the Show with the id `show`, with its Episodes, fetched now. Fails
-    /// with [`ManualError::NoSuchTitle`] naming the Show if it has no such Season.
-    pub(crate) async fn show_season(
-        &self,
-        show: &ExternalId,
-        number: u32,
-    ) -> Result<Season, ManualError> {
-        self.season(show, number.into())
-            .await
-            .map_err(|miss| miss.looking_up(show))
-    }
-
     /// Removes the Match of the item `item` and of every item named like it, and pins them
-    /// Unmatched.
-    pub(crate) async fn clear_match(
-        &self,
-        scan: &ScanLock,
-        item: i64,
-    ) -> Result<Summary, ManualError> {
-        let named = self.named_like(scan, item).await?;
+    /// Unmatched, after any scan of its Library.
+    pub(crate) async fn clear_match(&self, item: i64) -> Result<Summary, ManualError> {
+        let (_scan, named) = self.lock_named_like(item).await?;
         let outcomes = named
             .items
             .iter()
@@ -414,35 +360,29 @@ impl Matcher {
         Ok(pending)
     }
 
-    async fn named_like(&self, scan: &ScanLock, item: i64) -> Result<Named, ManualError> {
+    /// Takes the scan lock of the Library the item `item` is in, then reads every item named
+    /// like it, which no scan changes while the lock is held.
+    async fn lock_named_like(&self, item: i64) -> Result<(ScanLock, Named), ManualError> {
+        let library = self
+            .contents
+            .library_of(item)
+            .await?
+            .ok_or(ManualError::NoSuchItem(item))?;
+        let scan = self.locks.lock(library).await;
         let named = self
             .contents
             .named_like(item)
             .await?
             .ok_or(ManualError::NoSuchItem(item))?;
-        debug_assert_eq!(
-            named.library,
-            scan.library(),
-            "item {item} is fixed under another Library's scan lock"
-        );
-        Ok(named)
+        Ok((scan, named))
     }
 
     async fn match_movie(&self, key: &TitleKey) -> Result<Metadata, Miss> {
         let id = self.find(TitleKind::Movie, key).await?;
-        self.fetch_movie(&id)
+        self.metadata
+            .movie(&id)
             .await
-            .map_err(|miss| key.blame_id_hint(miss))
-    }
-
-    async fn fetch_movie(&self, id: &ExternalId) -> Result<Metadata, Miss> {
-        let (plugin, movie) = self
-            .ask(|metadata| {
-                let id = id.clone();
-                async move { metadata.movie(&id).await }
-            })
-            .await?;
-        Ok(Metadata::movie(plugin, movie))
+            .map_err(|err| key.blame_id_hint(err.into()))
     }
 
     async fn match_episodes(&self, key: &TitleKey, episodes: &[PendingEpisode]) -> Outcomes {
@@ -450,7 +390,7 @@ impl Matcher {
             Ok(id) => self
                 .fetch_show(&id)
                 .await
-                .map_err(|miss| key.blame_id_hint(miss)),
+                .map_err(|err| key.blame_id_hint(err.into())),
             Err(miss) => Err(miss),
         };
         match show {
@@ -462,13 +402,8 @@ impl Matcher {
         }
     }
 
-    async fn fetch_show(&self, id: &ExternalId) -> Result<FoundShow, Miss> {
-        let (plugin, show) = self
-            .ask(|metadata| {
-                let id = id.clone();
-                async move { metadata.show(&id).await }
-            })
-            .await?;
+    async fn fetch_show(&self, id: &ExternalId) -> Result<FoundShow, metadata::Error> {
+        let (plugin, show) = self.metadata.show(id).await?;
         // Seasons are fetched by the Show's TMDB id, which an ID Hint from TVDB or IMDb isn't.
         let id = show.ids.tmdb.map_or_else(|| id.clone(), ExternalId::Tmdb);
         Ok(FoundShow { plugin, id, show })
@@ -507,12 +442,7 @@ impl Matcher {
 
     async fn season(&self, show: &ExternalId, number: i64) -> Result<Season, Miss> {
         let number = u32::try_from(number).map_err(|_negative| Miss::Unmatched(None))?;
-        self.ask(|metadata| {
-            let show = show.clone();
-            async move { metadata.season(&show, number).await }
-        })
-        .await
-        .map(|(_, season)| season)
+        Ok(self.metadata.season(show, number).await?)
     }
 
     /// The id of the title `key` names: what an admin pinned, its ID hint, or else the search
@@ -566,43 +496,11 @@ impl Matcher {
         query: &SearchQuery,
         country: Option<&str>,
     ) -> Result<Vec<Candidate>, Miss> {
-        let (_, mut candidates) = self
-            .ask(|metadata| {
-                let query = query.clone();
-                async move { metadata.search(&query).await }
-            })
-            .await?;
+        let (_, mut candidates) = self.metadata.search(query).await?;
         if let Some(country) = country {
             candidates.retain(|candidate| candidate.origin_country.iter().any(|c| c == country));
         }
         Ok(candidates)
-    }
-
-    async fn ask<R, F>(
-        &self,
-        call: impl Fn(Arc<dyn MetadataProvider>) -> F,
-    ) -> Result<(PluginId, R), Miss>
-    where
-        F: Future<Output = Result<R, MetadataError>>,
-    {
-        match self
-            .plugins
-            .call_provider_with_id::<dyn MetadataProvider, _, _>(call)
-            .await
-        {
-            Some((plugin, Ok(answer))) => Ok((plugin, answer)),
-            Some((_, Err(MetadataError::NotFound | MetadataError::UnsupportedId(_)))) => {
-                Err(Miss::Unmatched(None))
-            }
-            Some((plugin, Err(MetadataError::Failed(error)))) => {
-                tracing::warn!(%plugin, %error, "the metadata provider failed; will try again");
-                Err(Miss::Undecided)
-            }
-            None => {
-                tracing::debug!("no metadata provider is enabled; nothing can be Matched");
-                Err(Miss::Undecided)
-            }
-        }
     }
 
     async fn store(
@@ -700,7 +598,7 @@ fn matched_events(library: i64, decided: &[(i64, Decided)]) -> Vec<Event> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, fs, path::PathBuf, sync::Arc};
+    use std::{collections::BTreeMap, fs, path::PathBuf, sync::Arc, time::Duration};
 
     use futures_util::{FutureExt, StreamExt};
     use nama_plugin_api::{
@@ -786,9 +684,10 @@ mod tests {
             let shows = create("Shows", Kind::Shows).await;
             let plugins = Registry::new();
             let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
+            let scanner = Scanner::new(Arc::clone(&db), plugins.clone(), events.clone(), None);
             Self {
-                scanner: Scanner::new(Arc::clone(&db), plugins.clone(), events.clone(), None),
-                matcher: Matcher::new(Arc::clone(&db), plugins.clone(), events.clone()),
+                matcher: scanner.matcher().clone(),
+                scanner,
                 contents: Contents::new(db),
                 plugins,
                 events,
@@ -815,18 +714,6 @@ mod tests {
 
         async fn scan(&self, library: &Library) {
             self.scanner.scan(library.id).await.unwrap();
-        }
-
-        /// Fixes the Match of `item` by hand under its Library's scan lock, as the server does.
-        async fn set_match(&self, item: i64, id: &ExternalId) -> Result<Summary, ManualError> {
-            let scan = self.scanner.lock_library_of(item).await?;
-            self.matcher.set_match(&scan, item, id).await
-        }
-
-        /// Clears the Match of `item` by hand under its Library's scan lock, as the server does.
-        async fn clear_match(&self, item: i64) -> Result<Summary, ManualError> {
-            let scan = self.scanner.lock_library_of(item).await?;
-            self.matcher.clear_match(&scan, item).await
         }
 
         async fn items(&self, library: &Library) -> Vec<(String, FileItem)> {
@@ -1258,6 +1145,7 @@ mod tests {
         media.scan(shows).await;
         let item = media.item(shows, pilot).await;
         media
+            .matcher
             .set_match(item, &ExternalId::Tmdb(2996))
             .await
             .unwrap();
@@ -1403,7 +1291,11 @@ mod tests {
         movies.write(home_movies);
         media.scan(movies).await;
         let item = media.item(movies, home_movies).await;
-        media.set_match(item, &ExternalId::Tmdb(949)).await.unwrap();
+        media
+            .matcher
+            .set_match(item, &ExternalId::Tmdb(949))
+            .await
+            .unwrap();
         let looked_up = media.tmdb.requests().len();
 
         media.contents.read_by_older_parser(movies.id).await;
@@ -1447,7 +1339,11 @@ mod tests {
         let unmatched = media.outcomes(movies).await;
         let item = media.item(movies, home_movies).await;
 
-        media.set_match(item, &ExternalId::Tmdb(949)).await.unwrap();
+        media
+            .matcher
+            .set_match(item, &ExternalId::Tmdb(949))
+            .await
+            .unwrap();
         let searches = media.searches();
         movies.replace(home_movies);
         media.scan(movies).await;
@@ -1467,7 +1363,11 @@ mod tests {
         media.scan(movies).await;
         let item = media.item(movies, "Alien (1979)/Alien (1979).mkv").await;
 
-        let summary = media.set_match(item, &ExternalId::Tmdb(949)).await.unwrap();
+        let summary = media
+            .matcher
+            .set_match(item, &ExternalId::Tmdb(949))
+            .await
+            .unwrap();
 
         assert_eq!(summary.matched, 2);
         assert_eq!(
@@ -1489,11 +1389,13 @@ mod tests {
             .await;
 
         media
+            .matcher
             .set_match(pilot, &ExternalId::Tmdb(2316))
             .await
             .unwrap();
         let us = media.outcomes(shows).await;
         media
+            .matcher
             .set_match(pilot, &ExternalId::Tmdb(2996))
             .await
             .unwrap();
@@ -1524,6 +1426,7 @@ mod tests {
             .item(shows, "The Office/Season 01/The Office - S01E01.mkv")
             .await;
         media
+            .matcher
             .set_match(pilot, &ExternalId::Tmdb(2316))
             .await
             .unwrap();
@@ -1538,6 +1441,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_match_fixed_while_its_librarys_scan_lock_is_held_waits_then_applies() {
+        let media = Fixture::new().await;
+        let movies = &media.movies;
+        let alien = "Alien (1979)/Alien (1979).mkv";
+        movies.write(alien);
+        media.scan(movies).await;
+        let item = media.item(movies, alien).await;
+        let scan = media.scanner.lock(movies.id).await;
+
+        let matcher = media.matcher.clone();
+        let mut clearing = tokio::spawn(async move { matcher.clear_match(item).await });
+        let waited = tokio::time::timeout(Duration::from_millis(100), &mut clearing).await;
+        assert!(waited.is_err(), "the Match was fixed during the scan");
+        let during_scan = media.outcomes(movies).await;
+        drop(scan);
+        let cleared = clearing.await.unwrap().unwrap();
+
+        assert_eq!(during_scan, [matched(348, "Alien")]);
+        assert_eq!(
+            cleared,
+            Summary {
+                unmatched: 1,
+                ..Summary::default()
+            }
+        );
+        assert_eq!(media.outcomes(movies).await, [Outcome::Unmatched]);
+    }
+
+    #[tokio::test]
     async fn a_cleared_match_stays_unmatched_after_its_file_changes() {
         let media = Fixture::new().await;
         let movies = &media.movies;
@@ -1546,7 +1478,7 @@ mod tests {
         media.scan(movies).await;
         let item = media.item(movies, alien).await;
 
-        media.clear_match(item).await.unwrap();
+        media.matcher.clear_match(item).await.unwrap();
         let cleared = media.outcomes(movies).await;
         movies.replace(alien);
         media.scan(movies).await;
@@ -1563,7 +1495,7 @@ mod tests {
         media.scan(movies).await;
         let item = media.item(movies, "Alien (1979)/Alien (1979).mkv").await;
 
-        let result = media.set_match(item, &ExternalId::Tmdb(1)).await;
+        let result = media.matcher.set_match(item, &ExternalId::Tmdb(1)).await;
 
         assert!(
             matches!(result, Err(ManualError::NoSuchTitle(ExternalId::Tmdb(1)))),
@@ -1576,7 +1508,7 @@ mod tests {
     async fn a_match_for_an_item_that_does_not_exist_is_refused() {
         let media = Fixture::new().await;
 
-        let result = media.set_match(42, &ExternalId::Tmdb(949)).await;
+        let result = media.matcher.set_match(42, &ExternalId::Tmdb(949)).await;
 
         assert!(
             matches!(result, Err(ManualError::NoSuchItem(42))),
@@ -1593,7 +1525,7 @@ mod tests {
             .item(&media.movies, "Alien (1979)/Alien (1979).mkv")
             .await;
 
-        let result = media.set_match(item, &ExternalId::Tmdb(348)).await;
+        let result = media.matcher.set_match(item, &ExternalId::Tmdb(348)).await;
 
         assert!(
             matches!(result, Err(ManualError::Unavailable)),

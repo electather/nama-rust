@@ -13,14 +13,16 @@ use nama_proto::nama::v1::{
 
 use crate::{
     artwork,
-    browse::{self, Browse, Started},
-    contents::{Episode, FoundEpisode, FoundMovie, FoundShow, Movie, Show, Version},
+    browse::{self, Browse, Episode, Movie, Show, Started, Version},
+    contents::{FoundEpisode, FoundMovie, FoundShow},
     libraries::Kind,
     tracks::track_to_proto,
     watch_states::WatchState,
 };
 
-use super::{caller, database_failed, external_id_to_proto, refuse, required_id};
+use super::{
+    caller, database_failed, external_id_to_proto, refuse, required_id, version_not_found,
+};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
@@ -111,16 +113,16 @@ impl BrowseService for BrowseServiceHandler {
     ) -> ServiceResult<ListEpisodesResponse> {
         let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
-        let number = request.season_number;
+        let number = i64::from(request.season_number);
         let show = required_id(request.show_id.into_option(), "show_id", "Show")?;
         let episodes = self
             .browse
-            .episodes(user, request.library_id, &show, i64::from(number))
+            .episodes(user, request.library_id, &show, number)
             .await?;
         Response::ok(ListEpisodesResponse {
             episodes: episodes
                 .into_iter()
-                .map(|(episode, state)| episode_to_proto(number, episode, state))
+                .map(|(episode, state)| episode_to_proto(episode, state))
                 .collect(),
             ..Default::default()
         })
@@ -224,11 +226,10 @@ fn started_to_proto(started: Started) -> proto::ContinueWatchingEntry {
         Started::Episode {
             library,
             show,
-            season,
             episode,
             state,
         } => {
-            let episode = episode_to_proto(proto_number(season), episode, Some(state));
+            let episode = episode_to_proto(episode, Some(state));
             (library, episode.into(), Some(show_to_proto(&show)))
         }
     };
@@ -264,16 +265,11 @@ fn show_to_proto(show: &Show) -> proto::Show {
     }
 }
 
-/// An Episode of Season `season` as clients see it, with the caller's Watch State of it, if
-/// they've started it.
-fn episode_to_proto(
-    season: u32,
-    episode: Episode,
-    watch_state: Option<WatchState>,
-) -> proto::Episode {
+/// An Episode as clients see it, with the caller's Watch State of it, if they've started it.
+fn episode_to_proto(episode: Episode, watch_state: Option<WatchState>) -> proto::Episode {
     proto::Episode {
         id: external_id_to_proto(episode.id).into(),
-        season_number: season,
+        season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),
         title: episode.title,
         overview: episode.overview,
@@ -311,14 +307,15 @@ fn version_to_proto(version: &Version) -> proto::Version {
     }
 }
 
-/// The Connect error a client gets for a Library, title or Season that Browse didn't find. Database
-/// failures are logged, not sent.
+/// The Connect error a client gets for a Library, title, Season or Version that Browse didn't
+/// find. Database failures are logged, not sent.
 impl From<browse::Error> for ConnectError {
     fn from(err: browse::Error) -> Self {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            // Every Browse and Watch State call names its Library in `library_id`.
+            // Every call that looks up a Library names it in `library_id`; reporting progress
+            // looks none up.
             browse::Error::NoSuchLibrary(id) => {
                 refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message)
                     .field("library_id")
@@ -326,6 +323,7 @@ impl From<browse::Error> for ConnectError {
             }
             browse::Error::NothingMatched => refuse(R::REFUSAL_REASON_NOTHING_MATCHED, message),
             browse::Error::NoSuchSeason => refuse(R::REFUSAL_REASON_SEASON_NOT_FOUND, message),
+            browse::Error::NoSuchVersion => return version_not_found(),
             browse::Error::WrongKind { wanted } => {
                 let kind = match wanted {
                     Kind::Movies => "movies",

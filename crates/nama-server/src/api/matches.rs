@@ -12,7 +12,7 @@ use crate::{
     contents::{Contents, Item, TiedTitle, Unmatched, UnmatchedReason},
     libraries::Libraries,
     matching::{ManualError, Matcher},
-    scanner::Scanner,
+    metadata::{self, MetadataSource},
 };
 
 use super::{
@@ -23,10 +23,9 @@ use super::{
 /// [`require_access`](super::require_access) enforces.
 pub(super) struct MatchServiceHandler {
     pub(super) matcher: Matcher,
+    pub(super) metadata: MetadataSource,
     pub(super) contents: Contents,
     pub(super) libraries: Libraries,
-    /// Where the scan lock a Match is fixed under comes from.
-    pub(super) scanner: Scanner,
 }
 
 #[expect(
@@ -54,11 +53,15 @@ impl MatchService for MatchServiceHandler {
             title: request.title,
             year: request.year,
         };
-        let candidates = self.matcher.search_metadata(&query).await?;
+        let candidates = match self.metadata.search(&query).await {
+            Ok((_, candidates)) => candidates,
+            Err(metadata::Error::NotFound) => Vec::new(),
+            Err(metadata::Error::Unavailable) => return Err(ManualError::Unavailable.into()),
+        };
         Response::ok(SearchMetadataResponse {
             candidates: candidates
                 .into_iter()
-                .map(|(_, candidate)| title_to_proto(candidate.into()))
+                .map(|candidate| title_to_proto(candidate.into()))
                 .collect(),
             ..Default::default()
         })
@@ -82,11 +85,7 @@ impl MatchService for MatchServiceHandler {
                 )
                 .field("title_id")
             })?;
-        let scan = self.scanner.lock_library_of(request.item_id).await?;
-        let summary = self
-            .matcher
-            .set_match(&scan, request.item_id, &title)
-            .await?;
+        let summary = self.matcher.set_match(request.item_id, &title).await?;
         Response::ok(SetMatchResponse {
             matched: summary.matched,
             unmatched: summary.unmatched,
@@ -99,8 +98,7 @@ impl MatchService for MatchServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, ClearMatchRequest>,
     ) -> ServiceResult<ClearMatchResponse> {
-        let scan = self.scanner.lock_library_of(request.item_id).await?;
-        let summary = self.matcher.clear_match(&scan, request.item_id).await?;
+        let summary = self.matcher.clear_match(request.item_id).await?;
         Response::ok(ClearMatchResponse {
             unmatched: summary.unmatched,
             ..Default::default()

@@ -59,9 +59,9 @@ impl Scanner {
         changes
     }
 
-    /// Watches the folders of the Libraries there are now, and no others. Call it after a Library
-    /// is created, updated or deleted. Before [`Scanner::watch`] it does nothing.
-    pub(crate) async fn rewatch(&self) {
+    /// Watches the folders of the Libraries there are now, and no others. Before
+    /// [`Scanner::watch`] it does nothing.
+    pub(super) async fn rewatch(&self) {
         let mut watcher = Arc::clone(&self.inner.watches.watcher).lock_owned().await;
         if watcher.is_none() {
             return;

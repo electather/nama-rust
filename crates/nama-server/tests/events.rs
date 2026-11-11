@@ -11,7 +11,6 @@ use std::sync::Arc;
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginId, PointKey, Registrar, points,
-    settings::SettingsSchema,
 };
 use nama_proto::nama::v1::{
     Event, EventType, LibraryItemAdded, LibraryKind, ListUnmatchedItemsRequest, MatchServiceClient,
@@ -128,13 +127,9 @@ struct Forward(mpsc::UnboundedSender<Vec<Event>>);
 impl Plugin for Forward {
     fn manifest(&self) -> Manifest {
         Manifest {
-            id: PluginId::from_static("forward"),
-            name: String::new(),
-            description: String::new(),
             version: "0.0.0".to_owned(),
-            settings: SettingsSchema::default(),
             extension_points: vec![PointKey::observe::<points::Events>()],
-            logo_svg: None,
+            ..Manifest::new(PluginId::from_static("forward"))
         }
     }
 

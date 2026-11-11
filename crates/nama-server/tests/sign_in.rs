@@ -23,12 +23,12 @@ use nama_proto::nama::v1::{
     LibraryServiceClient, RefusalReason, ScanLibraryRequest, SubscribeRequest, SubscribeResponse,
 };
 use nama_server::{
+    codes::SetupCode,
     config::Config,
     db::{self, Database},
     ffmpeg::Ffmpeg,
     plugin_settings::PluginSettings,
     plugins::Registry,
-    users::SetupCode,
 };
 use refused::assert_refused;
 use serde_json::{Value, json};

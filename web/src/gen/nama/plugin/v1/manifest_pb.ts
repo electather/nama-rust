@@ -71,14 +71,16 @@ export type Manifest = Message<"nama.plugin.v1.Manifest"> & {
   allowedHosts: string[];
 
   /**
-   * The Extension Points the Plugin registers an Observer at.
+   * The Extension Points the Plugin registers an Observer at. A Server refuses a Plugin naming
+   * one it doesn't know, or lacking an export one needs.
    *
    * @generated from field: repeated nama.plugin.v1.ObservePoint observers = 6;
    */
   observers: ObservePoint[];
 
   /**
-   * The capabilities the Plugin registers a Provider for.
+   * The capabilities the Plugin registers a Provider for. A Server refuses a Plugin naming one it
+   * doesn't know, or lacking an export one needs.
    *
    * @generated from field: repeated nama.plugin.v1.ProvidePoint providers = 7;
    */
@@ -358,8 +360,10 @@ export const ProvidePoint = {
   MOVIE_FULFILLER: 1,
 
   /**
-   * The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER. A
-   * Plugin providing both tells a Movie Request from a Season one by which it holds.
+   * The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER and
+   * an `unfollow` export, which takes a Season Request of a Followed Show that ended as a
+   * `nama.v1.Request`, stops following the Show and returns nothing. A Plugin providing both tells a
+   * Movie Request from a Season one by which it holds.
    *
    * @generated from enum value: PROVIDE_POINT_SHOW_FULFILLER = 2;
    */
@@ -367,7 +371,7 @@ export const ProvidePoint = {
 
   /**
    * A Notifier. The Plugin's `deliver` export takes each notification as `Delivery` and returns
-   * nothing, or fails with why the service didn't take it, which the Server logs.
+   * `Delivered`, or fails with why the service didn't take it, which the Server logs.
    *
    * @generated from enum value: PROVIDE_POINT_NOTIFIER = 3;
    */

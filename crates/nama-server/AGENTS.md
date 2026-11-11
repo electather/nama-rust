@@ -6,9 +6,11 @@
 - **One owner for a Library's contents.** Only `src/contents.rs` reads or writes `library_files`, `library_items`, `item_matches`, `match_pins` and `title_search`, tests included. Everything else goes through `Contents`.
 - **One owner for Tracks.** Only `src/tracks.rs` reads or writes `version_probes`, `tracks` and `probe_failures`, tests included. Browse attaches them to the Versions `Contents` reads.
 - **One owner for probing.** Only `src/probing.rs` runs ffprobe on stored files and decides what a probe failure means for trying it again (`ProbeFailure`); Tracks stores it.
+- **One owner for asking the metadata Provider.** Only `src/metadata.rs` (`MetadataSource`) calls a `MetadataProvider` and decides what its failures mean. Matching, Requests, Artwork and handlers ask it and read its `Error`.
 - **One owner for Quality rules.** Only `src/qualities.rs` reads or writes `qualities` and `default_qualities`, tests included, and decides which Quality a Request, Show or Followed Show takes (ADR 0025). Requests and handlers ask it.
 - **One owner for Server settings.** Only `src/server_settings.rs` reads or writes `server_settings`, tests included.
 - **One path for Request changes.** Every change to a Request or Followed Show goes through `Requests::apply`, which alone publishes their events and hands off (ADR 0029). A Library's write making them Available is the exception (ADR 0012).
+- **One path for Library changes.** Outside tests, creating, updating or deleting a Library goes through `Scanner::create_library`, `update_library` or `delete_library`, which alone do what must follow it (re-watching folders, cleaning a deleted Library's cached subtitles) in a task that outlives the caller (ADR 0029). Handlers read through `Libraries`.
 - **Requester rules once.** What a Request and a Followed Show share (Requesters, the guarded Pending decision, who may see one) is written once in `src/requests/asked.rs`; each keeps only what differs.
 - **One owner for Plugin changes.** Outside tests, only `src/plugin_settings.rs` enables or disables a Plugin or saves its settings, under its one lock and in ADR 0028's order. Handlers and tasks ask `PluginSettings`; they don't call `Registry::enable_by_id` or `Registry::disable`.
 - **Query data.** After changing a `sqlx::query!` or anything in `migrations/`, regenerate `.sqlx/` at the workspace root and commit it (commands in `README.md`).
@@ -37,7 +39,8 @@
 
 ### Playback
 
-- **What a plan converts is worked out once.** Before the steps run, `candidates` in `src/playback.rs` works out what a Remux and a Transcode of the Version would convert, and the plan keeps the one it narrowed to in `Playing`, with the Version's length, which a Remux's or a Transcode's playlist lists. Its reasons, Tracks, events, playlist and ffmpeg arguments read that value; none asks the planning facts again what it converts or how long the Version is.
+- **What a plan converts is worked out once.** Before the steps run, `candidates` in `src/playback.rs` works out what a Remux and a Transcode of the Version would convert, and the plan keeps the one it narrowed to in `Playing`, with the Version's length, which a Remux's or a Transcode's playlist lists, and, for a Transcode on hardware, what it falls back to in software and why. Its reasons, Tracks, events, playlist and ffmpeg arguments read that value; none asks the planning facts again what it converts, how long the Version is or what it falls back to.
+- **What ffmpeg can do is asked once.** Only `Abilities` in `src/ffmpeg.rs` asks the Server's ffmpeg whether it runs, has zscale or libx264, and which hardware passes its test, and remembers each answer; whether it has zscale or libx264 is asked again while ffmpeg couldn't say. Planning and the `GetPlaybackStatus` handler read the one `CanDo` it hands back; `RunningPlans` knows only running plans.
 
 ### Tests
 

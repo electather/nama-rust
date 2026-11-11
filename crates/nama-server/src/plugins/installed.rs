@@ -4,7 +4,7 @@
 
 use std::{
     collections::HashMap,
-    fs, io, mem, panic,
+    fmt, fs, io, mem, panic,
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -13,10 +13,10 @@ use std::{
     time::Duration,
 };
 
-use buffa::Message;
+use buffa::{Enumeration, Message};
 use extism::{CompiledPlugin, PluginBuilder, Wasm};
 use nama_plugin_api::{
-    BoxFuture, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     connector::{ConnectionStarted, Connector},
     fulfiller::{Download, Fulfiller, Movies, Shows},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
@@ -31,8 +31,8 @@ use nama_proto::{
     nama::{
         plugin::v1::{
             self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled,
-            ConnectionStart, Delivered, Delivery, Fulfilled, Manifest, ObservePoint,
-            ObservedEvents, Progress, ProgressAsked, ProvidePoint, setting_value,
+            ConnectionStart, Delivered, Delivery, Fulfilled, ObservePoint, ObservedEvents,
+            Progress, ProgressAsked, ProvidePoint, setting_value,
         },
         v1::{Event, PluginKind, Request},
     },
@@ -56,6 +56,82 @@ const CRASHES_BEFORE_DISABLING: u32 = 3;
 
 /// The export that checks a Plugin's settings, if it has one.
 const CHECK_SETTINGS: &str = "check_settings";
+
+const FULFILL: &str = "fulfill";
+const UNFOLLOW: &str = "unfollow";
+const PROGRESS: &str = "progress";
+const DELIVER: &str = "deliver";
+const START_CONNECTION: &str = "start_connection";
+const POLL_CONNECTION: &str = "poll_connection";
+const OBSERVE_EVENTS: &str = "observe_events";
+
+/// The Extension Points an Installed Plugin can take part at.
+const POINTS: &[Point] = &[
+    Point {
+        named: Named::Provider(ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER),
+        exports: &[FULFILL, PROGRESS],
+        key: PointKey::provide::<dyn Fulfiller<Movies>>,
+        register: |registrar, running| {
+            registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        named: Named::Provider(ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER),
+        exports: &[FULFILL, UNFOLLOW, PROGRESS],
+        key: PointKey::provide::<dyn Fulfiller<Shows>>,
+        register: |registrar, running| {
+            registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        named: Named::Provider(ProvidePoint::PROVIDE_POINT_NOTIFIER),
+        exports: &[DELIVER],
+        key: PointKey::provide::<dyn Notifier>,
+        register: |registrar, running| {
+            registrar.provide::<dyn Notifier>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        named: Named::Provider(ProvidePoint::PROVIDE_POINT_CONNECTOR),
+        exports: &[START_CONNECTION, POLL_CONNECTION],
+        key: PointKey::provide::<dyn Connector>,
+        register: |registrar, running| {
+            registrar.provide::<dyn Connector>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        named: Named::Observer(ObservePoint::OBSERVE_POINT_EVENTS),
+        exports: &[OBSERVE_EVENTS],
+        key: PointKey::observe::<Events>,
+        register: |registrar, running| registrar.observe::<Events>(running),
+    },
+];
+
+/// One Extension Point an Installed Plugin can take part at.
+struct Point {
+    /// What a package's Manifest names it by.
+    named: Named,
+    /// The exports the Server calls there, which a package naming it must have.
+    exports: &'static [&'static str],
+    key: fn() -> PointKey,
+    register: fn(&mut Registrar, Running),
+}
+
+/// A value in a package's Manifest naming an Extension Point.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Named {
+    Provider(ProvidePoint),
+    Observer(ObservePoint),
+}
+
+impl fmt::Display for Named {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Provider(point) => point.proto_name(),
+            Self::Observer(point) => point.proto_name(),
+        })
+    }
+}
 
 /// The Installed Plugins bundled in the Server, each by the name it is listed under if refused.
 /// `build.rs` builds them.
@@ -97,28 +173,32 @@ enum Refused {
     HostWithPort(String),
     #[error("its id {0} is another Plugin's")]
     IdTaken(PluginId),
+    #[error("its Manifest names {0}, an Extension Point this Server doesn't know")]
+    UnknownPoint(String),
+    #[error("its Manifest names {named}, and it has no {export} export")]
+    MissingExport { named: Named, export: &'static str },
 }
 
 /// An Installed Plugin the Server read and checked, ready to enable.
 #[derive(Clone)]
 struct Installed {
-    manifest: Arc<Manifest>,
-    settings_schema: SettingsSchema,
+    /// What its package says about it, as the Kernel reads it.
+    manifest: Manifest,
+    /// Its package's own Manifest, for what only an Installed Plugin says, such as its hosts.
+    package: Arc<wire::Manifest>,
     /// The `.wasm` file's contents. Extism fixes the hosts a Plugin may reach and the settings it
     /// reads when it compiles it, so each enabling compiles them again.
     wasm: Arc<[u8]>,
     cache_config: Arc<Path>,
     /// Whether it exports [`CHECK_SETTINGS`].
     checks_settings: bool,
-    /// Its Manifest's logo, if [`kept_logo`] kept it.
-    logo_svg: Option<String>,
 }
 
 /// An enabled Installed Plugin, compiled once with its allowed hosts and settings. Each call into
 /// it gets a fresh instance, so one that traps or times out leaves nothing behind for the next.
 #[derive(Clone)]
 struct Running {
-    manifest: Arc<Manifest>,
+    package: Arc<wire::Manifest>,
     compiled: Arc<CompiledPlugin>,
     /// The values of its secret settings, which the failures it logs mustn't show.
     secrets: Arc<[String]>,
@@ -172,7 +252,7 @@ impl Running {
     fn observer_failed(&self, err: &extism::Error) {
         let cause = without_secrets(err.root_cause().to_string(), &self.secrets);
         let failed = if is_crash(err) { "crashed" } else { "failed" };
-        warn!(plugin = %self.manifest.id, "observer {failed}: {cause}");
+        warn!(plugin = %self.package.id, "observer {failed}: {cause}");
         self.count_crash(err, &cause);
     }
 
@@ -210,21 +290,13 @@ fn is_timeout(err: &extism::Error) -> bool {
 
 impl Installed {
     fn id(&self) -> PluginId {
-        PluginId::from(self.manifest.id.clone())
+        self.manifest.id.clone()
     }
 }
 
 impl Plugin for Installed {
-    fn manifest(&self) -> nama_plugin_api::Manifest {
-        nama_plugin_api::Manifest {
-            id: self.id(),
-            name: self.manifest.name.clone(),
-            description: self.manifest.description.clone(),
-            version: self.manifest.version.clone(),
-            settings: self.settings_schema.clone(),
-            extension_points: extension_points(&self.manifest),
-            logo_svg: self.logo_svg.clone(),
-        }
+    fn manifest(&self) -> Manifest {
+        self.manifest.clone()
     }
 
     fn settings_check(&self) -> Option<&dyn SettingsCheck> {
@@ -235,8 +307,9 @@ impl Plugin for Installed {
     // cache makes that quick, so spawn_blocking only if a Plugin is slow to enable.
     fn register(&self, registrar: &mut Registrar) {
         let settings = registrar.settings();
-        let hosts = allowed_hosts(&self.manifest, &self.settings_schema, settings);
-        let config = extism_config(&self.settings_schema, settings);
+        let schema = &self.manifest.settings;
+        let hosts = allowed_hosts(&self.package, schema, settings);
+        let config = extism_config(schema, settings);
         let compiled = match compile(&self.wasm, &self.cache_config, hosts, config) {
             Ok(compiled) => compiled,
             #[expect(
@@ -246,69 +319,75 @@ impl Plugin for Installed {
             Err(err) => panic!("could not compile it with its settings: {err:#}"),
         };
         let running = Running {
-            manifest: Arc::clone(&self.manifest),
+            package: Arc::clone(&self.package),
             compiled: Arc::new(compiled),
-            secrets: secret_values(&self.settings_schema, settings).into(),
+            secrets: secret_values(schema, settings).into(),
             crashes: Arc::default(),
         };
-        // Each counting its own crashes, so its Observer working between them doesn't hide them.
-        let with_own_crash_count = || {
-            Arc::new(Running {
-                crashes: Arc::default(),
-                ..running.clone()
-            })
-        };
-        let fulfiller = with_own_crash_count();
         // The Kernel refuses a Plugin registering at a point its Manifest doesn't name, so read
         // them from the same list the Kernel checks.
-        let declared = extension_points(&self.manifest);
-        let names = |point| declared.contains(&point);
-        if names(PointKey::provide::<dyn Fulfiller<Movies>>()) {
-            registrar.provide::<dyn Fulfiller<Movies>>(
-                Priority::DEFAULT,
-                Arc::<Running>::clone(&fulfiller),
+        let declared = &self.manifest.extension_points;
+        // Its Movie and Show Fulfillers call the same `fulfill` export, so they count as one.
+        let fulfiller_crashes = Arc::<AtomicU32>::default();
+        for point in POINTS
+            .iter()
+            .filter(|point| declared.contains(&(point.key)()))
+        {
+            // Each counting its own crashes, so one point working between them doesn't hide them.
+            let crashes = if point.exports.contains(&FULFILL) {
+                Arc::clone(&fulfiller_crashes)
+            } else {
+                Arc::default()
+            };
+            (point.register)(
+                registrar,
+                Running {
+                    crashes,
+                    ..running.clone()
+                },
             );
-        }
-        if names(PointKey::provide::<dyn Fulfiller<Shows>>()) {
-            registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, fulfiller);
-        }
-        if names(PointKey::provide::<dyn Notifier>()) {
-            registrar.provide::<dyn Notifier>(Priority::DEFAULT, with_own_crash_count());
-        }
-        if names(PointKey::provide::<dyn Connector>()) {
-            registrar.provide::<dyn Connector>(Priority::DEFAULT, with_own_crash_count());
-        }
-        if names(PointKey::observe::<Events>()) {
-            registrar.observe::<Events>(running);
         }
     }
 }
 
-/// The Extension Points `manifest` names, which [`Installed::register`] registers at. One this
-/// Server doesn't know is left out: one the Plugin can do without, since its nama-api requirement
-/// admits this Server.
-fn extension_points(manifest: &Manifest) -> Vec<PointKey> {
-    let providers = manifest.providers.iter().filter_map(|point| {
-        Some(match point.as_known()? {
-            ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER => {
-                PointKey::provide::<dyn Fulfiller<Movies>>()
-            }
-            ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER => {
-                PointKey::provide::<dyn Fulfiller<Shows>>()
-            }
-            ProvidePoint::PROVIDE_POINT_NOTIFIER => PointKey::provide::<dyn Notifier>(),
-            ProvidePoint::PROVIDE_POINT_CONNECTOR => PointKey::provide::<dyn Connector>(),
-            ProvidePoint::PROVIDE_POINT_UNSPECIFIED => return None,
+/// The Extension Points `package` names. One this Server doesn't know refuses it, rather than
+/// leaving the Plugin doing less than its Manifest says.
+fn points(package: &wire::Manifest) -> Result<Vec<&'static Point>, Refused> {
+    let providers = package.providers.iter().map(|named| {
+        known_point(named.as_known().map(Named::Provider), || {
+            format!("provider {named}")
         })
     });
-    let observers = manifest
-        .observers
-        .iter()
-        .filter_map(|point| match point.as_known()? {
-            ObservePoint::OBSERVE_POINT_EVENTS => Some(PointKey::observe::<Events>()),
-            ObservePoint::OBSERVE_POINT_UNSPECIFIED => None,
-        });
+    let observers = package.observers.iter().map(|named| {
+        known_point(named.as_known().map(Named::Observer), || {
+            format!("observer {named}")
+        })
+    });
     providers.chain(observers).collect()
+}
+
+/// The point in [`POINTS`] `named`, or the refusal naming it `as_written`.
+fn known_point(
+    named: Option<Named>,
+    as_written: impl FnOnce() -> String,
+) -> Result<&'static Point, Refused> {
+    POINTS
+        .iter()
+        .find(|point| Some(point.named) == named)
+        .ok_or_else(|| Refused::UnknownPoint(as_written()))
+}
+
+/// Checks that a Plugin has every export `points` need, `has_export` telling which it has.
+fn check_exports(points: &[&Point], has_export: impl Fn(&str) -> bool) -> Result<(), Refused> {
+    for point in points {
+        if let Some(&export) = point.exports.iter().find(|&&export| !has_export(export)) {
+            return Err(Refused::MissingExport {
+                named: point.named,
+                export,
+            });
+        }
+    }
+    Ok(())
 }
 
 // One impl for both kinds: the Plugin tells a Movie Request from a Season one by which it holds.
@@ -319,14 +398,14 @@ impl<Kind: 'static> Fulfiller<Kind> for Running {
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let input = request.encode_to_vec();
         Box::pin(async move {
-            let output = self.provide("fulfill", input).await?;
+            let output = self.provide(FULFILL, input).await?;
             Ok(Fulfilled::decode_from_slice(&output)?)
         })
     }
 
     fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
         let input = request.encode_to_vec();
-        Box::pin(async move { self.provide("unfollow", input).await.map(drop) })
+        Box::pin(async move { self.provide(UNFOLLOW, input).await.map(drop) })
     }
 
     fn progress<'a>(
@@ -339,7 +418,7 @@ impl<Kind: 'static> Fulfiller<Kind> for Running {
         }
         .encode_to_vec();
         Box::pin(async move {
-            let output = self.provide("progress", input).await?;
+            let output = self.provide(PROGRESS, input).await?;
             let downloads = Progress::decode_from_slice(&output)?.downloads;
             Ok(downloads
                 .into_iter()
@@ -368,7 +447,7 @@ impl Notifier for Running {
         }
         .encode_to_vec();
         Box::pin(async move {
-            let output = self.provide("deliver", input).await?;
+            let output = self.provide(DELIVER, input).await?;
             if Delivered::decode_from_slice(&output)?.recipient_gone {
                 return Err(RecipientGone.into());
             }
@@ -388,7 +467,7 @@ impl Connector for Running {
         }
         .encode_to_vec();
         Box::pin(async move {
-            let output = self.provide("start_connection", input).await?;
+            let output = self.provide(START_CONNECTION, input).await?;
             Ok(ConnectionStarted::decode_from_slice(&output)?)
         })
     }
@@ -403,7 +482,7 @@ impl Connector for Running {
         }
         .encode_to_vec();
         Box::pin(async move {
-            let output = self.provide("poll_connection", input).await?;
+            let output = self.provide(POLL_CONNECTION, input).await?;
             Ok(ConnectionPolled::decode_from_slice(&output)?.connection)
         })
     }
@@ -417,10 +496,10 @@ impl Observer<Events> for Running {
         }
         .encode_to_vec();
         Box::pin(async move {
-            match self.call_blocking("observe_events", input).await {
+            match self.call_blocking(OBSERVE_EVENTS, input).await {
                 Ok(Ok(_)) => self.crashes.store(0, Ordering::Relaxed),
                 Ok(Err(err)) => self.observer_failed(&err),
-                Err(err) => warn!(plugin = %self.manifest.id, "observer failed: {err}"),
+                Err(err) => warn!(plugin = %self.package.id, "observer failed: {err}"),
             }
         })
     }
@@ -428,8 +507,9 @@ impl Observer<Events> for Running {
 
 impl SettingsCheck for Installed {
     fn check<'a>(&'a self, settings: &'a Settings) -> BoxFuture<'a, Result<Choices, PluginError>> {
-        let hosts = allowed_hosts(&self.manifest, &self.settings_schema, settings);
-        let config = extism_config(&self.settings_schema, settings);
+        let schema = &self.manifest.settings;
+        let hosts = allowed_hosts(&self.package, schema, settings);
+        let config = extism_config(schema, settings);
         let wasm = Arc::clone(&self.wasm);
         let cache_config = Arc::clone(&self.cache_config);
         Box::pin(async move {
@@ -524,19 +604,19 @@ impl Registry {
         });
         let mut described = Vec::new();
         for (file, plugin) in found.0 {
-            let (id, plugin) = describe(&file, plugin, &taken);
-            if plugin.make.is_ok() {
+            let (id, known) = describe(&file, plugin, &taken);
+            if known.plugin.is_ok() {
                 taken.push(id.clone());
             }
-            described.push((id, plugin));
+            described.push((id, known));
         }
         self.write(|state| {
             let enabled = &state.plugins;
             state.known.retain(|id, known| {
                 known.kind == PluginKind::PLUGIN_KIND_BUILT_IN || enabled.contains_key(id)
             });
-            for (id, plugin) in described {
-                state.known.entry(id).or_insert(plugin);
+            for (id, known) in described {
+                state.known.entry(id).or_insert(known);
             }
         });
     }
@@ -555,17 +635,12 @@ fn describe(
     });
     match plugin {
         Ok(plugin) => {
-            let id = plugin.id();
+            let (id, manifest) = (plugin.id(), plugin.manifest.clone());
+            let checks_settings = plugin.checks_settings;
             let described = Described {
                 kind: PluginKind::PLUGIN_KIND_INSTALLED,
-                name: plugin.manifest.name.clone(),
-                description: plugin.manifest.description.clone(),
-                version: plugin.manifest.version.clone(),
-                settings_schema: plugin.settings_schema.clone(),
-                checks_settings: plugin.checks_settings,
-                extension_points: extension_points(&plugin.manifest),
-                logo_svg: plugin.logo_svg.clone(),
-                make: Ok(Arc::new(move || Arc::new(plugin.clone()))),
+                plugin: Ok((Arc::new(move || Arc::new(plugin.clone())), manifest)),
+                checks_settings,
             };
             (id, described)
         }
@@ -573,14 +648,8 @@ fn describe(
             let name = file.file_name().unwrap_or_default().to_string_lossy();
             let described = Described {
                 kind: PluginKind::PLUGIN_KIND_INSTALLED,
-                name: String::new(),
-                description: String::new(),
-                version: String::new(),
-                settings_schema: SettingsSchema::default(),
+                plugin: Err(refused.to_string()),
                 checks_settings: false,
-                extension_points: Vec::new(),
-                logo_svg: None,
-                make: Err(refused.to_string()),
             };
             (PluginId::from(name.into_owned()), described)
         }
@@ -664,30 +733,50 @@ fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
     if !wasm.starts_with(WASM_MAGIC) {
         return Err(Refused::NotWasm);
     }
-    let (bytes, checks_settings) = contain_sync(|| {
+    let (bytes, exported): (_, Vec<&str>) = contain_sync(|| {
         let compiled =
             compile(&wasm, cache_config, Vec::new(), Vec::new()).map_err(Refused::Load)?;
         let mut plugin = extism::Plugin::new_from_compiled(&compiled).map_err(Refused::Manifest)?;
         let bytes = plugin
             .call::<(), Vec<u8>>("manifest", ())
             .map_err(Refused::Manifest)?;
-        Ok((bytes, plugin.function_exists(CHECK_SETTINGS)))
+        let known_exports = POINTS.iter().flat_map(|point| point.exports);
+        let exported = known_exports
+            .chain([&CHECK_SETTINGS])
+            .filter(|export| plugin.function_exists(export))
+            .copied()
+            .collect();
+        Ok((bytes, exported))
     })
     .map_err(Refused::Panicked)??;
-    let mut manifest = Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
-    check_nama_api(&manifest.nama_api)?;
-    check_allowed_hosts(&manifest.allowed_hosts)?;
-    let settings_schema = settings_schema(&manifest)?;
-    // Taken out, so the Manifest kept with the Plugin never holds a logo the Server dropped.
-    let logo = mem::take(&mut manifest.logo_svg);
-    let logo_svg = kept_logo(&PluginId::from(manifest.id.clone()), logo);
+    let mut package = wire::Manifest::decode_from_slice(&bytes).map_err(Refused::Decode)?;
+    check_nama_api(&package.nama_api)?;
+    check_allowed_hosts(&package.allowed_hosts)?;
+    let points = points(&package)?;
+    check_exports(&points, |export| exported.contains(&export))?;
     Ok(Installed {
-        logo_svg,
-        manifest: Arc::new(manifest),
-        settings_schema,
+        manifest: manifest(&mut package, &points)?,
+        package: Arc::new(package),
         wasm: wasm.into(),
         cache_config: cache_config.into(),
-        checks_settings,
+        checks_settings: exported.contains(&CHECK_SETTINGS),
+    })
+}
+
+/// What `package`, naming `points`, says about its Plugin, as the Kernel reads it. Its logo is
+/// taken out, so the package kept with the Plugin never holds one the Server dropped.
+fn manifest(package: &mut wire::Manifest, points: &[&Point]) -> Result<Manifest, Refused> {
+    let settings = settings_schema(package)?;
+    let id = PluginId::from(package.id.clone());
+    let logo_svg = kept_logo(&id, mem::take(&mut package.logo_svg));
+    Ok(Manifest {
+        id,
+        name: package.name.clone(),
+        description: package.description.clone(),
+        version: package.version.clone(),
+        settings,
+        extension_points: points.iter().map(|point| (point.key)()).collect(),
+        logo_svg,
     })
 }
 
@@ -713,7 +802,11 @@ fn compile(
 
 /// The hosts a Plugin enabled with `settings` may send HTTP requests to: those its Manifest
 /// names, and the host of each of its URL settings (ADR 0006).
-fn allowed_hosts(manifest: &Manifest, schema: &SettingsSchema, settings: &Settings) -> Vec<String> {
+fn allowed_hosts(
+    package: &wire::Manifest,
+    schema: &SettingsSchema,
+    settings: &Settings,
+) -> Vec<String> {
     // Extism reads every allowed host as a glob, and a URL's host may hold `*` or, for IPv6, `[`:
     // escaped, it names only itself.
     let url_hosts = schema
@@ -721,7 +814,7 @@ fn allowed_hosts(manifest: &Manifest, schema: &SettingsSchema, settings: &Settin
         .iter()
         .filter(|field| field.kind == SettingKind::Url)
         .filter_map(|field| Some(glob::Pattern::escape(settings.url(&field.key)?.host_str()?)));
-    manifest
+    package
         .allowed_hosts
         .iter()
         .cloned()
@@ -770,8 +863,8 @@ fn check_allowed_hosts(hosts: &[String]) -> Result<(), Refused> {
     }
 }
 
-fn settings_schema(manifest: &Manifest) -> Result<SettingsSchema, Refused> {
-    let fields = manifest
+fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema, Refused> {
+    let fields = package
         .settings
         .iter()
         .map(|field| {
@@ -821,9 +914,14 @@ mod tests {
     use nama_plugin_api::settings::{
         SettingField, SettingKind, SettingValue, Settings, SettingsSchema,
     };
-    use nama_proto::nama::plugin::v1::{self as wire, Manifest, setting_value};
+    use nama_proto::nama::plugin::v1::{
+        self as wire, Manifest, ObservePoint, ProvidePoint, setting_value,
+    };
 
-    use super::{allowed_hosts, check_allowed_hosts, extism_config, is_crash, settings_schema};
+    use super::{
+        BUNDLED, allowed_hosts, check_allowed_hosts, check_exports, extism_config, is_crash, load,
+        points, settings_schema, write_cache_config,
+    };
 
     // The errors as Extism 1.41 gives them for the test Plugin's Observer.
     #[test]
@@ -1007,6 +1105,80 @@ mod tests {
         assert_eq!(
             refused.err().map(|refused| refused.to_string()),
             Some("its setting api_key is of a kind this Server doesn't know".to_owned())
+        );
+    }
+
+    #[test]
+    fn every_bundled_plugin_has_the_exports_its_manifests_points_need() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let cache_config = write_cache_config(data_dir.path()).unwrap();
+
+        for (file, wasm) in BUNDLED {
+            let refused = load(wasm.to_vec(), &cache_config).err();
+
+            assert_eq!(refused.map(|refused| refused.to_string()), None, "{file}");
+        }
+    }
+
+    fn refused_for_lacking(named: ProvidePoint, export: &str) -> Option<String> {
+        let package = Manifest {
+            providers: vec![named.into()],
+            ..Default::default()
+        };
+        let points = points(&package).unwrap();
+        let refused = check_exports(&points, |exported| exported != export);
+        refused.err().map(|refused| refused.to_string())
+    }
+
+    #[test]
+    fn a_point_missing_one_of_its_exports_refuses_the_plugin_naming_the_export() {
+        let refusals = [
+            (ProvidePoint::PROVIDE_POINT_NOTIFIER, "deliver"),
+            (ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER, "unfollow"),
+            (ProvidePoint::PROVIDE_POINT_CONNECTOR, "poll_connection"),
+        ]
+        .map(|(named, export)| refused_for_lacking(named, export));
+
+        assert_eq!(
+            refusals,
+            [
+                "its Manifest names PROVIDE_POINT_NOTIFIER, and it has no deliver export",
+                "its Manifest names PROVIDE_POINT_SHOW_FULFILLER, and it has no unfollow export",
+                "its Manifest names PROVIDE_POINT_CONNECTOR, and it has no poll_connection export",
+            ]
+            .map(|refusal| Some(refusal.to_owned()))
+        );
+    }
+
+    // The Kernel asks only a Show Fulfiller to unfollow.
+    #[test]
+    fn a_movie_fulfiller_needs_no_unfollow_export() {
+        let refused = refused_for_lacking(ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER, "unfollow");
+
+        assert_eq!(refused, None);
+    }
+
+    #[test]
+    fn a_point_this_server_doesnt_know_refuses_the_plugin() {
+        let unknown_provider = Manifest {
+            providers: vec![ProvidePoint::PROVIDE_POINT_NOTIFIER.into(), 99.into()],
+            ..Default::default()
+        };
+        let unspecified_observer = Manifest {
+            observers: vec![ObservePoint::OBSERVE_POINT_UNSPECIFIED.into()],
+            ..Default::default()
+        };
+
+        let refusals = [unknown_provider, unspecified_observer]
+            .map(|package| points(&package).err().map(|refused| refused.to_string()));
+
+        assert_eq!(
+            refusals,
+            [
+                "its Manifest names provider 99, an Extension Point this Server doesn't know",
+                "its Manifest names observer OBSERVE_POINT_UNSPECIFIED, an Extension Point this Server doesn't know",
+            ]
+            .map(|refusal| Some(refusal.to_owned()))
         );
     }
 }

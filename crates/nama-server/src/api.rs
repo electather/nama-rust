@@ -17,15 +17,16 @@ use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason, ex
 use crate::{
     artwork::{self, Artwork},
     browse::Browse,
+    codes::SetupCode,
     config::Config,
     connections::Connections,
     contents::Contents,
     db::{Database, now},
     events::EventBus,
-    ffmpeg::Ffmpeg,
+    ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
     libraries::Libraries,
-    matching::Matcher,
+    metadata::MetadataSource,
     playback::running::RunningPlans,
     plugin_settings::PluginSettings,
     probing::Probing,
@@ -34,8 +35,7 @@ use crate::{
     server_settings,
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie},
     tracks::Tracks,
-    users::{Caller, SetupCode, Users},
-    watch_states::WatchStates,
+    users::{Caller, Users},
 };
 
 mod browse;
@@ -80,6 +80,7 @@ pub(crate) fn router(
     requests: Requests,
     settings: server_settings::Settings,
     running: RunningPlans,
+    abilities: Abilities,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
     subtitles: crate::playback::subtitles::Cache,
@@ -105,29 +106,25 @@ pub(crate) fn router(
             name: config.name.clone(),
             users: users.clone(),
             settings,
-            running: running.clone(),
+            abilities: abilities.clone(),
             ffmpeg,
         }))
         .add_service(Arc::new(SignInServiceHandler {
-            users: users.clone(),
             sign_in: SignIn::new(users.clone(), setup_code),
         }))
         .add_service(Arc::new(MatchServiceHandler {
-            matcher: Matcher::new(Arc::clone(&db), plugins, events.clone()),
+            matcher: scanner.matcher().clone(),
+            metadata: MetadataSource::new(plugins),
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
-            scanner: scanner.clone(),
         }))
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
         }))
-        .add_service(Arc::new(WatchStateServiceHandler {
-            contents: Contents::new(Arc::clone(&db)),
-            watch_states: WatchStates::new(Arc::clone(&db)),
-            browse,
-        }))
+        .add_service(Arc::new(WatchStateServiceHandler { browse }))
         .add_service(Arc::new(PlaybackServiceHandler {
-            probing: probing.clone(),
+            probing,
+            abilities,
             running,
             settings: playback,
         }))
@@ -136,7 +133,6 @@ pub(crate) fn router(
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
             scanner,
-            probing,
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,

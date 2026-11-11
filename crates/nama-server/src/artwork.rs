@@ -26,12 +26,13 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use nama_plugin_api::{
-    PluginId,
-    metadata::{MetadataError, MetadataProvider},
-};
+use nama_plugin_api::PluginId;
 
-use crate::{contents::Contents, plugins::Registry};
+use crate::{
+    contents::Contents,
+    metadata::{self, MetadataSource},
+    plugins::Registry,
+};
 
 const DIR: &str = "artwork";
 
@@ -42,7 +43,7 @@ const MAX_OFFERED: usize = 10_000;
 #[derive(Debug, Clone)]
 pub struct Artwork {
     dir: PathBuf,
-    plugins: Registry,
+    metadata: MetadataSource,
     /// The `(plugin, path)` of each image a search or lookup handed out since the Server started.
     offered: Arc<Mutex<HashSet<(String, String)>>>,
 }
@@ -78,7 +79,7 @@ impl Artwork {
     pub fn new(data_dir: &Path, plugins: Registry) -> Self {
         Self {
             dir: data_dir.join(DIR),
-            plugins,
+            metadata: MetadataSource::new(plugins),
             offered: Arc::default(),
         }
     }
@@ -119,27 +120,16 @@ impl Artwork {
         if tokio::fs::try_exists(&cached.path).await? {
             return Ok(cached);
         }
-        let fetched = self
-            .plugins
-            .call_provider_of::<dyn MetadataProvider, _, _>(plugin, |metadata| {
-                let path = path.to_owned();
-                async move { metadata.image(&path).await }
-            })
-            .await;
-        let image = match fetched {
-            Some(Ok(image)) => image,
-            Some(Err(MetadataError::NotFound | MetadataError::UnsupportedId(_))) => {
-                return Err(Error::NotFound);
-            }
-            Some(Err(MetadataError::Failed(error))) => {
-                return Err(Error::Unavailable(error.to_string()));
-            }
-            None => {
-                return Err(Error::Unavailable(format!(
-                    "{plugin} isn't enabled or doesn't provide metadata"
-                )));
-            }
-        };
+        let image = self
+            .metadata
+            .image(plugin, path)
+            .await
+            .map_err(|err| match err {
+                metadata::Error::NotFound => Error::NotFound,
+                metadata::Error::Unavailable => Error::Unavailable(format!(
+                    "{plugin} isn't enabled, doesn't provide metadata, or failed"
+                )),
+            })?;
         write_atomically(&cached.path, &image.bytes).await?;
         Ok(cached)
     }

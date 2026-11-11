@@ -13,7 +13,7 @@ use std::{
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
-    settings::{Choice, Choices, Settings, SettingsCheck, SettingsSchema},
+    settings::{Choice, Choices, Settings, SettingsCheck},
 };
 use nama_proto::nama::v1::{Quality, Request};
 use nama_server::plugins::Registry;
@@ -303,13 +303,9 @@ struct ShowsFulfillerPlugin(FakeFulfiller);
 impl Plugin for ShowsFulfillerPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
-            id: PluginId::from_static(SHOWS_FULFILLER),
-            name: String::new(),
-            description: String::new(),
             version: "0.0.0".to_owned(),
-            settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Fulfiller<Shows>>()],
-            logo_svg: None,
+            ..Manifest::new(PluginId::from_static(SHOWS_FULFILLER))
         }
     }
 
@@ -328,13 +324,9 @@ struct FulfillerPlugin(FakeFulfiller);
 impl Plugin for FulfillerPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
-            id: PluginId::from_static(MOVIE_FULFILLER),
-            name: String::new(),
-            description: String::new(),
             version: "0.0.0".to_owned(),
-            settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
-            logo_svg: None,
+            ..Manifest::new(PluginId::from_static(MOVIE_FULFILLER))
         }
     }
 

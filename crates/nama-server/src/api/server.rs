@@ -16,8 +16,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    ffmpeg::{self, Accel, Ffmpeg},
-    playback::running::RunningPlans,
+    ffmpeg::{self, Abilities, Accel, CanDo, Ffmpeg},
     server_settings::{self, HardwareChoice, Invalid, PlaybackChange, PlaybackValues},
     users::Users,
 };
@@ -33,8 +32,7 @@ pub(super) struct ServerServiceHandler {
     pub(super) name: String,
     pub(super) users: Users,
     pub(super) settings: server_settings::Settings,
-    /// For the hardware found.
-    pub(super) running: RunningPlans,
+    pub(super) abilities: Abilities,
     pub(super) ffmpeg: Arc<Ffmpeg>,
 }
 
@@ -99,26 +97,28 @@ impl ServerService for ServerServiceHandler {
         let problem = |program: &Result<ffmpeg::FoundProgram, String>| {
             program.as_ref().err().cloned().unwrap_or_default()
         };
-        let hardware = (self.running.found_hardware().await.iter())
+        let CanDo {
+            hardware,
+            libx264,
+            zscale,
+            ..
+        } = self.abilities.can_do().await;
+        let hardware = hardware
+            .into_iter()
             .map(|hardware| FoundHardware {
                 api: hardware_choice_to_proto(HardwareChoice::Api(hardware.accel)).into(),
                 tone_maps: hardware.tone_maps,
                 ..Default::default()
             })
             .collect();
-        // Asked together, as planning asks them, so a busy host waits out one listing's timeout.
-        let (has_libx264, has_zscale) = tokio::join!(
-            self.running.can_encode_in_software(),
-            self.running.can_tone_map()
-        );
         Response::ok(GetPlaybackStatusResponse {
             ffmpeg: found(&self.ffmpeg.ffmpeg).into(),
             ffprobe: found(&self.ffmpeg.ffprobe).into(),
             ffmpeg_problem: problem(&self.ffmpeg.ffmpeg),
             ffprobe_problem: problem(&self.ffmpeg.ffprobe),
             hardware,
-            has_libx264,
-            has_zscale,
+            has_libx264: libx264,
+            has_zscale: zscale,
             ..Default::default()
         })
     }

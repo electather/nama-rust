@@ -52,10 +52,7 @@ use super::{Method, Playing, StartedPlan, direct_play_url, method_to_proto};
 use crate::{
     contents::Contents,
     events::{EventBus, event},
-    ffmpeg::{
-        Ffmpeg, FromCut, Hardware, Keyframe, ProbeError, Remux, ToneMapper, Transcode,
-        VideoConversion, hls_init,
-    },
+    ffmpeg::{Ffmpeg, FromCut, Keyframe, ProbeError, Remux, Transcode, hls_init},
     server_settings::PlaybackSettings,
     tracks::{Tracks, track_to_proto},
     users::Caller,
@@ -110,11 +107,11 @@ type Run = dyn Fn(&Path, Keyframe) -> io::Result<Child> + Send + Sync;
 /// What starts ffmpeg writing a plan's files: `run`, or once a run on hardware fails, `fallback`.
 struct Runs {
     run: Box<Run>,
-    fallback: Option<Fallback>,
+    fallback: Option<FallbackRun>,
 }
 
 /// What a Transcode on hardware runs instead once a run there fails.
-struct Fallback {
+struct FallbackRun {
     run: Box<Run>,
     /// Why, as its plan's reasons then say.
     why: String,
@@ -130,18 +127,12 @@ struct Inner {
     /// For the segment folder each plan's files go in, in a folder named by its id.
     settings: PlaybackSettings,
     ffmpeg: Arc<Ffmpeg>,
-    /// Whether `ffmpeg` has zscale, once it answered.
-    zscale: tokio::sync::OnceCell<bool>,
-    /// Whether `ffmpeg` has libx264, once it answered.
-    libx264: tokio::sync::OnceCell<bool>,
-    /// The hardware acceleration that passed its test, once tested.
-    hardware: tokio::sync::OnceCell<Vec<Hardware>>,
     contents: Contents,
     tracks: Tracks,
     events: EventBus,
     next_id: AtomicU64,
     plans: Mutex<HashMap<u64, Arc<Plan>>>,
-    /// The hardware test and [`stop_unused_plans`], so shutting down can wait for them.
+    /// [`stop_unused_plans`], so shutting down can wait for it.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
     cancel: CancellationToken,
@@ -171,7 +162,7 @@ struct Running {
     /// Whether the plan was stopped, so no ffmpeg is started again for requests still waiting.
     closed: AtomicBool,
     /// For a Transcode on hardware, what it runs once a run there fails.
-    fallback: Option<Fallback>,
+    fallback: Option<FallbackRun>,
     /// Whether a run on hardware failed, so `fallback` runs from then on.
     fell_back: AtomicBool,
     /// Tells Observers how the plan plays now, once it fell back.
@@ -221,9 +212,6 @@ impl RunningPlans {
         let inner = Arc::new(Inner {
             settings,
             ffmpeg,
-            zscale: tokio::sync::OnceCell::new(),
-            libx264: tokio::sync::OnceCell::new(),
-            hardware: tokio::sync::OnceCell::new(),
             contents,
             tracks,
             events,
@@ -237,37 +225,7 @@ impl RunningPlans {
             Arc::downgrade(&inner),
             inner.cancel.clone(),
         ));
-        let plans = Self { inner };
-        // At startup, in the background, as it takes a few seconds; the first plan or status asked
-        // for waits for it. Cancelling it leaves the hardware untested and kills its test encode.
-        let testing = plans.clone();
-        plans.inner.tasks.spawn(async move {
-            // Only for testing once; what was found is kept, and a task's output must be owned.
-            let _: Option<usize> = (testing.inner.cancel)
-                .run_until_cancelled(async { testing.found_hardware().await.len() })
-                .await;
-        });
-        plans
-    }
-
-    /// Whether plans can run at all (ADR 0026).
-    pub(crate) fn can_run(&self) -> bool {
-        self.inner.ffmpeg.can_remux()
-    }
-
-    /// The hardware acceleration that passed its test encode, tested the first time it's asked
-    /// for, which the Server does as it starts, and kept.
-    pub(crate) async fn found_hardware(&self) -> &[Hardware] {
-        let ffmpeg = &self.inner.ffmpeg;
-        self.inner
-            .hardware
-            .get_or_init(|| async {
-                let found = ffmpeg.find_hardware().await;
-                let names: Vec<&str> = found.iter().map(|found| found.accel.name()).collect();
-                tracing::info!(hardware = ?names, "tested hardware acceleration");
-                found
-            })
-            .await
+        Self { inner }
     }
 
     /// The most Transcodes the Server may run at once, `max`, if that many already run, leaving
@@ -285,23 +243,6 @@ impl RunningPlans {
         (u32::try_from(running).unwrap_or(u32::MAX) >= max).then_some(max)
     }
 
-    /// Whether a Transcode can tone-map HDR to SDR in software, as ffmpeg said the first time it
-    /// answered.
-    pub(crate) async fn can_tone_map(&self) -> bool {
-        answered_once(&self.inner.zscale, "zscale", self.inner.ffmpeg.has_zscale()).await
-    }
-
-    /// Whether a Transcode can encode its video in software, with libx264, as ffmpeg said the
-    /// first time it answered.
-    pub(crate) async fn can_encode_in_software(&self) -> bool {
-        answered_once(
-            &self.inner.libx264,
-            "libx264",
-            self.inner.ffmpeg.has_libx264(),
-        )
-        .await
-    }
-
     /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
     /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file. `None`
     /// if there is no such Version, or `plan` can't be played.
@@ -310,7 +251,7 @@ impl RunningPlans {
         caller: &Caller,
         plan: super::Plan,
     ) -> Result<Option<StartedPlan>, StartError> {
-        let Some(playing) = plan.playing else {
+        let Some(playing) = plan.playing.clone() else {
             return Ok(None);
         };
         let playback = playback(caller, &plan);
@@ -324,7 +265,11 @@ impl RunningPlans {
             Playing::Transcode {
                 transcode,
                 duration_ms,
-            } => self.transcode(playback, transcode, duration_ms).await?,
+                fallback,
+            } => {
+                self.transcode(playback, transcode, duration_ms, fallback)
+                    .await?
+            }
         };
         Ok(started.map(|(id, url)| StartedPlan { id, url, plan }))
     }
@@ -358,14 +303,14 @@ impl RunningPlans {
 
     /// Starts Transcoding the Version `playback` plays, `duration_ms` long, for the Device it
     /// plays on, converting what `transcode` says, and returns its id and its playlist's URL. Its
-    /// segments are [`SEGMENT_MS`] each, as it forces a keyframe at each. On hardware, it falls
-    /// back to software, tone-mapping there only if [`Self::can_tone_map`]. `None` if there is no
-    /// such Version.
+    /// segments are [`SEGMENT_MS`] each, as it forces a keyframe at each. Once a run on hardware
+    /// fails, it goes on with `fallback`. `None` if there is no such Version.
     async fn transcode(
         &self,
         playback: Playback,
         transcode: Transcode,
         duration_ms: i64,
+        fallback: Option<super::Fallback>,
     ) -> Result<Option<(u64, String)>, StartError> {
         let Some((path, _)) = (self.inner.contents)
             .version_file(playback.version_id)
@@ -384,35 +329,15 @@ impl RunningPlans {
                 ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()
             })
         };
-        let video = transcode.video;
-        // Kept once answered, so this is the answer the plan was built with, unless that check
-        // failed.
-        let zscale =
-            video.hardware.is_some() && video.tone_map.is_some() && self.can_tone_map().await;
-        let fallback = video.hardware.map(|accel| {
-            let software = VideoConversion {
-                hardware: None,
-                tone_map: (video.tone_map)
-                    .filter(|_| zscale)
-                    .map(|_| ToneMapper::Software),
-                ..video
-            };
-            let untone_mapped = if software.tone_map.is_none() && video.tone_map.is_some() {
-                ", without tone-mapping its HDR, as this Server's ffmpeg lacks zscale"
-            } else {
-                ""
-            };
-            Fallback {
-                run: run(Transcode {
-                    video: software,
-                    ..transcode
-                }),
-                why: format!(
-                    "{} failed partway, so the rest of it Transcodes in software{untone_mapped}",
-                    accel.name()
-                ),
-            }
-        });
+        let fallback = fallback.map(
+            |super::Fallback {
+                 transcode: software,
+                 why,
+             }| FallbackRun {
+                run: run(software),
+                why,
+            },
+        );
         let runs = Runs {
             run: run(transcode),
             fallback,
@@ -860,7 +785,7 @@ impl Running {
     /// How it plays now: as it started, and why it fell back if it did.
     fn playback_now(&self) -> Playback {
         let mut playback = self.playback.clone();
-        if let Some(Fallback { why, .. }) =
+        if let Some(FallbackRun { why, .. }) =
             (self.fallback.as_ref()).filter(|_| self.fell_back.load(Ordering::Acquire))
         {
             playback.reasons.push(why.clone());
@@ -901,7 +826,7 @@ impl Running {
     /// Once `run`, the plan's current run of ffmpeg, failed on hardware, starts its fallback from
     /// the first file it hadn't written, and tells Observers so. Only the first failure does.
     async fn fall_back(self: &Arc<Self>, run: &Arc<FfmpegRun>) {
-        let Some(Fallback { why, .. }) = &self.fallback else {
+        let Some(FallbackRun { why, .. }) = &self.fallback else {
             return;
         };
         // Before waiting for the lock, so a seek that restarts ffmpeg meanwhile, aborting this
@@ -1024,23 +949,6 @@ async fn serve(
     }
 }
 
-/// Whether ffmpeg has `feature`, as `cell` keeps from `ask`'s first answer, or `false` while it
-/// can't say.
-async fn answered_once(
-    cell: &tokio::sync::OnceCell<bool>,
-    feature: &str,
-    ask: impl Future<Output = Result<bool, String>>,
-) -> bool {
-    // Only an answer is kept, so a check that timed out on a busy host is asked again.
-    match cell.get_or_try_init(|| ask).await {
-        Ok(&has) => has,
-        Err(err) => {
-            tracing::warn!("could not ask ffmpeg whether it has {feature}: {err}");
-            false
-        }
-    }
-}
-
 /// Locks `mutex`, which no code panics while holding.
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
@@ -1064,7 +972,8 @@ mod tests {
     };
 
     use super::{
-        Fallback, Method, POLL_EVERY, Running, RunningPlans, Runs, Timeline, lock, sweep_leftovers,
+        FallbackRun, Method, POLL_EVERY, Running, RunningPlans, Runs, Timeline, lock,
+        sweep_leftovers,
     };
     use crate::{
         contents::Contents,
@@ -1074,11 +983,6 @@ mod tests {
         plugins::Registry,
         server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
         tracks::Tracks,
-    };
-    #[cfg(unix)]
-    use {
-        crate::ffmpeg::tests::{WRITING_FAKES, fake_ffmpeg},
-        std::sync::PoisonError,
     };
 
     fn plans_in(db: &Arc<Database>, settings: PlaybackSettings) -> RunningPlans {
@@ -1499,7 +1403,7 @@ mod tests {
                 every_two_seconds(),
                 Runs {
                     run: Box::new(hardware),
-                    fallback: Some(Fallback {
+                    fallback: Some(FallbackRun {
                         run: Box::new(software),
                         why: reason.to_owned(),
                     }),
@@ -1774,54 +1678,6 @@ mod tests {
 
         assert!(plans.ask(id, 7).is_none());
         assert!(!dir.exists());
-    }
-
-    // The fakes are shell scripts.
-    #[cfg(unix)]
-    #[tokio::test]
-    #[expect(
-        clippy::await_holding_lock,
-        reason = "the fakes' lock is held while the hardware test forks ffmpeg; a test waits on no other"
-    )]
-    async fn shutting_down_mid_hardware_test_leaves_the_database_free_to_close() {
-        let data = tempfile::tempdir().unwrap();
-        let db = database(data.path()).await;
-        let settings = settings(&db, data.path().join("transcodes"));
-        let events = EventBus::new(Arc::clone(&db), Registry::new(), ServerUrl::default());
-        let bin = tempfile::tempdir().unwrap();
-        let started = bin.path().join("started");
-        let ffmpeg = fake_ffmpeg(
-            bin.path(),
-            &format!(
-                "*-encoders*) echo ' V....D h264_vaapi  H.264/AVC (VAAPI)' ;;
-                 *) touch '{}'; exec sleep 60 ;;",
-                started.display()
-            ),
-        );
-        let running_fakes = WRITING_FAKES.read().unwrap_or_else(PoisonError::into_inner);
-        let plans = RunningPlans::new(
-            settings.playback(),
-            Arc::new(ffmpeg),
-            Contents::new(Arc::clone(&db)),
-            Tracks::new(Arc::clone(&db)),
-            events.clone(),
-        );
-        let waiting = tokio::time::Instant::now();
-        while !started.exists() {
-            assert!(
-                waiting.elapsed() < Duration::from_secs(5),
-                "no test encode started"
-            );
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        drop(running_fakes);
-
-        tokio::time::timeout(Duration::from_secs(5), plans.shutdown())
-            .await
-            .unwrap();
-
-        drop((plans, settings, events));
-        assert!(Arc::into_inner(db).is_some());
     }
 
     #[tokio::test]

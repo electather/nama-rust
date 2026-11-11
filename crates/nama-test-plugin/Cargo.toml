@@ -24,6 +24,9 @@ doctype-logo = []
 logoless = []
 # Builds the Plugin with a Manifest from before Plugins had a name and a description.
 unnamed = []
+# Builds the Plugin naming the Connector Extension Point without its exports, so the Server
+# refuses it.
+unexported-connector = []
 
 [dependencies]
 nama-pdk = { version = "0.1.0", path = "../nama-pdk" }
