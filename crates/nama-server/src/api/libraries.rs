@@ -238,7 +238,6 @@ fn target_refused(target: &ToDelete) -> impl Fn(browse::Error) -> ConnectError +
             },
         },
         ToDelete::Version(_) => Fields {
-            library: "target.movie.library_id",
             version: "target.version_id",
             ..Fields::NONE
         },

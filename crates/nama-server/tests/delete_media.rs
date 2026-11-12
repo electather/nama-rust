@@ -825,7 +825,8 @@ async fn deleting_a_show_deletes_every_season_and_a_subscriber_is_told_of_each_i
 }
 
 #[tokio::test]
-async fn a_season_or_episode_version_that_isnt_there_or_a_show_in_a_movies_library_is_refused() {
+async fn a_show_side_target_that_isnt_there_or_is_in_a_movies_library_is_refused_naming_its_field()
+{
     let fx = Fixture::dark().await;
     let movies = fx
         .server
@@ -836,8 +837,18 @@ async fn a_season_or_episode_version_that_isnt_there_or_a_show_in_a_movies_libra
     for (reason, field, refused) in [
         (
             RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+            "target.show.library_id",
+            fx.preview(show(fx.library + 100, DARK)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
             "target.season.library_id",
             fx.preview(season(fx.library + 100, DARK, 1)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+            "target.episode.library_id",
+            fx.preview(episode(fx.library + 100, LIES, None)).await,
         ),
         (
             RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,

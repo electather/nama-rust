@@ -69,31 +69,39 @@ impl WatchStateService for WatchStateServiceHandler {
             )
             .field("target")
         })?;
-        let (title_field, season_field) = match &target {
-            Target::MovieId(_) => ("movie_id", ""),
-            Target::EpisodeId(_) => ("episode_id", ""),
-            Target::Season(_) => ("season.show_id", "season.season_number"),
-            Target::ShowId(_) => ("show_id", ""),
+        let fields = match &target {
+            Target::MovieId(_) => Fields {
+                title: "movie_id",
+                ..Fields::LIBRARY
+            },
+            Target::EpisodeId(_) => Fields {
+                title: "episode_id",
+                ..Fields::LIBRARY
+            },
+            Target::Season(_) => Fields {
+                title: "season.show_id",
+                season: "season.season_number",
+                ..Fields::LIBRARY
+            },
+            Target::ShowId(_) => Fields {
+                title: "show_id",
+                ..Fields::LIBRARY
+            },
         };
         let target = match target {
             Target::MovieId(id) => {
-                browse::Target::Movie(required_id(Some(*id), title_field, "Movie")?)
+                browse::Target::Movie(required_id(Some(*id), fields.title, "Movie")?)
             }
             Target::EpisodeId(id) => {
-                browse::Target::Episode(required_id(Some(*id), title_field, "Episode")?)
+                browse::Target::Episode(required_id(Some(*id), fields.title, "Episode")?)
             }
             Target::Season(season) => browse::Target::Season {
-                show: required_id(season.show_id.into_option(), title_field, "Show")?,
+                show: required_id(season.show_id.into_option(), fields.title, "Show")?,
                 number: i64::from(season.season_number),
             },
             Target::ShowId(id) => {
-                browse::Target::Show(required_id(Some(*id), title_field, "Show")?)
+                browse::Target::Show(required_id(Some(*id), fields.title, "Show")?)
             }
-        };
-        let fields = Fields {
-            title: title_field,
-            season: season_field,
-            ..Fields::LIBRARY
         };
         let marked = self.browse.mark(user, library, target, played).await;
         marked.map_err(refused(fields))?;
