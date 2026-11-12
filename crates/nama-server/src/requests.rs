@@ -2958,6 +2958,7 @@ mod tests {
             runtime_minutes: None,
             poster: None,
             backdrop: None,
+            still: None,
         }))
     }
 

@@ -261,6 +261,10 @@ message Episode {
   // The caller's progress through it, kept across all its Versions. Unset if they haven't
   // started it.
   WatchState watch_state = 9;
+  // A still from it, as its URL on this Server. Unset if the metadata Provider has none.
+  optional string still_url = 10;
+  // As `Movie.poster_thumbhash`, for the still.
+  optional bytes still_thumbhash = 11;
 }
 
 message ListShowsRequest {

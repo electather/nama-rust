@@ -4947,6 +4947,14 @@ pub struct EpisodeView<'a> {
     pub watch_state: ::buffa::MessageFieldView<
         super::super::__buffa::view::WatchStateView<'a>,
     >,
+    /// A still from it, as its URL on this Server. Unset if the metadata Provider has none.
+    ///
+    /// Field 10: `still_url`
+    pub still_url: ::core::option::Option<&'a str>,
+    /// As `Movie.poster_thumbhash`, for the still.
+    ///
+    /// Field 11: `still_thumbhash`
+    pub still_thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for EpisodeView<'a> {
@@ -5063,6 +5071,20 @@ impl<'a> ::buffa::MessageView<'a> for EpisodeView<'a> {
                     }
                 }
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.still_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.still_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
             8u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -5132,6 +5154,8 @@ impl<'a> ::buffa::MessageView<'a> for EpisodeView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            still_url: self.still_url.map(|s| s.to_string()),
+            still_thumbhash: self.still_thumbhash.map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5186,6 +5210,12 @@ impl<'a> ::buffa::ViewEncode<'a> for EpisodeView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.still_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.still_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5238,6 +5268,12 @@ impl<'a> ::buffa::ViewEncode<'a> for EpisodeView<'a> {
                 buf,
             );
             self.watch_state.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.still_url {
+            ::buffa::types::put_string_field(10u32, v, buf);
+        }
+        if let Some(ref v) = self.still_thumbhash {
+            ::buffa::types::put_shared_bytes_field(11u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5302,6 +5338,16 @@ impl<'__a> ::serde::Serialize for EpisodeView<'__a> {
             if let ::core::option::Option::Some(__v) = self.watch_state.as_option() {
                 __map.serialize_entry("watchState", __v)?;
             }
+        }
+        if let ::core::option::Option::Some(__v) = self.still_url {
+            __map.serialize_entry("stillUrl", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.still_thumbhash {
+            __map
+                .serialize_entry(
+                    "stillThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
         }
         __map.end()
     }
@@ -5454,6 +5500,20 @@ impl EpisodeOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::WatchStateView<'_>> {
         &self.0.reborrow().watch_state
+    }
+    /// A still from it, as its URL on this Server. Unset if the metadata Provider has none.
+    ///
+    /// Field 10: `still_url`
+    #[must_use]
+    pub fn still_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().still_url
+    }
+    /// As `Movie.poster_thumbhash`, for the still.
+    ///
+    /// Field 11: `still_thumbhash`
+    #[must_use]
+    pub fn still_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().still_thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<EpisodeView<'static>>>

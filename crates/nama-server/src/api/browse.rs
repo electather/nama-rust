@@ -148,10 +148,11 @@ impl BrowseService for BrowseServiceHandler {
                 season: "season_number",
                 ..Fields::LIBRARY
             }))?;
+        let images = self.images.shown().await?;
         Response::ok(ListEpisodesResponse {
             episodes: episodes
                 .into_iter()
-                .map(|(episode, state)| episode_to_proto(episode, state))
+                .map(|(episode, state)| episode_to_proto(episode, state, &images))
                 .collect(),
             ..Default::default()
         })
@@ -294,7 +295,7 @@ fn started_to_proto(started: Started, images: &ShownImages) -> proto::ContinueWa
             state,
         } => {
             let started_episode = proto::ContinueWatchingEpisode {
-                episode: episode_to_proto(episode, Some(state)).into(),
+                episode: episode_to_proto(episode, Some(state), images).into(),
                 show: show_to_proto(&show, images).into(),
                 ..Default::default()
             };
@@ -364,9 +365,17 @@ fn season_poster(show: &Show, number: i64, images: &ShownImages) -> (Option<Stri
     )
 }
 
-/// An Episode as clients see it, with the caller's Watch State of it, if they've started it.
-fn episode_to_proto(episode: Episode, watch_state: Option<WatchState>) -> proto::Episode {
+/// An Episode as clients see it, with its Still as a URL on this Server and its thumbhash from
+/// `images`, and the caller's Watch State of it, if they've started it.
+fn episode_to_proto(
+    episode: Episode,
+    watch_state: Option<WatchState>,
+    images: &ShownImages,
+) -> proto::Episode {
+    let still_url = (episode.still).map(|path| artwork::url(&episode.plugin, &path));
     proto::Episode {
+        still_thumbhash: images.thumbhash(still_url.as_deref()),
+        still_url,
         id: external_id_to_proto(episode.id).into(),
         season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),

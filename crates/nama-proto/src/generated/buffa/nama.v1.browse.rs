@@ -3753,6 +3753,25 @@ pub struct Episode {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub watch_state: ::buffa::MessageField<WatchState, ::buffa::Inline<WatchState>>,
+    /// A still from it, as its URL on this Server. Unset if the metadata Provider has none.
+    ///
+    /// Field 10: `still_url`
+    #[serde(
+        rename = "stillUrl",
+        alias = "still_url",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub still_url: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `Movie.poster_thumbhash`, for the still.
+    ///
+    /// Field 11: `still_thumbhash`
+    #[serde(
+        rename = "stillThumbhash",
+        alias = "still_thumbhash",
+        with = "::buffa::json_helpers::opt_bytes",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub still_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3769,6 +3788,8 @@ impl ::core::fmt::Debug for Episode {
             .field("runtime_minutes", &self.runtime_minutes)
             .field("versions", &self.versions)
             .field("watch_state", &self.watch_state)
+            .field("still_url", &self.still_url)
+            .field("still_thumbhash", &self.still_thumbhash)
             .finish()
     }
 }
@@ -3805,6 +3826,26 @@ impl Episode {
     ///Sets [`Self::runtime_minutes`] to `Some(value)`, consuming and returning `self`.
     pub fn with_runtime_minutes(mut self, value: u32) -> Self {
         self.runtime_minutes = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::still_url`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_still_url(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.still_url = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::still_thumbhash`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_still_thumbhash(
+        mut self,
+        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
+    ) -> Self {
+        self.still_thumbhash = Some(value.into());
         self
     }
 }
@@ -3871,6 +3912,12 @@ impl ::buffa::Message for Episode {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.still_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.still_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3922,6 +3969,12 @@ impl ::buffa::Message for Episode {
                 buf,
             );
             self.watch_state.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.still_url {
+            ::buffa::types::put_string_field(10u32, v, buf);
+        }
+        if let Some(ref v) = self.still_thumbhash {
+            ::buffa::types::put_shared_bytes_field(11u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4024,6 +4077,30 @@ impl ::buffa::Message for Episode {
                     ctx,
                 )?;
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .still_url
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(
+                    self
+                        .still_thumbhash
+                        .get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4041,6 +4118,8 @@ impl ::buffa::Message for Episode {
         self.runtime_minutes = ::core::option::Option::None;
         self.versions.clear();
         self.watch_state = ::buffa::MessageField::none();
+        self.still_url = ::core::option::Option::None;
+        self.still_thumbhash = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
