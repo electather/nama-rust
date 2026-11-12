@@ -2656,6 +2656,7 @@ mod tests {
         custom_images::CustomImages,
         db::Database,
         events::{EventBus, Filter},
+        images::ImageStore,
         libraries::{Kind, Libraries},
         plugins::{Answer, ExtensionPoints, Failure, Registry},
         qualities,
@@ -3591,8 +3592,14 @@ mod tests {
         let scanner = Scanner::new(
             Arc::clone(&requests.db),
             requests.plugins.clone(),
-            Artwork::new(data.path(), requests.plugins.clone()),
-            CustomImages::new(Arc::clone(&requests.db), data.path()),
+            Artwork::new(
+                ImageStore::new(data.path(), Arc::clone(&requests.db)),
+                requests.plugins.clone(),
+            ),
+            CustomImages::new(
+                Arc::clone(&requests.db),
+                ImageStore::new(data.path(), Arc::clone(&requests.db)),
+            ),
             requests.events.clone(),
             None,
             None,

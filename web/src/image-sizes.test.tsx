@@ -1,4 +1,5 @@
 import { cleanup, screen } from "@testing-library/react";
+import { rgbaToThumbHash } from "thumbhash";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
@@ -11,6 +12,8 @@ afterEach(cleanup);
 const poster = "/media/artwork/tmdb/%2Fposter.jpg";
 const backdrop = "/media/artwork/tmdb/%2Fbackdrop.jpg";
 const alien = { id: { case: "tmdb" as const, value: 348n } };
+/** A grey 2 by 3 image's thumbhash. */
+const thumbhash = rgbaToThumbHash(2, 3, new Uint8Array(2 * 3 * 4).fill(128));
 
 /** A fake Server that resizes to 320 and 640 pixels wide, with one Movie in Library 1. */
 function serverWithAMovie() {
@@ -24,7 +27,9 @@ function serverWithAMovie() {
     {},
     (router) => {
       router.service(BrowseService, {
-        listMovies: () => ({ movies: [{ id: alien, title: "Alien", posterUrl: poster }] }),
+        listMovies: () => ({
+          movies: [{ id: alien, title: "Alien", posterUrl: poster, posterThumbhash: thumbhash }],
+        }),
         getMovie: () => ({
           movie: { title: "Alien", backdropUrl: backdrop, versions: [{ id: 1n }] },
         }),
@@ -52,4 +57,16 @@ test("a Backdrop offers a copy at each width the Server resizes to", async () =>
   await screen.findByText("Alien");
 
   expect(srcSetOf(backdrop)).toBe(`${backdrop}?width=320 320w, ${backdrop}?width=640 640w`);
+});
+
+test("a Poster shows its thumbhash in its box until the image covers it", async () => {
+  openApp("/libraries/1", serverWithAMovie());
+
+  await screen.findByText("Alien");
+
+  const box = document.querySelector(`img[src="${poster}"]`)?.parentElement;
+  const preview = box?.querySelector('img[src^="data:image/png"]');
+  expect(preview).toBeTruthy();
+  // Drawn before the image, so the image covers it once it loads.
+  expect(preview?.nextElementSibling?.getAttribute("src")).toBe(poster);
 });

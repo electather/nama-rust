@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
+import { thumbHashToDataURL } from "thumbhash";
 
 import { PlayedMark, WatchedBar } from "@/components/watch-state";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
@@ -21,15 +22,17 @@ export function PosterGrid({ empty, children }: { empty: ReactNode; children: Re
 /**
  * A title's poster with its name and a line of metadata under it, and your Watch State: a played
  * mark on the art, or a bar under it once you've started. The 2:3 box is there before the image
- * loads, so the grid doesn't shift.
+ * loads, so the grid doesn't shift, showing its `thumbhash` until then.
  */
 export function Poster({
   url,
+  thumbhash,
   title,
   detail,
   watchState,
 }: {
   url?: string | undefined;
+  thumbhash?: Uint8Array | undefined;
   title: string;
   detail?: string | undefined;
   watchState?: WatchState | undefined;
@@ -37,7 +40,8 @@ export function Poster({
   const srcSet = useSrcSet(url);
   return (
     <>
-      <div className="relative aspect-2/3 overflow-hidden rounded-lg border bg-muted">
+      <div className="relative isolate aspect-2/3 overflow-hidden rounded-lg border bg-muted">
+        <Thumbhash thumbhash={thumbhash} />
         {url !== undefined && (
           // Its title is the caption, so the image itself says nothing more.
           <img
@@ -60,4 +64,18 @@ export function Poster({
       {detail !== undefined && <p className="text-sm text-muted-foreground">{detail}</p>}
     </>
   );
+}
+
+/**
+ * The blurred preview a `thumbhash` holds, filling its box behind the image it stands in for, so
+ * it shows until that image loads and covers it. The box must be `relative` and `isolate`, and
+ * the image come after this. Nothing without a thumbhash.
+ */
+export function Thumbhash({ thumbhash }: { thumbhash: Uint8Array | undefined }) {
+  const preview = useMemo(
+    () => (thumbhash === undefined ? undefined : thumbHashToDataURL(thumbhash)),
+    [thumbhash],
+  );
+  if (preview === undefined) return null;
+  return <img src={preview} alt="" className="absolute inset-0 -z-10 size-full object-cover" />;
 }

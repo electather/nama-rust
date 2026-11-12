@@ -37,6 +37,10 @@ pub struct LibraryView<'a> {
     ///
     /// Field 6: `custom_backdrop`
     pub custom_backdrop: bool,
+    /// As `Movie.backdrop_thumbhash`.
+    ///
+    /// Field 7: `backdrop_thumbhash`
+    pub backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
@@ -106,6 +110,13 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
                 )?;
                 view.custom_backdrop = ::buffa::types::decode_bool(&mut cur)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.backdrop_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -145,6 +156,7 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
             folders: self.folders.iter().map(|s| s.to_string()).collect(),
             backdrop_url: self.backdrop_url.map(|s| s.to_string()),
             custom_backdrop: self.custom_backdrop,
+            backdrop_thumbhash: self.backdrop_thumbhash.map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -177,6 +189,9 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
         if self.custom_backdrop {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -208,6 +223,9 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
         }
         if self.custom_backdrop {
             ::buffa::types::put_bool_field(6u32, self.custom_backdrop, buf);
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            ::buffa::types::put_shared_bytes_field(7u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -247,6 +265,13 @@ impl<'__a> ::serde::Serialize for LibraryView<'__a> {
         }
         if self.custom_backdrop {
             __map.serialize_entry("customBackdrop", &self.custom_backdrop)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.backdrop_thumbhash {
+            __map
+                .serialize_entry(
+                    "backdropThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
         }
         __map.end()
     }
@@ -387,6 +412,13 @@ impl LibraryOwnedView {
     #[must_use]
     pub fn custom_backdrop(&self) -> bool {
         self.0.reborrow().custom_backdrop
+    }
+    /// As `Movie.backdrop_thumbhash`.
+    ///
+    /// Field 7: `backdrop_thumbhash`
+    #[must_use]
+    pub fn backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().backdrop_thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<LibraryView<'static>>>

@@ -3,7 +3,7 @@ import { Link, type LinkOptions, createFileRoute } from "@tanstack/react-router"
 import type { ComponentProps } from "react";
 
 import { Page } from "@/components/page";
-import { Poster, PosterGrid, posterLink } from "@/components/poster";
+import { Poster, PosterGrid, Thumbhash, posterLink } from "@/components/poster";
 import {
   BrowseService,
   type ContinueWatchingEntry,
@@ -92,6 +92,7 @@ function movieCard(libraryId: string, movie: Movie): Card {
     },
     poster: {
       url: movie.posterUrl,
+      thumbhash: movie.posterThumbhash,
       title: movie.title,
       detail: yearOf(movie.releaseDate),
       watchState: movie.watchState,
@@ -115,6 +116,7 @@ function episodeCard(libraryId: string, { show, episode }: ContinueWatchingEpiso
       },
       poster: {
         url: show.posterUrl,
+        thumbhash: show.posterThumbhash,
         title: show.title,
         detail: metadataLine(seasonName(episode.seasonNumber), `Episode ${number}`),
         watchState: episode.watchState,
@@ -150,8 +152,8 @@ function Libraries() {
 }
 
 /**
- * A Library's Backdrop with its name over it, or without one a plain box of the same size, so the
- * row doesn't shift. Art is always shown in the dark scheme, so the name keeps the scrim's 70%
+ * A Library's Backdrop with its name over it, its thumbhash until it loads, or without one a
+ * plain box of the same size, so the row doesn't shift. Art is always shown in the dark scheme, so the name keeps the scrim's 70%
  * black and light ink over a light image too (DESIGN.md, "The Legible Over Art Rule").
  */
 function LibraryCard({ library }: { library: Library }) {
@@ -159,9 +161,10 @@ function LibraryCard({ library }: { library: Library }) {
   return (
     <>
       <div
-        className="group dark relative flex aspect-video items-end overflow-hidden rounded-lg border bg-muted"
+        className="group dark relative isolate flex aspect-video items-end overflow-hidden rounded-lg border bg-muted"
         data-art={art ? "" : undefined}
       >
+        <Thumbhash thumbhash={library.backdropThumbhash} />
         {art && (
           // Its name is drawn over it, so the image itself says nothing more.
           <img

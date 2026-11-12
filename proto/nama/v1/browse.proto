@@ -87,6 +87,11 @@ message Movie {
   bool custom_poster = 11;
   // Whether `backdrop_url` is a Custom Image, at `/custom-images/movie/<id>/backdrop`.
   bool custom_backdrop = 12;
+  // The poster's thumbhash (evanw.github.io/thumbhash), a blurred preview to show while it loads,
+  // once the Server has resized it. Unset while resizing is off.
+  optional bytes poster_thumbhash = 13;
+  // As `poster_thumbhash`, for the backdrop.
+  optional bytes backdrop_thumbhash = 14;
 }
 
 // One file a Movie or Episode is available in.
@@ -219,6 +224,10 @@ message Show {
   bool custom_poster = 5;
   // Whether `backdrop_url` is a Custom Image, at `/custom-images/show/<id>/backdrop`.
   bool custom_backdrop = 6;
+  // As `Movie.poster_thumbhash`.
+  optional bytes poster_thumbhash = 7;
+  // As `Movie.backdrop_thumbhash`.
+  optional bytes backdrop_thumbhash = 8;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.
@@ -230,6 +239,8 @@ message Season {
   // Whether `poster_url` is a Custom Image, at
   // `/custom-images/show/<show id>/season/<number>/poster`, as for `Movie.custom_poster`.
   bool custom_poster = 3;
+  // As `Movie.poster_thumbhash`.
+  optional bytes poster_thumbhash = 4;
 }
 
 // An Episode some items of a Library are Matched to, with the metadata its Match stores.
@@ -338,6 +349,8 @@ message MovieInLibrary {
   optional string release_date = 4;
   // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 5;
+  // As `Movie.poster_thumbhash`.
+  optional bytes poster_thumbhash = 6;
 }
 
 // A Show a search found, with what a client needs to show it and open it with `GetShow`.
@@ -349,6 +362,8 @@ message ShowInLibrary {
   string title = 3;
   // The Show's Custom Poster's URL on this Server, or else a Season's poster's.
   optional string poster_url = 4;
+  // As `Movie.poster_thumbhash`.
+  optional bytes poster_thumbhash = 5;
 }
 
 // An Episode a search found, with what a client needs to show it and open its Season with

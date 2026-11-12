@@ -9,14 +9,15 @@
 //!
 //! An image is the body of one plain HTTP request (ADR 0007): `PUT /custom-images/<slot>` uploads
 //! it and `DELETE` there removes it, which `PREFIXES` in `src/api.rs` lets only Users with Manage
-//! Libraries do. Anyone with a session fetches it at its [`Urls`] entry, under `/media/`.
+//! Libraries do. Anyone with a session fetches it at its [`Urls`] entry, under `/media/`, resized
+//! by `?width=` as a downloaded image is (`crate::artwork`).
 
-use std::{collections::HashMap, io, iter, path::Path, sync::Arc};
+use std::{collections::HashMap, io, iter, sync::Arc};
 
 use axum::{
     Router,
     body::Body,
-    extract::{Path as UrlPath, Request, State},
+    extract::{Path as UrlPath, Query, Request, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, put},
@@ -27,7 +28,8 @@ use sqlx::SqliteConnection;
 use crate::{
     contents::parse_hint,
     db::Database,
-    images::{ImageStore, Received, UploadError},
+    images::{Asked, ImageStore, Received, Resize, UploadError},
+    server_settings::ImageSettings,
 };
 
 /// Where the store keeps them, under the data directory.
@@ -143,12 +145,9 @@ impl Urls {
 }
 
 impl CustomImages {
-    /// The Custom Images recorded in `db`, their bytes stored in `data_dir`.
-    pub(crate) fn new(db: Arc<Database>, data_dir: &Path) -> Self {
-        Self {
-            db,
-            store: ImageStore::new(data_dir),
-        }
+    /// The Custom Images recorded in `db`, their bytes kept in `store`.
+    pub(crate) fn new(db: Arc<Database>, store: ImageStore) -> Self {
+        Self { db, store }
     }
 
     /// Where clients fetch each Custom Image.
@@ -161,11 +160,28 @@ impl CustomImages {
         Ok(Urls(
             rows.into_iter()
                 .map(|row| {
-                    let url = format!("/media/custom-images/{}/{}", row.slot, row.version);
+                    let url = url(&row.slot, &row.version);
                     (Slot(row.slot), url)
                 })
                 .collect(),
         ))
+    }
+
+    /// The thumbhash of each Custom Image resized so far, by the URL clients fetch it at. A new
+    /// version is a new image, so it has none until it is resized.
+    ///
+    /// # Errors
+    ///
+    /// If the database can't be read.
+    pub(crate) async fn thumbhashes(&self) -> sqlx::Result<HashMap<String, Vec<u8>>> {
+        let stored = self.store.thumbhashes(DIR).await?;
+        Ok(stored
+            .into_iter()
+            .filter_map(|(key, thumbhash)| {
+                let (version, slot) = key.get(1..)?.split_last()?;
+                Some((url(&slot.join("/"), version), thumbhash))
+            })
+            .collect())
     }
 
     /// Keeps `body` as the Custom Image at `slot`, in place of any there before.
@@ -237,9 +253,14 @@ impl CustomImages {
         Ok(self.store.delete(&key).await?)
     }
 
-    /// The Custom Image at `slot` as the answer to `request`, 404 unless `version` is its current
-    /// one, since a browser keeps what it fetched at that URL for good.
-    async fn serve(&self, slot: &Slot, version: &str, request: Request) -> Result<Response, Error> {
+    /// The Custom Image at `slot` as the answer to `request`, resized as `resize` asks, 404 unless
+    /// `version` is its current one, since a browser keeps what it fetched at that URL for good.
+    async fn serve(
+        &self,
+        (slot, version): (&Slot, &str),
+        resize: Option<Resize>,
+        request: Request,
+    ) -> Result<Response, Error> {
         let current = sqlx::query!(
             "SELECT version, content_type FROM custom_images WHERE slot = ?",
             slot.0
@@ -256,7 +277,10 @@ impl CustomImages {
         };
         let mut key = slot.key();
         key.push(version);
-        Ok(self.store.serve(&key, content_type, None, request).await?)
+        Ok(self
+            .store
+            .serve(&key, content_type, resize, request)
+            .await?)
     }
 }
 
@@ -302,18 +326,23 @@ async fn library_exists(conn: &mut SqliteConnection, id: i64) -> Result<bool, sq
     .await
 }
 
+/// Where clients fetch the version `version` of the Custom Image at the slot named `slot`.
+fn url(slot: &str, version: &str) -> String {
+    format!("/media/custom-images/{slot}/{version}")
+}
+
 /// Serves uploads to and removals from `/custom-images/<slot>`, and the images under
-/// `/media/custom-images/<slot>/<version>`. Who may make each request is up to the layers the
-/// router is put behind.
-pub(crate) fn router(custom_images: CustomImages) -> Router {
+/// `/media/custom-images/<slot>/<version>`, resized as `images` says. Who may make each request is
+/// up to the layers the router is put behind.
+pub(crate) fn router(custom_images: CustomImages, images: ImageSettings) -> Router {
     Router::new()
         .route("/custom-images/{*slot}", put(upload).delete(remove))
         .route("/media/custom-images/{*path}", get(serve))
-        .with_state(custom_images)
+        .with_state((custom_images, images))
 }
 
 async fn upload(
-    State(custom_images): State<CustomImages>,
+    State((custom_images, _)): State<(CustomImages, ImageSettings)>,
     UrlPath(slot): UrlPath<String>,
     body: Body,
 ) -> Response {
@@ -346,7 +375,7 @@ async fn upload(
 }
 
 async fn remove(
-    State(custom_images): State<CustomImages>,
+    State((custom_images, _)): State<(CustomImages, ImageSettings)>,
     UrlPath(slot): UrlPath<String>,
 ) -> Response {
     let Some(slot) = Slot::parse(&slot) else {
@@ -361,8 +390,9 @@ async fn remove(
 }
 
 async fn serve(
-    State(custom_images): State<CustomImages>,
+    State((custom_images, images)): State<(CustomImages, ImageSettings)>,
     UrlPath(path): UrlPath<String>,
+    Query(asked): Query<Asked>,
     request: Request,
 ) -> Response {
     let Some((slot, version)) = path.rsplit_once('/') else {
@@ -371,7 +401,11 @@ async fn serve(
     let Some(slot) = Slot::parse(slot) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    match custom_images.serve(&slot, version, request).await {
+    let resize = match asked.resize(&images) {
+        Ok(resize) => resize,
+        Err(refused) => return refused.into_response(),
+    };
+    match custom_images.serve((&slot, version), resize, request).await {
         Ok(response) => response,
         Err(err) => failed("serve", &err),
     }

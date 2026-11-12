@@ -49,6 +49,7 @@ use crate::{
     db::Database,
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
+    images::ImageStore,
     playback::running::RunningPlans,
     playback::subtitles,
     plugin_settings::PluginSettings,
@@ -114,12 +115,14 @@ pub fn serve(
         events.clone(),
     );
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
-    let artwork = Artwork::new(&config.data_dir, points.clone());
+    let images = ImageStore::new(&config.data_dir, Arc::clone(&db));
+    let artwork = Artwork::new(images.clone(), points.clone());
+    let custom_images = CustomImages::new(Arc::clone(&db), images);
     let scanner = Scanner::new(
         Arc::clone(&db),
         points,
         artwork.clone(),
-        CustomImages::new(Arc::clone(&db), &config.data_dir),
+        custom_images.clone(),
         events.clone(),
         Some(probing.clone()),
         Some(running.clone()),
@@ -132,6 +135,7 @@ pub fn serve(
         db,
         plugins.clone(),
         scanner.clone(),
+        custom_images,
         artwork,
         probing.clone(),
         events.clone(),

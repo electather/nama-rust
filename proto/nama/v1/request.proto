@@ -583,6 +583,8 @@ message MovieHit {
   optional int64 library_id = 8;
   // The Movie's open Request, if it has one the caller may see.
   Request request = 9;
+  // As `nama.v1.Movie.poster_thumbhash`.
+  optional bytes poster_thumbhash = 10;
 }
 
 // A Movie looked up in the metadata source: all a `MovieHit` has, and what only a look-up fetches.
@@ -605,6 +607,10 @@ message FoundMovie {
   optional int64 library_id = 8;
   // The Movie's open Request, if it has one the caller may see.
   Request request = 9;
+  // As `nama.v1.Movie.poster_thumbhash`.
+  optional bytes poster_thumbhash = 10;
+  // As `nama.v1.Movie.backdrop_thumbhash`.
+  optional bytes backdrop_thumbhash = 11;
 }
 
 message SearchMoviesRequest {
@@ -636,6 +642,8 @@ message ShowHit {
   optional int32 year = 3;
   // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 5;
+  // As `nama.v1.Movie.poster_thumbhash`.
+  optional bytes poster_thumbhash = 10;
 }
 
 // A Show looked up in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
@@ -661,6 +669,10 @@ message FoundShow {
   // off, else that of its open Followed Show. Unset if it has none, so a new Season Request or
   // Followed Show may pick one.
   RequestedQuality quality = 9;
+  // As `nama.v1.Movie.poster_thumbhash`.
+  optional bytes poster_thumbhash = 10;
+  // As `nama.v1.Movie.backdrop_thumbhash`.
+  optional bytes backdrop_thumbhash = 11;
 }
 
 // A Season of a Show in the metadata source, and how close it is to being on the Server: in a

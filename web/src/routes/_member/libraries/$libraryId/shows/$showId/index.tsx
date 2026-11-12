@@ -60,7 +60,11 @@ function Show() {
   });
   if (!data.show || isGone(error)) return <NotFound />;
   return (
-    <TitlePage title={data.show.title} backdropUrl={data.show.backdropUrl}>
+    <TitlePage
+      title={data.show.title}
+      backdropUrl={data.show.backdropUrl}
+      backdropThumbhash={data.show.backdropThumbhash}
+    >
       {/* Pulled out like the Episodes below, so the menu lines up with their toggles. */}
       <div className="-me-3 flex max-w-3xl items-start gap-2">
         <Seasons seasons={data.seasons} current={seasonNumber} />

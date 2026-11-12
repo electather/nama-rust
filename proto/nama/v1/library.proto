@@ -96,6 +96,8 @@ message Library {
   // /custom-images/library/<id>/backdrop` removes. `PUT` there uploads one, for a User with
   // `PERMISSION_MANAGE_LIBRARIES`. Deleting the Library deletes it.
   bool custom_backdrop = 6;
+  // As `Movie.backdrop_thumbhash`.
+  optional bytes backdrop_thumbhash = 7;
 }
 
 message CreateLibraryRequest {

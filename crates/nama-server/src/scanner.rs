@@ -797,6 +797,7 @@ mod tests {
         db::Database,
         events::{EventBus, Filter},
         ffmpeg::Ffmpeg,
+        images::ImageStore,
         libraries::{self, Kind, Libraries},
         playback::subtitles,
         plugins::ExtensionPoints,
@@ -859,8 +860,14 @@ mod tests {
                 scanner: Scanner::new(
                     Arc::clone(&db),
                     ExtensionPoints::default(),
-                    Artwork::new(data.path(), ExtensionPoints::default()),
-                    CustomImages::new(Arc::clone(&db), data.path()),
+                    Artwork::new(
+                        ImageStore::new(data.path(), Arc::clone(&db)),
+                        ExtensionPoints::default(),
+                    ),
+                    CustomImages::new(
+                        Arc::clone(&db),
+                        ImageStore::new(data.path(), Arc::clone(&db)),
+                    ),
                     events.clone(),
                     probing.clone(),
                     None,

@@ -14,7 +14,7 @@
 //! copy resized to one of [`crate::images::WIDTHS`] while an admin leaves resizing on (ADR 0039).
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     io,
     path::Path,
     sync::{Arc, Mutex, PoisonError},
@@ -28,12 +28,11 @@ use axum::{
     routing::get,
 };
 use nama_plugin_api::PluginId;
-use serde::Deserialize;
 use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
 
 use crate::{
     contents::Contents,
-    images::{ImageStore, Resize, file_name},
+    images::{Asked, ImageStore, Resize, file_name},
     metadata::{self, MetadataSource},
     plugins::ExtensionPoints,
     server_settings::ImageSettings,
@@ -83,12 +82,11 @@ pub enum Error {
 }
 
 impl Artwork {
-    /// The images stored in `data_dir`, fetching through the metadata Providers enabled in
-    /// `plugins`.
+    /// The images kept in `store`, fetching through the metadata Providers enabled in `plugins`.
     #[must_use]
-    pub fn new(data_dir: &Path, plugins: ExtensionPoints) -> Self {
+    pub fn new(store: ImageStore, plugins: ExtensionPoints) -> Self {
         Self {
-            store: ImageStore::new(data_dir),
+            store,
             metadata: MetadataSource::new(plugins),
             offered: Arc::default(),
             downloads: Arc::new(Semaphore::new(DOWNLOADS)),
@@ -108,6 +106,23 @@ impl Artwork {
         }
         offered.insert((plugin.to_owned(), path.to_owned()));
         url(plugin, path)
+    }
+
+    /// The thumbhash of each image resized so far, by the URL clients fetch it at.
+    ///
+    /// # Errors
+    ///
+    /// If the database can't be read.
+    pub(crate) async fn thumbhashes(&self) -> sqlx::Result<HashMap<String, Vec<u8>>> {
+        let mut by_url = HashMap::new();
+        for dir in [OFFERED_DIR, KEPT_DIR] {
+            let stored = self.store.thumbhashes(dir).await?;
+            by_url.extend(
+                (stored.into_iter())
+                    .filter_map(|(key, thumbhash)| Some((url_of(&key)?, thumbhash))),
+            );
+        }
+        Ok(by_url)
     }
 
     fn was_offered(&self, plugin: &str, path: &str) -> bool {
@@ -244,6 +259,14 @@ fn key<'a>(dir: &'a str, plugin: &'a str, path: &'a str) -> [&'a str; 3] {
     [dir, plugin, path]
 }
 
+/// Where clients fetch the image the store keeps at `key`, in either folder.
+fn url_of(key: &[String]) -> Option<String> {
+    let [_, plugin, path] = key else {
+        return None;
+    };
+    Some(url(plugin, path))
+}
+
 /// Where clients fetch the image: `/media/artwork/<plugin>/<path>`, each part one URL path segment
 /// (escaped as [`file_name`] does, which decodes back to what it was).
 pub(crate) fn url(plugin: &str, path: &str) -> String {
@@ -259,25 +282,15 @@ pub(crate) fn router(artwork: Artwork, contents: Contents, images: ImageSettings
         .with_state((artwork, contents, images))
 }
 
-/// What an image's URL asks for after the `?`.
-#[derive(Debug, Deserialize)]
-struct Asked {
-    width: Option<u32>,
-}
-
 async fn serve(
     State((artwork, contents, images)): State<(Artwork, Contents, ImageSettings)>,
     UrlPath((plugin, path)): UrlPath<(String, String)>,
     Query(asked): Query<Asked>,
     request: Request,
 ) -> Response {
-    let resize = match (asked.width, images.resizing()) {
-        (Some(width), Some(cache_limit)) => match Resize::to(width, cache_limit) {
-            Some(resize) => Some(resize),
-            None => return StatusCode::BAD_REQUEST.into_response(),
-        },
-        // Off, the browser scales the stored image itself (ADR 0039).
-        _ => None,
+    let resize = match asked.resize(&images) {
+        Ok(resize) => resize,
+        Err(refused) => return refused.into_response(),
     };
     let dir = match contents.stores_image(&plugin, &path).await {
         Ok(true) => KEPT_DIR,
@@ -367,7 +380,9 @@ mod tests {
         });
         let key = BTreeMap::from([("api_key".to_owned(), SettingValue::Text(API_KEY.to_owned()))]);
         (plugins.enable_with_settings(Arc::new(tmdb), Settings::new(key))).unwrap();
-        Artwork::new(data.path(), plugins.extension_points())
+        let db = Database::open(data.path()).await.unwrap();
+        let store = ImageStore::new(data.path(), Arc::new(db));
+        Artwork::new(store, plugins.extension_points())
     }
 
     #[tokio::test]
@@ -383,7 +398,7 @@ mod tests {
         let _all_finished = artwork.downloads.acquire_many(2).await.unwrap();
 
         assert_eq!(running.most.load(Ordering::SeqCst), 2);
-        let kept = ImageStore::new(data.path()).list("artwork").await.unwrap();
+        let kept = artwork.store.list("artwork").await.unwrap();
         assert_eq!(kept.len(), 5);
     }
 
@@ -416,11 +431,10 @@ mod tests {
     async fn an_svg_is_never_served_as_an_image() {
         let data = tempfile::tempdir().unwrap();
         let key = ["artwork", "tmdb", "/logo.svg"];
-        ImageStore::new(data.path())
-            .write(&key, b"<svg><script/></svg>")
-            .await
-            .unwrap();
-        let artwork = Artwork::new(data.path(), Registry::new().extension_points());
+        let db = Database::open(data.path()).await.unwrap();
+        let store = ImageStore::new(data.path(), Arc::new(db));
+        store.write(&key, b"<svg><script/></svg>").await.unwrap();
+        let artwork = Artwork::new(store, Registry::new().extension_points());
 
         let request = Request::get("/").body(Body::empty()).unwrap();
         let response = artwork

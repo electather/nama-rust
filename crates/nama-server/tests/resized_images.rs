@@ -239,3 +239,35 @@ async fn a_copy_just_made_is_sent_though_it_is_not_the_most_recently_sent() {
     assert_eq!(dimensions(&reply), (640, 960));
     assert!(!other.exists());
 }
+
+#[tokio::test]
+async fn once_a_poster_is_resized_browse_sends_its_thumbhash() {
+    let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
+    let before = fx.get_movie(fx.library, ALIEN).await.unwrap();
+
+    fetch_at(&fx, &poster, 640).await;
+    let after = fx.get_movie(fx.library, ALIEN).await.unwrap();
+
+    assert_eq!(before.poster_thumbhash, None);
+    let thumbhash = after.poster_thumbhash.unwrap();
+    let shape = thumbhash::thumb_hash_to_approximate_aspect_ratio(&thumbhash).unwrap();
+    // A thumbhash keeps its image's shape only roughly.
+    assert!((shape - 2.0 / 3.0).abs() < 0.1, "{shape}");
+    assert_eq!(after.backdrop_thumbhash, None);
+}
+
+#[tokio::test]
+async fn with_resizing_off_no_thumbhash_is_made_or_sent() {
+    let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
+
+    fx.server.set_image_settings(false, None).await;
+    fetch_at(&fx, &poster, 640).await;
+    fx.server.set_image_settings(true, None).await;
+    let never_made = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    fetch_at(&fx, &poster, 640).await;
+    fx.server.set_image_settings(false, None).await;
+    let not_sent = fx.get_movie(fx.library, ALIEN).await.unwrap();
+
+    assert_eq!(never_made.poster_thumbhash, None);
+    assert_eq!(not_sent.poster_thumbhash, None);
+}

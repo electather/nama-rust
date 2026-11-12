@@ -11,7 +11,12 @@ mod http;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{fs, path::PathBuf, time::Duration};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use browsing::{ALIEN_1080P, Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
@@ -24,6 +29,8 @@ use nama_proto::nama::v1::{
 };
 use nama_server::{
     artwork::{Artwork, Error},
+    db::Database,
+    images::ImageStore,
     plugins::{ExtensionPoints, Registry},
 };
 use server::{
@@ -221,18 +228,30 @@ async fn tmdb() -> (FakeTmdb, ExtensionPoints) {
     )
 }
 
+/// Artwork kept in `data`, fetched through `plugins`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn artwork_in(data: &Path, plugins: ExtensionPoints) -> Artwork {
+    let db = Database::open(data).await.unwrap();
+    Artwork::new(ImageStore::new(data, Arc::new(db)), plugins)
+}
+
 #[tokio::test]
 async fn an_image_is_downloaded_once_then_kept() {
     let (fake, plugins) = tmdb().await;
     let data = tempfile::tempdir().unwrap();
     let tmdb = PluginId::from_static("tmdb");
 
-    Artwork::new(data.path(), plugins.clone())
+    artwork_in(data.path(), plugins.clone())
+        .await
         .keep(&tmdb, POSTER)
         .await
         .unwrap();
     // A fresh store over the same directory, as after a restart.
-    Artwork::new(data.path(), plugins)
+    artwork_in(data.path(), plugins)
+        .await
         .keep(&tmdb, POSTER)
         .await
         .unwrap();
@@ -245,7 +264,8 @@ async fn an_image_the_provider_does_not_have_is_not_found() {
     let (_fake, plugins) = tmdb().await;
     let data = tempfile::tempdir().unwrap();
 
-    let missing = Artwork::new(data.path(), plugins)
+    let missing = artwork_in(data.path(), plugins)
+        .await
         .keep(&PluginId::from_static("tmdb"), "/missing.jpg")
         .await;
 
@@ -257,7 +277,8 @@ async fn an_image_from_a_plugin_that_is_not_enabled_is_unavailable() {
     let (fake, plugins) = tmdb().await;
     let data = tempfile::tempdir().unwrap();
 
-    let result = Artwork::new(data.path(), plugins)
+    let result = artwork_in(data.path(), plugins)
+        .await
         .keep(&PluginId::from_static("other"), POSTER)
         .await;
 

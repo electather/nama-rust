@@ -31,6 +31,9 @@ const MAX_BITMAP_BYTES: u64 = 64 * 1024 * 1024;
 /// The JPEG quality of every copy.
 const QUALITY: u8 = 80;
 
+/// The most pixels a side of the image a thumbhash is taken from may have, `thumbhash`'s limit.
+const THUMBHASH_SIDE: u32 = 100;
+
 type Job = Box<dyn FnOnce() + Send>;
 
 /// The one thread images are resized on, so at most one resize runs at a time and glibc keeps
@@ -74,27 +77,39 @@ impl ResizeThread {
     }
 }
 
+/// What [`make_copy`] did.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum Copied {
+    /// It was there already.
+    Found,
+    /// It was made now, and the original's thumbhash taken on the way.
+    Made { thumbhash: Vec<u8> },
+    /// None is made: the original is to be sent as it is.
+    Unneeded,
+}
+
 /// Writes `original` resized to `width`, its shape kept, as a JPEG at `copy`, unless a copy is
-/// there already. Returns `false`, writing nothing, where the original is to be sent as it is: it
-/// isn't a format the Server reads (such as SVG), has transparency, is over [`MAX_PIXELS`] or
-/// [`MAX_BITMAP_BYTES`], or is no wider than `width`.
+/// there already. Makes none where the original is to be sent as it is: it isn't a format the
+/// Server reads (such as SVG), has transparency, is over [`MAX_PIXELS`] or [`MAX_BITMAP_BYTES`],
+/// or is no wider than `width`.
 ///
 /// # Errors
 ///
-/// If the original can't be read or decoded, or the copy can't be written.
+/// If the original can't be read or decoded, the copy or its thumbhash can't be made, or the copy
+/// can't be written.
 pub(super) fn make_copy(
     original: &Path,
     copy: &Path,
     width: u32,
-) -> Result<bool, Box<dyn Error + Send + Sync>> {
+) -> Result<Copied, Box<dyn Error + Send + Sync>> {
     // A request that waited behind the one that made it finds it here.
     if copy.try_exists()? {
-        return Ok(true);
+        return Ok(Copied::Found);
     }
     // Read from the file, not a copy in memory: the JPEG decoder buffers the whole input itself.
     let reader = ImageReader::open(original)?.with_guessed_format()?;
     if reader.format().is_none() {
-        return Ok(false);
+        return Ok(Copied::Unneeded);
     }
     let mut decoder = reader.into_decoder()?;
     let (stored_width, stored_height) = decoder.dimensions();
@@ -114,7 +129,7 @@ pub(super) fn make_copy(
         || color.has_alpha()
         || width >= shown_width
     {
-        return Ok(false);
+        return Ok(Copied::Unneeded);
     }
     let mut source = DynamicImage::from_decoder(decoder)?;
     source.apply_orientation(orientation);
@@ -125,8 +140,26 @@ pub(super) fn make_copy(
     drop(source);
     let mut jpeg = Vec::new();
     JpegEncoder::new_with_quality(&mut jpeg, QUALITY).encode_image(&resized)?;
+    // Before the copy is written: once it is, the image is never resized again to take one.
+    let thumbhash = thumbhash_of(&resized)?;
     write_now(copy, &jpeg)?;
-    Ok(true)
+    Ok(Copied::Made { thumbhash })
+}
+
+/// The thumbhash of `image`, shrunk first to the size `thumbhash` takes, so the original is never
+/// decoded for it alone.
+fn thumbhash_of(image: &RgbImage) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    let (width, height) = image.dimensions();
+    let longest = width.max(height);
+    let fit = |side: u32| (side * THUMBHASH_SIDE / longest).max(1);
+    let mut small = RgbImage::new(fit(width), fit(height));
+    Resizer::new().resize(image, &mut small, None)?;
+    let small = DynamicImage::from(small).into_rgba8();
+    Ok(thumbhash::rgba_to_thumb_hash(
+        usize::try_from(small.width())?,
+        usize::try_from(small.height())?,
+        small.as_raw(),
+    ))
 }
 
 /// Whether `orientation` shows a stored image turned a quarter, so its width is its height.

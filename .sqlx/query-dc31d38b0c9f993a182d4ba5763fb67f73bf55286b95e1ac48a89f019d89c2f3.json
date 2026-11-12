@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM image_thumbhashes WHERE key = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "dc31d38b0c9f993a182d4ba5763fb67f73bf55286b95e1ac48a89f019d89c2f3"
+}
