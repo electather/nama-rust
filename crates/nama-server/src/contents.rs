@@ -403,7 +403,7 @@ pub(crate) struct FoundShow {
     /// The Plugin whose metadata Provider made the Match, which the poster's path is for.
     pub(crate) plugin: String,
     pub(crate) title: String,
-    /// As [`Show::poster`] picks it from the Seasons of its Episodes the Library has.
+    /// As [`Show::poster`] picks it, from the Seasons of the Show's Episodes the search found.
     pub(crate) poster: Option<String>,
 }
 
@@ -1172,7 +1172,10 @@ fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
         if !seen.insert((row.library, id)) {
             continue;
         }
-        // Every Episode of a Show fits its title alike, so its rows hold all its Seasons.
+        // Every Episode of a Show fits its title alike, so its rows hold all its Seasons, unless
+        // the search ends in a year: that keeps only the Episodes aired in it.
+        // ponytail: a year can pick another Season's Poster than the Library grid's; search the
+        // Show's rows again without it if that's ever seen.
         // ponytail: rescans every row per Show found; group rows by Show once searches get slow.
         let seasons = (rows.iter())
             .filter(|(other_id, other)| other.library == row.library && other_id == id)
