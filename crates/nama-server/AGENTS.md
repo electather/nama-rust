@@ -54,6 +54,7 @@
 - **One fixture.** Server tests in `tests/` build on `TestServer` in `tests/support`, started through `TestServer::builder()`. Their setup goes through the API, as a client's would; a shared helper never writes the database. A test file adds a fixture of its own only for what that file alone needs, and a shortcut one test needs stays in that test's file.
 - **One in-file fixture.** An in-file test that needs a Library with a Matched Movie builds it with `contents::fixture` and adds what else it needs on top, so a change to how a Match is stored touches one place.
 - **Fake programs.** Fake programs a test runs are written only through `ffmpeg::fake::script`. Writing one with `fs::write` can fail with "Text file busy" (#411).
+- **Unit tests sit beside their file.** `foo.rs`'s unit tests live in `foo_tests.rs` beside it, which `foo.rs` declares as `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`, so each test keeps its name. A file not moved yet keeps its `mod tests` inline until its area is regrouped.
 
 ### Structure
 
