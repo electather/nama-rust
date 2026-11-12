@@ -271,6 +271,8 @@ pub(crate) enum MatchedTo {
 pub(crate) struct Show<V = Version> {
     /// Which of its Episodes' Show ids identifies it: see [`primary_id`].
     pub(crate) id: ExternalId,
+    /// The Show's TVDB id, which Sonarr finds it by, if that Match has one.
+    pub(crate) tvdb_id: Option<i64>,
     /// The Plugin whose metadata Provider made the Match, which the image paths are for.
     pub(crate) plugin: String,
     pub(crate) title: String,
@@ -308,6 +310,7 @@ impl<V> Show<V> {
             .collect();
         Show {
             id: self.id,
+            tvdb_id: self.tvdb_id,
             plugin: self.plugin,
             title: self.title,
             backdrop: self.backdrop,
@@ -894,6 +897,7 @@ impl Contents {
             };
             let show = shows.entry(show_id.clone()).or_insert_with(|| Show {
                 id: show_id,
+                tvdb_id: row.show_tvdb_id,
                 plugin: row.plugin,
                 title: row.show_title,
                 backdrop: row.backdrop,
