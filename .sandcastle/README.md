@@ -15,6 +15,8 @@ Anything stuck is relabelled `ready-for-human` with a comment.
 
 It builds web tickets as well as Rust ones. The image (`Dockerfile`, on `node:26-bookworm`) holds the Rust toolchain with the `wasm32` target (linking with `mold`, at most 4 cargo jobs, line-table debug info, so two sandboxes fit in OrbStack's memory), `buf`, `gh`, Claude Code, Vite+ (`vp`) with the Node 26 and pnpm 12 that `web/` pins, and Playwright's headless Chromium. On a ticket that touches `web/`, agents run CI's web checks and screenshot the screens they changed at phone and desktop widths to check them against `DESIGN.md`. The cargo registry and the pnpm store are cached on the host in `~/.cache/nama-sandcastle/`, so each sandbox doesn't download them again.
 
+Sandboxes refuse `git stash` (`git-guard.sh`, the image's `git`): each sandbox is a worktree of the host repo, so they all share one `refs/stash` and a pop can take another ticket's work (#750). Rebuild the image after editing it (`npx --prefix .sandcastle sandcastle docker build-image`).
+
 Agents stay on their ticket's PR. What they find elsewhere they park as a `needs-triage` issue (`.sandcastle/park.md`, inlined into each prompt; never `ready-for-agent`), which the triage loop picks up. Their `GH_TOKEN` comes from `.sandcastle/.env`.
 
 An issue with sub-issues is never built directly, and it doesn't carry `ready-for-agent` (see `docs/agents/triage-labels.md`). The factory builds its labelled sub-issues (each gets the parent as context) and closes the parent once the last one is closed.
@@ -82,7 +84,7 @@ Logs, all in `.sandcastle/logs/`:
 - `agent-issue-N-<step>--N.log`: what each agent did.
 - `mem.log`: every 30s, any sandbox over `MEM_LOG_GIB` (default 4) GiB, with its 8 biggest processes. Read it when OrbStack runs out of memory.
 
-`npm --prefix .sandcastle run check` checks the `status.md` renderer.
+`npm --prefix .sandcastle run check` checks the `status.md` renderer and `git-guard.sh`.
 
 Claude usage: before picking each issue the factory reads the 5-hour and weekly usage from the rate-limit headers of a 1-token Haiku call. At 95% of the 5-hour limit (`USAGE_PAUSE`) or 92% of the weekly limit (`WEEKLY_STOP`) it starts nothing new until that window resets, while running issues carry on. Past 80% of the 5-hour limit (`SLOW_5H`) or 85% of the weekly limit (`SLOW_WEEKLY`) it starts a new build or triage only while fewer than `SLOW_PARALLEL` (default 1) agents run, triages included. `launchd.log` says when it pauses (⏸), resumes (▶), slows down (🐢) and speeds up again (🐇).
 
