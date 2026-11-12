@@ -39,6 +39,10 @@ pub mod nama {
     }
 }
 
-/// The version of the Nama API this crate was generated for, which an Installed Plugin's
+/// The version of the Nama API an Installed Plugin is built against, which its
 /// [`Manifest::nama_api`](nama::plugin::v1::Manifest::nama_api) requirement is matched against.
-pub const NAMA_API_VERSION: &str = env!("CARGO_PKG_VERSION");
+///
+/// It covers the `nama.plugin.v1` messages and the `nama.v1` messages they carry, the exports a
+/// Server calls and the functions a Server provides to a Plugin. It is not this crate's version;
+/// `AGENTS.md` says when it changes.
+pub const NAMA_API_VERSION: &str = "0.2.0";

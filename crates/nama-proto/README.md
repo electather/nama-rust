@@ -9,7 +9,7 @@ Each proto package is a module. For `nama.v1` that is `nama_proto::nama::v1`, wh
 
 `nama.plugin.v1`, at `nama_proto::nama::plugin::v1`, holds the messages the Server and its Installed Plugins exchange, such as the `Manifest`. An Installed Plugin is built for wasm32, where the ConnectRPC stubs don't build, so `nama-pdk` turns `connect` off.
 
-`NAMA_API_VERSION` is this crate's version: the Nama API version an Installed Plugin's `Manifest.nama_api` requirement is matched against.
+`NAMA_API_VERSION` is the Nama API version an Installed Plugin's `Manifest.nama_api` requirement is matched against. It has a number of its own, separate from this crate's version in `Cargo.toml`; `AGENTS.md` says when it changes.
 
 ## Why buffa and not prost
 

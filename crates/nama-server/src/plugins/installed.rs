@@ -947,7 +947,7 @@ fn check_nama_api(wants: &str) -> Result<(), Refused> {
         wants: wants.to_owned(),
         error,
     })?;
-    // Cargo only accepts semver package versions, so this parses.
+    // every_bundled_plugin_has_the_exports_its_manifests_points_need fails if this stops parsing.
     if Version::parse(NAMA_API_VERSION).is_ok_and(|server| requirement.matches(&server)) {
         Ok(())
     } else {
