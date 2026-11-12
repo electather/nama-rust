@@ -10,6 +10,9 @@ import { kindName } from "@/lib/libraries";
 /** The `sizes` of an image as wide as a column of `BackdropGrid`, at each of its breakpoints. */
 const backdropGridSizes = "(min-width: 1024px) 315px, (min-width: 640px) 50vw, 100vw";
 
+/** The `sizes` of a Title Logo on a `BackdropCard`: up to 60% of its width. */
+const cardLogoSizes = "(min-width: 1024px) 189px, (min-width: 640px) 30vw, 60vw";
+
 /** A grid of `BackdropCard`s: one column on a phone, up to three on a desktop. */
 export function BackdropGrid({ children }: { children: ReactNode }) {
   return <ul className="mt-4 grid gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>;
@@ -28,21 +31,24 @@ export function LibraryCard({ library }: { library: Library }) {
 }
 
 /**
- * A Backdrop with a title and your Watch State over it, its thumbhash until it loads, or without
- * one a plain box of the same size, so the grid doesn't shift, and a line of `detail` under it.
- * Art is always shown in the dark scheme, so the title keeps the scrim's 70% black and light ink
- * over a light image too (DESIGN.md, "The Legible Over Art Rule").
+ * A Backdrop with a title, as its Title Logo if it has one, and your Watch State over it, its
+ * thumbhash until it loads, or without one a plain box of the same size, so the grid doesn't
+ * shift, and a line of `detail` under it. Art is always shown in the dark scheme, so the title
+ * keeps the scrim's 70% black and light ink over a light image too (DESIGN.md, "The Legible Over
+ * Art Rule").
  */
 export function BackdropCard({
   url,
   thumbhash,
   title,
+  logoUrl,
   detail,
   watchState,
 }: {
   url: string | undefined;
   thumbhash: Uint8Array | undefined;
   title: string;
+  logoUrl?: string | undefined;
   detail: string | undefined;
   watchState?: WatchState | undefined;
 }) {
@@ -70,9 +76,7 @@ export function BackdropCard({
           {art && <div className="h-8 bg-linear-to-t from-scrim" />}
           {/* On the scrim's full strength however many lines it takes, under a fade into the art. */}
           <div className="px-4 pb-3 group-data-art:bg-scrim">
-            <p className="text-2xl font-semibold tracking-tight text-balance text-foreground">
-              {title}
-            </p>
+            <CardTitle title={title} logoUrl={logoUrl} />
             <ResumeBar state={watchState} />
           </div>
         </div>
@@ -80,6 +84,25 @@ export function BackdropCard({
       {/* Always there, so the cards in a row line up whether or not each has a detail. */}
       <p className="mt-1.5 text-sm text-muted-foreground">{detail}</p>
     </>
+  );
+}
+
+/** A card's title as its Title Logo, named by the title, or as text without one. */
+function CardTitle({ title, logoUrl }: { title: string; logoUrl: string | undefined }) {
+  const srcSet = useSrcSet(logoUrl);
+  if (logoUrl !== undefined) {
+    return (
+      <img
+        src={logoUrl}
+        srcSet={srcSet}
+        sizes={cardLogoSizes}
+        alt={title}
+        className="max-h-12 w-auto max-w-3/5 object-contain"
+      />
+    );
+  }
+  return (
+    <p className="text-2xl font-semibold tracking-tight text-balance text-foreground">{title}</p>
   );
 }
 

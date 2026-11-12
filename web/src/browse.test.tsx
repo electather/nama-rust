@@ -96,7 +96,7 @@ test("a Library's page shows a Movie as soon as it's Matched", async () => {
   expect(await screen.findByText("Alien")).toBeDefined();
 });
 
-test("a Movie's page says each Version's picture and sound, such as 4K, HDR and 5.1", async () => {
+test("a Movie's Version choice says each one's picture and sound, such as 4K, HDR and 5.1", async () => {
   const transport = serverToBrowse({
     getMovie: () => ({
       movie: {
@@ -136,8 +136,11 @@ test("a Movie's page says each Version's picture and sound, such as 4K, HDR and 
   });
   openApp("/libraries/1/movies/tmdb-348", transport);
 
-  // The largest, which plays unless another is chosen.
-  expect(await screen.findByText("1979 · 4K · HDR · 5.1")).toBeDefined();
+  expect(
+    await screen.findByRole("option", {
+      name: "Alien (1979) - 2160p.mkv (4K · HDR · 5.1 · 60 GB)",
+    }),
+  ).toBeDefined();
   expect(
     screen.getByRole("option", { name: "Alien (1979) - 720p.mkv (720p · Stereo · 2 GB)" }),
   ).toBeDefined();

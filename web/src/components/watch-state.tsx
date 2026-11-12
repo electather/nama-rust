@@ -1,6 +1,7 @@
+import { Link, type LinkOptions } from "@tanstack/react-router";
 import { Check, Circle, CircleCheck, Play } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
@@ -17,15 +18,52 @@ export function WatchedBar({ state }: { state: WatchState | undefined }) {
   return <Progress value={percent} aria-label="Watched" />;
 }
 
+/** Whether you've started it and not played it, so it resumes. */
+function isStarted(state: WatchState | undefined): state is WatchState {
+  return state !== undefined && !state.played && state.positionMs > 0n;
+}
+
 /** ▶ and a bar showing how far in you are, unless it's played or you haven't started. */
 export function ResumeBar({ state }: { state: WatchState | undefined }) {
-  if (!state || state.played || state.positionMs === 0n) return null;
+  if (!isStarted(state)) return null;
   return (
     <div className="mt-2 flex items-center gap-2 text-foreground">
       <Play aria-hidden className="size-3.5 shrink-0 fill-current" />
       {/* Not `WatchedBar`, which hides under 1%: in Continue Watching, started is started. */}
       <Progress value={watchedPercent(state)} aria-label="Watched" />
     </div>
+  );
+}
+
+/**
+ * The pill at the top of a title's page that plays `link`: Play, or once started, Resume with a
+ * bar showing how far in you are and `detail`, such as how much is left.
+ */
+export function PlayOrResume({
+  link,
+  state,
+  detail,
+}: {
+  link: LinkOptions;
+  state: WatchState | undefined;
+  detail: string | undefined;
+}) {
+  const started = isStarted(state);
+  return (
+    <>
+      <Link {...link} className={buttonVariants({ size: "pill" })}>
+        <Play aria-hidden />
+        {started ? "Resume" : "Play"}
+      </Link>
+      {started && (
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div className="w-20">
+            <WatchedBar state={state} />
+          </div>
+          {detail}
+        </div>
+      )}
+    </>
   );
 }
 
