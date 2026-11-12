@@ -59,6 +59,16 @@ fn the_api_key_is_a_required_secret_setting() {
     assert!(api_key.required);
 }
 
+#[test]
+fn registering_without_an_api_key_fails_and_registers_nothing() {
+    let mut registrar = Registrar::with_settings(Settings::default());
+
+    let err = Tmdb::new().register(&mut registrar).unwrap_err();
+
+    assert!(err.to_string().contains("API key"), "{err}");
+    assert!(registrar.into_registrations().is_empty());
+}
+
 #[tokio::test]
 async fn searching_movies_finds_candidates_with_their_years() {
     let fake = FakeTmdb::start().await;

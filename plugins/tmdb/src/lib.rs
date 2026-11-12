@@ -20,7 +20,6 @@ use nama_plugin_api::{
     metadata::MetadataProvider,
     settings::{SettingField, SettingKind, SettingValue, SettingsSchema},
 };
-use tracing::error;
 
 use crate::client::Client;
 
@@ -112,18 +111,14 @@ impl Plugin for Tmdb {
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         let settings = registrar.settings();
         // The Kernel only enables the Plugin with an API key.
-        let Some(api_key) = settings.text(API_KEY) else {
-            error!("the tmdb plugin was enabled without an API key");
-            return Ok(());
-        };
+        let api_key = settings
+            .text(API_KEY)
+            .ok_or("the tmdb plugin needs an API key")?;
         let language = settings.text(LANGUAGE).unwrap_or(DEFAULT_LANGUAGE);
-        match Client::new(self.endpoints.clone(), api_key, language) {
-            Ok(client) => {
-                let provider: Arc<dyn MetadataProvider> = Arc::new(client);
-                registrar.provide::<dyn MetadataProvider>(Priority::DEFAULT, provider);
-            }
-            Err(err) => error!("could not set up HTTPS for TMDB: {err}"),
-        }
+        let client = Client::new(self.endpoints.clone(), api_key, language)
+            .map_err(|err| format!("could not set up HTTPS for TMDB: {err}"))?;
+        let provider: Arc<dyn MetadataProvider> = Arc::new(client);
+        registrar.provide::<dyn MetadataProvider>(Priority::DEFAULT, provider);
         Ok(())
     }
 }
