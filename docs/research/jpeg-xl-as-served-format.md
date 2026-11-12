@@ -338,7 +338,7 @@ Measured on 2026-11-12 for #728, which picks the encoder #739 uses. Both pure-Ru
 
 | Gate | `jxl-encoder` 0.3.4, effort 3, distance 1.5 | `jixel` 0.5.7, `UltraFast`, distance 1.2, lossless alpha |
 | --- | --- | --- |
-| 1. Chrome, Firefox and Safari show the files | Chrome 157 and Firefox 160 showed all six, each within 0.33 of 255 (mean) of `djxl`'s decode. Safari: not yet checked, by hand on a Mac (#728) | The same |
+| 1. Chrome, Firefox and Safari show the files | Chrome 157 and Firefox 160 showed all six, each within 0.33 of 255 (mean) of `djxl`'s decode. Safari 27.2 showed all six of the Mac's files (below), pixel for pixel as ImageIO decodes them | The same |
 | 2. Chrome and Firefox paint a blurred full frame early | Opaque files: from 1 to 2% of the file (0.6 to 1.1 KB), in both. Files with alpha: no, and no encoder's do (below) | Opaque files: from 1 to 2% (0.4 to 0.9 KB). Files with alpha: no |
 | 3. One job within 128 MiB above idle | Worst 110.7 MiB, the RGBA PNG to a Backdrop | Worst 86.7 MiB, the RGBA PNG to a Backdrop, in the resize |
 | 4. Encodes on the calling thread | Yes. Without its `parallel` feature it has no threads | Yes, with `with_num_threads(1)`. Its default is one thread per core |
@@ -348,7 +348,7 @@ Measured on 2026-11-12 for #728, which picks the encoder #739 uses. Both pure-Ru
 | Size against the Server's JPEG at the same look | 40 to 52% smaller | 46 to 58% smaller; 8 to 18% smaller than `jxl-encoder` |
 | New crates in `Cargo.lock` | 9 | 1 |
 
-Both pass every gate run here; Safari is still to be checked. By #728's ranking (memory per output pixel, then speed, then size, then upkeep) **`jixel` wins on the first criterion**, and on the next two. `jxl-encoder` is better kept: a company, output checked against three decoders, `#![forbid(unsafe_code)]`; `jixel` has one maintainer, 48 releases since 2026-05-27 and 2,051 uses of `unsafe` (section 4). Upkeep comes last, so it was not reached.
+Both pass every gate run here. By #728's ranking (memory per output pixel, then speed, then size, then upkeep) **`jixel` wins on the first criterion**, and on the next two. `jxl-encoder` is better kept: a company, output checked against three decoders, `#![forbid(unsafe_code)]`; `jixel` has one maintainer, 48 releases since 2026-05-27 and 2,051 uses of `unsafe` (section 4). Upkeep comes last, so it was not reached.
 
 **Pixel limit.** The encode stage, the encoder plus the image it encodes, needs about 17.0 MiB per megapixel plus 5.4 MiB with `jixel` for RGBA, and 15.6 MiB plus 5.5 MiB for RGB. 128 MiB holds 7.2 megapixels of RGBA and 7.8 of RGB, so the limit is **7 megapixels**. On the Server's width list, 2:3 images fit up to 1920 px (5.5 MP) and 16:9 up to 2560 px (3.7 MP); a 2:3 image at 2560 px (9.8 MP) goes as JPEG. `jxl-encoder` would fit 2.4 megapixels. The limit bounds the encode only: decode and resize stay under #725's rules, and the RGBA PNG to 1920x2880 peaked at 113 MiB in the resize.
 
@@ -362,7 +362,7 @@ Both pass every gate run here; Safari is still to be checked. By #728's ranking 
 - **Time.** One process per case, a first encode, then 15 timed ones; best and median. The first encode in a process is 10 to 30 ms slower.
 - **Quality.** SSIMULACRA2 (the `ssimulacra2` crate 0.5.1) of `djxl`'s decode against the resized source, alpha flattened on mid-grey; then 2x crops by eye.
 - **Browsers.** Firefox 160.0 driven over WebDriver BiDi, and Chrome for Testing 157.0.8103.78 over the DevTools protocol, both headless. The local server of section 2 sends the first N bytes with the full `Content-Length` and then stalls, and each browser is screenshotted 1.2 s later. Prefixes of 1, 2, 3, 5, 10, 20, 30, 50 and 70%, and the whole file. "Painted" means at least 99% of the image's opaque area is covered.
-- **Safari** gets a page of the same files, which reports whether each one decoded, for a hand check on a Mac.
+- **Safari.** The Linux files were not kept, so the six cases were encoded again on a Mac (Apple M5, macOS 27.2, rustc 1.99.1) with the same crate versions, features, settings and pipeline, from look-alike inputs of the same sizes (noise from a new generator, so file sizes differ from those below). A page served from `127.0.0.1` decoded each file in Safari 27.2 with `img.decode()` and compared its canvas pixels with the encoder's input and with ImageIO's decode (`sips`). All twelve decoded at their size; alpha matched the input exactly; colour was within 1.2 to 3.1 of 255 (mean, opaque pixels) of the input; every pixel matched ImageIO's decode. Safari's image requests sent `image/webp,image/avif,image/jxl,image/heic,...`.
 
 ### Choosing the distance and effort
 
@@ -427,10 +427,10 @@ Share of the image's opaque area painted in Firefox 160 when the file stops at e
 
 ### Not verified here
 
-- Safari, until the hand check is done. Nothing in this section was run on a Mac, on Windows or on ARM; those targets were only checked with `cargo check`, so `jixel`'s NEON code has not run.
+- Windows, and ARM beyond decoding. Nothing in this section was run on Windows, which was only checked with `cargo check`. On the Mac, `jixel`'s NEON build encoded the Safari files, which decoded as above; its memory and time there were not measured.
 - Real posters and backdrops. The inputs are synthetic, and quality was judged by one metric and by eye.
 - Times on a small device. They are for one core of a desktop CPU and will be several times longer there.
-- `jxl-oxide`. `jixel`'s files were decoded by `djxl` (libjxl 0.12.0) and by the `jxl` decoder in two browsers, not by `jxl-oxide`.
+- `jxl-oxide` on the Linux files. It decoded only the Mac's files: 0.12.6 reads `jixel`'s six with alpha exact and colour as close to the input as ImageIO's. It can't read `jxl-encoder`'s alpha: with the LF frame every pixel comes out opaque, and without it the decode fails with an unexpected end of file. ImageIO and Safari read both. Which of the two crates is at fault was not looked into.
 
 ## Findings that differ from a year-old memory
 
