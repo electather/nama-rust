@@ -7,7 +7,7 @@ use nama_proto::nama::v1::{
     self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetShowRequest,
     GetShowResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
     ListEpisodesRequest, ListEpisodesResponse, ListMoviesRequest, ListMoviesResponse,
-    ListShowsRequest, ListShowsResponse, RefusalReason, SearchLibrariesRequest,
+    ListShowsRequest, ListShowsResponse, Permission, RefusalReason, SearchLibrariesRequest,
     SearchLibrariesResponse,
 };
 
@@ -55,12 +55,17 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, GetMovieRequest>,
     ) -> ServiceResult<GetMovieResponse> {
-        let user = caller(&ctx)?.user.id;
+        let user = &caller(&ctx)?.user;
         let request = request.to_owned_message();
         let id = required_id(request.movie_id.into_option(), "movie_id", "Movie")?;
-        let (movie, state) = self.browse.movie(user, request.library_id, &id).await?;
+        let (movie, state, read_only_folder) =
+            self.browse.movie(user.id, request.library_id, &id).await?;
         Response::ok(GetMovieResponse {
             movie: movie_to_proto(movie, state).into(),
+            // Where a Library lives is shown only to those who may delete what's in it (AGENTS.md,
+            // "Clients name ids"), not to every User who can browse it.
+            read_only_folder: read_only_folder
+                .filter(|_| user.permissions.allow(Permission::DeleteMedia)),
             ..Default::default()
         })
     }

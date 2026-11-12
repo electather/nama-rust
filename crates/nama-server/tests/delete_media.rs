@@ -37,13 +37,13 @@ use http::fetch;
 use log::Log;
 use nama_plugin_api::fulfiller::{EpisodeNumber, EpisodeNumbers, ShowDeleted, show_deleted};
 use nama_proto::nama::v1::{
-    AudioCodec, Container, DeleteMediaRequest, DeleteMediaResponse, DeviceDecoding, Episode,
-    EpisodeToDelete, EventType, GetShowRequest, LibraryKind, LibraryServiceClient,
-    ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MediaFile, MediaToDelete,
-    MovieToDelete, Permission, PlanPlaybackRequest, PlaybackMethod, PlaybackPlan,
-    PlaybackServiceClient, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason,
-    RequestState, SeasonToDelete, ShowToDelete, SubscribeRequest, VideoCodec, event,
-    media_to_delete,
+    AudioCodec, BrowseServiceClient, Container, DeleteMediaRequest, DeleteMediaResponse,
+    DeviceDecoding, Episode, EpisodeToDelete, EventType, GetMovieRequest, GetShowRequest,
+    LibraryKind, LibraryServiceClient, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
+    MediaFile, MediaToDelete, MovieToDelete, Permission, PlanPlaybackRequest, PlaybackMethod,
+    PlaybackPlan, PlaybackServiceClient, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse,
+    RefusalReason, RequestState, SeasonToDelete, ShowToDelete, SubscribeRequest,
+    UpdateLibraryRequest, VideoCodec, event, media_to_delete,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::{Ffmpeg, fake::script};
@@ -295,6 +295,32 @@ impl Fixture {
 
     fn exists(&self, relative: &str) -> bool {
         self.folder.join(relative).exists()
+    }
+
+    /// The folder `GetMovie` says refuses deleting the Movie with the TMDB id `tmdb`, as `browse`
+    /// is told.
+    async fn read_only_folder(
+        &self,
+        browse: &BrowseServiceClient<HttpClient>,
+        tmdb: i64,
+    ) -> Option<String> {
+        let response = browse
+            .get_movie(GetMovieRequest {
+                library_id: self.library,
+                movie_id: tmdb_id(tmdb).into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        response.into_owned().read_only_folder
+    }
+
+    /// Sets the mode of the Library's folder to `mode`, then scans it.
+    #[cfg(unix)]
+    async fn rescan_with_mode(&self, mode: u32) {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&self.folder, fs::Permissions::from_mode(mode)).unwrap();
+        self.scan_and_match().await;
     }
 
     /// The titles of the Library's Movies, as `ListMovies` gives them.
@@ -613,6 +639,75 @@ async fn a_library_movie_or_version_that_isnt_there_is_refused_naming_its_field(
         RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
     );
     assert!(fx.exists(DUNE_VIDEO) && fx.exists(ALIEN_1080P));
+}
+
+// Root writes to any folder whatever its mode, so these need a run as someone else, as CI's is.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_folder_a_scan_found_read_only_refuses_the_delete_naming_it_until_a_scan_finds_it_writable()
+ {
+    let fx = Fixture::alien_and_dune().await;
+    let folder = fx.folder.to_str().unwrap().to_owned();
+    fx.rescan_with_mode(0o555).await;
+
+    assert_eq!(
+        fx.read_only_folder(&fx.browse, ALIEN).await.as_ref(),
+        Some(&folder)
+    );
+    let preview = fx.preview(movie(fx.library, ALIEN)).await.unwrap();
+    assert_eq!(preview.read_only_folder.as_ref(), Some(&folder));
+    let refusal = assert_refused(
+        fx.delete(movie(fx.library, ALIEN)).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_FOLDER_READ_ONLY,
+    );
+    assert_eq!(refusal.params.get("folder"), Some(&folder));
+    assert!(fx.exists(ALIEN_1080P) && fx.exists(ALIEN_1080P_SUBTITLES));
+    assert_eq!(fx.titles().await, ["Alien", "Dune"]);
+
+    fx.rescan_with_mode(0o755).await;
+
+    assert_eq!(fx.read_only_folder(&fx.browse, ALIEN).await, None);
+    fx.delete(movie(fx.library, ALIEN)).await.unwrap();
+    assert!(!fx.exists(ALIEN_1080P));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn only_someone_who_may_delete_media_is_told_which_folder_refuses_it() {
+    let fx = Fixture::alien_and_dune().await;
+    let grace = fx.server.user("Grace", &[]).await;
+    let as_grace = BrowseServiceClient::new(HttpClient::plaintext(), grace.client_config());
+
+    fx.rescan_with_mode(0o555).await;
+    let told = fx.read_only_folder(&as_grace, ALIEN).await;
+    // Writable again before asserting, so the temporary folder is cleaned up even if it fails.
+    fx.rescan_with_mode(0o755).await;
+
+    assert_eq!(told, None);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn renaming_a_library_keeps_its_folder_read_only_until_a_scan_finds_otherwise() {
+    let fx = Fixture::alien_and_dune().await;
+    let folder = fx.folder.to_str().unwrap().to_owned();
+    fx.rescan_with_mode(0o555).await;
+
+    fx.library_service()
+        .update_library(UpdateLibraryRequest {
+            id: fx.library,
+            name: "Renamed".to_owned(),
+            folders: vec![folder.clone()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let told = fx.read_only_folder(&fx.browse, ALIEN).await;
+    // Writable again before asserting, so the temporary folder is cleaned up even if it fails.
+    fx.rescan_with_mode(0o755).await;
+
+    assert_eq!(told, Some(folder));
 }
 
 /// The Episodes `preview` takes along, by season number, episode number and title.

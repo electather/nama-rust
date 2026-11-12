@@ -47,7 +47,7 @@ docker run -d --name nama -p 7980:7980 \
   ghcr.io/electather/nama-server
 ```
 
-User 1000 must be able to read the media, and write `/data` if you mount a host folder there. To run as someone else, pass `--user` with their ids.
+User 1000 must be able to read the media, and write `/data` if you mount a host folder there. The `:ro` mount above keeps the Server from deleting media: to let Users with the Delete media Permission delete it, mount the folder without `:ro`, give user 1000 write access to it, and scan the Library again. To run as someone else, pass `--user` with their ids.
 
 For Intel or AMD hardware acceleration (VAAPI and QSV), pass the GPU and the group that may use it:
 

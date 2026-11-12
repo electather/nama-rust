@@ -10,6 +10,8 @@
 //!
 //! Files are only listed and their metadata read, never opened: sidecars such as `.nfo` files
 //! are ignored, except that deleting media deletes them too (see [`deleting`]).
+//! A scan also records which of the Library's folders the Server can't write to, so a delete from
+//! one is refused before anyone tries (ADR 0038).
 //!
 //! A scan publishes its start, then after each batch is written its progress and the Items it
 //! added and removed, then its finish, then once Matching has decided what it could
@@ -96,6 +98,10 @@ pub(crate) enum Error {
     /// The Server is shutting down.
     #[error("the scan was cancelled")]
     Cancelled,
+    /// A delete names media in this folder of its Library, which the Library's last scan found the
+    /// Server can't write to.
+    #[error("media in {0} can't be deleted: the Server can't write to it")]
+    ReadOnly(String),
 }
 
 impl From<matching::Error> for Error {
@@ -281,10 +287,14 @@ impl Scanner {
 
     /// Asks every Fulfiller of its kind to stop monitoring `doomed`, then ends the plans playing it,
     /// deletes it from disk for good, removes the Versions whose files went as a scan removes
-    /// them, and logs that `by` deleted them. The one way to delete media (see AGENTS.md, "One
-    /// path for deleting media"). It holds the Library's scan lock, so a scan racing it sees
+    /// them, and logs that `by` deleted them. It refuses, before any of that, media in a folder
+    /// the Library's last scan found read-only ([`Error::ReadOnly`]). The one way to delete media
+    /// (see AGENTS.md, "One path for deleting media"). It holds the Library's scan lock, so a scan racing it sees
     /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
+        if let Some(folder) = doomed.read_only_folder() {
+            return Err(Error::ReadOnly(folder.to_owned()));
+        }
         let scanner = self.clone();
         detached(async move {
             // First, so the service can't see the file missing and download it again (ADR 0038).
@@ -416,6 +426,10 @@ impl Scanner {
         let stored = self.inner.contents.stored(id).await?;
         let walking = cancel.clone();
         let found = tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;
+        if found.read_only != library.read_only {
+            let read_only = found.read_only.clone();
+            self.inner.libraries.set_read_only(id, read_only).await?;
+        }
         let (changes, summary) = plan(library.kind, stored, found);
         let files_total = count(changes.len());
         let mut files_done = 0;
@@ -523,6 +537,8 @@ struct Walked {
     files: Vec<Found>,
     /// Folders and files that couldn't be read. What's stored under them is kept.
     unreadable: Vec<PathBuf>,
+    /// The Library's folders the Server can't write to.
+    read_only: Vec<String>,
 }
 
 /// Blocks, so call it from `spawn_blocking`.
@@ -530,6 +546,9 @@ fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Walked, Error>
     let mut walked = Walked::default();
     for folder in folders {
         let root = Path::new(folder);
+        if !writable(root) {
+            walked.read_only.push(folder.clone());
+        }
         let entries = WalkDir::new(root)
             .follow_links(true)
             .into_iter()
@@ -550,6 +569,20 @@ fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Walked, Error>
         }
     }
     Ok(walked)
+}
+
+/// Whether the Server may delete what's in `folder`.
+#[cfg(unix)]
+fn writable(folder: &Path) -> bool {
+    // A read-only mount, such as the README's Docker example, leaves the folder's mode writable.
+    rustix::fs::access(folder, rustix::fs::Access::WRITE_OK).is_ok()
+}
+
+// ponytail: Windows folders count as writable, so a delete there fails file by file instead of
+// being refused; read their ACLs once a Server runs on Windows.
+#[cfg(not(unix))]
+const fn writable(_folder: &Path) -> bool {
+    true
 }
 
 /// Whether a file or folder is hidden: dot files, and the thumbnails Synology NASes leave.

@@ -108,8 +108,9 @@ function WhatGoes(deletable: Deletable) {
 }
 
 /**
- * The files deleting `chosen` of `deletable` takes, the space that frees and the other Episodes
- * those files hold, as the Server previews it.
+ * The files deleting `chosen` of `deletable` takes, the space that frees, the other Episodes
+ * those files hold and the read-only folder that refuses it if a scan found one since the page
+ * loaded, as the Server previews it.
  */
 function FilesThatGo({ deletable, chosen }: { deletable: Deletable; chosen: string }) {
   const { data, error } = useQuery(LibraryService.method.previewDeleteMedia, {
@@ -137,7 +138,18 @@ function FilesThatGo({ deletable, chosen }: { deletable: Deletable; chosen: stri
       </div>
       <TakenAlong episodes={data.episodesTakenAlong} />
       <Watching playing={data.playing} />
+      <RefusedFor folder={data.readOnlyFolder} />
     </div>
+  );
+}
+
+/** Says the Server will refuse the delete because it can't write to `folder`, if there is one. */
+function RefusedFor({ folder }: { folder: string | undefined }) {
+  if (folder === undefined) return null;
+  return (
+    <p className="text-destructive">
+      The Server will refuse to delete them: it can’t write to {folder}.
+    </p>
   );
 }
 

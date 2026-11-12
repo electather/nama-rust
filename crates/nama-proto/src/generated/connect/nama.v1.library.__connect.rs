@@ -588,7 +588,8 @@ pub trait LibraryService: Send + Sync + 'static {
         >,
     > + Send;
     /// Lists the files `DeleteMedia` would delete for the same target, and the bytes they would
-    /// free, deleting nothing. Needs `PERMISSION_DELETE_MEDIA`. Fails as `DeleteMedia` does.
+    /// free, deleting nothing. Needs `PERMISSION_DELETE_MEDIA`. Fails as `DeleteMedia` does, except
+    /// that a read-only Library folder is named in `read_only_folder` rather than refused.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -622,7 +623,9 @@ pub trait LibraryService: Send + Sync + 'static {
     /// The Playback Plans playing the Versions end next, each with `PlaybackEnded`, and a Version
     /// being served for Direct Play is cut off. Needs `PERMISSION_DELETE_MEDIA` and Recent
     /// Authentication. Fails with `invalid_argument` if the target is missing, or names a Library of
-    /// the wrong kind, and with `not_found` if there is no such Library, title, Season or Version.
+    /// the wrong kind, with `not_found` if there is no such Library, title, Season or Version, and
+    /// with `failed_precondition` if a file it would delete is in a Library folder the Server
+    /// couldn't write to when it last scanned the Library.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

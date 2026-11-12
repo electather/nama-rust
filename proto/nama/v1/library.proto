@@ -43,7 +43,8 @@ service LibraryService {
     option idempotency_level = IDEMPOTENT;
   }
   // Lists the files `DeleteMedia` would delete for the same target, and the bytes they would
-  // free, deleting nothing. Needs `PERMISSION_DELETE_MEDIA`. Fails as `DeleteMedia` does.
+  // free, deleting nothing. Needs `PERMISSION_DELETE_MEDIA`. Fails as `DeleteMedia` does, except
+  // that a read-only Library folder is named in `read_only_folder` rather than refused.
   rpc PreviewDeleteMedia(PreviewDeleteMediaRequest) returns (PreviewDeleteMediaResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -58,7 +59,9 @@ service LibraryService {
   // The Playback Plans playing the Versions end next, each with `PlaybackEnded`, and a Version
   // being served for Direct Play is cut off. Needs `PERMISSION_DELETE_MEDIA` and Recent
   // Authentication. Fails with `invalid_argument` if the target is missing, or names a Library of
-  // the wrong kind, and with `not_found` if there is no such Library, title, Season or Version.
+  // the wrong kind, with `not_found` if there is no such Library, title, Season or Version, and
+  // with `failed_precondition` if a file it would delete is in a Library folder the Server
+  // couldn't write to when it last scanned the Library.
   rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
 }
 
@@ -155,6 +158,9 @@ message PreviewDeleteMediaResponse {
   repeated EpisodeTakenAlong episodes_taken_along = 3;
   // How many Playback Plans play the Versions now: how many people deleting them stops watching.
   uint32 playing = 4;
+  // The Library folder holding `files` that the Server couldn't write to when it last scanned the
+  // Library, if there is one, in which case `DeleteMedia` is refused.
+  optional string read_only_folder = 5;
 }
 
 message DeleteMediaRequest {

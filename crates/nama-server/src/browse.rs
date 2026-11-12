@@ -20,7 +20,7 @@ use crate::{
     contents::{self, Contents, Found, MatchedTo, Stored},
     db::Database,
     libraries::{self, Kind, Libraries, Library},
-    scanner::Doomed,
+    scanner::{Doomed, deleting},
     tracks::{Probe, Track, Tracks},
     watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
 };
@@ -149,20 +149,24 @@ impl Browse {
     }
 
     /// The Movie `id` of the Movies Library `library`, with the User `user`'s Watch State of it,
-    /// if they've started it.
+    /// if they've started it, and the Library's folder holding one of its Versions that refuses
+    /// deleting it, if one does.
     pub(crate) async fn movie(
         &self,
         user: i64,
         library: i64,
         id: &ExternalId,
-    ) -> Result<(Movie, Option<WatchState>), Error> {
-        let movie = self.read(&self.library(library).await?).await?.movie(id)?;
+    ) -> Result<(Movie, Option<WatchState>, Option<String>), Error> {
+        let library = self.library(library).await?;
+        let movie = self.read(&library).await?.movie(id)?;
+        let paths = movie.versions.iter().map(|version| version.path.as_str());
+        let read_only_folder = deleting::read_only_folder(&library, paths).map(str::to_owned);
         let state = self
             .watch_states
             .of(user, &[MovieOrEpisode::movie(id)])
             .await?
             .pop();
-        Ok((movie, state.flatten()))
+        Ok((movie, state.flatten(), read_only_folder))
     }
 
     /// The Episodes of Season `season` of the Show `show` of the Shows Library `library`, each
@@ -928,7 +932,7 @@ mod tests {
             .await
             .unwrap();
 
-        let (movie, _) = Browse::new(db)
+        let (movie, _, _) = Browse::new(db)
             .movie(0, library, &ExternalId::Tmdb(ALIEN_TMDB_ID))
             .await
             .unwrap();
@@ -951,7 +955,7 @@ mod tests {
         let halfway = Progress::new(1_000, 2_000).unwrap();
         browse.report(user, alien, halfway).await.unwrap();
 
-        let (_, state) = browse
+        let (_, state, _) = browse
             .movie(user, library, &ExternalId::Tmdb(ALIEN_TMDB_ID))
             .await
             .unwrap();
@@ -1028,7 +1032,7 @@ mod tests {
         let browse = Browse::new(db);
         let alien = ExternalId::Tmdb(ALIEN_TMDB_ID);
         let played = async || {
-            let (_, state) = browse.movie(user, library, &alien).await.unwrap();
+            let (_, state, _) = browse.movie(user, library, &alien).await.unwrap();
             state.map(|state| state.played)
         };
 
