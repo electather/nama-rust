@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "factory": "cd .. && tsx .sandcastle/main.ts",
-    "check": "tsx status.check.ts && tsx git-guard.check.ts && tsx slots.ts && tsx merge.ts"
+    "check": "tsx status.check.ts && tsx git-guard.check.ts && tsx slots.ts && tsx merge.ts && tsx sweep.check.ts"
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.14.0",

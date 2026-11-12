@@ -15,6 +15,7 @@ import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
 import { mainVerdict, mergeStep } from "./merge.ts";
 import { slotPool } from "./slots.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
+import { sweepLeftovers } from "./sweep.ts";
 
 const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per run; MAX_ISSUES=1 → one issue, then stop
 const MAX_PARALLEL = Number(process.env.MAX_PARALLEL ?? 2); // issues built at once
@@ -1119,6 +1120,12 @@ process.on("SIGINT", () => {
 
 log(`=== Factory ${RUN} started: ${MAX_PARALLEL} slots, at most ${MAX_ISSUES} issues, babysitting ${ME}'s PRs ===`);
 record({ kind: "run-start", slots: MAX_PARALLEL });
+// Before anything starts: this run's own sandboxes would look the same.
+try {
+  for (const line of sweepLeftovers(process.cwd())) log(`swept what a killed run left: ${line}`);
+} catch (e) {
+  log(`couldn't sweep what a killed run left: ${oneLine(e)}`); // the run goes on; the next one tries again
+}
 const babysitting = babysitLoop();
 const triaging = triageLoop();
 await dispatch();
