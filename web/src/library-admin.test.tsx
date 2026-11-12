@@ -122,6 +122,27 @@ test.each([
   expect(await screen.findByText(shown)).toBeDefined();
 });
 
+test("Needs a Match names an Item parsed as Season 0 a Special", async () => {
+  const item = {
+    itemId: 7n,
+    path: "/srv/shows/Severance/S00E02.mkv",
+    kind: TitleKind.SHOW,
+    title: "Severance",
+    season: 0,
+    episode: 2,
+  };
+  openApp(
+    "/admin/needs-a-match",
+    adminServer(new ReadableStream(), (router) => {
+      router.service(MatchService, { listUnmatchedItems: () => ({ items: [item] }) });
+    }),
+  );
+
+  expect(
+    await screen.findByRole("button", { name: "Find a Match for Severance · Specials, Episode 2" }),
+  ).toBeDefined();
+});
+
 test("Needs a Match shows why once Matching finishes", async () => {
   const events = eventFeed();
   const item = { itemId: 7n, path: "/srv/films/Alien.1979.mkv", kind: TitleKind.MOVIE };

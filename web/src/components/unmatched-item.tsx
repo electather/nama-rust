@@ -12,6 +12,7 @@ import {
   type UnmatchedItem,
   UnmatchedReason,
 } from "@/gen/nama/v1/match_pb";
+import { episodeName } from "@/lib/browse";
 import { unmatchedKey } from "@/lib/events";
 import { formText, onSubmitted, refusal } from "@/lib/forms";
 
@@ -65,11 +66,11 @@ export function UnmatchedRow({
   );
 }
 
-/** What an Item's file name was parsed as, such as "Alien (1979)" or "Severance · Season 1, Episode 2". */
+/** What an Item's file name was parsed as, such as "Alien (1979)" or "Severance · Specials, Episode 2". */
 function parsedAs(item: UnmatchedItem) {
   const title = withYear(item.title, item.year);
   if (item.season === undefined || item.episode === undefined) return title;
-  return `${title} · Season ${item.season}, Episode ${item.episode}`;
+  return `${title} · ${episodeName(item.season, item.episode, "full")}`;
 }
 
 // "en-GB" for "A, B or C", without the serial comma, as the rest of the app writes lists.
