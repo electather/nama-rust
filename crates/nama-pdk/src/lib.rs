@@ -14,8 +14,9 @@
 //! }
 //! ```
 //!
-//! The Plugin reads its settings with [`extism_pdk::config::get`], and sends HTTP requests with
-//! [`http_request`] to the hosts its Manifest's `allowed_hosts` and its URL settings name.
+//! The Plugin reads its settings with [`extism_pdk::config::get`], sends HTTP requests with
+//! [`http_request`] to the hosts its Manifest's `allowed_hosts` and its URL settings name, and
+//! reads the time with [`now`].
 //!
 //! A Plugin with [`SETTING_KIND_CHOICE`](nama_proto::nama::v1::SettingKind) settings exports `check_settings()`, which
 //! checks its settings against the outside service and offers the choices for each, built with
@@ -433,6 +434,31 @@ pub fn http_request<T: ToMemory>(
     let response = extism_pdk::http::request(request, body);
     clear_error();
     response
+}
+
+/// The time by the Server's clock, since `SystemTime::now()` panics on wasm32-unknown-unknown.
+/// Off wasm32, as in a Plugin's unit tests, it is `SystemTime::now()`.
+///
+/// ```
+/// let elapsed = nama_pdk::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+/// assert!(elapsed.as_secs() > 0);
+/// ```
+#[must_use]
+pub fn now() -> std::time::SystemTime {
+    #[cfg(target_arch = "wasm32")]
+    {
+        #[expect(unsafe_code, reason = "the Server's clock is a Wasm import")]
+        #[link(wasm_import_module = "nama")]
+        unsafe extern "C" {
+            #[link_name = "now"]
+            safe fn nama_now() -> i64;
+        }
+        // Milliseconds since the Unix epoch; the Server's clock is never before it.
+        let millis = u64::try_from(nama_now()).unwrap_or_default();
+        std::time::UNIX_EPOCH + std::time::Duration::from_millis(millis)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    std::time::SystemTime::now()
 }
 
 /// Installs the panic hook. Extism calls a guest's `_initialize` export whenever it instantiates

@@ -8,7 +8,7 @@
     reason = "an export returns `FnResult` even when it can't fail"
 )]
 mod exports {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, time::UNIX_EPOCH};
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Notification,
@@ -21,7 +21,7 @@ mod exports {
         plugin_fn,
     };
 
-    /// The setting that picks what its Observer does: `log`, `loop` or `panic`.
+    /// The setting that picks what its Observer does: `log`, `clock`, `loop` or `panic`.
     const OBSERVER: &str = "observer";
 
     /// The setting that picks what its Fulfiller does: `take`, `error`, `loop` or `panic`.
@@ -62,7 +62,7 @@ mod exports {
                     behaviour_setting(
                         OBSERVER,
                         "log",
-                        "when told about Events: log, loop or panic",
+                        "when told about Events: log, clock, loop or panic",
                     ),
                     behaviour_setting(
                         FULFILLER,
@@ -120,10 +120,16 @@ mod exports {
 
     // Logs each Event it is told about, so a test can see them arrive, then requests its `fetch`
     // setting's URL, if it has one, and logs the response's status. Its `observer` setting can
-    // make it loop forever or panic instead, so a test can see the Server survive that.
+    // make it log the time by `nama_pdk::now` instead, or loop forever or panic, so a test can see
+    // the Server survive that.
     #[plugin_fn]
     pub fn observe_events(Buffa(observed): Buffa<ObservedEvents>) -> FnResult<()> {
         match config::get(OBSERVER)?.as_deref() {
+            Some("clock") => {
+                let since_epoch = nama_pdk::now().duration_since(UNIX_EPOCH)?;
+                extism_pdk::info!("test-plugin's clock reads {}", since_epoch.as_millis());
+                Ok(())
+            }
             Some("loop") => loop_forever(),
             #[expect(clippy::panic, reason = "it panics on purpose")]
             Some("panic") => panic!("the test Plugin's Observer was set to panic"),

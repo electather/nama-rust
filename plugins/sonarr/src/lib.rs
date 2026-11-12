@@ -9,12 +9,12 @@
     reason = "an export returns `FnResult` even when it can't fail"
 )]
 mod exports {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, time::Duration};
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
         StopMonitoring,
-        extism_pdk::{self, Error, HttpResponse},
+        extism_pdk::{self, Error},
         nama_proto::nama::{
             plugin::v1::{
                 EpisodeNumbers, ProvidePoint, show_deleted::Deleted, stop_monitoring::Title,
@@ -26,11 +26,9 @@ mod exports {
     use nama_servarr::{QualityProfile, Queued, Servarr};
     use serde::{Deserialize, Serialize};
 
-    /// How long, in seconds by Sonarr's `Date` header, a hand-off waits for Sonarr to finish
-    /// adding its Show. That header counts whole seconds, so the wait lasts between one and two
-    /// seconds, well inside the 5 s a call may take.
-    const ADD_WAIT_SECONDS: i64 = 2;
-    const SECONDS_A_DAY: i64 = 24 * 60 * 60;
+    /// How long a hand-off waits for Sonarr to finish adding its Show, well inside the 5 s a call
+    /// may take.
+    const ADD_WAIT: Duration = Duration::from_secs(2);
 
     /// The code Sonarr gives when it refuses to add a Show because it already has it.
     const SERIES_EXISTS: &str = "SeriesExistsValidator";
@@ -233,34 +231,24 @@ mod exports {
         }
 
         /// Returns once Sonarr has no refresh of the Show `show_id` queued or running, or fails
-        /// after about [`ADD_WAIT_SECONDS`]. A refresh reads the Show's Seasons, fetches it from
+        /// after [`ADD_WAIT`]. A refresh reads the Show's Seasons, fetches it from
         /// TVDB, then saves the Seasons as it read them, so a Season monitored meanwhile is
         /// dropped. Sonarr starts one as it adds a Show, so a Season handed off right after
         /// another one added its Show would be.
         fn wait_until_added(&self, show_id: i64) -> Result<(), Error> {
-            let Some(first) = self.refreshing_at(show_id)? else {
-                return Ok(());
-            };
-            while let Some(now) = self.refreshing_at(show_id)? {
-                // The day may turn while it waits.
-                let waited = (now - first).rem_euclid(SECONDS_A_DAY);
-                (waited < ADD_WAIT_SECONDS)
-                    .then_some(())
-                    .ok_or_else(still_adding)?;
+            let start = nama_pdk::now();
+            while self.refreshing(show_id)? {
+                // A clock that steps back counts as no time passed.
+                let waited = nama_pdk::now().duration_since(start).unwrap_or_default();
+                (waited < ADD_WAIT).then_some(()).ok_or_else(still_adding)?;
             }
             Ok(())
         }
 
-        /// The second of the day by Sonarr's clock, if it has a refresh of the Show `show_id`
-        /// queued or running.
-        fn refreshing_at(&self, show_id: i64) -> Result<Option<i64>, Error> {
-            let response = self.api.get_response("command")?;
-            let commands: Vec<Command> = self.api.parsed(&response)?;
-            if !commands.iter().any(|command| command.refreshes(show_id)) {
-                return Ok(None);
-            }
-            // A Plugin has no clock, so a wait is timed by Sonarr's, and can't be without it.
-            second_of_day(&response).map(Some).ok_or_else(still_adding)
+        /// Whether Sonarr has a refresh of the Show `show_id` queued or running.
+        fn refreshing(&self, show_id: i64) -> Result<bool, Error> {
+            let commands: Vec<Command> = self.api.get("command")?;
+            Ok(commands.iter().any(|command| command.refreshes(show_id)))
         }
 
         /// Has Sonarr monitor the new Seasons of the Show it has as `show_id`, or stop to.
@@ -377,19 +365,6 @@ mod exports {
             "Sonarr was still adding the Show, so it would have forgotten this Season. \
              Retry in a minute.",
         )
-    }
-
-    /// The second of the day `response` was sent at, by its `Date` header.
-    fn second_of_day(response: &HttpResponse) -> Option<i64> {
-        // An HTTP date has a fixed shape, such as `Sun, 08 Nov 2026 12:00:03 GMT`.
-        let time = response.header("date")?.get(17..25)?;
-        let mut parts = time.split(':').map(str::parse::<i64>);
-        let (Some(Ok(hours)), Some(Ok(minutes)), Some(Ok(seconds))) =
-            (parts.next(), parts.next(), parts.next())
-        else {
-            return None;
-        };
-        Some((hours * 60 + minutes) * 60 + seconds)
     }
 
     /// What an entry in Sonarr's queue is for: one Episode of a Season.

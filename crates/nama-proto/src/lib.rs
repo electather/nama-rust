@@ -45,4 +45,4 @@ pub mod nama {
 /// It covers the `nama.plugin.v1` messages and the `nama.v1` messages they carry, the exports a
 /// Server calls and the functions a Server provides to a Plugin. It is not this crate's version;
 /// `AGENTS.md` says when it changes.
-pub const NAMA_API_VERSION: &str = "0.2.0";
+pub const NAMA_API_VERSION: &str = "0.2.1";

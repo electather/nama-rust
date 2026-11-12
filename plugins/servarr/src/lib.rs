@@ -195,22 +195,7 @@ impl Servarr {
     /// # Errors
     /// If the service doesn't answer, refuses, or answers with something other than a `T`.
     pub fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, Error> {
-        self.parsed(&self.get_response(path)?)
-    }
-
-    /// The service's response at the API path `path`, if it took the request, for its headers.
-    ///
-    /// # Errors
-    /// If the service doesn't answer or refuses.
-    pub fn get_response(&self, path: &str) -> Result<HttpResponse, Error> {
-        self.accepted(self.send("GET", path, None::<()>)?)
-    }
-
-    /// `response`'s body as a `T`.
-    ///
-    /// # Errors
-    /// If the body isn't a `T`.
-    pub fn parsed<T: DeserializeOwned>(&self, response: &HttpResponse) -> Result<T, Error> {
+        let response = self.accepted(self.send("GET", path, None::<()>)?)?;
         parsed(self.name, &response.body())
     }
 

@@ -16,7 +16,7 @@ use std::{
     collections::BTreeMap,
     path::Path,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
@@ -101,7 +101,7 @@ impl Started {
         Ok(response.into_owned())
     }
 
-    /// Drops in the test Plugin with its Observer set to `observer` (`log`, `loop` or `panic`),
+    /// Drops in the test Plugin with its Observer set to `observer` (`log`, `clock`, `loop` or `panic`),
     /// enables it, and returns a Library to scan so it is told about Events.
     async fn observing(&self, observer: &str) -> (i64, tempfile::TempDir) {
         self.drop_in("test.wasm", "");
@@ -518,6 +518,28 @@ async fn an_observer_that_loops_forever_is_stopped_by_the_timeout_and_the_server
 
     assert!(started.listed("test-plugin").await.is_some());
     started.scan(library).await;
+}
+
+#[tokio::test]
+async fn a_plugin_reads_the_servers_clock() {
+    let log = Log::global();
+    let started = Started::new().await;
+    let (library, _media) = started.observing("clock").await;
+    let millis = |time: SystemTime| time.duration_since(UNIX_EPOCH).unwrap().as_millis();
+
+    let before = millis(SystemTime::now());
+    started.scan(library).await;
+    log.wait_for(&["test-plugin's clock reads"], 1).await;
+    let after = millis(SystemTime::now());
+
+    let contents = log.contents();
+    let (_, logged) = contents.split_once("test-plugin's clock reads ").unwrap();
+    let digits = logged.split(|c: char| !c.is_ascii_digit()).next().unwrap();
+    let read: u128 = digits.parse().unwrap();
+    assert!(
+        (before..=after).contains(&read),
+        "{before} <= {read} <= {after}"
+    );
 }
 
 #[tokio::test]

@@ -10,7 +10,7 @@ use std::{
         Arc,
         atomic::{AtomicU32, Ordering},
     },
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use buffa::{
@@ -18,7 +18,7 @@ use buffa::{
     encoding::{self, Tag, WireType},
     types,
 };
-use extism::{CompiledPlugin, PluginBuilder, Wasm};
+use extism::{CompiledPlugin, CurrentPlugin, PluginBuilder, UserData, Val, ValType, Wasm};
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     connector::{ConnectionStarted, Connector},
@@ -882,8 +882,7 @@ fn manifest(package: &mut wire::Manifest, points: &[&Point]) -> Result<Manifest,
     })
 }
 
-/// Compiles `wasm`, letting it send HTTP requests to `hosts`, read their responses' headers, and
-/// read `config`.
+/// Compiles `wasm`, letting it send HTTP requests to `hosts`, read `config` and call [`now`].
 fn compile(
     wasm: &[u8],
     cache_config: &Path,
@@ -894,12 +893,27 @@ fn compile(
         .with_timeout(CALL_TIMEOUT)
         .with_allowed_hosts(hosts.into_iter())
         .with_config(config.into_iter());
-    // Response headers include `Date`, the only clock a Plugin has: Sonarr's times a wait by it.
     CompiledPlugin::new(
         PluginBuilder::new(manifest)
             .with_cache_config(cache_config)
-            .with_http_response_headers(true),
+            .with_function_in_namespace("nama", "now", [], [ValType::I64], UserData::new(()), now),
     )
+}
+
+/// `nama.now`, a Plugin's clock, since `SystemTime::now()` panics on wasm32-unknown-unknown:
+/// writes the milliseconds since the Unix epoch by the Server's clock.
+#[expect(clippy::unnecessary_wraps, reason = "Extism's signature")]
+fn now(
+    _: &mut CurrentPlugin,
+    _: &[Val],
+    out: &mut [Val],
+    _: UserData<()>,
+) -> Result<(), extism::Error> {
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_millis());
+    out.fill(Val::I64(i64::try_from(millis).unwrap_or(i64::MAX)));
+    Ok(())
 }
 
 /// The hosts a Plugin enabled with `settings` may send HTTP requests to: those its Manifest
