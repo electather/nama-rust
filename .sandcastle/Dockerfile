@@ -1,5 +1,7 @@
 # Not -slim: the TokenEconomizer hooks need the base image's python3 (3.10+) and say nothing if it's missing.
 FROM node:26-bookworm
+# So the factory can tell this image, once a rebuild leaves it untagged, from other projects' (sweep.ts).
+LABEL nama-sandcastle=factory
 
 RUN apt-get update && apt-get install -y \
   git curl jq build-essential pkg-config libssl-dev protobuf-compiler mold \

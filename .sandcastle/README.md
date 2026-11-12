@@ -90,7 +90,15 @@ Claude usage: before picking each issue the factory reads the 5-hour and weekly 
 
 Stopping gracefully: `touch .sandcastle/STOP`. Builds already running finish with their PR, PRs already babysat finish (merged or handed back), nothing new starts, and the run exits. Later runs, such as a scheduled one, exit at once while the file exists. `rm .sandcastle/STOP` to resume.
 
-Stopping and resuming: Ctrl-C keeps branches, commits and worktrees. The next run continues on the same `agent/issue-N` branch, or babysits its PR if it had one. Remove leftover containers with `docker ps --filter ancestor=sandcastle:nama-rust`.
+Stopping and resuming: Ctrl-C keeps branches, commits and worktrees. The next run continues on the same `agent/issue-N` branch, or babysits its PR if it had one.
+
+A run that is killed outright (a reboot, `kill -9`, the unit stopped) leaves its sandboxes behind, so each run first sweeps the machine (`sweep.ts`). It removes:
+- the worktree and local branch of every issue that's closed by now, and every triage's;
+- stopped `sandcastle-*` containers, and images a rebuild left untagged;
+- this machine's dead runs' claims on closed issues and merged PRs;
+- `agent-working` on closed issues.
+
+An open issue's worktree and branch stay for the next run to resume. To see what the sweep would remove, run `npx --prefix .sandcastle tsx .sandcastle/sweep.ts` from the repo root; add `--apply` to remove it now. A running factory's own sandboxes are left alone.
 
 Failures:
 
