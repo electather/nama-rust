@@ -53,6 +53,7 @@ use walkdir::{DirEntry, WalkDir};
 use crate::{
     artwork::Artwork,
     contents::{Change, Contents, Stored},
+    custom_images::CustomImages,
     db::{Database, detached},
     events::{EventBus, event},
     libraries::{self, Kind, Libraries, Library},
@@ -132,6 +133,8 @@ struct Inner {
     contents: Contents,
     /// Downloads the images Matches store, and deletes those none does.
     artwork: Artwork,
+    /// Deletes a deleted Library's Custom Image.
+    custom_images: CustomImages,
     libraries: Libraries,
     matcher: Matcher,
     /// Asks Fulfillers to stop monitoring what a delete takes.
@@ -200,6 +203,7 @@ impl Scanner {
         db: Arc<Database>,
         plugins: ExtensionPoints,
         artwork: Artwork,
+        custom_images: CustomImages,
         events: EventBus,
         probing: Option<Probing>,
         running: Option<RunningPlans>,
@@ -217,6 +221,7 @@ impl Scanner {
                     locks.clone(),
                 ),
                 artwork,
+                custom_images,
                 plugins,
                 events,
                 probing,
@@ -285,8 +290,8 @@ impl Scanner {
     }
 
     /// Deletes the Library `id`, then throws away its Versions' cached subtitles where something
-    /// probes and the images only its Matches stored, and stops watching its folders, even if the
-    /// caller stops waiting (ADR 0029).
+    /// probes, the images only its Matches stored and its Custom Image, and stops watching its
+    /// folders, even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_library(&self, id: i64) -> Result<(), libraries::Error> {
         let scanner = self.clone();
         detached(async move {
@@ -296,6 +301,7 @@ impl Scanner {
                 .artwork
                 .drop_unused(&scanner.inner.contents)
                 .await;
+            scanner.inner.custom_images.delete_library(id).await;
             if let Some(probing) = &scanner.inner.probing {
                 probing.clean_subtitles().await;
             }
@@ -787,6 +793,7 @@ mod tests {
     use crate::{
         artwork::Artwork,
         contents::{Contents, File, Item, Version},
+        custom_images::CustomImages,
         db::Database,
         events::{EventBus, Filter},
         ffmpeg::Ffmpeg,
@@ -853,6 +860,7 @@ mod tests {
                     Arc::clone(&db),
                     ExtensionPoints::default(),
                     Artwork::new(data.path(), ExtensionPoints::default()),
+                    CustomImages::new(Arc::clone(&db), data.path()),
                     events.clone(),
                     probing.clone(),
                     None,

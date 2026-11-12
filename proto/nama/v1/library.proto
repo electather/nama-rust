@@ -87,6 +87,15 @@ message Library {
   // Each folder belongs to at most one Library. Empty in `ListLibraries` for a caller without
   // `PERMISSION_MANAGE_LIBRARIES`.
   repeated string folders = 4;
+  // The URL on this Server of the Backdrop the Library is shown by: its Custom Image, or else
+  // the Backdrop of the Matched title most recently added to it that has one. Unset when no
+  // Matched title in it has a Backdrop. The Server draws nothing into it; a client draws the
+  // Library's name over it.
+  optional string backdrop_url = 5;
+  // Whether `backdrop_url` is the Library's Custom Image, which `DELETE
+  // /custom-images/library/<id>/backdrop` removes. `PUT` there uploads one, for a User with
+  // `PERMISSION_MANAGE_LIBRARIES`. Deleting the Library deletes it.
+  bool custom_backdrop = 6;
 }
 
 message CreateLibraryRequest {

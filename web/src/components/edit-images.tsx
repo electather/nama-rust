@@ -7,7 +7,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import type { Movie, Season, Show } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { browseKey, seasonName, titleParam } from "@/lib/browse";
+import { seasonName, titleParam } from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
 /** One of a title's images as the Server sends it, and where its Custom Image goes. */
@@ -137,7 +137,7 @@ export function EditImages({ title, images }: { title: string; images: EditableI
 }
 
 /** One image, with Upload and, for a Custom Image, Remove, and why the Server refused either. */
-function ImageChoice({ image }: { image: EditableImage }) {
+export function ImageChoice({ image }: { image: EditableImage }) {
   const { upload, change, pending, error } = useChangeImage(image.path);
   return (
     <figure className="flex items-start gap-4">
@@ -231,8 +231,9 @@ function useChangeImage(path: string) {
     try {
       const response = await fetch(path, init);
       if (response.ok) {
-        // The page reads its images from Browse, which now sends the new URL.
-        await queryClient.invalidateQueries({ queryKey: browseKey });
+        // Everything that shows it reads again, which now sends the new URL: Browse, and the
+        // Libraries, since a title's Backdrop can be its Library's too.
+        await queryClient.invalidateQueries();
       } else {
         setError(refusals[response.status] ?? "The Server couldn’t change the image. Try again.");
       }

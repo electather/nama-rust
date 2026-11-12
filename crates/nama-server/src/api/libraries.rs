@@ -1,6 +1,6 @@
 //! The Server's Libraries: `nama.v1.LibraryService`.
 
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
@@ -15,15 +15,18 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
+    artwork,
     browse::{Browse, Target, ToDelete},
-    contents::Episode,
+    contents::{Contents, Episode, NewestBackdrop},
+    custom_images::{CustomImages, Role, Slot, Urls},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     scanner::{self, Deleted, Scanner},
 };
 
 use super::{
     browse::{Fields, refused},
-    caller, database_failed, proto_number, refuse, required_id, unknown_enum_value,
+    caller, custom_image_urls, database_failed, proto_number, refuse, required_id,
+    unknown_enum_value,
 };
 
 /// `nama.v1.LibraryService`: managing the Server's Libraries. Needs `PERMISSION_MANAGE_LIBRARIES`,
@@ -35,6 +38,44 @@ pub(super) struct LibraryServiceHandler {
     pub(super) scanner: Scanner,
     /// Finds the Versions a delete names.
     pub(super) browse: Browse,
+    /// Finds each Library's newest title's Backdrop.
+    pub(super) contents: Contents,
+    pub(super) custom_images: CustomImages,
+}
+
+/// What each Library is shown by: see [`Backdrops::of`].
+struct Backdrops {
+    newest: HashMap<i64, NewestBackdrop>,
+    custom: Urls,
+}
+
+impl LibraryServiceHandler {
+    // ponytail: reads every Library's newest Backdrop and every Custom Image, even for one
+    // Library; both are one row per Library or upload. Query by Library if that ever grows.
+    async fn backdrops(&self) -> Result<Backdrops, ConnectError> {
+        Ok(Backdrops {
+            newest: (self.contents.newest_backdrops().await).map_err(database_failed)?,
+            custom: custom_image_urls(&self.custom_images).await?,
+        })
+    }
+}
+
+impl Backdrops {
+    /// The URL of `library`'s Backdrop, and whether it is the Library's Custom Image: that, or
+    /// else the Backdrop of its newest title with one, as the title's page shows it.
+    fn of(&self, library: &Library) -> (Option<String>, bool) {
+        if let Some(url) = self.custom.of(&Slot::library(library.id)) {
+            return (Some(url), true);
+        }
+        let newest = self.newest.get(&library.id).map(|newest| {
+            let title = match library.kind {
+                Kind::Movies => Slot::movie(&newest.title, Role::Backdrop),
+                Kind::Shows => Slot::show(&newest.title, Role::Backdrop),
+            };
+            (self.custom.of(&title)).unwrap_or_else(|| artwork::url(&newest.plugin, &newest.path))
+        });
+        (newest, false)
+    }
 }
 
 #[expect(
@@ -54,8 +95,9 @@ impl LibraryService for LibraryServiceHandler {
             .scanner
             .create_library(request.name, kind, request.folders)
             .await?;
+        let backdrops = self.backdrops().await?;
         Response::ok(CreateLibraryResponse {
-            library: library_to_proto(library).into(),
+            library: library_to_proto(library, &backdrops).into(),
             ..Default::default()
         })
     }
@@ -71,6 +113,7 @@ impl LibraryService for LibraryServiceHandler {
             .permissions
             .allow(Permission::ManageLibraries);
         let libraries = self.libraries.list().await?;
+        let backdrops = self.backdrops().await?;
         Response::ok(ListLibrariesResponse {
             libraries: libraries
                 .into_iter()
@@ -82,7 +125,7 @@ impl LibraryService for LibraryServiceHandler {
                     },
                     ..library
                 })
-                .map(library_to_proto)
+                .map(|library| library_to_proto(library, &backdrops))
                 .collect(),
             ..Default::default()
         })
@@ -94,8 +137,9 @@ impl LibraryService for LibraryServiceHandler {
         request: ServiceRequest<'_, GetLibraryRequest>,
     ) -> ServiceResult<GetLibraryResponse> {
         let library = self.libraries.get(request.id).await?;
+        let backdrops = self.backdrops().await?;
         Response::ok(GetLibraryResponse {
-            library: library_to_proto(library).into(),
+            library: library_to_proto(library, &backdrops).into(),
             ..Default::default()
         })
     }
@@ -110,8 +154,9 @@ impl LibraryService for LibraryServiceHandler {
             .scanner
             .update_library(request.id, request.name, request.folders)
             .await?;
+        let backdrops = self.backdrops().await?;
         Response::ok(UpdateLibraryResponse {
-            library: library_to_proto(library).into(),
+            library: library_to_proto(library, &backdrops).into(),
             ..Default::default()
         })
     }
@@ -334,7 +379,8 @@ fn kind_from_proto(kind: EnumValue<LibraryKind>) -> Result<Kind, ConnectError> {
     }
 }
 
-fn library_to_proto(library: Library) -> proto::Library {
+fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
+    let (backdrop_url, custom_backdrop) = backdrops.of(&library);
     proto::Library {
         id: library.id,
         name: library.name,
@@ -344,6 +390,8 @@ fn library_to_proto(library: Library) -> proto::Library {
         }
         .into(),
         folders: library.folders,
+        backdrop_url,
+        custom_backdrop,
         ..Default::default()
     }
 }

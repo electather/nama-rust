@@ -198,6 +198,30 @@ pub struct Library {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub folders: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The URL on this Server of the Backdrop the Library is shown by: its Custom Image, or else
+    /// the Backdrop of the Matched title most recently added to it that has one. Unset when no
+    /// Matched title in it has a Backdrop. The Server draws nothing into it; a client draws the
+    /// Library's name over it.
+    ///
+    /// Field 5: `backdrop_url`
+    #[serde(
+        rename = "backdropUrl",
+        alias = "backdrop_url",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub backdrop_url: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Whether `backdrop_url` is the Library's Custom Image, which `DELETE
+    /// /custom-images/library/\<id\>/backdrop` removes. `PUT` there uploads one, for a User with
+    /// `PERMISSION_MANAGE_LIBRARIES`. Deleting the Library deletes it.
+    ///
+    /// Field 6: `custom_backdrop`
+    #[serde(
+        rename = "customBackdrop",
+        alias = "custom_backdrop",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub custom_backdrop: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -209,6 +233,8 @@ impl ::core::fmt::Debug for Library {
             .field("name", &self.name)
             .field("kind", &self.kind)
             .field("folders", &self.folders)
+            .field("backdrop_url", &self.backdrop_url)
+            .field("custom_backdrop", &self.custom_backdrop)
             .finish()
     }
 }
@@ -218,6 +244,18 @@ impl Library {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.Library";
+}
+impl Library {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::backdrop_url`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_backdrop_url(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.backdrop_url = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Library);
 impl ::buffa::MessageName for Library {
@@ -254,6 +292,12 @@ impl ::buffa::Message for Library {
         for v in &self.folders {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.backdrop_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.custom_backdrop {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -278,6 +322,12 @@ impl ::buffa::Message for Library {
         }
         for v in &self.folders {
             ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        if let Some(ref v) = self.backdrop_url {
+            ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        if self.custom_backdrop {
+            ::buffa::types::put_bool_field(6u32, self.custom_backdrop, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -324,6 +374,25 @@ impl ::buffa::Message for Library {
                 )?;
                 self.folders.push(__elem);
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .backdrop_url
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.custom_backdrop = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -336,6 +405,8 @@ impl ::buffa::Message for Library {
         self.name.clear();
         self.kind = ::buffa::EnumValue::from(0);
         self.folders.clear();
+        self.backdrop_url = ::core::option::Option::None;
+        self.custom_backdrop = false;
         self.__buffa_unknown_fields.clear();
     }
 }
