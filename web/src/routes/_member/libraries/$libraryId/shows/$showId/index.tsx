@@ -197,7 +197,7 @@ function EpisodeCard({ libraryId, episode }: { libraryId: bigint; episode: Episo
   );
 }
 
-/** "Episode 3", or "Specials, Episode 3", as Continue Watching names a Special. */
+/** "Episode 3", or for a Special "Specials, Episode 3", as the Delete dialog names an Episode. */
 function episodeName({ seasonNumber, episodeNumber }: Episode) {
   const episode = `Episode ${episodeNumber}`;
   return seasonNumber === 0 ? `${seasonName(seasonNumber)}, ${episode}` : episode;
