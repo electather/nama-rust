@@ -13,7 +13,7 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{self, ExternalId, ExternalIds, TitleKind},
+    metadata::{self, ExternalId, ExternalIds},
 };
 use nama_proto::nama::v1::{Event, LibraryItemAdded, LibraryItemRemoved};
 use sqlx::SqliteConnection;
@@ -28,52 +28,19 @@ use crate::{
 
 #[cfg(test)]
 pub(crate) mod fixture;
+mod items;
 #[cfg(test)]
 mod testing;
 #[cfg(test)]
 pub(crate) use testing::{File, FileItem, Recorded};
 
+pub(crate) use items::{Item, Name};
+use items::{ItemKind, ItemRow};
+
 /// Reads and writes the contents of Libraries.
 #[derive(Debug, Clone)]
 pub(crate) struct Contents {
     db: Arc<Database>,
-}
-
-/// Something a file holds, as far as its path says.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Item {
-    /// A Movie.
-    Movie {
-        /// The title, as the folder or file names it.
-        title: String,
-        /// The release year.
-        year: Option<i64>,
-        /// The Movie's id, from an ID Hint.
-        hint: Option<ExternalId>,
-    },
-    /// One Episode of a Show.
-    Episode {
-        /// The Show's title, as its folder names it.
-        show: String,
-        /// The year the Show first aired.
-        year: Option<i64>,
-        /// The Show's id, from an ID Hint on its folder.
-        hint: Option<ExternalId>,
-        /// The Season number; 0 holds specials.
-        season: i64,
-        /// The Episode number within the Season.
-        episode: i64,
-    },
-}
-
-/// The name an Item goes by: a Movie's title, year and ID hint, or those of the Show an Episode
-/// is in. Items of a Library named alike share a pin.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct Name {
-    kind: ItemKind,
-    pub(crate) title: String,
-    pub(crate) year: Option<i64>,
-    pub(crate) hint: Option<ExternalId>,
 }
 
 /// A Match an admin set or cleared by hand, which Matching follows instead of searching.
@@ -1156,28 +1123,6 @@ impl Contents {
     }
 }
 
-impl Item {
-    pub(crate) fn name(&self) -> Name {
-        let (Self::Movie { hint, .. } | Self::Episode { hint, .. }) = self;
-        let row = ItemRow::from(self);
-        Name {
-            kind: row.kind,
-            title: row.title.into_owned(),
-            year: row.year,
-            hint: hint.clone(),
-        }
-    }
-}
-
-impl Name {
-    pub(crate) const fn kind(&self) -> TitleKind {
-        match self.kind {
-            ItemKind::Movie => TitleKind::Movie,
-            ItemKind::Episode => TitleKind::Show,
-        }
-    }
-}
-
 impl Pin {
     /// The pin stored in a `match_pins` row, if there is one, holding the id in `ids`.
     fn from_row(pinned: bool, ids: ExternalIds) -> Option<Self> {
@@ -1705,87 +1650,6 @@ async fn insert_decisions(
     let mut happened = requests::make_available(conn, tmdb_ids).await?;
     happened.extend(requests::make_seasons_available(conn, decided.seasons).await?);
     Ok(happened)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, sqlx::Type)]
-#[sqlx(rename_all = "lowercase")]
-enum ItemKind {
-    Movie,
-    Episode,
-}
-
-#[derive(Debug)]
-struct ItemRow<'a> {
-    kind: ItemKind,
-    title: Cow<'a, str>,
-    year: Option<i64>,
-    /// An [`ExternalId`] as it displays, such as `tvdb-433631`.
-    hint: Option<String>,
-    season: Option<i64>,
-    episode: Option<i64>,
-}
-
-impl ItemRow<'_> {
-    /// The Item the row holds. `None` for an Episode without its numbers, which the schema
-    /// forbids.
-    fn into_item(self) -> Option<Item> {
-        let Self {
-            kind,
-            title,
-            year,
-            hint,
-            season,
-            episode,
-        } = self;
-        let hint = hint.as_deref().and_then(parse_hint);
-        Some(match kind {
-            ItemKind::Movie => Item::Movie {
-                title: title.into_owned(),
-                year,
-                hint,
-            },
-            ItemKind::Episode => Item::Episode {
-                show: title.into_owned(),
-                year,
-                hint,
-                season: season?,
-                episode: episode?,
-            },
-        })
-    }
-}
-
-impl<'a> From<&'a Item> for ItemRow<'a> {
-    fn from(item: &'a Item) -> Self {
-        match *item {
-            Item::Movie {
-                ref title,
-                year,
-                ref hint,
-            } => Self {
-                kind: ItemKind::Movie,
-                title: Cow::Borrowed(title),
-                year,
-                hint: hint.as_ref().map(ExternalId::to_string),
-                season: None,
-                episode: None,
-            },
-            Item::Episode {
-                ref show,
-                year,
-                ref hint,
-                season,
-                episode,
-            } => Self {
-                kind: ItemKind::Episode,
-                title: Cow::Borrowed(show),
-                year,
-                hint: hint.as_ref().map(ExternalId::to_string),
-                season: Some(season),
-                episode: Some(episode),
-            },
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
