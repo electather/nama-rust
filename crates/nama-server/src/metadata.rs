@@ -29,15 +29,29 @@ pub(crate) enum Error {
     Unavailable,
 }
 
-/// The metadata Providers among [`ExtensionPoints`], asked through the one that comes first.
+/// The metadata Providers among [`ExtensionPoints`], asked through the one that comes first, or
+/// only through one Plugin's.
 #[derive(Debug, Clone)]
 pub(crate) struct MetadataSource {
     plugins: ExtensionPoints,
+    only: Option<PluginId>,
 }
 
 impl MetadataSource {
     pub(crate) const fn new(plugins: ExtensionPoints) -> Self {
-        Self { plugins }
+        Self {
+            plugins,
+            only: None,
+        }
+    }
+
+    /// The same Providers, asked only through the Plugin `plugin`'s, which is
+    /// [`Error::Unavailable`] while it isn't enabled.
+    pub(crate) fn only(&self, plugin: PluginId) -> Self {
+        Self {
+            plugins: self.plugins.clone(),
+            only: Some(plugin),
+        }
     }
 
     /// The titles the Provider finds for `query`, best fit first, with the Plugin whose Provider
@@ -102,7 +116,11 @@ impl MetadataSource {
     where
         F: Future<Output = Result<R, MetadataError>>,
     {
-        meaning(self.plugins.ask_first(call).await)
+        let answered = match &self.only {
+            Some(plugin) => self.plugins.ask(plugin, call).await,
+            None => self.plugins.ask_first(call).await,
+        };
+        meaning(answered)
     }
 }
 
@@ -157,6 +175,7 @@ impl Metadata {
             runtime_minutes: movie.runtime_minutes,
             poster: movie.poster,
             backdrop: movie.backdrop,
+            still: None,
         }
     }
 }

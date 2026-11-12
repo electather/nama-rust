@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE item_matches SET plugin = ? WHERE item_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "5d4e7029f83c407aabf13989dedc4f27f26bca159420e0e9819858d871852a28"
+}
