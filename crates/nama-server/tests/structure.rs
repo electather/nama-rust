@@ -148,3 +148,96 @@ fn a_ceiling_only_comes_down() {
         "ceiling not a multiple of 100"
     );
 }
+
+/// The tables a "One owner" rule in `AGENTS.md` names, each with its owner's path without `.rs`.
+const OWNED_TABLES: &[(&str, &[&str])] = &[
+    (
+        "src/contents",
+        &[
+            "library_files",
+            "library_items",
+            "item_matches",
+            "match_pins",
+            "title_search",
+        ],
+    ),
+    (
+        "src/tracks",
+        &["version_probes", "tracks", "probe_failures"],
+    ),
+    ("src/qualities", &["qualities", "default_qualities"]),
+    ("src/server_settings", &["server_settings"]),
+    ("src/images", &["image_thumbhashes"]),
+    ("src/custom_images", &["custom_images"]),
+    ("src/track_preferences", &["track_preferences"]),
+    ("src/watch_states", &["watch_states"]),
+];
+
+/// The keywords a table's name follows in SQL, upper case as every query here writes them.
+const SQL_KEYWORDS: &[&str] = &["FROM", "JOIN", "INTO", "UPDATE", "TABLE"];
+
+/// Whether the file at `path` is the owner's `.rs`, its `_tests.rs` or under its folder.
+fn belongs_to(path: &str, owner: &str) -> bool {
+    path == format!("{owner}.rs")
+        || path == format!("{owner}_tests.rs")
+        || path.starts_with(&format!("{owner}/"))
+}
+
+/// Each `(keyword, word)` pair in `text` where `word` directly follows one of `SQL_KEYWORDS`.
+// ponytail: a word scan, not a SQL parser. Lower-case SQL, or a table reached only as
+// `table.column` in another table's query, is not seen; parse the SQL if that starts to matter.
+fn sql_tables(text: &str) -> Vec<(&str, &str)> {
+    let words: Vec<&str> = text
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .filter(|word| !word.is_empty())
+        .collect();
+    words
+        .iter()
+        .zip(words.iter().skip(1))
+        .filter(|(keyword, _)| SQL_KEYWORDS.contains(keyword))
+        .map(|(keyword, word)| (*keyword, *word))
+        .collect()
+}
+
+#[test]
+fn an_owned_tables_sql_appears_only_in_its_owners_files() {
+    let files = rust_files();
+    let mut problems = Vec::new();
+    let mut seen_in_owner: Vec<&str> = Vec::new();
+    for file in files
+        .iter()
+        .filter(|file| file.path != "tests/structure.rs")
+    {
+        for (keyword, word) in sql_tables(&file.text) {
+            let Some((owner, table)) = OWNED_TABLES.iter().find_map(|(owner, tables)| {
+                tables
+                    .iter()
+                    .find(|table| **table == word)
+                    .map(|table| (*owner, *table))
+            }) else {
+                continue;
+            };
+            if belongs_to(&file.path, owner) {
+                seen_in_owner.push(table);
+            } else {
+                problems.push(format!("{}: {keyword} {table} (owner: {owner})", file.path));
+            }
+        }
+    }
+    for (owner, tables) in OWNED_TABLES {
+        for table in tables.iter().filter(|table| !seen_in_owner.contains(table)) {
+            problems.push(format!(
+                "{table} is never named in SQL under {owner}: the table or its owner's path is stale"
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+#[test]
+fn sql_tables_reads_the_word_after_a_keyword_across_lines() {
+    assert_eq!(
+        sql_tables("SELECT x FROM\n    watch_states w JOIN tracks ON from tracks"),
+        [("FROM", "watch_states"), ("JOIN", "tracks")]
+    );
+}
