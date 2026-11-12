@@ -398,7 +398,7 @@ impl Matcher {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
-            let movie = match self.metadata.only(plugin).movie(&id).await {
+            let movie = match self.only(plugin).metadata.movie(&id).await {
                 Ok(movie) => movie,
                 Err(metadata::Error::NotFound) => continue,
                 Err(metadata::Error::Unavailable) => return Ok(false),
@@ -1385,6 +1385,27 @@ mod tests {
         );
         assert_eq!(media.outcomes(shows).await, matched);
         assert_eq!(media.searches(), searches);
+    }
+
+    #[tokio::test]
+    async fn a_movie_stored_at_an_older_metadata_version_is_fetched_again_by_its_id() {
+        let media = Fixture::new().await;
+        let movies = &media.movies;
+        movies.write("Alien (1979)/Alien (1979).mkv");
+        media.scan(movies).await;
+        media.contents.stored_by_older_metadata(movies.id).await;
+        let searches = media.searches();
+        let movie_fetches = || {
+            let requests = media.tmdb.requests().into_iter();
+            requests.filter(|r| r.starts_with("/3/movie/348?")).count()
+        };
+        let before = movie_fetches();
+
+        media.scan(movies).await;
+
+        assert_eq!(media.outcomes(movies).await, [matched(348, "Alien")]);
+        assert_eq!(media.searches(), searches);
+        assert_eq!(movie_fetches(), before + 1);
     }
 
     #[tokio::test]

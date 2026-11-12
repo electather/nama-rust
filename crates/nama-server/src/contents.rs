@@ -199,7 +199,7 @@ pub(crate) struct Metadata {
     pub(crate) runtime_minutes: Option<u32>,
     pub(crate) poster: Option<String>,
     pub(crate) backdrop: Option<String>,
-    /// For an Episode, a still from it.
+    /// For an Episode, its Still.
     pub(crate) still: Option<String>,
 }
 
@@ -359,7 +359,7 @@ pub(crate) struct Episode<V = Version> {
     pub(crate) overview: Option<String>,
     pub(crate) air_date: Option<String>,
     pub(crate) runtime_minutes: Option<i64>,
-    /// The Plugin whose metadata Provider made the Match, which the still's path is for.
+    /// The Plugin whose metadata Provider made the Match, which the Still's path is for.
     pub(crate) plugin: String,
     pub(crate) still: Option<String>,
     /// The files Matched to it, by path. A file holding two Episodes is a Version of each.

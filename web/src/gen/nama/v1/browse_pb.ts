@@ -643,14 +643,14 @@ export type Episode = Message<"nama.v1.Episode"> & {
   watchState?: WatchState | undefined;
 
   /**
-   * A still from it, as its URL on this Server. Unset if the metadata Provider has none.
+   * Its Still's URL on this Server. Unset if the metadata Provider has none.
    *
    * @generated from field: optional string still_url = 10;
    */
   stillUrl?: string | undefined;
 
   /**
-   * As `Movie.poster_thumbhash`, for the still.
+   * As `Movie.poster_thumbhash`, for the Still.
    *
    * @generated from field: optional bytes still_thumbhash = 11;
    */

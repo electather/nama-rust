@@ -3753,7 +3753,7 @@ pub struct Episode {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub watch_state: ::buffa::MessageField<WatchState, ::buffa::Inline<WatchState>>,
-    /// A still from it, as its URL on this Server. Unset if the metadata Provider has none.
+    /// Its Still's URL on this Server. Unset if the metadata Provider has none.
     ///
     /// Field 10: `still_url`
     #[serde(
@@ -3762,7 +3762,7 @@ pub struct Episode {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub still_url: ::core::option::Option<::buffa::alloc::string::String>,
-    /// As `Movie.poster_thumbhash`, for the still.
+    /// As `Movie.poster_thumbhash`, for the Still.
     ///
     /// Field 11: `still_thumbhash`
     #[serde(

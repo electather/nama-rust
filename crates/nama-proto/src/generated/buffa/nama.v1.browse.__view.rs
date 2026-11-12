@@ -4947,11 +4947,11 @@ pub struct EpisodeView<'a> {
     pub watch_state: ::buffa::MessageFieldView<
         super::super::__buffa::view::WatchStateView<'a>,
     >,
-    /// A still from it, as its URL on this Server. Unset if the metadata Provider has none.
+    /// Its Still's URL on this Server. Unset if the metadata Provider has none.
     ///
     /// Field 10: `still_url`
     pub still_url: ::core::option::Option<&'a str>,
-    /// As `Movie.poster_thumbhash`, for the still.
+    /// As `Movie.poster_thumbhash`, for the Still.
     ///
     /// Field 11: `still_thumbhash`
     pub still_thumbhash: ::core::option::Option<&'a [u8]>,
@@ -5501,14 +5501,14 @@ impl EpisodeOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::WatchStateView<'_>> {
         &self.0.reborrow().watch_state
     }
-    /// A still from it, as its URL on this Server. Unset if the metadata Provider has none.
+    /// Its Still's URL on this Server. Unset if the metadata Provider has none.
     ///
     /// Field 10: `still_url`
     #[must_use]
     pub fn still_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().still_url
     }
-    /// As `Movie.poster_thumbhash`, for the still.
+    /// As `Movie.poster_thumbhash`, for the Still.
     ///
     /// Field 11: `still_thumbhash`
     #[must_use]
