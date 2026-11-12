@@ -115,7 +115,7 @@ The neutrals have no chroma. Both reference directions (shadcn, and dark product
 **Character:** one clean sans in several weights, the face shadcn is built around. Large titles go lighter (medium) and tight-tracked, so they feel calm rather than loud. Hierarchy comes from weight and size, not from a second family.
 
 ### Hierarchy
-- **Display** (500, 2.5rem, 1.05, -0.035em): Movie and Show titles on title pages, set over backdrops.
+- **Display** (500, 2.5rem, 1.05, -0.035em): Movie and Show titles on title pages, set over backdrops, when they have no Title Logo.
 - **Headline** (600, 1.5rem, 1.2, -0.025em): page headings and Library names.
 - **Title** (500, 0.9375rem, 1.4): section headings such as Continue Watching, poster captions and Request titles.
 - **Body** (400, 1rem, 1.6): overviews and descriptions, capped at 65–75ch.
@@ -137,11 +137,12 @@ Flat by default. Depth comes from tonal layering plus a hairline: each surface s
 
 Only the app shell exists so far. The tokens above set the shape every component inherits:
 
-- **Buttons**: 10px radius, 14px medium text. Primary is Signal Green with black semibold ink, once per screen. Disabled is Muted with Quiet ink, never a faded colour. Secondary is solid ink on black. Destructive, the confirm button of a dialog that asks before something can’t be undone (revoking a Device, deleting a User), is the destructive red with Living-room-black semibold ink. Everything else is ghost: no fill until hover, then Muted.
+- **Buttons**: 10px radius, 14px medium text. Play and Resume at the top of a title page are a pill instead: full radius, 44px tall, 16px text, with a filled ▶. Primary is Signal Green with black semibold ink, once per screen. Disabled is Muted with Quiet ink, never a faded colour. Secondary is solid ink on black. Destructive, the confirm button of a dialog that asks before something can’t be undone (revoking a Device, deleting a User), is the destructive red with Living-room-black semibold ink. Everything else is ghost: no fill until hover, then Muted.
 - **Cards**: Raised black, 14px radius, a hairline border, 18px padding. No shadow.
 - **Inputs**: transparent, 14% hairline, 10px radius. Focus turns the border Signal Green with a 3px green ring at 25%.
 - **Posters**: 2:3, 10px radius, a hairline border. A 2px progress bar sits under a poster with Watch State.
-- **Backdrop cards**: 16:9, 10px radius, a hairline border, with the title over the art in Headline on the scrim, and a Label line under the card. A Library's says its kind. A Continue Watching card puts ▶ and the 2px progress bar under the title, and under the card which Episode and how much is left, such as "S1, E3 · 33m left" or "1h 12m left". Without a Backdrop, the box is plain Muted with the title in it.
+- **Backdrop cards**: 16:9, 10px radius, a hairline border, with the title over the art in Headline on the scrim, or its Title Logo, up to 48px tall and 60% of the card wide, and a Label line under the card. A Library's says its kind. A Continue Watching card puts ▶ and the 2px progress bar under the title, and under the card which Episode and how much is left, such as "S1, E3 · 33m left" or "1h 12m left". Without a Backdrop, the box is plain Muted with the title in it.
+- **Title page top**: a Movie's or Show's page opens on its Backdrop, full width under the app bar, scrolling away with the page. It's clear at the top, so the art shows, and from 60% of the way down it's at least the scrim, fading into the page at the bottom, where the title sits. The title is its Title Logo, up to 112px tall (144px from `sm`) and 80% wide (448px from `sm`), or else its title in Display, and either way the `<h1>`. Under the art go a Label line of what it is, its genres and its year and runtime (a Show: its first air year), then its Content Rating and, on a Movie, its badges (4K, HDR or Dolby Vision, SDH), each in a 6px-radius box with a 14% hairline. Then the Play or Resume pill, with a 2px progress bar and what's left beside Resume, then the overview in Body, clamped to two lines with a ghost "More" that turns to "Less". A Request page has the same top with its title as text.
 - **Episode cards**: a Show's Episodes, in the Backdrop cards' grid. The Still is 16:9, 10px radius, a hairline border, with nothing over it, and without one the box is plain Muted. Under it go a Label naming the Episode ("Episode 3", "Specials, Episode 3"), the title in Title, the synopsis in Label clamped to three lines, a Label line of air date, runtime and the Version's picture and sound, the 2px progress bar once started, then the played toggle and Delete.
 - **State labels**: pill, hairline border, Quiet ink, with an icon. Only a positive state may use the green tint.
 

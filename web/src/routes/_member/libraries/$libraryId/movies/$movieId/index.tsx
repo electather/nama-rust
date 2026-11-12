@@ -1,18 +1,19 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 
 import { MovieActions } from "@/components/movie-actions";
 import { NotFound } from "@/components/route-error";
-import { TitlePage } from "@/components/title-page";
-import { buttonVariants } from "@/components/ui/button";
-import { WatchedBar } from "@/components/watch-state";
-import { BrowseService, type Version } from "@/gen/nama/v1/browse_pb";
+import { Overview, TitleFacts, TitlePage } from "@/components/title-page";
+import { PlayOrResume } from "@/components/watch-state";
+import { BrowseService, HdrFormat, type Version } from "@/gen/nama/v1/browse_pb";
+import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import {
-  metadataLine,
   loadMovie,
+  metadataLine,
   runtimeOf,
   sizeOf,
+  timeLeft,
   versionLine,
   versionToPlay,
   yearOf,
@@ -35,20 +36,25 @@ function Movie() {
   return (
     <TitlePage
       title={movie.title}
+      logoUrl={movie.titleLogoUrl}
       backdropUrl={movie.backdropUrl}
       backdropThumbhash={movie.backdropThumbhash}
     >
-      <p className="text-sm text-muted-foreground">
-        {metadataLine(
+      <TitleFacts
+        facts={[
+          "Movie",
+          ...movie.genres,
           yearOf(movie.releaseDate),
           runtimeOf(movie.runtimeMinutes),
-          versionLine(version),
-        )}
-      </p>
-      <div className="mt-4 max-w-xs empty:hidden">
-        <WatchedBar state={movie.watchState} />
-      </div>
-      <Play versions={movie.versions} version={version} onChoose={setChosen}>
+        ]}
+        boxed={[movie.contentRating, ...movieBadges(movie.versions)]}
+      />
+      <Play
+        versions={movie.versions}
+        version={version}
+        watchState={movie.watchState}
+        onChoose={setChosen}
+      >
         <MovieActions
           libraryId={input.libraryId}
           movieId={input.movieId}
@@ -56,39 +62,41 @@ function Movie() {
           readOnlyFolder={data.readOnlyFolder}
         />
       </Play>
-      {movie.overview !== undefined && (
-        <p className="mt-8 max-w-prose text-pretty">{movie.overview}</p>
-      )}
+      {movie.overview !== undefined && <Overview text={movie.overview} />}
     </TitlePage>
   );
 }
 
 /**
- * Play `version`, and a choice of Version, each with its picture and sound, when there's more
- * than one, then `children`.
+ * Play `version`, or Resume it with how far in you are once started, and a choice of Version, each
+ * with its picture and sound, when there's more than one, then `children`.
  */
 function Play({
   versions,
   version,
+  watchState,
   onChoose,
   children,
 }: {
   versions: Version[];
   version: Version;
+  watchState: WatchState | undefined;
   onChoose: (versionId: number) => void;
   children: ReactNode;
 }) {
   const versionId = String(version.id);
+  const params = Route.useParams();
   return (
     <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
-      <Link
-        from={Route.fullPath}
-        to="./play"
-        search={{ version: Number(versionId) }}
-        className={buttonVariants()}
-      >
-        Play
-      </Link>
+      <PlayOrResume
+        link={{
+          to: "/libraries/$libraryId/movies/$movieId/play",
+          params,
+          search: { version: Number(versionId) },
+        }}
+        state={watchState}
+        detail={timeLeft(watchState)}
+      />
       {versions.length > 1 && (
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           Version
@@ -110,4 +118,23 @@ function Play({
       {children}
     </div>
   );
+}
+
+/**
+ * What any of a Movie's `versions` offers, by the names on its page: "4K" for video 3840 wide or
+ * 2160 tall, "Dolby Vision" or else "HDR" from the video's `hdr`, and "SDH" for SDH subtitles.
+ */
+function movieBadges(versions: Version[]) {
+  const tracks = versions.flatMap((version) => version.tracks);
+  const videos = tracks.flatMap(({ kind }) => (kind.case === "video" ? [kind.value] : []));
+  return [
+    videos.some(({ width, height }) => width >= 3840 || height >= 2160) ? "4K" : undefined,
+    hdrBadge(new Set(videos.map(({ hdr }) => hdr))),
+    tracks.some(({ kind, sdh }) => kind.case === "subtitle" && sdh) ? "SDH" : undefined,
+  ];
+}
+
+function hdrBadge(formats: Set<HdrFormat>) {
+  if (formats.has(HdrFormat.DOLBY_VISION)) return "Dolby Vision";
+  return formats.has(HdrFormat.HDR10) || formats.has(HdrFormat.HLG) ? "HDR" : undefined;
 }

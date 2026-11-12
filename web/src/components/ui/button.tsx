@@ -22,6 +22,8 @@ const buttonVariants = cva(
         bar: "h-9 px-2.5 sm:px-4",
         // A square button holding only an icon, named by its `aria-label`.
         icon: "size-10 [&_svg]:size-5",
+        // Play or Resume at the top of a title's page, as a pill.
+        pill: "h-11 rounded-full px-6 text-base [&_svg]:size-4 [&_svg]:fill-current",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

@@ -104,6 +104,43 @@ test("a Special without a Backdrop shows the placeholder with its Show's title",
   expect(within(card).getByRole("progressbar", { name: "Watched" })).toBeDefined();
 });
 
+/** Where the fake Server keeps `name`'s Title Logo. */
+function logo(name: string) {
+  return `/media/artwork/tmdb/%2F${name}-logo.png`;
+}
+
+test("Continue Watching cards show each title's Title Logo in place of its title", async () => {
+  const dark = {
+    id: { id: { case: "tmdb", value: 70523n } },
+    title: "Dark",
+    titleLogoUrl: logo("dark"),
+  } as const;
+  openHome(
+    {
+      libraryId: 1n,
+      movieOrEpisode: {
+        case: "movie",
+        value: {
+          id: { id: alien },
+          title: "Alien",
+          titleLogoUrl: logo("alien"),
+          watchState: { positionMs: 1n, durationMs: 60_000n },
+        },
+      },
+    },
+    episodeEntry(dark, 1, 1, { positionMs: 1n, durationMs: 60_000n }),
+  );
+
+  const alienCard = await screen.findByRole("link", { name: /Alien/u });
+  expect(within(alienCard).getByRole("img", { name: "Alien" }).getAttribute("src")).toBe(
+    logo("alien"),
+  );
+  const darkCard = screen.getByRole("link", { name: /Dark/u });
+  expect(within(darkCard).getByRole("img", { name: "Dark" }).getAttribute("src")).toBe(
+    logo("dark"),
+  );
+});
+
 test("Continue Watching hides when there's nothing", async () => {
   openHome();
   expect(await screen.findByRole("heading", { name: "Libraries" })).toBeDefined();

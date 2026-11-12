@@ -67,7 +67,7 @@ test("reopening a Movie resumes where it stopped", async () => {
   fireEvent.click(screen.getByRole("link", { name: "Back" }));
   expect(await screen.findByRole("progressbar", { name: "Watched" })).toBeDefined();
   expect(reports.at(-1)?.positionMs).toBe(600_000n);
-  fireEvent.click(screen.getByRole("link", { name: "Play" }));
+  fireEvent.click(screen.getByRole("link", { name: "Resume" }));
 
   expect((await loadedVideo()).currentTime).toBe(600);
 });
