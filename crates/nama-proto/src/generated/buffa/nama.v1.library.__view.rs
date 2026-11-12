@@ -3914,10 +3914,22 @@ pub struct PreviewDeleteMediaResponseView<'a> {
     ///
     /// Field 2: `bytes_freed`
     pub bytes_freed: u64,
+    /// The Episodes the target doesn't name that a file that would go holds too, by season and
+    /// episode number. Each loses that Version, and with it goes if it has no other.
+    ///
+    /// Field 3: `episodes_taken_along`
+    pub episodes_taken_along: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::EpisodeTakenAlongView<'a>,
+    >,
+    /// How many Playback Plans play the Versions now: how many people deleting them stops watching.
+    ///
+    /// Field 4: `playing`
+    pub playing: u32,
     /// The Library folder holding `files` that the Server couldn't write to when it last scanned the
     /// Library, if there is one, in which case `DeleteMedia` is refused.
     ///
-    /// Field 3: `read_only_folder`
+    /// Field 5: `read_only_folder`
     pub read_only_folder: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
@@ -3958,7 +3970,14 @@ impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
                 )?;
                 view.bytes_freed = ::buffa::types::decode_uint64(&mut cur)?;
             }
-            3u32 => {
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.playing = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
@@ -3978,6 +3997,26 @@ impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
                 view.files
                     .push(
                         <super::super::__buffa::view::MediaFileView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::EpisodeTakenAlongView,
+                    >(),
+                )?;
+                view.episodes_taken_along
+                    .push(
+                        <super::super::__buffa::view::EpisodeTakenAlongView as ::buffa::MessageView>::decode_view_ctx(
                             sub,
                             __sub_ctx,
                         )?,
@@ -4017,6 +4056,12 @@ impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             bytes_freed: self.bytes_freed,
+            episodes_taken_along: self
+                .episodes_taken_along
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            playing: self.playing,
             read_only_folder: self.read_only_folder.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
@@ -4039,6 +4084,17 @@ impl<'a> ::buffa::ViewEncode<'a> for PreviewDeleteMediaResponseView<'a> {
         }
         if self.bytes_freed != 0u64 {
             size += 1u64 + ::buffa::types::uint64_encoded_len(self.bytes_freed) as u64;
+        }
+        for v in &self.episodes_taken_along {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.playing != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.playing) as u64;
         }
         if let Some(ref v) = self.read_only_folder {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
@@ -4065,8 +4121,19 @@ impl<'a> ::buffa::ViewEncode<'a> for PreviewDeleteMediaResponseView<'a> {
         if self.bytes_freed != 0u64 {
             ::buffa::types::put_uint64_field(2u32, self.bytes_freed, buf);
         }
+        for v in &self.episodes_taken_along {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        if self.playing != 0u32 {
+            ::buffa::types::put_uint32_field(4u32, self.playing, buf);
+        }
         if let Some(ref v) = self.read_only_folder {
-            ::buffa::types::put_string_field(3u32, v, buf);
+            ::buffa::types::put_string_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4097,6 +4164,16 @@ impl<'__a> ::serde::Serialize for PreviewDeleteMediaResponseView<'__a> {
                 .serialize_entry(
                     "bytesFreed",
                     &::buffa::json_helpers::ProtoJson(&self.bytes_freed),
+                )?;
+        }
+        if !self.episodes_taken_along.is_empty() {
+            __map.serialize_entry("episodesTakenAlong", &*self.episodes_taken_along)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.playing) {
+            __map
+                .serialize_entry(
+                    "playing",
+                    &::buffa::json_helpers::ProtoJson(&self.playing),
                 )?;
         }
         if let ::core::option::Option::Some(__v) = self.read_only_folder {
@@ -4213,10 +4290,30 @@ impl PreviewDeleteMediaResponseOwnedView {
     pub fn bytes_freed(&self) -> u64 {
         self.0.reborrow().bytes_freed
     }
+    /// The Episodes the target doesn't name that a file that would go holds too, by season and
+    /// episode number. Each loses that Version, and with it goes if it has no other.
+    ///
+    /// Field 3: `episodes_taken_along`
+    #[must_use]
+    pub fn episodes_taken_along(
+        &self,
+    ) -> &::buffa::RepeatedView<
+        '_,
+        super::super::__buffa::view::EpisodeTakenAlongView<'_>,
+    > {
+        &self.0.reborrow().episodes_taken_along
+    }
+    /// How many Playback Plans play the Versions now: how many people deleting them stops watching.
+    ///
+    /// Field 4: `playing`
+    #[must_use]
+    pub fn playing(&self) -> u32 {
+        self.0.reborrow().playing
+    }
     /// The Library folder holding `files` that the Server couldn't write to when it last scanned the
     /// Library, if there is one, in which case `DeleteMedia` is refused.
     ///
-    /// Field 3: `read_only_folder`
+    /// Field 5: `read_only_folder`
     #[must_use]
     pub fn read_only_folder(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().read_only_folder
@@ -4560,6 +4657,11 @@ pub struct DeleteMediaResponseView<'a> {
         'a,
         super::super::__buffa::view::FileNotDeletedView<'a>,
     >,
+    /// The name of each Fulfiller that couldn't be told to stop monitoring what was deleted, so its
+    /// service may download it again. The Server doesn't try it again.
+    ///
+    /// Field 4: `fulfillers_not_told`
+    pub fulfillers_not_told: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DeleteMediaResponseView<'a> {
@@ -4637,6 +4739,17 @@ impl<'a> ::buffa::MessageView<'a> for DeleteMediaResponseView<'a> {
                         )?,
                     );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.fulfillers_not_told.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4676,6 +4789,11 @@ impl<'a> ::buffa::MessageView<'a> for DeleteMediaResponseView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            fulfillers_not_told: self
+                .fulfillers_not_told
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4706,6 +4824,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DeleteMediaResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.fulfillers_not_told {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4735,6 +4856,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DeleteMediaResponseView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        for v in &self.fulfillers_not_told {
+            ::buffa::types::put_string_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4769,6 +4893,9 @@ impl<'__a> ::serde::Serialize for DeleteMediaResponseView<'__a> {
         }
         if !self.not_deleted.is_empty() {
             __map.serialize_entry("notDeleted", &*self.not_deleted)?;
+        }
+        if !self.fulfillers_not_told.is_empty() {
+            __map.serialize_entry("fulfillersNotTold", &*self.fulfillers_not_told)?;
         }
         __map.end()
     }
@@ -4894,6 +5021,14 @@ impl DeleteMediaResponseOwnedView {
     > {
         &self.0.reborrow().not_deleted
     }
+    /// The name of each Fulfiller that couldn't be told to stop monitoring what was deleted, so its
+    /// service may download it again. The Server doesn't try it again.
+    ///
+    /// Field 4: `fulfillers_not_told`
+    #[must_use]
+    pub fn fulfillers_not_told(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().fulfillers_not_told
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<DeleteMediaResponseView<'static>>>
 for DeleteMediaResponseOwnedView {
@@ -4925,7 +5060,8 @@ impl ::serde::Serialize for DeleteMediaResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What to delete: a title's every Version, or one Version.
+/// What to delete: a title's every Version, or one Version. A file holding several Episodes goes
+/// with each of them.
 #[derive(Clone, Debug, Default)]
 pub struct MediaToDeleteView<'a> {
     pub target: ::core::option::Option<
@@ -5005,6 +5141,99 @@ impl<'a> ::buffa::MessageView<'a> for MediaToDeleteView<'a> {
                     ),
                 );
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::media_to_delete::Target::Show(
+                        ref mut existing,
+                    ),
+                ) = view.target
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.target = Some(
+                        super::super::__buffa::view::oneof::media_to_delete::Target::Show(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::ShowToDeleteView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::media_to_delete::Target::Season(
+                        ref mut existing,
+                    ),
+                ) = view.target
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.target = Some(
+                        super::super::__buffa::view::oneof::media_to_delete::Target::Season(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::SeasonToDeleteView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::media_to_delete::Target::Episode(
+                        ref mut existing,
+                    ),
+                ) = view.target
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.target = Some(
+                        super::super::__buffa::view::oneof::media_to_delete::Target::Episode(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::EpisodeToDeleteView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -5047,6 +5276,33 @@ impl<'a> ::buffa::MessageView<'a> for MediaToDeleteView<'a> {
                                     *v,
                                 )
                             }
+                            super::super::__buffa::view::oneof::media_to_delete::Target::Show(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::media_to_delete::Target::Show(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::media_to_delete::Target::Season(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::media_to_delete::Target::Season(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::media_to_delete::Target::Episode(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::media_to_delete::Target::Episode(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
                         },
                     )
                 }
@@ -5080,6 +5336,34 @@ impl<'a> ::buffa::ViewEncode<'a> for MediaToDeleteView<'a> {
                 ) => {
                     size += 1u64 + ::buffa::types::int64_encoded_len(*v) as u64;
                 }
+                super::super::__buffa::view::oneof::media_to_delete::Target::Show(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::media_to_delete::Target::Season(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::media_to_delete::Target::Episode(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -5109,6 +5393,34 @@ impl<'a> ::buffa::ViewEncode<'a> for MediaToDeleteView<'a> {
                     x,
                 ) => {
                     ::buffa::types::put_int64_field(2u32, *x, buf);
+                }
+                super::super::__buffa::view::oneof::media_to_delete::Target::Show(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        3u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::media_to_delete::Target::Season(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::media_to_delete::Target::Episode(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
                 }
             }
         }
@@ -5148,6 +5460,19 @@ impl<'__a> ::serde::Serialize for MediaToDeleteView<'__a> {
                             "versionId",
                             &::buffa::json_helpers::ProtoJson(v),
                         )?;
+                }
+                super::super::__buffa::view::oneof::media_to_delete::Target::Show(v) => {
+                    __map.serialize_entry("show", v)?;
+                }
+                super::super::__buffa::view::oneof::media_to_delete::Target::Season(
+                    v,
+                ) => {
+                    __map.serialize_entry("season", v)?;
+                }
+                super::super::__buffa::view::oneof::media_to_delete::Target::Episode(
+                    v,
+                ) => {
+                    __map.serialize_entry("episode", v)?;
                 }
             }
         }
@@ -5595,6 +5920,1341 @@ impl ::buffa::HasMessageView for super::super::MovieToDelete {
     type ViewHandle = MovieToDeleteOwnedView;
 }
 impl ::serde::Serialize for MovieToDeleteOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A Show, named as `BrowseService.GetShow` names it.
+#[derive(Clone, Debug, Default)]
+pub struct ShowToDeleteView<'a> {
+    /// The Shows Library the Show is in.
+    ///
+    /// Field 1: `library_id`
+    pub library_id: i64,
+    /// The Show's id, as `BrowseService.ListShows` gave it.
+    ///
+    /// Field 2: `show_id`
+    pub show_id: ::buffa::MessageFieldView<
+        super::super::__buffa::view::ExternalIdView<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ShowToDeleteView<'a> {
+    type Owned = super::super::ShowToDelete;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.library_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.show_id.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.show_id = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::ExternalIdView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::ShowToDelete, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::ShowToDelete, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ShowToDelete {
+            library_id: self.library_id,
+            show_id: match self.show_id.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::ExternalId,
+                        ::buffa::Inline<super::super::ExternalId>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ShowToDeleteView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.library_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        }
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.library_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ShowToDeleteView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.library_id) {
+            __map
+                .serialize_entry(
+                    "libraryId",
+                    &::buffa::json_helpers::ProtoJson(&self.library_id),
+                )?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.show_id.as_option() {
+                __map.serialize_entry("showId", __v)?;
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ShowToDeleteView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ShowToDelete";
+    const FULL_NAME: &'static str = "nama.v1.ShowToDelete";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ShowToDelete";
+}
+::buffa::impl_default_view_instance!(ShowToDeleteView);
+::buffa::impl_view_reborrow!(ShowToDeleteView);
+/** Self-contained, `'static` owned view of a `ShowToDelete` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ShowToDeleteView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ShowToDeleteView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ShowToDeleteOwnedView(::buffa::OwnedView<ShowToDeleteView<'static>>);
+impl ShowToDeleteOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ShowToDeleteOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ShowToDeleteOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ShowToDelete,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ShowToDeleteOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ShowToDeleteView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ShowToDeleteView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ShowToDelete {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Shows Library the Show is in.
+    ///
+    /// Field 1: `library_id`
+    #[must_use]
+    pub fn library_id(&self) -> i64 {
+        self.0.reborrow().library_id
+    }
+    /// The Show's id, as `BrowseService.ListShows` gave it.
+    ///
+    /// Field 2: `show_id`
+    #[must_use]
+    pub fn show_id(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
+        &self.0.reborrow().show_id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ShowToDeleteView<'static>>>
+for ShowToDeleteOwnedView {
+    fn from(inner: ::buffa::OwnedView<ShowToDeleteView<'static>>) -> Self {
+        ShowToDeleteOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ShowToDeleteOwnedView>
+for ::buffa::OwnedView<ShowToDeleteView<'static>> {
+    fn from(wrapper: ShowToDeleteOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ShowToDeleteView<'static>>>
+for ShowToDeleteOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ShowToDeleteView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ShowToDelete {
+    type View<'a> = ShowToDeleteView<'a>;
+    type ViewHandle = ShowToDeleteOwnedView;
+}
+impl ::serde::Serialize for ShowToDeleteOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A Season of a Show, named as `BrowseService.ListEpisodes` names it.
+#[derive(Clone, Debug, Default)]
+pub struct SeasonToDeleteView<'a> {
+    /// The Shows Library the Show is in.
+    ///
+    /// Field 1: `library_id`
+    pub library_id: i64,
+    /// The Show's id, as `BrowseService.ListShows` gave it.
+    ///
+    /// Field 2: `show_id`
+    pub show_id: ::buffa::MessageFieldView<
+        super::super::__buffa::view::ExternalIdView<'a>,
+    >,
+    /// The Season's number, as `BrowseService.GetShow` gave it.
+    ///
+    /// Field 3: `season_number`
+    pub season_number: u32,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for SeasonToDeleteView<'a> {
+    type Owned = super::super::SeasonToDelete;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.library_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.show_id.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.show_id = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::ExternalIdView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.season_number = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::SeasonToDelete, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::SeasonToDelete, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::SeasonToDelete {
+            library_id: self.library_id,
+            show_id: match self.show_id.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::ExternalId,
+                        ::buffa::Inline<super::super::ExternalId>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            season_number: self.season_number,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for SeasonToDeleteView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.library_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        }
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.season_number != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_number) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.library_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
+        }
+        if self.season_number != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.season_number, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for SeasonToDeleteView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.library_id) {
+            __map
+                .serialize_entry(
+                    "libraryId",
+                    &::buffa::json_helpers::ProtoJson(&self.library_id),
+                )?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.show_id.as_option() {
+                __map.serialize_entry("showId", __v)?;
+            }
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.season_number) {
+            __map
+                .serialize_entry(
+                    "seasonNumber",
+                    &::buffa::json_helpers::ProtoJson(&self.season_number),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for SeasonToDeleteView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SeasonToDelete";
+    const FULL_NAME: &'static str = "nama.v1.SeasonToDelete";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SeasonToDelete";
+}
+::buffa::impl_default_view_instance!(SeasonToDeleteView);
+::buffa::impl_view_reborrow!(SeasonToDeleteView);
+/** Self-contained, `'static` owned view of a `SeasonToDelete` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`SeasonToDeleteView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SeasonToDeleteView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct SeasonToDeleteOwnedView(::buffa::OwnedView<SeasonToDeleteView<'static>>);
+impl SeasonToDeleteOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SeasonToDeleteOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SeasonToDeleteOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::SeasonToDelete,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SeasonToDeleteOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`SeasonToDeleteView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &SeasonToDeleteView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::SeasonToDelete {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Shows Library the Show is in.
+    ///
+    /// Field 1: `library_id`
+    #[must_use]
+    pub fn library_id(&self) -> i64 {
+        self.0.reborrow().library_id
+    }
+    /// The Show's id, as `BrowseService.ListShows` gave it.
+    ///
+    /// Field 2: `show_id`
+    #[must_use]
+    pub fn show_id(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
+        &self.0.reborrow().show_id
+    }
+    /// The Season's number, as `BrowseService.GetShow` gave it.
+    ///
+    /// Field 3: `season_number`
+    #[must_use]
+    pub fn season_number(&self) -> u32 {
+        self.0.reborrow().season_number
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<SeasonToDeleteView<'static>>>
+for SeasonToDeleteOwnedView {
+    fn from(inner: ::buffa::OwnedView<SeasonToDeleteView<'static>>) -> Self {
+        SeasonToDeleteOwnedView(inner)
+    }
+}
+impl ::core::convert::From<SeasonToDeleteOwnedView>
+for ::buffa::OwnedView<SeasonToDeleteView<'static>> {
+    fn from(wrapper: SeasonToDeleteOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<SeasonToDeleteView<'static>>>
+for SeasonToDeleteOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<SeasonToDeleteView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::SeasonToDelete {
+    type View<'a> = SeasonToDeleteView<'a>;
+    type ViewHandle = SeasonToDeleteOwnedView;
+}
+impl ::serde::Serialize for SeasonToDeleteOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// An Episode, or one of its Versions.
+#[derive(Clone, Debug, Default)]
+pub struct EpisodeToDeleteView<'a> {
+    /// The Shows Library the Episode is in.
+    ///
+    /// Field 1: `library_id`
+    pub library_id: i64,
+    /// The Episode's id, as `BrowseService.ListEpisodes` gave it.
+    ///
+    /// Field 2: `episode_id`
+    pub episode_id: ::buffa::MessageFieldView<
+        super::super::__buffa::view::ExternalIdView<'a>,
+    >,
+    /// Only this Version of the Episode, by its id as browsing gives it. Unset, every Version.
+    ///
+    /// Field 3: `version_id`
+    pub version_id: ::core::option::Option<i64>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for EpisodeToDeleteView<'a> {
+    type Owned = super::super::EpisodeToDelete;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.library_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.episode_id.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.episode_id = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::ExternalIdView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.version_id = Some(::buffa::types::decode_int64(&mut cur)?);
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::EpisodeToDelete, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::EpisodeToDelete, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::EpisodeToDelete {
+            library_id: self.library_id,
+            episode_id: match self.episode_id.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::ExternalId,
+                        ::buffa::Inline<super::super::ExternalId>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            version_id: self.version_id,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for EpisodeToDeleteView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.library_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        }
+        if self.episode_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.episode_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if let Some(v) = self.version_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.library_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        if self.episode_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.episode_id.write_to(__cache, buf);
+        }
+        if let Some(v) = self.version_id {
+            ::buffa::types::put_int64_field(3u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for EpisodeToDeleteView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.library_id) {
+            __map
+                .serialize_entry(
+                    "libraryId",
+                    &::buffa::json_helpers::ProtoJson(&self.library_id),
+                )?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.episode_id.as_option() {
+                __map.serialize_entry("episodeId", __v)?;
+            }
+        }
+        if let ::core::option::Option::Some(__v) = self.version_id {
+            __map.serialize_entry("versionId", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for EpisodeToDeleteView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "EpisodeToDelete";
+    const FULL_NAME: &'static str = "nama.v1.EpisodeToDelete";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.EpisodeToDelete";
+}
+::buffa::impl_default_view_instance!(EpisodeToDeleteView);
+::buffa::impl_view_reborrow!(EpisodeToDeleteView);
+/** Self-contained, `'static` owned view of a `EpisodeToDelete` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`EpisodeToDeleteView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`EpisodeToDeleteView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct EpisodeToDeleteOwnedView(::buffa::OwnedView<EpisodeToDeleteView<'static>>);
+impl EpisodeToDeleteOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EpisodeToDeleteOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EpisodeToDeleteOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::EpisodeToDelete,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EpisodeToDeleteOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`EpisodeToDeleteView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &EpisodeToDeleteView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::EpisodeToDelete {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Shows Library the Episode is in.
+    ///
+    /// Field 1: `library_id`
+    #[must_use]
+    pub fn library_id(&self) -> i64 {
+        self.0.reborrow().library_id
+    }
+    /// The Episode's id, as `BrowseService.ListEpisodes` gave it.
+    ///
+    /// Field 2: `episode_id`
+    #[must_use]
+    pub fn episode_id(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
+        &self.0.reborrow().episode_id
+    }
+    /// Only this Version of the Episode, by its id as browsing gives it. Unset, every Version.
+    ///
+    /// Field 3: `version_id`
+    #[must_use]
+    pub fn version_id(&self) -> ::core::option::Option<i64> {
+        self.0.reborrow().version_id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<EpisodeToDeleteView<'static>>>
+for EpisodeToDeleteOwnedView {
+    fn from(inner: ::buffa::OwnedView<EpisodeToDeleteView<'static>>) -> Self {
+        EpisodeToDeleteOwnedView(inner)
+    }
+}
+impl ::core::convert::From<EpisodeToDeleteOwnedView>
+for ::buffa::OwnedView<EpisodeToDeleteView<'static>> {
+    fn from(wrapper: EpisodeToDeleteOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<EpisodeToDeleteView<'static>>>
+for EpisodeToDeleteOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<EpisodeToDeleteView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::EpisodeToDelete {
+    type View<'a> = EpisodeToDeleteView<'a>;
+    type ViewHandle = EpisodeToDeleteOwnedView;
+}
+impl ::serde::Serialize for EpisodeToDeleteOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// An Episode a delete takes along with a file that holds it too.
+#[derive(Clone, Debug, Default)]
+pub struct EpisodeTakenAlongView<'a> {
+    /// Field 1: `season_number`
+    pub season_number: u32,
+    /// Field 2: `episode_number`
+    pub episode_number: u32,
+    /// The title, in the metadata Provider's language.
+    ///
+    /// Field 3: `title`
+    pub title: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for EpisodeTakenAlongView<'a> {
+    type Owned = super::super::EpisodeTakenAlong;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.season_number = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.episode_number = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::EpisodeTakenAlong, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::EpisodeTakenAlong, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::EpisodeTakenAlong {
+            season_number: self.season_number,
+            episode_number: self.episode_number,
+            title: self.title.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for EpisodeTakenAlongView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.season_number != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_number) as u64;
+        }
+        if self.episode_number != 0u32 {
+            size
+                += 1u64 + ::buffa::types::uint32_encoded_len(self.episode_number) as u64;
+        }
+        if !self.title.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.season_number != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.season_number, buf);
+        }
+        if self.episode_number != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.episode_number, buf);
+        }
+        if !self.title.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.title, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for EpisodeTakenAlongView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.season_number) {
+            __map
+                .serialize_entry(
+                    "seasonNumber",
+                    &::buffa::json_helpers::ProtoJson(&self.season_number),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.episode_number) {
+            __map
+                .serialize_entry(
+                    "episodeNumber",
+                    &::buffa::json_helpers::ProtoJson(&self.episode_number),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.title) {
+            __map.serialize_entry("title", self.title)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for EpisodeTakenAlongView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "EpisodeTakenAlong";
+    const FULL_NAME: &'static str = "nama.v1.EpisodeTakenAlong";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.EpisodeTakenAlong";
+}
+::buffa::impl_default_view_instance!(EpisodeTakenAlongView);
+::buffa::impl_view_reborrow!(EpisodeTakenAlongView);
+/** Self-contained, `'static` owned view of a `EpisodeTakenAlong` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`EpisodeTakenAlongView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`EpisodeTakenAlongView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct EpisodeTakenAlongOwnedView(
+    ::buffa::OwnedView<EpisodeTakenAlongView<'static>>,
+);
+impl EpisodeTakenAlongOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EpisodeTakenAlongOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EpisodeTakenAlongOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::EpisodeTakenAlong,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            EpisodeTakenAlongOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`EpisodeTakenAlongView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &EpisodeTakenAlongView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::EpisodeTakenAlong {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `season_number`
+    #[must_use]
+    pub fn season_number(&self) -> u32 {
+        self.0.reborrow().season_number
+    }
+    /// Field 2: `episode_number`
+    #[must_use]
+    pub fn episode_number(&self) -> u32 {
+        self.0.reborrow().episode_number
+    }
+    /// The title, in the metadata Provider's language.
+    ///
+    /// Field 3: `title`
+    #[must_use]
+    pub fn title(&self) -> &'_ str {
+        self.0.reborrow().title
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<EpisodeTakenAlongView<'static>>>
+for EpisodeTakenAlongOwnedView {
+    fn from(inner: ::buffa::OwnedView<EpisodeTakenAlongView<'static>>) -> Self {
+        EpisodeTakenAlongOwnedView(inner)
+    }
+}
+impl ::core::convert::From<EpisodeTakenAlongOwnedView>
+for ::buffa::OwnedView<EpisodeTakenAlongView<'static>> {
+    fn from(wrapper: EpisodeTakenAlongOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<EpisodeTakenAlongView<'static>>>
+for EpisodeTakenAlongOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<EpisodeTakenAlongView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::EpisodeTakenAlong {
+    type View<'a> = EpisodeTakenAlongView<'a>;
+    type ViewHandle = EpisodeTakenAlongOwnedView;
+}
+impl ::serde::Serialize for EpisodeTakenAlongOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

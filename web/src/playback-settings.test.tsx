@@ -36,35 +36,39 @@ function openPlayback(serverService: Partial<ServiceImpl<typeof ServerService>>)
   return updates;
 }
 
-test("an Admin sets the segment folder and the Transcodes at once on the Playback page", async () => {
+test("an Admin sets the segment folder, Keep for skipping back and the Transcodes at once on the Playback page", async () => {
   const updates = openPlayback({
     getPlaybackSettings: () => ({
-      settings: { segmentFolder: "/srv/segments", maxTranscodes: 2 },
+      settings: { segmentFolder: "/srv/segments", keepBehindMinutes: 12, maxTranscodes: 2 },
     }),
   });
 
   expect(await screen.findByLabelText("Segment folder")).toHaveProperty("value", "/srv/segments");
+  expect(screen.getByLabelText("Keep for skipping back")).toHaveProperty("value", "12");
   expect(screen.getByLabelText("Transcodes at once")).toHaveProperty("value", "2");
   fill("Segment folder", "/dev/shm/nama");
+  fill("Keep for skipping back", "3");
   fill("Transcodes at once", "1");
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
   expect(await screen.findByText("Saved.")).toBeDefined();
   expect(updates).toMatchObject([
-    { settings: { segmentFolder: "/dev/shm/nama", maxTranscodes: 1 } },
+    { settings: { segmentFolder: "/dev/shm/nama", keepBehindMinutes: 3, maxTranscodes: 1 } },
   ]);
 });
 
-test("an Admin who leaves Transcodes at once empty sends it unset", async () => {
+test("an Admin who leaves Keep for skipping back and Transcodes at once empty sends them unset", async () => {
   const updates = openPlayback({
-    getPlaybackSettings: () => ({ settings: { maxTranscodes: 2 } }),
+    getPlaybackSettings: () => ({ settings: { keepBehindMinutes: 12, maxTranscodes: 2 } }),
   });
 
   await screen.findByLabelText("Transcodes at once");
+  fill("Keep for skipping back", "");
   fill("Transcodes at once", "");
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
   expect(await screen.findByText("Saved.")).toBeDefined();
+  expect(updates[0]?.settings?.keepBehindMinutes).toBeUndefined();
   expect(updates[0]?.settings?.maxTranscodes).toBeUndefined();
 });
 
@@ -241,21 +245,24 @@ test("a segment folder that isn't an absolute path is refused under its field", 
   await expectUnderField("Segment folder", "The segment folder must be an absolute path.");
 });
 
-test("a Transcodes at once the Server refuses as missing is refused under its field", async () => {
+test.each([
+  ["Transcodes at once", "max_transcodes"],
+  ["Keep for skipping back", "keep_behind_minutes"],
+])("a %s the Server refuses as missing is refused under its field", async (label, field) => {
   openPlayback({
-    getPlaybackSettings: () => ({ settings: { maxTranscodes: 2 } }),
+    getPlaybackSettings: () => ({ settings: {} }),
     updatePlaybackSettings: () => {
-      throw refused(Code.InvalidArgument, "the most Transcodes at once must be at least 1", {
+      throw refused(Code.InvalidArgument, "it must be at least 1", {
         reason: RefusalReason.FIELD_REQUIRED,
-        field: "settings.max_transcodes",
+        field: `settings.${field}`,
       });
     },
   });
 
-  await screen.findByLabelText("Transcodes at once");
+  await screen.findByLabelText(label);
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
-  await expectUnderField("Transcodes at once", "The most Transcodes at once must be at least 1.");
+  await expectUnderField(label, "It must be at least 1.");
 });
 
 test("an Admin sets the default Playback Limit for remote playback, which starts at Original", async () => {

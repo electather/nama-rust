@@ -14,7 +14,7 @@
 
 use std::collections::HashMap;
 
-pub use nama_proto::nama::plugin::v1::Fulfilled;
+pub use nama_proto::nama::plugin::v1::{Fulfilled, StopMonitoring, stop_monitoring};
 use nama_proto::nama::v1::Request;
 pub use nama_proto::nama::v1::{Download, DownloadStatus};
 
@@ -55,6 +55,22 @@ pub trait Fulfiller<Kind>: Send + Sync + 'static {
     ///
     /// When the service couldn't be told. The Kernel only logs it.
     fn unfollow<'a>(&'a self, _request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    /// Stops the service monitoring `title`, which is being deleted, so it doesn't download it
+    /// again. The service keeps the title, and one it doesn't have means nothing to do. Separate
+    /// from [`Fulfiller::unfollow`]: a Show's new Seasons still come. A Fulfiller without it isn't
+    /// asked.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be told. The delete goes ahead and names this Fulfiller, and the
+    /// Kernel doesn't try it again.
+    fn stop_monitoring<'a>(
+        &'a self,
+        _title: &'a StopMonitoring,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async { Ok(()) })
     }
 

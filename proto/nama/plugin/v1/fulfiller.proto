@@ -34,3 +34,13 @@ message Progress {
 message Downloads {
   repeated nama.v1.Download downloads = 1;
 }
+
+// What a delete asks a Fulfiller to stop monitoring, so its service doesn't download it again.
+// The service keeps the title, and one it doesn't have means nothing to do. An Installed Plugin's
+// `stop_monitoring` export takes it and returns nothing.
+message StopMonitoring {
+  oneof title {
+    // A Movie, by its TMDB id.
+    int64 movie_tmdb_id = 1;
+  }
+}

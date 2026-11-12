@@ -90,6 +90,17 @@ test("the confirmation lists the files that go and the space they free, and can'
   expect(within(dialog).getByText("Alien (1979) - 2160p.mkv")).toBeDefined();
   expect(within(dialog).getByText(/These 3 files go, freeing 68 GB/u)).toBeDefined();
   expect(within(dialog).getByText(/can’t be undone/u)).toBeDefined();
+  expect(within(dialog).queryByText(/watching/u)).toBeNull();
+});
+
+test("the confirmation says how many people are watching it now", async () => {
+  openAlien(deletesMedia, {
+    previewDeleteMedia: () => ({ files: [ALIEN_1080P], bytesFreed: ALIEN_1080P.size, playing: 2 }),
+  });
+
+  const dialog = await openDeleteDialog();
+
+  expect(await within(dialog).findByText(/2 people are watching it now/u)).toBeDefined();
 });
 
 test("deleting one Version deletes only it", async () => {
@@ -200,6 +211,38 @@ test("files that couldn't be deleted are listed with why", async () => {
 
   expect(await screen.findByText("A file couldn’t be deleted. The rest went.")).toBeDefined();
   expect(screen.getByText("Alien (1979) - 2160p.mkv: Permission denied")).toBeDefined();
+});
+
+test("deleting every Version when Radarr couldn't be told says on the Library it may download the Movie again", async () => {
+  openAlien(deletesMedia, {
+    deleteMedia: () => ({ deleted: [ALIEN_2160P, ALIEN_1080P], fulfillersNotTold: ["Radarr"] }),
+  });
+  const dialog = await openDeleteDialog();
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+  expect(await screen.findByRole("heading", { name: "Films" })).toBeDefined();
+  expect(
+    screen.getByText("Radarr couldn’t be told about the delete, so it may download Alien again."),
+  ).toBeDefined();
+});
+
+test("deleting one Version when Radarr couldn't be told says so on the Movie", async () => {
+  openAlien(deletesMedia, {
+    deleteMedia: () => ({ deleted: [ALIEN_1080P], fulfillersNotTold: ["Radarr"] }),
+  });
+  const dialog = await openDeleteDialog();
+  await within(dialog).findByText("Alien (1979) - 2160p.mkv");
+
+  fireEvent.change(within(dialog).getByLabelText("What to delete"), { target: { value: "1" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+  expect(
+    await screen.findByText(
+      "Radarr couldn’t be told about the delete, so it may download Alien again.",
+    ),
+  ).toBeDefined();
+  expect(screen.getByRole("button", { name: "Delete Alien" })).toBeDefined();
 });
 
 test("Delete media is a Permission an Admin can give", async () => {

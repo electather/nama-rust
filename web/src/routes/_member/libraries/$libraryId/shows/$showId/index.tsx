@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 
+import { DeleteEpisode, DeleteFromShow } from "@/components/delete-from-show";
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { MarkPlayedMenu } from "@/components/mark-played-menu";
@@ -9,6 +10,7 @@ import { BrowseService, type Episode, type Season } from "@/gen/nama/v1/browse_p
 import {
   dateOf,
   externalIdFromParam,
+  isGone,
   libraryFromParam,
   metadataLine,
   queryOrNotFound,
@@ -46,12 +48,12 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showI
 
 function Show() {
   const { seasonNumber, ...show } = Route.useLoaderData();
-  const { data } = useSuspenseQuery(BrowseService.method.getShow, show);
+  const { data, error } = useSuspenseQuery(BrowseService.method.getShow, show);
   const { data: season } = useSuspenseQuery(BrowseService.method.listEpisodes, {
     ...show,
     seasonNumber,
   });
-  if (!data.show) return <NotFound />;
+  if (!data.show || isGone(error)) return <NotFound />;
   return (
     <TitlePage title={data.show.title} backdropUrl={data.show.backdropUrl}>
       {/* Pulled out like the Episodes below, so the menu lines up with their toggles. */}
@@ -66,7 +68,16 @@ function Show() {
           }
         />
       </div>
-      <Episodes />
+      <SeasonShown seasons={data.seasons} current={seasonNumber} />
+      {/* Out of the way below the Episodes, and pulled out by the buttons' own padding. */}
+      <div className="mt-6 -ms-4 flex max-w-3xl flex-wrap gap-2 empty:hidden">
+        <DeleteFromShow
+          {...show}
+          title={data.show.title}
+          seasons={data.seasons}
+          current={seasonNumber}
+        />
+      </div>
     </TitlePage>
   );
 }
@@ -91,6 +102,16 @@ function Seasons({ seasons, current }: { seasons: Season[]; current: number }) {
   );
 }
 
+/** The Season shown's Episodes, or that it's gone, once an Event says it was deleted. */
+function SeasonShown({ seasons, current }: { seasons: Season[]; current: number }) {
+  if (seasons.some(({ number }) => number === current)) return <Episodes />;
+  return (
+    <p className="mt-6 text-muted-foreground">
+      {seasonName(current)} is no longer in this Library.
+    </p>
+  );
+}
+
 function Episodes() {
   const input = Route.useLoaderData();
   const { data } = useSuspenseQuery(BrowseService.method.listEpisodes, input);
@@ -111,10 +132,10 @@ function Episodes() {
  */
 function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episode }) {
   const setPlayed = useSetPlayed();
-  // Without its own ID there's nothing to mark.
+  // Without its own ID there's nothing to mark or delete.
   const episodeId = episode.id;
   return (
-    <li className="flex items-center gap-1 border-b last:border-b-0">
+    <li className="flex flex-wrap items-center gap-1 border-b last:border-b-0">
       <Link
         from={Route.fullPath}
         to="./seasons/$season/episodes/$episode/play"
@@ -141,13 +162,16 @@ function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episod
         </span>
       </Link>
       {episodeId && (
-        <PlayedIconButton
-          played={episode.watchState?.played === true}
-          label={`Played: ${episode.title}`}
-          onToggle={(played) => {
-            setPlayed({ libraryId, target: { case: "episodeId", value: episodeId }, played });
-          }}
-        />
+        <>
+          <PlayedIconButton
+            played={episode.watchState?.played === true}
+            label={`Played: ${episode.title}`}
+            onToggle={(played) => {
+              setPlayed({ libraryId, target: { case: "episodeId", value: episodeId }, played });
+            }}
+          />
+          <DeleteEpisode libraryId={libraryId} episodeId={episodeId} episode={episode} />
+        </>
       )}
     </li>
   );

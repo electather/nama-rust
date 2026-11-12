@@ -693,6 +693,7 @@ mod tests {
                 plugins.extension_points(),
                 events.clone(),
                 None,
+                None,
             );
             Self {
                 matcher: scanner.matcher().clone(),

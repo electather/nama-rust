@@ -13,7 +13,10 @@
 //! A segment asked for waits for ffmpeg to write its files, and one whose files have gone since
 //! waits for them to be written again. One far past what ffmpeg has written restarts ffmpeg at it,
 //! and ffmpeg stops once it's [`RUN_AHEAD_MS`] past the last segment asked for, to start again at
-//! the next file asked for that it hasn't written.
+//! the next file asked for that it hasn't written. Every [`TIDY_EVERY`], files ending further
+//! before the last segment asked for than the Playback settings keep for skipping back are
+//! deleted, as are earlier runs' init files, so a plan's folder stops growing; one asked for again
+//! is written again.
 //!
 //! A Transcode on hardware that fails carries on in software from the first file it hadn't
 //! written, takes its software fallback's reasons and publishes `PlaybackChanged`.
@@ -23,10 +26,14 @@
 //! its file at `/media/versions/<id>`, which marks every Direct Play of that Version on the Device
 //! asked for. [`sweep_leftovers`] deletes the folders of plans a run left behind when the next
 //! starts.
+//!
+//! Deleting a Version ends its plans first and cuts off each response serving its file
+//! ([`RunningPlans::end_for_deleting`]): a file open for reading can still be read once it's
+//! deleted.
 
 use std::{
     collections::HashMap,
-    fmt::Write as _,
+    fmt::{self, Write as _},
     io,
     ops::Range,
     path::{Path, PathBuf},
@@ -55,7 +62,7 @@ use super::{Method, Playing, StartedPlan, direct_play_url, method_to_proto, reas
 use crate::{
     contents::Contents,
     events::{EventBus, event},
-    ffmpeg::{Ffmpeg, FromCut, Keyframe, Remux, Transcode, hls_init},
+    ffmpeg::{Ffmpeg, FromCut, Keyframe, Remux, Transcode, hls_init, hls_init_from},
     probing::{self, ProbeError, Probing},
     server_settings::PlaybackSettings,
     tracks::track_to_proto,
@@ -85,7 +92,7 @@ const PLAN_FOLDER: &str = "nama-plan-";
 /// plan goes within about a minute.
 const STOP_UNUSED_AFTER: Duration = Duration::from_secs(60);
 
-const CHECK_UNUSED_EVERY: Duration = Duration::from_secs(10);
+const TIDY_EVERY: Duration = Duration::from_secs(10);
 
 /// How often a request for a file ffmpeg hasn't written yet looks for it again, and how often
 /// ffmpeg's progress is looked at.
@@ -136,10 +143,37 @@ struct Inner {
     events: EventBus,
     next_id: AtomicU64,
     plans: Mutex<HashMap<u64, Arc<Plan>>>,
-    /// [`stop_unused_plans`], so shutting down can wait for it.
+    /// [`tidy_plans`], so shutting down can wait for it.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
     cancel: CancellationToken,
+    /// By Version, cancelled while it's deleted, which cuts off each response serving its file.
+    // ponytail: one kept per Version served since the Server started; drop each once nothing
+    // serves it if that ever adds up.
+    served: Mutex<HashMap<i64, CancellationToken>>,
+}
+
+impl fmt::Debug for RunningPlans {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RunningPlans").finish_non_exhaustive()
+    }
+}
+
+/// Versions being deleted, each of whose files is cut off as soon as it's served until this is
+/// dropped, once they're gone from disk and the Library.
+#[must_use = "the Versions are served again once it's dropped"]
+pub(crate) struct Deleting {
+    plans: RunningPlans,
+    versions: Vec<i64>,
+}
+
+impl Drop for Deleting {
+    fn drop(&mut self) {
+        let mut served = lock(&self.plans.inner.served);
+        for version in &self.versions {
+            served.remove(version);
+        }
+    }
 }
 
 /// One playable plan.
@@ -226,11 +260,11 @@ impl RunningPlans {
             plans: Mutex::default(),
             tasks: TaskTracker::new(),
             cancel: CancellationToken::new(),
+            served: Mutex::default(),
         });
-        inner.tasks.spawn(stop_unused_plans(
-            Arc::downgrade(&inner),
-            inner.cancel.clone(),
-        ));
+        inner
+            .tasks
+            .spawn(tidy_plans(Arc::downgrade(&inner), inner.cancel.clone()));
         Self { inner }
     }
 
@@ -251,13 +285,17 @@ impl RunningPlans {
 
     /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
     /// where to play it from. A Remux or a Transcode runs ffmpeg over the Version's file. `None`
-    /// if there is no such Version, or `plan` can't be played.
+    /// if there is no such Version, it's being deleted, or `plan` can't be played.
     pub(crate) async fn start(
         &self,
         caller: &Caller,
         plan: super::Plan,
     ) -> Result<Option<StartedPlan>, StartError> {
-        let Some(playing) = plan.playing.clone() else {
+        let Some(playing) = plan
+            .playing
+            .clone()
+            .filter(|_| !self.deleting(plan.version))
+        else {
             return Ok(None);
         };
         let playback = playback(caller, &plan);
@@ -461,6 +499,48 @@ impl RunningPlans {
         }
     }
 
+    /// How many plans play one of `versions`.
+    pub(crate) fn playing(&self, versions: &[i64]) -> usize {
+        (lock(&self.inner.plans).values())
+            .filter(|plan| versions.contains(&plan.playback.version_id))
+            .count()
+    }
+
+    /// Stops every plan playing one of `versions`, whose files are about to be deleted, and cuts
+    /// off each response serving one of them, until the [`Deleting`] it returns is dropped.
+    // ponytail: a Remux or Transcode already starting as this begins can still start on a file
+    // about to go, and play on until it's unused; check again as it's kept if that ever shows.
+    pub(crate) async fn end_for_deleting(&self, versions: &[i64]) -> Deleting {
+        {
+            let mut served = lock(&self.inner.served);
+            for &version in versions {
+                served.entry(version).or_default().cancel();
+            }
+        }
+        let ending: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
+            .extract_if(|_, plan| versions.contains(&plan.playback.version_id))
+            .collect();
+        for (id, plan) in ending {
+            self.stop(id, &plan).await;
+        }
+        Deleting {
+            plans: self.clone(),
+            versions: versions.to_vec(),
+        }
+    }
+
+    /// Whether the Version `version` is being deleted.
+    fn deleting(&self, version: i64) -> bool {
+        (lock(&self.inner.served).get(&version)).is_some_and(CancellationToken::is_cancelled)
+    }
+
+    /// Cancelled once the Version `version` is being deleted, to cut off a response serving its
+    /// file.
+    pub(crate) fn served(&self, version: i64) -> CancellationToken {
+        let mut served = lock(&self.inner.served);
+        served.entry(version).or_default().child_token()
+    }
+
     /// Stops every plan not asked for in the last `unused_for`, and deletes its files.
     async fn stop_unused(&self, unused_for: Duration) {
         let unused: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
@@ -468,6 +548,23 @@ impl RunningPlans {
             .collect();
         for (id, plan) in unused {
             self.stop(id, &plan).await;
+        }
+    }
+
+    /// Deletes each running plan's files from well behind playback, as [`Running::delete_behind`]
+    /// says.
+    async fn delete_behind_playback(&self) {
+        let running: Vec<Arc<Running>> = (lock(&self.inner.plans).values())
+            .filter_map(|plan| plan.hls.clone())
+            .collect();
+        let keep_behind_ms = self.inner.settings.keep_behind_ms();
+        for hls in running {
+            if let Err(err) = hls.delete_behind(keep_behind_ms).await {
+                tracing::warn!(
+                    plan = hls.id,
+                    "could not delete files behind playback: {err}"
+                );
+            }
         }
     }
 
@@ -519,10 +616,12 @@ fn playlist_url(plan: u64) -> String {
     format!("/media/plans/{plan}/{PLAYLIST}")
 }
 
-/// Every [`CHECK_UNUSED_EVERY`], stops the plans unused for [`STOP_UNUSED_AFTER`], until `inner`
-/// is dropped or `cancel` is cancelled.
-async fn stop_unused_plans(inner: Weak<Inner>, cancel: CancellationToken) {
-    let mut every = tokio::time::interval(CHECK_UNUSED_EVERY);
+/// Every [`TIDY_EVERY`], stops the plans unused for [`STOP_UNUSED_AFTER`] and deletes the running
+/// ones' files from well behind playback, until `inner` is dropped or `cancel` is cancelled.
+async fn tidy_plans(inner: Weak<Inner>, cancel: CancellationToken) {
+    // Not at once, so a test's plans aren't tidied at whatever point its task first runs.
+    let first = tokio::time::Instant::now() + TIDY_EVERY;
+    let mut every = tokio::time::interval_at(first, TIDY_EVERY);
     loop {
         // Only between rounds: a plan a round took out isn't in `shutdown`'s drain, so ending
         // mid-round would leave its ffmpeg and files behind.
@@ -532,7 +631,9 @@ async fn stop_unused_plans(inner: Weak<Inner>, cancel: CancellationToken) {
         let Some(inner) = inner.upgrade() else {
             return;
         };
-        RunningPlans { inner }.stop_unused(STOP_UNUSED_AFTER).await;
+        let plans = RunningPlans { inner };
+        plans.stop_unused(STOP_UNUSED_AFTER).await;
+        plans.delete_behind_playback().await;
     }
 }
 
@@ -668,6 +769,47 @@ impl Running {
         }
     }
 
+    /// Deletes the files of keyframes ending more than `keep_behind_ms` before the start of the
+    /// last segment asked for, and the init files of every run but the current one. Files ahead
+    /// of it, and those the current run may still be writing, are kept.
+    async fn delete_behind(&self, keep_behind_ms: i64) -> io::Result<()> {
+        // Under the lock a restart takes, so the current run is the one whose init is kept.
+        let ffmpeg = self.ffmpeg.lock().await;
+        // `stop` takes the run under it, so a stopped plan has none.
+        let Some((run, _)) = ffmpeg.as_ref() else {
+            return Ok(());
+        };
+        // A running run's walk in `note_written` stops at the first file gone, so what it may
+        // write after it last looked is kept.
+        let still_writing_from = if run.stopped.load(Ordering::Acquire) {
+            usize::MAX
+        } else {
+            self.note_written(run).await
+        };
+        let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
+        let keep_from_ms = asked - keep_behind_ms;
+        let mut entries = tokio::fs::read_dir(&self.dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            let behind = match keyframe_number(&name) {
+                Some(n) => {
+                    n < still_writing_from && self.timeline.keyframe_ms(n + 1) < keep_from_ms
+                }
+                None => hls_init_from(&name).is_some_and(|from| from != run.from),
+            };
+            // Going on past one, which Windows refuses while a request reads it.
+            if behind && let Err(err) = tokio::fs::remove_file(entry.path()).await {
+                tracing::warn!(
+                    plan = self.id,
+                    "could not delete {}: {err}",
+                    entry.path().display()
+                );
+            }
+        }
+        Ok(())
+    }
+
     /// The number of the segment a request for `asked` gets, if the playlist lists it.
     fn segment_number(&self, asked: &str) -> Option<usize> {
         let n: usize = asked.strip_suffix(".m4s")?.parse().ok()?;
@@ -722,22 +864,20 @@ impl Running {
     /// wrote its first file, or `None` if it stopped first.
     async fn init(&self) -> io::Result<Option<Vec<u8>>> {
         loop {
-            let Some((from, stopped, written)) =
-                (self.ffmpeg.lock().await).as_ref().map(|(run, _)| {
-                    // `stopped` first, as a run notes what it wrote last before it's marked so.
-                    let stopped = run.stopped.load(Ordering::Acquire);
-                    let written = run.written_to.load(Ordering::Relaxed) > run.from;
-                    (run.from, stopped, written)
-                })
-            else {
+            let ffmpeg = self.ffmpeg.lock().await;
+            let Some((run, _)) = ffmpeg.as_ref() else {
                 return Ok(None);
             };
+            // `stopped` first, as a run notes what it wrote last before it's marked so.
+            let stopped = run.stopped.load(Ordering::Acquire);
             // Not whether its first file is there, which may be gone since.
-            if written {
-                return tokio::fs::read(self.dir.join(hls_init(from)))
+            if run.written_to.load(Ordering::Relaxed) > run.from {
+                // Read under the lock, as once a seek replaces this run a tick deletes its init.
+                return tokio::fs::read(self.dir.join(hls_init(run.from)))
                     .await
                     .map(Some);
             }
+            drop(ffmpeg);
             if stopped {
                 return Ok(None);
             }
@@ -899,7 +1039,7 @@ impl Running {
 
     /// Notes in `run` how far it has written, and returns it. Walks on from where it last looked,
     /// not from where it started, whose files may be gone since.
-    // A file deleted before it's looked at stops the walk there, so deleting must keep behind it.
+    // A file deleted before it's looked at stops the walk there, so `delete_behind` keeps those.
     async fn note_written(&self, run: &FfmpegRun) -> usize {
         let mut written_to = run.written_to.load(Ordering::Relaxed);
         while written_to < self.timeline.keyframes.len()
@@ -909,9 +1049,16 @@ impl Running {
         {
             written_to += 1;
         }
-        run.written_to.store(written_to, Ordering::Relaxed);
-        written_to
+        // The most, as the tick may walk alongside `watch` and delete what the slower walk is on.
+        run.written_to
+            .fetch_max(written_to, Ordering::Relaxed)
+            .max(written_to)
     }
+}
+
+/// The keyframe whose file is named `name`, if it's one.
+fn keyframe_number(name: &str) -> Option<usize> {
+    name.strip_suffix(".m4s")?.parse().ok()
 }
 
 /// Logs why ffmpeg, running for the plan `plan`, failed, if it did, and says whether it did.
@@ -999,14 +1146,14 @@ mod tests {
     };
 
     use super::{
-        FallbackRun, Method, POLL_EVERY, Running, RunningPlans, Runs, Timeline, lock,
-        sweep_leftovers,
+        FallbackRun, Method, POLL_EVERY, Running, RunningPlans, Runs, Timeline, keyframe_number,
+        lock, sweep_leftovers,
     };
     use crate::{
         contents::Contents,
         db::Database,
         events::{EventBus, Filter, event},
-        ffmpeg::{Ffmpeg, Keyframe},
+        ffmpeg::{Ffmpeg, Keyframe, hls_init},
         playback::subtitles,
         plugins::ExtensionPoints,
         probing::Probing,
@@ -1405,6 +1552,159 @@ mod tests {
         assert_eq!(until_started(&starts, 2).await, [0, 3]);
         write_keyframes(data.path(), id, 3..6);
         assert_eq!(answer(again).await.unwrap().unwrap(), b"345");
+    }
+
+    /// The keyframes whose files the plan `id` has, by number, in order.
+    fn keyframes_left(data: &Path, id: u64) -> Vec<usize> {
+        let dir = data.join("transcodes").join(format!("nama-plan-{id}"));
+        let mut left: Vec<usize> = (fs::read_dir(dir).unwrap())
+            .filter_map(|entry| keyframe_number(&entry.unwrap().file_name().into_string().unwrap()))
+            .collect();
+        left.sort_unstable();
+        left
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_tick_deletes_files_ending_more_than_five_minutes_behind_the_last_segment_asked_for()
+    {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, _) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        // To 400 seconds.
+        write_keyframes(data.path(), id, 0..200);
+
+        // At 360 seconds.
+        plan.segment(60).await.unwrap().unwrap();
+        plans.delete_behind_playback().await;
+
+        // Keyframe 29 ends at 60 seconds, 5 minutes before.
+        assert_eq!(
+            keyframes_left(data.path(), id),
+            (29..200).collect::<Vec<_>>()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_tick_after_keep_for_skipping_back_is_lowered_deletes_what_it_no_longer_keeps() {
+        let data = tempfile::tempdir().unwrap();
+        let db = database(data.path()).await;
+        let settings = settings(&db, data.path().join("transcodes"));
+        let plans = plans_in(&db, settings.playback());
+        let (id, _) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        // To 400 seconds, played to 360.
+        write_keyframes(data.path(), id, 0..200);
+        plan.segment(60).await.unwrap().unwrap();
+        plans.delete_behind_playback().await;
+
+        settings
+            .change_playback(
+                PlaybackChange {
+                    segment_folder: "",
+                    max_transcodes: None,
+                    keep_behind_minutes: Some(1),
+                    hardware: HardwareChoice::Automatic,
+                    remote_limit: None,
+                },
+                &[],
+            )
+            .await
+            .unwrap();
+        plans.delete_behind_playback().await;
+
+        // Keyframe 149 ends at 300 seconds, a minute before.
+        assert_eq!(
+            keyframes_left(data.path(), id),
+            (149..200).collect::<Vec<_>>()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_tick_after_a_seek_back_keeps_the_files_ahead_of_it() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, _) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        // To 600 seconds.
+        write_keyframes(data.path(), id, 0..300);
+        // At 540 seconds, then back to 360.
+        plan.segment(90).await.unwrap().unwrap();
+
+        plan.segment(60).await.unwrap().unwrap();
+        plans.delete_behind_playback().await;
+
+        assert_eq!(
+            keyframes_left(data.path(), id),
+            (29..300).collect::<Vec<_>>()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_tick_deletes_the_stretches_of_earlier_seeks_behind_playback_and_keeps_those_ahead() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, starts) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        for stretch in [0..20, 100..150, 400..420] {
+            write_keyframes(data.path(), id, stretch);
+        }
+        // The last seek, to 600 seconds.
+        let seeked = Arc::clone(&plan);
+        let seek = tokio::spawn(async move { seeked.segment(100).await });
+        assert_eq!(until_started(&starts, 2).await, [0, 300]);
+        write_keyframes(data.path(), id, 300..350);
+        answer(seek).await.unwrap().unwrap();
+
+        // At 660 seconds.
+        plan.segment(110).await.unwrap().unwrap();
+        plans.delete_behind_playback().await;
+
+        let ahead: Vec<usize> = (300..350).chain(400..420).collect();
+        assert_eq!(keyframes_left(data.path(), id), ahead);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_tick_deletes_the_init_files_of_earlier_runs_and_keeps_the_current_ones() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, starts) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        let dir = plan.dir.clone();
+        fs::write(dir.join(hls_init(0)), "init").unwrap();
+        let seeked = tokio::spawn(async move { plan.segment(133).await });
+        until_started(&starts, 2).await;
+        fs::write(dir.join(hls_init(399)), "init").unwrap();
+
+        plans.delete_behind_playback().await;
+
+        assert!(!dir.join(hls_init(0)).exists());
+        assert!(dir.join(hls_init(399)).exists());
+        write_keyframes(data.path(), id, 399..402);
+        answer(seeked).await.unwrap().unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn skipping_back_past_what_a_tick_kept_restarts_ffmpeg_there_and_is_served() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let (id, starts) = start_writing_nothing(&plans).await;
+        let plan = hls(&plans, id, 7);
+        write_keyframes(data.path(), id, 0..200);
+        plan.segment(60).await.unwrap().unwrap();
+        plans.delete_behind_playback().await;
+
+        let back = tokio::spawn(async move { plan.segment(1).await });
+
+        assert_eq!(until_started(&starts, 2).await, [0, 3]);
+        write_keyframes(data.path(), id, 3..6);
+        assert_eq!(answer(back).await.unwrap().unwrap(), b"345");
     }
 
     // No lock spans finding a file and reading it, so the test can't pause between the two: it
@@ -1888,6 +2188,7 @@ mod tests {
                 PlaybackChange {
                     segment_folder: tmpfs.to_str().unwrap(),
                     max_transcodes: None,
+                    keep_behind_minutes: None,
                     hardware: HardwareChoice::Automatic,
                     remote_limit: None,
                 },
@@ -1926,6 +2227,7 @@ mod tests {
                 PlaybackChange {
                     segment_folder: set.to_str().unwrap(),
                     max_transcodes: None,
+                    keep_behind_minutes: None,
                     hardware: HardwareChoice::Automatic,
                     remote_limit: None,
                 },
@@ -1940,5 +2242,55 @@ mod tests {
             assert!(!leftover.exists(), "{}", leftover.display());
         }
         assert!(others.exists());
+    }
+
+    /// A plan Direct Playing the Version `version`.
+    fn direct_play_of(version: i64) -> crate::playback::Plan {
+        crate::playback::Plan {
+            version,
+            playing: Some(crate::playback::Playing::DirectPlay),
+            tracks: vec![],
+            reasons: vec![],
+            subtitles: vec![],
+            limit: None,
+            audio: None,
+            burn_in: None,
+            starting_subtitle: None,
+            offers: crate::playback::Offers::default(),
+        }
+    }
+
+    fn ripley() -> crate::users::Caller {
+        use crate::users::{Caller, Device, Permissions, User};
+
+        Caller {
+            user: User {
+                id: 1,
+                name: "Ripley".to_owned(),
+                permissions: Permissions::NEW_USER,
+                created_at: 0,
+            },
+            device: Device {
+                id: 1,
+                name: "Nostromo".to_owned(),
+                created_at: 0,
+                last_seen_at: 0,
+                authenticated_at: 0,
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn a_version_being_deleted_starts_no_plan_until_it_is_gone() {
+        let data = tempfile::tempdir().unwrap();
+        let plans = running_plans(data.path()).await;
+        let deleting = plans.end_for_deleting(&[4]).await;
+
+        let while_deleting = plans.start(&ripley(), direct_play_of(4)).await.unwrap();
+        drop(deleting);
+        let after = plans.start(&ripley(), direct_play_of(4)).await.unwrap();
+
+        assert!(while_deleting.is_none());
+        assert!(after.is_some());
     }
 }

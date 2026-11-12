@@ -18,7 +18,14 @@ import {
   PlaybackSettingsSchema,
   ServerService,
 } from "@/gen/nama/v1/server_pb";
-import { formText, onSubmitted, refusal, serverMessage } from "@/lib/forms";
+import {
+  type FormErrors,
+  formText,
+  onSubmitted,
+  refusal,
+  refusalOf,
+  serverMessage,
+} from "@/lib/forms";
 import { belowOriginal, hardwareName } from "@/lib/playback-wording";
 
 const playbackSettingsKey = createConnectQueryKey({
@@ -54,9 +61,9 @@ export type Hardware = Pick<FoundHardware, "api" | "gpu">;
 
 /**
  * The form an Admin sets how the Server plays Versions it changes with: the folder Remuxes and
- * Transcodes write their segment files to, what Transcodes run on, the most it runs at once, and
- * the default Playback Limit for remote playback. One form, as saving replaces every Playback
- * setting.
+ * Transcodes write their segment files to, how much of them they keep for skipping back, what
+ * Transcodes run on, the most it runs at once, and the default Playback Limit for remote playback.
+ * One form, as saving replaces every Playback setting.
  */
 export function PlaybackSettingsForm() {
   const queryClient = useQueryClient();
@@ -75,17 +82,7 @@ export function PlaybackSettingsForm() {
         update.mutate({ settings: typedSettings(typed) });
       })}
     >
-      <FormField
-        label="Segment folder"
-        name="segmentFolder"
-        autoComplete="off"
-        spellCheck={false}
-        placeholder="/dev/shm/nama"
-        required={false}
-        defaultValue={settings.segmentFolder}
-        hint="Where a Remux or Transcode writes the files it plays from, such as a tmpfs, until a minute after they’re last played. Leave it empty for the transcodes folder in the Server’s data folder. A change applies from the next one."
-        error={errors.segmentFolder}
-      />
+      <SegmentFields saved={settings} errors={errors} />
       <HardwareField saved={settings} error={errors.hardwareAcceleration} />
       <FormField
         label="Transcodes at once"
@@ -105,6 +102,38 @@ export function PlaybackSettingsForm() {
         refusal={errors.form}
       />
     </form>
+  );
+}
+
+/**
+ * The fields for the files a Remux or Transcode writes: the folder they go in and how much of them
+ * is kept for skipping back, showing the `saved` ones.
+ */
+function SegmentFields({ saved, errors }: { saved: PlaybackSettings; errors: FormErrors }) {
+  return (
+    <>
+      <FormField
+        label="Segment folder"
+        name="segmentFolder"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="/dev/shm/nama"
+        required={false}
+        defaultValue={saved.segmentFolder}
+        hint="Where a Remux or Transcode writes the files it plays from, such as a tmpfs. Files further behind than Keep for skipping back are deleted as it plays, and the rest a minute after it’s last played. Leave it empty for the transcodes folder in the Server’s data folder. A change applies from the next one."
+        error={errors.segmentFolder}
+      />
+      <FormField
+        label="Keep for skipping back"
+        name="keepBehindMinutes"
+        type="number"
+        min={1}
+        required={false}
+        defaultValue={saved.keepBehindMinutes}
+        hint="How much of a Remux or Transcode is kept behind where the player is, so skipping back that far plays at once. Skipping further waits while it’s made again. A 4K Remux keeps about 1 GB for 5 minutes. Leave it empty for 5 minutes. A change applies to those already playing."
+        error={errors.keepBehindMinutes}
+      />
+    </>
   );
 }
 
@@ -164,10 +193,12 @@ function hardwareValue({ api, gpu }: Hardware) {
 /** The Playback settings the form holds `typed`. */
 function typedSettings(typed: FormData) {
   const maxTranscodes = formText(typed, "maxTranscodes");
+  const keepBehindMinutes = formText(typed, "keepBehindMinutes");
   return {
     segmentFolder: formText(typed, "segmentFolder"),
-    // Empty leaves the cap unset, for the Server's default.
+    // Empty leaves each unset, for the Server's default.
     ...(maxTranscodes !== "" && { maxTranscodes: Number(maxTranscodes) }),
+    ...(keepBehindMinutes !== "" && { keepBehindMinutes: Number(keepBehindMinutes) }),
     ...typedHardware(formText(typed, "hardwareAcceleration")),
     remotePlaybackLimit: limitPicked(formText(typed, "remotePlaybackLimit")),
   };
@@ -222,8 +253,11 @@ function playbackSettingsErrors(error: ConnectError | null) {
     {},
     {
       [RefusalReason.FOLDER_NOT_ABSOLUTE]: { segmentFolder: serverMessage(error) },
-      // The only field the Server refuses as missing here, a cap of 0.
-      [RefusalReason.FIELD_REQUIRED]: { maxTranscodes: serverMessage(error) },
+      // The only fields the Server refuses as missing here, a count of 0.
+      [RefusalReason.FIELD_REQUIRED]:
+        refusalOf(error).field === "settings.keep_behind_minutes"
+          ? { keepBehindMinutes: serverMessage(error) }
+          : { maxTranscodes: serverMessage(error) },
       [RefusalReason.GPU_NOT_OFFERED]: { hardwareAcceleration: serverMessage(error) },
     },
   );

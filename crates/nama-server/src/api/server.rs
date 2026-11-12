@@ -149,6 +149,7 @@ impl ServerService for ServerServiceHandler {
         let change = PlaybackChange {
             segment_folder: settings.segment_folder,
             max_transcodes: settings.max_transcodes,
+            keep_behind_minutes: settings.keep_behind_minutes,
             hardware,
             remote_limit: limit_from_proto(settings.remote_playback_limit),
         };
@@ -175,6 +176,7 @@ fn playback_settings_to_proto(settings: PlaybackValues) -> proto::PlaybackSettin
     proto::PlaybackSettings {
         segment_folder: settings.segment_folder,
         max_transcodes: settings.max_transcodes.map(NonZeroU32::get),
+        keep_behind_minutes: settings.keep_behind_minutes.map(NonZeroU32::get),
         remote_playback_limit: limit_to_proto(settings.remote_limit).into(),
         hardware_acceleration: hardware_choice_to_proto(&settings.hardware).into(),
         gpu: (settings.hardware.gpu())
@@ -206,6 +208,12 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
             "the most Transcodes at once must be at least 1",
         )
         .field("settings.max_transcodes"),
+        Refused(Invalid::NothingKeptBehind) => refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            "the time kept for skipping back must be at least 1 minute",
+        )
+        .field("settings.keep_behind_minutes")
+        .param("minMinutes", &1),
         Refused(Invalid::GpuNotOffered { id }) => refuse(
             RefusalReason::REFUSAL_REASON_GPU_NOT_OFFERED,
             "the GPU must be one the hardware acceleration passed its test on when the Server \

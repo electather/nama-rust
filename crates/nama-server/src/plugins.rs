@@ -823,6 +823,17 @@ impl ExtensionPoints {
         }
     }
 
+    /// What people know the Plugin `id` by: its name, or its id when it gives none or the Server
+    /// has no such Plugin.
+    #[must_use]
+    pub fn name(&self, id: &PluginId) -> String {
+        let named = self.read(|state| match &state.known.get(id)?.plugin {
+            Ok((_, manifest)) if !manifest.name.is_empty() => Some(manifest.name.clone()),
+            _ => None,
+        });
+        named.unwrap_or_else(|| id.to_string())
+    }
+
     /// The enabled Plugins that provide a `T`, sorted by id.
     #[must_use]
     pub fn providers<T: ?Sized + 'static>(&self) -> BTreeSet<PluginId> {

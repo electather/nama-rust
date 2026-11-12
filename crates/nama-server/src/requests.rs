@@ -3513,6 +3513,7 @@ mod tests {
             requests.plugins.clone(),
             requests.events.clone(),
             None,
+            None,
         );
         let mut published = subscribe(&requests);
         let pinning = scanner.matcher().clone();

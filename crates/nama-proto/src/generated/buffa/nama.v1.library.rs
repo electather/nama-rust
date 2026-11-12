@@ -2136,10 +2136,30 @@ pub struct PreviewDeleteMediaResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
     )]
     pub bytes_freed: u64,
+    /// The Episodes the target doesn't name that a file that would go holds too, by season and
+    /// episode number. Each loses that Version, and with it goes if it has no other.
+    ///
+    /// Field 3: `episodes_taken_along`
+    #[serde(
+        rename = "episodesTakenAlong",
+        alias = "episodes_taken_along",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub episodes_taken_along: ::buffa::alloc::vec::Vec<EpisodeTakenAlong>,
+    /// How many Playback Plans play the Versions now: how many people deleting them stops watching.
+    ///
+    /// Field 4: `playing`
+    #[serde(
+        rename = "playing",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub playing: u32,
     /// The Library folder holding `files` that the Server couldn't write to when it last scanned the
     /// Library, if there is one, in which case `DeleteMedia` is refused.
     ///
-    /// Field 3: `read_only_folder`
+    /// Field 5: `read_only_folder`
     #[serde(
         rename = "readOnlyFolder",
         alias = "read_only_folder",
@@ -2155,6 +2175,8 @@ impl ::core::fmt::Debug for PreviewDeleteMediaResponse {
         f.debug_struct("PreviewDeleteMediaResponse")
             .field("files", &self.files)
             .field("bytes_freed", &self.bytes_freed)
+            .field("episodes_taken_along", &self.episodes_taken_along)
+            .field("playing", &self.playing)
             .field("read_only_folder", &self.read_only_folder)
             .finish()
     }
@@ -2209,6 +2231,17 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
         if self.bytes_freed != 0u64 {
             size += 1u64 + ::buffa::types::uint64_encoded_len(self.bytes_freed) as u64;
         }
+        for v in &self.episodes_taken_along {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.playing != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.playing) as u64;
+        }
         if let Some(ref v) = self.read_only_folder {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
@@ -2233,8 +2266,19 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
         if self.bytes_freed != 0u64 {
             ::buffa::types::put_uint64_field(2u32, self.bytes_freed, buf);
         }
+        for v in &self.episodes_taken_along {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        if self.playing != 0u32 {
+            ::buffa::types::put_uint32_field(4u32, self.playing, buf);
+        }
         if let Some(ref v) = self.read_only_folder {
-            ::buffa::types::put_string_field(3u32, v, buf);
+            ::buffa::types::put_string_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2273,6 +2317,25 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.episodes_taken_along.push(elem);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.playing = ::buffa::types::decode_uint32(buf)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
                 ::buffa::types::merge_string(
                     self
                         .read_only_folder
@@ -2290,6 +2353,8 @@ impl ::buffa::Message for PreviewDeleteMediaResponse {
     fn clear(&mut self) {
         self.files.clear();
         self.bytes_freed = 0u64;
+        self.episodes_taken_along.clear();
+        self.playing = 0u32;
         self.read_only_folder = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
@@ -2494,6 +2559,17 @@ pub struct DeleteMediaResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub not_deleted: ::buffa::alloc::vec::Vec<FileNotDeleted>,
+    /// The name of each Fulfiller that couldn't be told to stop monitoring what was deleted, so its
+    /// service may download it again. The Server doesn't try it again.
+    ///
+    /// Field 4: `fulfillers_not_told`
+    #[serde(
+        rename = "fulfillersNotTold",
+        alias = "fulfillers_not_told",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub fulfillers_not_told: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2504,6 +2580,7 @@ impl ::core::fmt::Debug for DeleteMediaResponse {
             .field("deleted", &self.deleted)
             .field("bytes_freed", &self.bytes_freed)
             .field("not_deleted", &self.not_deleted)
+            .field("fulfillers_not_told", &self.fulfillers_not_told)
             .finish()
     }
 }
@@ -2553,6 +2630,9 @@ impl ::buffa::Message for DeleteMediaResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.fulfillers_not_told {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2581,6 +2661,9 @@ impl ::buffa::Message for DeleteMediaResponse {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        for v in &self.fulfillers_not_told {
+            ::buffa::types::put_string_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2626,6 +2709,17 @@ impl ::buffa::Message for DeleteMediaResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.not_deleted.push(elem);
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.fulfillers_not_told.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2637,6 +2731,7 @@ impl ::buffa::Message for DeleteMediaResponse {
         self.deleted.clear();
         self.bytes_freed = 0u64;
         self.not_deleted.clear();
+        self.fulfillers_not_told.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2669,7 +2764,8 @@ pub const __DELETE_MEDIA_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
     from_json: ::buffa::type_registry::any_from_json::<DeleteMediaResponse>,
     is_wkt: false,
 };
-/// What to delete: a title's every Version, or one Version.
+/// What to delete: a title's every Version, or one Version. A file holding several Episodes goes
+/// with each of them.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize)]
 #[serde(default)]
@@ -2725,6 +2821,30 @@ impl ::buffa::Message for MediaToDelete {
                 __buffa::oneof::media_to_delete::Target::VersionId(v) => {
                     size += 1u64 + ::buffa::types::int64_encoded_len(*v) as u64;
                 }
+                __buffa::oneof::media_to_delete::Target::Show(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::media_to_delete::Target::Season(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                __buffa::oneof::media_to_delete::Target::Episode(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -2749,6 +2869,30 @@ impl ::buffa::Message for MediaToDelete {
                 }
                 __buffa::oneof::media_to_delete::Target::VersionId(x) => {
                     ::buffa::types::put_int64_field(2u32, *x, buf);
+                }
+                __buffa::oneof::media_to_delete::Target::Show(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        3u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::media_to_delete::Target::Season(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                __buffa::oneof::media_to_delete::Target::Episode(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
                 }
             }
         }
@@ -2795,6 +2939,66 @@ impl ::buffa::Message for MediaToDelete {
                         ::buffa::types::decode_int64(buf)?,
                     ),
                 );
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::media_to_delete::Target::Show(ref mut existing),
+                ) = self.target
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.target = ::core::option::Option::Some(
+                        __buffa::oneof::media_to_delete::Target::Show(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::media_to_delete::Target::Season(ref mut existing),
+                ) = self.target
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.target = ::core::option::Option::Some(
+                        __buffa::oneof::media_to_delete::Target::Season(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::media_to_delete::Target::Episode(ref mut existing),
+                ) = self.target
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.target = ::core::option::Option::Some(
+                        __buffa::oneof::media_to_delete::Target::Episode(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -2889,6 +3093,78 @@ impl<'de> ::serde::Deserialize<'de> for MediaToDelete {
                                 }
                                 __oneof_target = Some(
                                     __buffa::oneof::media_to_delete::Target::VersionId(v),
+                                );
+                            }
+                        }
+                        "show" => {
+                            let v: ::core::option::Option<ShowToDelete> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            ShowToDelete,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_target.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'target'",
+                                        ),
+                                    );
+                                }
+                                __oneof_target = Some(
+                                    __buffa::oneof::media_to_delete::Target::Show(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "season" => {
+                            let v: ::core::option::Option<SeasonToDelete> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            SeasonToDelete,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_target.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'target'",
+                                        ),
+                                    );
+                                }
+                                __oneof_target = Some(
+                                    __buffa::oneof::media_to_delete::Target::Season(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
+                        "episode" => {
+                            let v: ::core::option::Option<EpisodeToDelete> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            EpisodeToDelete,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_target.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'target'",
+                                        ),
+                                    );
+                                }
+                                __oneof_target = Some(
+                                    __buffa::oneof::media_to_delete::Target::Episode(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
                                 );
                             }
                         }
@@ -3099,6 +3375,747 @@ pub const __MOVIE_TO_DELETE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
     type_url: "type.googleapis.com/nama.v1.MovieToDelete",
     to_json: ::buffa::type_registry::any_to_json::<MovieToDelete>,
     from_json: ::buffa::type_registry::any_from_json::<MovieToDelete>,
+    is_wkt: false,
+};
+/// A Show, named as `BrowseService.GetShow` names it.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ShowToDelete {
+    /// The Shows Library the Show is in.
+    ///
+    /// Field 1: `library_id`
+    #[serde(
+        rename = "libraryId",
+        alias = "library_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub library_id: i64,
+    /// The Show's id, as `BrowseService.ListShows` gave it.
+    ///
+    /// Field 2: `show_id`
+    #[serde(
+        rename = "showId",
+        alias = "show_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ShowToDelete {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ShowToDelete")
+            .field("library_id", &self.library_id)
+            .field("show_id", &self.show_id)
+            .finish()
+    }
+}
+impl ShowToDelete {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ShowToDelete";
+}
+::buffa::impl_default_instance!(ShowToDelete);
+impl ::buffa::MessageName for ShowToDelete {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ShowToDelete";
+    const FULL_NAME: &'static str = "nama.v1.ShowToDelete";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ShowToDelete";
+}
+impl ::buffa::Message for ShowToDelete {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.library_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        }
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.library_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.library_id = ::buffa::types::decode_int64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.show_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.library_id = 0i64;
+        self.show_id = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ShowToDelete {
+    const PROTO_FQN: &'static str = "nama.v1.ShowToDelete";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ShowToDelete {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __SHOW_TO_DELETE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.ShowToDelete",
+    to_json: ::buffa::type_registry::any_to_json::<ShowToDelete>,
+    from_json: ::buffa::type_registry::any_from_json::<ShowToDelete>,
+    is_wkt: false,
+};
+/// A Season of a Show, named as `BrowseService.ListEpisodes` names it.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct SeasonToDelete {
+    /// The Shows Library the Show is in.
+    ///
+    /// Field 1: `library_id`
+    #[serde(
+        rename = "libraryId",
+        alias = "library_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub library_id: i64,
+    /// The Show's id, as `BrowseService.ListShows` gave it.
+    ///
+    /// Field 2: `show_id`
+    #[serde(
+        rename = "showId",
+        alias = "show_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    /// The Season's number, as `BrowseService.GetShow` gave it.
+    ///
+    /// Field 3: `season_number`
+    #[serde(
+        rename = "seasonNumber",
+        alias = "season_number",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub season_number: u32,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for SeasonToDelete {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("SeasonToDelete")
+            .field("library_id", &self.library_id)
+            .field("show_id", &self.show_id)
+            .field("season_number", &self.season_number)
+            .finish()
+    }
+}
+impl SeasonToDelete {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SeasonToDelete";
+}
+::buffa::impl_default_instance!(SeasonToDelete);
+impl ::buffa::MessageName for SeasonToDelete {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SeasonToDelete";
+    const FULL_NAME: &'static str = "nama.v1.SeasonToDelete";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SeasonToDelete";
+}
+impl ::buffa::Message for SeasonToDelete {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.library_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        }
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.season_number != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_number) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.library_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
+        }
+        if self.season_number != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.season_number, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.library_id = ::buffa::types::decode_int64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.show_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.season_number = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.library_id = 0i64;
+        self.show_id = ::buffa::MessageField::none();
+        self.season_number = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for SeasonToDelete {
+    const PROTO_FQN: &'static str = "nama.v1.SeasonToDelete";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for SeasonToDelete {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __SEASON_TO_DELETE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.SeasonToDelete",
+    to_json: ::buffa::type_registry::any_to_json::<SeasonToDelete>,
+    from_json: ::buffa::type_registry::any_from_json::<SeasonToDelete>,
+    is_wkt: false,
+};
+/// An Episode, or one of its Versions.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct EpisodeToDelete {
+    /// The Shows Library the Episode is in.
+    ///
+    /// Field 1: `library_id`
+    #[serde(
+        rename = "libraryId",
+        alias = "library_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub library_id: i64,
+    /// The Episode's id, as `BrowseService.ListEpisodes` gave it.
+    ///
+    /// Field 2: `episode_id`
+    #[serde(
+        rename = "episodeId",
+        alias = "episode_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub episode_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    /// Only this Version of the Episode, by its id as browsing gives it. Unset, every Version.
+    ///
+    /// Field 3: `version_id`
+    #[serde(
+        rename = "versionId",
+        alias = "version_id",
+        with = "::buffa::json_helpers::opt_int64",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub version_id: ::core::option::Option<i64>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for EpisodeToDelete {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("EpisodeToDelete")
+            .field("library_id", &self.library_id)
+            .field("episode_id", &self.episode_id)
+            .field("version_id", &self.version_id)
+            .finish()
+    }
+}
+impl EpisodeToDelete {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.EpisodeToDelete";
+}
+impl EpisodeToDelete {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::version_id`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_version_id(mut self, value: i64) -> Self {
+        self.version_id = Some(value);
+        self
+    }
+}
+::buffa::impl_default_instance!(EpisodeToDelete);
+impl ::buffa::MessageName for EpisodeToDelete {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "EpisodeToDelete";
+    const FULL_NAME: &'static str = "nama.v1.EpisodeToDelete";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.EpisodeToDelete";
+}
+impl ::buffa::Message for EpisodeToDelete {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.library_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
+        }
+        if self.episode_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.episode_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if let Some(v) = self.version_id {
+            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.library_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        if self.episode_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.episode_id.write_to(__cache, buf);
+        }
+        if let Some(v) = self.version_id {
+            ::buffa::types::put_int64_field(3u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.library_id = ::buffa::types::decode_int64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.episode_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.version_id = ::core::option::Option::Some(
+                    ::buffa::types::decode_int64(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.library_id = 0i64;
+        self.episode_id = ::buffa::MessageField::none();
+        self.version_id = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for EpisodeToDelete {
+    const PROTO_FQN: &'static str = "nama.v1.EpisodeToDelete";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for EpisodeToDelete {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __EPISODE_TO_DELETE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.EpisodeToDelete",
+    to_json: ::buffa::type_registry::any_to_json::<EpisodeToDelete>,
+    from_json: ::buffa::type_registry::any_from_json::<EpisodeToDelete>,
+    is_wkt: false,
+};
+/// An Episode a delete takes along with a file that holds it too.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct EpisodeTakenAlong {
+    /// Field 1: `season_number`
+    #[serde(
+        rename = "seasonNumber",
+        alias = "season_number",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub season_number: u32,
+    /// Field 2: `episode_number`
+    #[serde(
+        rename = "episodeNumber",
+        alias = "episode_number",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub episode_number: u32,
+    /// The title, in the metadata Provider's language.
+    ///
+    /// Field 3: `title`
+    #[serde(
+        rename = "title",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub title: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for EpisodeTakenAlong {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("EpisodeTakenAlong")
+            .field("season_number", &self.season_number)
+            .field("episode_number", &self.episode_number)
+            .field("title", &self.title)
+            .finish()
+    }
+}
+impl EpisodeTakenAlong {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.EpisodeTakenAlong";
+}
+::buffa::impl_default_instance!(EpisodeTakenAlong);
+impl ::buffa::MessageName for EpisodeTakenAlong {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "EpisodeTakenAlong";
+    const FULL_NAME: &'static str = "nama.v1.EpisodeTakenAlong";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.EpisodeTakenAlong";
+}
+impl ::buffa::Message for EpisodeTakenAlong {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.season_number != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_number) as u64;
+        }
+        if self.episode_number != 0u32 {
+            size
+                += 1u64 + ::buffa::types::uint32_encoded_len(self.episode_number) as u64;
+        }
+        if !self.title.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.season_number != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.season_number, buf);
+        }
+        if self.episode_number != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.episode_number, buf);
+        }
+        if !self.title.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.title, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.season_number = ::buffa::types::decode_uint32(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.episode_number = ::buffa::types::decode_uint32(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.title, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.season_number = 0u32;
+        self.episode_number = 0u32;
+        self.title.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for EpisodeTakenAlong {
+    const PROTO_FQN: &'static str = "nama.v1.EpisodeTakenAlong";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for EpisodeTakenAlong {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __EPISODE_TAKEN_ALONG_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.EpisodeTakenAlong",
+    to_json: ::buffa::type_registry::any_to_json::<EpisodeTakenAlong>,
+    from_json: ::buffa::type_registry::any_from_json::<EpisodeTakenAlong>,
     is_wkt: false,
 };
 /// A file on the Server's disk.

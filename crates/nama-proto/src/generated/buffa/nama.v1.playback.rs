@@ -8,6 +8,7 @@
 pub enum PickedTrackKind {
     PICKED_TRACK_KIND_UNSPECIFIED = 0i32,
     PICKED_TRACK_KIND_SUBTITLE = 1i32,
+    PICKED_TRACK_KIND_AUDIO = 2i32,
 }
 impl PickedTrackKind {
     ///Idiomatic alias for [`Self::PICKED_TRACK_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -16,6 +17,9 @@ impl PickedTrackKind {
     ///Idiomatic alias for [`Self::PICKED_TRACK_KIND_SUBTITLE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Subtitle: Self = Self::PICKED_TRACK_KIND_SUBTITLE;
+    ///Idiomatic alias for [`Self::PICKED_TRACK_KIND_AUDIO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Audio: Self = Self::PICKED_TRACK_KIND_AUDIO;
 }
 impl ::core::default::Default for PickedTrackKind {
     fn default() -> Self {
@@ -115,6 +119,7 @@ impl ::buffa::Enumeration for PickedTrackKind {
         match value {
             0i32 => ::core::option::Option::Some(Self::PICKED_TRACK_KIND_UNSPECIFIED),
             1i32 => ::core::option::Option::Some(Self::PICKED_TRACK_KIND_SUBTITLE),
+            2i32 => ::core::option::Option::Some(Self::PICKED_TRACK_KIND_AUDIO),
             _ => ::core::option::Option::None,
         }
     }
@@ -125,6 +130,7 @@ impl ::buffa::Enumeration for PickedTrackKind {
         match self {
             Self::PICKED_TRACK_KIND_UNSPECIFIED => "PICKED_TRACK_KIND_UNSPECIFIED",
             Self::PICKED_TRACK_KIND_SUBTITLE => "PICKED_TRACK_KIND_SUBTITLE",
+            Self::PICKED_TRACK_KIND_AUDIO => "PICKED_TRACK_KIND_AUDIO",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -135,11 +141,18 @@ impl ::buffa::Enumeration for PickedTrackKind {
             "PICKED_TRACK_KIND_SUBTITLE" => {
                 ::core::option::Option::Some(Self::PICKED_TRACK_KIND_SUBTITLE)
             }
+            "PICKED_TRACK_KIND_AUDIO" => {
+                ::core::option::Option::Some(Self::PICKED_TRACK_KIND_AUDIO)
+            }
             _ => ::core::option::Option::None,
         }
     }
     fn values() -> &'static [Self] {
-        &[Self::PICKED_TRACK_KIND_UNSPECIFIED, Self::PICKED_TRACK_KIND_SUBTITLE]
+        &[
+            Self::PICKED_TRACK_KIND_UNSPECIFIED,
+            Self::PICKED_TRACK_KIND_SUBTITLE,
+            Self::PICKED_TRACK_KIND_AUDIO,
+        ]
     }
 }
 /// The most a User asks playback to send.
@@ -1939,7 +1952,7 @@ pub struct ReportTrackPickRequest {
     )]
     pub kind: ::buffa::EnumValue<PickedTrackKind>,
     /// The Track picked, by its place in the Version's `tracks`, counting from 0. Unset when the
-    /// User turned that kind off.
+    /// User turned subtitles off; audio is never off.
     ///
     /// Field 3: `track`
     #[serde(
@@ -2468,7 +2481,8 @@ pub struct PlanPlaybackRequest {
     )]
     pub start_position_ms: u64,
     /// The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
-    /// Unset for the one the Version plays by default.
+    /// Unset for the Server to choose by the User's Audio Preference, or else the one the Version
+    /// plays by default, which `PlaybackPlan.audio_track` then says.
     ///
     /// Field 3: `audio_track`
     #[serde(
@@ -3539,8 +3553,8 @@ pub struct PlaybackPlan {
     )]
     pub playback_limit: ::buffa::EnumValue<PlaybackLimit>,
     /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
-    /// asked for, or else the one the Version plays by default. Unset when it has no audio or its
-    /// Tracks aren't known.
+    /// asked for or the Server chose, or else the one the Version plays by default. Unset when it has
+    /// no audio or its Tracks aren't known.
     ///
     /// Field 8: `audio_track`
     #[serde(

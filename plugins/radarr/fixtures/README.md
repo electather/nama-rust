@@ -18,4 +18,4 @@ re-recording one, trim it the same way.
 | `queue.json` | The same, downloading Heat, Alien's import blocked with a warning, and The Matrix queued |
 | `queue-later.json` | The same, with Heat further along |
 
-A request without the right `X-Api-Key` gets Radarr's `401 Unauthorized`, with no body. `GET /api/v3/movie?tmdbId=` for a Movie Radarr doesn't have gets `[]`.
+A request without the right `X-Api-Key` gets Radarr's `401 Unauthorized`, with no body. `GET /api/v3/movie?tmdbId=` for a Movie Radarr doesn't have gets `[]`, and `PUT /api/v3/movie/editor`, which unmonitors Movies, gets `202 Accepted` with `[]`.

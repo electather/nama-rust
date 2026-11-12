@@ -617,10 +617,14 @@ pub trait LibraryService: Send + Sync + 'static {
     /// by `.` or `-`, and that aren't videos), and the folders that leaves empty, never a Library's
     /// own folder or above it. The Versions whose files went are removed as a scan removes them, with
     /// `LibraryItemRemoved`. A file that can't be deleted is listed with why, and the rest still go.
-    /// Needs `PERMISSION_DELETE_MEDIA` and Recent Authentication. Fails with `invalid_argument` if
-    /// the target is missing, or names a Shows Library as a Movie's, with `not_found` if there is no
-    /// such Library, Movie or Version, and with `failed_precondition` if a file it would delete is in
-    /// a Library folder the Server couldn't write to when it last scanned the Library.
+    /// Before deleting anything, it asks every enabled Fulfiller of its kind, such as Radarr, to stop
+    /// monitoring the title, which it keeps; one that can't be told is listed, and doesn't stop it.
+    /// The Playback Plans playing the Versions end next, each with `PlaybackEnded`, and a Version
+    /// being served for Direct Play is cut off. Needs `PERMISSION_DELETE_MEDIA` and Recent
+    /// Authentication. Fails with `invalid_argument` if the target is missing, or names a Library of
+    /// the wrong kind, with `not_found` if there is no such Library, title, Season or Version, and
+    /// with `failed_precondition` if a file it would delete is in a Library folder the Server
+    /// couldn't write to when it last scanned the Library.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

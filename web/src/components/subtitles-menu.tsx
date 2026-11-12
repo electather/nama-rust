@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Track } from "@/gen/nama/v1/browse_pb";
-import { type PlaybackSubtitle, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
+import { PickedTrackKind, type PlaybackSubtitle, SubtitleFormat } from "@/gen/nama/v1/playback_pb";
 import type { SubtitleChoice, usePlaybackPlan } from "@/lib/playback-plan";
 import {
   type SubtitleState,
@@ -78,7 +78,7 @@ export function SubtitlesMenu({
           onValueChange={(value: SubtitleChoice) => {
             const choice = value === "" ? undefined : value;
             if (videoRef.current) chooseSubtitle(videoRef.current, choice);
-            reportPick(pickedPlace(choice, subtitles));
+            reportPick(PickedTrackKind.SUBTITLE, pickedPlace(choice, subtitles));
           }}
         >
           <DropdownMenuRadioItem value="">Off</DropdownMenuRadioItem>
