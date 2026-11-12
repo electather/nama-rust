@@ -233,7 +233,7 @@ impl CustomImages {
         };
         let mut key = slot.key();
         key.push(version);
-        Ok(self.store.serve(&key, content_type, request).await?)
+        Ok(self.store.serve(&key, content_type, None, request).await?)
     }
 }
 
