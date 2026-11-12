@@ -43,6 +43,7 @@ use nama_proto::nama::v1::{Event, ItemMatched};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
+    artwork::Artwork,
     contents::{
         Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin, TiedTitle, UnmatchedReason,
     },
@@ -95,6 +96,8 @@ pub(crate) enum ManualError {
 pub(crate) struct Matcher {
     contents: Contents,
     metadata: MetadataSource,
+    /// Downloads the images of the Matches set by hand.
+    artwork: Artwork,
     events: EventBus,
     locks: ScanLocks,
 }
@@ -229,12 +232,14 @@ impl Matcher {
     pub(crate) const fn new(
         db: Arc<Database>,
         plugins: ExtensionPoints,
+        artwork: Artwork,
         events: EventBus,
         locks: ScanLocks,
     ) -> Self {
         Self {
             contents: Contents::new(db),
             metadata: MetadataSource::new(plugins),
+            artwork,
             events,
             locks,
         }
@@ -243,7 +248,8 @@ impl Matcher {
     /// Matches the item `item` to the title `id` by hand, with every item named like it, and
     /// pins that Match, after any scan of its Library. For an Episode, `id` names its Show, and
     /// each Episode of the Show is Matched through its Season, or Unmatched if the Show doesn't
-    /// have it. Nothing changes unless every item could be decided.
+    /// have it. Nothing changes unless every item could be decided. The new title's images are
+    /// downloaded in the background, and the old one's deleted unless another Match stores them.
     pub(crate) async fn set_match(
         &self,
         item: i64,
@@ -538,8 +544,9 @@ impl Matcher {
         );
         let mut happened = matched_events(named.library, &decided.items);
         let this = self.clone();
-        // The write commits even if the caller stops waiting, so its events must follow (ADR 0029).
+        // The write commits even if the caller stops waiting, so what follows it must too (ADR 0029).
         detached(async move {
+            let library = named.library;
             // The Library may have been deleted since its items were read.
             let made_available = this
                 .contents
@@ -548,6 +555,9 @@ impl Matcher {
                 .ok_or(ManualError::NoSuchItem(item))?;
             happened.extend(made_available);
             this.events.publish(happened);
+            this.artwork.drop_unused(&this.contents).await;
+            this.artwork
+                .download_missing(this.contents.clone(), library);
             Ok::<_, ManualError>(())
         })
         .await?;
@@ -615,6 +625,7 @@ mod tests {
 
     use super::{ManualError, Matcher, Summary};
     use crate::{
+        artwork::Artwork,
         contents::{Change, Contents, Decided, FileItem, Item, Recorded},
         db::Database,
         events::{EventBus, Filter, event},
@@ -691,6 +702,7 @@ mod tests {
             let scanner = Scanner::new(
                 Arc::clone(&db),
                 plugins.extension_points(),
+                Artwork::new(data.path(), plugins.extension_points()),
                 events.clone(),
                 None,
                 None,
@@ -786,6 +798,16 @@ mod tests {
                 .requests()
                 .iter()
                 .filter(|request| request.starts_with("/3/search/"))
+                .count()
+        }
+
+        /// How many questions TMDB was asked about titles, leaving out the images a Match
+        /// downloads in the background.
+        fn lookups(&self) -> usize {
+            self.tmdb
+                .requests()
+                .iter()
+                .filter(|request| !request.starts_with("/t/p/"))
                 .count()
         }
     }
@@ -1226,11 +1248,11 @@ mod tests {
             .movies
             .write("Home Movies (2019)/Home Movies (2019).mkv");
         media.scan(&media.movies).await;
-        let looked_up = media.tmdb.requests().len();
+        let looked_up = media.lookups();
 
         media.scan(&media.movies).await;
 
-        assert_eq!(media.tmdb.requests().len(), looked_up);
+        assert_eq!(media.lookups(), looked_up);
         assert_eq!(
             media
                 .stored(&media.movies)
@@ -1306,13 +1328,13 @@ mod tests {
             .set_match(item, &ExternalId::Tmdb(949))
             .await
             .unwrap();
-        let looked_up = media.tmdb.requests().len();
+        let looked_up = media.lookups();
 
         media.contents.read_by_older_parser(movies.id).await;
         media.scan(movies).await;
 
         assert_eq!(media.outcomes(movies).await, [matched(949, "Heat")]);
-        assert_eq!(media.tmdb.requests().len(), looked_up);
+        assert_eq!(media.lookups(), looked_up);
     }
 
     #[tokio::test]
