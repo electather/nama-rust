@@ -13,7 +13,7 @@ import {
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
-import { metadataLine, seasonName, timeLeft, titleParam } from "@/lib/browse";
+import { episodeName, metadataLine, timeLeft, titleParam } from "@/lib/browse";
 
 export const Route = createFileRoute("/_member/")({
   loader: ({ context: { queryClient, transport } }) =>
@@ -107,7 +107,6 @@ function episodeCard(libraryId: string, { show, episode }: ContinueWatchingEpiso
   const showId = titleParam(show.id);
   const season = String(episode.seasonNumber);
   const number = String(episode.episodeNumber);
-  const seasonLabel = episode.seasonNumber === 0 ? seasonName(0) : `S${season}`;
   return [
     {
       key: `${libraryId}/${showId}/${season}/${number}`,
@@ -119,7 +118,10 @@ function episodeCard(libraryId: string, { show, episode }: ContinueWatchingEpiso
         url: show.backdropUrl,
         thumbhash: show.backdropThumbhash,
         title: show.title,
-        detail: metadataLine(`${seasonLabel}, E${number}`, timeLeft(episode.watchState)),
+        detail: metadataLine(
+          episodeName(episode.seasonNumber, episode.episodeNumber, "short"),
+          timeLeft(episode.watchState),
+        ),
         watchState: episode.watchState,
       },
     },

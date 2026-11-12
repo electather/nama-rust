@@ -51,4 +51,5 @@
 0051_plugin_custom_images.sql
 0052_image_thumbhashes.sql
 0053_match_metadata_version.sql
-0054_match_title_details.sql
+0054_subtitle_headers.sql
+0055_match_title_details.sql

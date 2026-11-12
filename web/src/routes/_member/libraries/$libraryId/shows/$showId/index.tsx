@@ -1,17 +1,21 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 
+import { BackdropGrid, Still } from "@/components/backdrop-card";
 import { DeleteEpisode, DeleteFromShow } from "@/components/delete-from-show";
 import { EditImages, showImages } from "@/components/edit-images";
+import { posterLink } from "@/components/poster";
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { MarkPlayedMenu } from "@/components/mark-played-menu";
 import { PlayedIconButton, WatchedBar } from "@/components/watch-state";
+// oxlint-disable-next-line import/max-dependencies -- the page puts together a Show's Seasons, Episodes, Watch State and what an admin may change
 import { BrowseService, type Episode, type Season } from "@/gen/nama/v1/browse_pb";
 import {
   type DeletedSearch,
   dateOf,
   deletedFromSearch,
+  episodeName,
   externalIdFromParam,
   isGone,
   libraryFromParam,
@@ -22,7 +26,6 @@ import {
   versionLine,
   versionToPlay,
 } from "@/lib/browse";
-// oxlint-disable-next-line import/max-dependencies -- the page puts together a Show's Seasons, Episodes, Watch State and what an admin may change
 import { useSetPlayed } from "@/lib/watch-state";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showId/")({
@@ -65,8 +68,7 @@ function Show() {
       backdropUrl={data.show.backdropUrl}
       backdropThumbhash={data.show.backdropThumbhash}
     >
-      {/* Pulled out like the Episodes below, so the menu lines up with their toggles. */}
-      <div className="-me-3 flex max-w-3xl items-start gap-2">
+      <div className="flex items-start gap-2">
         <Seasons seasons={data.seasons} current={seasonNumber} />
         <MarkPlayedMenu
           {...show}
@@ -133,53 +135,57 @@ function Episodes() {
   const input = Route.useLoaderData();
   const { data } = useSuspenseQuery(BrowseService.method.listEpisodes, input);
   return (
-    <section aria-label={`${seasonName(input.seasonNumber)} Episodes`} className="mt-6 max-w-3xl">
-      <ol className="-mx-3">
+    <section aria-label={`${seasonName(input.seasonNumber)} Episodes`}>
+      <BackdropGrid>
         {data.episodes.map((episode) => (
-          <EpisodeRow key={episode.episodeNumber} libraryId={input.libraryId} episode={episode} />
+          <EpisodeCard key={episode.episodeNumber} libraryId={input.libraryId} episode={episode} />
         ))}
-      </ol>
+      </BackdropGrid>
     </section>
   );
 }
 
 /**
- * An Episode, which plays its largest Version, with that Version's picture and sound, your Watch
- * State and a toggle for it.
+ * An Episode by its Still, which plays its largest Version, with that Version's picture and
+ * sound, your Watch State and a toggle for it.
  */
-function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episode }) {
+function EpisodeCard({ libraryId, episode }: { libraryId: bigint; episode: Episode }) {
   const setPlayed = useSetPlayed();
   // Without its own ID there's nothing to mark or delete.
   const episodeId = episode.id;
   return (
-    <li className="flex flex-wrap items-center gap-1 border-b last:border-b-0">
+    <li className="flex flex-col">
       <Link
         from={Route.fullPath}
         to="./seasons/$season/episodes/$episode/play"
         params={{ season: String(episode.seasonNumber), episode: String(episode.episodeNumber) }}
-        className="block min-w-0 flex-1 rounded-lg px-3 py-4 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+        // Grows so the toggles under the cards in a row line up.
+        className={`${posterLink} flex-1`}
       >
-        <span className="font-medium">
-          {episode.episodeNumber}. {episode.title}
+        <Still url={episode.stillUrl} thumbhash={episode.stillThumbhash} />
+        <span className="mt-3 block text-sm text-muted-foreground">
+          {episodeName(episode.seasonNumber, episode.episodeNumber, "inSeason")}
         </span>
-        <span className="mt-0.5 block text-sm text-muted-foreground">
+        <span className="block font-medium text-balance">{episode.title}</span>
+        {episode.overview !== undefined && (
+          <span className="mt-1 line-clamp-3 text-sm text-pretty text-muted-foreground">
+            {episode.overview}
+          </span>
+        )}
+        <span className="mt-1 block text-sm text-muted-foreground">
           {metadataLine(
             dateOf(episode.airDate),
             runtimeOf(episode.runtimeMinutes),
             versionLine(versionToPlay(episode.versions)),
           )}
         </span>
-        {episode.overview !== undefined && (
-          <span className="mt-2 block max-w-prose text-sm text-pretty text-muted-foreground">
-            {episode.overview}
-          </span>
-        )}
-        <span className="mt-3 block max-w-xs empty:hidden">
+        <span className="mt-2 block empty:hidden">
           <WatchedBar state={episode.watchState} />
         </span>
       </Link>
       {episodeId && (
-        <>
+        // Pulled out by the buttons' own padding, so the first icon lines up with the text.
+        <div className="-ms-2 mt-1 flex">
           <PlayedIconButton
             played={episode.watchState?.played === true}
             label={`Played: ${episode.title}`}
@@ -188,7 +194,7 @@ function EpisodeRow({ libraryId, episode }: { libraryId: bigint; episode: Episod
             }}
           />
           <DeleteEpisode libraryId={libraryId} episodeId={episodeId} episode={episode} />
-        </>
+        </div>
       )}
     </li>
   );

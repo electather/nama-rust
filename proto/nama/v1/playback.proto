@@ -199,6 +199,9 @@ enum SubtitleFormat {
   SUBTITLE_FORMAT_PGS = 2;
   // ASS or SSA with its styling, as the Track's own `.ass`, drawn with the fonts its file carries.
   SUBTITLE_FORMAT_ASS = 3;
+  // DVD's image subtitles, as the Track copied into Matroska (`.mks`), which carries its palette
+  // and size.
+  SUBTITLE_FORMAT_VOBSUB = 4;
 }
 
 // A container the Server knows whether a Device plays.
@@ -374,6 +377,9 @@ enum PlaybackReasonKind {
   // Rules out Direct Play and Remux: the ASS subtitles chosen need Burn-in on a Device that draws
   // ASS, because their file carries no fonts to draw them with (ADR 0033).
   PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS = 31;
+  // Rules out Direct Play and Remux: the VobSub subtitles chosen need Burn-in on a Device that
+  // draws VobSub, because their Track carries no palette to draw them with (ADR 0033).
+  PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE = 32;
 
   // The rest rule nothing out.
 
