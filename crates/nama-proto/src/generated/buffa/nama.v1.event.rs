@@ -4529,7 +4529,8 @@ pub const __REQUEST_STATE_CHANGED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
     from_json: ::buffa::type_registry::any_from_json::<RequestStateChanged>,
     is_wkt: false,
 };
-/// A User with `PERMISSION_MANAGE_REQUESTS` cancelled a Request, which removed it.
+/// A Request was cancelled, which removed it: by a User with `PERMISSION_MANAGE_REQUESTS`, or by
+/// deleting media it was still waiting on.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -4542,13 +4543,26 @@ pub struct RequestCancelled {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub request: ::buffa::MessageField<Request, ::buffa::Inline<Request>>,
+    /// The name of the User who deleted media the Request was still waiting on, when that cancelled
+    /// it. Unset when a Request manager cancelled it.
+    ///
+    /// Field 2: `deleted_by`
+    #[serde(
+        rename = "deletedBy",
+        alias = "deleted_by",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub deleted_by: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for RequestCancelled {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("RequestCancelled").field("request", &self.request).finish()
+        f.debug_struct("RequestCancelled")
+            .field("request", &self.request)
+            .field("deleted_by", &self.deleted_by)
+            .finish()
     }
 }
 impl RequestCancelled {
@@ -4557,6 +4571,18 @@ impl RequestCancelled {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RequestCancelled";
+}
+impl RequestCancelled {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::deleted_by`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_deleted_by(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.deleted_by = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(RequestCancelled);
 impl ::buffa::MessageName for RequestCancelled {
@@ -4586,6 +4612,9 @@ impl ::buffa::Message for RequestCancelled {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.deleted_by {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4603,6 +4632,9 @@ impl ::buffa::Message for RequestCancelled {
                 buf,
             );
             self.request.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.deleted_by {
+            ::buffa::types::put_string_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4628,6 +4660,18 @@ impl ::buffa::Message for RequestCancelled {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .deleted_by
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4637,6 +4681,7 @@ impl ::buffa::Message for RequestCancelled {
     }
     fn clear(&mut self) {
         self.request = ::buffa::MessageField::none();
+        self.deleted_by = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

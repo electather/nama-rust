@@ -15128,7 +15128,7 @@ pub struct MovieHitView<'a> {
     ///
     /// Field 3: `year`
     pub year: ::core::option::Option<i32>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
@@ -15488,7 +15488,7 @@ impl MovieHitOwnedView {
     pub fn year(&self) -> ::core::option::Option<i32> {
         self.0.reborrow().year
     }
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `poster_url`
     #[must_use]
@@ -15564,11 +15564,11 @@ pub struct FoundMovieView<'a> {
     pub overview: ::core::option::Option<&'a str>,
     /// Field 5: `runtime_minutes`
     pub runtime_minutes: ::core::option::Option<u32>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 7: `backdrop_url`
     pub backdrop_url: ::core::option::Option<&'a str>,
@@ -15997,14 +15997,14 @@ impl FoundMovieOwnedView {
     pub fn runtime_minutes(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().runtime_minutes
     }
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `poster_url`
     #[must_use]
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
     }
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 7: `backdrop_url`
     #[must_use]
@@ -17166,7 +17166,7 @@ pub struct ShowHitView<'a> {
     ///
     /// Field 3: `year`
     pub year: ::core::option::Option<i32>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 5: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
@@ -17449,7 +17449,7 @@ impl ShowHitOwnedView {
     pub fn year(&self) -> ::core::option::Option<i32> {
         self.0.reborrow().year
     }
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 5: `poster_url`
     #[must_use]
@@ -17506,11 +17506,11 @@ pub struct FoundShowView<'a> {
     ///
     /// Field 4: `overview`
     pub overview: ::core::option::Option<&'a str>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 5: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `backdrop_url`
     pub backdrop_url: ::core::option::Option<&'a str>,
@@ -18004,14 +18004,14 @@ impl FoundShowOwnedView {
     pub fn overview(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().overview
     }
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 5: `poster_url`
     #[must_use]
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
     }
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `backdrop_url`
     #[must_use]

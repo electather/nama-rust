@@ -707,6 +707,7 @@ mod tests {
                 events.clone(),
                 None,
                 None,
+                None,
             );
             Self {
                 matcher: scanner.matcher().clone(),

@@ -9,8 +9,9 @@ use nama_proto::nama::v1::{
     DeleteLibraryResponse, DeleteMediaRequest, DeleteMediaResponse, EpisodeTakenAlong,
     FileNotDeleted, GetLibraryRequest, GetLibraryResponse, LibraryKind, LibraryService,
     ListLibrariesRequest, ListLibrariesResponse, MediaFile, MediaToDelete, Permission,
-    PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason, ScanLibraryRequest,
-    ScanLibraryResponse, UpdateLibraryRequest, UpdateLibraryResponse, media_to_delete,
+    PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason, Request, RequestToCancel,
+    ScanLibraryRequest, ScanLibraryResponse, UpdateLibraryRequest, UpdateLibraryResponse,
+    media_to_delete, request::MovieOrSeason,
 };
 
 use crate::{
@@ -151,6 +152,11 @@ impl LibraryService for LibraryServiceHandler {
             episodes_taken_along: taken_along.into_iter().map(taken_along_to_proto).collect(),
             playing: u32::try_from(planned.playing).unwrap_or(u32::MAX),
             read_only_folder,
+            requests_cancelled: planned
+                .requests
+                .into_iter()
+                .map(to_cancel_to_proto)
+                .collect(),
             ..Default::default()
         })
     }
@@ -253,6 +259,21 @@ fn taken_along_to_proto(episode: Episode) -> EpisodeTakenAlong {
         season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),
         title: episode.title,
+        ..Default::default()
+    }
+}
+
+/// `request` named as its Requesters know it, without who they are: a User with Delete Media
+/// needn't be one who may see them.
+fn to_cancel_to_proto(request: Request) -> RequestToCancel {
+    let (title, season_number) = match request.movie_or_season {
+        Some(MovieOrSeason::Movie(movie)) => (movie.title, None),
+        Some(MovieOrSeason::Season(season)) => (season.show_title, Some(season.season_number)),
+        None => (String::new(), None),
+    };
+    RequestToCancel {
+        title,
+        season_number,
         ..Default::default()
     }
 }

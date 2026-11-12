@@ -206,10 +206,14 @@ message RequestStateChanged {
   Request request = 1;
 }
 
-// A User with `PERMISSION_MANAGE_REQUESTS` cancelled a Request, which removed it.
+// A Request was cancelled, which removed it: by a User with `PERMISSION_MANAGE_REQUESTS`, or by
+// deleting media it was still waiting on.
 message RequestCancelled {
   // The Request as it was before it was removed.
   Request request = 1;
+  // The name of the User who deleted media the Request was still waiting on, when that cancelled
+  // it. Unset when a Request manager cancelled it.
+  optional string deleted_by = 2;
 }
 
 // A Requester withdrew from a Pending Request that others are still on.

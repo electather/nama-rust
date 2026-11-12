@@ -125,6 +125,21 @@ test("deleting an Episode in a two-Episode file names the other Episode before c
   });
 });
 
+test("the confirmation names the open Requests deleting cancels", async () => {
+  openDark(deletesMedia, {
+    previewDeleteMedia: () => ({
+      files: [SECRETS_ONLY],
+      bytesFreed: SECRETS_ONLY.size,
+      requestsCancelled: [{ title: "Dark", seasonNumber: 1 }],
+    }),
+  });
+
+  const dialog = await openDialog("Delete Lies", "Lies");
+
+  expect(await within(dialog).findByText(/cancels this open Request/u)).toBeDefined();
+  expect(within(dialog).getByText("Dark, Season 1")).toBeDefined();
+});
+
 test("deleting one Version of an Episode with two names only it", async () => {
   const deleted: Target[] = [];
   openDark(deletesMedia, recording(deleted));

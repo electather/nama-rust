@@ -60,6 +60,7 @@ use crate::{
     playback::running::RunningPlans,
     plugins::ExtensionPoints,
     probing::Probing,
+    requests::{self, RequestTitle, Requests},
 };
 
 /// Extensions, in lowercase, of the files the scanner treats as video.
@@ -105,6 +106,9 @@ pub(crate) enum Error {
     /// Server can't write to.
     #[error("media in {0} can't be deleted: the Server can't write to it")]
     ReadOnly(String),
+    /// The Requests a delete cancels couldn't be read or cancelled.
+    #[error(transparent)]
+    Requests(#[from] requests::Error),
 }
 
 impl From<matching::Error> for Error {
@@ -137,6 +141,8 @@ struct Inner {
     probing: Option<Probing>,
     /// Asked what plays media about to be deleted, and to end it, unless nothing plays.
     running: Option<RunningPlans>,
+    /// Asked which Requests a delete cancels, and to cancel them, unless nothing has Requests.
+    requests: Option<Requests>,
     /// Background scans, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -183,7 +189,8 @@ impl ScanLock {
 
 impl Scanner {
     /// Tells `probing` each Library whose scan finished and has it clean subtitles, or does
-    /// neither where nothing probes, and has `running` end the plans playing media it deletes.
+    /// neither where nothing probes, has `running` end the plans playing media it deletes, and has
+    /// `requests` cancel the Requests still waiting on it.
     #[expect(
         clippy::too_many_arguments,
         reason = "each is a separate handle the Scanner is built from; a struct bundling them \
@@ -196,6 +203,7 @@ impl Scanner {
         events: EventBus,
         probing: Option<Probing>,
         running: Option<RunningPlans>,
+        requests: Option<Requests>,
     ) -> Self {
         let locks = ScanLocks(Arc::default());
         Self {
@@ -213,6 +221,7 @@ impl Scanner {
                 events,
                 probing,
                 running,
+                requests,
                 contents: Contents::new(db),
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
@@ -296,19 +305,28 @@ impl Scanner {
         .await
     }
 
-    /// What [`Self::delete_media`] would delete and stop playing, deleting nothing.
+    /// What [`Self::delete_media`] would delete, stop playing and cancel, deleting nothing.
     pub(crate) async fn preview_delete(&self, doomed: Doomed) -> Result<Deleted, Error> {
-        let playing = (self.inner.running.as_ref())
-            .map_or(0, |running| running.playing(&doomed.version_ids()));
+        let versions = doomed.version_ids();
+        let playing = (self.inner.running.as_ref()).map_or(0, |running| running.playing(&versions));
+        let requests = match &self.inner.requests {
+            Some(requests) => (requests.waiting_on(&doomed.request_titles(&versions))).await?,
+            None => Vec::new(),
+        };
         let planned = tokio::task::spawn_blocking(move || deleting::preview(&doomed)).await?;
-        Ok(Deleted { playing, ..planned })
+        Ok(Deleted {
+            playing,
+            requests,
+            ..planned
+        })
     }
 
     /// Asks every Fulfiller of its kind to stop monitoring `doomed`, then ends the plans playing it,
     /// deletes it from disk for good, removes the Versions whose files went as a scan removes
-    /// them, with the images only their Matches stored, and logs that `by` deleted them. It
-    /// refuses, before any of that, media in a folder the Library's last scan found read-only
-    /// ([`Error::ReadOnly`]). The one way to delete media (see AGENTS.md, "One path for deleting
+    /// them, with the images only their Matches stored, and logs that `by` deleted them, and
+    /// cancels the Requests still waiting on what they were of. It
+    /// refuses, before any of that, media in a folder the Library's last scan found
+    /// read-only ([`Error::ReadOnly`]). The one way to delete media (see AGENTS.md, "One path for deleting
     /// media"). It holds the Library's scan lock, so a scan racing it sees
     /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
@@ -362,9 +380,21 @@ impl Scanner {
                 .artwork
                 .drop_unused(&scanner.inner.contents)
                 .await;
+            (scanner.cancel_requests(doomed.request_titles(&deleted.versions), by)).await;
             Ok(deleted)
         })
         .await
+    }
+
+    /// Cancels the Requests still waiting on `titles`, whose media `by` deleted. A failure is
+    /// logged, not returned: the media is gone by then, and an error would hide what went.
+    async fn cancel_requests(&self, titles: Vec<RequestTitle>, by: String) {
+        let Some(requests) = &self.inner.requests else {
+            return;
+        };
+        if let Err(error) = requests.cancel_deleted(titles, by).await {
+            tracing::warn!(%error, "couldn't cancel the Requests waiting on deleted media");
+        }
     }
 
     /// Asks each enabled Fulfiller of `doomed`'s Library's kind to stop monitoring what it takes.
@@ -805,6 +835,7 @@ mod tests {
                     Artwork::new(data.path(), ExtensionPoints::default()),
                     events.clone(),
                     probing.clone(),
+                    None,
                     None,
                 ),
                 probing,

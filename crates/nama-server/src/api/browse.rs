@@ -15,17 +15,22 @@ use crate::{
     artwork,
     browse::{self, Browse, Episode, Movie, Show, Started, Version},
     contents::{FoundEpisode, FoundMovie, FoundShow},
+    custom_images::{CustomImages, Role, Slot, Urls},
     libraries::Kind,
     tracks::track_to_proto,
     watch_states::WatchState,
 };
 
-use super::{caller, database_failed, external_id_to_proto, proto_number, refuse, required_id};
+use super::{
+    caller, custom_image_urls, database_failed, external_id_to_proto, proto_number, refuse,
+    required_id,
+};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
 /// [`require_access`](super::require_access) enforces.
 pub(super) struct BrowseServiceHandler {
     pub(super) browse: Browse,
+    pub(super) custom_images: CustomImages,
 }
 
 #[expect(
@@ -42,10 +47,11 @@ impl BrowseService for BrowseServiceHandler {
         let user = caller(&ctx)?.user.id;
         let movies = self.browse.movies(user, request.library_id).await;
         let movies = movies.map_err(refused(Fields::LIBRARY))?;
+        let custom = custom_image_urls(&self.custom_images).await?;
         Response::ok(ListMoviesResponse {
             movies: movies
                 .into_iter()
-                .map(|(movie, state)| movie_to_proto(movie, state))
+                .map(|(movie, state)| movie_to_proto(movie, state, &custom))
                 .collect(),
             ..Default::default()
         })
@@ -64,8 +70,9 @@ impl BrowseService for BrowseServiceHandler {
             title: "movie_id",
             ..Fields::LIBRARY
         }))?;
+        let custom = custom_image_urls(&self.custom_images).await?;
         Response::ok(GetMovieResponse {
-            movie: movie_to_proto(movie, state).into(),
+            movie: movie_to_proto(movie, state, &custom).into(),
             // Where a Library lives is shown only to those who may delete what's in it (AGENTS.md,
             // "Clients name ids"), not to every User who can browse it.
             read_only_folder: read_only_folder
@@ -81,8 +88,12 @@ impl BrowseService for BrowseServiceHandler {
     ) -> ServiceResult<ListShowsResponse> {
         let shows = self.browse.shows(request.library_id).await;
         let shows = shows.map_err(refused(Fields::LIBRARY))?;
+        let custom = custom_image_urls(&self.custom_images).await?;
         Response::ok(ListShowsResponse {
-            shows: shows.iter().map(show_to_proto).collect(),
+            shows: shows
+                .iter()
+                .map(|show| show_to_proto(show, &custom))
+                .collect(),
             ..Default::default()
         })
     }
@@ -99,20 +110,20 @@ impl BrowseService for BrowseServiceHandler {
             title: "show_id",
             ..Fields::LIBRARY
         }))?;
-        let seasons = show
-            .seasons
-            .iter()
-            .map(|(&number, season)| proto::Season {
-                number: proto_number(number),
-                poster_url: season
-                    .poster
-                    .as_deref()
-                    .map(|path| artwork::url(&show.plugin, path)),
-                ..Default::default()
+        let custom = custom_image_urls(&self.custom_images).await?;
+        let seasons = (show.seasons.keys())
+            .map(|&number| {
+                let (poster_url, custom_poster) = season_poster(&show, number, &custom);
+                proto::Season {
+                    number: proto_number(number),
+                    poster_url,
+                    custom_poster,
+                    ..Default::default()
+                }
             })
             .collect();
         Response::ok(GetShowResponse {
-            show: show_to_proto(&show).into(),
+            show: show_to_proto(&show, &custom).into(),
             seasons,
             ..Default::default()
         })
@@ -152,8 +163,11 @@ impl BrowseService for BrowseServiceHandler {
     ) -> ServiceResult<ListContinueWatchingResponse> {
         let started = self.browse.continue_watching(caller(&ctx)?.user.id).await;
         let started = started.map_err(refused(Fields::NONE))?;
+        let custom = custom_image_urls(&self.custom_images).await?;
         Response::ok(ListContinueWatchingResponse {
-            entries: started.into_iter().map(started_to_proto).collect(),
+            entries: (started.into_iter())
+                .map(|started| started_to_proto(started, &custom))
+                .collect(),
             ..Default::default()
         })
     }
@@ -165,9 +179,14 @@ impl BrowseService for BrowseServiceHandler {
     ) -> ServiceResult<SearchLibrariesResponse> {
         let found = self.browse.search(request.query).await;
         let found = found.map_err(refused(Fields::NONE))?;
+        let custom = custom_image_urls(&self.custom_images).await?;
         Response::ok(SearchLibrariesResponse {
-            movies: found.movies.into_iter().map(found_movie_to_proto).collect(),
-            shows: found.shows.into_iter().map(found_show_to_proto).collect(),
+            movies: (found.movies.into_iter())
+                .map(|movie| found_movie_to_proto(movie, &custom))
+                .collect(),
+            shows: (found.shows.into_iter())
+                .map(|show| found_show_to_proto(show, &custom))
+                .collect(),
             episodes: found
                 .episodes
                 .into_iter()
@@ -178,22 +197,28 @@ impl BrowseService for BrowseServiceHandler {
     }
 }
 
-fn found_movie_to_proto(movie: FoundMovie) -> proto::MovieInLibrary {
+fn found_movie_to_proto(movie: FoundMovie, custom: &Urls) -> proto::MovieInLibrary {
+    let downloaded = movie.poster.map(|path| artwork::url(&movie.plugin, &path));
     proto::MovieInLibrary {
         library_id: movie.library,
+        poster_url: custom
+            .of(&Slot::movie(&movie.id, Role::Poster))
+            .or(downloaded),
         id: external_id_to_proto(movie.id).into(),
-        poster_url: movie.poster.map(|path| artwork::url(&movie.plugin, &path)),
         title: movie.title,
         release_date: movie.release_date,
         ..Default::default()
     }
 }
 
-fn found_show_to_proto(show: FoundShow) -> proto::ShowInLibrary {
+fn found_show_to_proto(show: FoundShow, custom: &Urls) -> proto::ShowInLibrary {
+    let downloaded = show.poster.map(|path| artwork::url(&show.plugin, &path));
     proto::ShowInLibrary {
         library_id: show.library,
+        poster_url: custom
+            .of(&Slot::show(&show.id, Role::Poster))
+            .or(downloaded),
         id: external_id_to_proto(show.id).into(),
-        poster_url: show.poster.map(|path| artwork::url(&show.plugin, &path)),
         title: show.title,
         ..Default::default()
     }
@@ -212,12 +237,19 @@ fn found_episode_to_proto(episode: FoundEpisode) -> proto::EpisodeInLibrary {
     }
 }
 
-/// A Movie as clients see it, with its images as URLs on this Server, and the caller's Watch
-/// State of it, if they've started it.
-fn movie_to_proto(movie: Movie, watch_state: Option<WatchState>) -> proto::Movie {
+/// A Movie as clients see it, with its images as URLs on this Server, its Custom Images in
+/// `custom` in place of the downloaded ones, and the caller's Watch State of it, if they've
+/// started it.
+fn movie_to_proto(movie: Movie, watch_state: Option<WatchState>, custom: &Urls) -> proto::Movie {
     let plugin = movie.plugin;
     let artwork_url = |path: String| artwork::url(&plugin, &path);
+    let custom_poster = custom.of(&Slot::movie(&movie.id, Role::Poster));
+    let custom_backdrop = custom.of(&Slot::movie(&movie.id, Role::Backdrop));
     proto::Movie {
+        custom_poster: custom_poster.is_some(),
+        custom_backdrop: custom_backdrop.is_some(),
+        poster_url: custom_poster.or_else(|| movie.poster.map(artwork_url)),
+        backdrop_url: custom_backdrop.or_else(|| movie.backdrop.map(artwork_url)),
         id: external_id_to_proto(movie.id).into(),
         title: movie.title,
         original_title: movie.original_title,
@@ -226,22 +258,20 @@ fn movie_to_proto(movie: Movie, watch_state: Option<WatchState>) -> proto::Movie
         runtime_minutes: movie
             .runtime_minutes
             .and_then(|minutes| u32::try_from(minutes).ok()),
-        poster_url: movie.poster.map(artwork_url),
-        backdrop_url: movie.backdrop.map(artwork_url),
         versions: movie.versions.iter().map(version_to_proto).collect(),
         watch_state: watch_state.map(watch_state_to_proto).into(),
         ..Default::default()
     }
 }
 
-/// A Continue Watching entry as clients see it.
-fn started_to_proto(started: Started) -> proto::ContinueWatchingEntry {
+/// A Continue Watching entry as clients see it, with the Custom Images in `custom`.
+fn started_to_proto(started: Started, custom: &Urls) -> proto::ContinueWatchingEntry {
     let (library_id, movie_or_episode) = match started {
         Started::Movie {
             library,
             movie,
             state,
-        } => (library, movie_to_proto(movie, Some(state)).into()),
+        } => (library, movie_to_proto(movie, Some(state), custom).into()),
         Started::Episode {
             library,
             show,
@@ -250,7 +280,7 @@ fn started_to_proto(started: Started) -> proto::ContinueWatchingEntry {
         } => {
             let started_episode = proto::ContinueWatchingEpisode {
                 episode: episode_to_proto(episode, Some(state)).into(),
-                show: show_to_proto(&show).into(),
+                show: show_to_proto(&show, custom).into(),
                 ..Default::default()
             };
             (library, started_episode.into())
@@ -275,16 +305,38 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
     }
 }
 
-/// A Show as clients see it, without its Seasons, with its images as URLs on this Server.
-fn show_to_proto(show: &Show) -> proto::Show {
-    let artwork_url = |path: &str| artwork::url(&show.plugin, path);
+/// A Show as clients see it, without its Seasons, with its images as URLs on this Server and
+/// its Custom Images in `custom` in place of the downloaded ones. Without a Poster of its own, it
+/// has its first Season's.
+fn show_to_proto(show: &Show, custom: &Urls) -> proto::Show {
+    let custom_poster = custom.of(&Slot::show(&show.id, Role::Poster));
+    let custom_backdrop = custom.of(&Slot::show(&show.id, Role::Backdrop));
+    let first_season = show.seasons.keys().next();
+    let downloaded_backdrop =
+        (show.backdrop.as_deref()).map(|path| artwork::url(&show.plugin, path));
     proto::Show {
         id: external_id_to_proto(show.id.clone()).into(),
         title: show.title.clone(),
-        poster_url: show.poster().map(artwork_url),
-        backdrop_url: show.backdrop.as_deref().map(artwork_url),
+        custom_poster: custom_poster.is_some(),
+        custom_backdrop: custom_backdrop.is_some(),
+        poster_url: custom_poster
+            .or_else(|| first_season.and_then(|&number| season_poster(show, number, custom).0)),
+        backdrop_url: custom_backdrop.or(downloaded_backdrop),
         ..Default::default()
     }
+}
+
+/// The URL of the Poster of `show`'s Season `number`, its Custom Image in `custom` if it has one,
+/// and whether it is.
+fn season_poster(show: &Show, number: i64, custom: &Urls) -> (Option<String>, bool) {
+    if let Some(url) = custom.of(&Slot::season(&show.id, number)) {
+        return (Some(url), true);
+    }
+    let downloaded = (show.seasons.get(&number)).and_then(|season| season.poster.as_deref());
+    (
+        downloaded.map(|path| artwork::url(&show.plugin, path)),
+        false,
+    )
 }
 
 /// An Episode as clients see it, with the caller's Watch State of it, if they've started it.
