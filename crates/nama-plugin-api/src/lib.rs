@@ -1,14 +1,10 @@
 //! The contract between the Kernel and its Plugins (ADR 0006).
 //!
 //! A [`Plugin`] takes part in a Server through Extension Points. Each Extension Point is a type
-//! declared as one of three kinds:
+//! declared as one of two kinds:
 //!
 //! - **Observe** ([`ObservePoint`]): the Kernel tells [`Observer`]s that something happened. Delivery
 //!   is asynchronous and fire-and-forget, so an Observer can't change or delay what it observes.
-//! - **Intercept** ([`InterceptPoint`]): before an action takes effect, its [`Interceptor`]s run one
-//!   after another in [`Priority`] order. Each returns a [`Verdict`]: let the action continue,
-//!   modify it, or veto it. Each Intercept Extension Point declares, as its [`OnFailure`], whether
-//!   an Interceptor that fails lets the action through or blocks it.
 //! - **Provide**: a capability the Server needs, looked up by its trait (for example
 //!   [`dyn MetadataProvider`](metadata::MetadataProvider)). A Plugin registers a Provider as an
 //!   `Arc` of that trait object. A Server won't start without at least one
@@ -33,7 +29,6 @@ use std::{
     future::Future,
     pin::Pin,
     sync::Arc,
-    time::Duration,
 };
 
 use crate::settings::{Settings, SettingsCheck, SettingsSchema};
@@ -139,7 +134,7 @@ pub trait Plugin: Send + Sync + 'static {
         None
     }
 
-    /// Registers the Plugin's Observers, Interceptors and Providers.
+    /// Registers the Plugin's Observers and Providers.
     ///
     /// Called each time the Plugin is enabled, with the Plugin's settings in
     /// [`Registrar::settings`]. Everything registered here is removed again when the Plugin is
@@ -184,64 +179,11 @@ pub trait Observer<P: ObservePoint>: Send + Sync + 'static {
     fn observe<'a>(&'a self, event: &'a P::Event) -> BoxFuture<'a, ()>;
 }
 
-/// What an Intercept Extension Point does with the action when one of its Interceptors fails
-/// (returns an error or times out).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum OnFailure {
-    /// Fail-open: skip the failed Interceptor and let the action through.
-    Allow,
-    /// Fail-closed: block the action.
-    Block,
-}
-
-/// An Intercept Extension Point: an action that Interceptors may let continue, modify or veto
-/// before it takes effect.
-pub trait InterceptPoint: 'static {
-    /// The Extension Point's name, for the log.
-    const NAME: &'static str;
-
-    /// Whether a failing Interceptor lets the action through or blocks it.
-    const ON_FAILURE: OnFailure;
-
-    /// How long one Interceptor may take before it counts as failed.
-    const TIMEOUT: Duration = Duration::from_secs(5);
-
-    /// The action being intercepted.
-    type Action: Send + Sync + 'static;
-}
-
-/// What an Interceptor decides about an action.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Verdict<A> {
-    /// Let the action continue unchanged.
-    Continue,
-    /// Replace the action. Later Interceptors see the replacement.
-    Modify(A),
-    /// Stop the action, for the given reason. Later Interceptors don't run.
-    Veto(String),
-}
-
-/// A Plugin's handler that can let an action continue, modify it, or veto it before it takes
-/// effect.
-pub trait Interceptor<P: InterceptPoint>: Send + Sync + 'static {
-    /// Decides about one action.
-    ///
-    /// # Errors
-    ///
-    /// When the Interceptor can't decide. The Extension Point's [`OnFailure`] says what happens
-    /// to the action then.
-    fn intercept<'a>(
-        &'a self,
-        action: &'a P::Action,
-    ) -> BoxFuture<'a, Result<Verdict<P::Action>, PluginError>>;
-}
-
 /// The kind of an Extension Point. Part of [`PointKey`], so one type can't be confused across
 /// kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Kind {
     Observe,
-    Intercept,
     Provide,
 }
 
@@ -259,16 +201,6 @@ impl PointKey {
     pub fn observe<P: ObservePoint>() -> Self {
         Self {
             kind: Kind::Observe,
-            type_id: TypeId::of::<P>(),
-            name: P::NAME,
-        }
-    }
-
-    /// The key of the Intercept Extension Point `P`.
-    #[must_use]
-    pub fn intercept<P: InterceptPoint>() -> Self {
-        Self {
-            kind: Kind::Intercept,
             type_id: TypeId::of::<P>(),
             name: P::NAME,
         }
@@ -313,7 +245,7 @@ impl std::hash::Hash for PointKey {
 pub struct Registration {
     point: PointKey,
     priority: Priority,
-    /// An `Arc<dyn Observer<P>>`, `Arc<dyn Interceptor<P>>` or `Arc<T>`, by `point`'s kind.
+    /// An `Arc<dyn Observer<P>>` or `Arc<T>`, by `point`'s kind.
     handler: Arc<dyn Any + Send + Sync>,
 }
 
@@ -334,12 +266,6 @@ impl Registration {
     #[must_use]
     pub fn observer<P: ObservePoint>(&self) -> Option<Arc<dyn Observer<P>>> {
         self.handler_at(PointKey::observe::<P>())
-    }
-
-    /// The handler, if it is an Interceptor at `P`.
-    #[must_use]
-    pub fn interceptor<P: InterceptPoint>(&self) -> Option<Arc<dyn Interceptor<P>>> {
-        self.handler_at(PointKey::intercept::<P>())
     }
 
     /// The handler, if it is a Provider of `T`.
@@ -400,16 +326,6 @@ impl Registrar {
     pub fn observe<P: ObservePoint>(&mut self, observer: impl Observer<P>) {
         let observer: Arc<dyn Observer<P>> = Arc::new(observer);
         self.push(PointKey::observe::<P>(), Priority::DEFAULT, observer);
-    }
-
-    /// Registers an Interceptor at the Intercept Extension Point `P`.
-    pub fn intercept<P: InterceptPoint>(
-        &mut self,
-        priority: Priority,
-        interceptor: impl Interceptor<P>,
-    ) {
-        let interceptor: Arc<dyn Interceptor<P>> = Arc::new(interceptor);
-        self.push(PointKey::intercept::<P>(), priority, interceptor);
     }
 
     /// Registers a Provider of the capability `T`, usually a `dyn Trait`.

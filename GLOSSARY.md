@@ -93,16 +93,12 @@ What a Plugin says about itself before it is enabled: its id, name, version, des
 _Avoid_: descriptor, plugin.json, metadata
 
 **Extension Point**:
-A named place where the Kernel lets Plugins take part, declared as one of Observe, Intercept or Provide.
+A named place where the Kernel lets Plugins take part, declared as Observe or Provide.
 _Avoid_: hook, seam, slot
 
 **Observer**:
 A Plugin's handler that is told something happened and can't change it.
 _Avoid_: listener, subscriber
-
-**Interceptor**:
-A Plugin's handler that can let an action continue, modify it, or veto it before it takes effect.
-_Avoid_: middleware, filter
 
 **Provider**:
 A Plugin's implementation of a capability the Server needs, such as metadata, checking a User's credentials, or Request fulfillment.

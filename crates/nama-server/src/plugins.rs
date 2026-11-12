@@ -18,8 +18,8 @@ use std::{
 
 use futures_util::FutureExt;
 use nama_plugin_api::{
-    InterceptPoint, Manifest, ObservePoint, Observer, OnFailure, Plugin, PluginId, PointKey,
-    Priority, Registrar, Registration, Verdict,
+    Manifest, ObservePoint, Observer, Plugin, PluginId, PointKey, Priority, Registrar,
+    Registration,
     fulfiller::{Fulfiller, Movies, Shows},
     settings::{Choices, SettingKind, Settings, SettingsError, SettingsSchema},
 };
@@ -42,8 +42,8 @@ pub struct Registry {
     points: ExtensionPoints,
 }
 
-/// How the Kernel calls the Plugins enabled in a [`Registry`]: observing, intercepting, asking
-/// Providers and who provides a capability. It can't enable, disable or list Plugins; only a
+/// How the Kernel calls the Plugins enabled in a [`Registry`]: observing, asking Providers and
+/// who provides a capability. It can't enable, disable or list Plugins; only a
 /// Provider that panics disables its own Plugin, as it would through the `Registry`.
 ///
 /// Cloning gives another handle to the same Plugins.
@@ -141,27 +141,6 @@ pub struct LastProvider {
     pub plugin: PluginId,
     /// The capability's Extension Point.
     pub point: &'static str,
-}
-
-/// What became of an intercepted action.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Outcome<A> {
-    /// Go ahead with this action, which Interceptors may have modified.
-    Proceed(A),
-    /// An Interceptor vetoed the action.
-    Vetoed {
-        /// The Plugin whose Interceptor vetoed it.
-        by: PluginId,
-        /// The reason it gave.
-        reason: String,
-    },
-    /// An Interceptor failed at a fail-closed Extension Point, which blocks the action.
-    Failed {
-        /// The Plugin whose Interceptor failed.
-        by: PluginId,
-        /// What went wrong.
-        error: String,
-    },
 }
 
 /// A Provider's answer, and the Plugin whose Provider gave it.
@@ -639,61 +618,6 @@ impl ExtensionPoints {
         if let Err(message) = contain(|| observer.observe(&event)).await {
             self.disable_after_panic(&entry, P::NAME, &message);
         }
-    }
-
-    /// Runs the Interceptors at `P` on `action`, in order, and says whether and how it may go
-    /// ahead.
-    pub async fn intercept<P: InterceptPoint>(&self, action: P::Action) -> Outcome<P::Action> {
-        let mut action = action;
-        for entry in self.entries(PointKey::intercept::<P>()) {
-            let Some(interceptor) = entry.registration.interceptor::<P>() else {
-                continue;
-            };
-            // Skip Plugins disabled since the snapshot, such as one that panicked earlier in it.
-            if !self.is_current(&entry) {
-                continue;
-            }
-            let called =
-                tokio::time::timeout(P::TIMEOUT, contain(|| interceptor.intercept(&action))).await;
-            let verdict = match called {
-                Ok(Ok(verdict)) => verdict,
-                Ok(Err(message)) => {
-                    self.disable_after_panic(&entry, P::NAME, &message);
-                    continue;
-                }
-                Err(elapsed) => Err(format!("timed out after {:?} ({elapsed})", P::TIMEOUT).into()),
-            };
-            let verdict = verdict.or_else(|error| {
-                warn!(
-                    plugin = %entry.plugin,
-                    point = P::NAME,
-                    on_failure = ?P::ON_FAILURE,
-                    %error,
-                    "interceptor failed"
-                );
-                match P::ON_FAILURE {
-                    OnFailure::Allow => Ok(Verdict::Continue),
-                    OnFailure::Block => Err(error),
-                }
-            });
-            match verdict {
-                Ok(Verdict::Continue) => {}
-                Ok(Verdict::Modify(modified)) => action = modified,
-                Ok(Verdict::Veto(reason)) => {
-                    return Outcome::Vetoed {
-                        by: entry.plugin,
-                        reason,
-                    };
-                }
-                Err(error) => {
-                    return Outcome::Failed {
-                        by: entry.plugin,
-                        error: error.to_string(),
-                    };
-                }
-            }
-        }
-        Outcome::Proceed(action)
     }
 
     /// Asks the Provider of `T` that comes first: those the admin ranked with
