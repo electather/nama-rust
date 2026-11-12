@@ -511,6 +511,50 @@ async fn a_user_who_manages_libraries_may_manage_libraries_and_matches_but_not_u
     assert_refused_for_want_of(&server, &token, &MANAGE_USERS, Permission::ManageUsers).await;
 }
 
+/// Uploading or removing a title's Custom Image is plain HTTP, not an RPC, and needs
+/// `PERMISSION_MANAGE_LIBRARIES` all the same.
+#[tokio::test]
+async fn only_a_user_who_manages_libraries_may_upload_or_remove_a_custom_image() {
+    let server = TestServer::builder().start().await;
+    let grace = server.user("Grace", &NEW_USER).await.token;
+    let ada = server
+        .user("Ada", &[Permission::ManageLibraries])
+        .await
+        .token;
+    let path = "/custom-images/movie/tmdb-348/poster";
+
+    for method in [Method::PUT, Method::DELETE] {
+        let cookie = |token: &str| format!("nama_session={token}");
+        let anonymous = send(&server, method.clone(), path, &[], String::new()).await;
+        let refused = send(
+            &server,
+            method.clone(),
+            path,
+            &[("cookie", &cookie(&grace))],
+            String::new(),
+        )
+        .await;
+        let allowed = send(
+            &server,
+            method.clone(),
+            path,
+            &[("cookie", &cookie(&ada))],
+            String::new(),
+        )
+        .await;
+
+        assert_eq!(anonymous.status, 401, "{method}");
+        let needed = Permission::ManageLibraries.proto_name().to_owned();
+        assert_eq!(permission_refused(&refused), Some(needed), "{method}");
+        // An empty body is no image, but the handler was reached.
+        assert!(
+            ![401, 403].contains(&allowed.status),
+            "{method}: {}",
+            allowed.status
+        );
+    }
+}
+
 #[tokio::test]
 async fn a_user_who_manages_users_may_manage_users_but_not_libraries_or_matches() {
     let server = TestServer::builder().start().await;

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT slot, version FROM custom_images",
+  "describe": {
+    "columns": [
+      {
+        "name": "slot",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "custom_images",
+            "name": "slot"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "custom_images",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "66a302df9f8a33db7478a489e74ce8823a3448f2ac3e65e85c0aea1a4390fbf8"
+}

@@ -130,6 +130,15 @@ pub(crate) struct Found<M> {
     pub(crate) request: Option<Request>,
 }
 
+/// A Movie, or a Season of a Show, as a Request names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct RequestTitle {
+    /// The Movie's TMDB id, or the Show's.
+    pub(crate) tmdb_id: i64,
+    /// The Season's number, `None` for a Movie.
+    pub(crate) season: Option<u32>,
+}
+
 /// A title a search found, which a Request can name by its TMDB id.
 #[derive(Debug)]
 pub(crate) struct Hit {
@@ -770,6 +779,30 @@ impl Requests {
     /// Removes the Request `id`, whatever its state, and publishes that it was cancelled.
     pub(crate) async fn cancel(&self, id: i64) -> Result<(), Error> {
         self.apply(move |tx| Box::pin(cancel(tx, id))).await
+    }
+
+    /// The Requests [`Self::cancel_deleted`] would cancel for `titles`.
+    pub(crate) async fn waiting_on(&self, titles: &[RequestTitle]) -> Result<Vec<Request>, Error> {
+        let mut conn = self.db.reader().acquire().await?;
+        let mut waiting = Vec::new();
+        for &title in titles {
+            if let Some(id) = waiting_on(&mut conn, title).await? {
+                waiting.extend(load_one(&mut conn, id).await?);
+            }
+        }
+        Ok(waiting)
+    }
+
+    /// Cancels the Requests still waiting on media of `titles` that `by` deleted, telling their
+    /// Requesters who. Available ones stay, so a Followed Show doesn't ask for them again, and no
+    /// Followed Show ends.
+    pub(crate) async fn cancel_deleted(
+        &self,
+        titles: Vec<RequestTitle>,
+        by: String,
+    ) -> Result<(), Error> {
+        self.apply(move |tx| Box::pin(cancel_deleted(tx, titles, by)))
+            .await
     }
 
     /// Takes `requester` off the Pending Request `id`, removing it once nobody is left on it, and
@@ -2076,17 +2109,62 @@ async fn retry(
 
 /// Removes the Request `id`, and its Requesters with it.
 async fn cancel(conn: &mut SqliteConnection, id: i64) -> Result<Applied<()>, Error> {
+    let cancelled = remove(conn, id, None).await?;
+    Ok(Applied::saying((), cancelled))
+}
+
+/// Removes the Request waiting on each of `titles`, which `by` deleted media of.
+async fn cancel_deleted(
+    conn: &mut SqliteConnection,
+    titles: Vec<RequestTitle>,
+    by: String,
+) -> Result<Applied<()>, Error> {
+    let mut events = Vec::new();
+    for title in titles {
+        if let Some(id) = waiting_on(conn, title).await? {
+            events.push(remove(conn, id, Some(by.clone())).await?);
+        }
+    }
+    Ok(Applied {
+        events,
+        ..Applied::quiet(())
+    })
+}
+
+/// Removes the Request `id`, and its Requesters with it, and returns the event saying so, which
+/// names who `deleted_by` if deleting media cancelled it.
+async fn remove(
+    conn: &mut SqliteConnection,
+    id: i64,
+    deleted_by: Option<String>,
+) -> Result<Event, Error> {
     let request = load_one(conn, id)
         .await?
         .ok_or(Error::NoSuch(Asked::Request, id))?;
     sqlx::query!("DELETE FROM requests WHERE id = ?", id)
         .execute(&mut *conn)
         .await?;
-    let cancelled = event(RequestCancelled {
+    Ok(event(RequestCancelled {
         request: request.into(),
+        deleted_by,
         ..Default::default()
-    });
-    Ok(Applied::saying((), cancelled))
+    }))
+}
+
+/// The Request still waiting on `title`'s media, which deleting any of it cancels: its open one,
+/// unless Failed, which waits on a Request manager retrying it rather than on the media.
+async fn waiting_on(
+    conn: &mut SqliteConnection,
+    RequestTitle { tmdb_id, season }: RequestTitle,
+) -> Result<Option<i64>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT id FROM requests WHERE tmdb_id = ? AND season IS ?
+         AND state IN ('pending', 'approved', 'processing', 'partially_available')",
+        tmdb_id,
+        season
+    )
+    .fetch_optional(&mut *conn)
+    .await
 }
 
 /// Takes `user` off the Pending Request `id`, among those `visible` lets them see, removing the
@@ -2570,6 +2648,7 @@ mod tests {
         withdraw_followed,
     };
     use crate::{
+        artwork::Artwork,
         contents::{
             Change, Contents, Decided, Decisions, Item, Metadata,
             fixture::{MatchedMovie, movies_library, tmdb_movie},
@@ -3483,7 +3562,7 @@ mod tests {
         let folder = tempfile::tempdir().unwrap();
         let plugins = Registry::new();
         enable_tmdb(&plugins, &tmdb);
-        let (_data, requests) =
+        let (data, requests) =
             approved_on::<Movies>(&plugins, &[949], Arc::new(Asked::default())).await;
         let root = folder.path().canonicalize().unwrap();
         let library = Libraries::new(Arc::clone(&requests.db))
@@ -3511,7 +3590,9 @@ mod tests {
         let scanner = Scanner::new(
             Arc::clone(&requests.db),
             requests.plugins.clone(),
+            Artwork::new(data.path(), requests.plugins.clone()),
             requests.events.clone(),
+            None,
             None,
             None,
         );

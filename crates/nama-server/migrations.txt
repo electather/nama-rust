@@ -46,3 +46,4 @@
 0046_audio_preferences.sql
 0047_keep_behind.sql
 0048_read_only_folders.sql
+0049_custom_images.sql

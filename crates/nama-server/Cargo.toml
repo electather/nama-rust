@@ -26,6 +26,7 @@ figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 getrandom = "0.4"
 glob = "0.3"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 isolang = { version = "2.4", default-features = false }
 nama-plugin-api = { version = "0.1.0", path = "../nama-plugin-api" }
 nama-plugin-local-auth = { version = "0.1.0", path = "../../plugins/local-auth" }

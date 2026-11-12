@@ -19,7 +19,9 @@
 //!
 //! After each scan the Library's items are Matched (see [`crate::matching`]), still under the
 //! Library's scan lock, so Matching sees the items the scan stored. Then [`crate::probing`] is told
-//! its files changed, and probes them in the background without holding up the next scan.
+//! its files changed, and probes them in the background without holding up the next scan. Last,
+//! the images no Match stores any more are deleted, and those the Library's Matches store and the
+//! store lacks are downloaded in the background (see [`crate::artwork`]).
 //!
 //! Probing passes of one Library overlap, so `ProbingFinished` says the Library has caught up, not
 //! that one pass is done (ADR 0030): a pass waits for the files it left to another prober, and
@@ -41,7 +43,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use nama_plugin_api::fulfiller::{Fulfiller, Movies, StopMonitoring, stop_monitoring::Title};
+use nama_plugin_api::fulfiller::{Fulfiller, Movies, Shows, StopMonitoring};
 use nama_proto::nama::v1::{
     MatchingFinished, ProbingFinished, ScanFinished, ScanProgress, ScanStarted,
 };
@@ -49,6 +51,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use walkdir::{DirEntry, WalkDir};
 
 use crate::{
+    artwork::Artwork,
     contents::{Change, Contents, Stored},
     db::{Database, detached},
     events::{EventBus, event},
@@ -57,6 +60,7 @@ use crate::{
     playback::running::RunningPlans,
     plugins::ExtensionPoints,
     probing::Probing,
+    requests::{self, RequestTitle, Requests},
 };
 
 /// Extensions, in lowercase, of the files the scanner treats as video.
@@ -102,6 +106,9 @@ pub(crate) enum Error {
     /// Server can't write to.
     #[error("media in {0} can't be deleted: the Server can't write to it")]
     ReadOnly(String),
+    /// The Requests a delete cancels couldn't be read or cancelled.
+    #[error(transparent)]
+    Requests(#[from] requests::Error),
 }
 
 impl From<matching::Error> for Error {
@@ -123,6 +130,8 @@ pub(crate) struct Scanner {
 #[derive(Debug)]
 struct Inner {
     contents: Contents,
+    /// Downloads the images Matches store, and deletes those none does.
+    artwork: Artwork,
     libraries: Libraries,
     matcher: Matcher,
     /// Asks Fulfillers to stop monitoring what a delete takes.
@@ -132,6 +141,8 @@ struct Inner {
     probing: Option<Probing>,
     /// Asked what plays media about to be deleted, and to end it, unless nothing plays.
     running: Option<RunningPlans>,
+    /// Asked which Requests a delete cancels, and to cancel them, unless nothing has Requests.
+    requests: Option<Requests>,
     /// Background scans, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -178,13 +189,21 @@ impl ScanLock {
 
 impl Scanner {
     /// Tells `probing` each Library whose scan finished and has it clean subtitles, or does
-    /// neither where nothing probes, and has `running` end the plans playing media it deletes.
+    /// neither where nothing probes, has `running` end the plans playing media it deletes, and has
+    /// `requests` cancel the Requests still waiting on it.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is a separate handle the Scanner is built from; a struct bundling them \
+                  would exist only for this call"
+    )]
     pub(crate) fn new(
         db: Arc<Database>,
         plugins: ExtensionPoints,
+        artwork: Artwork,
         events: EventBus,
         probing: Option<Probing>,
         running: Option<RunningPlans>,
+        requests: Option<Requests>,
     ) -> Self {
         let locks = ScanLocks(Arc::default());
         Self {
@@ -193,13 +212,16 @@ impl Scanner {
                 matcher: Matcher::new(
                     Arc::clone(&db),
                     plugins.clone(),
+                    artwork.clone(),
                     events.clone(),
                     locks.clone(),
                 ),
+                artwork,
                 plugins,
                 events,
                 probing,
                 running,
+                requests,
                 contents: Contents::new(db),
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
@@ -263,11 +285,17 @@ impl Scanner {
     }
 
     /// Deletes the Library `id`, then throws away its Versions' cached subtitles where something
-    /// probes, and stops watching its folders, even if the caller stops waiting (ADR 0029).
+    /// probes and the images only its Matches stored, and stops watching its folders, even if the
+    /// caller stops waiting (ADR 0029).
     pub(crate) async fn delete_library(&self, id: i64) -> Result<(), libraries::Error> {
         let scanner = self.clone();
         detached(async move {
             scanner.inner.libraries.delete(id).await?;
+            scanner
+                .inner
+                .artwork
+                .drop_unused(&scanner.inner.contents)
+                .await;
             if let Some(probing) = &scanner.inner.probing {
                 probing.clean_subtitles().await;
             }
@@ -277,19 +305,29 @@ impl Scanner {
         .await
     }
 
-    /// What [`Self::delete_media`] would delete and stop playing, deleting nothing.
+    /// What [`Self::delete_media`] would delete, stop playing and cancel, deleting nothing.
     pub(crate) async fn preview_delete(&self, doomed: Doomed) -> Result<Deleted, Error> {
-        let playing = (self.inner.running.as_ref())
-            .map_or(0, |running| running.playing(&doomed.version_ids()));
+        let versions = doomed.version_ids();
+        let playing = (self.inner.running.as_ref()).map_or(0, |running| running.playing(&versions));
+        let requests = match &self.inner.requests {
+            Some(requests) => (requests.waiting_on(&doomed.request_titles(&versions))).await?,
+            None => Vec::new(),
+        };
         let planned = tokio::task::spawn_blocking(move || deleting::preview(&doomed)).await?;
-        Ok(Deleted { playing, ..planned })
+        Ok(Deleted {
+            playing,
+            requests,
+            ..planned
+        })
     }
 
-    /// Asks every Movies Fulfiller to stop monitoring `doomed`, then ends the plans playing it,
+    /// Asks every Fulfiller of its kind to stop monitoring `doomed`, then ends the plans playing it,
     /// deletes it from disk for good, removes the Versions whose files went as a scan removes
-    /// them, and logs that `by` deleted them. It refuses, before any of that, media in a folder
-    /// the Library's last scan found read-only ([`Error::ReadOnly`]). The one way to delete media
-    /// (see AGENTS.md, "One path for deleting media"). It holds the Library's scan lock, so a scan racing it sees
+    /// them, with the images only their Matches stored, and logs that `by` deleted them, and
+    /// cancels the Requests still waiting on what they were of. It
+    /// refuses, before any of that, media in a folder the Library's last scan found
+    /// read-only ([`Error::ReadOnly`]). The one way to delete media (see AGENTS.md, "One path for deleting
+    /// media"). It holds the Library's scan lock, so a scan racing it sees
     /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
         if let Some(folder) = doomed.read_only_folder() {
@@ -337,28 +375,54 @@ impl Scanner {
                 probing.clean_subtitles().await;
             }
             scanner.inner.events.publish(events);
+            scanner
+                .inner
+                .artwork
+                .drop_unused(&scanner.inner.contents)
+                .await;
+            (scanner.cancel_requests(doomed.request_titles(&deleted.versions), by)).await;
             Ok(deleted)
         })
         .await
     }
 
-    /// Asks each enabled Movies Fulfiller to stop monitoring `doomed`'s Movie. Returns the name of
-    /// each that couldn't be told, failing or panicking, which isn't asked again.
+    /// Cancels the Requests still waiting on `titles`, whose media `by` deleted. A failure is
+    /// logged, not returned: the media is gone by then, and an error would hide what went.
+    async fn cancel_requests(&self, titles: Vec<RequestTitle>, by: String) {
+        let Some(requests) = &self.inner.requests else {
+            return;
+        };
+        if let Err(error) = requests.cancel_deleted(titles, by).await {
+            tracing::warn!(%error, "couldn't cancel the Requests waiting on deleted media");
+        }
+    }
+
+    /// Asks each enabled Fulfiller of `doomed`'s Library's kind to stop monitoring what it takes.
+    /// Returns the name of each that couldn't be told, failing or panicking, which isn't asked
+    /// again.
     async fn stop_monitoring(&self, doomed: &Doomed) -> Vec<String> {
-        let Some(tmdb_id) = doomed.tmdb_id else {
+        let Some(title) = doomed.to_unmonitor.clone() else {
             return Vec::new();
         };
         let title = StopMonitoring {
-            title: Some(Title::MovieTmdbId(tmdb_id)),
+            title: Some(title),
             ..Default::default()
         };
-        let stop = |fulfiller: Arc<dyn Fulfiller<Movies>>| {
-            let title = &title;
-            async move { fulfiller.stop_monitoring(title).await }
+        match doomed.library.kind {
+            Kind::Movies => self.ask_to_stop::<Movies>(&title, &doomed.title).await,
+            Kind::Shows => self.ask_to_stop::<Shows>(&title, &doomed.title).await,
+        }
+    }
+
+    /// Asks each enabled Fulfiller of the kind `K` to stop monitoring `title`, which the log calls
+    /// `name`. Returns the name of each that couldn't be told.
+    async fn ask_to_stop<K: 'static>(&self, title: &StopMonitoring, name: &str) -> Vec<String> {
+        let stop = |fulfiller: Arc<dyn Fulfiller<K>>| async move {
+            fulfiller.stop_monitoring(title).await
         };
         let plugins = &self.inner.plugins;
         let mut not_told = Vec::new();
-        for plugin in plugins.providers::<dyn Fulfiller<Movies>>() {
+        for plugin in plugins.providers::<dyn Fulfiller<K>>() {
             let answer = plugins.ask(&plugin, &stop).await;
             // `None`: it panicked, which disabled it, or was disabled meanwhile.
             let reason = match answer.map(|answer| answer.result) {
@@ -368,7 +432,7 @@ impl Scanner {
             };
             tracing::warn!(
                 plugin = %plugin,
-                title = %doomed.title,
+                title = name,
                 reason,
                 "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
             );
@@ -483,6 +547,10 @@ impl Scanner {
                 },
             ),
         }
+        // Last, so no event of the scan waits on it.
+        let contents = &self.inner.contents;
+        self.inner.artwork.drop_unused(contents).await;
+        self.inner.artwork.download_missing(contents.clone(), id);
         Ok(summary)
     }
 
@@ -699,6 +767,7 @@ mod tests {
 
     use super::{Scanner, Summary};
     use crate::{
+        artwork::Artwork,
         contents::{Contents, File, Item},
         db::Database,
         events::{EventBus, Filter},
@@ -763,8 +832,10 @@ mod tests {
                 scanner: Scanner::new(
                     Arc::clone(&db),
                     ExtensionPoints::default(),
+                    Artwork::new(data.path(), ExtensionPoints::default()),
                     events.clone(),
                     probing.clone(),
+                    None,
                     None,
                 ),
                 probing,

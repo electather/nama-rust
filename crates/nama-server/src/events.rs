@@ -463,8 +463,9 @@ impl Viewer {
 
 /// The IDs of the Users told about `event`, so every Notifier shares the rules (ADR 0021): a
 /// Request's Requesters when it is approved, declined, Failed, Partially Available or Available,
-/// and each of `users` with `PERMISSION_MANAGE_REQUESTS` about a new Pending Request. Nobody else,
-/// and nobody for any other event.
+/// or cancelled by deleting media it waited on, and each of `users` with
+/// `PERMISSION_MANAGE_REQUESTS` about a new Pending Request. Nobody else, and nobody for any other
+/// event.
 pub(crate) fn users_to_tell(event: &Event, users: &[User]) -> Vec<i64> {
     use RequestState as S;
     use event::Event as E;
@@ -491,6 +492,9 @@ pub(crate) fn users_to_tell(event: &Event, users: &[User]) -> Vec<i64> {
             ) =>
         {
             requesters(&changed.request)
+        }
+        Some(E::RequestCancelled(cancelled)) if cancelled.deleted_by.is_some() => {
+            requesters(&cancelled.request)
         }
         _ => Vec::new(),
     }
@@ -706,6 +710,17 @@ mod tests {
             [3, 4],
             "an asker with MANAGE_REQUESTS is told as one of them"
         );
+    }
+
+    #[test]
+    fn a_request_deleting_media_cancelled_picks_its_requesters() {
+        let cancelled = event(RequestCancelled {
+            request: request(RequestState::Processing, &[2, 1]).into(),
+            deleted_by: Some("Grace".to_owned()),
+            ..Default::default()
+        });
+
+        assert_eq!(users_to_tell(&cancelled, &users()), [2, 1]);
     }
 
     #[test]

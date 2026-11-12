@@ -9,10 +9,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use nama_plugin_api::fulfiller::stop_monitoring::Title;
+use nama_proto::nama::v1::Request;
+
 use super::is_video;
 use crate::{
     contents::{Episode, Version},
     libraries::Library,
+    requests::RequestTitle,
 };
 
 /// Versions of one title of a Library, which a delete removes, with the title, for its log.
@@ -20,13 +24,16 @@ use crate::{
 pub(crate) struct Doomed {
     pub(crate) library: Library,
     pub(crate) title: String,
-    /// The Movie's TMDB id, which the Movies Fulfiller is asked to stop monitoring. `None` for a
-    /// Movie Matched without one, which no Fulfiller knows.
-    pub(crate) tmdb_id: Option<i64>,
+    /// What the Library's Fulfillers are asked to stop monitoring. `None` for a title Matched
+    /// without the ids they know it by.
+    pub(crate) to_unmonitor: Option<Title>,
     /// Each file once.
     pub(crate) versions: Vec<Version>,
     /// The Episodes the title isn't, that a file of `versions` holds too.
     pub(crate) taken_along: Vec<Episode>,
+    /// What each Version is of, by its id, as a Request names it: its Movie, or the Season of each
+    /// Episode it holds. One with no TMDB id, which no Request names, isn't here.
+    pub(crate) requested: Vec<(i64, RequestTitle)>,
 }
 
 impl Doomed {
@@ -35,6 +42,13 @@ impl Doomed {
             .iter()
             .map(|version| version.file.id)
             .collect()
+    }
+
+    /// What the Versions `gone` are of, as Requests name it, each once.
+    pub(crate) fn request_titles(&self, gone: &[i64]) -> Vec<RequestTitle> {
+        let titles = (self.requested.iter()).filter(|(version, _)| gone.contains(version));
+        let titles: BTreeSet<RequestTitle> = titles.map(|&(_, title)| title).collect();
+        titles.into_iter().collect()
     }
 }
 
@@ -77,6 +91,8 @@ pub(crate) struct Deleted {
     pub(crate) fulfillers_not_told: Vec<String>,
     /// How many Playback Plans play the Versions, as a preview finds them.
     pub(crate) playing: usize,
+    /// The Requests deleting would cancel, as a preview finds them.
+    pub(crate) requests: Vec<Request>,
 }
 
 impl Deleted {
@@ -229,6 +245,7 @@ mod tests {
     use crate::{
         contents::{Stored, Version},
         libraries::{Kind, Library},
+        requests::RequestTitle,
     };
 
     /// A Library over a scratch folder.
@@ -273,9 +290,10 @@ mod tests {
                     read_only: Vec::new(),
                 },
                 title: "Title".to_owned(),
-                tmdb_id: None,
+                to_unmonitor: None,
                 versions: versions.collect(),
                 taken_along: Vec::new(),
+                requested: Vec::new(),
             }
         }
 
@@ -424,5 +442,18 @@ mod tests {
         assert!(Path::new(&outside).exists());
         assert_eq!(deleted.failed.len(), 1);
         assert_eq!(deleted.versions, [0; 0]);
+    }
+
+    #[test]
+    fn only_the_versions_that_went_name_the_requests_to_cancel_each_once() {
+        let fx = Fixture::new();
+        let mut doomed = fx.doomed(&["S01E01-E02.mkv", "S01E01.mkv", "S02E01.mkv"]);
+        let season = |number| RequestTitle {
+            tmdb_id: 1,
+            season: Some(number),
+        };
+        doomed.requested = vec![(1, season(1)), (2, season(1)), (3, season(2))];
+
+        assert_eq!(doomed.request_titles(&[1, 2]), [season(1)]);
     }
 }

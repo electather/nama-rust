@@ -565,6 +565,10 @@ async fn a_transcode_cap_set_to_0_is_refused_naming_it_and_nothing_changes() {
         RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
     );
     assert_eq!(refusal.field, "settings.max_transcodes");
+    assert_eq!(
+        refusal.params.get("minTranscodes").map(String::as_str),
+        Some("1")
+    );
     assert_eq!(segment_folder(&client).await, "");
 }
 

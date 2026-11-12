@@ -12,15 +12,13 @@ import {
   type FileNotDeleted,
   LibraryService,
   type MediaToDeleteSchema,
+  type RequestToCancel,
 } from "@/gen/nama/v1/library_pb";
 import { metadataLine, seasonName, sizeOf, versionLine } from "@/lib/browse";
 import { formText, refusal } from "@/lib/forms";
 
 /** The choice that deletes every Version, where any other choice is one Version's id. */
 const EVERY_VERSION = "every";
-
-/** What a page does once every Version went, when it shows something else that stays. */
-const stay = async () => {};
 
 /** A Movie, Show, Season or Episode, as deleting it needs it. */
 export interface Deletable {
@@ -40,7 +38,7 @@ export interface Deletable {
 export function DeleteMedia({
   action = "Delete",
   name = action,
-  onDeletedEveryVersion = stay,
+  onDeletedEveryVersion,
   ...deletable
 }: Deletable & {
   /** What the button says, such as "Delete Show" where "Delete" alone wouldn't say what goes. */
@@ -49,9 +47,9 @@ export function DeleteMedia({
   name?: string;
   /**
    * Called once every Version went, so the page can leave what's gone, with the names of the
-   * Fulfillers that couldn't be told.
+   * Fulfillers that couldn't be told, which the page then reports.
    */
-  onDeletedEveryVersion?: (fulfillersNotTold: string[]) => Promise<unknown>;
+  onDeletedEveryVersion: (fulfillersNotTold: string[]) => Promise<unknown>;
 }) {
   const [result, setResult] = useState<Outcome>({ notDeleted: [], fulfillersNotTold: [] });
   const remove = useSensitiveMutation(LibraryService.method.deleteMedia);
@@ -65,10 +63,13 @@ export function DeleteMedia({
         onConfirm={async (typed) => {
           const chosen = formText(typed, "version") || EVERY_VERSION;
           const deleted = await remove.mutateAsync({ target: targetOf(deletable, chosen) });
-          setResult(deleted);
           if (chosen === EVERY_VERSION && deleted.notDeleted.length === 0) {
+            // This may stay mounted for another title, such as the next Season, so the page reports.
+            setResult({ notDeleted: [], fulfillersNotTold: [] });
             await onDeletedEveryVersion(deleted.fulfillersNotTold);
+            return;
           }
+          setResult(deleted);
         }}
         refusal={(error) => refusal(error, "delete it", {}).form}
       >
@@ -109,8 +110,8 @@ function WhatGoes(deletable: Deletable) {
 
 /**
  * The files deleting `chosen` of `deletable` takes, the space that frees, the other Episodes
- * those files hold and the read-only folder that refuses it if a scan found one since the page
- * loaded, as the Server previews it.
+ * those files hold, the Requests it cancels and the read-only folder that refuses it if a scan
+ * found one since the page loaded, as the Server previews it.
  */
 function FilesThatGo({ deletable, chosen }: { deletable: Deletable; chosen: string }) {
   const { data, error } = useQuery(LibraryService.method.previewDeleteMedia, {
@@ -137,6 +138,7 @@ function FilesThatGo({ deletable, chosen }: { deletable: Deletable; chosen: stri
         </ul>
       </div>
       <TakenAlong episodes={data.episodesTakenAlong} />
+      <Cancelled requests={data.requestsCancelled} />
       <Watching playing={data.playing} />
       <RefusedFor folder={data.readOnlyFolder} />
     </div>
@@ -176,6 +178,25 @@ function TakenAlong({ episodes }: { episodes: EpisodeTakenAlong[] }) {
             {seasonName(episode.seasonNumber)}, Episode {episode.episodeNumber}: {episode.title}
           </li>
         ))}
+      </ul>
+    </div>
+  );
+}
+
+/** The open Requests still waiting on what goes, which deleting it cancels. */
+function Cancelled({ requests }: { requests: RequestToCancel[] }) {
+  if (requests.length === 0) return null;
+  return (
+    <div>
+      <p>
+        It cancels {requests.length === 1 ? "this open Request" : "these open Requests"}, telling
+        whoever asked that you deleted it:
+      </p>
+      <ul className="mt-2 flex flex-col gap-1 text-muted-foreground">
+        {requests.map(({ title, seasonNumber }) => {
+          const name = seasonNumber === undefined ? title : `${title}, ${seasonName(seasonNumber)}`;
+          return <li key={name}>{name}</li>;
+        })}
       </ul>
     </div>
   );
