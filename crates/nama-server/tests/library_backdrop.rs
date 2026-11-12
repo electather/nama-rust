@@ -5,6 +5,8 @@
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
 mod browsing;
+#[path = "support/custom_images.rs"]
+mod custom_images;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/http.rs"]
 mod http;
@@ -12,41 +14,28 @@ mod http;
 #[path = "support/server.rs"]
 mod server;
 
-use std::io::Cursor;
-
-use browsing::{Fixture, tmdb_id};
+use browsing::Fixture;
 use connectrpc::client::HttpClient;
-use http::{Reply, fetch, send};
-use http_body_util::Full;
-use hyper::{Method, Request, body::Bytes};
-use image::{ImageFormat, RgbImage};
+use custom_images::image;
+use http::{Reply, fetch};
+use image::ImageFormat;
 use nama_proto::nama::v1::{
-    DeleteLibraryRequest, GetLibraryRequest, GetShowRequest, Library, LibraryKind,
-    LibraryServiceClient, ListLibrariesRequest,
+    DeleteLibraryRequest, GetLibraryRequest, Library, LibraryKind, LibraryServiceClient,
+    ListLibrariesRequest,
 };
 use server::{
     TestServer,
-    tmdb::{ALIEN, DARK, DUNE},
+    tmdb::{ALIEN, DUNE},
 };
 
 /// TMDB Matches it to Dune (2021), which has a Backdrop.
 const DUNE_2021: &str = "Dune (2021)/Dune (2021).mkv";
-/// TMDB Matches it to Dark, whose Episodes have the Show's Backdrop.
-const DARK_S01E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
 /// Its ID hint Matches it to a Hamlet that has no Backdrop.
 const HAMLET: &str = "Hamlet (2000) {tmdb-10688}/Hamlet (2000).mkv";
 
 /// A 3 by 2 PNG.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 fn png() -> Vec<u8> {
-    let mut bytes = Cursor::new(Vec::new());
-    RgbImage::new(3, 2)
-        .write_to(&mut bytes, ImageFormat::Png)
-        .unwrap();
-    bytes.into_inner()
+    image(ImageFormat::Png, 3, 2)
 }
 
 /// Where the Library `id`'s Backdrop is uploaded to and removed from.
@@ -88,22 +77,9 @@ impl Fixture {
             .backdrop_url
     }
 
-    /// Sends `bytes` to `path` with `method` as the User signed in as `token`.
-    async fn send_as(&self, token: &str, method: Method, path: &str, bytes: &[u8]) -> Reply {
-        let body = Full::new(Bytes::copy_from_slice(bytes));
-        let request = Request::builder()
-            .method(method)
-            .uri(path)
-            .body(body)
-            .unwrap();
-        send(&self.server, request, Some(token)).await
-    }
-
     /// Uploads a PNG as the fixture Library's Custom Image, as the Admin.
     async fn upload_backdrop(&self) -> Reply {
-        let token = &self.server.admin_token;
-        let path = backdrop_path(self.library);
-        self.send_as(token, Method::PUT, &path, &png()).await
+        self.upload(&backdrop_path(self.library), &png()).await
     }
 }
 
@@ -146,23 +122,9 @@ async fn a_newer_title_without_a_backdrop_leaves_the_librarys_as_it_was() {
 
 #[tokio::test]
 async fn a_shows_library_is_shown_by_its_newest_shows_backdrop() {
-    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
-    fx.write(DARK_S01E01, b"video");
-    fx.scan_and_match().await;
+    let fx = Fixture::dark().await;
 
-    let show = fx
-        .browse
-        .get_show(GetShowRequest {
-            library_id: fx.library,
-            show_id: tmdb_id(DARK).into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .show
-        .into_option()
-        .unwrap();
+    let show = fx.get_dark().await.show.into_option().unwrap();
 
     assert!(show.backdrop_url.is_some());
     assert_eq!(fx.listed().await.backdrop_url, show.backdrop_url);
@@ -171,10 +133,9 @@ async fn a_shows_library_is_shown_by_its_newest_shows_backdrop() {
 #[tokio::test]
 async fn the_newest_titles_custom_backdrop_is_the_one_the_library_shows() {
     let fx = Fixture::alien().await;
-    let token = &fx.server.admin_token;
     let path = format!("/custom-images/movie/tmdb-{ALIEN}/backdrop");
 
-    fx.send_as(token, Method::PUT, &path, &png()).await;
+    fx.upload(&path, &png()).await;
 
     let custom = fx.movie_backdrop(ALIEN).await.unwrap();
     assert!(custom.starts_with("/media/custom-images/movie/"));
@@ -231,8 +192,7 @@ async fn removing_a_librarys_custom_image_brings_the_newest_titles_backdrop_back
     let fx = Fixture::alien().await;
     fx.upload_backdrop().await;
 
-    let path = backdrop_path(fx.library);
-    let removed = (fx.send_as(&fx.server.admin_token, Method::DELETE, &path, &[])).await;
+    let removed = fx.remove(&backdrop_path(fx.library)).await;
 
     assert_eq!(removed.status, 204);
     let library = fx.listed().await;
@@ -269,8 +229,7 @@ async fn an_image_for_a_library_that_isnt_there_is_not_found_and_not_kept() {
     let fx = Fixture::alien().await;
     let missing = fx.library + 1;
 
-    let token = &fx.server.admin_token;
-    let refused = (fx.send_as(token, Method::PUT, &backdrop_path(missing), &png())).await;
+    let refused = fx.upload(&backdrop_path(missing), &png()).await;
 
     assert_eq!(refused.status, 404);
     let folder = format!("custom-images/library/{missing}");

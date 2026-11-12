@@ -5,50 +5,32 @@
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
 mod browsing;
+#[path = "support/custom_images.rs"]
+mod custom_images;
 #[path = "support/http.rs"]
 mod http;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
 
-use std::{fs, io::Cursor};
+use std::fs;
 
 use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
-use http::{Reply, fetch, send};
-use http_body_util::Full;
-use hyper::{Method, Request, body::Bytes};
-use image::{ImageFormat, RgbImage};
+use custom_images::image;
+use http::{Reply, fetch};
+use image::ImageFormat;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ContinueWatchingEntry, GetShowRequest, GetShowResponse, LibraryKind,
-    ListContinueWatchingRequest, ListEpisodesRequest, LookUpMovieRequest, LookUpShowRequest,
-    ReportProgressRequest, RequestServiceClient, SetMatchRequest, WatchStateServiceClient,
+    BrowseServiceClient, ContinueWatchingEntry, LibraryKind, ListContinueWatchingRequest,
+    ListEpisodesRequest, LookUpMovieRequest, LookUpShowRequest, ReportProgressRequest,
+    RequestServiceClient, SetMatchRequest, WatchStateServiceClient,
     continue_watching_entry::MovieOrEpisode,
 };
-use server::{
-    TestServer,
-    tmdb::{ALIEN, DARK, DUNE},
-};
-
-/// TMDB Matches it to Dark, by its title and year.
-const DARK_S01E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
+use server::tmdb::{ALIEN, DARK, DUNE};
 
 /// Where Alien's Poster is uploaded to and removed from.
 fn alien_poster() -> String {
     format!("/custom-images/movie/tmdb-{ALIEN}/poster")
-}
-
-/// A `width` by `height` image in `format`.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-fn image(format: ImageFormat, width: u32, height: u32) -> Vec<u8> {
-    let mut bytes = Cursor::new(Vec::new());
-    RgbImage::new(width, height)
-        .write_to(&mut bytes, format)
-        .unwrap();
-    bytes.into_inner()
 }
 
 #[expect(
@@ -57,23 +39,6 @@ fn image(format: ImageFormat, width: u32, height: u32) -> Vec<u8> {
     reason = "a test helper fails its test by panicking"
 )]
 impl Fixture {
-    /// Uploads `bytes` to `path` as the Admin.
-    async fn upload(&self, path: &str, bytes: &[u8]) -> Reply {
-        let body = Full::new(Bytes::copy_from_slice(bytes));
-        let request = Request::put(path).body(body).unwrap();
-        send(&self.server, request, Some(&self.server.admin_token)).await
-    }
-
-    /// Removes the Custom Image at `path` as the Admin.
-    async fn remove(&self, path: &str) -> Reply {
-        let request = Request::builder()
-            .method(Method::DELETE)
-            .uri(path)
-            .body(Full::new(Bytes::new()))
-            .unwrap();
-        send(&self.server, request, Some(&self.server.admin_token)).await
-    }
-
     /// The image at `url`, fetched as the Admin.
     async fn fetch(&self, url: &str) -> Reply {
         fetch(&self.server, url, Some(&self.server.admin_token)).await
@@ -84,26 +49,6 @@ impl Fixture {
     async fn alien_poster(&self, library: i64) -> (String, bool) {
         let movie = self.get_movie(library, ALIEN).await.unwrap();
         (movie.poster_url.unwrap(), movie.custom_poster)
-    }
-
-    /// Starts a Server with a Shows Library holding Dark's first Episode, scanned and Matched.
-    async fn dark() -> Self {
-        let fx = Self::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
-        fx.write(DARK_S01E01, b"video");
-        fx.scan_and_match().await;
-        fx
-    }
-
-    async fn get_dark(&self) -> GetShowResponse {
-        self.browse
-            .get_show(GetShowRequest {
-                library_id: self.library,
-                show_id: tmdb_id(DARK).into(),
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned()
     }
 
     /// The Admin's Continue Watching, after starting Dark's first Episode.

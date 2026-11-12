@@ -174,7 +174,7 @@ function LibraryCard({ library }: { library: Library }) {
         <div className="relative w-full">
           {art && <div className="h-8 bg-linear-to-t from-scrim" />}
           {/* On the scrim's full strength however many lines it takes, under a fade into the art. */}
-          <p className="px-4 pb-3 text-lg font-medium text-balance text-foreground group-data-art:bg-scrim">
+          <p className="px-4 pb-3 text-2xl font-semibold tracking-tight text-balance text-foreground group-data-art:bg-scrim">
             {library.name}
           </p>
         </div>
