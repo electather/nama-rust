@@ -238,7 +238,6 @@ async fn an_output_over_7_megapixels_is_a_jpeg_or_as_stored_with_transparency() 
 
 #[tokio::test]
 async fn a_png_with_transparency_becomes_a_jpeg_xl_that_keeps_it_only_for_a_browser_that_asks() {
-    // Clear on the left half, opaque on the right.
     let png = encoded(
         RgbaImage::from_fn(1000, 1500, |x, _| {
             [200, 80, 40, if x < 500 { 0 } else { 255 }].into()
