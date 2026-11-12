@@ -28,12 +28,15 @@ use crate::{
 
 #[cfg(test)]
 pub(crate) mod fixture;
+mod ids;
 mod items;
 #[cfg(test)]
 mod testing;
 #[cfg(test)]
 pub(crate) use testing::{File, FileItem, Recorded};
 
+pub(crate) use ids::parse_hint;
+use ids::primary_id;
 pub(crate) use items::{Item, Name};
 use items::{ItemKind, ItemRow};
 
@@ -1123,27 +1126,6 @@ impl Contents {
     }
 }
 
-impl Pin {
-    /// The pin stored in a `match_pins` row, if there is one, holding the id in `ids`.
-    fn from_row(pinned: bool, ids: ExternalIds) -> Option<Self> {
-        if !pinned {
-            return None;
-        }
-        Some(primary_id(ids).map_or(Self::Unmatched, Self::Title))
-    }
-
-    fn columns(&self) -> ExternalIds {
-        let mut ids = ExternalIds::default();
-        match self {
-            Self::Title(ExternalId::Tmdb(id)) => ids.tmdb = Some(*id),
-            Self::Title(ExternalId::Imdb(id)) => ids.imdb = Some(id.clone()),
-            Self::Title(ExternalId::Tvdb(id)) => ids.tvdb = Some(*id),
-            Self::Unmatched => {}
-        }
-        ids
-    }
-}
-
 /// The oldest Library with an Item Matched to the Movie with the TMDB id `tmdb_id`, if any, read
 /// on `conn` so a write can act on the answer before a scan changes it.
 pub(crate) async fn library_with_movie(
@@ -1198,15 +1180,6 @@ fn version(id: i64, path: String, size: i64, modified_ns: i64, parser_version: i
         parser_version,
     };
     Version { file, path }
-}
-
-/// The one of `ids` that identifies a title: its TMDB id if it has one, or else its IMDb or TVDB
-/// id. `None` if it has none.
-fn primary_id(ids: ExternalIds) -> Option<ExternalId> {
-    ids.tmdb
-        .map(ExternalId::Tmdb)
-        .or_else(|| ids.imdb.map(ExternalId::Imdb))
-        .or_else(|| ids.tvdb.map(ExternalId::Tvdb))
 }
 
 /// An Item a search found, as [`Contents::search_rows`] reads it.
@@ -1321,16 +1294,6 @@ impl<'a> SearchWords<'a> {
             Some(year) => format!("{words} AND (year : \"{year}\" OR {column} : \"{year}\")"),
             None => words,
         }
-    }
-}
-
-/// The ID Hint stored as `text`, which is how [`ExternalId`] displays.
-pub(crate) fn parse_hint(text: &str) -> Option<ExternalId> {
-    match text.split_once('-')? {
-        ("tmdb", id) => id.parse().ok().map(ExternalId::Tmdb),
-        ("tvdb", id) => id.parse().ok().map(ExternalId::Tvdb),
-        ("imdb", id) => Some(ExternalId::Imdb(id.to_owned())),
-        _ => None,
     }
 }
 
@@ -1978,18 +1941,6 @@ mod tests {
                 ),
             ]
         );
-    }
-
-    #[test]
-    fn a_stored_id_hint_reads_back_as_the_id_it_was() {
-        let hints = [
-            ExternalId::Tmdb(78),
-            ExternalId::Tvdb(433_631),
-            ExternalId::Imdb("tt0083658".to_owned()),
-        ];
-        for hint in hints {
-            assert_eq!(super::parse_hint(&hint.to_string()), Some(hint));
-        }
     }
 
     #[tokio::test]
