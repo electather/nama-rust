@@ -32,11 +32,11 @@ impl PluginLogos {
         }
     }
 
-    /// Where clients fetch `logo`, the Plugin `id`'s Manifest's logo as the Server cleaned it.
-    /// Stores it first if it isn't, in place of any logo stored for the Plugin before.
-    // shortcut: the id goes into the URL as it is, so one holding `/`, `?` or `#` gets a URL that
+    /// Stores `logo`, the Plugin `id`'s Manifest's logo as the Server cleaned it, if it isn't, in
+    /// place of any logo stored for the Plugin before, and returns where clients fetch it.
+    // ponytail: the id goes into the URL as it is, so one holding `/`, `?` or `#` gets a URL that
     // finds no logo; percent-encode it if Plugin ids ever get such characters.
-    pub(crate) async fn url(&self, id: &PluginId, logo: &str) -> io::Result<String> {
+    pub(crate) async fn stored_url(&self, id: &PluginId, logo: &str) -> io::Result<String> {
         let version = version_of(logo.as_bytes());
         let key = [DIR, id.as_str(), &version];
         if !self.store.contains(&key).await? {

@@ -38,6 +38,7 @@ pub(super) struct PluginServiceHandler {
     pub(super) plugin_settings: PluginSettings,
     /// The logos admins uploaded, shown in place of the Manifests'.
     pub(super) custom_images: CustomImages,
+    /// The Manifests' logos, stored as their URLs are handed out.
     pub(super) plugin_logos: PluginLogos,
 }
 
@@ -81,7 +82,7 @@ impl PluginService for PluginServiceHandler {
         // Doesn't read `plugins/` again as listing does: the details page opens from the list.
         let stored = self.known(&PluginId::from(request.id.to_owned())).await?;
         Response::ok(GetPluginResponse {
-            plugin: self.plugin_to_proto(stored).await?.into(),
+            plugin: self.plugin_with_logo(stored).await?.into(),
             ..Default::default()
         })
     }
@@ -99,7 +100,7 @@ impl PluginService for PluginServiceHandler {
             .await
             .map_err(change_refused)?;
         Response::ok(UpdatePluginSettingsResponse {
-            plugin: self.plugin_to_proto(stored).await?.into(),
+            plugin: self.plugin_with_logo(stored).await?.into(),
             ..Default::default()
         })
     }
@@ -200,7 +201,7 @@ impl PluginServiceHandler {
     }
 
     /// `stored` as `Plugin`, with its logo.
-    async fn plugin_to_proto(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
+    async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
         let custom = custom_image_urls(&self.custom_images).await?;
         let logo = self.logo(&stored.plugin, &custom).await;
         Ok(plugin_to_proto(stored.plugin, stored.stored.settings, logo))
@@ -218,7 +219,7 @@ impl PluginServiceHandler {
             .ok()
             .and_then(|it| it.logo_svg.as_deref());
         let url = match manifest_logo {
-            Some(svg) => self.plugin_logos.url(&plugin.id, svg).await.unwrap_or_else(|err| {
+            Some(svg) => self.plugin_logos.stored_url(&plugin.id, svg).await.unwrap_or_else(|err| {
                 tracing::error!(plugin = %plugin.id, "could not store the Plugin's logo: {err}");
                 String::new()
             }),
