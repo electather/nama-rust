@@ -92,13 +92,13 @@ export function seasonName(number: number) {
 }
 
 /**
- * An Episode's name: "Season 2, Episode 3" in full, "S2, E3" short (Backdrop cards) or "Episode 3"
- * in its Season. A Special is "Specials, Episode 3", or "Specials, E3" short.
+ * An Episode's name: "Season 2, Episode 3" in full, "S2, E3" short or "Episode 3" in its Season. A
+ * Special says "Specials" in every form, in its Season too, as the Delete dialog names it.
  */
 export function episodeName(season: number, episode: number, form: "full" | "short" | "inSeason") {
   const full = `${seasonName(season)}, Episode ${episode}`;
-  if (season === 0) return form === "short" ? `${seasonName(season)}, E${episode}` : full;
-  return { full, short: `S${season}, E${episode}`, inSeason: `Episode ${episode}` }[form];
+  const short = `${season === 0 ? seasonName(season) : `S${season}`}, E${episode}`;
+  return { full, short, inSeason: season === 0 ? full : `Episode ${episode}` }[form];
 }
 
 export function yearOf(date: string | undefined) {
