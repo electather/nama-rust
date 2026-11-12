@@ -417,8 +417,8 @@ impl<V> Titles<V> {
     }
 }
 
-/// The Versions of `shows`, a Shows Library's, that `title` names, or only its Version `only`, each
-/// file once, with the other Episodes those files hold.
+/// The Versions of `shows`, a Shows Library's, that `target` names, or only its Version `only`,
+/// each file once, with the other Episodes those files hold.
 fn doomed_episodes(
     library: Library,
     shows: &[contents::Show],
@@ -469,8 +469,9 @@ fn to_unmonitor_of<'a>(
     let number = |n: i64| u32::try_from(n).unwrap_or_default();
     let deleted = match target {
         Target::Show(_) => Deleted::EveryCurrentSeason(true),
-        // Not the Episodes another Season's file takes along: a file rarely spans Seasons.
+        // Its files take along only its own Episodes: a scan reads one Season per file name.
         Target::Season { number: season, .. } => Deleted::SeasonNumber(number(*season)),
+        // A Movie never gets here: `named_episodes` refused it.
         Target::Episode(_) | Target::Movie(_) => {
             let episodes = (episodes.map(|episode| EpisodeNumber {
                 season_number: number(episode.season),
@@ -493,15 +494,15 @@ fn to_unmonitor_of<'a>(
     Some(Title::from(show))
 }
 
-/// The Episodes of `shows` that `title` names, with its name for the log and their Show. A Movie
+/// The Episodes of `shows` that `target` names, with its name for the log and their Show. A Movie
 /// is in no Shows Library.
 fn named_episodes<'a>(
     shows: &'a [contents::Show],
-    title: &Target,
+    target: &Target,
 ) -> Result<(String, &'a contents::Show, Vec<&'a contents::Episode>), Error> {
     let show_of =
         |id: &ExternalId| (shows.iter().find(|show| &show.id == id)).ok_or(Error::NothingMatched);
-    match title {
+    match target {
         Target::Movie(_) => Err(Error::WrongKind {
             wanted: Kind::Movies,
         }),

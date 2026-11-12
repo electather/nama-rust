@@ -95,11 +95,11 @@ mod exports {
         /// Unmonitors the deleted Episodes, or Seasons and their Episodes. Sonarr keeps the Show
         /// monitored, and its new Seasons as they were, so a Followed Show still gets them.
         fn stop_monitoring(title: StopMonitoring) -> Result<(), Error> {
-            let Some(Title::Show(deleted)) = title.title else {
+            let Some(Title::Show(show_deleted)) = title.title else {
                 return Err(Error::msg("Sonarr stops monitoring only Shows"));
             };
             // Sonarr finds a Show only by its TVDB id, so one without it was never handed over.
-            let Some(tvdb_id) = deleted.show_tvdb_id else {
+            let Some(tvdb_id) = show_deleted.show_tvdb_id else {
                 return Ok(());
             };
             let sonarr = Sonarr::from_config()?;
@@ -110,7 +110,7 @@ mod exports {
             sonarr.wait_until_added(show.id)?;
             let episodes: Vec<Episode> =
                 sonarr.api.get(&format!("episode?seriesId={}", show.id))?;
-            let (seasons, episodes) = match deleted.deleted {
+            let (seasons, episodes) = match show_deleted.deleted {
                 Some(Deleted::EveryCurrentSeason(_)) => {
                     let seasons = show.seasons.iter().map(|season| season.season_number);
                     (seasons.collect(), episodes)
