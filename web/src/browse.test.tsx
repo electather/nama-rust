@@ -1,6 +1,6 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService, HdrFormat, type MovieSchema } from "@/gen/nama/v1/browse_pb";
@@ -170,4 +170,48 @@ test("a Show's Episodes each say the picture and sound of the Version they play"
   openApp("/libraries/2/shows/tmdb-95396", transport);
 
   expect(await screen.findByText("Feb 18, 2022 · 1080p · 7.1")).toBeDefined();
+});
+
+/** A fake Server with a Show whose only Season is `seasonNumber`, holding Episode 3, `title`, half watched, with `stillUrl`. */
+function serverWithEpisode(seasonNumber: number, title: string, stillUrl?: string) {
+  return serverToBrowse({
+    getShow: () => ({ show: { title: "Severance" }, seasons: [{ number: seasonNumber }] }),
+    listEpisodes: () => ({
+      episodes: [
+        {
+          seasonNumber,
+          episodeNumber: 3,
+          title,
+          overview: "Mark is promoted.",
+          runtimeMinutes: 55,
+          stillUrl,
+          versions: [{ id: 1n }],
+          watchState: { positionMs: 1_650_000n, durationMs: 3_300_000n },
+        },
+      ],
+    }),
+  });
+}
+
+test("a Show's Episode is a card with its Still, number, synopsis, runtime and progress", async () => {
+  const still = "/media/stills/1.jpg";
+  openApp("/libraries/2/shows/tmdb-95396", serverWithEpisode(1, "In Perpetuity", still));
+
+  const episode = await screen.findByRole("link", { name: /In Perpetuity/u });
+  expect(episode.getAttribute("href")).toBe(
+    "/libraries/2/shows/tmdb-95396/seasons/1/episodes/3/play",
+  );
+  expect(episode.querySelector("img")?.getAttribute("src")).toBe(still);
+  expect(within(episode).getByText("Episode 3")).toBeDefined();
+  expect(within(episode).getByText("Mark is promoted.")).toBeDefined();
+  expect(within(episode).getByText("55 min")).toBeDefined();
+  expect(within(episode).getByRole("progressbar", { name: "Watched" })).toBeDefined();
+});
+
+test("a Special without a Still shows the placeholder, named as a Special", async () => {
+  openApp("/libraries/2/shows/tmdb-95396", serverWithEpisode(0, "Behind the Scenes"));
+
+  const special = await screen.findByRole("link", { name: /Behind the Scenes/u });
+  expect(special.querySelector("img")).toBeNull();
+  expect(within(special).getByText("Specials, Episode 3")).toBeDefined();
 });

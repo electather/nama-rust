@@ -7,6 +7,9 @@ import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { useSrcSet } from "@/lib/image-sizes";
 import { kindName } from "@/lib/libraries";
 
+/** The `sizes` of an image as wide as a column of `BackdropGrid`, at each of its breakpoints. */
+const backdropGridSizes = "(min-width: 1024px) 315px, (min-width: 640px) 50vw, 100vw";
+
 /** A grid of `BackdropCard`s: one column on a phone, up to three on a desktop. */
 export function BackdropGrid({ children }: { children: ReactNode }) {
   return <ul className="mt-4 grid gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>;
@@ -57,8 +60,7 @@ export function BackdropCard({
           <img
             src={url}
             srcSet={srcSet}
-            // A column of `BackdropGrid` at each of its breakpoints.
-            sizes="(min-width: 1024px) 315px, (min-width: 640px) 50vw, 100vw"
+            sizes={backdropGridSizes}
             alt=""
             loading="lazy"
             className="absolute inset-0 size-full object-cover"
@@ -78,5 +80,35 @@ export function BackdropCard({
       {/* Always there, so the cards in a row line up whether or not each has a detail. */}
       <p className="mt-1.5 text-sm text-muted-foreground">{detail}</p>
     </>
+  );
+}
+
+/**
+ * An Episode's Still in a column of `BackdropGrid`, its thumbhash until it loads, or without one
+ * a plain box of the same size. A `span`, so it can sit inside a link.
+ */
+export function Still({
+  url,
+  thumbhash,
+}: {
+  url: string | undefined;
+  thumbhash: Uint8Array | undefined;
+}) {
+  const srcSet = useSrcSet(url);
+  return (
+    <span className="relative isolate block aspect-video overflow-hidden rounded-lg border bg-muted">
+      <Thumbhash thumbhash={thumbhash} />
+      {url !== undefined && (
+        // Its title is under it, so the image itself says nothing more.
+        <img
+          src={url}
+          srcSet={srcSet}
+          sizes={backdropGridSizes}
+          alt=""
+          loading="lazy"
+          className="size-full object-cover"
+        />
+      )}
+    </span>
   );
 }
