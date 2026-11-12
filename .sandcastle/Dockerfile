@@ -17,6 +17,10 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 RUN curl -fsSL "https://github.com/bufbuild/buf/releases/latest/download/buf-Linux-$(uname -m)" -o /usr/local/bin/buf \
   && chmod +x /usr/local/bin/buf
 
+# Refuses `git stash`: every sandbox is a worktree of the host repo, and git keeps refs/stash in the shared .git,
+# so concurrent agents popped each other's stashes (#750). /usr/local/bin comes before /usr/bin on PATH.
+COPY git-guard.sh /usr/local/bin/git
+
 # Headless Chromium, so a UI agent can screenshot its own screens (`playwright screenshot`).
 # As root: --with-deps apt-installs the browser's libraries.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
