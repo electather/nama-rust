@@ -635,9 +635,10 @@ async fn a_movie_has_its_title_logo_genres_and_content_rating() {
     }
 }
 
-/// TMDB has a logo for Heat only in German, and rates it only in Germany.
+/// TMDB has a Title Logo for Heat only in German, and rates it only in Germany.
 #[tokio::test]
-async fn a_movie_with_no_logo_in_the_providers_language_or_rating_in_its_country_has_neither() {
+async fn a_movie_with_no_title_logo_in_the_providers_language_or_rating_in_its_country_has_neither()
+{
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     fx.write("Heat {tmdb-949}/Heat.mkv", b"video");
     fx.scan_and_match().await;

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.library_id AS library,\n                      library_items.kind AS \"kind: ItemKind\", library_items.season,\n                      library_items.episode, item_matches.plugin AS \"plugin!\",\n                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,\n                      item_matches.show_tmdb_id, item_matches.show_imdb_id,\n                      item_matches.show_tvdb_id, item_matches.title AS \"title!\",\n                      item_matches.show_title, item_matches.release_date, item_matches.poster,\n                      item_matches.show_poster\n               FROM title_search\n               JOIN item_matches ON item_matches.item_id = title_search.rowid\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE title_search MATCH ?\n               ORDER BY title_search.rank",
+  "query": "SELECT library_files.library_id AS library,\n                      library_items.kind AS \"kind: ItemKind\", library_items.season,\n                      library_items.episode, item_matches.plugin AS \"plugin!\",\n                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,\n                      item_matches.show_tmdb_id, item_matches.show_imdb_id,\n                      item_matches.show_tvdb_id, item_matches.title AS \"title!\",\n                      item_matches.show_title, item_matches.release_date, item_matches.poster,\n                      item_matches.show_poster, item_matches.metadata_version\n               FROM title_search\n               JOIN item_matches ON item_matches.item_id = title_search.rowid\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE title_search MATCH ?\n               ORDER BY title_search.rank",
   "describe": {
     "columns": [
       {
@@ -178,6 +178,17 @@
             "name": "show_poster"
           }
         }
+      },
+      {
+        "name": "metadata_version",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "metadata_version"
+          }
+        }
       }
     ],
     "parameters": {
@@ -199,8 +210,9 @@
       true,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "4606a148f71c86410060c9e3d08bfb311f6bf0fc360dc2d89cb147dd7d2d9aff"
+  "hash": "520b4d6f3358d995b896605837d5f10bd8b57b93f0ee5c626ab965c1f26d61e8"
 }

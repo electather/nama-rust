@@ -221,7 +221,7 @@ async fn a_title_with_no_rating_in_the_settings_country_has_no_content_rating() 
 }
 
 #[tokio::test]
-async fn a_language_setting_naming_no_country_gives_no_content_rating() {
+async fn a_language_setting_naming_no_country_gives_no_content_rating_but_still_a_title_logo() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider_with(&fake, &[("api_key", API_KEY), ("language", "en")]);
 

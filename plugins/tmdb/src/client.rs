@@ -103,8 +103,8 @@ impl Client {
             .await
     }
 
-    /// The details of the Movie or Show at `path`, with its logos in the setting's language and
-    /// `ratings`, the field its ratings by country are appended as.
+    /// The details of the Movie or Show at `path`, with its Title Logos in the setting's language
+    /// and `ratings`, the field its ratings by country are appended as.
     async fn title_details<T: DeserializeOwned>(
         &self,
         path: &str,

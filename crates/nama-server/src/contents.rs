@@ -305,6 +305,8 @@ pub(crate) struct Show<V = Version> {
     pub(crate) title: String,
     /// Its own Poster: see [`Show::poster`] for the one it shows.
     pub(crate) own_poster: Option<String>,
+    /// The [`METADATA_VERSION`] that stored `own_poster`.
+    pub(crate) metadata_version: i64,
     pub(crate) backdrop: Option<String>,
     pub(crate) overview: Option<String>,
     pub(crate) first_air_date: Option<String>,
@@ -315,15 +317,23 @@ pub(crate) struct Show<V = Version> {
     pub(crate) seasons: BTreeMap<i64, Season<V>>,
 }
 
-/// A Show's Poster: `own`, or else, as for a Match stored before Matches had a Show's own, the
-/// Poster of the lowest-numbered Season after the Specials (Season 0) that has one, or else the
-/// Specials'. `seasons` are Season numbers with their Posters, in any order. A Season's Custom
-/// Poster never stands for its Show.
+/// The [`METADATA_VERSION`] whose Matches first stored a Show's own Poster.
+const SHOW_POSTERS_SINCE: i64 = 2;
+
+/// A Show's Poster: `own`, from a Match stored at metadata version `version`. A Match stored
+/// before Matches had a Show's own has, until refreshed, the Poster of the lowest-numbered Season
+/// after the Specials (Season 0) that has one, or else the Specials'. `seasons` are Season numbers
+/// with their Posters, in any order. A Season's Custom Poster never stands for its Show.
 fn show_poster<'a>(
     own: Option<&'a str>,
+    version: i64,
     seasons: impl IntoIterator<Item = (i64, Option<&'a str>)>,
 ) -> Option<&'a str> {
-    own.or_else(|| first_season_poster(seasons))
+    if version < SHOW_POSTERS_SINCE {
+        first_season_poster(seasons)
+    } else {
+        own
+    }
 }
 
 fn first_season_poster<'a>(
@@ -340,7 +350,7 @@ impl<V> Show<V> {
     pub(crate) fn poster(&self) -> Option<&str> {
         let seasons =
             (self.seasons.iter()).map(|(&number, season)| (number, season.poster.as_deref()));
-        show_poster(self.own_poster.as_deref(), seasons)
+        show_poster(self.own_poster.as_deref(), self.metadata_version, seasons)
     }
 
     /// Every Episode of every Season, by season and episode number.
@@ -368,6 +378,7 @@ impl<V> Show<V> {
             plugin: self.plugin,
             title: self.title,
             own_poster: self.own_poster,
+            metadata_version: self.metadata_version,
             backdrop: self.backdrop,
             overview: self.overview,
             first_air_date: self.first_air_date,
@@ -1047,7 +1058,8 @@ impl Contents {
                       item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop,
                       item_matches.still, item_matches.title_logo, item_matches.genres,
                       item_matches.content_rating, item_matches.show_poster,
-                      item_matches.show_overview, item_matches.show_first_air_date
+                      item_matches.show_overview, item_matches.show_first_air_date,
+                      item_matches.metadata_version
                FROM item_matches
                JOIN library_items ON library_items.id = item_matches.item_id
                JOIN library_files ON library_files.id = library_items.file_id
@@ -1083,6 +1095,7 @@ impl Contents {
                 plugin: row.plugin.clone(),
                 title: row.show_title,
                 own_poster: row.show_poster,
+                metadata_version: row.metadata_version,
                 backdrop: row.backdrop,
                 overview: row.show_overview,
                 first_air_date: row.show_first_air_date,
@@ -1188,7 +1201,7 @@ impl Contents {
                       item_matches.show_tmdb_id, item_matches.show_imdb_id,
                       item_matches.show_tvdb_id, item_matches.title AS "title!",
                       item_matches.show_title, item_matches.release_date, item_matches.poster,
-                      item_matches.show_poster
+                      item_matches.show_poster, item_matches.metadata_version
                FROM title_search
                JOIN item_matches ON item_matches.item_id = title_search.rowid
                JOIN library_items ON library_items.id = item_matches.item_id
@@ -1346,6 +1359,7 @@ struct SearchRow {
     release_date: Option<String>,
     poster: Option<String>,
     show_poster: Option<String>,
+    metadata_version: i64,
 }
 
 impl SearchRow {
@@ -1394,7 +1408,8 @@ fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
             id: id.clone(),
             plugin: row.plugin.clone(),
             title: title.clone(),
-            poster: show_poster(row.show_poster.as_deref(), seasons).map(str::to_owned),
+            poster: show_poster(row.show_poster.as_deref(), row.metadata_version, seasons)
+                .map(str::to_owned),
         });
     }
     shows
@@ -2201,7 +2216,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{
-        Change, Contents, Decided, FileItem, Item, Metadata, Pin,
+        Change, Contents, Decided, FileItem, Item, METADATA_VERSION, Metadata, Pin,
         fixture::{MatchedMovie, decide, tmdb_movie},
         show_poster,
     };
@@ -2809,15 +2824,26 @@ mod tests {
     }
 
     #[test]
-    fn without_its_own_a_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
+    fn an_unrefreshed_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
         let specials_and_first = [(0, Some("/specials.jpg")), (1, Some("/1.jpg"))];
         let first_without = [(2, Some("/2.jpg")), (1, None)];
         let specials_alone = [(0, Some("/specials.jpg"))];
         let none = [(0, None), (1, None)];
 
-        assert_eq!(show_poster(None, specials_and_first), Some("/1.jpg"));
-        assert_eq!(show_poster(None, first_without), Some("/2.jpg"));
-        assert_eq!(show_poster(None, specials_alone), Some("/specials.jpg"));
-        assert_eq!(show_poster(None, none), None);
+        assert_eq!(show_poster(None, 0, specials_and_first), Some("/1.jpg"));
+        assert_eq!(show_poster(None, 0, first_without), Some("/2.jpg"));
+        assert_eq!(show_poster(None, 0, specials_alone), Some("/specials.jpg"));
+        assert_eq!(show_poster(None, 0, none), None);
+    }
+
+    #[test]
+    fn a_refreshed_show_without_its_own_poster_has_none_not_a_seasons() {
+        let seasons = [(1, Some("/1.jpg"))];
+
+        assert_eq!(show_poster(None, METADATA_VERSION, seasons), None);
+        assert_eq!(
+            show_poster(Some("/own.jpg"), METADATA_VERSION, seasons),
+            Some("/own.jpg")
+        );
     }
 }
