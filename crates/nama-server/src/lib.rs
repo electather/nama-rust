@@ -22,7 +22,6 @@ mod plugin_logos;
 pub mod plugin_settings;
 pub mod plugins;
 mod probing;
-mod qualities;
 mod rate_limits;
 mod requests;
 mod scanner;

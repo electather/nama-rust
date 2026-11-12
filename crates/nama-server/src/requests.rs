@@ -40,13 +40,14 @@ use crate::{
     library::contents::{self, Contents, Metadata},
     metadata::{self, MetadataSource},
     plugins::{Answer, ExtensionPoints},
-    qualities,
     users::User,
 };
 
 mod asked;
 mod hand_off;
 mod progress;
+// Neighbours address it as `requests::qualities`: its names (`list`, `Refused`) read only with it.
+pub(crate) mod qualities;
 
 pub(crate) use asked::{Asked, may_see};
 use hand_off::HandOff;

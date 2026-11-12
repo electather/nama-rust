@@ -26,7 +26,7 @@ use crate::{
         CheckError, EnableError, ExtensionPoints, LastProvider, Listed, Registry, installed,
         log_not_enabled,
     },
-    qualities,
+    requests::qualities,
 };
 
 /// The `schema_meta` key whose presence records that the config was imported.

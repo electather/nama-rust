@@ -27,7 +27,8 @@ use super::{
     Applied, Error, MovieOrSeason, RequestedMovie, RequestedSeason, Requests, STATES, Wanted,
     WantedSeasons, approve, ask, ask_movie, ask_seasons, asked, availability, cancel,
     cancel_followed, decide_followed, decline, follow, is_open, load, load_one,
-    make_seasons_available, opening_state, progress, retry, settle, withdraw, withdraw_followed,
+    make_seasons_available, opening_state, progress, qualities, retry, settle, withdraw,
+    withdraw_followed,
 };
 use crate::{
     artwork::Artwork,
@@ -41,7 +42,6 @@ use crate::{
         fixture::{MatchedMovie, movies_library, tmdb_movie},
     },
     plugins::{Answer, ExtensionPoints, Failure, Registry},
-    qualities,
     scanner::Scanner,
     server_settings::ServerUrl,
     users::{Permissions, User},

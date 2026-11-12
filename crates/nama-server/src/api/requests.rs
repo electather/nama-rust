@@ -27,8 +27,7 @@ use crate::{
     artwork::Artwork,
     custom_images::{Role, Slot},
     library::contents::Metadata,
-    qualities,
-    requests::{self, Asked, Found, FoundShow, Hit, Requests},
+    requests::{self, Asked, Found, FoundShow, Hit, Requests, qualities},
 };
 
 use super::{

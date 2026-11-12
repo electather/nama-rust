@@ -26,7 +26,7 @@ use crate::{
     plugin_logos::PluginLogos,
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
-    qualities,
+    requests::qualities,
 };
 
 use super::{database_failed, refuse};
