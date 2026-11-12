@@ -281,6 +281,11 @@ pub mod __buffa {
         reg.register_json_any(super::__UPDATE_PLAYBACK_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UPDATE_PLAYBACK_SETTINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_SETTINGS_JSON_ANY);
+        reg.register_json_any(super::__GET_IMAGE_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_IMAGE_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_IMAGE_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_IMAGE_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__IMAGE_SETTINGS_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
         reg.register_json_any(super::__DEVICE_JSON_ANY);
         reg.register_json_any(super::__SETUP_REQUEST_JSON_ANY);
@@ -1182,6 +1187,26 @@ pub use self::__buffa::view::UpdatePlaybackSettingsResponseOwnedView;
 pub use self::__buffa::view::PlaybackSettingsView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackSettingsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetImageSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetImageSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetImageSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetImageSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateImageSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateImageSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateImageSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateImageSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageSettingsView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageSettingsOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserView;
 #[doc(inline)]

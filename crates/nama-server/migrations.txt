@@ -45,3 +45,4 @@
 0045_track_preferences.sql
 0046_audio_preferences.sql
 0047_keep_behind.sql
+0048_image_settings.sql

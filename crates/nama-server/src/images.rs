@@ -1,7 +1,10 @@
 //! The images the Server keeps, as plain files in the data directory (ADR 0037).
 //!
 //! Only [`ImageStore`] reads or writes them (`AGENTS.md`). A key names an image by a few parts,
-//! each escaped to one file name, so no key reaches outside the store.
+//! each escaped to one file name, so no key reaches outside the store. Resized copies are kept
+//! apart, in a `resized` folder, and can be deleted at any time (ADR 0039).
+
+mod resized;
 
 use std::{
     io::{self, Write as _},
@@ -15,10 +18,40 @@ use axum::{
 };
 use tower_http::services::ServeFile;
 
+use resized::ResizeThread;
+
+/// The widths an image is resized to, smallest first: those the web app's Poster grid and
+/// Backdrops are shown at, at one to three device pixels per CSS pixel. Any other is refused.
+pub const WIDTHS: [u32; 7] = [320, 480, 640, 960, 1280, 1920, 2560];
+
+/// The folder in the data directory resized copies are kept in. No key's first part may be this.
+const RESIZED_DIR: &str = "resized";
+
 /// Stored images, under the data directory.
+///
+/// Clones share one thread that resizes images, so make one store for the Server.
 #[derive(Debug, Clone)]
 pub struct ImageStore {
     dir: PathBuf,
+    resizer: ResizeThread,
+}
+
+/// A resized copy asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Resize {
+    width: u32,
+    cache_limit: u64,
+}
+
+impl Resize {
+    /// A copy `width` pixels wide, keeping the resized copies within `cache_limit` bytes, or
+    /// `None` if `width` isn't one of [`WIDTHS`].
+    #[must_use]
+    pub fn to(width: u32, cache_limit: u64) -> Option<Self> {
+        WIDTHS
+            .contains(&width)
+            .then_some(Self { width, cache_limit })
+    }
 }
 
 impl ImageStore {
@@ -27,6 +60,7 @@ impl ImageStore {
     pub fn new(data_dir: &Path) -> Self {
         Self {
             dir: data_dir.to_owned(),
+            resizer: ResizeThread::start(),
         }
     }
 
@@ -52,6 +86,11 @@ impl ImageStore {
     /// The image at `key` as the answer to `request`, sent as `content_type`: 404 if none is
     /// stored, 304 for a matching `If-None-Match`, else the bytes with an `ETag`.
     ///
+    /// With a `resize`, it is sent as a JPEG copy that wide, made the first time it is asked for,
+    /// or else as it is stored where it can't or needn't be resized (see `make_copy`), varying by
+    /// `Accept` either way. The copy is made from the image's key alone, so it is never made again
+    /// if the image at `key` changes.
+    ///
     /// Browsers keep the response for good, so serve it only at a URL that names these bytes
     /// alone: a Provider's path, or a version taken from the bytes.
     ///
@@ -62,34 +101,54 @@ impl ImageStore {
         &self,
         key: &[&str],
         content_type: &'static str,
+        resize: Option<Resize>,
         request: Request,
     ) -> io::Result<Response> {
-        let mut response = match ServeFile::new(self.path(key)).try_call(request).await {
-            Ok(response) => response.into_response(),
-            // Without a fallback, `try_call` hands a missing file back as an error.
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                StatusCode::NOT_FOUND.into_response()
-            }
-            Err(err) => return Err(err),
+        let Some(resize) = resize else {
+            return serve_file(self.path(key), content_type, request).await;
         };
-        let status = response.status();
-        let headers = response.headers_mut();
-        // An unnamed type stays a download: no browser guesses it is HTML.
-        headers.insert(
-            header::X_CONTENT_TYPE_OPTIONS,
-            HeaderValue::from_static("nosniff"),
-        );
-        if status.is_success() {
-            // `ServeFile` guesses by extension, and would send an SVG as an image.
-            headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
-        }
-        if status.is_success() || status == StatusCode::NOT_MODIFIED {
-            headers.insert(
-                header::CACHE_CONTROL,
-                HeaderValue::from_static("private, max-age=31536000, immutable"),
-            );
-        }
+        let copy = self.copy_path(key, resize.width);
+        let mut response = if self.has_copy(key, &copy, resize).await? {
+            serve_file(copy, "image/jpeg", request).await?
+        } else {
+            serve_file(self.path(key), content_type, request).await?
+        };
+        // The JPEG XL ticket sends another format to browsers that accept it.
+        response
+            .headers_mut()
+            .insert(header::VARY, HeaderValue::from_static("accept"));
         Ok(response)
+    }
+
+    /// Whether the copy at `copy` of the image at `key` is there to send, made now if it wasn't.
+    /// An image that can't be resized is logged and sent as stored.
+    async fn has_copy(&self, key: &[&str], copy: &Path, resize: Resize) -> io::Result<bool> {
+        let touched = copy.to_owned();
+        match tokio::task::spawn_blocking(move || resized::touch(&touched)).await? {
+            Ok(()) => return Ok(true),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err),
+        }
+        let (original, copy) = (self.path(key), copy.to_owned());
+        let cache = self.dir.join(RESIZED_DIR);
+        let made = self
+            .resizer
+            .run(move || {
+                let made = resized::make_copy(&original, &copy, resize.width);
+                if matches!(made, Ok(true))
+                    && let Err(err) = resized::evict(&cache, resize.cache_limit)
+                {
+                    tracing::error!("could not keep the resized images within their limit: {err}");
+                }
+                made.map_err(|err| format!("could not resize {}: {err}", original.display()))
+            })
+            .await;
+        // The thread having stopped, or a resize having panicked, is one more failed resize.
+        let made = made.map_err(|err| err.to_string()).and_then(|made| made);
+        Ok(made.unwrap_or_else(|err| {
+            tracing::warn!("{err}, so it is sent as it is");
+            false
+        }))
     }
 
     /// Deletes the image at `key`, if one is stored.
@@ -108,24 +167,67 @@ impl ImageStore {
         key.iter()
             .fold(self.dir.clone(), |path, part| path.join(file_name(part)))
     }
+
+    /// Where the copy `width` pixels wide of the image at `key` is kept.
+    fn copy_path(&self, key: &[&str], width: u32) -> PathBuf {
+        let folder = key.iter().fold(self.dir.join(RESIZED_DIR), |path, part| {
+            path.join(file_name(part))
+        });
+        folder.join(format!("{width}.jpg"))
+    }
+}
+
+/// The file at `path` as the answer to `request`, sent as `content_type`, as [`ImageStore::serve`]
+/// says.
+async fn serve_file(
+    path: PathBuf,
+    content_type: &'static str,
+    request: Request,
+) -> io::Result<Response> {
+    let mut response = match ServeFile::new(path).try_call(request).await {
+        Ok(response) => response.into_response(),
+        // Without a fallback, `try_call` hands a missing file back as an error.
+        Err(err) if err.kind() == io::ErrorKind::NotFound => StatusCode::NOT_FOUND.into_response(),
+        Err(err) => return Err(err),
+    };
+    let status = response.status();
+    let headers = response.headers_mut();
+    // An unnamed type stays a download: no browser guesses it is HTML.
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    if status.is_success() {
+        // `ServeFile` guesses by extension, and would send an SVG as an image.
+        headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    }
+    if status.is_success() || status == StatusCode::NOT_MODIFIED {
+        headers.insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("private, max-age=31536000, immutable"),
+        );
+    }
+    Ok(response)
 }
 
 /// Writes `bytes` to `path` so no reader ever sees a partial file, even if two writes of the
 /// same file race or the machine stops midway.
 pub(crate) async fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let (path, bytes) = (path.to_owned(), bytes.to_vec());
-    tokio::task::spawn_blocking(move || {
-        let dir = path.parent().unwrap_or_else(|| Path::new("."));
-        std::fs::create_dir_all(dir)?;
-        // Its name starts with `.`, which `file_name` never gives, so no key names it.
-        let mut partial = tempfile::NamedTempFile::new_in(dir)?;
-        partial.write_all(&bytes)?;
-        // Synced before the rename, or a crash can leave a whole name over an empty file.
-        partial.as_file().sync_all()?;
-        partial.persist(&path)?;
-        Ok(())
-    })
-    .await?
+    tokio::task::spawn_blocking(move || write_now(&path, &bytes)).await?
+}
+
+/// [`write_atomically`], blocking the thread it runs on.
+fn write_now(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let dir = path.parent().unwrap_or_else(|| Path::new("."));
+    std::fs::create_dir_all(dir)?;
+    // Its name starts with `.`, which `file_name` never gives, so no key names it.
+    let mut partial = tempfile::NamedTempFile::new_in(dir)?;
+    partial.write_all(bytes)?;
+    // Synced before the rename, or a crash can leave a whole name over an empty file.
+    partial.as_file().sync_all()?;
+    partial.persist(path)?;
+    Ok(())
 }
 
 /// `text` as one safe file name: letters, digits, `-`, `_` and (except first) `.` are kept, and
@@ -193,7 +295,7 @@ mod tests {
         let request = Request::get("/").body(Body::empty()).unwrap();
 
         let response = ImageStore::new(data.path())
-            .serve(KEY, "image/jpeg", request)
+            .serve(KEY, "image/jpeg", None, request)
             .await
             .unwrap();
 

@@ -23,8 +23,11 @@ RUN useradd --uid 1000 --user-group --home-dir /data --shell /usr/sbin/nologin n
 ARG TARGETARCH
 COPY --chmod=755 ${TARGETARCH}/nama-server /usr/local/bin/nama-server
 
-# The NVIDIA container runtime mounts NVENC's libraries only when `video` is asked for.
+# The NVIDIA container runtime mounts NVENC's libraries only when `video` is asked for. The mmap
+# threshold hands a finished image resize's memory back to the system, which glibc would otherwise
+# keep (ADR 0039).
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,video,utility \
+    GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072 \
     NAMA_DATA_DIR=/data \
     NAMA_FFMPEG=/usr/lib/jellyfin-ffmpeg/ffmpeg \
     NAMA_FFPROBE=/usr/lib/jellyfin-ffmpeg/ffprobe

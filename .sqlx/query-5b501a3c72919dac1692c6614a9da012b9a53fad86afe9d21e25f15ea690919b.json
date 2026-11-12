@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO server_settings (id, url, resize_images, resized_cache_mib)\n                         VALUES (1, '', ?, ?)\n                         ON CONFLICT (id) DO UPDATE SET\n                             resize_images = excluded.resize_images,\n                             resized_cache_mib = excluded.resized_cache_mib",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "5b501a3c72919dac1692c6614a9da012b9a53fad86afe9d21e25f15ea690919b"
+}

@@ -16,16 +16,18 @@ testing = ["dep:nama-plugin-test-choices"]
 web = []
 
 [dependencies]
-axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "http2", "query", "tokio"] }
 base64 = "0.23"
 buffa = "0.9.2"
 clap = { version = "4", features = ["derive", "env"] }
 connectrpc = { version = "0.9.1", features = ["axum"] }
 extism = { version = "1.41.0", default-features = false, features = ["http", "wasmtime-default-features"] }
+fast_image_resize = { version = "6", features = ["image"] }
 figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 getrandom = "0.4"
 glob = "0.3"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 isolang = { version = "2.4", default-features = false }
 nama-plugin-api = { version = "0.1.0", path = "../nama-plugin-api" }
 nama-plugin-local-auth = { version = "0.1.0", path = "../../plugins/local-auth" }

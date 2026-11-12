@@ -11,10 +11,11 @@ use std::net::SocketAddr;
 use buffa::EnumValue;
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
-    FoundHardware, FoundProgram, GetPlaybackSettingsRequest, GetPlaybackStatusRequest,
-    GetPlaybackStatusResponse, GetServerInfoRequest, GetServerInfoResponse,
-    GetServerSettingsRequest, Gpu, HardwareAcceleration, PlaybackLimit, PlaybackSettings,
-    RefusalReason, ServerServiceClient, ServerSettings, ToneMapping, UpdatePlaybackSettingsRequest,
+    FoundHardware, FoundProgram, GetImageSettingsRequest, GetPlaybackSettingsRequest,
+    GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetServerInfoRequest,
+    GetServerInfoResponse, GetServerSettingsRequest, Gpu, HardwareAcceleration, ImageSettings,
+    PlaybackLimit, PlaybackSettings, RefusalReason, ServerServiceClient, ServerSettings,
+    ToneMapping, UpdateImageSettingsRequest, UpdatePlaybackSettingsRequest,
     UpdateServerSettingsRequest,
 };
 #[cfg(unix)]
@@ -99,6 +100,7 @@ async fn a_plain_http1_json_post_gets_a_json_answer() {
         body,
         serde_json::json!({
             "name": "Attic",
+            "imageWidths": [320, 480, 640, 960, 1280, 1920, 2560],
             "version": env!("CARGO_PKG_VERSION"),
         })
     );
@@ -566,6 +568,83 @@ async fn a_transcode_cap_set_to_0_is_refused_naming_it_and_nothing_changes() {
     );
     assert_eq!(refusal.field, "settings.max_transcodes");
     assert_eq!(segment_folder(&client).await, "");
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn image_settings(client: &ServerServiceClient<HttpClient>) -> ImageSettings {
+    let got = client.get_image_settings(GetImageSettingsRequest::default());
+    got.await
+        .unwrap()
+        .into_owned()
+        .settings
+        .into_option()
+        .unwrap()
+}
+
+fn set_image_settings(
+    resize_images: bool,
+    resized_cache_mib: Option<u32>,
+) -> UpdateImageSettingsRequest {
+    UpdateImageSettingsRequest {
+        settings: ImageSettings {
+            resize_images,
+            resized_cache_mib,
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn images_are_resized_by_default_and_the_image_settings_are_returned_as_saved() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let default = image_settings(&client).await;
+
+    client
+        .update_image_settings(set_image_settings(false, Some(64)))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        (default.resize_images, default.resized_cache_mib),
+        (true, None)
+    );
+    let saved = image_settings(&client).await;
+    assert_eq!(
+        (saved.resize_images, saved.resized_cache_mib),
+        (false, Some(64))
+    );
+}
+
+#[tokio::test]
+async fn a_resized_cache_of_0_is_refused_naming_it_and_nothing_changes() {
+    let server = TestServer::builder().start().await;
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    client
+        .update_image_settings(set_image_settings(true, Some(64)))
+        .await
+        .unwrap();
+
+    let updated = client
+        .update_image_settings(set_image_settings(false, Some(0)))
+        .await;
+
+    let refusal = assert_refused(
+        updated,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "settings.resized_cache_mib");
+    let kept = image_settings(&client).await;
+    assert_eq!(
+        (kept.resize_images, kept.resized_cache_mib),
+        (true, Some(64))
+    );
 }
 
 fn keep_behind(minutes: Option<u32>) -> UpdatePlaybackSettingsRequest {

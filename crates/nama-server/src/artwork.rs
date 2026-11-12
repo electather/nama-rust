@@ -8,7 +8,8 @@
 //!
 //! Clients fetch them over plain HTTP at `/media/artwork/<plugin>/<path>` (ADR 0007: media bytes
 //! are not RPC), which is served to anyone with a session. A Provider's path names bytes that
-//! never change, so a browser caches what it fetched there for good.
+//! never change, so a browser caches what it fetched there for good. Adding `?width=` asks for a
+//! copy resized to one of [`crate::images::WIDTHS`] while an admin leaves resizing on (ADR 0039).
 
 use std::{
     collections::HashSet,
@@ -19,18 +20,20 @@ use std::{
 
 use axum::{
     Router,
-    extract::{Path as UrlPath, Request, State},
+    extract::{Path as UrlPath, Query, Request, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
 };
 use nama_plugin_api::PluginId;
+use serde::Deserialize;
 
 use crate::{
     contents::Contents,
-    images::{ImageStore, file_name},
+    images::{ImageStore, Resize, file_name},
     metadata::{self, MetadataSource},
     plugins::ExtensionPoints,
+    server_settings::ImageSettings,
 };
 
 const DIR: &str = "artwork";
@@ -123,12 +126,13 @@ impl Artwork {
         &self,
         plugin: &str,
         path: &str,
+        resize: Option<Resize>,
         request: Request,
     ) -> Result<Response, Error> {
         self.keep(&PluginId::from(plugin.to_owned()), path).await?;
         Ok(self
             .store
-            .serve(&key(plugin, path), content_type(path), request)
+            .serve(&key(plugin, path), content_type(path), resize, request)
             .await?)
     }
 }
@@ -146,18 +150,34 @@ pub(crate) fn url(plugin: &str, path: &str) -> String {
 }
 
 /// Serves `GET` [`url`]s, 404 unless `artwork` offered the image or `contents` has a Match that
-/// stores it. Whether the caller has a session is up to the layers the router is put behind.
-pub(crate) fn router(artwork: Artwork, contents: Contents) -> Router {
+/// stores it, resized as `images` says. Whether the caller has a session is up to the layers the
+/// router is put behind.
+pub(crate) fn router(artwork: Artwork, contents: Contents, images: ImageSettings) -> Router {
     Router::new()
         .route("/media/artwork/{plugin}/{path}", get(serve))
-        .with_state((artwork, contents))
+        .with_state((artwork, contents, images))
+}
+
+/// What an image's URL asks for after the `?`.
+#[derive(Debug, Deserialize)]
+struct Asked {
+    width: Option<u32>,
 }
 
 async fn serve(
-    State((artwork, contents)): State<(Artwork, Contents)>,
+    State((artwork, contents, images)): State<(Artwork, Contents, ImageSettings)>,
     UrlPath((plugin, path)): UrlPath<(String, String)>,
+    Query(asked): Query<Asked>,
     request: Request,
 ) -> Response {
+    let resize = match (asked.width, images.resizing()) {
+        (Some(width), Some(cache_limit)) => match Resize::to(width, cache_limit) {
+            Some(resize) => Some(resize),
+            None => return StatusCode::BAD_REQUEST.into_response(),
+        },
+        // With resizing off, a width is ignored.
+        _ => None,
+    };
     let allowed = if artwork.was_offered(&plugin, &path) {
         Ok(true)
     } else {
@@ -171,7 +191,7 @@ async fn serve(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     }
-    match artwork.serve_image(&plugin, &path, request).await {
+    match artwork.serve_image(&plugin, &path, resize, request).await {
         Ok(response) => response,
         Err(Error::NotFound) => StatusCode::NOT_FOUND.into_response(),
         Err(err @ Error::Unavailable(_)) => {
@@ -219,7 +239,7 @@ mod tests {
 
         let request = Request::get("/").body(Body::empty()).unwrap();
         let response = artwork
-            .serve_image("tmdb", "/logo.svg", request)
+            .serve_image("tmdb", "/logo.svg", None, request)
             .await
             .unwrap();
 

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { PlayedMark, WatchedBar } from "@/components/watch-state";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
+import { useSrcSet } from "@/lib/image-sizes";
 
 /** The classes for a link wrapping a `Poster`, which shows focus around it. */
 export const posterLink =
@@ -33,12 +34,21 @@ export function Poster({
   detail?: string | undefined;
   watchState?: WatchState | undefined;
 }) {
+  const srcSet = useSrcSet(url);
   return (
     <>
       <div className="relative aspect-2/3 overflow-hidden rounded-lg border bg-muted">
         {url !== undefined && (
           // Its title is the caption, so the image itself says nothing more.
-          <img src={url} alt="" loading="lazy" className="size-full object-cover" />
+          <img
+            src={url}
+            srcSet={srcSet}
+            // A column of `PosterGrid` at each of its breakpoints.
+            sizes="(min-width: 1024px) 183px, (min-width: 768px) 22vw, (min-width: 640px) 30vw, 45vw"
+            alt=""
+            loading="lazy"
+            className="size-full object-cover"
+          />
         )}
         <PlayedMark state={watchState} />
       </div>
