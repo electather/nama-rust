@@ -7,7 +7,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import type { Movie, Season, Show } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { browseKey, seasonName, titleParam } from "@/lib/browse";
+import { seasonName, titleParam } from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
 /** One of a title's images as the Server sends it, and where its Custom Image goes. */
@@ -37,11 +37,14 @@ export interface ImageRules {
   accept: string;
   /** Why the Server refused an upload or removal, by its HTTP status. */
   refusals: Partial<Record<number, string>>;
-  /** The queries that send its URL. */
+  /** The queries that send its URL; `[]` is every query. */
   queryKey: QueryKey;
 }
 
-/** A title's Poster or Backdrop, which Browse sends. */
+/**
+ * A title's Poster or Backdrop, which Browse sends, and the Libraries too, since a title's Backdrop
+ * can be its Library's.
+ */
 const titleImages: ImageRules = {
   accept: "image/jpeg,image/png,image/webp",
   refusals: {
@@ -50,7 +53,7 @@ const titleImages: ImageRules = {
     415: "That isn’t a JPEG, PNG or WebP image.",
     422: "That image is over 12 megapixels. Pick a smaller one.",
   },
-  queryKey: browseKey,
+  queryKey: [],
 };
 
 /** A Movie's Poster and Backdrop, for {@link EditImages}. */
@@ -151,7 +154,7 @@ export function EditImages({ title, images }: { title: string; images: EditableI
 }
 
 /** One image, with a way to change it. */
-function ImageChoice({ image }: { image: EditableImage }) {
+export function ImageChoice({ image }: { image: EditableImage }) {
   return (
     <figure className="flex items-start gap-4">
       <Preview image={image} />

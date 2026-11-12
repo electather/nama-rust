@@ -628,6 +628,7 @@ mod tests {
     use crate::{
         artwork::Artwork,
         contents::{Change, Contents, Decided, FileItem, Item, Recorded},
+        custom_images::CustomImages,
         db::Database,
         events::{EventBus, Filter, event},
         libraries::{Kind, Libraries},
@@ -704,6 +705,7 @@ mod tests {
                 Arc::clone(&db),
                 plugins.extension_points(),
                 Artwork::new(data.path(), plugins.extension_points()),
+                CustomImages::new(Arc::clone(&db), data.path()),
                 events.clone(),
                 None,
                 None,

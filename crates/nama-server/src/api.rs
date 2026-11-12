@@ -153,9 +153,11 @@ pub(crate) fn router(
             plugin_logos: plugin_logos.clone(),
         }))
         .add_service(Arc::new(LibraryServiceHandler {
-            libraries: Libraries::new(db),
+            libraries: Libraries::new(Arc::clone(&db)),
             scanner,
             browse,
+            contents: Contents::new(db),
+            custom_images: custom_images.clone(),
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,
@@ -306,8 +308,8 @@ const ACCESS: &[(&str, Access)] = &[
 ];
 
 /// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media
-/// routes share, and uploading or removing a Plugin's or a title's Custom Image. The first prefix
-/// a path starts with decides.
+/// routes share, and uploading or removing a Plugin's, a title's or a Library's Custom Image. The
+/// first prefix a path starts with decides.
 const PREFIXES: [(&str, Access); 3] = [
     ("/media/", Access::SignedIn),
     ("/custom-images/plugin/", MANAGE_SETTINGS),

@@ -277,6 +277,18 @@ impl ImageStore {
         }
     }
 
+    /// Deletes the folder at `key` and every image in it, if it is there.
+    ///
+    /// # Errors
+    ///
+    /// If the folder is there but can't be deleted.
+    pub async fn delete_dir(&self, key: &[&str]) -> io::Result<()> {
+        match tokio::fs::remove_dir_all(self.path(key)).await {
+            Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err),
+            _ => Ok(()),
+        }
+    }
+
     /// The key of every image stored under `dir`, each starting with `dir`.
     ///
     /// # Errors

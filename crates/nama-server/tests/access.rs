@@ -514,7 +514,8 @@ async fn a_user_who_manages_libraries_may_manage_libraries_and_matches_but_not_u
 }
 
 /// Uploading or removing a Custom Image is plain HTTP, not an RPC, and needs a Permission all the
-/// same: a title's `PERMISSION_MANAGE_LIBRARIES`, and a Plugin's `PERMISSION_MANAGE_SETTINGS`.
+/// same: a title's or Library's `PERMISSION_MANAGE_LIBRARIES`, and a Plugin's
+/// `PERMISSION_MANAGE_SETTINGS`.
 #[tokio::test]
 async fn only_a_user_with_its_permission_may_upload_or_remove_a_custom_image() {
     let server = TestServer::builder().start().await;
@@ -524,6 +525,12 @@ async fn only_a_user_with_its_permission_may_upload_or_remove_a_custom_image() {
     for (path, allowed, refused, needed) in [
         (
             "/custom-images/movie/tmdb-348/poster",
+            &ada,
+            &grace,
+            Permission::ManageLibraries,
+        ),
+        (
+            "/custom-images/library/1/backdrop",
             &ada,
             &grace,
             Permission::ManageLibraries,
