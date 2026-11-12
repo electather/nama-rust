@@ -129,7 +129,8 @@ impl TrackPreferences {
         foreign_audio_only: bool,
     ) -> Result<(), sqlx::Error> {
         let like = like(preference);
-        (self.keep(user, KeptFor::USERS_OWN, SUBTITLE, like, foreign_audio_only)).await
+        self.keep(user, KeptFor::USERS_OWN, SUBTITLE, like, foreign_audio_only)
+            .await
     }
 
     /// Keeps a Track like `picked` as the User `user`'s Audio Preference for `kept_for`, in place
@@ -145,7 +146,8 @@ impl TrackPreferences {
             title: picked.title,
             ..Description::default()
         };
-        (self.keep(user, kept_for, AUDIO, Some(description), false)).await
+        self.keep(user, kept_for, AUDIO, Some(description), false)
+            .await
     }
 
     /// The Subtitle Preference a plan of the Version `version` starts with for the User `user`:
@@ -352,7 +354,8 @@ fn preferred_subtitle(row: Row) -> Preferred<SubtitlePreference> {
             .preference
             .map_or(SubtitlePreference::Off, SubtitlePreference::Like),
         users_own: row.users_own,
-        foreign_audio_only: row.foreign_audio_only,
+        // ADR 0035: a Show's or Movie's has no condition, whatever its row holds.
+        foreign_audio_only: row.users_own && row.foreign_audio_only,
     }
 }
 
@@ -551,6 +554,69 @@ mod tests {
         );
     }
 
+    /// Full English subtitles.
+    fn english() -> SubtitlePreference {
+        SubtitlePreference::Like(Description {
+            language: Some("en".to_owned()),
+            ..Description::default()
+        })
+    }
+
+    #[tokio::test]
+    async fn a_movies_subtitle_preference_wants_its_subtitles_over_any_audio_whatever_the_users_own()
+     {
+        let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let (preferences, user) = track_preferences(&data).await;
+        let alien =
+            MatchedMovie::new(&preferences.db, media.path(), tmdb_movie(348, "Alien")).await;
+        let movie = preferences.kept_for(alien.version).await.unwrap().unwrap();
+
+        preferences
+            .keep_users_subtitle(user, english(), true)
+            .await
+            .unwrap();
+        preferences
+            .keep_subtitle(user, movie, english())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            preferences.subtitle(user, alien.version).await.unwrap(),
+            Some(Preferred {
+                preference: english(),
+                users_own: false,
+                foreign_audio_only: false,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn the_users_own_subtitles_only_over_foreign_audio_reach_a_version_of_an_unmatched_item()
+    {
+        let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let (preferences, user) = track_preferences(&data).await;
+        let alien =
+            MatchedMovie::new(&preferences.db, media.path(), tmdb_movie(348, "Alien")).await;
+        Contents::new(Arc::clone(&preferences.db))
+            .record(vec![(alien.item, Decided::Unmatched(None))])
+            .await
+            .unwrap();
+
+        preferences
+            .keep_users_subtitle(user, english(), true)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            preferences.subtitle(user, alien.version).await.unwrap(),
+            Some(Preferred {
+                preference: english(),
+                users_own: true,
+                foreign_audio_only: true,
+            })
+        );
+    }
+
     /// Keeps English subtitles as the User `user`'s own, as the Server did before the switch
     /// "Only when the audio is in another language" existed.
     async fn keep_english_subtitles_as_before_the_switch(
@@ -577,10 +643,6 @@ mod tests {
     {
         let data = tempfile::tempdir().unwrap();
         let (preferences, user) = track_preferences(&data).await;
-        let english = SubtitlePreference::Like(Description {
-            language: Some("en".to_owned()),
-            ..Description::default()
-        });
         keep_english_subtitles_as_before_the_switch(&preferences, user).await;
         let foreign_audio_only = async || {
             let preferred = preferences.users_subtitle(user).await.unwrap().unwrap();
@@ -589,7 +651,7 @@ mod tests {
 
         let before = foreign_audio_only().await;
         preferences
-            .keep_users_subtitle(user, english, true)
+            .keep_users_subtitle(user, english(), true)
             .await
             .unwrap();
 

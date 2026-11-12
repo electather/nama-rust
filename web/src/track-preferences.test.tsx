@@ -14,6 +14,8 @@ import { expectUnderField } from "./test-refusal";
 
 afterEach(cleanup);
 
+const FOREIGN_AUDIO_ONLY = "Only when the audio is in another language";
+
 /** A fake Server where the signed-in User's own Subtitle Preference is `subtitle`. */
 function server(
   subtitle: MessageInitShape<typeof UsersSubtitlePreferenceSchema> = {},
@@ -78,8 +80,6 @@ test("a language not on the list is refused under the field, and nothing is save
   await expectUnderField("Subtitles", "“Klingon” isn’t a language on the list. Pick one from it.");
   expect(set).toEqual([]);
 });
-
-const FOREIGN_AUDIO_ONLY = "Only when the audio is in another language";
 
 test("full subtitles can start only over audio in another language", async () => {
   const set: SetSubtitlePreferenceRequest[] = [];
