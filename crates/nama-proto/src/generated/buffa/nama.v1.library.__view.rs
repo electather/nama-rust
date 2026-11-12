@@ -24,6 +24,19 @@ pub struct LibraryView<'a> {
     ///
     /// Field 4: `folders`
     pub folders: ::buffa::RepeatedView<'a, &'a str>,
+    /// The URL on this Server of the Backdrop the Library is shown by: its Custom Image, or else
+    /// the Backdrop of the Matched title most recently added to it that has one. Unset when no
+    /// Matched title in it has a Backdrop. The Server draws nothing into it; a client draws the
+    /// Library's name over it.
+    ///
+    /// Field 5: `backdrop_url`
+    pub backdrop_url: ::core::option::Option<&'a str>,
+    /// Whether `backdrop_url` is the Library's Custom Image, which `DELETE
+    /// /custom-images/library/\<id\>/backdrop` removes. `PUT` there uploads one, for a User with
+    /// `PERMISSION_MANAGE_LIBRARIES`. Deleting the Library deletes it.
+    ///
+    /// Field 6: `custom_backdrop`
+    pub custom_backdrop: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
@@ -79,6 +92,20 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.backdrop_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.custom_backdrop = ::buffa::types::decode_bool(&mut cur)?;
+            }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -116,6 +143,8 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
             name: self.name.to_string(),
             kind: self.kind,
             folders: self.folders.iter().map(|s| s.to_string()).collect(),
+            backdrop_url: self.backdrop_url.map(|s| s.to_string()),
+            custom_backdrop: self.custom_backdrop,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -142,6 +171,12 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
         for v in &self.folders {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.backdrop_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.custom_backdrop {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -167,6 +202,12 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
         }
         for v in &self.folders {
             ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        if let Some(ref v) = self.backdrop_url {
+            ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        if self.custom_backdrop {
+            ::buffa::types::put_bool_field(6u32, self.custom_backdrop, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -200,6 +241,12 @@ impl<'__a> ::serde::Serialize for LibraryView<'__a> {
         }
         if !self.folders.is_empty() {
             __map.serialize_entry("folders", &*self.folders)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.backdrop_url {
+            __map.serialize_entry("backdropUrl", __v)?;
+        }
+        if self.custom_backdrop {
+            __map.serialize_entry("customBackdrop", &self.custom_backdrop)?;
         }
         __map.end()
     }
@@ -321,6 +368,25 @@ impl LibraryOwnedView {
     #[must_use]
     pub fn folders(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().folders
+    }
+    /// The URL on this Server of the Backdrop the Library is shown by: its Custom Image, or else
+    /// the Backdrop of the Matched title most recently added to it that has one. Unset when no
+    /// Matched title in it has a Backdrop. The Server draws nothing into it; a client draws the
+    /// Library's name over it.
+    ///
+    /// Field 5: `backdrop_url`
+    #[must_use]
+    pub fn backdrop_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().backdrop_url
+    }
+    /// Whether `backdrop_url` is the Library's Custom Image, which `DELETE
+    /// /custom-images/library/\<id\>/backdrop` removes. `PUT` there uploads one, for a User with
+    /// `PERMISSION_MANAGE_LIBRARIES`. Deleting the Library deletes it.
+    ///
+    /// Field 6: `custom_backdrop`
+    #[must_use]
+    pub fn custom_backdrop(&self) -> bool {
+        self.0.reborrow().custom_backdrop
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<LibraryView<'static>>>

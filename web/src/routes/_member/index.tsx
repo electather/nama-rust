@@ -10,9 +10,10 @@ import {
   type ContinueWatchingEpisode,
   type Movie,
 } from "@/gen/nama/v1/browse_pb";
-import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
+import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { metadataLine, seasonName, titleParam, yearOf } from "@/lib/browse";
+import { kindName } from "@/lib/libraries";
 
 export const Route = createFileRoute("/_member/")({
   loader: ({ context: { queryClient, transport } }) =>
@@ -35,7 +36,7 @@ function Home() {
   return (
     <Page heading={server.name}>
       <ContinueWatching />
-      <section aria-labelledby="libraries" className="mt-10 max-w-2xl">
+      <section aria-labelledby="libraries" className="mt-10">
         <h2 id="libraries" className="font-medium">
           Libraries
         </h2>
@@ -132,22 +133,53 @@ function Libraries() {
     );
   }
   return (
-    // Pulled out by the rows' own padding, so the names line up with the heading.
-    <ul className="mt-2 -mx-3">
+    <ul className="mt-4 grid gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
       {data.libraries.map((library) => (
-        <li key={String(library.id)} className="border-b last:border-b-0">
+        <li key={String(library.id)}>
           <Link
             to="/libraries/$libraryId"
             params={{ libraryId: String(library.id) }}
-            className="flex min-h-14 items-center gap-3 rounded-lg px-3 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+            className={posterLink}
           >
-            <span className="truncate text-lg font-medium">{library.name}</span>
-            <span className="ms-auto text-sm text-muted-foreground">
-              {library.kind === LibraryKind.SHOWS ? "Shows" : "Movies"}
-            </span>
+            <LibraryCard library={library} />
           </Link>
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * A Library's Backdrop with its name over it, or without one a plain box of the same size, so the
+ * row doesn't shift. Art is always shown in the dark scheme, so the name keeps the scrim's 70%
+ * black and light ink over a light image too (DESIGN.md, "The Legible Over Art Rule").
+ */
+function LibraryCard({ library }: { library: Library }) {
+  const art = library.backdropUrl !== undefined;
+  return (
+    <>
+      <div
+        className="group dark relative flex aspect-video items-end overflow-hidden rounded-lg border bg-muted"
+        data-art={art ? "" : undefined}
+      >
+        {art && (
+          // Its name is drawn over it, so the image itself says nothing more.
+          <img
+            src={library.backdropUrl}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 size-full object-cover"
+          />
+        )}
+        <div className="relative w-full">
+          {art && <div className="h-8 bg-linear-to-t from-scrim" />}
+          {/* On the scrim's full strength however many lines it takes, under a fade into the art. */}
+          <p className="px-4 pb-3 text-lg font-medium text-balance text-foreground group-data-art:bg-scrim">
+            {library.name}
+          </p>
+        </div>
+      </div>
+      <p className="mt-1.5 text-sm text-muted-foreground">{kindName(library.kind)}</p>
+    </>
   );
 }

@@ -200,6 +200,16 @@ pub(crate) struct Metadata {
     pub(crate) backdrop: Option<String>,
 }
 
+/// A Library's downloaded Backdrop: see [`Contents::newest_backdrops`].
+#[derive(Debug)]
+pub(crate) struct NewestBackdrop {
+    /// The Plugin whose Provider the path is of.
+    pub(crate) plugin: String,
+    pub(crate) path: String,
+    /// The Movie's id, or for an Episode its Show's, whose own Custom Backdrop goes first.
+    pub(crate) title: ExternalId,
+}
+
 /// A Movie some Items of a Library are Matched to, with the metadata the Match of its first
 /// Version stores. Browse hands it out with Versions of its own, which have Tracks.
 #[derive(Debug)]
@@ -668,6 +678,51 @@ impl Contents {
         .fetch_all(self.db.reader())
         .await?;
         Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
+    }
+
+    /// The downloaded Backdrop of the Matched title most recently added to each Library, of
+    /// those with one, by Library id. A Library with no such title has none.
+    pub(crate) async fn newest_backdrops(
+        &self,
+    ) -> Result<HashMap<i64, NewestBackdrop>, sqlx::Error> {
+        // Item ids are AUTOINCREMENT, so the highest is the Item added last.
+        let rows = sqlx::query!(
+            r#"SELECT library_id AS "library!", plugin AS "plugin!", backdrop AS "backdrop!",
+                      tmdb_id AS "tmdb_id?: i64", imdb_id AS "imdb_id?: String",
+                      tvdb_id AS "tvdb_id?: i64"
+               FROM (SELECT library_files.library_id, item_matches.plugin, item_matches.backdrop,
+                            IIF(library_items.kind = 'movie', item_matches.tmdb_id,
+                                item_matches.show_tmdb_id) AS tmdb_id,
+                            IIF(library_items.kind = 'movie', item_matches.imdb_id,
+                                item_matches.show_imdb_id) AS imdb_id,
+                            IIF(library_items.kind = 'movie', item_matches.tvdb_id,
+                                item_matches.show_tvdb_id) AS tvdb_id,
+                            ROW_NUMBER() OVER (PARTITION BY library_files.library_id
+                                               ORDER BY library_items.id DESC) AS newest
+                     FROM item_matches
+                     JOIN library_items ON library_items.id = item_matches.item_id
+                     JOIN library_files ON library_files.id = library_items.file_id
+                     WHERE item_matches.state = 'matched' AND item_matches.backdrop IS NOT NULL)
+               WHERE newest = 1"#
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| {
+                let ids = ExternalIds {
+                    tmdb: row.tmdb_id,
+                    imdb: row.imdb_id,
+                    tvdb: row.tvdb_id,
+                };
+                let backdrop = NewestBackdrop {
+                    title: primary_id(ids)?,
+                    plugin: row.plugin,
+                    path: row.backdrop,
+                };
+                Some((row.library, backdrop))
+            })
+            .collect())
     }
 
     /// The oldest Library with an Item Matched to the Movie with the TMDB id `tmdb_id`, if any.

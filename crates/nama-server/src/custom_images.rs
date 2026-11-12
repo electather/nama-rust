@@ -1,9 +1,11 @@
-//! Custom Images: the Posters and Backdrops an admin uploads for a Movie, Show or Season, which
-//! everyone sees in place of the downloaded ones until they are removed (ADR 0036).
+//! Custom Images: the Posters and Backdrops an admin uploads for a Movie, Show or Season, and the
+//! Backdrop for a Library, which everyone sees in place of the downloaded or newest title's ones
+//! until they are removed (ADR 0036).
 //!
-//! [`CustomImages`] owns `custom_images` (see `AGENTS.md`). It keeps each against the title's
+//! [`CustomImages`] owns `custom_images` (see `AGENTS.md`). It keeps a title's against the title's
 //! external id, as Watch State is (ADR 0013), never against an Item, so one outlives its title's
-//! files. The bytes are in the [`ImageStore`], under a version taken from them.
+//! files. A Library's goes with the Library. The bytes are in the [`ImageStore`], under a version
+//! taken from them.
 //!
 //! An image is the body of one plain HTTP request (ADR 0007): `PUT /custom-images/<slot>` uploads
 //! it and `DELETE` there removes it, which `PREFIXES` in `src/api.rs` lets only Users with Manage
@@ -20,11 +22,12 @@ use axum::{
     routing::{get, put},
 };
 use nama_plugin_api::metadata::ExternalId;
+use sqlx::SqliteConnection;
 
 use crate::{
     contents::parse_hint,
     db::Database,
-    images::{ImageStore, UploadError},
+    images::{ImageStore, Received, UploadError},
 };
 
 /// Where the store keeps them, under the data directory.
@@ -44,8 +47,9 @@ pub(crate) enum Role {
     Backdrop,
 }
 
-/// Which image of which title a Custom Image stands in for, as its paths name it:
-/// `movie/tmdb-348/poster`, `show/tmdb-1399/backdrop` or `show/tmdb-1399/season/2/poster`.
+/// Which image of which title or Library a Custom Image stands in for, as its paths name it:
+/// `movie/tmdb-348/poster`, `show/tmdb-1399/backdrop`, `show/tmdb-1399/season/2/poster` or
+/// `library/3/backdrop`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Slot(String);
 
@@ -58,6 +62,9 @@ pub(crate) struct Urls(HashMap<Slot, String>);
 enum Error {
     #[error(transparent)]
     Upload(#[from] UploadError),
+    /// The Library it would be for isn't there, or was deleted while it arrived.
+    #[error("there is no Library {0}")]
+    NoLibrary(i64),
     #[error("image store error: {0}")]
     Io(#[from] io::Error),
     #[error("database error: {0}")]
@@ -90,6 +97,17 @@ impl Slot {
         Self(format!("show/{show}/season/{number}/poster"))
     }
 
+    /// A Library has only a Backdrop.
+    pub(crate) fn library(id: i64) -> Self {
+        Self(format!("library/{id}/backdrop"))
+    }
+
+    /// The Library whose image it is, if it is a Library's.
+    fn library_id(&self) -> Option<i64> {
+        let id = self.0.strip_prefix("library/")?.strip_suffix("/backdrop")?;
+        id.parse().ok()
+    }
+
     /// The slot `path` names, if it names one, and only as [`Slot`]'s constructors write it, so
     /// each image has one path.
     fn parse(path: &str) -> Option<Self> {
@@ -105,6 +123,7 @@ impl Slot {
             ["show", id, "season", number, "poster"] => {
                 Self::season(&parse_hint(id)?, number.parse::<u32>().ok()?.into())
             }
+            ["library", id, "backdrop"] => Self::library(id.parse::<u32>().ok()?.into()),
             _ => return None,
         };
         (slot.0 == path).then_some(slot)
@@ -154,30 +173,15 @@ impl CustomImages {
         let received = self.store.receive(&slot.key(), body).await?;
         let version = received.version.clone();
         let stored = slot.0.clone();
+        let library = slot.library_id();
         let replaced = self
             .db
-            .write(move |tx| {
-                Box::pin(async move {
-                    let replaced = sqlx::query_scalar!(
-                        "SELECT version FROM custom_images WHERE slot = ?",
-                        stored
-                    )
-                    .fetch_optional(&mut **tx)
-                    .await?;
-                    sqlx::query!(
-                        "INSERT INTO custom_images (slot, version, content_type) VALUES (?, ?, ?)
-                         ON CONFLICT (slot) DO UPDATE
-                         SET version = excluded.version, content_type = excluded.content_type",
-                        stored,
-                        received.version,
-                        received.content_type,
-                    )
-                    .execute(&mut **tx)
-                    .await?;
-                    Ok::<_, sqlx::Error>(replaced)
-                })
-            })
-            .await?;
+            .write(move |tx| Box::pin(record(tx, stored, received, library)))
+            .await;
+        if let Err(Error::NoLibrary(id)) = replaced {
+            self.delete_library_dir(id).await?;
+        }
+        let replaced = replaced?;
         // The same bytes again are the same version, which mustn't go.
         match replaced {
             Some(old) if old != version => self.delete_file(&slot, &old).await,
@@ -208,6 +212,25 @@ impl CustomImages {
         }
     }
 
+    /// Deletes the Custom Image of the Library `id`, which was deleted, logging a failure.
+    pub(crate) async fn delete_library(&self, id: i64) {
+        let deleted = match self.remove(Slot::library(id)).await {
+            Ok(()) => self.delete_library_dir(id).await.map_err(Error::from),
+            Err(err) => Err(err),
+        };
+        if let Err(err) = deleted {
+            tracing::error!("could not delete the Custom Image of the deleted Library {id}: {err}");
+        }
+    }
+
+    /// Deletes the Library `id`'s folder in the store, and so any version an upload racing the
+    /// Library's delete wrote.
+    async fn delete_library_dir(&self, id: i64) -> io::Result<()> {
+        self.store
+            .delete_dir(&[DIR, "library", &id.to_string()])
+            .await
+    }
+
     async fn delete_file(&self, slot: &Slot, version: &str) -> Result<(), Error> {
         let mut key = slot.key();
         key.push(version);
@@ -235,6 +258,48 @@ impl CustomImages {
         key.push(version);
         Ok(self.store.serve(&key, content_type, request).await?)
     }
+}
+
+/// Records `received` as the Custom Image at the slot `stored`, which is the Library `library`'s
+/// if it is one's, and returns the version it replaced, if any. [`Error::NoLibrary`] if that
+/// Library isn't there.
+async fn record(
+    conn: &mut SqliteConnection,
+    stored: String,
+    received: Received,
+    library: Option<i64>,
+) -> Result<Option<String>, Error> {
+    if let Some(id) = library
+        && !library_exists(conn, id).await?
+    {
+        return Err(Error::NoLibrary(id));
+    }
+    let replaced = sqlx::query_scalar!("SELECT version FROM custom_images WHERE slot = ?", stored)
+        .fetch_optional(&mut *conn)
+        .await?;
+    sqlx::query!(
+        "INSERT INTO custom_images (slot, version, content_type) VALUES (?, ?, ?)
+         ON CONFLICT (slot) DO UPDATE
+         SET version = excluded.version, content_type = excluded.content_type",
+        stored,
+        received.version,
+        received.content_type,
+    )
+    .execute(conn)
+    .await?;
+    Ok(replaced)
+}
+
+/// Whether the Library `id` is there. Read in the write that keeps its image, so a Library deleted
+/// before that commits refuses the image, and one deleted after deletes it
+/// ([`CustomImages::delete_library`]).
+async fn library_exists(conn: &mut SqliteConnection, id: i64) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (SELECT 1 FROM libraries WHERE id = ?) AS "found!: bool""#,
+        id
+    )
+    .fetch_one(conn)
+    .await
 }
 
 /// Serves uploads to and removals from `/custom-images/<slot>`, and the images under
@@ -272,6 +337,9 @@ async fn upload(
         }
         Err(Error::Upload(broke_off @ UploadError::BrokeOff(_))) => {
             (StatusCode::BAD_REQUEST, broke_off.to_string()).into_response()
+        }
+        Err(missing @ Error::NoLibrary(_)) => {
+            (StatusCode::NOT_FOUND, missing.to_string()).into_response()
         }
         Err(err) => failed("keep", &err),
     }
@@ -326,6 +394,7 @@ mod tests {
             "movie/imdb-tt0078748/backdrop",
             "show/tvdb-81189/backdrop",
             "show/tmdb-1399/season/0/poster",
+            "library/3/backdrop",
         ] {
             assert_eq!(Slot::parse(path), Some(Slot(path.to_owned())), "{path}");
         }
@@ -338,6 +407,10 @@ mod tests {
             "show/tmdb-1399/season/-1/poster",
             "movie/tmdb-348/poster/",
             "movie/../poster",
+            "library/03/backdrop",
+            "library/-3/backdrop",
+            "library/3/poster",
+            "library/tmdb-3/backdrop",
         ] {
             assert_eq!(Slot::parse(path), None, "{path}");
         }

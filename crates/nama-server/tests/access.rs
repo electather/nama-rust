@@ -511,7 +511,7 @@ async fn a_user_who_manages_libraries_may_manage_libraries_and_matches_but_not_u
     assert_refused_for_want_of(&server, &token, &MANAGE_USERS, Permission::ManageUsers).await;
 }
 
-/// Uploading or removing a title's Custom Image is plain HTTP, not an RPC, and needs
+/// Uploading or removing a title's or Library's Custom Image is plain HTTP, not an RPC, and needs
 /// `PERMISSION_MANAGE_LIBRARIES` all the same.
 #[tokio::test]
 async fn only_a_user_who_manages_libraries_may_upload_or_remove_a_custom_image() {
@@ -521,9 +521,15 @@ async fn only_a_user_who_manages_libraries_may_upload_or_remove_a_custom_image()
         .user("Ada", &[Permission::ManageLibraries])
         .await
         .token;
-    let path = "/custom-images/movie/tmdb-348/poster";
+    let paths = [
+        "/custom-images/movie/tmdb-348/poster",
+        "/custom-images/library/1/backdrop",
+    ];
 
-    for method in [Method::PUT, Method::DELETE] {
+    for (path, method) in paths
+        .iter()
+        .flat_map(|path| [(path, Method::PUT), (path, Method::DELETE)])
+    {
         let cookie = |token: &str| format!("nama_session={token}");
         let anonymous = send(&server, method.clone(), path, &[], String::new()).await;
         let refused = send(
@@ -543,13 +549,17 @@ async fn only_a_user_who_manages_libraries_may_upload_or_remove_a_custom_image()
         )
         .await;
 
-        assert_eq!(anonymous.status, 401, "{method}");
+        assert_eq!(anonymous.status, 401, "{method} {path}");
         let needed = Permission::ManageLibraries.proto_name().to_owned();
-        assert_eq!(permission_refused(&refused), Some(needed), "{method}");
+        assert_eq!(
+            permission_refused(&refused),
+            Some(needed),
+            "{method} {path}"
+        );
         // An empty body is no image, but the handler was reached.
         assert!(
             ![401, 403].contains(&allowed.status),
-            "{method}: {}",
+            "{method} {path}: {}",
             allowed.status
         );
     }
