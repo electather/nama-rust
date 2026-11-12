@@ -21,6 +21,7 @@ const env = {
   GIT_COMMITTER_DATE: date,
 };
 
+// Only these fields: `pid` differs between any two runs, so the pass-through `deepEqual` would never match.
 function run(git: string, cwd: string, args: string[]) {
   const { status, stdout, stderr } = spawnSync(git, args, { cwd, env, encoding: "utf8" });
   return { status, stdout, stderr };
