@@ -113,7 +113,7 @@ impl ImageStore {
         } else {
             serve_file(self.path(key), content_type, request).await?
         };
-        // The JPEG XL ticket sends another format to browsers that accept it.
+        // Browsers that accept JPEG XL are to get it at the same URL (#739).
         response
             .headers_mut()
             .insert(header::VARY, HeaderValue::from_static("accept"));
@@ -129,18 +129,18 @@ impl ImageStore {
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
             Err(err) => return Err(err),
         }
-        let (original, copy) = (self.path(key), copy.to_owned());
+        let (original, made) = (self.path(key), copy.to_owned());
         let cache = self.dir.join(RESIZED_DIR);
         let made = self
             .resizer
             .run(move || {
-                let made = resized::make_copy(&original, &copy, resize.width);
-                if matches!(made, Ok(true))
-                    && let Err(err) = resized::evict(&cache, resize.cache_limit)
+                let copied = resized::make_copy(&original, &made, resize.width);
+                if matches!(copied, Ok(true))
+                    && let Err(err) = resized::evict(&cache, resize.cache_limit, &made)
                 {
                     tracing::error!("could not keep the resized images within their limit: {err}");
                 }
-                made.map_err(|err| format!("could not resize {}: {err}", original.display()))
+                copied.map_err(|err| format!("could not resize {}: {err}", original.display()))
             })
             .await;
         // The thread having stopped, or a resize having panicked, is one more failed resize.
@@ -164,17 +164,19 @@ impl ImageStore {
     }
 
     fn path(&self, key: &[&str]) -> PathBuf {
-        key.iter()
-            .fold(self.dir.clone(), |path, part| path.join(file_name(part)))
+        under(self.dir.clone(), key)
     }
 
     /// Where the copy `width` pixels wide of the image at `key` is kept.
     fn copy_path(&self, key: &[&str], width: u32) -> PathBuf {
-        let folder = key.iter().fold(self.dir.join(RESIZED_DIR), |path, part| {
-            path.join(file_name(part))
-        });
-        folder.join(format!("{width}.jpg"))
+        under(self.dir.join(RESIZED_DIR), key).join(format!("{width}.jpg"))
     }
+}
+
+/// `key` as a path in `folder`, each part one escaped file name.
+fn under(folder: PathBuf, key: &[&str]) -> PathBuf {
+    key.iter()
+        .fold(folder, |path, part| path.join(file_name(part)))
 }
 
 /// The file at `path` as the answer to `request`, sent as `content_type`, as [`ImageStore::serve`]

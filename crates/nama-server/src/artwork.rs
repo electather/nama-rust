@@ -175,7 +175,7 @@ async fn serve(
             Some(resize) => Some(resize),
             None => return StatusCode::BAD_REQUEST.into_response(),
         },
-        // With resizing off, a width is ignored.
+        // Off, the browser scales the stored image itself (ADR 0039).
         _ => None,
     };
     let allowed = if artwork.was_offered(&plugin, &path) {

@@ -239,3 +239,25 @@ async fn past_its_limit_the_cache_deletes_the_least_recently_sent_copies_until_i
     assert!(newer.exists());
     assert!(copy_of_poster(&fx, 640).exists());
 }
+
+#[tokio::test]
+async fn a_copy_just_made_is_sent_though_it_is_not_the_most_recently_sent() {
+    let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
+    set_image_settings(&fx, true, Some(1)).await;
+    let other_copies = fx
+        .server
+        .data_dir()
+        .join("resized/artwork/tmdb/%2Fother.jpg");
+    fs::create_dir_all(&other_copies).unwrap();
+    let other = other_copies.join("320.jpg");
+    fs::write(&other, vec![0; 1024 * 1024]).unwrap();
+    // Sent after the copy below is made, as by a request racing it.
+    let sent_later = FileTimes::new().set_accessed(SystemTime::now() + Duration::from_hours(1));
+    File::open(&other).unwrap().set_times(sent_later).unwrap();
+
+    let reply = fetch_at(&fx, &poster, 640).await;
+
+    assert_eq!(reply.status, 200);
+    assert_eq!(dimensions(&reply), (640, 960));
+    assert!(!other.exists());
+}

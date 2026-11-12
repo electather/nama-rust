@@ -24,6 +24,10 @@ use super::write_now;
 /// must stay within 128 MiB above the Server's idle memory (`docs/research/image-memory-use.md`).
 const MAX_PIXELS: u64 = 12_000_000;
 
+/// The largest decoded bitmap an image is resized from, which keeps a 16-bit PNG under
+/// [`MAX_PIXELS`] within the same 128 MiB (`docs/research/image-memory-use.md`, rule 1).
+const MAX_BITMAP_BYTES: u64 = 64 * 1024 * 1024;
+
 /// The JPEG quality of every copy.
 const QUALITY: u8 = 80;
 
@@ -73,8 +77,8 @@ impl ResizeThread {
 
 /// Writes `original` resized to `width`, its shape kept, as a JPEG at `copy`, unless a copy is
 /// there already. Returns `false`, writing nothing, where the original is to be sent as it is: it
-/// isn't a format the Server reads (such as SVG), has transparency, is over [`MAX_PIXELS`], or is
-/// no wider than `width`.
+/// isn't a format the Server reads (such as SVG), has transparency, is over [`MAX_PIXELS`] or
+/// [`MAX_BITMAP_BYTES`], or is no wider than `width`.
 ///
 /// # Errors
 ///
@@ -104,7 +108,13 @@ pub(super) fn make_copy(
     // Checked from the header before decoding: `image`'s `Limits` don't bound a decoder's own
     // buffers.
     let pixels = u64::from(stored_width) * u64::from(stored_height);
-    if pixels > MAX_PIXELS || decoder.color_type().has_alpha() || width >= shown_width {
+    let color = decoder.color_type();
+    let bitmap_bytes = pixels * u64::from(color.bytes_per_pixel());
+    if pixels > MAX_PIXELS
+        || bitmap_bytes > MAX_BITMAP_BYTES
+        || color.has_alpha()
+        || width >= shown_width
+    {
         return Ok(false);
     }
     let mut source = DynamicImage::from_decoder(decoder)?;
@@ -141,14 +151,15 @@ pub(super) fn touch(copy: &Path) -> io::Result<()> {
     File::open(copy)?.set_times(FileTimes::new().set_accessed(SystemTime::now()))
 }
 
-/// Deletes the copies in `cache` sent least recently until they take at most `limit` bytes.
+/// Deletes the copies in `cache` sent least recently until they take at most `limit` bytes, never
+/// `made`, the copy about to be sent.
 ///
 /// # Errors
 ///
 /// If the cache can't be read or a copy deleted.
-// shortcut: lists the whole cache after each new copy, which costs about a stat per copy; keep
+// ponytail: lists the whole cache after each new copy, which costs about a stat per copy; keep
 // a running total if a cache of tens of thousands of copies makes resizes slow.
-pub(super) fn evict(cache: &Path, limit: u64) -> io::Result<()> {
+pub(super) fn evict(cache: &Path, limit: u64, made: &Path) -> io::Result<()> {
     let mut copies: Vec<(SystemTime, u64, PathBuf)> = Vec::new();
     for entry in WalkDir::new(cache) {
         let entry = match entry {
@@ -167,6 +178,9 @@ pub(super) fn evict(cache: &Path, limit: u64) -> io::Result<()> {
     for (_, size, path) in copies {
         if total <= limit {
             break;
+        }
+        if path == made {
+            continue;
         }
         std::fs::remove_file(path)?;
         total -= size;
