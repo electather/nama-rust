@@ -15,6 +15,7 @@ import {
   type DeletedSearch,
   dateOf,
   deletedFromSearch,
+  episodeName,
   externalIdFromParam,
   isGone,
   libraryFromParam,
@@ -162,7 +163,9 @@ function EpisodeCard({ libraryId, episode }: { libraryId: bigint; episode: Episo
         className={`${posterLink} flex-1`}
       >
         <Still url={episode.stillUrl} thumbhash={episode.stillThumbhash} />
-        <span className="mt-3 block text-sm text-muted-foreground">{episodeName(episode)}</span>
+        <span className="mt-3 block text-sm text-muted-foreground">
+          {episodeName(episode.seasonNumber, episode.episodeNumber, "inSeason")}
+        </span>
         <span className="block font-medium text-balance">{episode.title}</span>
         {episode.overview !== undefined && (
           <span className="mt-1 line-clamp-3 text-sm text-pretty text-muted-foreground">
@@ -195,10 +198,4 @@ function EpisodeCard({ libraryId, episode }: { libraryId: bigint; episode: Episo
       )}
     </li>
   );
-}
-
-/** "Episode 3", or for a Special "Specials, Episode 3", as the Delete dialog names an Episode. */
-function episodeName({ seasonNumber, episodeNumber }: Episode) {
-  const episode = `Episode ${episodeNumber}`;
-  return seasonNumber === 0 ? `${seasonName(seasonNumber)}, ${episode}` : episode;
 }

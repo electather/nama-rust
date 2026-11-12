@@ -14,7 +14,7 @@ import {
   type MediaToDeleteSchema,
   type RequestToCancel,
 } from "@/gen/nama/v1/library_pb";
-import { metadataLine, seasonName, sizeOf, versionLine } from "@/lib/browse";
+import { episodeName, metadataLine, seasonName, sizeOf, versionLine } from "@/lib/browse";
 import { formText, refusal } from "@/lib/forms";
 
 /** The choice that deletes every Version, where any other choice is one Version's id. */
@@ -175,7 +175,7 @@ function TakenAlong({ episodes }: { episodes: EpisodeTakenAlong[] }) {
       <ul className="mt-2 flex flex-col gap-1 text-muted-foreground">
         {episodes.map((episode) => (
           <li key={`${String(episode.seasonNumber)} ${String(episode.episodeNumber)}`}>
-            {seasonName(episode.seasonNumber)}, Episode {episode.episodeNumber}: {episode.title}
+            {episodeName(episode.seasonNumber, episode.episodeNumber, "full")}: {episode.title}
           </li>
         ))}
       </ul>
