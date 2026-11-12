@@ -179,8 +179,12 @@ const fn turns_sideways(orientation: Orientation) -> bool {
 ///
 /// [`io::ErrorKind::NotFound`] if no copy is there.
 pub(super) fn touch(copy: &Path) -> io::Result<()> {
-    // Set explicitly, as mounts with `noatime` or `relatime` don't update it on every read.
-    File::open(copy)?.set_times(FileTimes::new().set_accessed(SystemTime::now()))
+    // Set explicitly, as mounts with `noatime` or `relatime` don't update it on every read. Opened
+    // for writing, as Windows refuses to set a file's times through a read-only handle.
+    File::options()
+        .write(true)
+        .open(copy)?
+        .set_times(FileTimes::new().set_accessed(SystemTime::now()))
 }
 
 /// Deletes the copies in `cache` sent least recently until they take at most `limit` bytes, never
