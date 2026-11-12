@@ -144,7 +144,13 @@ pub trait Plugin: Send + Sync + 'static {
     /// Called each time the Plugin is enabled, with the Plugin's settings in
     /// [`Registrar::settings`]. Everything registered here is removed again when the Plugin is
     /// disabled.
-    fn register(&self, registrar: &mut Registrar);
+    ///
+    /// # Errors
+    ///
+    /// When the Plugin can't start with these settings. The Kernel then doesn't enable it, drops
+    /// what it registered so far, and shows the error's message to the admin without the
+    /// Plugin's secret settings.
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError>;
 }
 
 /// Where a handler runs relative to the other handlers at the same Extension Point.

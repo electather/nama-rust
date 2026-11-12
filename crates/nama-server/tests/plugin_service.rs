@@ -736,6 +736,29 @@ async fn enabling_a_plugin_with_a_setting_of_the_wrong_kind_is_refused_naming_it
 }
 
 #[tokio::test]
+async fn enabling_a_plugin_that_refuses_to_start_is_refused_with_its_reason() {
+    let mut settings = test_choices_with_profile();
+    let config = settings.get_mut(test_choices::ID).unwrap();
+    config.enabled = false;
+    let refuse = SettingValue::Text(test_choices::REFUSE.to_owned());
+    config.settings.insert("fail_with".to_owned(), refuse);
+    let started = Started::with(&settings).await;
+
+    let refusal = assert_refused(
+        started
+            .client()
+            .enable_plugin(enable(test_choices::ID))
+            .await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
+    );
+
+    assert_eq!(refusal.field, "id");
+    assert_eq!(refusal.params["reason"], "the key … was turned down");
+    assert!(!started.get(test_choices::ID).await.unwrap().summary.enabled);
+}
+
+#[tokio::test]
 async fn enabling_or_disabling_an_unknown_plugin_is_refused() {
     let started = Started::with(&BTreeMap::new()).await;
 

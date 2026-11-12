@@ -122,7 +122,7 @@ fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_na
             SettingValue::Text(nama_plugin_test_choices::API_KEY.to_owned()),
         )]);
         let mut registrar = Registrar::with_settings(Settings::new(api_key));
-        plugin.register(&mut registrar);
+        plugin.register(&mut registrar).unwrap();
 
         let registered: Vec<_> = registrar
             .into_registrations()

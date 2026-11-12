@@ -47,9 +47,10 @@ impl Plugin for LocalAuth {
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         let provider: Arc<dyn Authenticator> = Arc::new(Argon2id);
         registrar.provide::<dyn Authenticator>(Priority::DEFAULT, provider);
+        Ok(())
     }
 }
 

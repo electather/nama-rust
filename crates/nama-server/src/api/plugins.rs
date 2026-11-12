@@ -312,6 +312,14 @@ impl From<EnableError> for ConnectError {
             .param("pluginId", &plugin)
             .param("reason", &reason)
             .into(),
+            EnableError::RefusedToStart { plugin, reason } => refuse(
+                RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
+                format!("{plugin} refused to start: {reason}"),
+            )
+            .field("id")
+            .param("pluginId", &plugin)
+            .param("reason", &reason)
+            .into(),
             // The settings are the stored ones, not the request's, but #162 asks for the refusal
             // to name one.
             EnableError::InvalidSettings { error, .. } => settings_refused(error),

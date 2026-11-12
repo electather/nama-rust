@@ -409,8 +409,9 @@ impl Plugin for ShowsFulfillerPlugin {
         Some(&self.0)
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::new(self.0.clone()));
+        Ok(())
     }
 }
 
@@ -430,7 +431,8 @@ impl Plugin for FulfillerPlugin {
         Some(&self.0)
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(self.0.clone()));
+        Ok(())
     }
 }

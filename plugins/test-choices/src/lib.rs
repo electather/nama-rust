@@ -25,6 +25,10 @@ pub const PANIC: &str = "panic";
 /// What `fail_with` is set to for the check never to finish.
 pub const HANG: &str = "hang";
 
+/// What `fail_with` is set to for `register` to refuse to start, after registering its Fulfillers,
+/// with an error that quotes its `api_key` setting. The check doesn't know this word.
+pub const REFUSE: &str = "refuse";
+
 /// The test Plugin. It registers its Fulfillers.
 #[derive(Debug)]
 pub struct TestChoices;
@@ -51,7 +55,8 @@ impl Plugin for TestChoices {
                 field(
                     "fail_with",
                     "Fail with",
-                    "Makes the check fail with this error, or panic or hang for those words.",
+                    "Makes the check fail with this error, or panic or hang for those words; refuse makes \
+                     it refuse to start, quoting its API key.",
                     SettingKind::Text,
                     false,
                 ),
@@ -84,9 +89,15 @@ impl Plugin for TestChoices {
         Some(self)
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(Self));
         registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::new(Self));
+        let settings = registrar.settings();
+        if settings.text("fail_with") == Some(REFUSE) {
+            let key = settings.text("api_key").unwrap_or_default();
+            return Err(format!("the key {key} was turned down").into());
+        }
+        Ok(())
     }
 }
 

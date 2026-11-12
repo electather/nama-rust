@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_plugin_api::{
-    BoxFuture, Manifest, Observer, Plugin, PluginId, PointKey, Registrar, points,
+    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Registrar, points,
 };
 use nama_proto::nama::v1::{
     Event, EventType, LibraryItemAdded, LibraryKind, ListUnmatchedItemsRequest, MatchServiceClient,
@@ -133,8 +133,9 @@ impl Plugin for Forward {
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.observe::<points::Events>(ForwardObserver(self.0.clone()));
+        Ok(())
     }
 }
 

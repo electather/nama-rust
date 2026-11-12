@@ -16,7 +16,7 @@ mod wire;
 use std::sync::Arc;
 
 use nama_plugin_api::{
-    Manifest, Plugin, PluginId, PointKey, Priority, Registrar,
+    Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     metadata::MetadataProvider,
     settings::{SettingField, SettingKind, SettingValue, SettingsSchema},
 };
@@ -109,12 +109,12 @@ impl Plugin for Tmdb {
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         let settings = registrar.settings();
         // The Kernel only enables the Plugin with an API key.
         let Some(api_key) = settings.text(API_KEY) else {
             error!("the tmdb plugin was enabled without an API key");
-            return;
+            return Ok(());
         };
         let language = settings.text(LANGUAGE).unwrap_or(DEFAULT_LANGUAGE);
         match Client::new(self.endpoints.clone(), api_key, language) {
@@ -124,5 +124,6 @@ impl Plugin for Tmdb {
             }
             Err(err) => error!("could not set up HTTPS for TMDB: {err}"),
         }
+        Ok(())
     }
 }

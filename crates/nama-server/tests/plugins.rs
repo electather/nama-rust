@@ -14,6 +14,7 @@ use log::Log;
 use nama_plugin_api::{
     BoxFuture, InterceptPoint, Interceptor, Manifest, ObservePoint, Observer, OnFailure, Plugin,
     PluginError, PluginId, PointKey, Priority, Registrar, Verdict,
+    fulfiller::{Fulfiller, Movies},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use nama_plugin_test_choices as test_choices;
@@ -45,8 +46,9 @@ impl<F: Fn(&mut Registrar) + Send + Sync + 'static> Plugin for TestPlugin<F> {
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         (self.register)(registrar);
+        Ok(())
     }
 }
 
@@ -500,7 +502,9 @@ impl Plugin for PanicsInManifest {
         panic!("manifest bug")
     }
 
-    fn register(&self, _registrar: &mut Registrar) {}
+    fn register(&self, _registrar: &mut Registrar) -> Result<(), PluginError> {
+        Ok(())
+    }
 }
 
 #[tokio::test]
@@ -843,7 +847,7 @@ impl Plugin for Configurable {
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         let settings = registrar.settings().clone();
         let url = format!(
             "/movies?key={}&language={}",
@@ -852,6 +856,7 @@ impl Plugin for Configurable {
         );
         registrar.provide::<dyn Fetcher>(Priority::DEFAULT, Arc::new(QuotesItsUrl(url)));
         let _: Result<(), _> = self.0.send(settings);
+        Ok(())
     }
 }
 
@@ -1025,4 +1030,31 @@ async fn a_settings_check_that_runs_past_its_timeout_has_failed_and_harms_nothin
     assert_eq!(after, SETTINGS_CHECK_TIMEOUT);
     let checked = registry.check_settings(&id, settings(None)).await;
     assert!(checked.is_ok(), "{checked:?}");
+}
+
+#[test]
+fn a_plugin_that_refuses_to_start_is_not_enabled_and_leaves_nothing_registered() {
+    let registry = Registry::with_builtins();
+    let id = PluginId::from_static(test_choices::ID);
+    let settings = Settings::new(BTreeMap::from([
+        (
+            "api_key".to_owned(),
+            SettingValue::Text(test_choices::API_KEY.to_owned()),
+        ),
+        ("profile".to_owned(), SettingValue::Text("1".to_owned())),
+        (
+            "fail_with".to_owned(),
+            SettingValue::Text(test_choices::REFUSE.to_owned()),
+        ),
+    ]));
+
+    let result = registry.enable_by_id(&id, settings);
+
+    let Err(EnableError::RefusedToStart { plugin, reason }) = result else {
+        panic!("expected the Plugin to refuse to start, got {result:?}");
+    };
+    assert_eq!(plugin, id);
+    assert_eq!(reason, "the key … was turned down");
+    assert_eq!(registry.enabled(), []);
+    assert!(registry.providers::<dyn Fulfiller<Movies>>().is_empty());
 }

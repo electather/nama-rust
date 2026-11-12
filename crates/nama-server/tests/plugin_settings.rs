@@ -63,8 +63,9 @@ impl Plugin for Fake {
         }
     }
 
-    fn register(&self, _registrar: &mut Registrar) {
+    fn register(&self, _registrar: &mut Registrar) -> Result<(), PluginError> {
         assert!(!self.panics, "register bug");
+        Ok(())
     }
 }
 
@@ -84,8 +85,9 @@ impl Plugin for MovieFulfiller {
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(*self));
+        Ok(())
     }
 }
 

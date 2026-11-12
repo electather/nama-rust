@@ -329,9 +329,10 @@ mod tests {
             }
         }
 
-        fn register(&self, registrar: &mut Registrar) {
+        fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
             let connector: Arc<dyn Connector> = Arc::new(Self(Arc::clone(&self.0)));
             registrar.provide(Priority::DEFAULT, connector);
+            Ok(())
         }
     }
 

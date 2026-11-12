@@ -30,7 +30,7 @@ fn provider(fake: &FakeTmdb, api_key: &str) -> Arc<dyn MetadataProvider> {
     .resolve(&plugin.manifest().settings)
     .unwrap();
     let mut registrar = Registrar::with_settings(settings);
-    plugin.register(&mut registrar);
+    plugin.register(&mut registrar).unwrap();
     let registrations = registrar.into_registrations();
     assert_eq!(registrations.len(), 1);
     registrations[0]

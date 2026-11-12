@@ -347,19 +347,13 @@ impl Plugin for Installed {
 
     // ponytail: compiles on the calling thread, an async one when an admin enables it; wasmtime's
     // cache makes that quick, so spawn_blocking only if a Plugin is slow to enable.
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         let settings = registrar.settings();
         let schema = &self.manifest.settings;
         let hosts = allowed_hosts(&self.package, schema, settings);
         let config = extism_config(schema, settings);
-        let compiled = match compile(&self.wasm, &self.cache_config, hosts, config) {
-            Ok(compiled) => compiled,
-            #[expect(
-                clippy::panic,
-                reason = "the registry contains the panic and refuses to enable the Plugin, saying why"
-            )]
-            Err(err) => panic!("could not compile it with its settings: {err:#}"),
-        };
+        let compiled = compile(&self.wasm, &self.cache_config, hosts, config)
+            .map_err(|err| format!("could not compile it with its settings: {err:#}"))?;
         let running = Running {
             package: Arc::clone(&self.package),
             compiled: Arc::new(compiled),
@@ -390,6 +384,7 @@ impl Plugin for Installed {
                 },
             );
         }
+        Ok(())
     }
 }
 

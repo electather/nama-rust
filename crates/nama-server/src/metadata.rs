@@ -185,7 +185,7 @@ mod tests {
     use std::sync::Arc;
 
     use nama_plugin_api::{
-        BoxFuture, Manifest, Plugin, PluginId, PointKey, Priority, Registrar,
+        BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
         metadata::{
             Candidate, Episode, ExternalId, Image, MetadataError, MetadataProvider, Movie,
             SearchQuery, Season, Show,
@@ -261,8 +261,9 @@ mod tests {
             }
         }
 
-        fn register(&self, registrar: &mut Registrar) {
+        fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
             registrar.provide::<dyn MetadataProvider>(Priority::DEFAULT, Arc::new(Failing(self.0)));
+            Ok(())
         }
     }
 

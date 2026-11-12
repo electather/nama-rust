@@ -2,7 +2,7 @@
 //! that the wiring from the Kernel to a Plugin works.
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Observer, Plugin, PluginId, PointKey, Registrar,
+    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Registrar,
     points::{Events, ServerStarted, ServerStartedEvent},
     settings::SettingsSchema,
 };
@@ -36,9 +36,10 @@ impl Plugin for LogEvents {
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.observe::<ServerStarted>(Log);
         registrar.observe::<Events>(Log);
+        Ok(())
     }
 }
 

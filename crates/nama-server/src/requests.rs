@@ -2931,8 +2931,9 @@ mod tests {
             }
         }
 
-        fn register(&self, registrar: &mut Registrar) {
+        fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
             registrar.provide::<dyn Fulfiller<Kind>>(Priority::DEFAULT, Arc::clone(&self.1));
+            Ok(())
         }
     }
 

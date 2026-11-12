@@ -260,6 +260,14 @@ pub enum EnableError {
         /// The panic's message.
         message: String,
     },
+    /// The Plugin's [`Plugin::register`] refused to start with its settings.
+    #[error("plugin {plugin} refused to start: {reason}")]
+    RefusedToStart {
+        /// The Plugin.
+        plugin: PluginId,
+        /// The Plugin's error, with no secret setting's value in it.
+        reason: String,
+    },
 }
 
 /// Why a Plugin's settings check offered no choices.
@@ -303,7 +311,7 @@ impl Registry {
     /// # Errors
     ///
     /// If a Plugin with the same id is already enabled, the Plugin requires a setting, or the
-    /// Plugin panics.
+    /// Plugin refuses to start or panics.
     pub fn enable(&self, plugin: Arc<dyn Plugin>) -> Result<(), EnableError> {
         self.enable_with_settings(plugin, Settings::default())
     }
@@ -314,7 +322,7 @@ impl Registry {
     /// # Errors
     ///
     /// If a Plugin with the same id is already enabled, the settings don't fit the Plugin's
-    /// schema, or the Plugin panics.
+    /// schema, or the Plugin refuses to start or panics.
     pub fn enable_with_settings(
         &self,
         plugin: Arc<dyn Plugin>,
@@ -344,7 +352,7 @@ impl Registry {
     /// # Errors
     ///
     /// If no Plugin has the id, the Server refused it, or as [`Registry::enable_with_settings`]
-    /// fails.
+    /// fails, such as the Plugin refusing to start.
     pub fn enable_by_id(&self, id: &PluginId, settings: Settings) -> Result<(), EnableError> {
         let make = self
             .read(|state| {
@@ -390,7 +398,14 @@ impl Registry {
             })?;
         let secrets: Arc<[String]> = secret_values(schema, &settings).into();
         let mut registrar = Registrar::with_settings(settings);
-        plugin.register(&mut registrar);
+        // The error and the half-filled registrar are Plugin values, dropped here inside the
+        // containment the caller runs this in.
+        if let Err(err) = plugin.register(&mut registrar) {
+            return Err(EnableError::RefusedToStart {
+                plugin: id.clone(),
+                reason: without_secrets(err.to_string(), &secrets),
+            });
+        }
         let registrations = registrar.into_registrations();
         let declared = &manifest.extension_points;
         if let Some(point) = registrations

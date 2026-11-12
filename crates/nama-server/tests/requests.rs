@@ -4072,8 +4072,9 @@ impl Plugin for NotifierPlugin {
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn Notifier>(Priority::DEFAULT, Arc::new(self.1.clone()));
+        Ok(())
     }
 }
 
