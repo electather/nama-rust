@@ -8,8 +8,9 @@ import { PlayedButton } from "@/components/watch-state";
 import type { Movie } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { may } from "@/lib/permissions";
+import { deletedSearch } from "@/lib/browse";
 // oxlint-disable-next-line import/max-dependencies -- the Movie's actions put together marking it played, its Custom Images and deleting it
+import { may } from "@/lib/permissions";
 import { useSetPlayed } from "@/lib/watch-state";
 
 /**
@@ -56,7 +57,7 @@ export function MovieActions({
               navigate({
                 to: "/libraries/$libraryId",
                 params: { libraryId: String(libraryId) },
-                search: notTold.length > 0 ? { deleted: movie.title, notTold } : {},
+                search: deletedSearch(movie.title, notTold),
               })
             }
           />

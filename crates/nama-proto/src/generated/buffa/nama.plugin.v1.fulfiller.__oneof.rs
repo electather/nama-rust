@@ -7,8 +7,19 @@ pub mod stop_monitoring {
     #[derive(Clone, PartialEq, Debug)]
     pub enum Title {
         MovieTmdbId(i64),
+        Show(::buffa::alloc::boxed::Box<super::super::super::ShowDeleted>),
     }
     impl ::buffa::Oneof for Title {}
+    impl From<super::super::super::ShowDeleted> for Title {
+        fn from(v: super::super::super::ShowDeleted) -> Self {
+            Self::Show(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ShowDeleted> for ::core::option::Option<Title> {
+        fn from(v: super::super::super::ShowDeleted) -> Self {
+            Self::Some(Title::from(v))
+        }
+    }
     impl ::serde::Serialize for Title {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -22,6 +33,54 @@ pub mod stop_monitoring {
                         "movieTmdbId",
                         &::buffa::json_helpers::ProtoJson(v),
                     )?;
+                }
+                Self::Show(v) => {
+                    map.serialize_entry("show", &**v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}
+pub mod show_deleted {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    pub enum Deleted {
+        EveryCurrentSeason(bool),
+        SeasonNumber(u32),
+        Episodes(::buffa::alloc::boxed::Box<super::super::super::EpisodeNumbers>),
+    }
+    impl ::buffa::Oneof for Deleted {}
+    impl From<super::super::super::EpisodeNumbers> for Deleted {
+        fn from(v: super::super::super::EpisodeNumbers) -> Self {
+            Self::Episodes(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::EpisodeNumbers> for ::core::option::Option<Deleted> {
+        fn from(v: super::super::super::EpisodeNumbers) -> Self {
+            Self::Some(Deleted::from(v))
+        }
+    }
+    impl ::serde::Serialize for Deleted {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use ::serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::EveryCurrentSeason(v) => {
+                    map.serialize_entry("everyCurrentSeason", v)?;
+                }
+                Self::SeasonNumber(v) => {
+                    map.serialize_entry(
+                        "seasonNumber",
+                        &::buffa::json_helpers::ProtoJson(v),
+                    )?;
+                }
+                Self::Episodes(v) => {
+                    map.serialize_entry("episodes", &**v)?;
                 }
             }
             map.end()
