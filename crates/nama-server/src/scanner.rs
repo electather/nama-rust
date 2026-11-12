@@ -336,7 +336,7 @@ impl Scanner {
     /// Returns the name of each that couldn't be told, failing or panicking, which isn't asked
     /// again.
     async fn stop_monitoring(&self, doomed: &Doomed) -> Vec<String> {
-        let Some(title) = doomed.unmonitored.clone() else {
+        let Some(title) = doomed.to_unmonitor.clone() else {
             return Vec::new();
         };
         let title = StopMonitoring {
@@ -349,15 +349,15 @@ impl Scanner {
         }
     }
 
-    /// Asks each enabled Fulfiller of `Kind` to stop monitoring `title`, which the log calls
+    /// Asks each enabled Fulfiller of the kind `K` to stop monitoring `title`, which the log calls
     /// `name`. Returns the name of each that couldn't be told.
-    async fn ask_to_stop<Kind: 'static>(&self, title: &StopMonitoring, name: &str) -> Vec<String> {
-        let stop = |fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
+    async fn ask_to_stop<K: 'static>(&self, title: &StopMonitoring, name: &str) -> Vec<String> {
+        let stop = |fulfiller: Arc<dyn Fulfiller<K>>| async move {
             fulfiller.stop_monitoring(title).await
         };
         let plugins = &self.inner.plugins;
         let mut not_told = Vec::new();
-        for plugin in plugins.providers::<dyn Fulfiller<Kind>>() {
+        for plugin in plugins.providers::<dyn Fulfiller<K>>() {
             let answer = plugins.ask(&plugin, &stop).await;
             // `None`: it panicked, which disabled it, or was disabled meanwhile.
             let reason = match answer.map(|answer| answer.result) {

@@ -268,7 +268,7 @@ impl Browse {
             let movie = titles.movie(&id)?;
             return Ok(Doomed {
                 library,
-                unmonitored: tmdb_id_of(&movie.id).map(Title::MovieTmdbId),
+                to_unmonitor: tmdb_id_of(&movie.id).map(Title::MovieTmdbId),
                 title: movie.title,
                 versions: movie.versions,
                 taken_along: Vec::new(),
@@ -292,7 +292,7 @@ impl Browse {
             .ok_or(Error::NoSuchVersion)?;
         Ok(Doomed {
             library,
-            unmonitored: tmdb_id.map(Title::MovieTmdbId),
+            to_unmonitor: tmdb_id.map(Title::MovieTmdbId),
             title,
             versions: vec![version],
             taken_along: Vec::new(),
@@ -446,7 +446,7 @@ fn doomed_episodes(
     let episodes = named.into_iter().chain(&taken_along);
     Ok(Doomed {
         library,
-        unmonitored: unmonitored_of(show, target, episodes),
+        to_unmonitor: to_unmonitor_of(show, target, episodes),
         title,
         versions,
         taken_along,
@@ -456,7 +456,7 @@ fn doomed_episodes(
 /// What a delete of `target`, Episodes of `show`, asks Fulfillers to stop monitoring: the
 /// Episodes `episodes`, a whole Season or every current Season. `None` if the Show has neither id
 /// they know it by.
-fn unmonitored_of<'a>(
+fn to_unmonitor_of<'a>(
     show: &contents::Show,
     target: &Target,
     episodes: impl Iterator<Item = &'a contents::Episode>,

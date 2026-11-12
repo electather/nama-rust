@@ -24,7 +24,7 @@ pub(crate) struct Doomed {
     pub(crate) title: String,
     /// What the Library's Fulfillers are asked to stop monitoring. `None` for a title Matched
     /// without the ids they know it by.
-    pub(crate) unmonitored: Option<Title>,
+    pub(crate) to_unmonitor: Option<Title>,
     /// Each file once.
     pub(crate) versions: Vec<Version>,
     /// The Episodes the title isn't, that a file of `versions` holds too.
@@ -255,7 +255,7 @@ mod tests {
                     folders: vec![self.path("")],
                 },
                 title: "Title".to_owned(),
-                unmonitored: None,
+                to_unmonitor: None,
                 versions: versions.collect(),
                 taken_along: Vec::new(),
             }

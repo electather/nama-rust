@@ -77,10 +77,12 @@ const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
 const SECRETS: i64 = 1_388_538;
 const LIES: i64 = 1_388_539;
 const BEGINNINGS: i64 = 1_803_405;
-/// The ids the fake Sonarr has Dark's Episodes S01E01 and S01E02 by, and its others'.
+/// The ids the fake Sonarr has Dark's Episodes S01E01, S01E02 and S02E01 by.
 const SONARR_SECRETS: i64 = 101;
 const SONARR_LIES: i64 = 102;
-const SONARR_OTHERS: [i64; 4] = [201, 202, 301, 302];
+const SONARR_BEGINNINGS: i64 = 201;
+/// The ids of the fake Sonarr's other Episodes of Dark, Season 1's aside.
+const SONARR_OTHERS: [i64; 4] = [SONARR_BEGINNINGS, 202, 301, 302];
 
 /// Every Version of the Movie with the TMDB id `tmdb` in `library`.
 fn movie(library: i64, tmdb: i64) -> MediaToDelete {
@@ -833,7 +835,10 @@ async fn deleting_an_episode_or_one_of_its_versions_has_sonarr_unmonitor_that_ep
         .await
         .unwrap();
 
-    assert_eq!(sonarr.unmonitored_episodes(), [SONARR_SECRETS, 201]);
+    assert_eq!(
+        sonarr.unmonitored_episodes(),
+        [SONARR_SECRETS, SONARR_BEGINNINGS]
+    );
     assert_eq!(sonarr.monitored_seasons(DARK_TVDB), seasons);
     assert_eq!(one_version.fulfillers_not_told, [""; 0]);
 }
