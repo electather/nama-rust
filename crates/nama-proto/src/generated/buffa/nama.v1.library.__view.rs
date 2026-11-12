@@ -3926,6 +3926,11 @@ pub struct PreviewDeleteMediaResponseView<'a> {
     ///
     /// Field 4: `playing`
     pub playing: u32,
+    /// The Library folder holding `files` that the Server couldn't write to when it last scanned the
+    /// Library, if there is one, in which case `DeleteMedia` is refused.
+    ///
+    /// Field 5: `read_only_folder`
+    pub read_only_folder: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
@@ -3971,6 +3976,13 @@ impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.playing = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.read_only_folder = Some(::buffa::types::borrow_str(&mut cur)?);
             }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -4050,6 +4062,7 @@ impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             playing: self.playing,
+            read_only_folder: self.read_only_folder.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4083,6 +4096,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PreviewDeleteMediaResponseView<'a> {
         if self.playing != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.playing) as u64;
         }
+        if let Some(ref v) = self.read_only_folder {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4115,6 +4131,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PreviewDeleteMediaResponseView<'a> {
         }
         if self.playing != 0u32 {
             ::buffa::types::put_uint32_field(4u32, self.playing, buf);
+        }
+        if let Some(ref v) = self.read_only_folder {
+            ::buffa::types::put_string_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4156,6 +4175,9 @@ impl<'__a> ::serde::Serialize for PreviewDeleteMediaResponseView<'__a> {
                     "playing",
                     &::buffa::json_helpers::ProtoJson(&self.playing),
                 )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.read_only_folder {
+            __map.serialize_entry("readOnlyFolder", __v)?;
         }
         __map.end()
     }
@@ -4287,6 +4309,14 @@ impl PreviewDeleteMediaResponseOwnedView {
     #[must_use]
     pub fn playing(&self) -> u32 {
         self.0.reborrow().playing
+    }
+    /// The Library folder holding `files` that the Server couldn't write to when it last scanned the
+    /// Library, if there is one, in which case `DeleteMedia` is refused.
+    ///
+    /// Field 5: `read_only_folder`
+    #[must_use]
+    pub fn read_only_folder(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().read_only_folder
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PreviewDeleteMediaResponseView<'static>>>

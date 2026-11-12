@@ -173,9 +173,17 @@ function dropUnmatched(queryClient: QueryClient, libraryId: bigint, itemId: bigi
   void queryClient.invalidateQueries({ queryKey });
 }
 
-/** Refetches the Movies, Shows and Episodes on screen when an Item is Matched or removed. */
+/**
+ * Refetches the Movies, Shows and Episodes on screen when an Item is Matched or removed, or a scan
+ * finishes: a scan records which folders are read-only, which can change with no Item Matched or
+ * removed.
+ */
 function refreshBrowsing({ event }: Event, queryClient: QueryClient) {
-  if (event.case === "itemMatched" || event.case === "libraryItemRemoved") {
+  if (
+    event.case === "itemMatched" ||
+    event.case === "libraryItemRemoved" ||
+    event.case === "scanFinished"
+  ) {
     // ponytail: every browse query, not only those of the Event's Library. Only the ones on screen
     // refetch, and a household Server has a handful of Libraries.
     void queryClient.invalidateQueries({ queryKey: browseKey });

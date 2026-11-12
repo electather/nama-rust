@@ -60,9 +60,16 @@ export function refusal(
   const reasons: Partial<Record<RefusalReason, FormErrors>> = {
     [RefusalReason.RECENT_AUTHENTICATION_REQUIRED]: { form: serverMessage(error) },
     [RefusalReason.PERMISSION_REQUIRED]: { form: permissionRequired(error) },
+    [RefusalReason.FOLDER_READ_ONLY]: { form: folderReadOnly(error) },
     ...byReason,
   };
   return reasons[refusalOf(error).reason] ?? byCode[code] ?? { form: unexplained(code, attempt) };
+}
+
+/** Which folder refused the delete refused with `error`, by the name the Refusal gives it. */
+function folderReadOnly(error: unknown) {
+  const folder = refusalOf(error).params["folder"] ?? "its folder";
+  return `Nothing was deleted: the Server can’t write to ${folder}.`;
 }
 
 /** Which Permission the change refused with `error` needs, by the name the Refusal gives it. */

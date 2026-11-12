@@ -45,7 +45,12 @@ function Movie() {
         <WatchedBar state={movie.watchState} />
       </div>
       <Play versions={movie.versions} version={version} onChoose={setChosen}>
-        <MovieActions libraryId={input.libraryId} movieId={input.movieId} movie={movie} />
+        <MovieActions
+          libraryId={input.libraryId}
+          movieId={input.movieId}
+          movie={movie}
+          readOnlyFolder={data.readOnlyFolder}
+        />
       </Play>
       {movie.overview !== undefined && (
         <p className="mt-8 max-w-prose text-pretty">{movie.overview}</p>

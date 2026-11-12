@@ -2142,6 +2142,7 @@ dependencies = [
  "notify",
  "regex",
  "roxmltree",
+ "rustix",
  "semver",
  "serde",
  "serde_json",
