@@ -554,7 +554,7 @@ export const RefusalReason = {
 
   /**
    * `invalid_argument`: the language named isn't an ISO 639 code. `field` is
-   * `subtitle.language`. Params: `language`.
+   * `subtitle.language` or `audio.language`. Params: `language`.
    *
    * @generated from enum value: REFUSAL_REASON_UNKNOWN_LANGUAGE = 64;
    */

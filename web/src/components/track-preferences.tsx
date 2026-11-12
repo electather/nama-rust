@@ -12,6 +12,7 @@ import { Choices, FormEnd, FormField } from "@/components/form-field";
 import {
   PlaybackService,
   SubtitleKind,
+  type UsersAudioPreference,
   type UsersSubtitlePreference,
 } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
@@ -28,6 +29,11 @@ export function trackPreferencesQuery(transport: Transport) {
   return createQueryOptions(PlaybackService.method.getTrackPreferences, {}, { transport });
 }
 
+/** What the language field says for subtitles off. */
+const OFF = "Off";
+/** What the language field says for the audio the file plays first. */
+const FILES_DEFAULT = "File’s default";
+
 /** Each kind of subtitle a User's own Subtitle Preference can want, with its label. */
 const kinds: [kind: SubtitleKind, label: string][] = [
   [SubtitleKind.FULL, "Full"],
@@ -41,8 +47,8 @@ function kindOf(value: string) {
 }
 
 /**
- * The signed-in User's own Track Preferences: the subtitles everything they play starts with,
- * unless they picked others in that Show or Movie (ADR 0035).
+ * The signed-in User's own Track Preferences: the subtitles and audio everything they play starts
+ * with, unless they picked others in that Show or Movie (ADR 0035).
  */
 export function TrackPreferences() {
   const { data } = useSuspenseQuery(PlaybackService.method.getTrackPreferences, {});
@@ -52,10 +58,11 @@ export function TrackPreferences() {
         Playback
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        What everything you play starts with, on every Device. A subtitle you pick while watching a
-        Show or Movie is kept for that one instead.
+        What everything you play starts with, on every Device. Subtitles or audio you pick while
+        watching a Show or Movie are kept for that one instead.
       </p>
       <SubtitlesForm saved={data.subtitle} />
+      <AudioForm saved={data.audio} />
     </section>
   );
 }
@@ -66,9 +73,8 @@ function SubtitlesForm({ saved }: { saved: UsersSubtitlePreference | undefined }
   const save = useMutation(PlaybackService.method.setSubtitlePreference, {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: preferencesKey }),
   });
-  const [language, setLanguage] = useState(() => languageName(saved?.language ?? ""));
-  const [unlisted, setUnlisted] = useState(false);
-  const errors = subtitleErrors(save.error, language);
+  const field = useTypedLanguage(saved?.language, save, "save your subtitles");
+  const { language, setUnlisted } = field;
   return (
     <form
       className="mt-4 flex flex-col gap-5"
@@ -79,15 +85,14 @@ function SubtitlesForm({ saved }: { saved: UsersSubtitlePreference | undefined }
       })}
     >
       <LanguageField
+        label="Subtitles"
+        none={OFF}
+        hint="Type to find a language, or pick Off for no subtitles."
         value={language}
-        error={unlisted ? unknownLanguage(language) : errors.subtitleLanguage}
-        onChange={(typed) => {
-          setLanguage(typed);
-          setUnlisted(false);
-          save.reset();
-        }}
+        error={field.error}
+        onChange={field.onChange}
       />
-      {!isOff(language) && (
+      {!isNone(language, OFF) && (
         <Choices
           legend="Which subtitles"
           name="kind"
@@ -100,18 +105,85 @@ function SubtitlesForm({ saved }: { saved: UsersSubtitlePreference | undefined }
         variant="ghost"
         pending={save.isPending}
         done={save.isSuccess ? "Saved." : undefined}
-        refusal={errors.form}
+        refusal={field.formError}
       />
     </form>
   );
 }
 
-/** The field a language is typed in, suggesting Off and each language on the list by name. */
+/** The form a User sets their own Audio Preference with, starting at the one `saved`. */
+function AudioForm({ saved }: { saved: UsersAudioPreference | undefined }) {
+  const queryClient = useQueryClient();
+  const save = useMutation(PlaybackService.method.setAudioPreference, {
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: preferencesKey }),
+  });
+  const field = useTypedLanguage(saved?.language, save, "save your audio");
+  const { language, setUnlisted } = field;
+  return (
+    <form
+      className="mt-8 flex flex-col gap-5"
+      onSubmit={onSubmitted(() => {
+        const audio = wantedAudio(language);
+        setUnlisted(audio === undefined);
+        if (audio !== undefined) save.mutate({ audio });
+      })}
+    >
+      <LanguageField
+        label="Audio"
+        none={FILES_DEFAULT}
+        hint="Type to find a language, or pick File’s default for the audio each file starts with."
+        value={language}
+        error={field.error}
+        onChange={field.onChange}
+      />
+      <FormEnd
+        action="Save audio"
+        variant="ghost"
+        pending={save.isPending}
+        done={save.isSuccess ? "Saved." : undefined}
+        refusal={field.formError}
+      />
+    </form>
+  );
+}
+
+/**
+ * The language typed in a form that tries to `attempt` with `save`, starting at the one `saved`
+ * names: what typing in it does, and why the field or the form was refused, if it was.
+ * `setUnlisted` marks it as not on the list, which the form finds before it saves.
+ */
+function useTypedLanguage(
+  saved: string | undefined,
+  save: { reset: () => void; error: unknown },
+  attempt: string,
+) {
+  const [language, setLanguage] = useState(() => languageName(saved ?? ""));
+  const [unlisted, setUnlisted] = useState(false);
+  const errors = languageErrors(save.error, language, attempt);
+  const onChange = (typed: string) => {
+    setLanguage(typed);
+    setUnlisted(false);
+    save.reset();
+  };
+  const error = unlisted ? unknownLanguage(language) : errors.language;
+  return { language, setUnlisted, onChange, error, formError: errors.form };
+}
+
+/**
+ * The field labelled `label` a language is typed in, suggesting `none`, for no language, and each
+ * language on the list by name.
+ */
 function LanguageField({
+  label,
+  none,
+  hint,
   value,
   error,
   onChange,
 }: {
+  label: string;
+  none: string;
+  hint: string;
   value: string;
   error: string | undefined;
   onChange: (typed: string) => void;
@@ -120,13 +192,13 @@ function LanguageField({
   return (
     <>
       <FormField
-        label="Subtitles"
+        label={label}
         name="language"
         required={false}
         list={listId}
         autoComplete="off"
-        placeholder="Off"
-        hint="Type to find a language, or pick Off for no subtitles."
+        placeholder={none}
+        hint={hint}
         error={error}
         value={value}
         onChange={(event) => {
@@ -134,7 +206,7 @@ function LanguageField({
         }}
       />
       <datalist id={listId}>
-        <option value="Off">Off</option>
+        <option value={none}>{none}</option>
         {languages.map(({ code, name }) => (
           <option key={code} value={name}>
             {name}
@@ -145,9 +217,15 @@ function LanguageField({
   );
 }
 
-/** Whether `typed` turns subtitles off: nothing typed, or Off picked. */
-function isOff(typed: string) {
-  return ["", "off"].includes(typed.trim().toLowerCase());
+/** Whether `typed` names no language: nothing typed, or `none` picked or typed in any case. */
+function isNone(typed: string, none: string) {
+  return ["", comparable(none)].includes(comparable(typed));
+}
+
+/** `text` as typed words are compared: trimmed, in lower case, with curly apostrophes. */
+function comparable(text: string) {
+  // A keyboard types a straight apostrophe where `FILES_DEFAULT` has a curly one.
+  return text.trim().toLowerCase().replaceAll("'", "’");
 }
 
 /**
@@ -155,9 +233,16 @@ function isOff(typed: string) {
  * for a language not on the list.
  */
 function wanted(typed: string, kind: string) {
-  if (isOff(typed)) return {};
+  if (isNone(typed, OFF)) return {};
   const language = languageCode(typed);
   return language === undefined ? undefined : { language, kind: kindOf(kind) };
+}
+
+/** The Audio Preference the language `typed` asks for, `undefined` for a language not on the list. */
+function wantedAudio(typed: string) {
+  if (isNone(typed, FILES_DEFAULT)) return {};
+  const language = languageCode(typed);
+  return language === undefined ? undefined : { language };
 }
 
 /** The kind of subtitle `saved` wants, as its radio button is valued, if it wants any. */
@@ -165,15 +250,15 @@ function savedKind(saved: UsersSubtitlePreference | undefined) {
   return saved?.language === undefined ? undefined : String(saved.kind);
 }
 
-/** Why saving the language `typed` was refused with `error`, if it was. */
-function subtitleErrors(error: unknown, typed: string) {
+/** Why the `attempt` to save the language `typed` was refused with `error`, if it was. */
+function languageErrors(error: unknown, typed: string, attempt: string) {
   if (error === null || error === undefined) return {};
   return refusal(
     error,
-    "save your subtitles",
+    attempt,
     {},
     {
-      [RefusalReason.UNKNOWN_LANGUAGE]: { subtitleLanguage: unknownLanguage(typed) },
+      [RefusalReason.UNKNOWN_LANGUAGE]: { language: unknownLanguage(typed) },
     },
   );
 }

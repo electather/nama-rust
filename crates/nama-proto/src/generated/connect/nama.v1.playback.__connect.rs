@@ -38,6 +38,14 @@ pub type OwnedSetSubtitlePreferenceRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetSubtitlePreferenceResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetSubtitlePreferenceResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SetAudioPreferenceRequestView<'static>>`.
+pub type OwnedSetAudioPreferenceRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetAudioPreferenceRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetAudioPreferenceResponseView<'static>>`.
+pub type OwnedSetAudioPreferenceResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetAudioPreferenceResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::PlanPlaybackResponse>
 for crate::messages::nama::v1::__buffa::view::PlanPlaybackResponseView<'_> {
     fn encode(
@@ -208,6 +216,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetAudioPreferenceResponse>
+for crate::messages::nama::v1::__buffa::view::SetAudioPreferenceResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetAudioPreferenceResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetAudioPreferenceResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const PLAYBACK_SERVICE_SERVICE_NAME: &str = "nama.v1.PlaybackService";
 /// Static [`Spec`](::connectrpc::Spec) for the `PlanPlayback` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -237,6 +279,12 @@ pub const PLAYBACK_SERVICE_GET_TRACK_PREFERENCES_SPEC: ::connectrpc::Spec = ::co
 /// Static [`Spec`](::connectrpc::Spec) for the `SetSubtitlePreference` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const PLAYBACK_SERVICE_SET_SUBTITLE_PREFERENCE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.PlaybackService/SetSubtitlePreference",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetAudioPreference` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.PlaybackService/SetAudioPreference",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -424,6 +472,31 @@ pub trait PlaybackService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Sets the caller's own Audio Preference, which a plan starts with when the Show or Movie has
+    /// none of its own, an Unmatched Item's Version included (ADR 0035). Refused with
+    /// `REFUSAL_REASON_UNKNOWN_LANGUAGE` if the language isn't an ISO 639 code.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_audio_preference<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetAudioPreferenceRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetAudioPreferenceResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -601,6 +674,35 @@ impl<S: PlaybackService> PlaybackServiceExt for S {
                 },
             )
             .with_spec(PLAYBACK_SERVICE_SET_SUBTITLE_PREFERENCE_SPEC)
+            .route_view(
+                PLAYBACK_SERVICE_SERVICE_NAME,
+                "SetAudioPreference",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetAudioPreferenceRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetAudioPreferenceRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_audio_preference(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetAudioPreferenceResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -683,6 +785,12 @@ impl<T: PlaybackService> ::connectrpc::Dispatcher for PlaybackServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(PLAYBACK_SERVICE_SET_SUBTITLE_PREFERENCE_SPEC),
+                )
+            }
+            "SetAudioPreference" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC),
                 )
             }
             _ => None,
@@ -807,6 +915,28 @@ impl<T: PlaybackService> ::connectrpc::Dispatcher for PlaybackServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::SetSubtitlePreferenceResponse,
+                        >(format)
+                })
+            }
+            "SetAudioPreference" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetAudioPreferenceRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetAudioPreferenceRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetAudioPreferenceRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_audio_preference(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetAudioPreferenceResponse,
                         >(format)
                 })
             }
@@ -1157,6 +1287,51 @@ where
                 &self.transport,
                 &self.config,
                 PLAYBACK_SERVICE_SET_SUBTITLE_PREFERENCE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetAudioPreference RPC. Sends a request to /nama.v1.PlaybackService/SetAudioPreference.
+    pub async fn set_audio_preference(
+        &self,
+        request: crate::messages::nama::v1::SetAudioPreferenceRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetAudioPreferenceResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_audio_preference_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetAudioPreference RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_audio_preference_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetAudioPreferenceRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetAudioPreferenceResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
