@@ -13,7 +13,7 @@ const CEILINGS: &[(&str, usize)] = &[
     ("src/browse.rs", 1200),
     ("src/ffmpeg.rs", 2600),
     ("src/images.rs", 900),
-    ("src/library/contents.rs", 2800),
+    ("src/library/contents.rs", 2500),
     ("src/matching.rs", 1900),
     ("src/playback.rs", 2000),
     ("src/playback/running.rs", 1200),
