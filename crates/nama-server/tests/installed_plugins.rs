@@ -101,8 +101,8 @@ impl Started {
         Ok(response.into_owned())
     }
 
-    /// Drops in the test Plugin with its Observer set to `observer` (`log`, `clock`, `loop` or `panic`),
-    /// enables it, and returns a Library to scan so it is told about Events.
+    /// Drops in the test Plugin with its Observer set to `observer` (`log`, `clock`, `loop`,
+    /// `hoard` or `panic`), enables it, and returns a Library to scan so it is told about Events.
     async fn observing(&self, observer: &str) -> (i64, tempfile::TempDir) {
         self.drop_in("test.wasm", "");
         // Listing is what reads `plugins/`.

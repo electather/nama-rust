@@ -44,7 +44,8 @@ pub struct Registry {
 
 /// How the Kernel calls the Plugins enabled in a [`Registry`]: observing, asking Providers and
 /// who provides a capability. It can't enable, disable or list Plugins; only a
-/// Provider that panics disables its own Plugin, as it would through the `Registry`.
+/// Provider or an Observer that panics disables its own Plugin, as it would through the
+/// `Registry`.
 ///
 /// Cloning gives another handle to the same Plugins.
 #[derive(Clone, Default)]

@@ -286,12 +286,12 @@ impl Running {
     }
 }
 
-/// Whether a failed call trapped or timed out, rather than the Plugin returning an error or a
-/// host function such as an HTTP request refusing it.
+/// Whether a failed call trapped, timed out or ran past [`MEMORY_MAX_PAGES`], rather than the
+/// Plugin returning an error or a host function such as an HTTP request refusing it.
 fn is_crash(err: &extism::Error) -> bool {
-    // Any failed call but a timeout is wasmtime's own error, which holds a trap (under any panic's
-    // message) only if the guest trapped. A host function's error unwinds the guest too, but holds
-    // no trap.
+    // Any failed call but a timeout or one past the memory cap is wasmtime's own error, which
+    // holds a trap (under any panic's message) only if the guest trapped. A host function's error
+    // unwinds the guest too, but holds no trap.
     is_timeout(err)
         || is_out_of_memory(err)
         || err
@@ -310,7 +310,9 @@ fn is_out_of_memory(err: &extism::Error) -> bool {
     err.to_string() == "oom"
 }
 
-/// Why a call failed, in plain words where Extism gives a bare code.
+/// Why a call failed: the root cause, with the memory cap's bare "oom" put in plain words. A
+/// timeout's bare "timeout" is left to the callers: [`Running::provide`] words it, and the settings
+/// check reports it as [`CheckTimedOut`].
 fn failure_cause(err: &extism::Error) -> String {
     if is_out_of_memory(err) {
         format!("it used more than {} MiB of memory", MEMORY_MAX_PAGES / 16)
