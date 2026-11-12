@@ -36,6 +36,8 @@ use server::{
 
 /// Where the store keeps Alien's Poster, as the fake TMDB names it.
 const POSTER: &str = "artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg";
+/// Where the store keeps Alien's Title Logo, as the fake TMDB names it.
+const TITLE_LOGO: &str = "artwork/tmdb/%2FfzbFBy8eTB3hbmHDgSrbNdhDzA9.png";
 /// Where the store keeps the Still of Dark's S01E01, as the fake TMDB names it.
 const STILL: &str = "artwork/tmdb/%2FgNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
 
@@ -510,6 +512,25 @@ async fn a_still_is_resized_like_a_backdrop_and_browse_then_sends_its_thumbhash(
     .unwrap();
     // A thumbhash keeps its image's shape only roughly.
     assert!((shape - 16.0 / 9.0).abs() < 0.2, "{shape}");
+}
+
+#[tokio::test]
+async fn a_title_logo_keeps_its_transparency_for_a_browser_that_does_not_take_jpeg_xl() {
+    let png = encoded(
+        RgbaImage::from_fn(1280, 400, |x, _| {
+            [200, 80, 40, if x < 640 { 0 } else { 255 }].into()
+        }),
+        ImageFormat::Png,
+    );
+    let fx = Fixture::alien().await;
+    replace_once_downloaded(&fx, TITLE_LOGO, &png).await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let logo = movie.title_logo_url.unwrap();
+
+    let reply = fetch_accepting(&fx, &logo, 640, "image/webp,*/*").await;
+
+    assert_eq!(reply.status, 200);
+    assert!(reply.body == png, "it was changed");
 }
 
 #[tokio::test]

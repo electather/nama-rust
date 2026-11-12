@@ -115,5 +115,11 @@ pub(crate) fn tmdb_movie(tmdb: i64, title: &str) -> Metadata {
         poster: None,
         backdrop: None,
         still: None,
+        title_logo: None,
+        genres: Vec::new(),
+        content_rating: None,
+        show_poster: None,
+        show_overview: None,
+        show_first_air_date: None,
     }
 }

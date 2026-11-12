@@ -88,8 +88,9 @@ impl Plugin for Tmdb {
                 SettingField {
                     key: LANGUAGE.to_owned(),
                     label: "Language".to_owned(),
-                    description: "The language titles and overviews are fetched in, as an \
-                                  IETF tag such as en-US or de-DE."
+                    description: "The language titles, overviews and Title Logos are fetched \
+                                  in, as an IETF tag such as en-US or de-DE. Its country, such \
+                                  as US, picks the Content Rating."
                         .to_owned(),
                     kind: SettingKind::Text,
                     required: false,

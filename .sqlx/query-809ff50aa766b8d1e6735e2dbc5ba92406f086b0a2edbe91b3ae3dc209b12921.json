@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE item_matches\n                         SET metadata_version = 0, still = NULL, title_logo = NULL, genres = NULL,\n                             content_rating = NULL, show_poster = NULL, show_overview = NULL,\n                             show_first_air_date = NULL\n                         WHERE item_id IN (SELECT library_items.id FROM library_items\n                                           JOIN library_files\n                                             ON library_files.id = library_items.file_id\n                                           WHERE library_files.library_id = ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "809ff50aa766b8d1e6735e2dbc5ba92406f086b0a2edbe91b3ae3dc209b12921"
+}

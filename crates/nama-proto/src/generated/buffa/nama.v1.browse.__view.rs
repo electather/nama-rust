@@ -66,6 +66,20 @@ pub struct MovieView<'a> {
     ///
     /// Field 14: `backdrop_thumbhash`
     pub backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
+    /// Its Title Logo's URL on this Server, lettered in the metadata Provider's language. Unset if
+    /// the Provider has none in that language: show `title` as text instead.
+    ///
+    /// Field 15: `title_logo_url`
+    pub title_logo_url: ::core::option::Option<&'a str>,
+    /// Its genres' names, in the metadata Provider's language.
+    ///
+    /// Field 16: `genres`
+    pub genres: ::buffa::RepeatedView<'a, &'a str>,
+    /// Its Content Rating in the metadata Provider's country, such as `R`. Unset if it has none
+    /// there.
+    ///
+    /// Field 17: `content_rating`
+    pub content_rating: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
@@ -217,6 +231,20 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 )?;
                 view.backdrop_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
             }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title_logo_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.content_rating = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             9u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -234,6 +262,17 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                             __sub_ctx,
                         )?,
                     );
+            }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.genres.push(__elem);
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -291,6 +330,9 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
             custom_backdrop: self.custom_backdrop,
             poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
             backdrop_thumbhash: self.backdrop_thumbhash.map(|b| (b).to_vec()),
+            title_logo_url: self.title_logo_url.map(|s| s.to_string()),
+            genres: self.genres.iter().map(|s| s.to_string()).collect(),
+            content_rating: self.content_rating.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -359,6 +401,15 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         if let Some(ref v) = self.backdrop_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.title_logo_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.genres {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -426,6 +477,15 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         }
         if let Some(ref v) = self.backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(14u32, v, buf);
+        }
+        if let Some(ref v) = self.title_logo_url {
+            ::buffa::types::put_string_field(15u32, v, buf);
+        }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(16u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(17u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -505,6 +565,15 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
                     "backdropThumbhash",
                     &::buffa::json_helpers::BytesJson(__v),
                 )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.title_logo_url {
+            __map.serialize_entry("titleLogoUrl", __v)?;
+        }
+        if !self.genres.is_empty() {
+            __map.serialize_entry("genres", &*self.genres)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.content_rating {
+            __map.serialize_entry("contentRating", __v)?;
         }
         __map.end()
     }
@@ -697,6 +766,29 @@ impl MovieOwnedView {
     #[must_use]
     pub fn backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
         self.0.reborrow().backdrop_thumbhash
+    }
+    /// Its Title Logo's URL on this Server, lettered in the metadata Provider's language. Unset if
+    /// the Provider has none in that language: show `title` as text instead.
+    ///
+    /// Field 15: `title_logo_url`
+    #[must_use]
+    pub fn title_logo_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().title_logo_url
+    }
+    /// Its genres' names, in the metadata Provider's language.
+    ///
+    /// Field 16: `genres`
+    #[must_use]
+    pub fn genres(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().genres
+    }
+    /// Its Content Rating in the metadata Provider's country, such as `R`. Unset if it has none
+    /// there.
+    ///
+    /// Field 17: `content_rating`
+    #[must_use]
+    pub fn content_rating(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().content_rating
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieView<'static>>> for MovieOwnedView {
@@ -4096,7 +4188,8 @@ pub struct ShowView<'a> {
     ///
     /// Field 2: `title`
     pub title: &'a str,
-    /// Its poster's URL on this Server: its Custom Image if it has one, else its first Season's.
+    /// Its poster's URL on this Server: its Custom Image if it has one, else its own, else, until
+    /// the Server has fetched its own, its first Season's after the Specials.
     ///
     /// Field 3: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
@@ -4121,6 +4214,24 @@ pub struct ShowView<'a> {
     ///
     /// Field 8: `backdrop_thumbhash`
     pub backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
+    /// As `Movie.title_logo_url`.
+    ///
+    /// Field 9: `title_logo_url`
+    pub title_logo_url: ::core::option::Option<&'a str>,
+    /// As `Movie.genres`.
+    ///
+    /// Field 10: `genres`
+    pub genres: ::buffa::RepeatedView<'a, &'a str>,
+    /// As `Movie.content_rating`, such as `TV-MA`.
+    ///
+    /// Field 11: `content_rating`
+    pub content_rating: ::core::option::Option<&'a str>,
+    /// Field 12: `overview`
+    pub overview: ::core::option::Option<&'a str>,
+    /// When it first aired, as `YYYY-MM-DD`.
+    ///
+    /// Field 13: `first_air_date`
+    pub first_air_date: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
@@ -4223,6 +4334,45 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 )?;
                 view.backdrop_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title_logo_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.content_rating = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.overview = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.first_air_date = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.genres.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4261,6 +4411,11 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
             custom_backdrop: self.custom_backdrop,
             poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
             backdrop_thumbhash: self.backdrop_thumbhash.map(|b| (b).to_vec()),
+            title_logo_url: self.title_logo_url.map(|s| s.to_string()),
+            genres: self.genres.iter().map(|s| s.to_string()).collect(),
+            content_rating: self.content_rating.map(|s| s.to_string()),
+            overview: self.overview.map(|s| s.to_string()),
+            first_air_date: self.first_air_date.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4301,6 +4456,21 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if let Some(ref v) = self.backdrop_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.title_logo_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.overview {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.first_air_date {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4340,6 +4510,21 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         }
         if let Some(ref v) = self.backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(8u32, v, buf);
+        }
+        if let Some(ref v) = self.title_logo_url {
+            ::buffa::types::put_string_field(9u32, v, buf);
+        }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(10u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(11u32, v, buf);
+        }
+        if let Some(ref v) = self.overview {
+            ::buffa::types::put_string_field(12u32, v, buf);
+        }
+        if let Some(ref v) = self.first_air_date {
+            ::buffa::types::put_string_field(13u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4395,6 +4580,21 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
                     "backdropThumbhash",
                     &::buffa::json_helpers::BytesJson(__v),
                 )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.title_logo_url {
+            __map.serialize_entry("titleLogoUrl", __v)?;
+        }
+        if !self.genres.is_empty() {
+            __map.serialize_entry("genres", &*self.genres)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.content_rating {
+            __map.serialize_entry("contentRating", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.overview {
+            __map.serialize_entry("overview", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.first_air_date {
+            __map.serialize_entry("firstAirDate", __v)?;
         }
         __map.end()
     }
@@ -4500,7 +4700,8 @@ impl ShowOwnedView {
     pub fn title(&self) -> &'_ str {
         self.0.reborrow().title
     }
-    /// Its poster's URL on this Server: its Custom Image if it has one, else its first Season's.
+    /// Its poster's URL on this Server: its Custom Image if it has one, else its own, else, until
+    /// the Server has fetched its own, its first Season's after the Specials.
     ///
     /// Field 3: `poster_url`
     #[must_use]
@@ -4542,6 +4743,39 @@ impl ShowOwnedView {
     #[must_use]
     pub fn backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
         self.0.reborrow().backdrop_thumbhash
+    }
+    /// As `Movie.title_logo_url`.
+    ///
+    /// Field 9: `title_logo_url`
+    #[must_use]
+    pub fn title_logo_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().title_logo_url
+    }
+    /// As `Movie.genres`.
+    ///
+    /// Field 10: `genres`
+    #[must_use]
+    pub fn genres(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().genres
+    }
+    /// As `Movie.content_rating`, such as `TV-MA`.
+    ///
+    /// Field 11: `content_rating`
+    #[must_use]
+    pub fn content_rating(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().content_rating
+    }
+    /// Field 12: `overview`
+    #[must_use]
+    pub fn overview(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().overview
+    }
+    /// When it first aired, as `YYYY-MM-DD`.
+    ///
+    /// Field 13: `first_air_date`
+    #[must_use]
+    pub fn first_air_date(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().first_air_date
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowView<'static>>> for ShowOwnedView {

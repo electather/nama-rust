@@ -1,4 +1,5 @@
-//! Posters, Backdrops and Stills, downloaded when a Match is made and kept in the image store.
+//! Posters, Backdrops, Stills and Title Logos, downloaded when a Match is made and kept in the image
+//! store.
 //!
 //! A Match stores its title's images as paths the metadata Provider handed out, along with the
 //! Plugin whose Provider that was. Once a Match is stored, its images are downloaded through that
