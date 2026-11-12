@@ -2,9 +2,9 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 import { Link, type LinkOptions, createFileRoute } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 
-import { LibraryCard } from "@/components/library-card";
+import { BackdropCard, BackdropGrid, LibraryCard } from "@/components/backdrop-card";
 import { Page } from "@/components/page";
-import { Poster, PosterGrid, posterLink } from "@/components/poster";
+import { posterLink } from "@/components/poster";
 import {
   BrowseService,
   type ContinueWatchingEntry,
@@ -13,7 +13,7 @@ import {
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
-import { metadataLine, seasonName, titleParam, yearOf } from "@/lib/browse";
+import { metadataLine, seasonName, timeLeft, titleParam } from "@/lib/browse";
 
 export const Route = createFileRoute("/_member/")({
   loader: ({ context: { queryClient, transport } }) =>
@@ -55,24 +55,24 @@ function ContinueWatching() {
       <h2 id="continue-watching" className="font-medium">
         Continue Watching
       </h2>
-      <PosterGrid empty={null}>
-        {data.entries.flatMap(entryCard).map(({ key, link, poster }) => (
+      <BackdropGrid>
+        {data.entries.flatMap(entryCard).map(({ key, link, backdrop }) => (
           <li key={key}>
             <Link {...link} className={posterLink}>
-              <Poster {...poster} />
+              <BackdropCard {...backdrop} />
             </Link>
           </li>
         ))}
-      </PosterGrid>
+      </BackdropGrid>
     </section>
   );
 }
 
-/** A Continue Watching entry: where it plays, resuming where you stopped, and its poster. */
+/** A Continue Watching entry: where it plays, resuming where you stopped, and its card. */
 interface Card {
   key: string;
   link: LinkOptions;
-  poster: ComponentProps<typeof Poster>;
+  backdrop: ComponentProps<typeof BackdropCard>;
 }
 
 function entryCard({ libraryId, movieOrEpisode }: ContinueWatchingEntry): Card[] {
@@ -90,23 +90,24 @@ function movieCard(libraryId: string, movie: Movie): Card {
       to: "/libraries/$libraryId/movies/$movieId/play",
       params: { libraryId, movieId },
     },
-    poster: {
-      url: movie.posterUrl,
-      thumbhash: movie.posterThumbhash,
+    backdrop: {
+      url: movie.backdropUrl,
+      thumbhash: movie.backdropThumbhash,
       title: movie.title,
-      detail: yearOf(movie.releaseDate),
+      detail: timeLeft(movie.watchState),
       watchState: movie.watchState,
     },
   };
 }
 
-/** An Episode shows its Show's poster, saying which Episode it is. */
+/** An Episode shows its Show's Backdrop, saying which Episode it is, such as "S1, E3". */
 function episodeCard(libraryId: string, { show, episode }: ContinueWatchingEpisode): Card[] {
   // Protobuf message fields are always optional; the Server sets both.
   if (!show || !episode) return [];
   const showId = titleParam(show.id);
   const season = String(episode.seasonNumber);
   const number = String(episode.episodeNumber);
+  const seasonLabel = episode.seasonNumber === 0 ? seasonName(0) : `S${season}`;
   return [
     {
       key: `${libraryId}/${showId}/${season}/${number}`,
@@ -114,11 +115,11 @@ function episodeCard(libraryId: string, { show, episode }: ContinueWatchingEpiso
         to: "/libraries/$libraryId/shows/$showId/seasons/$season/episodes/$episode/play",
         params: { libraryId, showId, season, episode: number },
       },
-      poster: {
-        url: show.posterUrl,
-        thumbhash: show.posterThumbhash,
+      backdrop: {
+        url: show.backdropUrl,
+        thumbhash: show.backdropThumbhash,
         title: show.title,
-        detail: metadataLine(seasonName(episode.seasonNumber), `Episode ${number}`),
+        detail: metadataLine(`${seasonLabel}, E${number}`, timeLeft(episode.watchState)),
         watchState: episode.watchState,
       },
     },
@@ -135,7 +136,7 @@ function Libraries() {
     );
   }
   return (
-    <ul className="mt-4 grid gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
+    <BackdropGrid>
       {data.libraries.map((library) => (
         <li key={String(library.id)}>
           <Link
@@ -147,6 +148,6 @@ function Libraries() {
           </Link>
         </li>
       ))}
-    </ul>
+    </BackdropGrid>
   );
 }

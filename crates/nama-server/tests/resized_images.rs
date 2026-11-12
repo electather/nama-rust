@@ -18,7 +18,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use browsing::Fixture;
+use browsing::{Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
 use http::{Reply, fetch, fetch_with};
 use image::{DynamicImage, ImageFormat, RgbImage, RgbaImage};
@@ -26,11 +26,18 @@ use jxl::{
     api::{Event, JxlDecoder, JxlDecoderOptions, JxlPixelFormat},
     image::JxlOutputBuffer,
 };
-use nama_proto::nama::v1::{GetServerInfoRequest, ServerServiceClient};
-use server::tmdb::ALIEN;
+use nama_proto::nama::v1::{
+    Episode, GetServerInfoRequest, LibraryKind, ListEpisodesRequest, ServerServiceClient,
+};
+use server::{
+    TestServer,
+    tmdb::{ALIEN, DARK},
+};
 
 /// Where the store keeps Alien's Poster, as the fake TMDB names it.
 const POSTER: &str = "artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg";
+/// Where the store keeps the Still of Dark's S01E01, as the fake TMDB names it.
+const STILL: &str = "artwork/tmdb/%2FgNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
 
 /// Alien's Matched Movie, with `poster` stored as its Poster.
 #[expect(
@@ -39,18 +46,27 @@ const POSTER: &str = "artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg";
 )]
 async fn alien_with_poster(poster: &[u8]) -> (Fixture, String) {
     let fx = Fixture::alien().await;
-    let stored = fx.server.data_dir().join(POSTER);
-    // The Match downloads the Poster in the background, which would replace the one written here.
+    replace_once_downloaded(&fx, POSTER, poster).await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    (fx, movie.poster_url.unwrap())
+}
+
+/// Writes `image` over the stored image `key` once the Match's background download has stored
+/// it, since that download would replace an image written before it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn replace_once_downloaded(fx: &Fixture, key: &str, image: &[u8]) {
+    let stored = fx.server.data_dir().join(key);
     let downloaded = tokio::time::timeout(Duration::from_secs(10), async {
         while !stored.exists() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
     .await;
-    assert!(downloaded.is_ok(), "Alien's Poster was never downloaded");
-    fs::write(&stored, poster).unwrap();
-    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    (fx, movie.poster_url.unwrap())
+    assert!(downloaded.is_ok(), "{key} was never downloaded");
+    fs::write(&stored, image).unwrap();
 }
 
 /// `image` encoded as `format`.
@@ -448,6 +464,52 @@ async fn once_a_poster_is_resized_browse_sends_its_thumbhash() {
     // A thumbhash keeps its image's shape only roughly.
     assert!((shape - 2.0 / 3.0).abs() < 0.1, "{shape}");
     assert_eq!(after.backdrop_thumbhash, None);
+}
+
+/// Dark's S01E01, Matched, with `still` stored as its Still.
+async fn secrets_with_still(still: &[u8]) -> Fixture {
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
+    fx.write("Dark (2017)/Season 01/Dark - S01E01.mkv", b"video");
+    fx.scan_and_match().await;
+    replace_once_downloaded(&fx, STILL, still).await;
+    fx
+}
+
+/// Dark's Season 1 Episodes, as `ListEpisodes` sends them.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn dark_season_1(fx: &Fixture) -> Vec<Episode> {
+    fx.browse
+        .list_episodes(ListEpisodesRequest {
+            library_id: fx.library,
+            show_id: tmdb_id(DARK).into(),
+            season_number: 1,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .episodes
+}
+
+#[tokio::test]
+async fn a_still_is_resized_like_a_backdrop_and_browse_then_sends_its_thumbhash() {
+    let fx = secrets_with_still(&jpeg(1920, 1080)).await;
+    let still = dark_season_1(&fx).await[0].still_url.clone().unwrap();
+
+    let reply = fetch_at(&fx, &still, 640).await;
+    let after = dark_season_1(&fx).await;
+
+    assert_eq!(reply.status, 200);
+    assert_eq!(dimensions(&reply), (640, 360));
+    let shape = thumbhash::thumb_hash_to_approximate_aspect_ratio(
+        after[0].still_thumbhash.as_deref().unwrap(),
+    )
+    .unwrap();
+    // A thumbhash keeps its image's shape only roughly.
+    assert!((shape - 16.0 / 9.0).abs() < 0.2, "{shape}");
 }
 
 #[tokio::test]

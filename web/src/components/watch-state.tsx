@@ -1,4 +1,4 @@
-import { Check, Circle, CircleCheck } from "lucide-react";
+import { Check, Circle, CircleCheck, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -15,6 +15,18 @@ export function WatchedBar({ state }: { state: WatchState | undefined }) {
   const percent = watchedPercent(state);
   if (percent === 0) return null;
   return <Progress value={percent} aria-label="Watched" />;
+}
+
+/** ▶ and a bar showing how far in you are, unless it's played or you haven't started. */
+export function ResumeBar({ state }: { state: WatchState | undefined }) {
+  if (!state || state.played || state.positionMs === 0n) return null;
+  return (
+    <div className="mt-2 flex items-center gap-2 text-foreground">
+      <Play aria-hidden className="size-3.5 shrink-0 fill-current" />
+      {/* Not `WatchedBar`, which hides under 1%: in Continue Watching, started is started. */}
+      <Progress value={watchedPercent(state)} aria-label="Watched" />
+    </div>
+  );
 }
 
 /** The mark in a poster's corner once it's played: a green check, named for screen readers. */

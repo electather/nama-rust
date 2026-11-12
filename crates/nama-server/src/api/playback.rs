@@ -5,8 +5,9 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_proto::nama::v1::{
     self as proto, GetTrackPreferencesRequest, GetTrackPreferencesResponse, PickedTrackKind,
     PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService, RefusalReason,
-    ReportTrackPickRequest, ReportTrackPickResponse, SetSubtitlePreferenceRequest,
-    SetSubtitlePreferenceResponse, StopPlaybackRequest, StopPlaybackResponse, SubtitleKind,
+    ReportTrackPickRequest, ReportTrackPickResponse, SetAudioPreferenceRequest,
+    SetAudioPreferenceResponse, SetSubtitlePreferenceRequest, SetSubtitlePreferenceResponse,
+    StopPlaybackRequest, StopPlaybackResponse, SubtitleKind, UsersAudioPreference,
     UsersSubtitlePreference,
 };
 
@@ -196,8 +197,14 @@ impl PlaybackService for PlaybackServiceHandler {
     ) -> ServiceResult<GetTrackPreferencesResponse> {
         let user = caller(&ctx)?.user.id;
         let subtitle = (self.preferences.users_subtitle(user).await).map_err(database_failed)?;
+        let audio = (self.preferences.users_audio(user).await).map_err(database_failed)?;
         Response::ok(GetTrackPreferencesResponse {
             subtitle: users_subtitle_to_proto(subtitle).into(),
+            audio: UsersAudioPreference {
+                language: audio,
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         })
     }
@@ -219,6 +226,23 @@ impl PlaybackService for PlaybackServiceHandler {
             .await
             .map_err(database_failed)?;
         Response::ok(SetSubtitlePreferenceResponse::default())
+    }
+
+    async fn set_audio_preference(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetAudioPreferenceRequest>,
+    ) -> ServiceResult<SetAudioPreferenceResponse> {
+        let user = caller(&ctx)?.user.id;
+        let wanted = request.to_owned_message().audio.into_option();
+        let language = (wanted.and_then(|audio| audio.language))
+            .map(|language| checked_language(&language, "audio.language"))
+            .transpose()?;
+        (self.preferences)
+            .keep_users_audio(user, language)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(SetAudioPreferenceResponse::default())
     }
 }
 
@@ -248,15 +272,7 @@ fn users_subtitle_from_proto(
     let Some(language) = wanted.language else {
         return Ok(SubtitlePreference::Off);
     };
-    if !track_preferences::is_language(&language) {
-        return Err(refuse(
-            RefusalReason::REFUSAL_REASON_UNKNOWN_LANGUAGE,
-            format!("{language:?} isn't an ISO 639 language code, such as `en` or `eng`"),
-        )
-        .field("subtitle.language")
-        .param("language", &language)
-        .into());
-    }
+    let language = checked_language(&language, "subtitle.language")?;
     let (forced, sdh) = match wanted.kind {
         EnumValue::Known(SubtitleKind::SUBTITLE_KIND_FULL) => (false, false),
         EnumValue::Known(SubtitleKind::SUBTITLE_KIND_SDH) => (false, true),
@@ -269,12 +285,27 @@ fn users_subtitle_from_proto(
         }
     };
     Ok(SubtitlePreference::Like(Description {
-        // So a client gets back the code it would have sent itself.
-        language: Some(language.to_ascii_lowercase()),
+        language: Some(language),
         forced,
         sdh,
         title: None,
     }))
+}
+
+/// The language a User's own Preference names in the request field `field`, in lower case,
+/// refusing one that isn't ISO 639.
+fn checked_language(language: &str, field: &str) -> Result<String, ConnectError> {
+    if !track_preferences::is_language(language) {
+        return Err(refuse(
+            RefusalReason::REFUSAL_REASON_UNKNOWN_LANGUAGE,
+            format!("{language:?} isn't an ISO 639 language code, such as `en` or `eng`"),
+        )
+        .field(field)
+        .param("language", &language)
+        .into());
+    }
+    // So a client gets back the code it would have sent itself.
+    Ok(language.to_ascii_lowercase())
 }
 
 /// The Track a `ReportTrackPick` call says the User picked, by its place in the Version's Tracks.

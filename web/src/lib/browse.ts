@@ -17,6 +17,7 @@ import {
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { type ExternalId, ExternalIdSchema } from "@/gen/nama/v1/match_pb";
+import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
 import type { RouterContext } from "./access";
 import { isCode } from "./connect-errors";
@@ -109,9 +110,22 @@ export function dayOf(seconds: bigint) {
 
 /** A runtime in plain words, such as "2 h 16 min", or nothing when it isn't known. */
 export function runtimeOf(minutes = 0) {
+  return hoursAndMinutes(minutes, " h", " min");
+}
+
+/** What's left of a started Movie or Episode, such as "1h 12m left", or nothing if unknown. */
+export function timeLeft(state: WatchState | undefined) {
+  const minutes = state ? Math.ceil(Number(state.durationMs - state.positionMs) / 60_000) : 0;
+  return minutes > 0 ? `${hoursAndMinutes(minutes, "h", "m")} left` : undefined;
+}
+
+/** `minutes` in whole hours and minutes, each followed by its unit and left out when 0. */
+function hoursAndMinutes(minutes: number, hourUnit: string, minuteUnit: string) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
-  return [hours > 0 ? `${hours} h` : "", rest > 0 ? `${rest} min` : ""].filter(Boolean).join(" ");
+  return [hours > 0 ? `${hours}${hourUnit}` : "", rest > 0 ? `${rest}${minuteUnit}` : ""]
+    .filter(Boolean)
+    .join(" ");
 }
 
 const gigabytes = new Intl.NumberFormat("en", {

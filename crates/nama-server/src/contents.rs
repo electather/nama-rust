@@ -21,6 +21,7 @@ use sqlx::SqliteConnection;
 use crate::{
     db::{Database, now},
     events::event,
+    matching::METADATA_VERSION,
     requests,
     scanner::PARSER_VERSION,
 };
@@ -198,6 +199,8 @@ pub(crate) struct Metadata {
     pub(crate) runtime_minutes: Option<u32>,
     pub(crate) poster: Option<String>,
     pub(crate) backdrop: Option<String>,
+    /// For an Episode, its Still.
+    pub(crate) still: Option<String>,
 }
 
 /// A Library's downloaded Backdrop: see [`Contents::newest_backdrops`].
@@ -356,6 +359,9 @@ pub(crate) struct Episode<V = Version> {
     pub(crate) overview: Option<String>,
     pub(crate) air_date: Option<String>,
     pub(crate) runtime_minutes: Option<i64>,
+    /// The Plugin whose metadata Provider made the Match, which the Still's path is for.
+    pub(crate) plugin: String,
+    pub(crate) still: Option<String>,
     /// The files Matched to it, by path. A file holding two Episodes is a Version of each.
     pub(crate) versions: Vec<V>,
 }
@@ -371,6 +377,8 @@ impl<V> Episode<V> {
             overview: self.overview,
             air_date: self.air_date,
             runtime_minutes: self.runtime_minutes,
+            plugin: self.plugin,
+            still: self.still,
             versions: self.versions.into_iter().map(version).collect(),
         }
     }
@@ -531,6 +539,58 @@ impl Contents {
             .collect())
     }
 
+    /// The Matched Items of the Library `library` stored at a metadata version older than
+    /// [`METADATA_VERSION`], in the order they were stored, each with the Plugin that Matched it
+    /// and its title's id: a Movie's, or an Episode's Show's (see [`primary_id`]).
+    pub(crate) async fn outdated(
+        &self,
+        library: i64,
+    ) -> Result<Vec<(i64, Item, PluginId, ExternalId)>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"SELECT library_items.id AS "id!", library_items.kind AS "kind: ItemKind",
+                      library_items.title, library_items.year, library_items.hint,
+                      library_items.season, library_items.episode,
+                      item_matches.plugin AS "plugin!",
+                      IIF(library_items.kind = 'movie', item_matches.tmdb_id,
+                          item_matches.show_tmdb_id) AS "tmdb_id?: i64",
+                      IIF(library_items.kind = 'movie', item_matches.imdb_id,
+                          item_matches.show_imdb_id) AS "imdb_id?: String",
+                      IIF(library_items.kind = 'movie', item_matches.tvdb_id,
+                          item_matches.show_tvdb_id) AS "tvdb_id?: i64"
+               FROM item_matches
+               JOIN library_items ON library_items.id = item_matches.item_id
+               JOIN library_files ON library_files.id = library_items.file_id
+               WHERE library_files.library_id = ?
+                 AND item_matches.state = 'matched'
+                 AND item_matches.metadata_version < ?
+               ORDER BY library_items.id"#,
+            library,
+            METADATA_VERSION
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| {
+                let title = primary_id(ExternalIds {
+                    tmdb: row.tmdb_id,
+                    imdb: row.imdb_id,
+                    tvdb: row.tvdb_id,
+                })?;
+                let item = ItemRow {
+                    kind: row.kind,
+                    title: Cow::Owned(row.title),
+                    year: row.year,
+                    hint: row.hint,
+                    season: row.season,
+                    episode: row.episode,
+                }
+                .into_item()?;
+                Some((row.id, item, PluginId::from(row.plugin), title))
+            })
+            .collect())
+    }
+
     /// Stores what was `decided` about each Item, as of now, skipping Items that no longer exist.
     /// Returns the events for the Requests the Matches make Available or Partially Available.
     pub(crate) async fn record(
@@ -647,9 +707,9 @@ impl Contents {
         sqlx::query_scalar!(
             r#"SELECT EXISTS (SELECT 1 FROM item_matches
                               WHERE state = 'matched' AND plugin = ?
-                                AND (poster = ? OR backdrop = ?)) AS "stored!: bool""#,
+                                AND (poster = ?2 OR backdrop = ?2 OR still = ?2))
+               AS "stored!: bool""#,
             plugin,
-            image,
             image
         )
         .fetch_one(self.db.reader())
@@ -664,7 +724,8 @@ impl Contents {
     ) -> Result<Vec<(String, String)>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"WITH matched AS (
-                   SELECT item_matches.plugin, item_matches.poster, item_matches.backdrop
+                   SELECT item_matches.plugin, item_matches.poster, item_matches.backdrop,
+                          item_matches.still
                    FROM item_matches
                    JOIN library_items ON library_items.id = item_matches.item_id
                    JOIN library_files ON library_files.id = library_items.file_id
@@ -672,7 +733,9 @@ impl Contents {
                      AND (?1 IS NULL OR library_files.library_id = ?1))
                SELECT plugin AS "plugin!", poster AS "path!" FROM matched WHERE poster IS NOT NULL
                UNION
-               SELECT plugin, backdrop FROM matched WHERE backdrop IS NOT NULL"#,
+               SELECT plugin, backdrop FROM matched WHERE backdrop IS NOT NULL
+               UNION
+               SELECT plugin, still FROM matched WHERE still IS NOT NULL"#,
             library
         )
         .fetch_all(self.db.reader())
@@ -925,7 +988,8 @@ impl Contents {
                       item_matches.show_imdb_id, item_matches.show_tvdb_id,
                       item_matches.title AS "title!", item_matches.show_title AS "show_title!",
                       item_matches.overview, item_matches.release_date,
-                      item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop
+                      item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop,
+                      item_matches.still
                FROM item_matches
                JOIN library_items ON library_items.id = item_matches.item_id
                JOIN library_files ON library_files.id = library_items.file_id
@@ -957,7 +1021,7 @@ impl Contents {
             let show = shows.entry(show_id.clone()).or_insert_with(|| Show {
                 id: show_id,
                 tvdb_id: row.show_tvdb_id,
-                plugin: row.plugin,
+                plugin: row.plugin.clone(),
                 title: row.show_title,
                 backdrop: row.backdrop,
                 seasons: BTreeMap::new(),
@@ -983,6 +1047,8 @@ impl Contents {
                     overview: row.overview,
                     air_date: row.release_date,
                     runtime_minutes: row.runtime_minutes,
+                    plugin: row.plugin,
+                    still: row.still,
                     versions: vec![version],
                 }),
             }
@@ -1601,9 +1667,9 @@ async fn insert_decisions(
             "INSERT OR REPLACE INTO item_matches (
                  item_id, state, plugin, tmdb_id, imdb_id, tvdb_id,
                  show_tmdb_id, show_imdb_id, show_tvdb_id, title, original_title, show_title,
-                 overview, release_date, runtime_minutes, poster, backdrop, unmatched_reason,
-                 tied_titles, decided_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                 overview, release_date, runtime_minutes, poster, backdrop, still,
+                 unmatched_reason, tied_titles, metadata_version, decided_at)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
@@ -1622,8 +1688,10 @@ async fn insert_decisions(
             row.metadata.runtime_minutes,
             row.metadata.poster,
             row.metadata.backdrop,
+            row.metadata.still,
             row.unmatched_reason,
             row.tied_titles,
+            METADATA_VERSION,
             now,
             item,
         )
@@ -1799,6 +1867,7 @@ struct MetadataColumns<'a> {
     runtime_minutes: Option<u32>,
     poster: Option<&'a str>,
     backdrop: Option<&'a str>,
+    still: Option<&'a str>,
 }
 
 impl<'a> From<&'a Decided> for MatchRow<'a> {
@@ -1832,6 +1901,7 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     runtime_minutes: metadata.runtime_minutes,
                     poster: metadata.poster.as_deref(),
                     backdrop: metadata.backdrop.as_deref(),
+                    still: metadata.still.as_deref(),
                 },
                 unmatched_reason: None,
                 tied_titles: None,
@@ -1971,6 +2041,47 @@ impl Contents {
                         "UPDATE library_files SET parser_version = ? - 1 WHERE library_id = ?",
                         PARSER_VERSION,
                         library
+                    )
+                    .execute(&mut **tx)
+                    .await
+                })
+            })
+            .await
+            .unwrap();
+    }
+
+    /// Marks the Matches of the Library `library` as stored by the metadata version before the
+    /// current one, without the Stills that version added, as before a version bump.
+    pub(crate) async fn stored_by_older_metadata(&self, library: i64) {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE item_matches SET metadata_version = ? - 1, still = NULL
+                         WHERE item_id IN (SELECT library_items.id FROM library_items
+                                           JOIN library_files
+                                             ON library_files.id = library_items.file_id
+                                           WHERE library_files.library_id = ?)",
+                        METADATA_VERSION,
+                        library
+                    )
+                    .execute(&mut **tx)
+                    .await
+                })
+            })
+            .await
+            .unwrap();
+    }
+
+    /// Marks the Match of the item `item` as made by the Plugin `plugin`.
+    pub(crate) async fn matched_by(&self, item: i64, plugin: &'static str) {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE item_matches SET plugin = ? WHERE item_id = ?",
+                        plugin,
+                        item
                     )
                     .execute(&mut **tx)
                     .await
@@ -2478,6 +2589,7 @@ mod tests {
             runtime_minutes: None,
             poster: None,
             backdrop: None,
+            still: None,
         }))
     }
 

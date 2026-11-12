@@ -181,7 +181,7 @@ pub enum RefusalReason {
     /// to when it last scanned the Library, so nothing is deleted. Params: `folder`.
     REFUSAL_REASON_FOLDER_READ_ONLY = 63i32,
     /// `invalid_argument`: the language named isn't an ISO 639 code. `field` is
-    /// `subtitle.language`. Params: `language`.
+    /// `subtitle.language` or `audio.language`. Params: `language`.
     REFUSAL_REASON_UNKNOWN_LANGUAGE = 64i32,
 }
 impl RefusalReason {

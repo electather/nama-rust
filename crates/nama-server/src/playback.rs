@@ -345,9 +345,9 @@ pub(crate) struct Asked {
 pub(crate) enum AskedAudio {
     /// The audio Track chosen, by its place in the Version's Tracks.
     Chosen(usize),
-    /// The Server's choice, by the User's Audio Preference for what the Version is of, if they
-    /// have one, or else the file's own (ADR 0035).
-    Preferred(Option<Description>),
+    /// The Server's choice, by the User's Audio Preference for what the Version is of, or else
+    /// their own, if they have one, or else the file's own (ADR 0035).
+    Preferred(Option<Preferred<Description>>),
 }
 
 /// What a request for a plan asks of subtitles.
@@ -359,7 +359,7 @@ pub(crate) enum AskedSubtitle {
     None,
     /// The Server's choice, by the User's Subtitle Preference for what the Version is of, or else
     /// their own, if they have one (ADR 0035).
-    Preferred(Option<Preferred>),
+    Preferred(Option<Preferred<SubtitlePreference>>),
 }
 
 /// Plans what `asked` asks on `caller`'s Device, by the Playback settings `settings`, and starts
@@ -443,7 +443,7 @@ pub(crate) async fn plan(
 fn audio_asked(asked: AskedAudio, probe: Option<&Probe>, device: &DeviceDecoding) -> Option<usize> {
     match asked {
         AskedAudio::Chosen(place) => Some(place),
-        AskedAudio::Preferred(wanted) => preferred_audio(wanted.as_ref()?, probe?, device),
+        AskedAudio::Preferred(preferred) => preferred_audio(preferred.as_ref()?, probe?, device),
     }
 }
 
@@ -1408,7 +1408,7 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
 /// the first. The User's own Preference skips the title: it was set without one, which doesn't
 /// mean an untitled Track.
 fn preferred_subtitle(
-    preferred: &Preferred,
+    preferred: &Preferred<SubtitlePreference>,
     probe: &Probe,
     device: &DeviceDecoding,
 ) -> Option<usize> {
@@ -1432,11 +1432,17 @@ fn preferred_subtitle(
         .map(|(place, _)| place)
 }
 
-/// The place in `probe`'s Tracks of the audio Track like `wanted` that playback starts with,
+/// The place in `probe`'s Tracks of the audio Track like `preferred` that playback starts with,
 /// `None` when none matches. A Track in its language matches; among those, the same title wins,
 /// since it tells a commentary from the main mix, then one `device` decodes without it being
-/// converted, then the one the file plays by default, then the first.
-fn preferred_audio(wanted: &Description, probe: &Probe, device: &DeviceDecoding) -> Option<usize> {
+/// converted, then the one the file plays by default, then the first. The User's own Preference
+/// skips the title, as a subtitle's does.
+fn preferred_audio(
+    preferred: &Preferred<Description>,
+    probe: &Probe,
+    device: &DeviceDecoding,
+) -> Option<usize> {
+    let wanted = &preferred.preference;
     (probe.tracks.iter().enumerate())
         .filter(|(_, track)| {
             is_audio(track) && same_language(track.language.as_deref(), wanted.language.as_deref())
@@ -1444,7 +1450,7 @@ fn preferred_audio(wanted: &Description, probe: &Probe, device: &DeviceDecoding)
         // `min_by_key` keeps the first of equals.
         .min_by_key(|(_, track)| {
             (
-                !same_title(track, wanted),
+                !preferred.users_own && !same_title(track, wanted),
                 !undecodable(track, device).is_empty(),
                 !track.default,
             )
@@ -3534,7 +3540,7 @@ mod tests {
 
     /// The place [`preferred_subtitle`] picks among `tracks`, in a file that carries no fonts.
     fn preferred_among(
-        preferred: &Preferred,
+        preferred: &Preferred<SubtitlePreference>,
         tracks: &[Track],
         device: &DeviceDecoding,
     ) -> Option<usize> {
@@ -3543,7 +3549,7 @@ mod tests {
     }
 
     /// A Show's or Movie's Subtitle Preference for a Track like `track`.
-    fn like(track: &Track) -> Preferred {
+    fn like(track: &Track) -> Preferred<SubtitlePreference> {
         Preferred {
             preference: SubtitlePreference::Like(Description::of(track)),
             users_own: false,
@@ -3551,7 +3557,7 @@ mod tests {
     }
 
     /// The User's own Subtitle Preference for a Track like `track`, which keeps no title.
-    fn users_own_like(track: &Track) -> Preferred {
+    fn users_own_like(track: &Track) -> Preferred<SubtitlePreference> {
         Preferred {
             preference: SubtitlePreference::Like(Description {
                 title: None,
@@ -3740,11 +3746,19 @@ mod tests {
         }
     }
 
-    /// The place [`audio_asked`] gives for an Audio Preference like `wanted` among `tracks`.
-    fn preferred_audio_among(wanted: &Track, tracks: &[Track]) -> Option<usize> {
+    /// The place [`audio_asked`] gives for the Audio Preference `preferred` among `tracks`.
+    fn preferred_audio_among(preferred: Preferred<Description>, tracks: &[Track]) -> Option<usize> {
         let facts = facts(Some(tracks.to_vec()));
-        let asked = AskedAudio::Preferred(Some(Description::of(wanted)));
+        let asked = AskedAudio::Preferred(Some(preferred));
         audio_asked(asked, facts.probe.as_ref(), &facts.device)
+    }
+
+    /// A Show's or Movie's Audio Preference for a Track like `track`.
+    fn audio_like(track: &Track) -> Preferred<Description> {
+        Preferred {
+            preference: Description::of(track),
+            users_own: false,
+        }
     }
 
     #[test]
@@ -3756,9 +3770,12 @@ mod tests {
             audio_in("aac", "ja", None, false),
         ];
 
-        assert_eq!(preferred_audio_among(&japanese, &tracks), Some(2));
+        assert_eq!(
+            preferred_audio_among(audio_like(&japanese), &tracks),
+            Some(2)
+        );
         let french = audio_in("aac", "fre", None, false);
-        assert_eq!(preferred_audio_among(&french, &tracks), None);
+        assert_eq!(preferred_audio_among(audio_like(&french), &tracks), None);
         let none = facts(Some(tracks.to_vec()));
         let unset = audio_asked(
             AskedAudio::Preferred(None),
@@ -3808,8 +3825,36 @@ mod tests {
         ];
 
         for (case, tracks, place) in cases {
-            assert_eq!(preferred_audio_among(&wanted, &tracks), place, "{case}");
+            assert_eq!(
+                preferred_audio_among(audio_like(&wanted), &tracks),
+                place,
+                "{case}"
+            );
         }
+    }
+
+    #[test]
+    fn the_users_own_audio_preference_skips_the_title_rank() {
+        let tracks = [
+            audio_in("aac", "eng", Some("Commentary"), false),
+            audio_in("dts", "eng", None, true),
+            audio_in("aac", "eng", Some("Stereo"), true),
+        ];
+        let users_own = Preferred {
+            preference: Description {
+                language: Some("en".to_owned()),
+                ..Description::default()
+            },
+            users_own: true,
+        };
+        let untitled = audio_in("aac", "eng", None, false);
+
+        assert_eq!(preferred_audio_among(users_own, &tracks), Some(2));
+        assert_eq!(
+            preferred_audio_among(audio_like(&untitled), &tracks),
+            Some(1),
+            "a Show's untitled Preference wants the untitled Track"
+        );
     }
 
     #[test]
@@ -3822,7 +3867,7 @@ mod tests {
         ];
         let preferred = || {
             let mut facts = facts(Some(tracks.clone()));
-            let asked = AskedAudio::Preferred(Some(Description::of(&german)));
+            let asked = AskedAudio::Preferred(Some(audio_like(&german)));
             facts.audio = audio_asked(asked, facts.probe.as_ref(), &facts.device);
             facts
         };

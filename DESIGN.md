@@ -141,6 +141,8 @@ Only the app shell exists so far. The tokens above set the shape every component
 - **Cards**: Raised black, 14px radius, a hairline border, 18px padding. No shadow.
 - **Inputs**: transparent, 14% hairline, 10px radius. Focus turns the border Signal Green with a 3px green ring at 25%.
 - **Posters**: 2:3, 10px radius, a hairline border. A 2px progress bar sits under a poster with Watch State.
+- **Backdrop cards**: 16:9, 10px radius, a hairline border, with the title over the art in Headline on the scrim, and a Label line under the card. A Library's says its kind. A Continue Watching card puts ▶ and the 2px progress bar under the title, and under the card which Episode and how much is left, such as "S1, E3 · 33m left" or "1h 12m left". Without a Backdrop, the box is plain Muted with the title in it.
+- **Episode cards**: a Show's Episodes, in the Backdrop cards' grid. The Still is 16:9, 10px radius, a hairline border, with nothing over it, and without one the box is plain Muted. Under it go a Label naming the Episode ("Episode 3", "Specials, Episode 3"), the title in Title, the synopsis in Label clamped to three lines, a Label line of air date, runtime and the Version's picture and sound, the 2px progress bar once started, then the played toggle and Delete.
 - **State labels**: pill, hairline border, Quiet ink, with an icon. Only a positive state may use the green tint.
 
 ## 6. Do's and Don'ts

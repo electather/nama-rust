@@ -22,7 +22,7 @@ export interface FormErrors {
   keepBehindMinutes?: string;
   resizedCacheMib?: string;
   hardwareAcceleration?: string;
-  subtitleLanguage?: string;
+  language?: string;
 }
 
 /**

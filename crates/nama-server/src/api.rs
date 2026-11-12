@@ -266,6 +266,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLAYBACK_SERVICE_REPORT_TRACK_PICK_SPEC.procedure,    Access::SignedIn),
     (proto::PLAYBACK_SERVICE_GET_TRACK_PREFERENCES_SPEC.procedure, Access::SignedIn),
     (proto::PLAYBACK_SERVICE_SET_SUBTITLE_PREFERENCE_SPEC.procedure, Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_SET_AUDIO_PREFERENCE_SPEC.procedure, Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
