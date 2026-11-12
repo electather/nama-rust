@@ -123,9 +123,9 @@ function AudioForm({ saved }: { saved: UsersAudioPreference | undefined }) {
     <form
       className="mt-8 flex flex-col gap-5"
       onSubmit={onSubmitted(() => {
-        const code = isNone(language, FILES_DEFAULT) ? null : languageCode(language);
-        setUnlisted(code === undefined);
-        if (code !== undefined) save.mutate({ audio: code === null ? {} : { language: code } });
+        const audio = wantedAudio(language);
+        setUnlisted(audio === undefined);
+        if (audio !== undefined) save.mutate({ audio });
       })}
     >
       <LanguageField
@@ -236,6 +236,13 @@ function wanted(typed: string, kind: string) {
   if (isNone(typed, OFF)) return {};
   const language = languageCode(typed);
   return language === undefined ? undefined : { language, kind: kindOf(kind) };
+}
+
+/** The Audio Preference the language `typed` asks for, `undefined` for a language not on the list. */
+function wantedAudio(typed: string) {
+  if (isNone(typed, FILES_DEFAULT)) return {};
+  const language = languageCode(typed);
+  return language === undefined ? undefined : { language };
 }
 
 /** The kind of subtitle `saved` wants, as its radio button is valued, if it wants any. */
