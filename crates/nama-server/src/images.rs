@@ -12,6 +12,7 @@ use std::{
 };
 
 use axum::{
+    body::Body,
     extract::Request,
     http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
@@ -24,12 +25,11 @@ use resized::ResizeThread;
 /// Backdrops are shown at, at one to three device pixels per CSS pixel. Any other is refused.
 pub const WIDTHS: [u32; 7] = [320, 480, 640, 960, 1280, 1920, 2560];
 
-/// The folder in the data directory resized copies are kept in. No key's first part may be this.
+/// The folder in the data directory resized copies are kept in (`AGENTS.md`).
 const RESIZED_DIR: &str = "resized";
 
-/// Stored images, under the data directory.
-///
-/// Clones share one thread that resizes images, so make one store for the Server.
+/// Stored images, under the data directory. Clones share one thread that resizes images
+/// (`AGENTS.md`).
 #[derive(Debug, Clone)]
 pub struct ImageStore {
     dir: PathBuf,
@@ -108,8 +108,18 @@ impl ImageStore {
             return serve_file(self.path(key), content_type, request).await;
         };
         let copy = self.copy_path(key, resize.width);
-        let mut response = if self.has_copy(key, &copy, resize).await? {
-            serve_file(copy, "image/jpeg", request).await?
+        let mut response = if self.ensure_copy(key, &copy, resize).await {
+            // The copy can go between making it and sending it, deleted with the folder or by
+            // another request's eviction, so the original stands in for it.
+            let (head, _empty) = request.into_parts();
+            let for_copy = Request::from_parts(head.clone(), Body::empty());
+            let sent = serve_file(copy, "image/jpeg", for_copy).await?;
+            if sent.status() == StatusCode::NOT_FOUND {
+                let for_original = Request::from_parts(head, Body::empty());
+                serve_file(self.path(key), content_type, for_original).await?
+            } else {
+                sent
+            }
         } else {
             serve_file(self.path(key), content_type, request).await?
         };
@@ -122,21 +132,26 @@ impl ImageStore {
 
     /// Whether the copy at `copy` of the image at `key` is there to send, made now if it wasn't.
     /// An image that can't be resized is logged and sent as stored.
-    async fn has_copy(&self, key: &[&str], copy: &Path, resize: Resize) -> io::Result<bool> {
-        let touched = copy.to_owned();
-        match tokio::task::spawn_blocking(move || resized::touch(&touched)).await? {
-            Ok(()) => return Ok(true),
+    async fn ensure_copy(&self, key: &[&str], copy: &Path, resize: Resize) -> bool {
+        let sent = copy.to_owned();
+        let touch = tokio::task::spawn_blocking(move || resized::touch(&sent)).await;
+        match touch.map_err(io::Error::from).and_then(|touched| touched) {
+            Ok(()) => return true,
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err),
+            // It's there, and not marking it only lets eviction pick it sooner.
+            Err(err) => {
+                tracing::warn!("could not mark {} as sent: {err}", copy.display());
+                return true;
+            }
         }
-        let (original, made) = (self.path(key), copy.to_owned());
+        let (original, copy) = (self.path(key), copy.to_owned());
         let cache = self.dir.join(RESIZED_DIR);
-        let made = self
+        let resized = self
             .resizer
             .run(move || {
-                let copied = resized::make_copy(&original, &made, resize.width);
+                let copied = resized::make_copy(&original, &copy, resize.width);
                 if matches!(copied, Ok(true))
-                    && let Err(err) = resized::evict(&cache, resize.cache_limit, &made)
+                    && let Err(err) = resized::evict(&cache, resize.cache_limit, &copy)
                 {
                     tracing::error!("could not keep the resized images within their limit: {err}");
                 }
@@ -144,11 +159,13 @@ impl ImageStore {
             })
             .await;
         // The thread having stopped, or a resize having panicked, is one more failed resize.
-        let made = made.map_err(|err| err.to_string()).and_then(|made| made);
-        Ok(made.unwrap_or_else(|err| {
+        let copied = resized
+            .map_err(|err| err.to_string())
+            .and_then(|copied| copied);
+        copied.unwrap_or_else(|err| {
             tracing::warn!("{err}, so it is sent as it is");
             false
-        }))
+        })
     }
 
     /// Deletes the image at `key`, if one is stored.
