@@ -40,7 +40,6 @@ type Job = Box<dyn FnOnce() + Send>;
 pub(super) struct ResizeThread(mpsc::Sender<Job>);
 
 impl ResizeThread {
-    /// Starts the thread.
     pub(super) fn start() -> Self {
         let (jobs, queue) = mpsc::channel::<Job>();
         let work = move || {

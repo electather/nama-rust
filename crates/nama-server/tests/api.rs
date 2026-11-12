@@ -15,8 +15,7 @@ use nama_proto::nama::v1::{
     GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetServerInfoRequest,
     GetServerInfoResponse, GetServerSettingsRequest, Gpu, HardwareAcceleration, ImageSettings,
     PlaybackLimit, PlaybackSettings, RefusalReason, ServerServiceClient, ServerSettings,
-    ToneMapping, UpdateImageSettingsRequest, UpdatePlaybackSettingsRequest,
-    UpdateServerSettingsRequest,
+    ToneMapping, UpdatePlaybackSettingsRequest, UpdateServerSettingsRequest,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::{fake, fake::script, find_gpus};
@@ -584,31 +583,13 @@ async fn image_settings(client: &ServerServiceClient<HttpClient>) -> ImageSettin
         .unwrap()
 }
 
-fn set_image_settings(
-    resize_images: bool,
-    resized_cache_mib: Option<u32>,
-) -> UpdateImageSettingsRequest {
-    UpdateImageSettingsRequest {
-        settings: ImageSettings {
-            resize_images,
-            resized_cache_mib,
-            ..Default::default()
-        }
-        .into(),
-        ..Default::default()
-    }
-}
-
 #[tokio::test]
 async fn images_are_resized_by_default_and_the_image_settings_are_returned_as_saved() {
     let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
     let default = image_settings(&client).await;
 
-    client
-        .update_image_settings(set_image_settings(false, Some(64)))
-        .await
-        .unwrap();
+    server.set_image_settings(false, Some(64)).await;
 
     assert_eq!(
         (default.resize_images, default.resized_cache_mib),
@@ -625,14 +606,9 @@ async fn images_are_resized_by_default_and_the_image_settings_are_returned_as_sa
 async fn a_resized_cache_of_0_is_refused_naming_it_and_nothing_changes() {
     let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
-    client
-        .update_image_settings(set_image_settings(true, Some(64)))
-        .await
-        .unwrap();
+    server.set_image_settings(true, Some(64)).await;
 
-    let updated = client
-        .update_image_settings(set_image_settings(false, Some(0)))
-        .await;
+    let updated = server.try_set_image_settings(false, Some(0)).await;
 
     let refusal = assert_refused(
         updated,

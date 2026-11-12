@@ -21,9 +21,7 @@ use browsing::Fixture;
 use connectrpc::client::HttpClient;
 use http::{Reply, fetch};
 use image::{DynamicImage, ImageFormat, RgbImage, RgbaImage};
-use nama_proto::nama::v1::{
-    GetServerInfoRequest, ImageSettings, ServerServiceClient, UpdateImageSettingsRequest,
-};
+use nama_proto::nama::v1::{GetServerInfoRequest, ServerServiceClient};
 use server::tmdb::ALIEN;
 
 /// Where the store keeps Alien's Poster, as the fake TMDB names it.
@@ -65,26 +63,6 @@ fn jpeg(width: u32, height: u32) -> Vec<u8> {
 async fn fetch_at(fx: &Fixture, poster: &str, width: u32) -> Reply {
     let url = format!("{poster}?width={width}");
     fetch(&fx.server, &url, Some(&fx.server.admin_token)).await
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn set_image_settings(fx: &Fixture, resize_images: bool, resized_cache_mib: Option<u32>) {
-    let client = ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
-    let settings = ImageSettings {
-        resize_images,
-        resized_cache_mib,
-        ..Default::default()
-    };
-    client
-        .update_image_settings(UpdateImageSettingsRequest {
-            settings: settings.into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
 }
 
 /// Where the copy `width` pixels wide of Alien's Poster is kept.
@@ -183,7 +161,7 @@ async fn with_resizing_off_any_width_returns_the_stored_image() {
     let original = jpeg(1000, 1500);
     let (fx, poster) = alien_with_poster(&original).await;
 
-    set_image_settings(&fx, false, None).await;
+    fx.server.set_image_settings(false, None).await;
 
     for width in [640, 641] {
         let reply = fetch_at(&fx, &poster, width).await;
@@ -219,7 +197,7 @@ async fn an_svg_a_png_with_transparency_and_an_image_over_12_megapixels_are_sent
 #[tokio::test]
 async fn past_its_limit_the_cache_deletes_the_least_recently_sent_copies_until_it_fits() {
     let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
-    set_image_settings(&fx, true, Some(1)).await;
+    fx.server.set_image_settings(true, Some(1)).await;
     let other_copies = fx
         .server
         .data_dir()
@@ -243,7 +221,7 @@ async fn past_its_limit_the_cache_deletes_the_least_recently_sent_copies_until_i
 #[tokio::test]
 async fn a_copy_just_made_is_sent_though_it_is_not_the_most_recently_sent() {
     let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
-    set_image_settings(&fx, true, Some(1)).await;
+    fx.server.set_image_settings(true, Some(1)).await;
     let other_copies = fx
         .server
         .data_dir()
