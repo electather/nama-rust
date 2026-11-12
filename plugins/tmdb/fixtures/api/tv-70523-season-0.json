@@ -1,0 +1,14 @@
+{
+  "_id": "5d4c2f7f2ea6b9001352a6f1",
+  "air_date": "2017-11-20",
+  "episodes": [
+    {"air_date": "2017-11-20", "episode_number": 1, "episode_type": "standard", "id": 1915604, "name": "Teaser", "overview": "A first look at Winden and its caves.", "production_code": "", "runtime": 12, "season_number": 0, "show_id": 70523, "still_path": "/rA3kVbt0ycqRhVBe8bkqfSnB0Sq.jpg", "vote_average": 7.0, "vote_count": 4}
+  ],
+  "name": "Specials",
+  "overview": "",
+  "id": 129745,
+  "poster_path": "/hzSbK1qcDnvyH2EaqqrOLzNwW5w.jpg",
+  "season_number": 0,
+  "vote_average": 0.0,
+  "external_ids": {"freebase_mid": null, "freebase_id": null, "tvdb_id": null, "tvrage_id": null, "wikidata_id": null}
+}

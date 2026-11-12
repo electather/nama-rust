@@ -20,6 +20,7 @@ export interface FormErrors {
   segmentFolder?: string;
   maxTranscodes?: string;
   keepBehindMinutes?: string;
+  resizedCacheMib?: string;
   hardwareAcceleration?: string;
 }
 

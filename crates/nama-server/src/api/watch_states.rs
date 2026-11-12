@@ -8,7 +8,10 @@ use nama_proto::nama::v1::{
 
 use crate::{browse, watch_states::Progress};
 
-use super::{caller, refuse, required_id};
+use super::{
+    browse::{Fields, refused},
+    caller, refuse, required_id,
+};
 
 /// `nama.v1.WatchStateService`: each signed-in User's progress through what they play.
 pub(super) struct WatchStateServiceHandler {
@@ -39,7 +42,11 @@ impl WatchStateService for WatchStateServiceHandler {
             })?;
         self.browse
             .report(user, request.version_id, progress)
-            .await?;
+            .await
+            .map_err(refused(Fields {
+                version: "version_id",
+                ..Fields::NONE
+            }))?;
         Response::ok(ReportProgressResponse::default())
     }
 
@@ -62,20 +69,44 @@ impl WatchStateService for WatchStateServiceHandler {
             )
             .field("target")
         })?;
-        let target = match target {
+        let (target, fields) = match target {
             Target::MovieId(id) => {
-                browse::Target::Movie(required_id(Some(*id), "movie_id", "Movie")?)
+                let fields = Fields {
+                    title: "movie_id",
+                    ..Fields::LIBRARY
+                };
+                let id = required_id(Some(*id), fields.title, "Movie")?;
+                (browse::Target::Movie(id), fields)
             }
             Target::EpisodeId(id) => {
-                browse::Target::Episode(required_id(Some(*id), "episode_id", "Episode")?)
+                let fields = Fields {
+                    title: "episode_id",
+                    ..Fields::LIBRARY
+                };
+                let id = required_id(Some(*id), fields.title, "Episode")?;
+                (browse::Target::Episode(id), fields)
             }
-            Target::Season(season) => browse::Target::Season {
-                show: required_id(season.show_id.into_option(), "season.show_id", "Show")?,
-                number: i64::from(season.season_number),
-            },
-            Target::ShowId(id) => browse::Target::Show(required_id(Some(*id), "show_id", "Show")?),
+            Target::Season(season) => {
+                let fields = Fields {
+                    title: "season.show_id",
+                    season: "season.season_number",
+                    ..Fields::LIBRARY
+                };
+                let show = required_id(season.show_id.into_option(), fields.title, "Show")?;
+                let number = i64::from(season.season_number);
+                (browse::Target::Season { show, number }, fields)
+            }
+            Target::ShowId(id) => {
+                let fields = Fields {
+                    title: "show_id",
+                    ..Fields::LIBRARY
+                };
+                let id = required_id(Some(*id), fields.title, "Show")?;
+                (browse::Target::Show(id), fields)
+            }
         };
-        self.browse.mark(user, library, target, played).await?;
+        let marked = self.browse.mark(user, library, target, played).await;
+        marked.map_err(refused(fields))?;
         Response::ok(SetPlayedResponse::default())
     }
 }

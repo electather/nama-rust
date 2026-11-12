@@ -73,7 +73,11 @@ async fn serve(
     UrlPath((id, version)): UrlPath<(String, String)>,
     request: Request,
 ) -> Response {
-    match logos.store.serve(&[DIR, &id, &version], SVG, request).await {
+    match logos
+        .store
+        .serve(&[DIR, &id, &version], SVG, None, request)
+        .await
+    {
         Ok(response) => response,
         Err(err) => {
             tracing::error!(plugin = id, "could not serve a Plugin's logo: {err}");
