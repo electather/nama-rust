@@ -20,8 +20,15 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+use connectrpc::client::HttpClient;
+use nama_proto::nama::v1::{
+    EnablePluginRequest, PluginServiceClient, SettingValue, UpdatePluginSettingsRequest,
+    setting_value,
+};
 use serde_json::Value;
 use tokio::{net::TcpListener, task::JoinHandle};
+
+use crate::server::TestServer;
 
 /// Which Servarr a [`FakeServarr`] stands in for.
 #[derive(Clone, Copy)]
@@ -120,6 +127,50 @@ impl FakeServarr {
     pub(crate) async fn come_back(&mut self) {
         let listener = TcpListener::bind(self.addr).await.unwrap();
         self.serve(listener);
+    }
+
+    /// Has `server`'s Admin set the Plugin `plugin` up against this fake, with the quality profile
+    /// `profile` and the root folder `root_folder`, and enable it.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn enable_as(
+        &self,
+        server: &TestServer,
+        plugin: &str,
+        profile: &str,
+        root_folder: &str,
+    ) {
+        let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
+        let settings = [
+            ("url", self.url().as_str()),
+            ("api_key", self.state.servarr.api_key),
+            ("quality_profile", profile),
+            ("root_folder", root_folder),
+        ]
+        .map(|(key, value)| {
+            let value = SettingValue {
+                value: Some(setting_value::Value::TextValue(value.to_owned())),
+                ..Default::default()
+            };
+            (key.to_owned(), value)
+        });
+        plugins
+            .update_plugin_settings(UpdatePluginSettingsRequest {
+                id: plugin.to_owned(),
+                settings: settings.into_iter().collect(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        plugins
+            .enable_plugin(EnablePluginRequest {
+                id: plugin.to_owned(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
     }
 
     /// Refuses every API key from now on, as when an Admin makes it a new one.

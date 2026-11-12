@@ -12,7 +12,9 @@ use std::{
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows, StopMonitoring, stop_monitoring},
+    fulfiller::{
+        Download, Fulfilled, Fulfiller, Movies, ShowDeleted, Shows, StopMonitoring, stop_monitoring,
+    },
     settings::{Choice, Choices, Settings, SettingsCheck},
 };
 use nama_proto::nama::v1::{
@@ -85,6 +87,8 @@ pub(crate) struct FakeFulfiller {
     unfollowed: Arc<Mutex<Vec<i64>>>,
     /// The TMDB id of each Movie it was told to stop monitoring, in order.
     stopped_monitoring: Arc<Mutex<Vec<i64>>>,
+    /// What of a Show it was told to stop monitoring each time, in order.
+    stopped_monitoring_shows: Arc<Mutex<Vec<ShowDeleted>>>,
     /// Whether it panics when told to stop monitoring.
     panics_stopping_monitoring: Arc<AtomicBool>,
     /// What it says it is downloading, by reference.
@@ -193,6 +197,14 @@ impl FakeFulfiller {
     /// The TMDB id of each Movie it was told to stop monitoring, in order.
     pub(crate) fn stopped_monitoring(&self) -> Vec<i64> {
         self.stopped_monitoring
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// What of a Show it was told to stop monitoring each time, in order.
+    pub(crate) fn stopped_monitoring_shows(&self) -> Vec<ShowDeleted> {
+        self.stopped_monitoring_shows
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()
@@ -325,6 +337,27 @@ impl Fulfiller<Shows> for FakeFulfiller {
             .unwrap_or_else(PoisonError::into_inner)
             .push(asked_season(request).show_tmdb_id);
         Box::pin(async { Ok(()) })
+    }
+
+    #[expect(clippy::panic, reason = "a test helper fails its test by panicking")]
+    fn stop_monitoring<'a>(
+        &'a self,
+        title: &'a StopMonitoring,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        let Some(stop_monitoring::Title::Show(show)) = &title.title else {
+            panic!("a Shows Fulfiller was told to stop monitoring {title:?}");
+        };
+        self.stopped_monitoring_shows
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((**show).clone());
+        let refuses = self.refuses.load(Ordering::Relaxed);
+        Box::pin(async move {
+            if refuses {
+                return Err("Sonarr is unreachable".into());
+            }
+            Ok(())
+        })
     }
 
     fn progress<'a>(

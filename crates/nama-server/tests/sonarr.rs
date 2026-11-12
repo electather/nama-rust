@@ -1,6 +1,10 @@
 //! The Sonarr Installed Plugin, bundled in the Server, against a fake Sonarr: its settings check
 //! on the Plugins page, Season Requests handed to it once Approved, and their download progress.
 
+#[expect(dead_code, reason = "Sonarr's tests remove no quality profile")]
+#[path = "support/fake_servarr.rs"]
+mod fake_servarr;
+#[expect(dead_code, reason = "this binary deletes no media")]
 #[path = "support/fake_sonarr.rs"]
 mod fake_sonarr;
 #[path = "support/refused.rs"]
@@ -15,12 +19,12 @@ use connectrpc::ErrorCode;
 use fake_sonarr::{API_KEY as SONARR_KEY, FakeSonarr};
 use nama_plugin_api::fulfiller::Shows;
 use nama_proto::nama::v1::{
-    CancelFollowedShowRequest, Download, DownloadStatus, EnablePluginRequest, EventType,
-    RefusalReason, Request, RequestState, UpdatePluginSettingsRequest, event,
+    CancelFollowedShowRequest, Download, DownloadStatus, EventType, RefusalReason, Request,
+    RequestState, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
-use servarr::{ServarrFixture, choices, text};
+use servarr::{ServarrFixture, choices};
 use server::{
     SignedIn, Subscription, TestServer,
     fulfiller::quality,
@@ -82,25 +86,7 @@ impl Fixture {
     /// and enabled it.
     async fn with_sonarr_enabled() -> Self {
         let fixture = Self::start().await;
-        let mut settings = fixture.settings(SONARR_KEY);
-        settings.extend([("quality_profile", "4"), ("root_folder", "/tv")].map(text));
-        fixture
-            .plugins()
-            .update_plugin_settings(UpdatePluginSettingsRequest {
-                id: "sonarr".to_owned(),
-                settings: settings.into_iter().collect(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        fixture
-            .plugins()
-            .enable_plugin(EnablePluginRequest {
-                id: "sonarr".to_owned(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
+        fixture.sonarr.enable_on(&fixture.server).await;
         fixture
     }
 

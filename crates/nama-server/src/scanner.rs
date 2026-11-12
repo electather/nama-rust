@@ -39,7 +39,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use nama_plugin_api::fulfiller::{Fulfiller, Movies, StopMonitoring, stop_monitoring::Title};
+use nama_plugin_api::fulfiller::{Fulfiller, Movies, Shows, StopMonitoring};
 use nama_proto::nama::v1::{
     MatchingFinished, ProbingFinished, ScanFinished, ScanProgress, ScanStarted,
 };
@@ -279,7 +279,7 @@ impl Scanner {
         Ok(Deleted { playing, ..planned })
     }
 
-    /// Asks every Movies Fulfiller to stop monitoring `doomed`, then ends the plans playing it,
+    /// Asks every Fulfiller of its kind to stop monitoring `doomed`, then ends the plans playing it,
     /// deletes it from disk for good, removes the Versions whose files went as a scan removes
     /// them, and logs that `by` deleted them. The one way to delete media (see AGENTS.md, "One
     /// path for deleting media"). It holds the Library's scan lock, so a scan racing it sees
@@ -332,23 +332,32 @@ impl Scanner {
         .await
     }
 
-    /// Asks each enabled Movies Fulfiller to stop monitoring `doomed`'s Movie. Returns the name of
-    /// each that couldn't be told, failing or panicking, which isn't asked again.
+    /// Asks each enabled Fulfiller of `doomed`'s Library's kind to stop monitoring what it takes.
+    /// Returns the name of each that couldn't be told, failing or panicking, which isn't asked
+    /// again.
     async fn stop_monitoring(&self, doomed: &Doomed) -> Vec<String> {
-        let Some(tmdb_id) = doomed.tmdb_id else {
+        let Some(title) = doomed.unmonitored.clone() else {
             return Vec::new();
         };
         let title = StopMonitoring {
-            title: Some(Title::MovieTmdbId(tmdb_id)),
+            title: Some(title),
             ..Default::default()
         };
-        let stop = |fulfiller: Arc<dyn Fulfiller<Movies>>| {
-            let title = &title;
-            async move { fulfiller.stop_monitoring(title).await }
+        match doomed.library.kind {
+            Kind::Movies => self.ask_to_stop::<Movies>(&title, &doomed.title).await,
+            Kind::Shows => self.ask_to_stop::<Shows>(&title, &doomed.title).await,
+        }
+    }
+
+    /// Asks each enabled Fulfiller of `Kind` to stop monitoring `title`, which the log calls
+    /// `name`. Returns the name of each that couldn't be told.
+    async fn ask_to_stop<Kind: 'static>(&self, title: &StopMonitoring, name: &str) -> Vec<String> {
+        let stop = |fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
+            fulfiller.stop_monitoring(title).await
         };
         let plugins = &self.inner.plugins;
         let mut not_told = Vec::new();
-        for plugin in plugins.providers::<dyn Fulfiller<Movies>>() {
+        for plugin in plugins.providers::<dyn Fulfiller<Kind>>() {
             let answer = plugins.ask(&plugin, &stop).await;
             // `None`: it panicked, which disabled it, or was disabled meanwhile.
             let reason = match answer.map(|answer| answer.result) {
@@ -358,7 +367,7 @@ impl Scanner {
             };
             tracing::warn!(
                 plugin = %plugin,
-                title = %doomed.title,
+                title = name,
                 reason,
                 "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
             );

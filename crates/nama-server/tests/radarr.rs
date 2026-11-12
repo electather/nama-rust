@@ -4,6 +4,8 @@
 #[expect(dead_code, reason = "this binary deletes no media")]
 #[path = "support/fake_radarr.rs"]
 mod fake_radarr;
+#[path = "support/fake_servarr.rs"]
+mod fake_servarr;
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/servarr.rs"]

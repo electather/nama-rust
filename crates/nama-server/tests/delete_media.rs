@@ -1,6 +1,6 @@
 //! Deleting media through `LibraryService.PreviewDeleteMedia` and `DeleteMedia`, over a real
 //! socket, against Libraries over temporary folders with real files and TMDB on against a fake,
-//! and the Radarr Plugin, bundled in the Server, against a fake Radarr.
+//! and the Radarr and Sonarr Plugins, bundled in the Server, against a fake Radarr and Sonarr.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
@@ -8,6 +8,12 @@ mod browsing;
 #[expect(dead_code, reason = "this binary only deletes")]
 #[path = "support/fake_radarr.rs"]
 mod fake_radarr;
+#[expect(dead_code, reason = "this binary only deletes")]
+#[path = "support/fake_servarr.rs"]
+mod fake_servarr;
+#[expect(dead_code, reason = "this binary only deletes")]
+#[path = "support/fake_sonarr.rs"]
+mod fake_sonarr;
 #[expect(dead_code, reason = "this binary reads only the status")]
 #[path = "support/http.rs"]
 mod http;
@@ -26,15 +32,18 @@ use std::path::Path;
 use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use fake_radarr::{Changed, FakeRadarr};
+use fake_sonarr::FakeSonarr;
 use http::fetch;
 use log::Log;
+use nama_plugin_api::fulfiller::{EpisodeNumber, EpisodeNumbers, ShowDeleted, show_deleted};
 use nama_proto::nama::v1::{
     AudioCodec, Container, DeleteMediaRequest, DeleteMediaResponse, DeviceDecoding, Episode,
     EpisodeToDelete, EventType, GetShowRequest, LibraryKind, LibraryServiceClient,
     ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MediaFile, MediaToDelete,
     MovieToDelete, Permission, PlanPlaybackRequest, PlaybackMethod, PlaybackPlan,
     PlaybackServiceClient, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason,
-    SeasonToDelete, ShowToDelete, SubscribeRequest, VideoCodec, event, media_to_delete,
+    RequestState, SeasonToDelete, ShowToDelete, SubscribeRequest, VideoCodec, event,
+    media_to_delete,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::{Ffmpeg, fake::script};
@@ -43,8 +52,9 @@ use serde_json::json;
 use server::{
     Builder, TestServer,
     fulfiller::MOVIE_FULFILLER,
+    requests::Requester,
     subscribe, subscribe_with,
-    tmdb::{ALIEN, DARK, DUNE},
+    tmdb::{ALIEN, DARK, DARK_TVDB, DUNE},
 };
 
 const ALIEN_1080P_SUBTITLES: &str = "Alien (1979)/Alien (1979) - 1080p.en.srt";
@@ -63,9 +73,14 @@ const DARK_S01E01_E02: &str = "Dark (2017)/Season 01/Dark - S01E01-E02.mkv";
 const DARK_S01E01_E02_SUBTITLES: &str = "Dark (2017)/Season 01/Dark - S01E01-E02.en.srt";
 const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
 const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
-/// The TMDB ids of Dark's Episodes S01E01 and S01E02.
+/// The TMDB ids of Dark's Episodes S01E01, S01E02 and S02E01.
 const SECRETS: i64 = 1_388_538;
 const LIES: i64 = 1_388_539;
+const BEGINNINGS: i64 = 1_803_405;
+/// The ids the fake Sonarr has Dark's Episodes S01E01 and S01E02 by, and its others'.
+const SONARR_SECRETS: i64 = 101;
+const SONARR_LIES: i64 = 102;
+const SONARR_OTHERS: [i64; 4] = [201, 202, 301, 302];
 
 /// Every Version of the Movie with the TMDB id `tmdb` in `library`.
 fn movie(library: i64, tmdb: i64) -> MediaToDelete {
@@ -153,7 +168,23 @@ impl Fixture {
 
     /// A Shows Library holding Dark's three files and a sidecar, scanned and Matched.
     async fn dark() -> Self {
-        let fx = Self::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
+        Self::dark_on(TestServer::builder()).await
+    }
+
+    /// [`Self::dark`] beside a fake Sonarr the Admin enabled, which has Dark since the Admin
+    /// followed it.
+    async fn dark_in_sonarr() -> (Self, FakeSonarr) {
+        let fx = Self::dark().await;
+        let sonarr = FakeSonarr::start().await;
+        sonarr.enable_on(&fx.server).await;
+        fx.server.admin_requests().follow(DARK).await;
+        sonarr.finish_refreshes().await;
+        (fx, sonarr)
+    }
+
+    /// [`Self::dark`] on a Server `builder` starts.
+    async fn dark_on(builder: Builder) -> Self {
+        let fx = Self::start_on(LibraryKind::LIBRARY_KIND_SHOWS, builder).await;
         fx.write(DARK_S01E01_E02, b"two episodes");
         fx.write(DARK_S01E01_E02_SUBTITLES, b"subtitles");
         fx.write(DARK_S01E01, b"one episode");
@@ -724,6 +755,147 @@ async fn deleting_a_show_deletes_every_season_and_a_subscriber_is_told_of_each_i
         .shows;
     assert!(shows.is_empty(), "{shows:?}");
     assert_eq!(fs::read_dir(&fx.folder).unwrap().count(), 0);
+}
+
+/// What of Dark a Shows Fulfiller is told to stop monitoring: `deleted`.
+fn dark_deleted(deleted: impl Into<show_deleted::Deleted>) -> ShowDeleted {
+    ShowDeleted {
+        show_tmdb_id: Some(DARK),
+        show_tvdb_id: Some(DARK_TVDB),
+        deleted: Some(deleted.into()),
+        ..Default::default()
+    }
+}
+
+/// Dark's Episodes by `(season, episode)` numbers, as a Shows Fulfiller is told them.
+fn dark_episodes(numbers: &[(u32, u32)]) -> ShowDeleted {
+    let episodes = (numbers.iter())
+        .map(|&(season_number, episode_number)| EpisodeNumber {
+            season_number,
+            episode_number,
+            ..Default::default()
+        })
+        .collect();
+    dark_deleted(EpisodeNumbers {
+        episodes,
+        ..Default::default()
+    })
+}
+
+#[tokio::test]
+async fn deleting_episodes_or_a_season_has_the_shows_fulfiller_stop_monitoring_just_those() {
+    let fx = Fixture::dark_on(TestServer::builder().shows_fulfiller(&[])).await;
+    let own = fx.dark_version("Dark - S01E01.mkv").await;
+
+    fx.delete(episode(fx.library, SECRETS, Some(own)))
+        .await
+        .unwrap();
+    // Its file holds Secrets too, which goes along.
+    fx.delete(episode(fx.library, LIES, None)).await.unwrap();
+    let season = fx.delete(dark_season(fx.library, 2)).await.unwrap();
+
+    assert_eq!(
+        fx.server.fulfiller().stopped_monitoring_shows(),
+        [
+            dark_episodes(&[(1, 1)]),
+            dark_episodes(&[(1, 2), (1, 1)]),
+            dark_deleted(show_deleted::Deleted::SeasonNumber(2)),
+        ]
+    );
+    assert_eq!(season.fulfillers_not_told, [""; 0]);
+}
+
+#[tokio::test]
+async fn deleting_a_show_has_the_shows_fulfiller_stop_monitoring_every_current_season() {
+    let fx = Fixture::dark_on(TestServer::builder().shows_fulfiller(&[])).await;
+
+    fx.delete(show(fx.library, DARK)).await.unwrap();
+
+    assert_eq!(
+        fx.server.fulfiller().stopped_monitoring_shows(),
+        [dark_deleted(show_deleted::Deleted::EveryCurrentSeason(
+            true
+        ))]
+    );
+}
+
+#[tokio::test]
+async fn deleting_an_episode_or_one_of_its_versions_has_sonarr_unmonitor_that_episode_only() {
+    let (fx, sonarr) = Fixture::dark_in_sonarr().await;
+    let seasons = sonarr.monitored_seasons(DARK_TVDB);
+    let own = fx.dark_version("Dark - S01E01.mkv").await;
+
+    let one_version = fx
+        .delete(episode(fx.library, SECRETS, Some(own)))
+        .await
+        .unwrap();
+    fx.delete(episode(fx.library, BEGINNINGS, None))
+        .await
+        .unwrap();
+
+    assert_eq!(sonarr.unmonitored_episodes(), [SONARR_SECRETS, 201]);
+    assert_eq!(sonarr.monitored_seasons(DARK_TVDB), seasons);
+    assert_eq!(one_version.fulfillers_not_told, [""; 0]);
+}
+
+#[tokio::test]
+async fn deleting_a_season_has_sonarr_unmonitor_it_and_its_episodes_and_leave_the_others() {
+    let (fx, sonarr) = Fixture::dark_in_sonarr().await;
+    // Season 2 is all in the Library, so following Dark didn't have Sonarr fetch it.
+    assert_eq!(sonarr.monitored_seasons(DARK_TVDB), [1, 3]);
+
+    fx.delete(dark_season(fx.library, 1)).await.unwrap();
+
+    assert_eq!(sonarr.monitored_seasons(DARK_TVDB), [3]);
+    assert_eq!(sonarr.unmonitored_episodes(), [SONARR_SECRETS, SONARR_LIES]);
+}
+
+#[tokio::test]
+async fn deleting_a_show_unmonitors_every_season_in_sonarr_and_keeps_it_following_new_ones() {
+    let (fx, sonarr) = Fixture::dark_in_sonarr().await;
+
+    fx.delete(show(fx.library, DARK)).await.unwrap();
+
+    assert_eq!(sonarr.monitored_seasons(DARK_TVDB), [0_u64; 0]);
+    let mut unmonitored = sonarr.unmonitored_episodes();
+    unmonitored.sort_unstable();
+    assert_eq!(
+        unmonitored,
+        [[SONARR_SECRETS, SONARR_LIES].as_slice(), &SONARR_OTHERS].concat()
+    );
+    let [dark] = sonarr.shows().try_into().unwrap();
+    assert_eq!(dark["monitored"], true);
+    assert_eq!(dark["monitorNewItems"], "all");
+    let (_, followed) = (fx.server.admin_requests())
+        .list_in(RequestState::Unspecified)
+        .await;
+    assert_eq!(followed.len(), 1, "{followed:?}");
+    assert_eq!(followed[0].show_tmdb_id, DARK);
+}
+
+#[tokio::test]
+async fn a_show_sonarr_doesnt_have_deletes_with_nothing_reported() {
+    let fx = Fixture::dark().await;
+    let sonarr = FakeSonarr::start().await;
+    sonarr.enable_on(&fx.server).await;
+
+    let deleted = fx.delete(show(fx.library, DARK)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, [""; 0]);
+    assert_eq!(sonarr.unmonitored_episodes(), [0_i64; 0]);
+    assert!(!fx.exists(DARK_S01E01_E02));
+}
+
+#[tokio::test]
+async fn with_sonarr_down_the_delete_goes_ahead_and_names_sonarr() {
+    let (fx, mut sonarr) = Fixture::dark_in_sonarr().await;
+    sonarr.go_down();
+
+    let deleted = fx.delete(dark_season(fx.library, 1)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, ["Sonarr"]);
+    assert!(!fx.exists(DARK_S01E01_E02) && !fx.exists(DARK_S01E01));
+    assert_eq!(fx.dark_episodes(1).await, []);
 }
 
 #[tokio::test]

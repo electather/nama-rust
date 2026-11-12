@@ -9,7 +9,12 @@ use std::{
     sync::Arc,
 };
 
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::{
+    fulfiller::{
+        EpisodeNumber, EpisodeNumbers, ShowDeleted, show_deleted::Deleted, stop_monitoring::Title,
+    },
+    metadata::ExternalId,
+};
 
 use crate::{
     contents::{self, Contents, Found, MatchedTo, Stored},
@@ -263,7 +268,7 @@ impl Browse {
             let movie = titles.movie(&id)?;
             return Ok(Doomed {
                 library,
-                tmdb_id: tmdb_id_of(&movie.id),
+                unmonitored: tmdb_id_of(&movie.id).map(Title::MovieTmdbId),
                 title: movie.title,
                 versions: movie.versions,
                 taken_along: Vec::new(),
@@ -287,7 +292,7 @@ impl Browse {
             .ok_or(Error::NoSuchVersion)?;
         Ok(Doomed {
             library,
-            tmdb_id,
+            unmonitored: tmdb_id.map(Title::MovieTmdbId),
             title,
             versions: vec![version],
             taken_along: Vec::new(),
@@ -417,10 +422,10 @@ impl<V> Titles<V> {
 fn doomed_episodes(
     library: Library,
     shows: &[contents::Show],
-    title: &Target,
+    target: &Target,
     only: Option<i64>,
 ) -> Result<Doomed, Error> {
-    let (title, named) = named_episodes(shows, title)?;
+    let (title, show, named) = named_episodes(shows, target)?;
     let mut versions: Vec<contents::Version> = (named.iter())
         .flat_map(|episode| &episode.versions)
         .filter(|version| only.is_none_or(|only| version.file.id == only))
@@ -433,26 +438,67 @@ fn doomed_episodes(
         return Err(Error::NoSuchVersion);
     }
     let files: HashSet<i64> = versions.iter().map(|version| version.file.id).collect();
-    let taken_along = (shows.iter().flat_map(contents::Show::episodes))
+    let taken_along: Vec<contents::Episode> = (shows.iter().flat_map(contents::Show::episodes))
         .filter(|episode| !named.iter().any(|named| named.id == episode.id))
         .filter(|episode| (episode.versions.iter()).any(|v| files.contains(&v.file.id)))
         .cloned()
         .collect();
+    let episodes = named.into_iter().chain(&taken_along);
     Ok(Doomed {
         library,
-        tmdb_id: None,
+        unmonitored: unmonitored_of(show, target, episodes),
         title,
         versions,
         taken_along,
     })
 }
 
-/// The Episodes of `shows` that `title` names, with its name for the log. A Movie is in no Shows
-/// Library.
+/// What a delete of `target`, Episodes of `show`, asks Fulfillers to stop monitoring: the
+/// Episodes `episodes`, a whole Season or every current Season. `None` if the Show has neither id
+/// they know it by.
+fn unmonitored_of<'a>(
+    show: &contents::Show,
+    target: &Target,
+    episodes: impl Iterator<Item = &'a contents::Episode>,
+) -> Option<Title> {
+    let show_tmdb_id = tmdb_id_of(&show.id);
+    if show_tmdb_id.is_none() && show.tvdb_id.is_none() {
+        return None;
+    }
+    // A scan parses season and episode numbers from digits, so they are never negative.
+    let number = |n: i64| u32::try_from(n).unwrap_or_default();
+    let deleted = match target {
+        Target::Show(_) => Deleted::EveryCurrentSeason(true),
+        // Not the Episodes another Season's file takes along: a file rarely spans Seasons.
+        Target::Season { number: season, .. } => Deleted::SeasonNumber(number(*season)),
+        Target::Episode(_) | Target::Movie(_) => {
+            let episodes = (episodes.map(|episode| EpisodeNumber {
+                season_number: number(episode.season),
+                episode_number: number(episode.number),
+                ..Default::default()
+            }))
+            .collect();
+            Deleted::from(EpisodeNumbers {
+                episodes,
+                ..Default::default()
+            })
+        }
+    };
+    let show = ShowDeleted {
+        show_tmdb_id,
+        show_tvdb_id: show.tvdb_id,
+        deleted: Some(deleted),
+        ..Default::default()
+    };
+    Some(Title::from(show))
+}
+
+/// The Episodes of `shows` that `title` names, with its name for the log and their Show. A Movie
+/// is in no Shows Library.
 fn named_episodes<'a>(
     shows: &'a [contents::Show],
     title: &Target,
-) -> Result<(String, Vec<&'a contents::Episode>), Error> {
+) -> Result<(String, &'a contents::Show, Vec<&'a contents::Episode>), Error> {
     let show_of =
         |id: &ExternalId| (shows.iter().find(|show| &show.id == id)).ok_or(Error::NothingMatched);
     match title {
@@ -461,13 +507,13 @@ fn named_episodes<'a>(
         }),
         Target::Show(id) => {
             let show = show_of(id)?;
-            Ok((show.title.clone(), show.episodes().collect()))
+            Ok((show.title.clone(), show, show.episodes().collect()))
         }
         Target::Season { show, number } => {
             let show = show_of(show)?;
             let season = show.seasons.get(number).ok_or(Error::NoSuchSeason)?;
             let name = format!("{} Season {number}", show.title);
-            Ok((name, season.episodes.iter().collect()))
+            Ok((name, show, season.episodes.iter().collect()))
         }
         Target::Episode(id) => (shows.iter())
             .find_map(|show| {
@@ -476,7 +522,7 @@ fn named_episodes<'a>(
                     "{} S{:02}E{:02}",
                     show.title, episode.season, episode.number
                 );
-                Some((name, vec![episode]))
+                Some((name, show, vec![episode]))
             })
             .ok_or(Error::NothingMatched),
     }

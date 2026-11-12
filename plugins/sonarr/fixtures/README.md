@@ -21,7 +21,8 @@ When re-recording one, trim it the same way.
 The fake answers the rest from what it was sent: its Shows by TVDB id (`GET /api/v3/series?tvdbId=`),
 a lookup for a Show it can't find (`[]`), the added Show, its commands (`GET /api/v3/command`), and
 `202 Accepted` to `POST /api/v3/seasonpass`, `PUT /api/v3/series/editor` and
-`PUT /api/v3/episode/monitor`. Adding a Show
+`PUT /api/v3/episode/monitor`, which monitors or unmonitors Episodes. `GET /api/v3/episode` without
+`seasonNumber` lists every Season's Episodes. Adding a Show
 starts a `RefreshSeries` that, as Sonarr's does, saves the Seasons back as it read them when it
 started, and a Show has Episodes only once it finishes. A request without the right `X-Api-Key`
 gets Sonarr's `401 Unauthorized`, with no body.
