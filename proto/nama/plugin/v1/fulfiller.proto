@@ -42,5 +42,35 @@ message StopMonitoring {
   oneof title {
     // A Movie, by its TMDB id.
     int64 movie_tmdb_id = 1;
+    // Some or all of a Show.
+    ShowDeleted show = 2;
   }
+}
+
+// What a delete takes of a Show, which keeps its new Seasons coming.
+message ShowDeleted {
+  // The Show's TMDB id, if the metadata source has one.
+  optional int64 show_tmdb_id = 1;
+  // The Show's TVDB id, if the metadata source has one.
+  optional int64 show_tvdb_id = 2;
+  oneof deleted {
+    // Every Season the service has of the Show now, and their Episodes. Always true when set.
+    bool every_current_season = 3;
+    // One Season, by its number, and its Episodes.
+    uint32 season_number = 4;
+    // Some Episodes.
+    EpisodeNumbers episodes = 5;
+  }
+}
+
+// Episodes of one Show, by their numbers.
+message EpisodeNumbers {
+  repeated EpisodeNumber episodes = 1;
+}
+
+// An Episode of a Show, by its numbers.
+message EpisodeNumber {
+  // Its Season's number. Season 0 holds specials.
+  uint32 season_number = 1;
+  uint32 episode_number = 2;
 }

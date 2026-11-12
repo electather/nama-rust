@@ -76,6 +76,7 @@ pub(crate) fn router(
     db: Arc<Database>,
     plugin_settings: PluginSettings,
     scanner: Scanner,
+    artwork: Artwork,
     probing: Probing,
     events: EventBus,
     requests: Requests,
@@ -89,7 +90,6 @@ pub(crate) fn router(
     let plugins = plugin_settings.extension_points();
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
-    let artwork = Artwork::new(&config.data_dir, plugins.clone());
     let artwork_router = artwork::router(artwork.clone(), contents.clone());
     let media = crate::playback::router(
         contents,

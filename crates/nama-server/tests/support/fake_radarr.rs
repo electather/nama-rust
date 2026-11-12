@@ -1,27 +1,19 @@
 //! A local stand-in for Radarr serving the responses recorded in `plugins/radarr/fixtures/`, so
 //! the Radarr Plugin's tests need no Radarr. See that folder's `README.md` for which answers what.
 
-#[path = "fake_servarr.rs"]
-mod fake_servarr;
-
 use std::{
     ops::{Deref, DerefMut},
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 
+use crate::fake_servarr::{FakeServarr, Servarr, json, lock};
 use axum::{
     Router,
     body::Bytes,
     extract::State,
     http::{Method, StatusCode, Uri},
     response::{IntoResponse, Response},
-};
-use connectrpc::client::HttpClient;
-use fake_servarr::{FakeServarr, Servarr, json, lock};
-use nama_proto::nama::v1::{
-    EnablePluginRequest, PluginServiceClient, SettingValue, UpdatePluginSettingsRequest,
-    setting_value,
 };
 use serde_json::Value;
 
@@ -103,40 +95,10 @@ impl FakeRadarr {
 
     /// Has `server`'s Admin set the Radarr Plugin up against this fake, with the quality profile
     /// `profile` and the root folder `/movies`, and enable it.
-    #[expect(
-        clippy::unwrap_used,
-        reason = "a test helper fails its test by panicking"
-    )]
     pub(crate) async fn enable_on(&self, server: &TestServer, profile: &str) {
-        let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
-        let settings = [
-            ("url", self.url()),
-            ("api_key", API_KEY.to_owned()),
-            ("quality_profile", profile.to_owned()),
-            ("root_folder", "/movies".to_owned()),
-        ]
-        .map(|(key, value)| {
-            let value = SettingValue {
-                value: Some(setting_value::Value::TextValue(value)),
-                ..Default::default()
-            };
-            (key.to_owned(), value)
-        });
-        plugins
-            .update_plugin_settings(UpdatePluginSettingsRequest {
-                id: "radarr".to_owned(),
-                settings: settings.into_iter().collect(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        plugins
-            .enable_plugin(EnablePluginRequest {
-                id: "radarr".to_owned(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
+        self.servarr
+            .enable_as(server, "radarr", profile, "/movies")
+            .await;
     }
 }
 

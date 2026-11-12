@@ -271,6 +271,8 @@ pub(crate) enum MatchedTo {
 pub(crate) struct Show<V = Version> {
     /// Which of its Episodes' Show ids identifies it: see [`primary_id`].
     pub(crate) id: ExternalId,
+    /// The Show's TVDB id, which Sonarr finds it by, if that Match has one.
+    pub(crate) tvdb_id: Option<i64>,
     /// The Plugin whose metadata Provider made the Match, which the image paths are for.
     pub(crate) plugin: String,
     pub(crate) title: String,
@@ -308,6 +310,7 @@ impl<V> Show<V> {
             .collect();
         Show {
             id: self.id,
+            tvdb_id: self.tvdb_id,
             plugin: self.plugin,
             title: self.title,
             backdrop: self.backdrop,
@@ -639,6 +642,30 @@ impl Contents {
         .await
     }
 
+    /// Each image a Match stores, as its Plugin and path, in the Library `library` or else in
+    /// every Library.
+    pub(crate) async fn images(
+        &self,
+        library: Option<i64>,
+    ) -> Result<Vec<(String, String)>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"WITH matched AS (
+                   SELECT item_matches.plugin, item_matches.poster, item_matches.backdrop
+                   FROM item_matches
+                   JOIN library_items ON library_items.id = item_matches.item_id
+                   JOIN library_files ON library_files.id = library_items.file_id
+                   WHERE item_matches.state = 'matched'
+                     AND (?1 IS NULL OR library_files.library_id = ?1))
+               SELECT plugin AS "plugin!", poster AS "path!" FROM matched WHERE poster IS NOT NULL
+               UNION
+               SELECT plugin, backdrop FROM matched WHERE backdrop IS NOT NULL"#,
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
+    }
+
     /// The oldest Library with an Item Matched to the Movie with the TMDB id `tmdb_id`, if any.
     pub(crate) async fn library_with_movie(
         &self,
@@ -870,6 +897,7 @@ impl Contents {
             };
             let show = shows.entry(show_id.clone()).or_insert_with(|| Show {
                 id: show_id,
+                tvdb_id: row.show_tvdb_id,
                 plugin: row.plugin,
                 title: row.show_title,
                 backdrop: row.backdrop,

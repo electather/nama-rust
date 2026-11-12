@@ -1,5 +1,6 @@
-//! The Sonarr Installed Plugin: hands Approved Season Requests to Sonarr (ADR 0003), and says how
-//! their downloads are progressing. The Server builds it for wasm32 and bundles it in its binary.
+//! The Sonarr Installed Plugin: hands Approved Season Requests to Sonarr (ADR 0003), says how
+//! their downloads are progressing, and has Sonarr stop monitoring deleted Episodes (ADR 0038).
+//! The Server builds it for wasm32 and bundles it in its binary.
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -12,9 +13,12 @@ mod exports {
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
+        StopMonitoring,
         extism_pdk::{self, Error, HttpResponse},
         nama_proto::nama::{
-            plugin::v1::ProvidePoint,
+            plugin::v1::{
+                EpisodeNumbers, ProvidePoint, show_deleted::Deleted, stop_monitoring::Title,
+            },
             v1::{RequestedSeason, request::MovieOrSeason},
         },
         plugin_fn,
@@ -86,6 +90,45 @@ mod exports {
             // A refresh saves the whole Show as it read it, so would undo the change too.
             sonarr.wait_until_added(show.id)?;
             sonarr.monitor_new_seasons(show.id, false)
+        }
+
+        /// Unmonitors the deleted Episodes, or Seasons and their Episodes. Sonarr keeps the Show
+        /// monitored, and its new Seasons as they were, so a Followed Show still gets them.
+        fn stop_monitoring(title: StopMonitoring) -> Result<(), Error> {
+            let Some(Title::Show(show_deleted)) = title.title else {
+                return Err(Error::msg("Sonarr stops monitoring only Shows"));
+            };
+            // Sonarr finds a Show only by its TVDB id, so one without it was never handed over.
+            let Some(tvdb_id) = show_deleted.show_tvdb_id else {
+                return Ok(());
+            };
+            let sonarr = Sonarr::from_config()?;
+            let Some(show) = sonarr.find(tvdb_id)? else {
+                return Ok(());
+            };
+            // A refresh saves the whole Show as it read it, so would undo the change too.
+            sonarr.wait_until_added(show.id)?;
+            let episodes: Vec<Episode> =
+                sonarr.api.get(&format!("episode?seriesId={}", show.id))?;
+            let (seasons, episodes) = match show_deleted.deleted {
+                Some(Deleted::EveryCurrentSeason(_)) => {
+                    let seasons = show.seasons.iter().map(|season| season.season_number);
+                    (seasons.collect(), episodes)
+                }
+                Some(Deleted::SeasonNumber(number)) => {
+                    let of_season = |episode: &Episode| episode.season_number == number;
+                    (
+                        vec![number],
+                        episodes.into_iter().filter(of_season).collect(),
+                    )
+                }
+                Some(Deleted::Episodes(named)) => {
+                    let named = |episode: &Episode| episode.is_in(&named);
+                    (Vec::new(), episodes.into_iter().filter(named).collect())
+                }
+                None => return Err(Error::msg("Sonarr was told to stop monitoring nothing")),
+            };
+            sonarr.unmonitor(show.id, seasons, episodes)
         }
 
         /// Reads Sonarr's whole queue in one call, whatever the number of `references`. A Season
@@ -229,6 +272,40 @@ mod exports {
             self.api.change("PUT", "series/editor", editor)
         }
 
+        /// Unmonitors the Seasons `seasons` and the Episodes `episodes` of the Show Sonarr has as
+        /// `show_id`, leaving the Show and its other Seasons as they are.
+        fn unmonitor(
+            &self,
+            show_id: i64,
+            seasons: Vec<u32>,
+            episodes: Vec<Episode>,
+        ) -> Result<(), Error> {
+            if !seasons.is_empty() {
+                let seasons = (seasons.into_iter())
+                    .map(|season_number| Season {
+                        season_number,
+                        monitored: false,
+                    })
+                    .collect();
+                let pass = SeasonPass {
+                    series: [ShowSeasons {
+                        id: show_id,
+                        monitored: None,
+                        seasons,
+                    }],
+                };
+                self.api.change("POST", "seasonpass", pass)?;
+            }
+            if episodes.is_empty() {
+                return Ok(());
+            }
+            let monitor = EpisodesMonitored {
+                episode_ids: episodes.into_iter().map(|episode| episode.id).collect(),
+                monitored: false,
+            };
+            self.api.change("PUT", "episode/monitor", monitor)
+        }
+
         /// Monitors the Season `season_number` of the Show Sonarr has as `show_id`, and its
         /// Episodes, and searches for them. Each request names only that Season or its Episodes,
         /// so another hand-off changing the Show's other Seasons meanwhile keeps its change.
@@ -241,8 +318,8 @@ mod exports {
                 series: [ShowSeasons {
                     id: show_id,
                     // Sonarr searches for nothing of a Show it doesn't monitor.
-                    monitored: true,
-                    seasons: [season],
+                    monitored: Some(true),
+                    seasons: vec![season],
                 }],
             };
             self.api.change("POST", "seasonpass", pass)?;
@@ -362,6 +439,7 @@ mod exports {
         /// Sonarr's own id for it.
         id: i64,
         quality_profile_id: i64,
+        seasons: Vec<Season>,
     }
 
     #[derive(Serialize, Deserialize)]
@@ -413,13 +491,27 @@ mod exports {
     #[derive(Serialize)]
     struct ShowSeasons {
         id: i64,
-        monitored: bool,
-        seasons: [Season; 1],
+        /// Whether Sonarr monitors the Show. Left out, it stays as it is.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        monitored: Option<bool>,
+        seasons: Vec<Season>,
     }
 
     #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
     struct Episode {
         id: i64,
+        season_number: u32,
+        #[serde(rename = "episodeNumber")]
+        number: u32,
+    }
+
+    impl Episode {
+        fn is_in(&self, named: &EpisodeNumbers) -> bool {
+            (named.episodes.iter()).any(|named| {
+                named.season_number == self.season_number && named.episode_number == self.number
+            })
+        }
     }
 
     /// What `PUT /api/v3/episode/monitor` takes. The season pass leaves Episodes as they are.

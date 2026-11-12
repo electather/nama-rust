@@ -40,6 +40,7 @@ use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::net::TcpListener;
 
 use crate::{
+    artwork::Artwork,
     codes::SetupCode,
     config::Config,
     contents::Contents,
@@ -110,9 +111,11 @@ pub fn serve(
         probing.clone(),
         events.clone(),
     );
+    let artwork = Artwork::new(&config.data_dir, points.clone());
     let scanner = Scanner::new(
         Arc::clone(&db),
         points.clone(),
+        artwork.clone(),
         events.clone(),
         Some(probing.clone()),
         Some(running.clone()),
@@ -125,6 +128,7 @@ pub fn serve(
         db,
         plugins.clone(),
         scanner.clone(),
+        artwork,
         probing.clone(),
         events.clone(),
         requests.clone(),

@@ -52,6 +52,9 @@ pub mod __buffa {
         reg.register_json_any(super::__PROGRESS_JSON_ANY);
         reg.register_json_any(super::__DOWNLOADS_JSON_ANY);
         reg.register_json_any(super::__STOP_MONITORING_JSON_ANY);
+        reg.register_json_any(super::__SHOW_DELETED_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_NUMBERS_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_NUMBER_JSON_ANY);
         reg.register_json_any(super::__MANIFEST_JSON_ANY);
         reg.register_json_any(super::__SETTING_FIELD_JSON_ANY);
         reg.register_json_any(super::__CHECKED_SETTINGS_JSON_ANY);
@@ -101,6 +104,18 @@ pub use self::__buffa::view::DownloadsOwnedView;
 pub use self::__buffa::view::StopMonitoringView;
 #[doc(inline)]
 pub use self::__buffa::view::StopMonitoringOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowDeletedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowDeletedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeNumbersView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeNumbersOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeNumberView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeNumberOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ManifestView;
 #[doc(inline)]
