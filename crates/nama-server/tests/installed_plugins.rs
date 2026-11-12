@@ -521,6 +521,26 @@ async fn an_observer_that_loops_forever_is_stopped_by_the_timeout_and_the_server
 }
 
 #[tokio::test]
+async fn an_observer_that_runs_past_the_memory_cap_crashes_and_the_server_carries_on() {
+    let log = Log::global();
+    let started = Started::new().await;
+    let (library, _media) = started.observing("hoard").await;
+
+    started.scan(library).await;
+    log.wait_for(
+        &[
+            "test-plugin",
+            "observer crashed: it used more than 128 MiB of memory",
+        ],
+        1,
+    )
+    .await;
+
+    assert_eq!(log.count(&["test-plugin hoarded"]), 0);
+    assert!(started.listed("test-plugin").await.is_some());
+}
+
+#[tokio::test]
 async fn a_plugin_reads_the_servers_clock() {
     let log = Log::global();
     let started = Started::new().await;

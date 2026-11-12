@@ -16,7 +16,7 @@
 //!
 //! The Plugin reads its settings with [`extism_pdk::config::get`], sends HTTP requests with
 //! [`http_request`] to the hosts its Manifest's `allowed_hosts` and its URL settings name, and
-//! reads the time with [`now`].
+//! reads the time with [`now`]. A call may use up to 128 MiB of memory, and fails past it.
 //!
 //! A Plugin with [`SETTING_KIND_CHOICE`](nama_proto::nama::v1::SettingKind) settings exports `check_settings()`, which
 //! checks its settings against the outside service and offers the choices for each, built with

@@ -55,6 +55,11 @@ use super::{
 /// the start, its Observer's task or a settings check.
 const CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// How much memory one call into an Installed Plugin may use, in 64 KiB pages: the guest's own and
+/// what Extism keeps for it, so one Plugin can't take the Server down.
+// ponytail: one cap for all; let a Manifest ask for more once a Plugin needs it.
+const MEMORY_MAX_PAGES: u32 = 2048;
+
 /// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
 /// cost an admin a Plugin.
 const CRASHES_BEFORE_DISABLING: u32 = 3;
@@ -253,7 +258,7 @@ impl Running {
         let cause = if is_timeout(&err) {
             format!("it didn't answer within {CALL_TIMEOUT:?}")
         } else {
-            err.root_cause().to_string()
+            failure_cause(&err)
         };
         self.count_crash(&err, &without_secrets(cause.clone(), &self.secrets));
         Err(cause.into())
@@ -261,7 +266,7 @@ impl Running {
 
     /// Logs why a call to its Observer failed, and counts it as [`Self::count_crash`] does.
     fn observer_failed(&self, err: &extism::Error) {
-        let cause = without_secrets(err.root_cause().to_string(), &self.secrets);
+        let cause = without_secrets(failure_cause(err), &self.secrets);
         let failed = if is_crash(err) { "crashed" } else { "failed" };
         warn!(plugin = %self.package.id, "observer {failed}: {cause}");
         self.count_crash(err, &cause);
@@ -288,6 +293,7 @@ fn is_crash(err: &extism::Error) -> bool {
     // message) only if the guest trapped. A host function's error unwinds the guest too, but holds
     // no trap.
     is_timeout(err)
+        || is_out_of_memory(err)
         || err
             .downcast_ref::<wasmtime::Error>()
             .is_some_and(wasmtime::Error::is::<wasmtime::Trap>)
@@ -297,6 +303,20 @@ fn is_crash(err: &extism::Error) -> bool {
 fn is_timeout(err: &extism::Error) -> bool {
     // Extism (1.41) gives a timeout as a bare "timeout".
     err.to_string() == "timeout"
+}
+
+/// Whether a failed call ran past [`MEMORY_MAX_PAGES`], which Extism (1.41) gives as a bare "oom".
+fn is_out_of_memory(err: &extism::Error) -> bool {
+    err.to_string() == "oom"
+}
+
+/// Why a call failed, in plain words where Extism gives a bare code.
+fn failure_cause(err: &extism::Error) -> String {
+    if is_out_of_memory(err) {
+        format!("it used more than {} MiB of memory", MEMORY_MAX_PAGES / 16)
+    } else {
+        err.root_cause().to_string()
+    }
 }
 
 /// A Plugin to list as Installed once [`describe`] finds its id free.
@@ -891,6 +911,7 @@ fn compile(
 ) -> Result<CompiledPlugin, extism::Error> {
     let manifest = extism::Manifest::new([Wasm::data(wasm.to_vec())])
         .with_timeout(CALL_TIMEOUT)
+        .with_memory_max(MEMORY_MAX_PAGES)
         .with_allowed_hosts(hosts.into_iter())
         .with_config(config.into_iter());
     CompiledPlugin::new(
@@ -1052,6 +1073,7 @@ mod tests {
 
         assert!(is_crash(&panicked));
         assert!(is_crash(&extism::Error::msg("timeout")));
+        assert!(is_crash(&extism::Error::msg("oom")));
         assert!(!is_crash(&refused));
         assert!(!is_crash(&extism::Error::msg("the service is down")));
     }
