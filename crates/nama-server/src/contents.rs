@@ -1173,9 +1173,10 @@ fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
             continue;
         }
         // Every Episode of a Show fits its title alike, so its rows hold all its Seasons.
+        // ponytail: rescans every row per Show found; group rows by Show once searches get slow.
         let seasons = (rows.iter())
-            .filter(|(other, it)| it.library == row.library && other == id)
-            .filter_map(|(_, it)| Some((it.season?, it.poster.as_deref())));
+            .filter(|(other_id, other)| other.library == row.library && other_id == id)
+            .filter_map(|(_, other)| Some((other.season?, other.poster.as_deref())));
         shows.push(FoundShow {
             library: row.library,
             id: id.clone(),
