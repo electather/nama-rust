@@ -208,7 +208,8 @@ impl PluginServiceHandler {
     }
 
     /// `plugin`'s logo: its Custom Image, among `custom`, else its Manifest's, which is stored
-    /// first if it isn't. None if the store fails, which is logged: the Plugin is still listed.
+    /// first if it isn't. Without a URL if the store fails, which is logged: the Plugin is still
+    /// listed.
     async fn logo(&self, plugin: &Listed, custom: &Urls) -> Logo {
         if let Some(url) = custom.of(&Slot::plugin(&plugin.id)) {
             return Logo { url, custom: true };
