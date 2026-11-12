@@ -19,7 +19,9 @@
 //!
 //! After each scan the Library's items are Matched (see [`crate::matching`]), still under the
 //! Library's scan lock, so Matching sees the items the scan stored. Then [`crate::probing`] is told
-//! its files changed, and probes them in the background without holding up the next scan.
+//! its files changed, and probes them in the background without holding up the next scan. Last,
+//! the images no Match stores any more are deleted, and those the Library's Matches store and the
+//! store lacks are downloaded in the background (see [`crate::artwork`]).
 //!
 //! Probing passes of one Library overlap, so `ProbingFinished` says the Library has caught up, not
 //! that one pass is done (ADR 0030): a pass waits for the files it left to another prober, and
@@ -49,6 +51,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use walkdir::{DirEntry, WalkDir};
 
 use crate::{
+    artwork::Artwork,
     contents::{Change, Contents, Stored},
     db::{Database, detached},
     events::{EventBus, event},
@@ -123,6 +126,8 @@ pub(crate) struct Scanner {
 #[derive(Debug)]
 struct Inner {
     contents: Contents,
+    /// Downloads the images Matches store, and deletes those none does.
+    artwork: Artwork,
     libraries: Libraries,
     matcher: Matcher,
     /// Asks Fulfillers to stop monitoring what a delete takes.
@@ -179,9 +184,15 @@ impl ScanLock {
 impl Scanner {
     /// Tells `probing` each Library whose scan finished and has it clean subtitles, or does
     /// neither where nothing probes, and has `running` end the plans playing media it deletes.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is a separate handle the Scanner is built from; a struct bundling them \
+                  would exist only for this call"
+    )]
     pub(crate) fn new(
         db: Arc<Database>,
         plugins: ExtensionPoints,
+        artwork: Artwork,
         events: EventBus,
         probing: Option<Probing>,
         running: Option<RunningPlans>,
@@ -193,9 +204,11 @@ impl Scanner {
                 matcher: Matcher::new(
                     Arc::clone(&db),
                     plugins.clone(),
+                    artwork.clone(),
                     events.clone(),
                     locks.clone(),
                 ),
+                artwork,
                 plugins,
                 events,
                 probing,
@@ -263,11 +276,17 @@ impl Scanner {
     }
 
     /// Deletes the Library `id`, then throws away its Versions' cached subtitles where something
-    /// probes, and stops watching its folders, even if the caller stops waiting (ADR 0029).
+    /// probes and the images only its Matches stored, and stops watching its folders, even if the
+    /// caller stops waiting (ADR 0029).
     pub(crate) async fn delete_library(&self, id: i64) -> Result<(), libraries::Error> {
         let scanner = self.clone();
         detached(async move {
             scanner.inner.libraries.delete(id).await?;
+            scanner
+                .inner
+                .artwork
+                .drop_unused(&scanner.inner.contents)
+                .await;
             if let Some(probing) = &scanner.inner.probing {
                 probing.clean_subtitles().await;
             }
@@ -287,9 +306,10 @@ impl Scanner {
 
     /// Asks every Movies Fulfiller to stop monitoring `doomed`, then ends the plans playing it,
     /// deletes it from disk for good, removes the Versions whose files went as a scan removes
-    /// them, and logs that `by` deleted them. It refuses, before any of that, media in a folder
-    /// the Library's last scan found read-only ([`Error::ReadOnly`]). The one way to delete media
-    /// (see AGENTS.md, "One path for deleting media"). It holds the Library's scan lock, so a scan racing it sees
+    /// them, with the images only their Matches stored, and logs that `by` deleted them. It
+    /// refuses, before any of that, media in a folder the Library's last scan found read-only
+    /// ([`Error::ReadOnly`]). The one way to delete media (see AGENTS.md, "One path for deleting
+    /// media"). It holds the Library's scan lock, so a scan racing it sees
     /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
         if let Some(folder) = doomed.read_only_folder() {
@@ -337,6 +357,11 @@ impl Scanner {
                 probing.clean_subtitles().await;
             }
             scanner.inner.events.publish(events);
+            scanner
+                .inner
+                .artwork
+                .drop_unused(&scanner.inner.contents)
+                .await;
             Ok(deleted)
         })
         .await
@@ -483,6 +508,10 @@ impl Scanner {
                 },
             ),
         }
+        // Last, so no event of the scan waits on it.
+        let contents = &self.inner.contents;
+        self.inner.artwork.drop_unused(contents).await;
+        self.inner.artwork.download_missing(contents.clone(), id);
         Ok(summary)
     }
 
@@ -699,6 +728,7 @@ mod tests {
 
     use super::{Scanner, Summary};
     use crate::{
+        artwork::Artwork,
         contents::{Contents, File, Item},
         db::Database,
         events::{EventBus, Filter},
@@ -763,6 +793,7 @@ mod tests {
                 scanner: Scanner::new(
                     Arc::clone(&db),
                     ExtensionPoints::default(),
+                    Artwork::new(data.path(), ExtensionPoints::default()),
                     events.clone(),
                     probing.clone(),
                     None,

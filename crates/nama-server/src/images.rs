@@ -182,6 +182,16 @@ impl ImageStore {
         }
     }
 
+    /// The key of every image stored under `dir`, each starting with `dir`.
+    ///
+    /// # Errors
+    ///
+    /// If the store can't be read.
+    pub async fn list(&self, dir: &str) -> io::Result<Vec<Vec<String>>> {
+        let (root, top) = (self.dir.clone(), self.path(&[dir]));
+        tokio::task::spawn_blocking(move || list_under(&root, &top)).await?
+    }
+
     fn path(&self, key: &[&str]) -> PathBuf {
         key.iter()
             .fold(self.dir.clone(), |path, part| path.join(file_name(part)))
@@ -267,11 +277,55 @@ pub(crate) fn file_name(text: &str) -> String {
     name
 }
 
+/// [`ImageStore::list`] of the folder `top` in the store at `root`. Blocks, so call it from
+/// `spawn_blocking`.
+fn list_under(root: &Path, top: &Path) -> io::Result<Vec<Vec<String>>> {
+    let mut keys = Vec::new();
+    for entry in walkdir::WalkDir::new(top) {
+        match entry {
+            Ok(entry) if entry.file_type().is_file() => keys.extend(key_at(root, entry.path())),
+            Ok(_) => {}
+            // No such `top` yet, or a file deleted while listing.
+            Err(err) if err.io_error().map(io::Error::kind) == Some(io::ErrorKind::NotFound) => {}
+            Err(err) => return Err(err.into()),
+        }
+    }
+    Ok(keys)
+}
+
+/// The key of the image at `path` in the store at `root`, unless a name on the way isn't one
+/// [`file_name`] gives, such as a write's temporary file.
+fn key_at(root: &Path, path: &Path) -> Option<Vec<String>> {
+    let relative = path.strip_prefix(root).ok()?;
+    relative
+        .iter()
+        .map(|part| part.to_str().and_then(unescape))
+        .collect()
+}
+
+/// The text `name` is the [`file_name`] of, if it is one.
+fn unescape(name: &str) -> Option<String> {
+    let mut bytes = Vec::with_capacity(name.len());
+    let mut rest = name.as_bytes();
+    while let Some((&byte, tail)) = rest.split_first() {
+        rest = tail;
+        if byte == b'%' {
+            let hex = std::str::from_utf8(rest.get(..2)?).ok()?;
+            bytes.push(u8::from_str_radix(hex, 16).ok()?);
+            rest = rest.get(2..)?;
+        } else {
+            bytes.push(byte);
+        }
+    }
+    let text = String::from_utf8(bytes).ok()?;
+    (file_name(&text) == name).then_some(text)
+}
+
 #[cfg(test)]
 mod tests {
     use axum::{body::Body, extract::Request};
 
-    use super::ImageStore;
+    use super::{ImageStore, file_name, unescape};
 
     const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
 
@@ -316,5 +370,33 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), 404);
+    }
+
+    #[tokio::test]
+    async fn listing_gives_the_key_of_each_image_stored_under_a_folder() {
+        let data = tempfile::tempdir().unwrap();
+        let store = ImageStore::new(data.path());
+        store.write(KEY, b"\xff\xd8").await.unwrap();
+        store.write(&["elsewhere", "x"], b"\xff\xd8").await.unwrap();
+        // As a write leaves it while it is under way.
+        std::fs::write(data.path().join("artwork/tmdb/.tmpAbC123"), b"").unwrap();
+
+        let listed = store.list("artwork").await.unwrap();
+
+        assert_eq!(listed, [KEY]);
+        assert_eq!(
+            store.list("nothing-yet").await.unwrap(),
+            Vec::<Vec<String>>::new()
+        );
+    }
+
+    #[test]
+    fn a_file_name_unescapes_to_its_text_and_no_other_name_does() {
+        for text in ["/poster.jpg", "a b/%.ünï", "tmdb"] {
+            assert_eq!(unescape(&file_name(text)).as_deref(), Some(text));
+        }
+        for name in [".tmpAbC123", "%2f", "%2", "%ZZ", "a%2Fb%"] {
+            assert_eq!(unescape(name), None, "{name}");
+        }
     }
 }
