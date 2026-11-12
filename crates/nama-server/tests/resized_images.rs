@@ -36,6 +36,8 @@ use server::{
 
 /// Where the store keeps Alien's Poster, as the fake TMDB names it.
 const POSTER: &str = "artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg";
+/// Where the store keeps the Still of Dark's S01E01, as the fake TMDB names it.
+const STILL: &str = "artwork/tmdb/%2FgNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
 
 /// Alien's Matched Movie, with `poster` stored as its Poster.
 #[expect(
@@ -44,18 +46,27 @@ const POSTER: &str = "artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg";
 )]
 async fn alien_with_poster(poster: &[u8]) -> (Fixture, String) {
     let fx = Fixture::alien().await;
-    let stored = fx.server.data_dir().join(POSTER);
-    // The Match downloads the Poster in the background, which would replace the one written here.
+    replace_once_downloaded(&fx, POSTER, poster).await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    (fx, movie.poster_url.unwrap())
+}
+
+/// Writes `image` over the stored image `key` once the Match's background download has stored
+/// it, since that download would replace an image written before it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn replace_once_downloaded(fx: &Fixture, key: &str, image: &[u8]) {
+    let stored = fx.server.data_dir().join(key);
     let downloaded = tokio::time::timeout(Duration::from_secs(10), async {
         while !stored.exists() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
     .await;
-    assert!(downloaded.is_ok(), "Alien's Poster was never downloaded");
-    fs::write(&stored, poster).unwrap();
-    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    (fx, movie.poster_url.unwrap())
+    assert!(downloaded.is_ok(), "{key} was never downloaded");
+    fs::write(&stored, image).unwrap();
 }
 
 /// `image` encoded as `format`.
@@ -456,27 +467,11 @@ async fn once_a_poster_is_resized_browse_sends_its_thumbhash() {
 }
 
 /// Dark's S01E01, Matched, with `still` stored as its Still.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn secrets_with_still(still: &[u8]) -> Fixture {
     let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
     fx.write("Dark (2017)/Season 01/Dark - S01E01.mkv", b"video");
     fx.scan_and_match().await;
-    let stored = fx
-        .server
-        .data_dir()
-        .join("artwork/tmdb/%2FgNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg");
-    // As for `alien_with_poster`: written once the background download is done.
-    let downloaded = tokio::time::timeout(Duration::from_secs(10), async {
-        while !stored.exists() {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await;
-    assert!(downloaded.is_ok(), "the Still was never downloaded");
-    fs::write(&stored, still).unwrap();
+    replace_once_downloaded(&fx, STILL, still).await;
     fx
 }
 
