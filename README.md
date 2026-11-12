@@ -34,7 +34,11 @@ After that it ignores those tables, and logs that it does, so editing them chang
 
 ## Requests to Radarr and Sonarr
 
-Approved Movie Requests go to Radarr through the Radarr Plugin ([`plugins/radarr`](plugins/radarr)), and Approved Season Requests to Sonarr through the Sonarr Plugin ([`plugins/sonarr`](plugins/sonarr)), both Installed Plugins bundled in the Server. An Admin enables each on its page under Plugins with its URL and API key, and "Test" offers its quality profiles and root folders to pick from. Sonarr finds a Show by its TVDB id, so a Show the metadata source has none for can't go to Sonarr. Asking for a whole Show also has Sonarr monitor the Show's new Seasons, until its Followed Show ends.
+Approved Movie Requests go to Radarr through the Radarr Plugin ([`plugins/radarr`](plugins/radarr)), and Approved Season Requests to Sonarr through the Sonarr Plugin ([`plugins/sonarr`](plugins/sonarr)), both Installed Plugins bundled in the Server. An Admin enables each on its page under Plugins with its URL and API key, and "Test" offers its quality profiles and root folders to pick from. Sonarr finds a Show by its TVDB id, so a Show the metadata source has none for can't go to Sonarr. Asking for a whole Show also has Sonarr monitor the Show's new Seasons, until its Followed Show ends. Deleting a Movie, or one of its Versions, first has Radarr stop monitoring it, so it doesn't download it again; Radarr keeps the Movie. Deleting an Episode, or one of its Versions, has Sonarr stop monitoring that Episode, and deleting a Season that Season and its Episodes. Deleting a whole Show has Sonarr stop monitoring every Season it has now, but Sonarr keeps the Show and still monitors its new Seasons if it did, so a Followed Show keeps getting them. If Radarr or Sonarr can't be told, the delete still happens, and the web app says it may download what was deleted again.
+
+## Custom Images
+
+A User with Manage Libraries can upload their own Poster or Backdrop for a Movie or Show, or their own Poster for a Season, with "Edit images" on its page. They can also upload a Backdrop for a Library, on its page under Libraries in Admin, which the home page then shows the Library by in place of its newest title's. A User with Manage Settings can upload their own logo for a Plugin, on its page under Plugins. The Server keeps them in `custom-images/` in its data directory (`/data/custom-images` in Docker). They exist nowhere else, so back that folder up together with the database, `nama.db`, which records which image is current. The other images in the data directory are downloaded or written again when they're missing.
 
 ## Docker
 
@@ -47,7 +51,7 @@ docker run -d --name nama -p 7980:7980 \
   ghcr.io/electather/nama-server
 ```
 
-User 1000 must be able to read the media, and write `/data` if you mount a host folder there. To run as someone else, pass `--user` with their ids.
+User 1000 must be able to read the media, and write `/data` if you mount a host folder there. The `:ro` mount above keeps the Server from deleting media: to let Users with the Delete media Permission delete it, mount the folder without `:ro`, give user 1000 write access to it, and scan the Library again. To run as someone else, pass `--user` with their ids.
 
 For Intel or AMD hardware acceleration (VAAPI and QSV), pass the GPU and the group that may use it:
 

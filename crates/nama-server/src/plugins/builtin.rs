@@ -38,7 +38,7 @@ impl Registry {
             return;
         };
         let logo = manifest.logo_svg.take();
-        manifest.logo_svg = logo.and_then(|logo| kept_logo(&manifest.id, logo));
+        manifest.logo_svg = logo.and_then(|logo| kept_logo(&manifest.id, &logo));
         let id = manifest.id.clone();
         let described = Described {
             kind: PluginKind::PLUGIN_KIND_BUILT_IN,

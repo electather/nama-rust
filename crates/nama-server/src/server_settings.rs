@@ -1,7 +1,8 @@
 //! What an admin sets about the Server as a whole, kept in the one `server_settings` row: its
 //! URL, which notifications link to the web app with, and the Playback settings: the folder
 //! playback writes segment files to, how far behind playback it keeps them, the most Transcodes it
-//! runs at once, what they run on, and the default Playback Limit for remote playback.
+//! runs at once, what they run on, and the default Playback Limit for remote playback; and whether
+//! Posters and Backdrops are resized, and how much disk the resized copies take.
 //!
 //! [`Settings`] owns the table (see the crate's `AGENTS.md`).
 
@@ -25,6 +26,9 @@ use crate::{
 /// behind a 4K Remux, which a small tmpfs holds (#671).
 const DEFAULT_KEEP_BEHIND_MINUTES: u32 = 5;
 
+/// How many MiB the resized copies of images take while no limit is set.
+const DEFAULT_RESIZED_CACHE_MIB: u32 = 1024;
+
 /// The Server settings: reads them once at start, checks and stores each change, and hands each
 /// reader a view of the values in use. Clones share them.
 #[derive(Debug, Clone)]
@@ -41,6 +45,25 @@ pub(crate) struct Values {
     /// The address people reach the Server at, or `""` for none.
     pub(crate) url: String,
     pub(crate) playback: PlaybackValues,
+    pub(crate) images: ImageValues,
+}
+
+/// One value of every image setting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ImageValues {
+    /// Whether an image asked for at a width is sent resized to it.
+    pub(crate) resize: bool,
+    /// The most MiB the resized copies take, or `None` for [`DEFAULT_RESIZED_CACHE_MIB`].
+    pub(crate) resized_cache_mib: Option<NonZeroU32>,
+}
+
+impl Default for ImageValues {
+    fn default() -> Self {
+        Self {
+            resize: true,
+            resized_cache_mib: None,
+        }
+    }
 }
 
 /// One value of every Playback setting.
@@ -107,6 +130,10 @@ pub(crate) enum Invalid {
     /// asks for the default by leaving it out.
     #[error("the time kept for skipping back must be at least 1 minute")]
     NothingKeptBehind,
+    /// The resized copies' limit is 0, which would delete each copy as it's made; a client asks
+    /// for the default by leaving it out.
+    #[error("the resized copies must be allowed at least 1 MiB")]
+    NoResizedCache,
     /// The GPU picked isn't one its API passed its test on at startup, nor the one stored with
     /// it, or was sent with Automatic or Off, which take none.
     #[error("GPU {id} isn't one its hardware acceleration passed its test on")]
@@ -136,7 +163,8 @@ impl Settings {
     pub(crate) async fn load(&self) -> Result<(), sqlx::Error> {
         let stored = sqlx::query!(
             "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,
-                    hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit
+                    hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,
+                    resize_images, resized_cache_mib
              FROM server_settings"
         )
         .fetch_optional(self.db.reader())
@@ -153,6 +181,10 @@ impl Settings {
                     stored.hardware_gpu_name,
                 ),
                 remote_limit: PlaybackLimit::named(&stored.remote_playback_limit),
+            },
+            images: ImageValues {
+                resize: stored.resize_images != 0,
+                resized_cache_mib: stored.resized_cache_mib.and_then(non_zero),
             },
         });
         *self.values.write().unwrap_or_else(PoisonError::into_inner) = values;
@@ -175,6 +207,11 @@ impl Settings {
             default_folder: self.default_folder.clone(),
             values: Arc::clone(&self.values),
         }
+    }
+
+    /// The image settings, for serving images.
+    pub(crate) fn images(&self) -> ImageSettings {
+        ImageSettings(Arc::clone(&self.values))
     }
 
     /// Stores `url`, trimmed, as the Server URL and uses it from now on.
@@ -294,6 +331,49 @@ impl Settings {
         Ok(playback)
     }
 
+    /// Stores whether images are `resize`d and the most MiB their copies take, `None` for the
+    /// default, and uses them for images asked for from now on.
+    ///
+    /// # Errors
+    ///
+    /// [`Invalid::NoResizedCache`], or if storing them fails.
+    pub(crate) async fn change_images(
+        &self,
+        resize: bool,
+        resized_cache_mib: Option<u32>,
+    ) -> Result<ImageValues, ChangeError> {
+        let resized_cache_mib = match resized_cache_mib {
+            Some(mib) => Some(NonZeroU32::new(mib).ok_or(Invalid::NoResizedCache)?),
+            None => None,
+        };
+        let images = ImageValues {
+            resize,
+            resized_cache_mib,
+        };
+        let mib = resized_cache_mib.map(NonZeroU32::get);
+        self.store(
+            move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "INSERT INTO server_settings (id, url, resize_images, resized_cache_mib)
+                         VALUES (1, '', ?, ?)
+                         ON CONFLICT (id) DO UPDATE SET
+                             resize_images = excluded.resize_images,
+                             resized_cache_mib = excluded.resized_cache_mib",
+                        resize,
+                        mib
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    Ok(())
+                })
+            },
+            move |values| values.images = images,
+        )
+        .await?;
+        Ok(images)
+    }
+
     /// The GPU at the PCI address `id`, named as `passed` found it with `accel`, or else as
     /// stored with `accel`, so saving another setting keeps a pick whose GPU is gone.
     fn offered_gpu(
@@ -410,6 +490,21 @@ impl PlaybackSettings {
     /// one set, and the default.
     pub(crate) fn leftover_paths(&self) -> [PathBuf; 2] {
         [self.path(), self.default_folder.clone()]
+    }
+}
+
+/// The image settings in use, for serving images. Clones share them.
+#[derive(Debug, Clone)]
+pub(crate) struct ImageSettings(Arc<RwLock<Values>>);
+
+impl ImageSettings {
+    /// The most bytes the resized copies may take while resizing is on, `None` while it's off.
+    pub(crate) fn resizing(&self) -> Option<u64> {
+        let images = &read(&self.0).images;
+        let mib = images
+            .resized_cache_mib
+            .map_or(DEFAULT_RESIZED_CACHE_MIB, NonZeroU32::get);
+        images.resize.then_some(u64::from(mib) * 1024 * 1024)
     }
 }
 
@@ -847,6 +942,23 @@ mod tests {
 
         assert_eq!(after_playback.url, "https://nama.example.com");
         assert_eq!(after_url.playback.segment_folder, FOLDER);
+    }
+
+    #[tokio::test]
+    async fn stored_image_settings_are_in_use_and_read_again_after_a_restart() {
+        let (_data_dir, settings) = fresh().await;
+        let default = settings.images().resizing();
+
+        settings.change_images(false, Some(64)).await.unwrap();
+        let off = settings.images().resizing();
+        settings.change_images(true, Some(64)).await.unwrap();
+
+        assert_eq!(default, Some(1024 * 1024 * 1024));
+        assert_eq!(off, None);
+        assert_eq!(
+            restarted(&settings).await.images().resizing(),
+            Some(64 * 1024 * 1024)
+        );
     }
 
     #[tokio::test]

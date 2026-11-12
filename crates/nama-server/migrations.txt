@@ -45,3 +45,8 @@
 0045_track_preferences.sql
 0046_audio_preferences.sql
 0047_keep_behind.sql
+0048_read_only_folders.sql
+0049_custom_images.sql
+0050_image_settings.sql
+0051_plugin_custom_images.sql
+0052_image_thumbhashes.sql

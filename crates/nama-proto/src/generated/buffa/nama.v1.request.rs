@@ -9028,7 +9028,7 @@ pub struct MovieHit {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub year: ::core::option::Option<i32>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `poster_url`
     #[serde(
@@ -9056,6 +9056,16 @@ pub struct MovieHit {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub request: ::buffa::MessageField<Request, ::buffa::Inline<Request>>,
+    /// As `nama.v1.Movie.poster_thumbhash`.
+    ///
+    /// Field 10: `poster_thumbhash`
+    #[serde(
+        rename = "posterThumbhash",
+        alias = "poster_thumbhash",
+        with = "::buffa::json_helpers::opt_bytes",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub poster_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -9069,6 +9079,7 @@ impl ::core::fmt::Debug for MovieHit {
             .field("poster_url", &self.poster_url)
             .field("library_id", &self.library_id)
             .field("request", &self.request)
+            .field("poster_thumbhash", &self.poster_thumbhash)
             .finish()
     }
 }
@@ -9102,6 +9113,16 @@ impl MovieHit {
     ///Sets [`Self::library_id`] to `Some(value)`, consuming and returning `self`.
     pub fn with_library_id(mut self, value: i64) -> Self {
         self.library_id = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::poster_thumbhash`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_poster_thumbhash(
+        mut self,
+        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
+    ) -> Self {
+        self.poster_thumbhash = Some(value.into());
         self
     }
 }
@@ -9148,6 +9169,9 @@ impl ::buffa::Message for MovieHit {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.poster_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9180,6 +9204,9 @@ impl ::buffa::Message for MovieHit {
                 buf,
             );
             self.request.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            ::buffa::types::put_shared_bytes_field(10u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9249,6 +9276,18 @@ impl ::buffa::Message for MovieHit {
                     ctx,
                 )?;
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(
+                    self
+                        .poster_thumbhash
+                        .get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -9263,6 +9302,7 @@ impl ::buffa::Message for MovieHit {
         self.poster_url = ::core::option::Option::None;
         self.library_id = ::core::option::Option::None;
         self.request = ::buffa::MessageField::none();
+        self.poster_thumbhash = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -9344,7 +9384,7 @@ pub struct FoundMovie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub runtime_minutes: ::core::option::Option<u32>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `poster_url`
     #[serde(
@@ -9353,7 +9393,7 @@ pub struct FoundMovie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 7: `backdrop_url`
     #[serde(
@@ -9381,6 +9421,26 @@ pub struct FoundMovie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub request: ::buffa::MessageField<Request, ::buffa::Inline<Request>>,
+    /// As `nama.v1.Movie.poster_thumbhash`.
+    ///
+    /// Field 10: `poster_thumbhash`
+    #[serde(
+        rename = "posterThumbhash",
+        alias = "poster_thumbhash",
+        with = "::buffa::json_helpers::opt_bytes",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub poster_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// As `nama.v1.Movie.backdrop_thumbhash`.
+    ///
+    /// Field 11: `backdrop_thumbhash`
+    #[serde(
+        rename = "backdropThumbhash",
+        alias = "backdrop_thumbhash",
+        with = "::buffa::json_helpers::opt_bytes",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -9397,6 +9457,8 @@ impl ::core::fmt::Debug for FoundMovie {
             .field("backdrop_url", &self.backdrop_url)
             .field("library_id", &self.library_id)
             .field("request", &self.request)
+            .field("poster_thumbhash", &self.poster_thumbhash)
+            .field("backdrop_thumbhash", &self.backdrop_thumbhash)
             .finish()
     }
 }
@@ -9459,6 +9521,26 @@ impl FoundMovie {
         self.library_id = Some(value);
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::poster_thumbhash`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_poster_thumbhash(
+        mut self,
+        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
+    ) -> Self {
+        self.poster_thumbhash = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::backdrop_thumbhash`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_backdrop_thumbhash(
+        mut self,
+        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
+    ) -> Self {
+        self.backdrop_thumbhash = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(FoundMovie);
 impl ::buffa::MessageName for FoundMovie {
@@ -9512,6 +9594,12 @@ impl ::buffa::Message for FoundMovie {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.poster_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9553,6 +9641,12 @@ impl ::buffa::Message for FoundMovie {
                 buf,
             );
             self.request.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            ::buffa::types::put_shared_bytes_field(10u32, v, buf);
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            ::buffa::types::put_shared_bytes_field(11u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9655,6 +9749,30 @@ impl ::buffa::Message for FoundMovie {
                     ctx,
                 )?;
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(
+                    self
+                        .poster_thumbhash
+                        .get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    buf,
+                )?;
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(
+                    self
+                        .backdrop_thumbhash
+                        .get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -9672,6 +9790,8 @@ impl ::buffa::Message for FoundMovie {
         self.backdrop_url = ::core::option::Option::None;
         self.library_id = ::core::option::Option::None;
         self.request = ::buffa::MessageField::none();
+        self.poster_thumbhash = ::core::option::Option::None;
+        self.backdrop_thumbhash = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -10269,7 +10389,7 @@ pub struct ShowHit {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub year: ::core::option::Option<i32>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 5: `poster_url`
     #[serde(
@@ -10278,6 +10398,16 @@ pub struct ShowHit {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `nama.v1.Movie.poster_thumbhash`.
+    ///
+    /// Field 10: `poster_thumbhash`
+    #[serde(
+        rename = "posterThumbhash",
+        alias = "poster_thumbhash",
+        with = "::buffa::json_helpers::opt_bytes",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub poster_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -10289,6 +10419,7 @@ impl ::core::fmt::Debug for ShowHit {
             .field("title", &self.title)
             .field("year", &self.year)
             .field("poster_url", &self.poster_url)
+            .field("poster_thumbhash", &self.poster_thumbhash)
             .finish()
     }
 }
@@ -10315,6 +10446,16 @@ impl ShowHit {
         value: impl Into<::buffa::alloc::string::String>,
     ) -> Self {
         self.poster_url = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::poster_thumbhash`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_poster_thumbhash(
+        mut self,
+        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
+    ) -> Self {
+        self.poster_thumbhash = Some(value.into());
         self
     }
 }
@@ -10350,6 +10491,9 @@ impl ::buffa::Message for ShowHit {
         if let Some(ref v) = self.poster_url {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.poster_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -10371,6 +10515,9 @@ impl ::buffa::Message for ShowHit {
         }
         if let Some(ref v) = self.poster_url {
             ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            ::buffa::types::put_shared_bytes_field(10u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10420,6 +10567,18 @@ impl ::buffa::Message for ShowHit {
                     buf,
                 )?;
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(
+                    self
+                        .poster_thumbhash
+                        .get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -10432,6 +10591,7 @@ impl ::buffa::Message for ShowHit {
         self.title.clear();
         self.year = ::core::option::Option::None;
         self.poster_url = ::core::option::Option::None;
+        self.poster_thumbhash = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -10505,7 +10665,7 @@ pub struct FoundShow {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub overview: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 5: `poster_url`
     #[serde(
@@ -10514,7 +10674,7 @@ pub struct FoundShow {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `backdrop_url`
     #[serde(
@@ -10558,6 +10718,26 @@ pub struct FoundShow {
         RequestedQuality,
         ::buffa::Inline<RequestedQuality>,
     >,
+    /// As `nama.v1.Movie.poster_thumbhash`.
+    ///
+    /// Field 10: `poster_thumbhash`
+    #[serde(
+        rename = "posterThumbhash",
+        alias = "poster_thumbhash",
+        with = "::buffa::json_helpers::opt_bytes",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub poster_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// As `nama.v1.Movie.backdrop_thumbhash`.
+    ///
+    /// Field 11: `backdrop_thumbhash`
+    #[serde(
+        rename = "backdropThumbhash",
+        alias = "backdrop_thumbhash",
+        with = "::buffa::json_helpers::opt_bytes",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -10574,6 +10754,8 @@ impl ::core::fmt::Debug for FoundShow {
             .field("seasons", &self.seasons)
             .field("followed_show", &self.followed_show)
             .field("quality", &self.quality)
+            .field("poster_thumbhash", &self.poster_thumbhash)
+            .field("backdrop_thumbhash", &self.backdrop_thumbhash)
             .finish()
     }
 }
@@ -10620,6 +10802,26 @@ impl FoundShow {
         value: impl Into<::buffa::alloc::string::String>,
     ) -> Self {
         self.backdrop_url = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::poster_thumbhash`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_poster_thumbhash(
+        mut self,
+        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
+    ) -> Self {
+        self.poster_thumbhash = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::backdrop_thumbhash`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_backdrop_thumbhash(
+        mut self,
+        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
+    ) -> Self {
+        self.backdrop_thumbhash = Some(value.into());
         self
     }
 }
@@ -10685,6 +10887,12 @@ impl ::buffa::Message for FoundShow {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.poster_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -10736,6 +10944,12 @@ impl ::buffa::Message for FoundShow {
                 buf,
             );
             self.quality.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            ::buffa::types::put_shared_bytes_field(10u32, v, buf);
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            ::buffa::types::put_shared_bytes_field(11u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10843,6 +11057,30 @@ impl ::buffa::Message for FoundShow {
                     ctx,
                 )?;
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(
+                    self
+                        .poster_thumbhash
+                        .get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    buf,
+                )?;
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(
+                    self
+                        .backdrop_thumbhash
+                        .get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -10860,6 +11098,8 @@ impl ::buffa::Message for FoundShow {
         self.seasons.clear();
         self.followed_show = ::buffa::MessageField::none();
         self.quality = ::buffa::MessageField::none();
+        self.poster_thumbhash = ::core::option::Option::None;
+        self.backdrop_thumbhash = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

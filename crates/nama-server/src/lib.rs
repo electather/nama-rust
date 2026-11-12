@@ -7,6 +7,7 @@ pub mod codes;
 pub mod config;
 mod connections;
 mod contents;
+mod custom_images;
 pub mod db;
 mod device_names;
 mod events;
@@ -17,6 +18,7 @@ mod libraries;
 mod matching;
 mod metadata;
 mod playback;
+mod plugin_logos;
 pub mod plugin_settings;
 pub mod plugins;
 mod probing;
@@ -40,14 +42,18 @@ use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::net::TcpListener;
 
 use crate::{
+    artwork::Artwork,
     codes::SetupCode,
     config::Config,
     contents::Contents,
+    custom_images::CustomImages,
     db::Database,
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
+    images::ImageStore,
     playback::running::RunningPlans,
     playback::subtitles,
+    plugin_logos::PluginLogos,
     plugin_settings::PluginSettings,
     probing::Probing,
     requests::Requests,
@@ -110,14 +116,21 @@ pub fn serve(
         probing.clone(),
         events.clone(),
     );
+    let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
+    let images = ImageStore::new(&config.data_dir, Arc::clone(&db));
+    let artwork = Artwork::new(images.clone(), points.clone());
+    let plugin_logos = PluginLogos::new(images.clone());
+    let custom_images = CustomImages::new(Arc::clone(&db), images);
     let scanner = Scanner::new(
         Arc::clone(&db),
-        points.clone(),
+        points,
+        artwork.clone(),
+        custom_images.clone(),
         events.clone(),
         Some(probing.clone()),
         Some(running.clone()),
+        Some(requests.clone()),
     );
-    let requests = Requests::new(Arc::clone(&db), events.clone(), points);
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
     let load_settings = load_settings(settings.clone());
     let app = api::router(
@@ -125,6 +138,9 @@ pub fn serve(
         db,
         plugins.clone(),
         scanner.clone(),
+        custom_images,
+        plugin_logos,
+        artwork,
         probing.clone(),
         events.clone(),
         requests.clone(),

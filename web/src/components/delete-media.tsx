@@ -7,19 +7,18 @@ import { useSensitiveMutation } from "@/components/confirm-its-you";
 import { FormSelect } from "@/components/form-field";
 import type { Version } from "@/gen/nama/v1/browse_pb";
 import {
+  type DeleteMediaResponse,
   type EpisodeTakenAlong,
   type FileNotDeleted,
   LibraryService,
   type MediaToDeleteSchema,
+  type RequestToCancel,
 } from "@/gen/nama/v1/library_pb";
 import { metadataLine, seasonName, sizeOf, versionLine } from "@/lib/browse";
 import { formText, refusal } from "@/lib/forms";
 
 /** The choice that deletes every Version, where any other choice is one Version's id. */
 const EVERY_VERSION = "every";
-
-/** What a page does once every Version went, when it shows something else that stays. */
-const stay = async () => {};
 
 /** A Movie, Show, Season or Episode, as deleting it needs it. */
 export interface Deletable {
@@ -39,17 +38,20 @@ export interface Deletable {
 export function DeleteMedia({
   action = "Delete",
   name = action,
-  onDeletedEveryVersion = stay,
+  onDeletedEveryVersion,
   ...deletable
 }: Deletable & {
   /** What the button says, such as "Delete Show" where "Delete" alone wouldn't say what goes. */
   action?: string;
   /** The button's accessible name, where `action` alone doesn't say what goes, such as "Delete Alien". */
   name?: string;
-  /** Called once every Version went, so the page can leave what's gone. */
-  onDeletedEveryVersion?: () => Promise<unknown>;
+  /**
+   * Called once every Version went, so the page can leave what's gone, with the names of the
+   * Fulfillers that couldn't be told, which the page then reports.
+   */
+  onDeletedEveryVersion: (fulfillersNotTold: string[]) => Promise<unknown>;
 }) {
-  const [notDeleted, setNotDeleted] = useState<FileNotDeleted[]>([]);
+  const [result, setResult] = useState<Outcome>({ notDeleted: [], fulfillersNotTold: [] });
   const remove = useSensitiveMutation(LibraryService.method.deleteMedia);
   return (
     <>
@@ -61,16 +63,20 @@ export function DeleteMedia({
         onConfirm={async (typed) => {
           const chosen = formText(typed, "version") || EVERY_VERSION;
           const deleted = await remove.mutateAsync({ target: targetOf(deletable, chosen) });
-          setNotDeleted(deleted.notDeleted);
           if (chosen === EVERY_VERSION && deleted.notDeleted.length === 0) {
-            await onDeletedEveryVersion();
+            // This may stay mounted for another title, such as the next Season, so the page reports.
+            setResult({ notDeleted: [], fulfillersNotTold: [] });
+            await onDeletedEveryVersion(deleted.fulfillersNotTold);
+            return;
           }
+          setResult(deleted);
         }}
         refusal={(error) => refusal(error, "delete it", {}).form}
       >
         <WhatGoes {...deletable} />
       </ConfirmDialog>
-      <NotDeleted files={notDeleted} />
+      <NotDeleted files={result.notDeleted} />
+      <MayDownloadAgain title={deletable.title} fulfillers={result.fulfillersNotTold} />
     </>
   );
 }
@@ -103,8 +109,9 @@ function WhatGoes(deletable: Deletable) {
 }
 
 /**
- * The files deleting `chosen` of `deletable` takes, the space that frees and the other Episodes
- * those files hold, as the Server previews it.
+ * The files deleting `chosen` of `deletable` takes, the space that frees, the other Episodes
+ * those files hold, the Requests it cancels and the read-only folder that refuses it if a scan
+ * found one since the page loaded, as the Server previews it.
  */
 function FilesThatGo({ deletable, chosen }: { deletable: Deletable; chosen: string }) {
   const { data, error } = useQuery(LibraryService.method.previewDeleteMedia, {
@@ -131,8 +138,20 @@ function FilesThatGo({ deletable, chosen }: { deletable: Deletable; chosen: stri
         </ul>
       </div>
       <TakenAlong episodes={data.episodesTakenAlong} />
+      <Cancelled requests={data.requestsCancelled} />
       <Watching playing={data.playing} />
+      <RefusedFor folder={data.readOnlyFolder} />
     </div>
+  );
+}
+
+/** Says the Server will refuse the delete because it can't write to `folder`, if there is one. */
+function RefusedFor({ folder }: { folder: string | undefined }) {
+  if (folder === undefined) return null;
+  return (
+    <p className="text-destructive">
+      The Server will refuse to delete them: it can’t write to {folder}.
+    </p>
   );
 }
 
@@ -164,6 +183,25 @@ function TakenAlong({ episodes }: { episodes: EpisodeTakenAlong[] }) {
   );
 }
 
+/** The open Requests still waiting on what goes, which deleting it cancels. */
+function Cancelled({ requests }: { requests: RequestToCancel[] }) {
+  if (requests.length === 0) return null;
+  return (
+    <div>
+      <p>
+        It cancels {requests.length === 1 ? "this open Request" : "these open Requests"}, telling
+        whoever asked that you deleted it:
+      </p>
+      <ul className="mt-2 flex flex-col gap-1 text-muted-foreground">
+        {requests.map(({ title, seasonNumber }) => {
+          const name = seasonNumber === undefined ? title : `${title}, ${seasonName(seasonNumber)}`;
+          return <li key={name}>{name}</li>;
+        })}
+      </ul>
+    </div>
+  );
+}
+
 /** The files the last delete couldn't delete, each with why. */
 function NotDeleted({ files }: { files: FileNotDeleted[] }) {
   return (
@@ -186,6 +224,22 @@ function NotDeleted({ files }: { files: FileNotDeleted[] }) {
     </div>
   );
 }
+
+/** Says which Fulfillers couldn't be told a delete of `title` happened, so they may download it again. */
+export function MayDownloadAgain({ title, fulfillers }: { title: string; fulfillers: string[] }) {
+  return (
+    <output className="block basis-full text-sm text-pretty empty:hidden">
+      {fulfillers.length > 0 &&
+        `${names.format(fulfillers)} couldn’t be told about the delete, so ${fulfillers.length === 1 ? "it" : "they"} may download ${title} again.`}
+    </output>
+  );
+}
+
+// "en-GB" for "Radarr and Sonarr", without the serial comma, as the rest of the app writes lists.
+const names = new Intl.ListFormat("en-GB", { type: "conjunction" });
+
+/** What the last delete reports: the files it couldn't delete and the Fulfillers it couldn't tell. */
+type Outcome = Pick<DeleteMediaResponse, "notDeleted" | "fulfillersNotTold">;
 
 /** What deleting `chosen` of `deletable` names: every Version, or the one with that id. */
 function targetOf({ target }: Deletable, chosen: string) {

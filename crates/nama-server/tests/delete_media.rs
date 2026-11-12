@@ -1,9 +1,19 @@
 //! Deleting media through `LibraryService.PreviewDeleteMedia` and `DeleteMedia`, over a real
-//! socket, against Libraries over temporary folders with real files and TMDB on against a fake.
+//! socket, against Libraries over temporary folders with real files and TMDB on against a fake,
+//! and the Radarr and Sonarr Plugins, bundled in the Server, against a fake Radarr and Sonarr.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
 mod browsing;
+#[expect(dead_code, reason = "this binary only deletes")]
+#[path = "support/fake_radarr.rs"]
+mod fake_radarr;
+#[expect(dead_code, reason = "this binary only deletes")]
+#[path = "support/fake_servarr.rs"]
+mod fake_servarr;
+#[expect(dead_code, reason = "this binary only deletes")]
+#[path = "support/fake_sonarr.rs"]
+mod fake_sonarr;
 #[expect(dead_code, reason = "this binary reads only the status")]
 #[path = "support/http.rs"]
 mod http;
@@ -21,22 +31,31 @@ use std::path::Path;
 
 use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use fake_radarr::{Changed, FakeRadarr};
+use fake_sonarr::FakeSonarr;
 use http::fetch;
 use log::Log;
+use nama_plugin_api::fulfiller::{EpisodeNumber, EpisodeNumbers, ShowDeleted, show_deleted};
 use nama_proto::nama::v1::{
-    AudioCodec, Container, DeleteMediaRequest, DeleteMediaResponse, DeviceDecoding, Episode,
-    EpisodeToDelete, EventType, GetShowRequest, LibraryKind, LibraryServiceClient,
+    ApproveFollowedShowRequest, AudioCodec, BrowseServiceClient, CancelRequestRequest, Container,
+    DeleteMediaRequest, DeleteMediaResponse, DeviceDecoding, Episode, EpisodeToDelete, EventType,
+    FollowedShow, GetMovieRequest, GetShowRequest, LibraryKind, LibraryServiceClient,
     ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MediaFile, MediaToDelete,
     MovieToDelete, Permission, PlanPlaybackRequest, PlaybackMethod, PlaybackPlan,
     PlaybackServiceClient, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason,
-    SeasonToDelete, ShowToDelete, SubscribeRequest, VideoCodec, event, media_to_delete,
+    RequestServiceClient, RequestState, SeasonToDelete, ShowToDelete, SubscribeRequest,
+    UpdateLibraryRequest, VideoCodec, event, media_to_delete, request::MovieOrSeason,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::{Ffmpeg, fake::script};
 use refused::assert_refused;
+use serde_json::json;
 use server::{
-    TestServer, subscribe, subscribe_with,
-    tmdb::{ALIEN, DARK, DUNE},
+    Builder, TestServer,
+    fulfiller::MOVIE_FULFILLER,
+    requests::Requester,
+    subscribe, subscribe_with,
+    tmdb::{ALIEN, DARK, DARK_TVDB, DUNE},
 };
 
 const ALIEN_1080P_SUBTITLES: &str = "Alien (1979)/Alien (1979) - 1080p.en.srt";
@@ -46,6 +65,8 @@ const ALIEN_FOLDER_ART: &str = "Alien (1979)/folder.jpg";
 /// Straight in the Library's folder, with nothing else of its own.
 const DUNE_VIDEO: &str = "Dune (2021).mkv";
 const DUNE_NFO: &str = "Dune (2021).nfo";
+/// One of the fake Radarr's quality profiles, which a delete never reads.
+const ANY_PROFILE: &str = "1";
 
 /// Dark in two folders. The first file holds Secrets and Lies, Season 1's first two Episodes, and
 /// the second is Secrets again.
@@ -53,9 +74,16 @@ const DARK_S01E01_E02: &str = "Dark (2017)/Season 01/Dark - S01E01-E02.mkv";
 const DARK_S01E01_E02_SUBTITLES: &str = "Dark (2017)/Season 01/Dark - S01E01-E02.en.srt";
 const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
 const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
-/// The TMDB ids of Dark's Episodes S01E01 and S01E02.
+/// The TMDB ids of Dark's Episodes S01E01, S01E02 and S02E01.
 const SECRETS: i64 = 1_388_538;
 const LIES: i64 = 1_388_539;
+const BEGINNINGS: i64 = 1_803_405;
+/// The ids the fake Sonarr has Dark's Episodes S01E01, S01E02 and S02E01 by.
+const SONARR_SECRETS: i64 = 101;
+const SONARR_LIES: i64 = 102;
+const SONARR_BEGINNINGS: i64 = 201;
+/// The ids of the fake Sonarr's other Episodes of Dark, Season 1's aside.
+const SONARR_OTHERS: [i64; 4] = [SONARR_BEGINNINGS, 202, 301, 302];
 
 /// Every Version of the Movie with the TMDB id `tmdb` in `library`.
 fn movie(library: i64, tmdb: i64) -> MediaToDelete {
@@ -89,12 +117,13 @@ fn show(library: i64, tmdb: i64) -> MediaToDelete {
     }
 }
 
-/// Every Version of every Episode of Dark's Season `number` in `library`.
-fn dark_season(library: i64, number: u32) -> MediaToDelete {
+/// Every Version of every Episode of Season `number` of the Show with the TMDB id `tmdb` in
+/// `library`.
+fn season(library: i64, tmdb: i64, number: u32) -> MediaToDelete {
     MediaToDelete {
         target: Some(media_to_delete::Target::Season(Box::new(SeasonToDelete {
             library_id: library,
-            show_id: tmdb_id(DARK).into(),
+            show_id: tmdb_id(tmdb).into(),
             season_number: number,
             ..Default::default()
         }))),
@@ -125,7 +154,12 @@ impl Fixture {
     /// A Movies Library holding Alien in two Versions and Dune, with their sidecars, scanned and
     /// Matched.
     async fn alien_and_dune() -> Self {
-        let fx = Self::start_on(LibraryKind::LIBRARY_KIND_MOVIES, TestServer::builder()).await;
+        Self::alien_and_dune_on(TestServer::builder()).await
+    }
+
+    /// [`Self::alien_and_dune`] on a Server `builder` starts.
+    async fn alien_and_dune_on(builder: Builder) -> Self {
+        let fx = Self::start_on(LibraryKind::LIBRARY_KIND_MOVIES, builder).await;
         fx.write(ALIEN_1080P, b"1080p video");
         fx.write(ALIEN_2160P, b"2160p video, which is larger");
         fx.write(ALIEN_1080P_SUBTITLES, b"subtitles");
@@ -138,7 +172,23 @@ impl Fixture {
 
     /// A Shows Library holding Dark's three files and a sidecar, scanned and Matched.
     async fn dark() -> Self {
-        let fx = Self::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
+        Self::dark_on(TestServer::builder()).await
+    }
+
+    /// [`Self::dark`] beside a fake Sonarr the Admin enabled, which has Dark since the Admin
+    /// followed it.
+    async fn dark_in_sonarr() -> (Self, FakeSonarr) {
+        let fx = Self::dark().await;
+        let sonarr = FakeSonarr::start().await;
+        sonarr.enable_on(&fx.server).await;
+        fx.server.admin_requests().follow(DARK).await;
+        sonarr.finish_refreshes().await;
+        (fx, sonarr)
+    }
+
+    /// [`Self::dark`] on a Server `builder` starts.
+    async fn dark_on(builder: Builder) -> Self {
+        let fx = Self::start_on(LibraryKind::LIBRARY_KIND_SHOWS, builder).await;
         fx.write(DARK_S01E01_E02, b"two episodes");
         fx.write(DARK_S01E01_E02_SUBTITLES, b"subtitles");
         fx.write(DARK_S01E01, b"one episode");
@@ -247,6 +297,32 @@ impl Fixture {
 
     fn exists(&self, relative: &str) -> bool {
         self.folder.join(relative).exists()
+    }
+
+    /// The folder `GetMovie` says refuses deleting the Movie with the TMDB id `tmdb`, as `browse`
+    /// is told.
+    async fn read_only_folder(
+        &self,
+        browse: &BrowseServiceClient<HttpClient>,
+        tmdb: i64,
+    ) -> Option<String> {
+        let response = browse
+            .get_movie(GetMovieRequest {
+                library_id: self.library,
+                movie_id: tmdb_id(tmdb).into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        response.into_owned().read_only_folder
+    }
+
+    /// Sets the mode of the Library's folder to `mode`, then scans it.
+    #[cfg(unix)]
+    async fn rescan_with_mode(&self, mode: u32) {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&self.folder, fs::Permissions::from_mode(mode)).unwrap();
+        self.scan_and_match().await;
     }
 
     /// The titles of the Library's Movies, as `ListMovies` gives them.
@@ -405,6 +481,100 @@ async fn a_file_that_cant_be_deleted_is_reported_with_why_while_the_rest_go() {
 }
 
 #[tokio::test]
+async fn deleting_a_movie_or_one_of_its_versions_has_the_movie_fulfiller_stop_monitoring_it() {
+    let fx = Fixture::alien_and_dune_on(TestServer::builder().fulfiller(&[])).await;
+    let first = fx.version_ids(ALIEN).await[0];
+
+    let one_version = fx.delete(version(first)).await.unwrap();
+    let every_version = fx.delete(movie(fx.library, DUNE)).await.unwrap();
+
+    assert_eq!(fx.server.fulfiller().stopped_monitoring(), [ALIEN, DUNE]);
+    assert_eq!(one_version.fulfillers_not_told, [""; 0]);
+    assert_eq!(every_version.fulfillers_not_told, [""; 0]);
+}
+
+#[tokio::test]
+async fn a_fulfiller_that_cant_be_told_is_named_and_the_delete_still_happens() {
+    let fx = Fixture::alien_and_dune_on(TestServer::builder().fulfiller(&[])).await;
+    fx.server.fulfiller().refuse();
+
+    let deleted = fx.delete(movie(fx.library, DUNE)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, [MOVIE_FULFILLER]);
+    assert!(!fx.exists(DUNE_VIDEO));
+    assert_eq!(fx.titles().await, ["Alien"]);
+}
+
+/// What the fake Radarr is asked when told to unmonitor Alien, which it has as its Movie 2, while
+/// the file it watches is `still_there` or not.
+fn unmonitored_alien(still_there: bool) -> Changed {
+    Changed {
+        request: "PUT /api/v3/movie/editor".to_owned(),
+        body: json!({ "movieIds": [2], "monitored": false }),
+        watched_was_there: still_there,
+    }
+}
+
+#[tokio::test]
+async fn a_fulfiller_that_panics_when_asked_is_named_and_the_delete_still_happens() {
+    let fx = Fixture::alien_and_dune_on(TestServer::builder().fulfiller(&[])).await;
+    fx.server.fulfiller().panic_stopping_monitoring();
+
+    let deleted = fx.delete(movie(fx.library, DUNE)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, [MOVIE_FULFILLER]);
+    assert!(!fx.exists(DUNE_VIDEO));
+}
+
+#[tokio::test]
+async fn deleting_a_movie_or_one_of_its_versions_has_radarr_unmonitor_it_first_and_keep_it() {
+    let fx = Fixture::alien_and_dune().await;
+    let radarr = FakeRadarr::start(&[ALIEN], &[]).await;
+    radarr.enable_on(&fx.server, ANY_PROFILE).await;
+    let first = fx.version_ids(ALIEN).await[0];
+
+    radarr.watch(fx.folder.join(ALIEN_1080P));
+    let one_version = fx.delete(version(first)).await.unwrap();
+    radarr.watch(fx.folder.join(ALIEN_2160P));
+    let every_version = fx.delete(movie(fx.library, ALIEN)).await.unwrap();
+
+    assert_eq!(
+        radarr.changes(),
+        [unmonitored_alien(true), unmonitored_alien(true)]
+    );
+    assert_eq!(one_version.fulfillers_not_told, [""; 0]);
+    assert_eq!(every_version.fulfillers_not_told, [""; 0]);
+    assert!(!fx.exists(ALIEN_1080P) && !fx.exists(ALIEN_2160P));
+}
+
+#[tokio::test]
+async fn a_movie_radarr_doesnt_have_deletes_with_nothing_reported() {
+    let fx = Fixture::alien_and_dune().await;
+    let radarr = FakeRadarr::start(&[], &[]).await;
+    radarr.enable_on(&fx.server, ANY_PROFILE).await;
+
+    let deleted = fx.delete(movie(fx.library, ALIEN)).await.unwrap();
+
+    assert_eq!(radarr.changes(), []);
+    assert_eq!(deleted.fulfillers_not_told, [""; 0]);
+    assert!(!fx.exists(ALIEN_1080P));
+}
+
+#[tokio::test]
+async fn with_radarr_down_the_delete_goes_ahead_and_names_radarr() {
+    let fx = Fixture::alien_and_dune().await;
+    let mut radarr = FakeRadarr::start(&[ALIEN], &[]).await;
+    radarr.enable_on(&fx.server, ANY_PROFILE).await;
+    radarr.go_down();
+
+    let deleted = fx.delete(movie(fx.library, ALIEN)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, ["Radarr"]);
+    assert!(!fx.exists(ALIEN_1080P) && !fx.exists(ALIEN_2160P));
+    assert_eq!(fx.titles().await, ["Dune"]);
+}
+
+#[tokio::test]
 async fn a_scan_racing_the_delete_fails_nothing_and_leaves_nothing_behind() {
     let fx = Fixture::alien_and_dune().await;
 
@@ -454,11 +624,12 @@ async fn a_library_movie_or_version_that_isnt_there_is_refused_naming_its_field(
         RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
     );
     assert_eq!(no_library.field, "target.movie.library_id");
-    assert_refused(
+    let no_movie = assert_refused(
         fx.delete(movie(fx.library, 404)).await,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
     );
+    assert_eq!(no_movie.field, "target.movie.movie_id");
     let no_version = assert_refused(
         fx.preview(version(404)).await,
         ErrorCode::NotFound,
@@ -471,6 +642,75 @@ async fn a_library_movie_or_version_that_isnt_there_is_refused_naming_its_field(
         RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
     );
     assert!(fx.exists(DUNE_VIDEO) && fx.exists(ALIEN_1080P));
+}
+
+// Root writes to any folder whatever its mode, so these need a run as someone else, as CI's is.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_folder_a_scan_found_read_only_refuses_the_delete_naming_it_until_a_scan_finds_it_writable()
+ {
+    let fx = Fixture::alien_and_dune().await;
+    let folder = fx.folder.to_str().unwrap().to_owned();
+    fx.rescan_with_mode(0o555).await;
+
+    assert_eq!(
+        fx.read_only_folder(&fx.browse, ALIEN).await.as_ref(),
+        Some(&folder)
+    );
+    let preview = fx.preview(movie(fx.library, ALIEN)).await.unwrap();
+    assert_eq!(preview.read_only_folder.as_ref(), Some(&folder));
+    let refusal = assert_refused(
+        fx.delete(movie(fx.library, ALIEN)).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_FOLDER_READ_ONLY,
+    );
+    assert_eq!(refusal.params.get("folder"), Some(&folder));
+    assert!(fx.exists(ALIEN_1080P) && fx.exists(ALIEN_1080P_SUBTITLES));
+    assert_eq!(fx.titles().await, ["Alien", "Dune"]);
+
+    fx.rescan_with_mode(0o755).await;
+
+    assert_eq!(fx.read_only_folder(&fx.browse, ALIEN).await, None);
+    fx.delete(movie(fx.library, ALIEN)).await.unwrap();
+    assert!(!fx.exists(ALIEN_1080P));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn only_someone_who_may_delete_media_is_told_which_folder_refuses_it() {
+    let fx = Fixture::alien_and_dune().await;
+    let grace = fx.server.user("Grace", &[]).await;
+    let as_grace = BrowseServiceClient::new(HttpClient::plaintext(), grace.client_config());
+
+    fx.rescan_with_mode(0o555).await;
+    let told = fx.read_only_folder(&as_grace, ALIEN).await;
+    // Writable again before asserting, so the temporary folder is cleaned up even if it fails.
+    fx.rescan_with_mode(0o755).await;
+
+    assert_eq!(told, None);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn renaming_a_library_keeps_its_folder_read_only_until_a_scan_finds_otherwise() {
+    let fx = Fixture::alien_and_dune().await;
+    let folder = fx.folder.to_str().unwrap().to_owned();
+    fx.rescan_with_mode(0o555).await;
+
+    fx.library_service()
+        .update_library(UpdateLibraryRequest {
+            id: fx.library,
+            name: "Renamed".to_owned(),
+            folders: vec![folder.clone()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let told = fx.read_only_folder(&fx.browse, ALIEN).await;
+    // Writable again before asserting, so the temporary folder is cleaned up even if it fails.
+    fx.rescan_with_mode(0o755).await;
+
+    assert_eq!(told, Some(folder));
 }
 
 /// The Episodes `preview` takes along, by season number, episode number and title.
@@ -566,8 +806,8 @@ async fn deleting_one_version_of_an_episode_with_two_leaves_the_other() {
 async fn deleting_a_season_deletes_each_of_its_files_once_and_leaves_other_seasons() {
     let fx = Fixture::dark().await;
 
-    let preview = fx.preview(dark_season(fx.library, 1)).await.unwrap();
-    fx.delete(dark_season(fx.library, 1)).await.unwrap();
+    let preview = fx.preview(season(fx.library, DARK, 1)).await.unwrap();
+    fx.delete(season(fx.library, DARK, 1)).await.unwrap();
 
     assert_eq!(preview.bytes_freed, 9 + 12 + 11);
     assert_eq!(taken_along(&preview), []);
@@ -617,8 +857,153 @@ async fn deleting_a_show_deletes_every_season_and_a_subscriber_is_told_of_each_i
     assert_eq!(fs::read_dir(&fx.folder).unwrap().count(), 0);
 }
 
+/// What of Dark a Shows Fulfiller is told to stop monitoring: `deleted`.
+fn dark_deleted(deleted: impl Into<show_deleted::Deleted>) -> ShowDeleted {
+    ShowDeleted {
+        show_tmdb_id: Some(DARK),
+        show_tvdb_id: Some(DARK_TVDB),
+        deleted: Some(deleted.into()),
+        ..Default::default()
+    }
+}
+
+/// Dark's Episodes by `(season, episode)` numbers, as a Shows Fulfiller is told them.
+fn dark_episodes(numbers: &[(u32, u32)]) -> ShowDeleted {
+    let episodes = (numbers.iter())
+        .map(|&(season_number, episode_number)| EpisodeNumber {
+            season_number,
+            episode_number,
+            ..Default::default()
+        })
+        .collect();
+    dark_deleted(EpisodeNumbers {
+        episodes,
+        ..Default::default()
+    })
+}
+
 #[tokio::test]
-async fn a_season_or_episode_version_that_isnt_there_or_a_show_in_a_movies_library_is_refused() {
+async fn deleting_episodes_or_a_season_has_the_shows_fulfiller_stop_monitoring_just_those() {
+    let fx = Fixture::dark_on(TestServer::builder().shows_fulfiller(&[])).await;
+    let own = fx.dark_version("Dark - S01E01.mkv").await;
+
+    fx.delete(episode(fx.library, SECRETS, Some(own)))
+        .await
+        .unwrap();
+    // Its file holds Secrets too, which goes along.
+    fx.delete(episode(fx.library, LIES, None)).await.unwrap();
+    let season = fx.delete(season(fx.library, DARK, 2)).await.unwrap();
+
+    assert_eq!(
+        fx.server.fulfiller().stopped_monitoring_shows(),
+        [
+            dark_episodes(&[(1, 1)]),
+            dark_episodes(&[(1, 2), (1, 1)]),
+            dark_deleted(show_deleted::Deleted::SeasonNumber(2)),
+        ]
+    );
+    assert_eq!(season.fulfillers_not_told, [""; 0]);
+}
+
+#[tokio::test]
+async fn deleting_a_show_has_the_shows_fulfiller_stop_monitoring_every_current_season() {
+    let fx = Fixture::dark_on(TestServer::builder().shows_fulfiller(&[])).await;
+
+    fx.delete(show(fx.library, DARK)).await.unwrap();
+
+    assert_eq!(
+        fx.server.fulfiller().stopped_monitoring_shows(),
+        [dark_deleted(show_deleted::Deleted::EveryCurrentSeason(
+            true
+        ))]
+    );
+}
+
+#[tokio::test]
+async fn deleting_an_episode_or_one_of_its_versions_has_sonarr_unmonitor_that_episode_only() {
+    let (fx, sonarr) = Fixture::dark_in_sonarr().await;
+    let seasons = sonarr.monitored_seasons(DARK_TVDB);
+    let own = fx.dark_version("Dark - S01E01.mkv").await;
+
+    let one_version = fx
+        .delete(episode(fx.library, SECRETS, Some(own)))
+        .await
+        .unwrap();
+    fx.delete(episode(fx.library, BEGINNINGS, None))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        sonarr.unmonitored_episodes(),
+        [SONARR_SECRETS, SONARR_BEGINNINGS]
+    );
+    assert_eq!(sonarr.monitored_seasons(DARK_TVDB), seasons);
+    assert_eq!(one_version.fulfillers_not_told, [""; 0]);
+}
+
+#[tokio::test]
+async fn deleting_a_season_has_sonarr_unmonitor_it_and_its_episodes_and_leave_the_others() {
+    let (fx, sonarr) = Fixture::dark_in_sonarr().await;
+    // Season 2 is all in the Library, so following Dark didn't have Sonarr fetch it.
+    assert_eq!(sonarr.monitored_seasons(DARK_TVDB), [1, 3]);
+
+    fx.delete(season(fx.library, DARK, 1)).await.unwrap();
+
+    assert_eq!(sonarr.monitored_seasons(DARK_TVDB), [3]);
+    assert_eq!(sonarr.unmonitored_episodes(), [SONARR_SECRETS, SONARR_LIES]);
+}
+
+#[tokio::test]
+async fn deleting_a_show_unmonitors_every_season_in_sonarr_and_keeps_it_following_new_ones() {
+    let (fx, sonarr) = Fixture::dark_in_sonarr().await;
+
+    fx.delete(show(fx.library, DARK)).await.unwrap();
+
+    assert_eq!(sonarr.monitored_seasons(DARK_TVDB), [0_u64; 0]);
+    let mut unmonitored = sonarr.unmonitored_episodes();
+    unmonitored.sort_unstable();
+    assert_eq!(
+        unmonitored,
+        [[SONARR_SECRETS, SONARR_LIES].as_slice(), &SONARR_OTHERS].concat()
+    );
+    let [dark] = sonarr.shows().try_into().unwrap();
+    assert_eq!(dark["monitored"], true);
+    assert_eq!(dark["monitorNewItems"], "all");
+    let (_, followed) = (fx.server.admin_requests())
+        .list_in(RequestState::Unspecified)
+        .await;
+    assert_eq!(followed.len(), 1, "{followed:?}");
+    assert_eq!(followed[0].show_tmdb_id, DARK);
+}
+
+#[tokio::test]
+async fn a_show_sonarr_doesnt_have_deletes_with_nothing_reported() {
+    let fx = Fixture::dark().await;
+    let sonarr = FakeSonarr::start().await;
+    sonarr.enable_on(&fx.server).await;
+
+    let deleted = fx.delete(show(fx.library, DARK)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, [""; 0]);
+    assert_eq!(sonarr.unmonitored_episodes(), [0_i64; 0]);
+    assert!(!fx.exists(DARK_S01E01_E02));
+}
+
+#[tokio::test]
+async fn with_sonarr_down_the_delete_goes_ahead_and_names_sonarr() {
+    let (fx, mut sonarr) = Fixture::dark_in_sonarr().await;
+    sonarr.go_down();
+
+    let deleted = fx.delete(season(fx.library, DARK, 1)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, ["Sonarr"]);
+    assert!(!fx.exists(DARK_S01E01_E02) && !fx.exists(DARK_S01E01));
+    assert_eq!(fx.dark_episodes(1).await, []);
+}
+
+#[tokio::test]
+async fn a_show_side_target_that_isnt_there_or_is_in_a_movies_library_is_refused_naming_its_field()
+{
     let fx = Fixture::dark().await;
     let movies = fx
         .server
@@ -626,11 +1011,51 @@ async fn a_season_or_episode_version_that_isnt_there_or_a_show_in_a_movies_libra
         .await;
     let other = fx.dark_version("Dark - S01E01.mkv").await;
 
-    assert_refused(
-        fx.preview(dark_season(fx.library, 3)).await,
-        ErrorCode::NotFound,
-        RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
-    );
+    for (reason, field, refused) in [
+        (
+            RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+            "target.show.library_id",
+            fx.preview(show(fx.library + 100, DARK)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+            "target.season.library_id",
+            fx.preview(season(fx.library + 100, DARK, 1)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+            "target.episode.library_id",
+            fx.preview(episode(fx.library + 100, LIES, None)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "target.show.show_id",
+            fx.preview(show(fx.library, 404)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "target.season.show_id",
+            fx.preview(season(fx.library, 404, 1)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
+            "target.season.season_number",
+            fx.preview(season(fx.library, DARK, 3)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "target.episode.episode_id",
+            fx.preview(episode(fx.library, 404, None)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "target.episode.episode_id",
+            fx.preview(episode(fx.library, 404, Some(other))).await,
+        ),
+    ] {
+        let refusal = assert_refused(refused, ErrorCode::NotFound, reason);
+        assert_eq!(refusal.field, field);
+    }
     let not_lies = assert_refused(
         fx.delete(episode(fx.library, LIES, Some(other))).await,
         ErrorCode::NotFound,
@@ -755,4 +1180,154 @@ async fn a_direct_play_of_a_deleted_version_gets_no_more_of_its_file() {
     assert!(received < BIGGER_THAN_SOCKET_BUFFERS, "{received} bytes");
     let token = Some(fx.server.admin_token.as_str());
     assert_eq!(fetch(&fx.server, &plan.url, token).await.status, 404);
+}
+
+/// What a new User gets, enough to ask for titles: `REQUEST` and `VIEW_REQUESTS`.
+const REQUESTER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
+const DARK_S03E01: &str = "Dark {tmdb-70523}/Season 03/Dark - S03E01.mkv";
+
+/// The title and Season number of each Request a preview says deleting would cancel.
+fn cancelled(preview: &PreviewDeleteMediaResponse) -> Vec<(&str, Option<u32>)> {
+    (preview.requests_cancelled.iter())
+        .map(|request| (request.title.as_str(), request.season_number))
+        .collect()
+}
+
+#[tokio::test]
+async fn deleting_an_episode_of_a_partially_available_season_cancels_its_request_naming_who_deleted_it()
+ {
+    let builder = TestServer::builder().shows_fulfiller(&[]);
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, builder).await;
+    let ada = fx.server.user("Ada", &REQUESTER).await;
+    let season_1 = fx.server.requests(&ada).ask_seasons(DARK, &[1]).await;
+    fx.server.approve(season_1[0].id).await;
+    fx.write(DARK_S01E01, b"one episode");
+    fx.scan_and_match().await;
+    let ada_requests = fx.server.requests(&ada);
+    let partly = ada_requests.get(season_1[0].id).await.state;
+    let grace = fx.server.user("Grace", &[Permission::DeleteMedia]).await;
+    let as_grace = LibraryServiceClient::new(HttpClient::plaintext(), grace.client_config());
+    let mut adas_events = subscribe(
+        &ada.client_config(),
+        &[EventType::EVENT_TYPE_REQUEST_CANCELLED],
+    )
+    .await;
+
+    let preview = fx
+        .preview(episode(fx.library, SECRETS, None))
+        .await
+        .unwrap();
+    fx.delete_as(&as_grace, episode(fx.library, SECRETS, None))
+        .await
+        .unwrap();
+
+    assert_eq!(partly, RequestState::PartiallyAvailable);
+    assert_eq!(cancelled(&preview), [("Dark", Some(1))]);
+    let event::Event::RequestCancelled(told) = adas_events.next().await else {
+        panic!("not a cancelled Request");
+    };
+    assert_eq!(told.request.id, season_1[0].id);
+    assert_eq!(told.deleted_by.as_deref(), Some("Grace"));
+    assert_eq!(ada_requests.list().await, []);
+}
+
+#[tokio::test]
+async fn deleting_a_movie_leaves_its_available_request_and_it_can_be_requested_and_handed_off_again()
+ {
+    let builder = TestServer::builder().fulfiller(&[]);
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, builder).await;
+    let ada = fx.server.requests(&fx.server.user("Ada", &REQUESTER).await);
+    let first = ada.ask(DUNE).await;
+    fx.server.approve(first.id).await;
+    fx.write(DUNE_VIDEO, b"dune video");
+    fx.scan_and_match().await;
+
+    let preview = fx.preview(movie(fx.library, DUNE)).await.unwrap();
+    fx.delete(movie(fx.library, DUNE)).await.unwrap();
+    let again = ada.ask(DUNE).await;
+    fx.server.approve(again.id).await;
+
+    assert_eq!(cancelled(&preview), []);
+    assert_eq!(ada.get(first.id).await.state, RequestState::Available);
+    assert_ne!(again.id, first.id);
+    assert_eq!(fx.server.fulfiller().handed(), [DUNE, DUNE]);
+}
+
+#[tokio::test]
+async fn deleting_a_followed_show_keeps_following_it_and_a_later_season_still_opens_a_request() {
+    let builder = TestServer::builder().shows_fulfiller(&[]);
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, builder).await;
+    let ada = fx.server.user("Ada", &REQUESTER).await;
+    let ada_requests = fx.server.requests(&ada);
+    let followed = follow_dark_before_season_3(&fx, &ada_requests).await;
+    (fx.server.admin_requests())
+        .approve_followed_show(ApproveFollowedShowRequest {
+            id: followed.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    fx.write(DARK_S01E01, b"one episode");
+    fx.scan_and_match().await;
+
+    let preview = fx.preview(show(fx.library, DARK)).await.unwrap();
+    fx.delete(show(fx.library, DARK)).await.unwrap();
+    let mut adas_events = subscribe(
+        &ada.client_config(),
+        &[EventType::EVENT_TYPE_REQUEST_CREATED],
+    )
+    .await;
+    fx.write(DARK_S03E01, b"a later season");
+    fx.scan_and_match().await;
+
+    assert_eq!(cancelled(&preview), [("Dark", Some(1))]);
+    let (_, followed_shows) = ada_requests.list_in(RequestState::Unspecified).await;
+    let following: Vec<_> = (followed_shows.iter())
+        .map(|show| (show.id, show.state.as_known()))
+        .collect();
+    assert_eq!(following, [(followed.id, Some(RequestState::Approved))]);
+    assert_eq!(fx.server.fulfiller().unfollowed(), [0; 0]);
+    let event::Event::RequestCreated(created) = adas_events.next().await else {
+        panic!("not a new Request");
+    };
+    let request = created.request.into_option().unwrap();
+    assert_eq!(request.followed_show_id, Some(followed.id));
+    assert!(matches!(
+        request.movie_or_season,
+        Some(MovieOrSeason::Season(season)) if season.season_number == 3
+    ));
+}
+
+/// Has `requester` follow Dark as though its Season 3 came out after: asks for every Season, then
+/// cancels Season 3's Request and has the Followed Show remember only Seasons 1 and 2, so a scan
+/// finding Season 3 opens its Request. The fake TMDB always has all three Seasons.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn follow_dark_before_season_3(
+    fx: &Fixture,
+    requester: &RequestServiceClient<HttpClient>,
+) -> FollowedShow {
+    let (followed, mut asked) = requester.follow(DARK).await;
+    let season_3 = asked.pop().unwrap();
+    (fx.server.admin_requests())
+        .cancel_request(CancelRequestRequest {
+            id: season_3.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let id = followed.id;
+    (fx.server.db())
+        .write(move |tx| {
+            Box::pin(
+                sqlx::query("UPDATE followed_shows SET latest_season = 2 WHERE id = ?")
+                    .bind(id)
+                    .execute(&mut **tx),
+            )
+        })
+        .await
+        .unwrap();
+    followed
 }

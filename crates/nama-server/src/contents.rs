@@ -200,6 +200,16 @@ pub(crate) struct Metadata {
     pub(crate) backdrop: Option<String>,
 }
 
+/// A Library's downloaded Backdrop: see [`Contents::newest_backdrops`].
+#[derive(Debug)]
+pub(crate) struct NewestBackdrop {
+    /// The Plugin whose Provider the path is of.
+    pub(crate) plugin: String,
+    pub(crate) path: String,
+    /// The Movie's id, or for an Episode its Show's, whose own Custom Backdrop goes first.
+    pub(crate) title: ExternalId,
+}
+
 /// A Movie some Items of a Library are Matched to, with the metadata the Match of its first
 /// Version stores. Browse hands it out with Versions of its own, which have Tracks.
 #[derive(Debug)]
@@ -271,6 +281,8 @@ pub(crate) enum MatchedTo {
 pub(crate) struct Show<V = Version> {
     /// Which of its Episodes' Show ids identifies it: see [`primary_id`].
     pub(crate) id: ExternalId,
+    /// The Show's TVDB id, which Sonarr finds it by, if that Match has one.
+    pub(crate) tvdb_id: Option<i64>,
     /// The Plugin whose metadata Provider made the Match, which the image paths are for.
     pub(crate) plugin: String,
     pub(crate) title: String,
@@ -279,14 +291,18 @@ pub(crate) struct Show<V = Version> {
     pub(crate) seasons: BTreeMap<i64, Season<V>>,
 }
 
-impl<V> Show<V> {
-    /// The Show's poster: its first Season's, since a Match stores each Episode's Season poster
-    /// and none of the Show's own.
-    pub(crate) fn poster(&self) -> Option<&str> {
-        let (_, first) = self.seasons.first_key_value()?;
-        first.poster.as_deref()
-    }
+/// The poster of the lowest-numbered Season after the Specials (Season 0) that has one, or else
+/// the Specials'. A Match stores each Episode's Season poster and none of the Show's own. `seasons` are Season numbers with their posters, in any order.
+pub(crate) fn show_poster<'a>(
+    seasons: impl IntoIterator<Item = (i64, Option<&'a str>)>,
+) -> Option<&'a str> {
+    (seasons.into_iter())
+        .filter_map(|(number, poster)| Some((number, poster?)))
+        .min_by_key(|&(number, _)| (number == 0, number))
+        .map(|(_, poster)| poster)
+}
 
+impl<V> Show<V> {
     /// Every Episode of every Season, by season and episode number.
     pub(crate) fn episodes(&self) -> impl Iterator<Item = &Episode<V>> {
         self.seasons.values().flat_map(|season| &season.episodes)
@@ -308,6 +324,7 @@ impl<V> Show<V> {
             .collect();
         Show {
             id: self.id,
+            tvdb_id: self.tvdb_id,
             plugin: self.plugin,
             title: self.title,
             backdrop: self.backdrop,
@@ -392,7 +409,7 @@ pub(crate) struct FoundShow {
     /// The Plugin whose metadata Provider made the Match, which the poster's path is for.
     pub(crate) plugin: String,
     pub(crate) title: String,
-    /// The best-fitting Episode's Season's.
+    /// As [`Show::poster`] picks it, from the Seasons of the Show's Episodes the search found.
     pub(crate) poster: Option<String>,
 }
 
@@ -639,6 +656,75 @@ impl Contents {
         .await
     }
 
+    /// Each image a Match stores, as its Plugin and path, in the Library `library` or else in
+    /// every Library.
+    pub(crate) async fn images(
+        &self,
+        library: Option<i64>,
+    ) -> Result<Vec<(String, String)>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"WITH matched AS (
+                   SELECT item_matches.plugin, item_matches.poster, item_matches.backdrop
+                   FROM item_matches
+                   JOIN library_items ON library_items.id = item_matches.item_id
+                   JOIN library_files ON library_files.id = library_items.file_id
+                   WHERE item_matches.state = 'matched'
+                     AND (?1 IS NULL OR library_files.library_id = ?1))
+               SELECT plugin AS "plugin!", poster AS "path!" FROM matched WHERE poster IS NOT NULL
+               UNION
+               SELECT plugin, backdrop FROM matched WHERE backdrop IS NOT NULL"#,
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
+    }
+
+    /// The downloaded Backdrop of the Matched title most recently added to each Library, of
+    /// those with one, by Library id. A Library with no such title has none.
+    pub(crate) async fn newest_backdrops(
+        &self,
+    ) -> Result<HashMap<i64, NewestBackdrop>, sqlx::Error> {
+        // Item ids are AUTOINCREMENT, so the highest is the Item added last.
+        let rows = sqlx::query!(
+            r#"SELECT library_id AS "library!", plugin AS "plugin!", backdrop AS "backdrop!",
+                      tmdb_id AS "tmdb_id?: i64", imdb_id AS "imdb_id?: String",
+                      tvdb_id AS "tvdb_id?: i64"
+               FROM (SELECT library_files.library_id, item_matches.plugin, item_matches.backdrop,
+                            IIF(library_items.kind = 'movie', item_matches.tmdb_id,
+                                item_matches.show_tmdb_id) AS tmdb_id,
+                            IIF(library_items.kind = 'movie', item_matches.imdb_id,
+                                item_matches.show_imdb_id) AS imdb_id,
+                            IIF(library_items.kind = 'movie', item_matches.tvdb_id,
+                                item_matches.show_tvdb_id) AS tvdb_id,
+                            ROW_NUMBER() OVER (PARTITION BY library_files.library_id
+                                               ORDER BY library_items.id DESC) AS newest
+                     FROM item_matches
+                     JOIN library_items ON library_items.id = item_matches.item_id
+                     JOIN library_files ON library_files.id = library_items.file_id
+                     WHERE item_matches.state = 'matched' AND item_matches.backdrop IS NOT NULL)
+               WHERE newest = 1"#
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| {
+                let ids = ExternalIds {
+                    tmdb: row.tmdb_id,
+                    imdb: row.imdb_id,
+                    tvdb: row.tvdb_id,
+                };
+                let backdrop = NewestBackdrop {
+                    title: primary_id(ids)?,
+                    plugin: row.plugin,
+                    path: row.backdrop,
+                };
+                Some((row.library, backdrop))
+            })
+            .collect())
+    }
+
     /// The oldest Library with an Item Matched to the Movie with the TMDB id `tmdb_id`, if any.
     pub(crate) async fn library_with_movie(
         &self,
@@ -870,6 +956,7 @@ impl Contents {
             };
             let show = shows.entry(show_id.clone()).or_insert_with(|| Show {
                 id: show_id,
+                tvdb_id: row.show_tvdb_id,
                 plugin: row.plugin,
                 title: row.show_title,
                 backdrop: row.backdrop,
@@ -946,27 +1033,12 @@ impl Contents {
                 }),
             }
         }
-        for row in self.search_rows(&words.in_column("show_title")).await? {
-            let (Some(id), Some(title)) = (primary_id(row.show_ids()), row.show_title) else {
-                continue;
-            };
-            found.shows.push(FoundShow {
-                library: row.library,
-                id,
-                plugin: row.plugin,
-                title,
-                poster: row.poster,
-            });
-        }
-        // A Movie, Show or Episode has a row per Item; the first fits best.
+        found.shows = found_shows(self.search_rows(&words.in_column("show_title")).await?);
+        // A Movie or Episode has a row per Item; the first fits best.
         let mut seen = HashSet::new();
         found
             .movies
             .retain(|movie| seen.insert((movie.library, movie.id.clone())));
-        seen.clear();
-        found
-            .shows
-            .retain(|show| seen.insert((show.library, show.id.clone())));
         seen.clear();
         found
             .episodes
@@ -1161,6 +1233,40 @@ impl SearchRow {
     }
 }
 
+/// The Shows that `rows`, best fit first, are Episodes of: each once per Library, in the place of
+/// its first row.
+fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
+    let rows: Vec<(ExternalId, SearchRow)> = (rows.into_iter())
+        .filter_map(|row| Some((primary_id(row.show_ids())?, row)))
+        .collect();
+    let mut seen = HashSet::new();
+    let mut shows = Vec::new();
+    for (id, row) in &rows {
+        let Some(title) = &row.show_title else {
+            continue;
+        };
+        if !seen.insert((row.library, id)) {
+            continue;
+        }
+        // Every Episode of a Show fits its title alike, so its rows hold all its Seasons, unless
+        // the search ends in a year: that keeps only the Episodes aired in it.
+        // ponytail: a year can pick another Season's Poster than the Library grid's; search the
+        // Show's rows again without it if that's ever seen.
+        // ponytail: rescans every row per Show found; group rows by Show once searches get slow.
+        let seasons = (rows.iter())
+            .filter(|(other_id, other)| other.library == row.library && other_id == id)
+            .filter_map(|(_, other)| Some((other.season?, other.poster.as_deref())));
+        shows.push(FoundShow {
+            library: row.library,
+            id: id.clone(),
+            plugin: row.plugin.clone(),
+            title: title.clone(),
+            poster: show_poster(seasons).map(str::to_owned),
+        });
+    }
+    shows
+}
+
 /// A search query's words, and the year it ends with, if any.
 #[derive(Debug, PartialEq, Eq)]
 struct SearchWords<'a> {
@@ -1204,7 +1310,7 @@ impl<'a> SearchWords<'a> {
 }
 
 /// The ID Hint stored as `text`, which is how [`ExternalId`] displays.
-fn parse_hint(text: &str) -> Option<ExternalId> {
+pub(crate) fn parse_hint(text: &str) -> Option<ExternalId> {
     match text.split_once('-')? {
         ("tmdb", id) => id.parse().ok().map(ExternalId::Tmdb),
         ("tvdb", id) => id.parse().ok().map(ExternalId::Tvdb),
@@ -1888,6 +1994,7 @@ mod tests {
     use super::{
         Change, Contents, Decided, FileItem, Item, Metadata, Pin,
         fixture::{MatchedMovie, decide, tmdb_movie},
+        show_poster,
     };
     use crate::{
         db::Database,
@@ -2483,5 +2590,18 @@ mod tests {
 
         assert!(found.movies.is_empty(), "{:?}", found.movies);
         assert!(found.episodes.is_empty(), "{:?}", found.episodes);
+    }
+
+    #[test]
+    fn a_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
+        let specials_and_first = [(0, Some("/specials.jpg")), (1, Some("/1.jpg"))];
+        let first_without = [(2, Some("/2.jpg")), (1, None)];
+        let specials_alone = [(0, Some("/specials.jpg"))];
+        let none = [(0, None), (1, None)];
+
+        assert_eq!(show_poster(specials_and_first), Some("/1.jpg"));
+        assert_eq!(show_poster(first_without), Some("/2.jpg"));
+        assert_eq!(show_poster(specials_alone), Some("/specials.jpg"));
+        assert_eq!(show_poster(none), None);
     }
 }

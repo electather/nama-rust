@@ -1,14 +1,23 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 
+import { MayDownloadAgain } from "@/components/delete-media";
 import { Page } from "@/components/page";
 import { NotFound } from "@/components/route-error";
 import { Poster, PosterGrid, posterLink } from "@/components/poster";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { libraryFromParam, queryOrNotFound, titleParam, yearOf } from "@/lib/browse";
+import {
+  deletedFromSearch,
+  libraryFromParam,
+  queryOrNotFound,
+  titleParam,
+  yearOf,
+} from "@/lib/browse";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/")({
+  // The title whose page had the delete's result is gone, so the Fulfillers not told come here.
+  validateSearch: deletedFromSearch,
   loader: async ({ context, params }) => {
     const library = await libraryFromParam(context, params.libraryId);
     const input = { libraryId: library.id };
@@ -23,8 +32,14 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
 
 function Library() {
   const library = Route.useLoaderData();
+  const { deleted, notTold = [] } = Route.useSearch();
   return (
     <Page heading={library.name}>
+      {deleted !== undefined && (
+        <div className="mt-2">
+          <MayDownloadAgain title={deleted} fulfillers={notTold} />
+        </div>
+      )}
       {library.kind === LibraryKind.SHOWS ? (
         <Shows libraryId={library.id} />
       ) : (
@@ -47,6 +62,7 @@ function Movies({ libraryId }: { libraryId: bigint }) {
           >
             <Poster
               url={movie.posterUrl}
+              thumbhash={movie.posterThumbhash}
               title={movie.title}
               detail={yearOf(movie.releaseDate)}
               watchState={movie.watchState}
@@ -69,7 +85,7 @@ function Shows({ libraryId }: { libraryId: bigint }) {
             params={{ libraryId: String(libraryId), showId: titleParam(show.id) }}
             className={posterLink}
           >
-            <Poster url={show.posterUrl} title={show.title} />
+            <Poster url={show.posterUrl} thumbhash={show.posterThumbhash} title={show.title} />
           </Link>
         </li>
       ))}

@@ -24,10 +24,11 @@ use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::{
     __buffa::view::SubscribeResponseView, CreateLibraryRequest, CreateUserRequest,
-    EventServiceClient, EventType, LibraryKind, LibraryServiceClient, Permission,
-    PluginServiceClient, Quality, ReplaceQualitiesRequest, ScanLibraryRequest, SessionDelivery,
-    SetPermissionsRequest, SetupRequest, SignInRequest, SignInServiceClient, SubscribeRequest,
-    SubscribeResponse, UserServiceClient, event, subscribe_response,
+    EventServiceClient, EventType, ImageSettings, LibraryKind, LibraryServiceClient, Permission,
+    PluginServiceClient, Quality, ReplaceQualitiesRequest, ScanLibraryRequest, ServerServiceClient,
+    SessionDelivery, SetPermissionsRequest, SetupRequest, SignInRequest, SignInServiceClient,
+    SubscribeRequest, SubscribeResponse, UpdateImageSettingsRequest, UserServiceClient, event,
+    subscribe_response,
 };
 use nama_server::{
     codes::SetupCode, config::Config, db::Database, ffmpeg::Ffmpeg,
@@ -279,6 +280,41 @@ impl TestServer {
             })
             .await?;
         Ok(replaced.into_owned().qualities)
+    }
+
+    /// Sets as the Admin whether images are resized and the most MiB their copies take.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn set_image_settings(
+        &self,
+        resize_images: bool,
+        resized_cache_mib: Option<u32>,
+    ) {
+        self.try_set_image_settings(resize_images, resized_cache_mib)
+            .await
+            .unwrap();
+    }
+
+    /// [`Self::set_image_settings`], returning its error, such as a Refusal.
+    pub(crate) async fn try_set_image_settings(
+        &self,
+        resize_images: bool,
+        resized_cache_mib: Option<u32>,
+    ) -> Result<(), ConnectError> {
+        let settings = ImageSettings {
+            resize_images,
+            resized_cache_mib,
+            ..Default::default()
+        };
+        ServerServiceClient::new(HttpClient::plaintext(), self.client_config())
+            .update_image_settings(UpdateImageSettingsRequest {
+                settings: settings.into(),
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
     }
 
     /// Stops the fake TMDB, as when TMDB is down.

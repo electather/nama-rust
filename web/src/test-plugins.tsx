@@ -6,9 +6,8 @@ import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
 import { fakeServer, openApp } from "./test-app";
 
-/** TMDB's logo, the one Plugin here with one. */
-export const tmdbLogo =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1" fill="#0d253f"/></svg>';
+/** Where TMDB's logo is, the one Plugin here with one. */
+export const tmdbLogo = "/media/plugin-logos/tmdb/v1";
 
 const text = (value: string) => ({ value: { case: "textValue" as const, value } });
 
@@ -53,7 +52,7 @@ const plugins = [
     kind: PluginKind.BUILT_IN,
     enabled: true,
     extensionPoints: [ExtensionPoint.METADATA_PROVIDER],
-    logoSvg: tmdbLogo,
+    logoUrl: tmdbLogo,
     settings: [
       {
         key: "api_key",
@@ -143,7 +142,7 @@ function summaryOf({
   refusedReason = "",
   settingsMissing = false,
   extensionPoints = [],
-  logoSvg = "",
+  logoUrl = "",
 }: (typeof plugins)[number]) {
   return {
     id,
@@ -155,7 +154,7 @@ function summaryOf({
     refusedReason,
     settingsMissing,
     extensionPoints,
-    logoSvg,
+    logoUrl,
   };
 }
 

@@ -1,14 +1,13 @@
 //! A local stand-in for Radarr serving the responses recorded in `plugins/radarr/fixtures/`, so
 //! the Radarr Plugin's tests need no Radarr. See that folder's `README.md` for which answers what.
 
-#[path = "fake_servarr.rs"]
-mod fake_servarr;
-
 use std::{
     ops::{Deref, DerefMut},
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
+use crate::fake_servarr::{FakeServarr, Servarr, json, lock};
 use axum::{
     Router,
     body::Bytes,
@@ -16,8 +15,9 @@ use axum::{
     http::{Method, StatusCode, Uri},
     response::{IntoResponse, Response},
 };
-use fake_servarr::{FakeServarr, Servarr, json, lock};
 use serde_json::Value;
+
+use crate::server::TestServer;
 
 /// The API key the fake Radarr accepts.
 pub(crate) const API_KEY: &str = "test-radarr-key";
@@ -42,6 +42,20 @@ struct Fake {
     not_found: Vec<i64>,
     /// The body of each request that added a Movie, in order.
     added: Mutex<Vec<Value>>,
+    /// Each request but a `GET`, in order.
+    changes: Mutex<Vec<Changed>>,
+    /// The file [`Changed::watched_was_there`] looks for.
+    watched: Mutex<Option<PathBuf>>,
+}
+
+/// A request to the fake Radarr that may change something: any but a `GET`.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Changed {
+    /// Its method and path, such as `PUT /api/v3/movie/editor`.
+    pub(crate) request: String,
+    pub(crate) body: Value,
+    /// Whether the file [`FakeRadarr::watch`] names was still there when it came.
+    pub(crate) watched_was_there: bool,
 }
 
 impl FakeRadarr {
@@ -52,6 +66,8 @@ impl FakeRadarr {
             existing: existing.to_vec(),
             not_found: not_found.to_vec(),
             added: Mutex::default(),
+            changes: Mutex::default(),
+            watched: Mutex::default(),
         });
         let routes = Router::new()
             .fallback(answer)
@@ -65,6 +81,24 @@ impl FakeRadarr {
     /// The body of each request that added a Movie so far, in order.
     pub(crate) fn added(&self) -> Vec<Value> {
         lock(&self.state.added).clone()
+    }
+
+    /// Each request so far but a `GET`, in order.
+    pub(crate) fn changes(&self) -> Vec<Changed> {
+        lock(&self.state.changes).clone()
+    }
+
+    /// Has each change from now on say whether the file at `path` was there when it came.
+    pub(crate) fn watch(&self, path: PathBuf) {
+        *lock(&self.state.watched) = Some(path);
+    }
+
+    /// Has `server`'s Admin set the Radarr Plugin up against this fake, with the quality profile
+    /// `profile` and the root folder `/movies`, and enable it.
+    pub(crate) async fn enable_on(&self, server: &TestServer, profile: &str) {
+        self.servarr
+            .enable_as(server, "radarr", profile, "/movies")
+            .await;
     }
 }
 
@@ -83,9 +117,23 @@ impl DerefMut for FakeRadarr {
 }
 
 async fn answer(State(fake): State<Arc<Fake>>, method: Method, uri: Uri, body: Bytes) -> Response {
+    if method != Method::GET {
+        let watched_was_there = lock(&fake.watched)
+            .as_ref()
+            .is_some_and(|path| path.exists());
+        lock(&fake.changes).push(Changed {
+            request: format!("{method} {}", uri.path()),
+            body: serde_json::from_slice(&body).unwrap_or_default(),
+            watched_was_there,
+        });
+    }
     match (method, uri.path()) {
         (Method::GET, "/api/v3/movie") => movie(&fake, &uri),
         (Method::POST, "/api/v3/movie") => add_movie(&fake, &body),
+        // Radarr answers with the Movies it changed, which the Plugin doesn't read.
+        (Method::PUT, "/api/v3/movie/editor") => {
+            json(StatusCode::ACCEPTED, &Value::Array(Vec::new()))
+        }
         _ => StatusCode::NOT_FOUND.into_response(),
     }
 }

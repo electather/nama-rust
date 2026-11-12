@@ -34,3 +34,43 @@ message Progress {
 message Downloads {
   repeated nama.v1.Download downloads = 1;
 }
+
+// What a delete asks a Fulfiller to stop monitoring, so its service doesn't download it again.
+// The service keeps the title, and one it doesn't have means nothing to do. An Installed Plugin's
+// `stop_monitoring` export takes it and returns nothing.
+message StopMonitoring {
+  oneof title {
+    // A Movie, by its TMDB id.
+    int64 movie_tmdb_id = 1;
+    // Some or all of a Show.
+    ShowDeleted show = 2;
+  }
+}
+
+// What a delete takes of a Show, which keeps its new Seasons coming.
+message ShowDeleted {
+  // The Show's TMDB id, if the metadata source has one.
+  optional int64 show_tmdb_id = 1;
+  // The Show's TVDB id, if the metadata source has one.
+  optional int64 show_tvdb_id = 2;
+  oneof deleted {
+    // Every Season the service has of the Show now, and their Episodes. Always true when set.
+    bool every_current_season = 3;
+    // One Season, by its number, and its Episodes.
+    uint32 season_number = 4;
+    // Some Episodes.
+    EpisodeNumbers episodes = 5;
+  }
+}
+
+// Episodes of one Show, by their numbers.
+message EpisodeNumbers {
+  repeated EpisodeNumber episodes = 1;
+}
+
+// An Episode of a Show, by its numbers.
+message EpisodeNumber {
+  // Its Season's number. Season 0 holds specials.
+  uint32 season_number = 1;
+  uint32 episode_number = 2;
+}

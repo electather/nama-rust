@@ -1,27 +1,27 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_id, path FROM library_folders ORDER BY library_id, position",
+  "query": "SELECT slot, version FROM custom_images",
   "describe": {
     "columns": [
       {
-        "name": "library_id",
+        "name": "slot",
         "ordinal": 0,
-        "type_info": "Integer",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "library_folders",
-            "name": "library_id"
+            "table": "custom_images",
+            "name": "slot"
           }
         }
       },
       {
-        "name": "path",
+        "name": "version",
         "ordinal": 1,
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "library_folders",
-            "name": "path"
+            "table": "custom_images",
+            "name": "version"
           }
         }
       }
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "bb33ba92386c0be8194642165da57fb43588bf6c2898feea1e61257e55267ee6"
+  "hash": "66a302df9f8a33db7478a489e74ce8823a3448f2ac3e65e85c0aea1a4390fbf8"
 }

@@ -1,26 +1,36 @@
 import type { ReactNode } from "react";
 
+import { Thumbhash } from "@/components/thumbhash";
+import { useSrcSet } from "@/lib/image-sizes";
+
 /**
  * A Movie's or Show's page: its title over its backdrop, then `children`. The backdrop sits under
  * the scrim, so the title keeps its contrast whatever the image (DESIGN.md, "The Legible Over Art
- * Rule"). Only the title goes over the art: Quiet ink wouldn't keep 4.5:1 there.
+ * Rule"). Only the title goes over the art: Quiet ink wouldn't keep 4.5:1 there. Its
+ * `backdropThumbhash` shows until the backdrop loads.
  */
 export function TitlePage({
   title,
   backdropUrl,
+  backdropThumbhash,
   children,
 }: {
   title: string;
   backdropUrl: string | undefined;
+  backdropThumbhash: Uint8Array | undefined;
   children: ReactNode;
 }) {
+  const srcSet = useSrcSet(backdropUrl);
   return (
     <main>
       <div className="relative isolate">
         {backdropUrl !== undefined && (
           <>
+            <Thumbhash thumbhash={backdropThumbhash} />
             <img
               src={backdropUrl}
+              srcSet={srcSet}
+              sizes="100vw"
               alt=""
               className="absolute inset-0 -z-10 size-full object-cover"
             />

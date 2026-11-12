@@ -50,7 +50,7 @@ test("each Plugin on the list shows its logo as an image, or a generic one witho
   openPlugins();
 
   const logo = (await row("TMDB")).getByRole<HTMLImageElement>("img", { name: "TMDB logo" });
-  expect(logo.src).toBe(`data:image/svg+xml,${encodeURIComponent(tmdbLogo)}`);
+  expect(logo.getAttribute("src")).toBe(tmdbLogo);
   const generic = (await row("local-auth")).getByRole("img", { name: "local-auth logo" });
   expect(generic.getAttribute("src")).toBeNull();
 });
@@ -59,7 +59,7 @@ test("a Plugin's details page shows its logo as an image, or a generic one witho
   openPlugin("tmdb");
 
   const logo = (await plugin("TMDB")).getByRole<HTMLImageElement>("img", { name: "TMDB logo" });
-  expect(logo.src).toBe(`data:image/svg+xml,${encodeURIComponent(tmdbLogo)}`);
+  expect(logo.getAttribute("src")).toBe(tmdbLogo);
   cleanup();
   openPlugin("local-auth");
   const generic = (await plugin("local-auth")).getByRole("img", { name: "local-auth logo" });

@@ -103,8 +103,8 @@ export type Manifest = Message<"nama.plugin.v1.Manifest"> & {
 
   /**
    * The Plugin's logo: an SVG document's text, not base64, such as "<svg xmlns=...>...</svg>".
-   * A Server drops one over 16 KiB, with a DOCTYPE, or that isn't SVG, logging why, and still loads
-   * the Plugin.
+   * A Server keeps it as `svg-hush` cleans it, without scripts or outside loads, and serves it by URL.
+   * It drops one over 64 KiB, or that isn't well-formed SVG, logging why, and still loads the Plugin.
    * Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
    *
    * @generated from field: string logo_svg = 10;
@@ -243,7 +243,8 @@ export const ProvidePoint = {
   /**
    * The Fulfiller for Movie Requests. The Plugin's `fulfill` export takes each Request as a
    * `nama.v1.Request` and returns `Fulfilled`, and its `progress` export takes `ProgressAsked` and
-   * returns `Progress`.
+   * returns `Progress`. Its `stop_monitoring` export, which takes `StopMonitoring`, is optional: a
+   * Plugin without it isn't asked.
    *
    * @generated from enum value: PROVIDE_POINT_MOVIE_FULFILLER = 1;
    */

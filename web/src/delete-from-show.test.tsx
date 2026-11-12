@@ -125,6 +125,21 @@ test("deleting an Episode in a two-Episode file names the other Episode before c
   });
 });
 
+test("the confirmation names the open Requests deleting cancels", async () => {
+  openDark(deletesMedia, {
+    previewDeleteMedia: () => ({
+      files: [SECRETS_ONLY],
+      bytesFreed: SECRETS_ONLY.size,
+      requestsCancelled: [{ title: "Dark", seasonNumber: 1 }],
+    }),
+  });
+
+  const dialog = await openDialog("Delete Lies", "Lies");
+
+  expect(await within(dialog).findByText(/cancels this open Request/u)).toBeDefined();
+  expect(within(dialog).getByText("Dark, Season 1")).toBeDefined();
+});
+
 test("deleting one Version of an Episode with two names only it", async () => {
   const deleted: Target[] = [];
   openDark(deletesMedia, recording(deleted));
@@ -218,4 +233,48 @@ test("an open Show page says so once the Show was deleted elsewhere", async () =
   removeAnItem(events);
 
   expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
+});
+
+/** A `DeleteMedia` whose deletes Sonarr couldn't be told about. */
+const sonarrNotTold: Partial<ServiceImpl<typeof LibraryService>> = {
+  deleteMedia: () => ({ fulfillersNotTold: ["Sonarr"] }),
+};
+
+test("deleting an Episode when Sonarr couldn't be told says so on the Show", async () => {
+  openDark(deletesMedia, sonarrNotTold);
+  const dialog = await openDialog("Delete Lies", "Lies");
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+  expect(
+    await screen.findByText(
+      "Sonarr couldn’t be told about the delete, so it may download Lies again.",
+    ),
+  ).toBeDefined();
+});
+
+test("deleting a Season when Sonarr couldn't be told says so on the Season shown next", async () => {
+  openDark(deletesMedia, sonarrNotTold);
+  const dialog = await openDialog("Delete Season 1", "Dark Season 1");
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Delete Season 1" }));
+
+  expect(
+    await screen.findByText(
+      "Sonarr couldn’t be told about the delete, so it may download Dark Season 1 again.",
+    ),
+  ).toBeDefined();
+  expect(screen.getByRole("button", { name: "Delete Season 2" })).toBeDefined();
+});
+
+test("deleting a whole Show when Sonarr couldn't be told says so on its Library", async () => {
+  openDark(deletesMedia, sonarrNotTold);
+  const dialog = await openDialog("Delete Show", "Dark");
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Delete Show" }));
+
+  expect(await screen.findByRole("heading", { name: "TV" })).toBeDefined();
+  expect(
+    screen.getByText("Sonarr couldn’t be told about the delete, so it may download Dark again."),
+  ).toBeDefined();
 });

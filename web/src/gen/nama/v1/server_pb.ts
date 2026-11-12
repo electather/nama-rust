@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJOChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIIhoKGEdldFNlcnZlclNldHRpbmdzUmVxdWVzdCJGChlHZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJIChtVcGRhdGVTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QSKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIkkKHFVwZGF0ZVNlcnZlclNldHRpbmdzUmVzcG9uc2USKQoIc2V0dGluZ3MYASABKAsyFy5uYW1hLnYxLlNlcnZlclNldHRpbmdzIh0KDlNlcnZlclNldHRpbmdzEgsKA3VybBgBIAEoCSIaChhHZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QihQIKGUdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2USJQoGZmZtcGVnGAEgASgLMhUubmFtYS52MS5Gb3VuZFByb2dyYW0SJgoHZmZwcm9iZRgCIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEhYKDmZmbXBlZ19wcm9ibGVtGAMgASgJEhcKD2ZmcHJvYmVfcHJvYmxlbRgEIAEoCRIoCghoYXJkd2FyZRgFIAMoCzIWLm5hbWEudjEuRm91bmRIYXJkd2FyZRITCgtoYXNfbGlieDI2NBgGIAEoCBISCgpoYXNfenNjYWxlGAcgASgIEhUKDWNhbl90cmFuc2NvZGUYCCABKAgiqAEKDUZvdW5kSGFyZHdhcmUSKgoDYXBpGAEgASgOMh0ubmFtYS52MS5IYXJkd2FyZUFjY2VsZXJhdGlvbhIZCgNncHUYBSABKAsyDC5uYW1hLnYxLkdwdRIRCgl0b25lX21hcHMYAiABKAgSKgoMdG9uZV9tYXBwaW5nGAMgASgOMhQubmFtYS52MS5Ub25lTWFwcGluZxIRCglhdXRvbWF0aWMYBCABKAgiHwoDR3B1EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkiLQoMRm91bmRQcm9ncmFtEgwKBHBhdGgYASABKAkSDwoHdmVyc2lvbhgCIAEoCSIcChpHZXRQbGF5YmFja1NldHRpbmdzUmVxdWVzdCJKChtHZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2USKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTAodVXBkYXRlUGxheWJhY2tTZXR0aW5nc1JlcXVlc3QSKwoIc2V0dGluZ3MYASABKAsyGS5uYW1hLnYxLlBsYXliYWNrU2V0dGluZ3MiTQoeVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIqQCChBQbGF5YmFja1NldHRpbmdzEhYKDnNlZ21lbnRfZm9sZGVyGAEgASgJEhsKDm1heF90cmFuc2NvZGVzGAIgASgNSACIAQESNQoVcmVtb3RlX3BsYXliYWNrX2xpbWl0GAMgASgOMhYubmFtYS52MS5QbGF5YmFja0xpbWl0EjwKFWhhcmR3YXJlX2FjY2VsZXJhdGlvbhgEIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb24SGQoDZ3B1GAUgASgLMgwubmFtYS52MS5HcHUSIAoTa2VlcF9iZWhpbmRfbWludXRlcxgGIAEoDUgBiAEBQhEKD19tYXhfdHJhbnNjb2Rlc0IWChRfa2VlcF9iZWhpbmRfbWludXRlcypzCgtUb25lTWFwcGluZxIcChhUT05FX01BUFBJTkdfVU5TUEVDSUZJRUQQABIVChFUT05FX01BUFBJTkdfTk9ORRABEhQKEFRPTkVfTUFQUElOR19HUFUQAhIZChVUT05FX01BUFBJTkdfU09GVFdBUkUQAyrlAQoUSGFyZHdhcmVBY2NlbGVyYXRpb24SJQohSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1VOU1BFQ0lGSUVEEAASHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX09GRhABEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9WQUFQSRACEh0KGUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9RU1YQAxIfChtIQVJEV0FSRV9BQ0NFTEVSQVRJT05fTlZFTkMQBBImCiJIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVklERU9UT09MQk9YEAUy5wQKDVNlcnZlclNlcnZpY2USUwoNR2V0U2VydmVySW5mbxIdLm5hbWEudjEuR2V0U2VydmVySW5mb1JlcXVlc3QaHi5uYW1hLnYxLkdldFNlcnZlckluZm9SZXNwb25zZSIDkAIBEl8KEUdldFNlcnZlclNldHRpbmdzEiEubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaIi5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACARJoChRVcGRhdGVTZXJ2ZXJTZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXwoRR2V0UGxheWJhY2tTdGF0dXMSIS5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVxdWVzdBoiLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXNwb25zZSIDkAIBEmUKE0dldFBsYXliYWNrU2V0dGluZ3MSIy5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQbGF5YmFja1NldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_playback]);
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJkChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIEhQKDGltYWdlX3dpZHRocxgEIAMoDSIaChhHZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QiRgoZR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZRIpCghzZXR0aW5ncxgBIAEoCzIXLm5hbWEudjEuU2VydmVyU2V0dGluZ3MiSAobVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0EikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJJChxVcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyIdCg5TZXJ2ZXJTZXR0aW5ncxILCgN1cmwYASABKAkiGgoYR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0IoUCChlHZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlEiUKBmZmbXBlZxgBIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEiYKB2ZmcHJvYmUYAiABKAsyFS5uYW1hLnYxLkZvdW5kUHJvZ3JhbRIWCg5mZm1wZWdfcHJvYmxlbRgDIAEoCRIXCg9mZnByb2JlX3Byb2JsZW0YBCABKAkSKAoIaGFyZHdhcmUYBSADKAsyFi5uYW1hLnYxLkZvdW5kSGFyZHdhcmUSEwoLaGFzX2xpYngyNjQYBiABKAgSEgoKaGFzX3pzY2FsZRgHIAEoCBIVCg1jYW5fdHJhbnNjb2RlGAggASgIIqgBCg1Gb3VuZEhhcmR3YXJlEioKA2FwaRgBIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb24SGQoDZ3B1GAUgASgLMgwubmFtYS52MS5HcHUSEQoJdG9uZV9tYXBzGAIgASgIEioKDHRvbmVfbWFwcGluZxgDIAEoDjIULm5hbWEudjEuVG9uZU1hcHBpbmcSEQoJYXV0b21hdGljGAQgASgIIh8KA0dwdRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIi0KDEZvdW5kUHJvZ3JhbRIMCgRwYXRoGAEgASgJEg8KB3ZlcnNpb24YAiABKAkiHAoaR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QiSgobR2V0UGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIkwKHVVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0EisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIk0KHlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyKkAgoQUGxheWJhY2tTZXR0aW5ncxIWCg5zZWdtZW50X2ZvbGRlchgBIAEoCRIbCg5tYXhfdHJhbnNjb2RlcxgCIAEoDUgAiAEBEjUKFXJlbW90ZV9wbGF5YmFja19saW1pdBgDIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBI8ChVoYXJkd2FyZV9hY2NlbGVyYXRpb24YBCABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgFIAEoCzIMLm5hbWEudjEuR3B1EiAKE2tlZXBfYmVoaW5kX21pbnV0ZXMYBiABKA1IAYgBAUIRCg9fbWF4X3RyYW5zY29kZXNCFgoUX2tlZXBfYmVoaW5kX21pbnV0ZXMiGQoXR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QiRAoYR2V0SW1hZ2VTZXR0aW5nc1Jlc3BvbnNlEigKCHNldHRpbmdzGAEgASgLMhYubmFtYS52MS5JbWFnZVNldHRpbmdzIkYKGlVwZGF0ZUltYWdlU2V0dGluZ3NSZXF1ZXN0EigKCHNldHRpbmdzGAEgASgLMhYubmFtYS52MS5JbWFnZVNldHRpbmdzIkcKG1VwZGF0ZUltYWdlU2V0dGluZ3NSZXNwb25zZRIoCghzZXR0aW5ncxgBIAEoCzIWLm5hbWEudjEuSW1hZ2VTZXR0aW5ncyJcCg1JbWFnZVNldHRpbmdzEhUKDXJlc2l6ZV9pbWFnZXMYASABKAgSHgoRcmVzaXplZF9jYWNoZV9taWIYAiABKA1IAIgBAUIUChJfcmVzaXplZF9jYWNoZV9taWIqcwoLVG9uZU1hcHBpbmcSHAoYVE9ORV9NQVBQSU5HX1VOU1BFQ0lGSUVEEAASFQoRVE9ORV9NQVBQSU5HX05PTkUQARIUChBUT05FX01BUFBJTkdfR1BVEAISGQoVVE9ORV9NQVBQSU5HX1NPRlRXQVJFEAMq5QEKFEhhcmR3YXJlQWNjZWxlcmF0aW9uEiUKIUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9VTlNQRUNJRklFRBAAEh0KGUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9PRkYQARIfChtIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVkFBUEkQAhIdChlIQVJEV0FSRV9BQ0NFTEVSQVRJT05fUVNWEAMSHwobSEFSRFdBUkVfQUNDRUxFUkFUSU9OX05WRU5DEAQSJgoiSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1ZJREVPVE9PTEJPWBAFMqwGCg1TZXJ2ZXJTZXJ2aWNlElMKDUdldFNlcnZlckluZm8SHS5uYW1hLnYxLkdldFNlcnZlckluZm9SZXF1ZXN0Gh4ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVzcG9uc2UiA5ACARJfChFHZXRTZXJ2ZXJTZXR0aW5ncxIhLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXF1ZXN0GiIubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgESaAoUVXBkYXRlU2VydmVyU2V0dGluZ3MSJC5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVxdWVzdBolLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAICEl8KEUdldFBsYXliYWNrU3RhdHVzEiEubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QaIi5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2UiA5ACARJlChNHZXRQbGF5YmFja1NldHRpbmdzEiMubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVxdWVzdBokLm5hbWEudjEuR2V0UGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgESbgoWVXBkYXRlUGxheWJhY2tTZXR0aW5ncxImLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1JlcXVlc3QaJy5uYW1hLnYxLlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXNwb25zZSIDkAICElwKEEdldEltYWdlU2V0dGluZ3MSIC5uYW1hLnYxLkdldEltYWdlU2V0dGluZ3NSZXF1ZXN0GiEubmFtYS52MS5HZXRJbWFnZVNldHRpbmdzUmVzcG9uc2UiA5ACARJlChNVcGRhdGVJbWFnZVNldHRpbmdzEiMubmFtYS52MS5VcGRhdGVJbWFnZVNldHRpbmdzUmVxdWVzdBokLm5hbWEudjEuVXBkYXRlSW1hZ2VTZXR0aW5nc1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_playback]);
 
 /**
  * @generated from message nama.v1.GetServerInfoRequest
@@ -52,6 +52,17 @@ export type GetServerInfoResponse = Message<"nama.v1.GetServerInfoResponse"> & {
    * @generated from field: bool setup_required = 3;
    */
   setupRequired: boolean;
+
+  /**
+   * The widths, in pixels and smallest first, an image's URL may ask for by adding `?width=` and
+   * one of them, such as `/media/artwork/tmdb/%2Fposter.jpg?width=640`. Any other width is
+   * refused with HTTP 400. While resizing is on (`ImageSettings.resize_images`), the Server sends
+   * the image as a JPEG that wide, with its shape kept, or the stored image if it is no wider, an
+   * SVG, has transparency or is over 12 megapixels. While it's off, the width is ignored.
+   *
+   * @generated from field: repeated uint32 image_widths = 4;
+   */
+  imageWidths: number[];
 };
 
 /**
@@ -478,6 +489,103 @@ export const PlaybackSettingsSchema: GenMessage<PlaybackSettings> = /*@__PURE__*
   messageDesc(file_nama_v1_server, 16);
 
 /**
+ * @generated from message nama.v1.GetImageSettingsRequest
+ */
+export type GetImageSettingsRequest = Message<"nama.v1.GetImageSettingsRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.GetImageSettingsRequest.
+ * Use `create(GetImageSettingsRequestSchema)` to create a new message.
+ */
+export const GetImageSettingsRequestSchema: GenMessage<GetImageSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 17);
+
+/**
+ * @generated from message nama.v1.GetImageSettingsResponse
+ */
+export type GetImageSettingsResponse = Message<"nama.v1.GetImageSettingsResponse"> & {
+  /**
+   * @generated from field: nama.v1.ImageSettings settings = 1;
+   */
+  settings?: ImageSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.GetImageSettingsResponse.
+ * Use `create(GetImageSettingsResponseSchema)` to create a new message.
+ */
+export const GetImageSettingsResponseSchema: GenMessage<GetImageSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 18);
+
+/**
+ * @generated from message nama.v1.UpdateImageSettingsRequest
+ */
+export type UpdateImageSettingsRequest = Message<"nama.v1.UpdateImageSettingsRequest"> & {
+  /**
+   * @generated from field: nama.v1.ImageSettings settings = 1;
+   */
+  settings?: ImageSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.UpdateImageSettingsRequest.
+ * Use `create(UpdateImageSettingsRequestSchema)` to create a new message.
+ */
+export const UpdateImageSettingsRequestSchema: GenMessage<UpdateImageSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 19);
+
+/**
+ * @generated from message nama.v1.UpdateImageSettingsResponse
+ */
+export type UpdateImageSettingsResponse = Message<"nama.v1.UpdateImageSettingsResponse"> & {
+  /**
+   * The settings as saved.
+   *
+   * @generated from field: nama.v1.ImageSettings settings = 1;
+   */
+  settings?: ImageSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.UpdateImageSettingsResponse.
+ * Use `create(UpdateImageSettingsResponseSchema)` to create a new message.
+ */
+export const UpdateImageSettingsResponseSchema: GenMessage<UpdateImageSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 20);
+
+/**
+ * What an admin sets about how the Server resizes Posters and Backdrops.
+ *
+ * @generated from message nama.v1.ImageSettings
+ */
+export type ImageSettings = Message<"nama.v1.ImageSettings"> & {
+  /**
+   * Whether an image asked for at a width (`GetServerInfoResponse.image_widths`) is sent resized
+   * to it. Off, every image is sent as stored, and the browser scales it. On by default.
+   *
+   * @generated from field: bool resize_images = 1;
+   */
+  resizeImages: boolean;
+
+  /**
+   * The most disk, in MiB, the resized copies the Server keeps take, at least 1. Once a new copy
+   * takes them past it, those least recently sent are deleted until they fit. Unset for the
+   * default, 1024.
+   *
+   * @generated from field: optional uint32 resized_cache_mib = 2;
+   */
+  resizedCacheMib?: number | undefined;
+};
+
+/**
+ * Describes the message nama.v1.ImageSettings.
+ * Use `create(ImageSettingsSchema)` to create a new message.
+ */
+export const ImageSettingsSchema: GenMessage<ImageSettings> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 21);
+
+/**
  * What tone-maps HDR to SDR in a Transcode.
  *
  * @generated from enum nama.v1.ToneMapping
@@ -660,6 +768,28 @@ export const ServerService: GenService<{
     methodKind: "unary";
     input: typeof UpdatePlaybackSettingsRequestSchema;
     output: typeof UpdatePlaybackSettingsResponseSchema;
+  },
+  /**
+   * Returns how the Server resizes Posters and Backdrops. Needs `PERMISSION_MANAGE_SETTINGS`.
+   *
+   * @generated from rpc nama.v1.ServerService.GetImageSettings
+   */
+  getImageSettings: {
+    methodKind: "unary";
+    input: typeof GetImageSettingsRequestSchema;
+    output: typeof GetImageSettingsResponseSchema;
+  },
+  /**
+   * Replaces how the Server resizes Posters and Backdrops, from the next image asked for. Needs
+   * `PERMISSION_MANAGE_SETTINGS`. A `resized_cache_mib` set to 0 is refused with
+   * `REFUSAL_REASON_FIELD_REQUIRED` naming it, and nothing changes.
+   *
+   * @generated from rpc nama.v1.ServerService.UpdateImageSettings
+   */
+  updateImageSettings: {
+    methodKind: "unary";
+    input: typeof UpdateImageSettingsRequestSchema;
+    output: typeof UpdateImageSettingsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_server, 0);

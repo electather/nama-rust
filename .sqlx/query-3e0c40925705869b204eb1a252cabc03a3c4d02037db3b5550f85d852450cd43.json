@@ -1,16 +1,16 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT path FROM library_folders WHERE library_id = ? ORDER BY position",
+  "query": "DELETE FROM custom_images WHERE slot = ? RETURNING version",
   "describe": {
     "columns": [
       {
-        "name": "path",
+        "name": "version",
         "ordinal": 0,
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "library_folders",
-            "name": "path"
+            "table": "custom_images",
+            "name": "version"
           }
         }
       }
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "614599db690ce19c2a004502c251d9192d25cbe52bb236d8c0c82f7726510345"
+  "hash": "3e0c40925705869b204eb1a252cabc03a3c4d02037db3b5550f85d852450cd43"
 }

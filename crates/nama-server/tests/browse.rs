@@ -47,6 +47,12 @@ const HOME_MOVIES: &str = "Home Movies (2019)/Home Movies (2019).mkv";
 const DARK_S01E01_E02: &str = "Dark (2017)/Season 01/Dark - S01E01-E02.mkv";
 const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
 const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
+/// A special of Dark, Season 0, with a Poster of its own, and an Episode of Season 1. The
+/// special's title is the shorter, so a search for "dark" ranks it first.
+const DARK_S00E01: &str = "Dark (2017)/Specials/Dark - S00E01.mkv";
+const DARK_S01E03: &str = "Dark (2017)/Season 01/Dark - S01E03.mkv";
+const DARK_SPECIALS_POSTER: &str = "/media/artwork/tmdb/%2FhzSbK1qcDnvyH2EaqqrOLzNwW5w.jpg";
+const DARK_SEASON_1_POSTER: &str = "/media/artwork/tmdb/%2F5LoHuHWA4H8jElFlZDvsmU2n63b.jpg";
 /// The TMDB ids of Dark's Episodes S01E01, S01E02 and S02E01.
 const SECRETS: i64 = 1_388_538;
 const LIES: i64 = 1_388_539;
@@ -84,6 +90,16 @@ impl Fixture {
         fx.write(DARK_S01E01, b"one episode");
         fx.write(DARK_S02E01, b"video");
         fx.write(THE_OFFICE, b"video");
+        fx.items = fx.scan_and_match().await;
+        fx
+    }
+
+    /// Starts a Server with a Shows Library holding a special and an Episode of Dark's Season 1,
+    /// scanned and Matched.
+    async fn dark_with_specials() -> Self {
+        let mut fx = Self::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
+        fx.write(DARK_S00E01, b"special");
+        fx.write(DARK_S01E03, b"episode");
         fx.items = fx.scan_and_match().await;
         fx
     }
@@ -494,11 +510,12 @@ async fn get_movie_for_an_id_nothing_matches_is_not_found() {
 
     let got = fx.get_movie(fx.library, 949).await;
 
-    assert_refused(
+    let refusal = assert_refused(
         got,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
     );
+    assert_eq!(refusal.field, "movie_id");
 }
 
 #[tokio::test]
@@ -523,11 +540,8 @@ async fn episodes_of_one_show_in_several_folders_are_one_show_with_its_seasons()
     assert_eq!(listed, slice::from_ref(&show));
     assert_eq!(show.id.as_option(), Some(&tmdb_id(DARK)));
     assert_eq!(show.title, "Dark");
-    // Season 1's poster: a Match stores no poster of the Show's own.
-    assert_eq!(
-        show.poster_url.as_deref(),
-        Some("/media/artwork/tmdb/%2F5LoHuHWA4H8jElFlZDvsmU2n63b.jpg")
-    );
+    // Season 1's poster, its first Season's: a Match stores no poster of the Show's own.
+    assert_eq!(show.poster_url.as_deref(), Some(DARK_SEASON_1_POSTER));
     assert_eq!(
         show.backdrop_url.as_deref(),
         Some("/media/artwork/tmdb/%2F3lBDg3i6nn5R2NKFCJ6oKyUo2j5.jpg")
@@ -539,6 +553,39 @@ async fn episodes_of_one_show_in_several_folders_are_one_show_with_its_seasons()
             season(2, "/media/artwork/tmdb/%2FkaReZbBdlEAJzfUbuPBRQLrSh9z.jpg"),
         ]
     );
+}
+
+#[tokio::test]
+async fn a_show_with_specials_is_shown_by_its_first_seasons_poster() {
+    let fx = Fixture::dark_with_specials().await;
+
+    let listed = fx.list_shows(fx.library).await.unwrap();
+    let got = fx.get_show(fx.library, DARK).await.unwrap();
+
+    let show = got.show.into_option().unwrap();
+    assert_eq!(listed, slice::from_ref(&show));
+    assert_eq!(show.poster_url.as_deref(), Some(DARK_SEASON_1_POSTER));
+    assert_eq!(
+        got.seasons,
+        [
+            season(0, DARK_SPECIALS_POSTER),
+            season(1, DARK_SEASON_1_POSTER)
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_search_shows_a_show_by_the_poster_its_library_shows() {
+    let fx = Fixture::dark_with_specials().await;
+
+    let found = fx.search("dark").await.shows;
+
+    let listed = fx.list_shows(fx.library).await.unwrap();
+    let posters: Vec<_> = (found.iter())
+        .map(|show| show.poster_url.as_deref())
+        .collect();
+    assert_eq!(posters, [listed[0].poster_url.as_deref()]);
+    assert_eq!(posters, [Some(DARK_SEASON_1_POSTER)]);
 }
 
 #[tokio::test]
@@ -635,21 +682,24 @@ async fn an_unknown_show_or_season_is_not_found() {
     let episodes = fx.list_episodes(fx.library, THE_OFFICE_US, 1).await;
     let season = fx.list_episodes(fx.library, DARK, 3).await;
 
-    assert_refused(
+    let show = assert_refused(
         show,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
     );
-    assert_refused(
+    let episodes = assert_refused(
         episodes,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
     );
-    assert_refused(
+    let season = assert_refused(
         season,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
     );
+    assert_eq!(show.field, "show_id");
+    assert_eq!(episodes.field, "show_id");
+    assert_eq!(season.field, "season_number");
 }
 
 #[tokio::test]
@@ -743,19 +793,21 @@ async fn a_poster_the_browser_has_is_not_modified() {
 /// Images downloaded before an upgrade are already stored, so none is downloaded again.
 #[tokio::test]
 async fn a_poster_already_under_artwork_is_served_without_the_provider() {
-    let fx = Fixture::alien().await;
-    let poster = fx
-        .get_movie(fx.library, ALIEN)
-        .await
-        .unwrap()
-        .poster_url
-        .unwrap();
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     let kept = fx
         .server
         .data_dir()
         .join("artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg");
     fs::create_dir_all(kept.parent().unwrap()).unwrap();
     fs::write(&kept, b"\xff\xd8kept").unwrap();
+    fx.write(ALIEN_1080P, b"video");
+    fx.scan_and_match().await;
+    let poster = fx
+        .get_movie(fx.library, ALIEN)
+        .await
+        .unwrap()
+        .poster_url
+        .unwrap();
 
     let reply = fetch(&fx.server, &poster, Some(&fx.server.admin_token)).await;
 
@@ -763,7 +815,9 @@ async fn a_poster_already_under_artwork_is_served_without_the_provider() {
     assert_eq!(reply.body, b"\xff\xd8kept");
     let images = fx.server.tmdb().requests();
     assert!(
-        !images.iter().any(|request| request.starts_with("/t/p/")),
+        !images
+            .iter()
+            .any(|request| request.ends_with("/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg")),
         "{images:?}"
     );
 }
@@ -787,7 +841,9 @@ async fn any_other_artwork_path_is_not_found() {
     }
     let images = fx.server.tmdb().requests();
     assert!(
-        !images.iter().any(|request| request.starts_with("/t/p/")),
+        !images
+            .iter()
+            .any(|request| request.ends_with("/not-stored.jpg")),
         "{images:?}"
     );
 }
@@ -801,23 +857,6 @@ async fn artwork_without_a_session_is_refused() {
     let reply = fetch(&fx.server, &movie.poster_url.unwrap(), None).await;
 
     assert_eq!(reply.status, 401);
-}
-
-/// A client should try again later, rather than take the image to be gone.
-#[tokio::test]
-async fn artwork_from_a_provider_that_fails_is_unavailable() {
-    let mut fx = Fixture::alien().await;
-    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    fx.server.stop_tmdb();
-
-    let reply = fetch(
-        &fx.server,
-        &movie.poster_url.unwrap(),
-        Some(&fx.server.admin_token),
-    )
-    .await;
-
-    assert_eq!(reply.status, 503);
 }
 
 /// A Season as `GetShow` gives it.
@@ -1375,39 +1414,52 @@ async fn marking_an_unknown_target_is_not_found() {
     let (in_shows, in_movies) = (shows.admin(), movies.admin());
     let unknown_id = 1;
 
-    for (reason, marked) in [
+    for (reason, field, marked) in [
         (
             RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+            "library_id",
             in_shows
                 .set_played(shows.library + 100, show(DARK), true)
                 .await,
         ),
         (
             RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "show_id",
             in_shows
                 .set_played(shows.library, show(unknown_id), true)
                 .await,
         ),
         (
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "season.show_id",
+            in_shows
+                .set_played(shows.library, season_of(unknown_id, 1), true)
+                .await,
+        ),
+        (
             RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
+            "season.season_number",
             in_shows
                 .set_played(shows.library, season_of(DARK, 9), true)
                 .await,
         ),
         (
             RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "episode_id",
             in_shows
                 .set_played(shows.library, episode(unknown_id), true)
                 .await,
         ),
         (
             RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "movie_id",
             in_movies
                 .set_played(movies.library, movie(unknown_id), true)
                 .await,
         ),
     ] {
-        assert_refused(marked, ErrorCode::NotFound, reason);
+        let refusal = assert_refused(marked, ErrorCode::NotFound, reason);
+        assert_eq!(refusal.field, field);
     }
 }
 

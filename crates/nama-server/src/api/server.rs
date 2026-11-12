@@ -7,18 +7,23 @@ use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult,
 };
 use nama_proto::nama::v1::{
-    self as proto, FoundHardware, FoundProgram, GetPlaybackSettingsRequest,
-    GetPlaybackSettingsResponse, GetPlaybackStatusRequest, GetPlaybackStatusResponse,
-    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest,
-    GetServerSettingsResponse, HardwareAcceleration as HardwareAccelerationProto, RefusalReason,
-    ServerService, ServerSettings, ToneMapping, UpdatePlaybackSettingsRequest,
-    UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest, UpdateServerSettingsResponse,
+    self as proto, FoundHardware, FoundProgram, GetImageSettingsRequest, GetImageSettingsResponse,
+    GetPlaybackSettingsRequest, GetPlaybackSettingsResponse, GetPlaybackStatusRequest,
+    GetPlaybackStatusResponse, GetServerInfoRequest, GetServerInfoResponse,
+    GetServerSettingsRequest, GetServerSettingsResponse,
+    HardwareAcceleration as HardwareAccelerationProto, RefusalReason, ServerService,
+    ServerSettings, ToneMapping, UpdateImageSettingsRequest, UpdateImageSettingsResponse,
+    UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest,
+    UpdateServerSettingsResponse,
 };
 
 use crate::{
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
+    images,
     playback::{accel_to_proto, limit_to_proto},
-    server_settings::{self, HardwareChoice, Invalid, PickedGpu, PlaybackChange, PlaybackValues},
+    server_settings::{
+        self, HardwareChoice, ImageValues, Invalid, PickedGpu, PlaybackChange, PlaybackValues,
+    },
     users::Users,
 };
 
@@ -49,6 +54,7 @@ impl ServerService for ServerServiceHandler {
             name: self.name.clone(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_required,
+            image_widths: images::WIDTHS.to_vec(),
             ..Default::default()
         })
     }
@@ -161,6 +167,35 @@ impl ServerService for ServerServiceHandler {
             ..Default::default()
         })
     }
+
+    fn get_image_settings<'a>(
+        &'a self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetImageSettingsRequest>,
+    ) -> impl Future<
+        Output = ServiceResult<impl Encodable<GetImageSettingsResponse> + Send + use<'a>>,
+    > + Send {
+        future::ready(Response::ok(GetImageSettingsResponse {
+            settings: image_settings_to_proto(self.settings.now().images).into(),
+            ..Default::default()
+        }))
+    }
+
+    async fn update_image_settings(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, UpdateImageSettingsRequest>,
+    ) -> ServiceResult<UpdateImageSettingsResponse> {
+        let settings = &request.settings;
+        let stored = (self.settings)
+            .change_images(settings.resize_images, settings.resized_cache_mib)
+            .await
+            .map_err(settings_change_failed)?;
+        Response::ok(UpdateImageSettingsResponse {
+            settings: image_settings_to_proto(stored).into(),
+            ..Default::default()
+        })
+    }
 }
 
 /// The Server settings as the API has them.
@@ -186,6 +221,15 @@ fn playback_settings_to_proto(settings: PlaybackValues) -> proto::PlaybackSettin
     }
 }
 
+/// The image settings as the API has them.
+fn image_settings_to_proto(settings: ImageValues) -> proto::ImageSettings {
+    proto::ImageSettings {
+        resize_images: settings.resize,
+        resized_cache_mib: settings.resized_cache_mib.map(NonZeroU32::get),
+        ..Default::default()
+    }
+}
+
 /// The refusal naming the field whose value broke a rule, or a generic error if storing failed.
 fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
     use server_settings::ChangeError::{Database, Invalid as Refused};
@@ -207,13 +251,20 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             "the most Transcodes at once must be at least 1",
         )
-        .field("settings.max_transcodes"),
+        .field("settings.max_transcodes")
+        .param("minTranscodes", &1),
         Refused(Invalid::NothingKeptBehind) => refuse(
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             "the time kept for skipping back must be at least 1 minute",
         )
         .field("settings.keep_behind_minutes")
         .param("minMinutes", &1),
+        Refused(Invalid::NoResizedCache) => refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            "the resized copies must be allowed at least 1 MiB",
+        )
+        .field("settings.resized_cache_mib")
+        .param("minMib", &1),
         Refused(Invalid::GpuNotOffered { id }) => refuse(
             RefusalReason::REFUSAL_REASON_GPU_NOT_OFFERED,
             "the GPU must be one the hardware acceleration passed its test on when the Server \

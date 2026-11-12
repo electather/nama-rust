@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/plugin/v1/fulfiller.proto.
  */
 export const file_nama_plugin_v1_fulfiller: GenFile = /*@__PURE__*/
-  fileDesc("Ch5uYW1hL3BsdWdpbi92MS9mdWxmaWxsZXIucHJvdG8SDm5hbWEucGx1Z2luLnYxIkgKCUZ1bGZpbGxlZBIRCglyZWZlcmVuY2UYASABKAkSEgoKcHJvZmlsZV9pZBgCIAEoCRIUCgxwcm9maWxlX25hbWUYAyABKAkiIwoNUHJvZ3Jlc3NBc2tlZBISCgpyZWZlcmVuY2VzGAEgAygJIpMBCghQcm9ncmVzcxI6Cglkb3dubG9hZHMYASADKAsyJy5uYW1hLnBsdWdpbi52MS5Qcm9ncmVzcy5Eb3dubG9hZHNFbnRyeRpLCg5Eb3dubG9hZHNFbnRyeRILCgNrZXkYASABKAkSKAoFdmFsdWUYAiABKAsyGS5uYW1hLnBsdWdpbi52MS5Eb3dubG9hZHM6AjgBIjEKCURvd25sb2FkcxIkCglkb3dubG9hZHMYASADKAsyES5uYW1hLnYxLkRvd25sb2FkYgZwcm90bzM", [file_nama_v1_request]);
+  fileDesc("Ch5uYW1hL3BsdWdpbi92MS9mdWxmaWxsZXIucHJvdG8SDm5hbWEucGx1Z2luLnYxIkgKCUZ1bGZpbGxlZBIRCglyZWZlcmVuY2UYASABKAkSEgoKcHJvZmlsZV9pZBgCIAEoCRIUCgxwcm9maWxlX25hbWUYAyABKAkiIwoNUHJvZ3Jlc3NBc2tlZBISCgpyZWZlcmVuY2VzGAEgAygJIpMBCghQcm9ncmVzcxI6Cglkb3dubG9hZHMYASADKAsyJy5uYW1hLnBsdWdpbi52MS5Qcm9ncmVzcy5Eb3dubG9hZHNFbnRyeRpLCg5Eb3dubG9hZHNFbnRyeRILCgNrZXkYASABKAkSKAoFdmFsdWUYAiABKAsyGS5uYW1hLnBsdWdpbi52MS5Eb3dubG9hZHM6AjgBIjEKCURvd25sb2FkcxIkCglkb3dubG9hZHMYASADKAsyES5uYW1hLnYxLkRvd25sb2FkIl8KDlN0b3BNb25pdG9yaW5nEhcKDW1vdmllX3RtZGJfaWQYASABKANIABIrCgRzaG93GAIgASgLMhsubmFtYS5wbHVnaW4udjEuU2hvd0RlbGV0ZWRIAEIHCgV0aXRsZSLdAQoLU2hvd0RlbGV0ZWQSGQoMc2hvd190bWRiX2lkGAEgASgDSAGIAQESGQoMc2hvd190dmRiX2lkGAIgASgDSAKIAQESHgoUZXZlcnlfY3VycmVudF9zZWFzb24YAyABKAhIABIXCg1zZWFzb25fbnVtYmVyGAQgASgNSAASMgoIZXBpc29kZXMYBSABKAsyHi5uYW1hLnBsdWdpbi52MS5FcGlzb2RlTnVtYmVyc0gAQgkKB2RlbGV0ZWRCDwoNX3Nob3dfdG1kYl9pZEIPCg1fc2hvd190dmRiX2lkIkEKDkVwaXNvZGVOdW1iZXJzEi8KCGVwaXNvZGVzGAEgAygLMh0ubmFtYS5wbHVnaW4udjEuRXBpc29kZU51bWJlciI+Cg1FcGlzb2RlTnVtYmVyEhUKDXNlYXNvbl9udW1iZXIYASABKA0SFgoOZXBpc29kZV9udW1iZXIYAiABKA1iBnByb3RvMw", [file_nama_v1_request]);
 
 /**
  * What an Installed Plugin's `fulfill` export returns once its Fulfiller took the Request it was
@@ -111,4 +111,143 @@ export type Downloads = Message<"nama.plugin.v1.Downloads"> & {
  */
 export const DownloadsSchema: GenMessage<Downloads> = /*@__PURE__*/
   messageDesc(file_nama_plugin_v1_fulfiller, 3);
+
+/**
+ * What a delete asks a Fulfiller to stop monitoring, so its service doesn't download it again.
+ * The service keeps the title, and one it doesn't have means nothing to do. An Installed Plugin's
+ * `stop_monitoring` export takes it and returns nothing.
+ *
+ * @generated from message nama.plugin.v1.StopMonitoring
+ */
+export type StopMonitoring = Message<"nama.plugin.v1.StopMonitoring"> & {
+  /**
+   * @generated from oneof nama.plugin.v1.StopMonitoring.title
+   */
+  title: {
+    /**
+     * A Movie, by its TMDB id.
+     *
+     * @generated from field: int64 movie_tmdb_id = 1;
+     */
+    value: bigint;
+    case: "movieTmdbId";
+  } | {
+    /**
+     * Some or all of a Show.
+     *
+     * @generated from field: nama.plugin.v1.ShowDeleted show = 2;
+     */
+    value: ShowDeleted;
+    case: "show";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message nama.plugin.v1.StopMonitoring.
+ * Use `create(StopMonitoringSchema)` to create a new message.
+ */
+export const StopMonitoringSchema: GenMessage<StopMonitoring> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_fulfiller, 4);
+
+/**
+ * What a delete takes of a Show, which keeps its new Seasons coming.
+ *
+ * @generated from message nama.plugin.v1.ShowDeleted
+ */
+export type ShowDeleted = Message<"nama.plugin.v1.ShowDeleted"> & {
+  /**
+   * The Show's TMDB id, if the metadata source has one.
+   *
+   * @generated from field: optional int64 show_tmdb_id = 1;
+   */
+  showTmdbId?: bigint | undefined;
+
+  /**
+   * The Show's TVDB id, if the metadata source has one.
+   *
+   * @generated from field: optional int64 show_tvdb_id = 2;
+   */
+  showTvdbId?: bigint | undefined;
+
+  /**
+   * @generated from oneof nama.plugin.v1.ShowDeleted.deleted
+   */
+  deleted: {
+    /**
+     * Every Season the service has of the Show now, and their Episodes. Always true when set.
+     *
+     * @generated from field: bool every_current_season = 3;
+     */
+    value: boolean;
+    case: "everyCurrentSeason";
+  } | {
+    /**
+     * One Season, by its number, and its Episodes.
+     *
+     * @generated from field: uint32 season_number = 4;
+     */
+    value: number;
+    case: "seasonNumber";
+  } | {
+    /**
+     * Some Episodes.
+     *
+     * @generated from field: nama.plugin.v1.EpisodeNumbers episodes = 5;
+     */
+    value: EpisodeNumbers;
+    case: "episodes";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message nama.plugin.v1.ShowDeleted.
+ * Use `create(ShowDeletedSchema)` to create a new message.
+ */
+export const ShowDeletedSchema: GenMessage<ShowDeleted> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_fulfiller, 5);
+
+/**
+ * Episodes of one Show, by their numbers.
+ *
+ * @generated from message nama.plugin.v1.EpisodeNumbers
+ */
+export type EpisodeNumbers = Message<"nama.plugin.v1.EpisodeNumbers"> & {
+  /**
+   * @generated from field: repeated nama.plugin.v1.EpisodeNumber episodes = 1;
+   */
+  episodes: EpisodeNumber[];
+};
+
+/**
+ * Describes the message nama.plugin.v1.EpisodeNumbers.
+ * Use `create(EpisodeNumbersSchema)` to create a new message.
+ */
+export const EpisodeNumbersSchema: GenMessage<EpisodeNumbers> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_fulfiller, 6);
+
+/**
+ * An Episode of a Show, by its numbers.
+ *
+ * @generated from message nama.plugin.v1.EpisodeNumber
+ */
+export type EpisodeNumber = Message<"nama.plugin.v1.EpisodeNumber"> & {
+  /**
+   * Its Season's number. Season 0 holds specials.
+   *
+   * @generated from field: uint32 season_number = 1;
+   */
+  seasonNumber: number;
+
+  /**
+   * @generated from field: uint32 episode_number = 2;
+   */
+  episodeNumber: number;
+};
+
+/**
+ * Describes the message nama.plugin.v1.EpisodeNumber.
+ * Use `create(EpisodeNumberSchema)` to create a new message.
+ */
+export const EpisodeNumberSchema: GenMessage<EpisodeNumber> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_fulfiller, 7);
 

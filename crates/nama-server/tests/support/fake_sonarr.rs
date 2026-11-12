@@ -3,10 +3,6 @@
 //! It keeps the Shows added to it, and changes their Seasons' monitoring as Sonarr does,
 //! refresh after an add included.
 
-#[expect(dead_code, reason = "Sonarr's tests remove no quality profile")]
-#[path = "fake_servarr.rs"]
-mod fake_servarr;
-
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
@@ -17,6 +13,7 @@ use std::{
     time::Duration,
 };
 
+use crate::fake_servarr::{FakeServarr, Servarr, json, lock};
 use axum::{
     Router,
     body::Bytes,
@@ -24,10 +21,9 @@ use axum::{
     http::{Method, StatusCode, Uri},
     response::{IntoResponse, Response},
 };
-use fake_servarr::{FakeServarr, Servarr, json, lock};
 use serde_json::{Value, json};
 
-use crate::server::tmdb::DARK_TVDB;
+use crate::server::{TestServer, tmdb::DARK_TVDB};
 
 /// The API key the fake Sonarr accepts.
 pub(crate) const API_KEY: &str = "test-sonarr-key";
@@ -64,6 +60,8 @@ struct Fake {
     searches: Mutex<Vec<(i64, u64)>>,
     /// The ids of the Episodes monitored one by one, in order.
     monitored_episodes: Mutex<Vec<i64>>,
+    /// The ids of the Episodes unmonitored one by one, in order.
+    unmonitored_episodes: Mutex<Vec<i64>>,
 }
 
 impl FakeSonarr {
@@ -126,6 +124,17 @@ impl FakeSonarr {
     /// The ids of the Episodes monitored one by one so far, in order.
     pub(crate) fn monitored_episodes(&self) -> Vec<i64> {
         lock(&self.state.monitored_episodes).clone()
+    }
+
+    /// The ids of the Episodes unmonitored one by one so far, in order.
+    pub(crate) fn unmonitored_episodes(&self) -> Vec<i64> {
+        lock(&self.state.unmonitored_episodes).clone()
+    }
+
+    /// Has `server`'s Admin set the Sonarr Plugin up against this fake, with the quality profile
+    /// HD-1080p and the root folder `/tv`, and enable it.
+    pub(crate) async fn enable_on(&self, server: &TestServer) {
+        self.servarr.enable_as(server, "sonarr", "4", "/tv").await;
     }
 }
 
@@ -279,8 +288,8 @@ fn monitor_seasons(fake: &Fake, pass: &Value) -> Response {
     json(StatusCode::ACCEPTED, &json!({}))
 }
 
-/// Dark's Episodes in the Season `season_number` once the refresh after adding the Show
-/// `show_id` finished, and none before.
+/// Dark's Episodes in the Season `season_number`, or in every Season without one, once the refresh
+/// after adding the Show `show_id` finished, and none before.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -296,21 +305,27 @@ fn episodes(fake: &Fake, show_id: &str, season_number: &str) -> Response {
     };
     let season: Vec<_> = all
         .into_iter()
-        .filter(|episode| episode["seasonNumber"].as_u64() == season_number.parse().ok())
+        .filter(|episode| {
+            season_number.is_empty()
+                || episode["seasonNumber"].as_u64() == season_number.parse().ok()
+        })
         .collect();
     json(StatusCode::OK, &Value::Array(season))
 }
 
 fn monitor_episodes(fake: &Fake, monitor: &Value) -> Response {
-    if monitor["monitored"] == true {
-        lock(&fake.monitored_episodes).extend(
-            monitor["episodeIds"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_i64),
-        );
-    }
+    let changed = if monitor["monitored"] == true {
+        &fake.monitored_episodes
+    } else {
+        &fake.unmonitored_episodes
+    };
+    lock(changed).extend(
+        monitor["episodeIds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_i64),
+    );
     json(StatusCode::ACCEPTED, &json!([]))
 }
 

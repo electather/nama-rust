@@ -5609,12 +5609,18 @@ pub struct PluginSummaryView<'a> {
         'a,
         ::buffa::EnumValue<super::super::ExtensionPoint>,
     >,
-    /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
-    /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
-    /// page, where its scripts would run.
+    /// Its logo's URL on this Server, or empty if it has none: its Custom Image if it has one, else
+    /// its Manifest's. An SVG may be one an Installed Plugin's author wrote, so show it only as an
+    /// image, never inline in a page.
     ///
-    /// Field 10: `logo_svg`
-    pub logo_svg: &'a str,
+    /// Field 11: `logo_url`
+    pub logo_url: &'a str,
+    /// Whether `logo_url` is a Custom Image, which `DELETE /custom-images/plugin/<id>/logo` removes.
+    /// `PUT` there uploads one, a JPEG, PNG or WebP, or an SVG of at most 64 KiB, for a User with
+    /// `PERMISSION_MANAGE_SETTINGS`.
+    ///
+    /// Field 12: `custom_logo`
+    pub custom_logo: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
@@ -5705,12 +5711,19 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
                 )?;
                 view.description = ::buffa::types::borrow_str(&mut cur)?;
             }
-            10u32 => {
+            11u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                view.logo_svg = ::buffa::types::borrow_str(&mut cur)?;
+                view.logo_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.custom_logo = ::buffa::types::decode_bool(&mut cur)?;
             }
             9u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
@@ -5773,7 +5786,8 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
             name: self.name.to_string(),
             description: self.description.to_string(),
             extension_points: self.extension_points.to_vec(),
-            logo_svg: self.logo_svg.to_string(),
+            logo_url: self.logo_url.to_string(),
+            custom_logo: self.custom_logo,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5822,8 +5836,11 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
-        if !self.logo_svg.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
+        if !self.logo_url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_url) as u64;
+        }
+        if self.custom_logo {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -5874,8 +5891,11 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
-        if !self.logo_svg.is_empty() {
-            ::buffa::types::put_string_field(10u32, &self.logo_svg, buf);
+        if !self.logo_url.is_empty() {
+            ::buffa::types::put_string_field(11u32, &self.logo_url, buf);
+        }
+        if self.custom_logo {
+            ::buffa::types::put_bool_field(12u32, self.custom_logo, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5929,8 +5949,11 @@ impl<'__a> ::serde::Serialize for PluginSummaryView<'__a> {
                     &::buffa::json_helpers::EnumSeqJson(&self.extension_points),
                 )?;
         }
-        if !::buffa::json_helpers::skip_if::is_empty_str(self.logo_svg) {
-            __map.serialize_entry("logoSvg", self.logo_svg)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.logo_url) {
+            __map.serialize_entry("logoUrl", self.logo_url)?;
+        }
+        if self.custom_logo {
+            __map.serialize_entry("customLogo", &self.custom_logo)?;
         }
         __map.end()
     }
@@ -6090,14 +6113,23 @@ impl PluginSummaryOwnedView {
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::ExtensionPoint>> {
         &self.0.reborrow().extension_points
     }
-    /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
-    /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
-    /// page, where its scripts would run.
+    /// Its logo's URL on this Server, or empty if it has none: its Custom Image if it has one, else
+    /// its Manifest's. An SVG may be one an Installed Plugin's author wrote, so show it only as an
+    /// image, never inline in a page.
     ///
-    /// Field 10: `logo_svg`
+    /// Field 11: `logo_url`
     #[must_use]
-    pub fn logo_svg(&self) -> &'_ str {
-        self.0.reborrow().logo_svg
+    pub fn logo_url(&self) -> &'_ str {
+        self.0.reborrow().logo_url
+    }
+    /// Whether `logo_url` is a Custom Image, which `DELETE /custom-images/plugin/<id>/logo` removes.
+    /// `PUT` there uploads one, a JPEG, PNG or WebP, or an SVG of at most 64 KiB, for a User with
+    /// `PERMISSION_MANAGE_SETTINGS`.
+    ///
+    /// Field 12: `custom_logo`
+    #[must_use]
+    pub fn custom_logo(&self) -> bool {
+        self.0.reborrow().custom_logo
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginSummaryView<'static>>>

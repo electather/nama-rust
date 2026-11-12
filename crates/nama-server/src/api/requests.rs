@@ -26,11 +26,14 @@ use nama_proto::nama::v1::{
 use crate::{
     artwork::Artwork,
     contents::Metadata,
+    custom_images::{Role, Slot},
     qualities,
     requests::{self, Asked, Found, FoundShow, Hit, Requests},
 };
 
-use super::{Refused, caller, database_failed, refuse, title_kind_from_proto};
+use super::{
+    ImageSources, Refused, ShownImages, caller, database_failed, refuse, title_kind_from_proto,
+};
 
 /// `nama.v1.RequestService`: Users asking for Movies and Seasons of Shows. Asking needs
 /// `PERMISSION_REQUEST_MOVIE` or `PERMISSION_REQUEST_TV`, which
@@ -40,6 +43,8 @@ pub(super) struct RequestServiceHandler {
     pub(super) requests: Requests,
     /// Serves the images of the Movies found, which no Match stores.
     pub(super) artwork: Artwork,
+    /// Shown in place of the images found, for titles an admin gave one, with their thumbhashes.
+    pub(super) images: ImageSources,
 }
 
 #[expect(
@@ -149,10 +154,11 @@ impl RequestService for RequestServiceHandler {
         let viewer = &caller(&ctx)?.user;
         let title = searched_title(request.to_owned_message().title)?;
         let found = self.requests.search(viewer, title).await?;
+        let images = self.images.shown().await?;
         Response::ok(SearchMoviesResponse {
             movies: found
                 .into_iter()
-                .map(|found| self.searched_to_proto(found))
+                .map(|found| self.searched_to_proto(found, &images))
                 .collect(),
             ..Default::default()
         })
@@ -227,8 +233,9 @@ impl RequestService for RequestServiceHandler {
     ) -> ServiceResult<LookUpMovieResponse> {
         let viewer = &caller(&ctx)?.user;
         let found = self.requests.look_up(viewer, request.movie_tmdb_id).await?;
+        let images = self.images.shown().await?;
         Response::ok(LookUpMovieResponse {
-            movie: self.looked_up_to_proto(found).into(),
+            movie: self.looked_up_to_proto(found, &images).into(),
             ..Default::default()
         })
     }
@@ -240,10 +247,11 @@ impl RequestService for RequestServiceHandler {
     ) -> ServiceResult<SearchShowsResponse> {
         let title = searched_title(request.to_owned_message().title)?;
         let found = self.requests.search_shows(title).await?;
+        let images = self.images.shown().await?;
         Response::ok(SearchShowsResponse {
             shows: found
                 .into_iter()
-                .map(|found| self.searched_show_to_proto(found))
+                .map(|found| self.searched_show_to_proto(found, &images))
                 .collect(),
             ..Default::default()
         })
@@ -259,8 +267,9 @@ impl RequestService for RequestServiceHandler {
             .requests
             .look_up_show(viewer, request.show_tmdb_id)
             .await?;
+        let images = self.images.shown().await?;
         Response::ok(LookUpShowResponse {
-            show: self.looked_up_show_to_proto(found).into(),
+            show: self.looked_up_show_to_proto(found, &images).into(),
             ..Default::default()
         })
     }
@@ -412,8 +421,23 @@ impl RequestService for RequestServiceHandler {
 }
 
 impl RequestServiceHandler {
+    /// The URL and thumbhash of the image a title shows in `slot`: its Custom Image in `images`, or
+    /// else the one at `path` from `plugin`'s Provider, offered to clients.
+    fn image(
+        &self,
+        images: &ShownImages,
+        slot: &Slot,
+        plugin: &PluginId,
+        path: Option<String>,
+    ) -> (Option<String>, Option<Vec<u8>>) {
+        let url =
+            (images.custom.of(slot)).or_else(|| path.map(|path| self.artwork.offer(plugin, &path)));
+        let thumbhash = images.thumbhash(url.as_deref());
+        (url, thumbhash)
+    }
+
     /// A Movie a search found, as clients see it, with its poster offered to them.
-    fn searched_to_proto(&self, found: Found<Candidate>) -> proto::MovieHit {
+    fn searched_to_proto(&self, found: Found<Candidate>, images: &ShownImages) -> proto::MovieHit {
         let Found {
             tmdb_id,
             plugin,
@@ -421,11 +445,18 @@ impl RequestServiceHandler {
             library,
             request,
         } = found;
+        let (poster_url, poster_thumbhash) = self.image(
+            images,
+            &movie_slot(tmdb_id, Role::Poster),
+            &plugin,
+            movie.poster,
+        );
         proto::MovieHit {
             tmdb_id,
             title: movie.title,
             year: movie.year,
-            poster_url: movie.poster.map(|path| self.artwork.offer(&plugin, &path)),
+            poster_url,
+            poster_thumbhash,
             library_id: library,
             request: request.into(),
             ..Default::default()
@@ -433,7 +464,11 @@ impl RequestServiceHandler {
     }
 
     /// A Movie looked up, as clients see it, with its images offered to them.
-    fn looked_up_to_proto(&self, found: Found<Metadata>) -> proto::FoundMovie {
+    fn looked_up_to_proto(
+        &self,
+        found: Found<Metadata>,
+        images: &ShownImages,
+    ) -> proto::FoundMovie {
         let Found {
             tmdb_id,
             plugin,
@@ -441,15 +476,19 @@ impl RequestServiceHandler {
             library,
             request,
         } = found;
-        let offer = |path: String| self.artwork.offer(&plugin, &path);
+        let image = |role, path| self.image(images, &movie_slot(tmdb_id, role), &plugin, path);
+        let (poster_url, poster_thumbhash) = image(Role::Poster, movie.poster);
+        let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, movie.backdrop);
         proto::FoundMovie {
             tmdb_id,
             title: movie.title,
             year: movie.release_date.as_deref().and_then(year_of),
             overview: movie.overview,
             runtime_minutes: movie.runtime_minutes,
-            poster_url: movie.poster.map(offer),
-            backdrop_url: movie.backdrop.map(offer),
+            poster_url,
+            poster_thumbhash,
+            backdrop_url,
+            backdrop_thumbhash,
             library_id: library,
             request: request.into(),
             ..Default::default()
@@ -457,23 +496,30 @@ impl RequestServiceHandler {
     }
 
     /// A Show a search found, as clients see it, with its poster offered to them.
-    fn searched_show_to_proto(&self, hit: Hit) -> proto::ShowHit {
+    fn searched_show_to_proto(&self, hit: Hit, images: &ShownImages) -> proto::ShowHit {
         let Hit {
             tmdb_id,
             plugin,
             candidate: show,
         } = hit;
+        let (poster_url, poster_thumbhash) = self.image(
+            images,
+            &show_slot(tmdb_id, Role::Poster),
+            &plugin,
+            show.poster,
+        );
         proto::ShowHit {
             tmdb_id,
             title: show.title,
             year: show.year,
-            poster_url: show.poster.map(|path| self.artwork.offer(&plugin, &path)),
+            poster_url,
+            poster_thumbhash,
             ..Default::default()
         }
     }
 
     /// A Show looked up, as clients see it, with its images offered to them.
-    fn looked_up_show_to_proto(&self, found: FoundShow) -> proto::FoundShow {
+    fn looked_up_show_to_proto(&self, found: FoundShow, images: &ShownImages) -> proto::FoundShow {
         let FoundShow {
             tmdb_id,
             plugin,
@@ -482,20 +528,34 @@ impl RequestServiceHandler {
             followed_show,
             quality,
         } = found;
-        let offer = |path: String| self.artwork.offer(&plugin, &path);
+        let image = |role, path| self.image(images, &show_slot(tmdb_id, role), &plugin, path);
+        let (poster_url, poster_thumbhash) = image(Role::Poster, show.poster);
+        let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, show.backdrop);
         proto::FoundShow {
             tmdb_id,
             title: show.title,
             year: show.first_air_date.as_deref().and_then(year_of),
             overview: show.overview,
-            poster_url: show.poster.map(offer),
-            backdrop_url: show.backdrop.map(offer),
+            poster_url,
+            poster_thumbhash,
+            backdrop_url,
+            backdrop_thumbhash,
             seasons,
             followed_show: followed_show.into(),
             quality: quality.into(),
             ..Default::default()
         }
     }
+}
+
+/// The slot of the Movie whose TMDB id is `tmdb_id`, as browsing identifies it.
+fn movie_slot(tmdb_id: i64, role: Role) -> Slot {
+    Slot::movie(&ExternalId::Tmdb(tmdb_id), role)
+}
+
+/// The slot of the Show whose TMDB id is `tmdb_id`, as browsing identifies it.
+fn show_slot(tmdb_id: i64, role: Role) -> Slot {
+    Slot::show(&ExternalId::Tmdb(tmdb_id), role)
 }
 
 /// `title`, unless it is blank, which a search for titles refuses.

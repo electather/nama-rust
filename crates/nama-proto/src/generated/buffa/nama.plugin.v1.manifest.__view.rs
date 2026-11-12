@@ -65,8 +65,8 @@ pub struct ManifestView<'a> {
     /// Field 9: `description`
     pub description: &'a str,
     /// The Plugin's logo: an SVG document's text, not base64, such as "\<svg xmlns=...\>...\</svg\>".
-    /// A Server drops one over 16 KiB, with a DOCTYPE, or that isn't SVG, logging why, and still loads
-    /// the Plugin.
+    /// A Server keeps it as `svg-hush` cleans it, without scripts or outside loads, and serves it by URL.
+    /// It drops one over 64 KiB, or that isn't well-formed SVG, logging why, and still loads the Plugin.
     /// Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
     ///
     /// Field 10: `logo_svg`
@@ -614,8 +614,8 @@ impl ManifestOwnedView {
         self.0.reborrow().description
     }
     /// The Plugin's logo: an SVG document's text, not base64, such as "\<svg xmlns=...\>...\</svg\>".
-    /// A Server drops one over 16 KiB, with a DOCTYPE, or that isn't SVG, logging why, and still loads
-    /// the Plugin.
+    /// A Server keeps it as `svg-hush` cleans it, without scripts or outside loads, and serves it by URL.
+    /// It drops one over 64 KiB, or that isn't well-formed SVG, logging why, and still loads the Plugin.
     /// Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
     ///
     /// Field 10: `logo_svg`

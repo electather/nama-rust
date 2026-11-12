@@ -33,7 +33,11 @@ function Movie() {
   // The largest until one is chosen, and again if an Event removed the chosen one.
   const version = versionToPlay(movie.versions, chosen);
   return (
-    <TitlePage title={movie.title} backdropUrl={movie.backdropUrl}>
+    <TitlePage
+      title={movie.title}
+      backdropUrl={movie.backdropUrl}
+      backdropThumbhash={movie.backdropThumbhash}
+    >
       <p className="text-sm text-muted-foreground">
         {metadataLine(
           yearOf(movie.releaseDate),
@@ -45,7 +49,12 @@ function Movie() {
         <WatchedBar state={movie.watchState} />
       </div>
       <Play versions={movie.versions} version={version} onChoose={setChosen}>
-        <MovieActions libraryId={input.libraryId} movieId={input.movieId} movie={movie} />
+        <MovieActions
+          libraryId={input.libraryId}
+          movieId={input.movieId}
+          movie={movie}
+          readOnlyFolder={data.readOnlyFolder}
+        />
       </Play>
       {movie.overview !== undefined && (
         <p className="mt-8 max-w-prose text-pretty">{movie.overview}</p>

@@ -33,7 +33,11 @@ function ShowToRequest() {
   const { show } = useSuspenseQuery(RequestService.method.lookUpShow, input).data;
   if (!show) return <NotFound />;
   return (
-    <TitlePage title={show.title} backdropUrl={show.backdropUrl}>
+    <TitlePage
+      title={show.title}
+      backdropUrl={show.backdropUrl}
+      backdropThumbhash={show.backdropThumbhash}
+    >
       <p className="text-sm text-muted-foreground">{show.year}</p>
       {show.overview !== undefined && (
         <p className="mt-6 max-w-prose text-pretty">{show.overview}</p>

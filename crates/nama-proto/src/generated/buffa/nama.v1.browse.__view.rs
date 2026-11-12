@@ -25,11 +25,11 @@ pub struct MovieView<'a> {
     pub release_date: ::core::option::Option<&'a str>,
     /// Field 6: `runtime_minutes`
     pub runtime_minutes: ::core::option::Option<u32>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server.
     ///
     /// Field 7: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server.
     ///
     /// Field 8: `backdrop_url`
     pub backdrop_url: ::core::option::Option<&'a str>,
@@ -47,6 +47,25 @@ pub struct MovieView<'a> {
     pub watch_state: ::buffa::MessageFieldView<
         super::super::__buffa::view::WatchStateView<'a>,
     >,
+    /// Whether `poster_url` is a Custom Image, which `DELETE /custom-images/movie/<id>/poster`
+    /// removes, `<id>` being `id` as `tmdb-348`, `imdb-tt0078748` or `tvdb-81189`. `PUT` there
+    /// uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
+    ///
+    /// Field 11: `custom_poster`
+    pub custom_poster: bool,
+    /// Whether `backdrop_url` is a Custom Image, at `/custom-images/movie/<id>/backdrop`.
+    ///
+    /// Field 12: `custom_backdrop`
+    pub custom_backdrop: bool,
+    /// The poster's thumbhash (evanw.github.io/thumbhash), a blurred preview to show while it loads,
+    /// once the Server has resized it. Unset while resizing is off.
+    ///
+    /// Field 13: `poster_thumbhash`
+    pub poster_thumbhash: ::core::option::Option<&'a [u8]>,
+    /// As `poster_thumbhash`, for the backdrop.
+    ///
+    /// Field 14: `backdrop_thumbhash`
+    pub backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
@@ -170,6 +189,34 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                     }
                 }
             }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.custom_poster = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.custom_backdrop = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.poster_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.backdrop_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
             9u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -240,6 +287,10 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            custom_poster: self.custom_poster,
+            custom_backdrop: self.custom_backdrop,
+            poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
+            backdrop_thumbhash: self.backdrop_thumbhash.map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -296,6 +347,18 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.custom_poster {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.custom_backdrop {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -351,6 +414,18 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
                 buf,
             );
             self.watch_state.write_to(__cache, buf);
+        }
+        if self.custom_poster {
+            ::buffa::types::put_bool_field(11u32, self.custom_poster, buf);
+        }
+        if self.custom_backdrop {
+            ::buffa::types::put_bool_field(12u32, self.custom_backdrop, buf);
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            ::buffa::types::put_shared_bytes_field(13u32, v, buf);
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            ::buffa::types::put_shared_bytes_field(14u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -410,6 +485,26 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
             if let ::core::option::Option::Some(__v) = self.watch_state.as_option() {
                 __map.serialize_entry("watchState", __v)?;
             }
+        }
+        if self.custom_poster {
+            __map.serialize_entry("customPoster", &self.custom_poster)?;
+        }
+        if self.custom_backdrop {
+            __map.serialize_entry("customBackdrop", &self.custom_backdrop)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.poster_thumbhash {
+            __map
+                .serialize_entry(
+                    "posterThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.backdrop_thumbhash {
+            __map
+                .serialize_entry(
+                    "backdropThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
         }
         __map.end()
     }
@@ -539,14 +634,14 @@ impl MovieOwnedView {
     pub fn runtime_minutes(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().runtime_minutes
     }
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server.
     ///
     /// Field 7: `poster_url`
     #[must_use]
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
     }
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server.
     ///
     /// Field 8: `backdrop_url`
     #[must_use]
@@ -571,6 +666,37 @@ impl MovieOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::WatchStateView<'_>> {
         &self.0.reborrow().watch_state
+    }
+    /// Whether `poster_url` is a Custom Image, which `DELETE /custom-images/movie/<id>/poster`
+    /// removes, `<id>` being `id` as `tmdb-348`, `imdb-tt0078748` or `tvdb-81189`. `PUT` there
+    /// uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
+    ///
+    /// Field 11: `custom_poster`
+    #[must_use]
+    pub fn custom_poster(&self) -> bool {
+        self.0.reborrow().custom_poster
+    }
+    /// Whether `backdrop_url` is a Custom Image, at `/custom-images/movie/<id>/backdrop`.
+    ///
+    /// Field 12: `custom_backdrop`
+    #[must_use]
+    pub fn custom_backdrop(&self) -> bool {
+        self.0.reborrow().custom_backdrop
+    }
+    /// The poster's thumbhash (evanw.github.io/thumbhash), a blurred preview to show while it loads,
+    /// once the Server has resized it. Unset while resizing is off.
+    ///
+    /// Field 13: `poster_thumbhash`
+    #[must_use]
+    pub fn poster_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().poster_thumbhash
+    }
+    /// As `poster_thumbhash`, for the backdrop.
+    ///
+    /// Field 14: `backdrop_thumbhash`
+    #[must_use]
+    pub fn backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().backdrop_thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieView<'static>>> for MovieOwnedView {
@@ -3647,6 +3773,12 @@ impl ::serde::Serialize for GetMovieRequestOwnedView {
 pub struct GetMovieResponseView<'a> {
     /// Field 1: `movie`
     pub movie: ::buffa::MessageFieldView<super::super::__buffa::view::MovieView<'a>>,
+    /// The Library folder holding a Version of the Movie that the Server couldn't write to when it
+    /// last scanned the Library, if there is one, in which case deleting the Movie is refused. Set
+    /// only for a caller with `PERMISSION_DELETE_MEDIA`.
+    ///
+    /// Field 2: `read_only_folder`
+    pub read_only_folder: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetMovieResponseView<'a> {
@@ -3700,6 +3832,13 @@ impl<'a> ::buffa::MessageView<'a> for GetMovieResponseView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.read_only_folder = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3731,6 +3870,7 @@ impl<'a> ::buffa::MessageView<'a> for GetMovieResponseView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            read_only_folder: self.read_only_folder.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3750,6 +3890,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetMovieResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.read_only_folder {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3768,6 +3911,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetMovieResponseView<'a> {
                 buf,
             );
             self.movie.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.read_only_folder {
+            ::buffa::types::put_string_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3794,6 +3940,9 @@ impl<'__a> ::serde::Serialize for GetMovieResponseView<'__a> {
             if let ::core::option::Option::Some(__v) = self.movie.as_option() {
                 __map.serialize_entry("movie", __v)?;
             }
+        }
+        if let ::core::option::Option::Some(__v) = self.read_only_folder {
+            __map.serialize_entry("readOnlyFolder", __v)?;
         }
         __map.end()
     }
@@ -3895,6 +4044,15 @@ impl GetMovieResponseOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::MovieView<'_>> {
         &self.0.reborrow().movie
     }
+    /// The Library folder holding a Version of the Movie that the Server couldn't write to when it
+    /// last scanned the Library, if there is one, in which case deleting the Movie is refused. Set
+    /// only for a caller with `PERMISSION_DELETE_MEDIA`.
+    ///
+    /// Field 2: `read_only_folder`
+    #[must_use]
+    pub fn read_only_folder(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().read_only_folder
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetMovieResponseView<'static>>>
 for GetMovieResponseOwnedView {
@@ -3938,14 +4096,31 @@ pub struct ShowView<'a> {
     ///
     /// Field 2: `title`
     pub title: &'a str,
-    /// Its first Season's poster's URL, under `/media/artwork/` on this Server.
+    /// Its poster's URL on this Server: its Custom Image if it has one, else its first Season's.
     ///
     /// Field 3: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server.
     ///
     /// Field 4: `backdrop_url`
     pub backdrop_url: ::core::option::Option<&'a str>,
+    /// Whether `poster_url` is the Show's own Custom Image, at `/custom-images/show/<id>/poster`,
+    /// as for `Movie.custom_poster`.
+    ///
+    /// Field 5: `custom_poster`
+    pub custom_poster: bool,
+    /// Whether `backdrop_url` is a Custom Image, at `/custom-images/show/<id>/backdrop`.
+    ///
+    /// Field 6: `custom_backdrop`
+    pub custom_backdrop: bool,
+    /// As `Movie.poster_thumbhash`.
+    ///
+    /// Field 7: `poster_thumbhash`
+    pub poster_thumbhash: ::core::option::Option<&'a [u8]>,
+    /// As `Movie.backdrop_thumbhash`.
+    ///
+    /// Field 8: `backdrop_thumbhash`
+    pub backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
@@ -4020,6 +4195,34 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 )?;
                 view.backdrop_url = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.custom_poster = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.custom_backdrop = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.poster_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.backdrop_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4054,6 +4257,10 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
             title: self.title.to_string(),
             poster_url: self.poster_url.map(|s| s.to_string()),
             backdrop_url: self.backdrop_url.map(|s| s.to_string()),
+            custom_poster: self.custom_poster,
+            custom_backdrop: self.custom_backdrop,
+            poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
+            backdrop_thumbhash: self.backdrop_thumbhash.map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4082,6 +4289,18 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if let Some(ref v) = self.backdrop_url {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.custom_poster {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.custom_backdrop {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4109,6 +4328,18 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         }
         if let Some(ref v) = self.backdrop_url {
             ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        if self.custom_poster {
+            ::buffa::types::put_bool_field(5u32, self.custom_poster, buf);
+        }
+        if self.custom_backdrop {
+            ::buffa::types::put_bool_field(6u32, self.custom_backdrop, buf);
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            ::buffa::types::put_shared_bytes_field(7u32, v, buf);
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            ::buffa::types::put_shared_bytes_field(8u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4144,6 +4375,26 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.backdrop_url {
             __map.serialize_entry("backdropUrl", __v)?;
+        }
+        if self.custom_poster {
+            __map.serialize_entry("customPoster", &self.custom_poster)?;
+        }
+        if self.custom_backdrop {
+            __map.serialize_entry("customBackdrop", &self.custom_backdrop)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.poster_thumbhash {
+            __map
+                .serialize_entry(
+                    "posterThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.backdrop_thumbhash {
+            __map
+                .serialize_entry(
+                    "backdropThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
         }
         __map.end()
     }
@@ -4249,19 +4500,48 @@ impl ShowOwnedView {
     pub fn title(&self) -> &'_ str {
         self.0.reborrow().title
     }
-    /// Its first Season's poster's URL, under `/media/artwork/` on this Server.
+    /// Its poster's URL on this Server: its Custom Image if it has one, else its first Season's.
     ///
     /// Field 3: `poster_url`
     #[must_use]
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
     }
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server.
     ///
     /// Field 4: `backdrop_url`
     #[must_use]
     pub fn backdrop_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().backdrop_url
+    }
+    /// Whether `poster_url` is the Show's own Custom Image, at `/custom-images/show/<id>/poster`,
+    /// as for `Movie.custom_poster`.
+    ///
+    /// Field 5: `custom_poster`
+    #[must_use]
+    pub fn custom_poster(&self) -> bool {
+        self.0.reborrow().custom_poster
+    }
+    /// Whether `backdrop_url` is a Custom Image, at `/custom-images/show/<id>/backdrop`.
+    ///
+    /// Field 6: `custom_backdrop`
+    #[must_use]
+    pub fn custom_backdrop(&self) -> bool {
+        self.0.reborrow().custom_backdrop
+    }
+    /// As `Movie.poster_thumbhash`.
+    ///
+    /// Field 7: `poster_thumbhash`
+    #[must_use]
+    pub fn poster_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().poster_thumbhash
+    }
+    /// As `Movie.backdrop_thumbhash`.
+    ///
+    /// Field 8: `backdrop_thumbhash`
+    #[must_use]
+    pub fn backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().backdrop_thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowView<'static>>> for ShowOwnedView {
@@ -4298,10 +4578,19 @@ pub struct SeasonView<'a> {
     ///
     /// Field 1: `number`
     pub number: u32,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server.
     ///
     /// Field 2: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
+    /// Whether `poster_url` is a Custom Image, at
+    /// `/custom-images/show/<show id>/season/<number>/poster`, as for `Movie.custom_poster`.
+    ///
+    /// Field 3: `custom_poster`
+    pub custom_poster: bool,
+    /// As `Movie.poster_thumbhash`.
+    ///
+    /// Field 4: `poster_thumbhash`
+    pub poster_thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SeasonView<'a> {
@@ -4348,6 +4637,20 @@ impl<'a> ::buffa::MessageView<'a> for SeasonView<'a> {
                 )?;
                 view.poster_url = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.custom_poster = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.poster_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4372,6 +4675,8 @@ impl<'a> ::buffa::MessageView<'a> for SeasonView<'a> {
         ::core::result::Result::Ok(super::super::Season {
             number: self.number,
             poster_url: self.poster_url.map(|s| s.to_string()),
+            custom_poster: self.custom_poster,
+            poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4389,6 +4694,12 @@ impl<'a> ::buffa::ViewEncode<'a> for SeasonView<'a> {
         if let Some(ref v) = self.poster_url {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.custom_poster {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4405,6 +4716,12 @@ impl<'a> ::buffa::ViewEncode<'a> for SeasonView<'a> {
         }
         if let Some(ref v) = self.poster_url {
             ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        if self.custom_poster {
+            ::buffa::types::put_bool_field(3u32, self.custom_poster, buf);
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            ::buffa::types::put_shared_bytes_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4436,6 +4753,16 @@ impl<'__a> ::serde::Serialize for SeasonView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.poster_url {
             __map.serialize_entry("posterUrl", __v)?;
+        }
+        if self.custom_poster {
+            __map.serialize_entry("customPoster", &self.custom_poster)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.poster_thumbhash {
+            __map
+                .serialize_entry(
+                    "posterThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
         }
         __map.end()
     }
@@ -4531,12 +4858,27 @@ impl SeasonOwnedView {
     pub fn number(&self) -> u32 {
         self.0.reborrow().number
     }
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server.
     ///
     /// Field 2: `poster_url`
     #[must_use]
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
+    }
+    /// Whether `poster_url` is a Custom Image, at
+    /// `/custom-images/show/<show id>/season/<number>/poster`, as for `Movie.custom_poster`.
+    ///
+    /// Field 3: `custom_poster`
+    #[must_use]
+    pub fn custom_poster(&self) -> bool {
+        self.0.reborrow().custom_poster
+    }
+    /// As `Movie.poster_thumbhash`.
+    ///
+    /// Field 4: `poster_thumbhash`
+    #[must_use]
+    pub fn poster_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().poster_thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<SeasonView<'static>>> for SeasonOwnedView {
@@ -8973,10 +9315,14 @@ pub struct MovieInLibraryView<'a> {
     ///
     /// Field 4: `release_date`
     pub release_date: ::core::option::Option<&'a str>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 5: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
+    /// As `Movie.poster_thumbhash`.
+    ///
+    /// Field 6: `poster_thumbhash`
+    pub poster_thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieInLibraryView<'a> {
@@ -9058,6 +9404,13 @@ impl<'a> ::buffa::MessageView<'a> for MovieInLibraryView<'a> {
                 )?;
                 view.poster_url = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.poster_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -9093,6 +9446,7 @@ impl<'a> ::buffa::MessageView<'a> for MovieInLibraryView<'a> {
             title: self.title.to_string(),
             release_date: self.release_date.map(|s| s.to_string()),
             poster_url: self.poster_url.map(|s| s.to_string()),
+            poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -9124,6 +9478,9 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieInLibraryView<'a> {
         if let Some(ref v) = self.poster_url {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.poster_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9154,6 +9511,9 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieInLibraryView<'a> {
         }
         if let Some(ref v) = self.poster_url {
             ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            ::buffa::types::put_shared_bytes_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9196,6 +9556,13 @@ impl<'__a> ::serde::Serialize for MovieInLibraryView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.poster_url {
             __map.serialize_entry("posterUrl", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.poster_thumbhash {
+            __map
+                .serialize_entry(
+                    "posterThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
         }
         __map.end()
     }
@@ -9318,12 +9685,19 @@ impl MovieInLibraryOwnedView {
     pub fn release_date(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().release_date
     }
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 5: `poster_url`
     #[must_use]
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
+    }
+    /// As `Movie.poster_thumbhash`.
+    ///
+    /// Field 6: `poster_thumbhash`
+    #[must_use]
+    pub fn poster_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().poster_thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieInLibraryView<'static>>>
@@ -9369,10 +9743,14 @@ pub struct ShowInLibraryView<'a> {
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
     /// Field 3: `title`
     pub title: &'a str,
-    /// A Season's poster's URL, under `/media/artwork/` on this Server.
+    /// The Show's Custom Poster's URL on this Server, or else a Season's poster's.
     ///
     /// Field 4: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
+    /// As `Movie.poster_thumbhash`.
+    ///
+    /// Field 5: `poster_thumbhash`
+    pub poster_thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowInLibraryView<'a> {
@@ -9447,6 +9825,13 @@ impl<'a> ::buffa::MessageView<'a> for ShowInLibraryView<'a> {
                 )?;
                 view.poster_url = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.poster_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -9481,6 +9866,7 @@ impl<'a> ::buffa::MessageView<'a> for ShowInLibraryView<'a> {
             },
             title: self.title.to_string(),
             poster_url: self.poster_url.map(|s| s.to_string()),
+            poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -9509,6 +9895,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowInLibraryView<'a> {
         if let Some(ref v) = self.poster_url {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.poster_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9536,6 +9925,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowInLibraryView<'a> {
         }
         if let Some(ref v) = self.poster_url {
             ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        if let Some(ref v) = self.poster_thumbhash {
+            ::buffa::types::put_shared_bytes_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9575,6 +9967,13 @@ impl<'__a> ::serde::Serialize for ShowInLibraryView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.poster_url {
             __map.serialize_entry("posterUrl", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.poster_thumbhash {
+            __map
+                .serialize_entry(
+                    "posterThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
         }
         __map.end()
     }
@@ -9688,12 +10087,19 @@ impl ShowInLibraryOwnedView {
     pub fn title(&self) -> &'_ str {
         self.0.reborrow().title
     }
-    /// A Season's poster's URL, under `/media/artwork/` on this Server.
+    /// The Show's Custom Poster's URL on this Server, or else a Season's poster's.
     ///
     /// Field 4: `poster_url`
     #[must_use]
     pub fn poster_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().poster_url
+    }
+    /// As `Movie.poster_thumbhash`.
+    ///
+    /// Field 5: `poster_thumbhash`
+    #[must_use]
+    pub fn poster_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().poster_thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowInLibraryView<'static>>>

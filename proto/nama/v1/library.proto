@@ -43,7 +43,8 @@ service LibraryService {
     option idempotency_level = IDEMPOTENT;
   }
   // Lists the files `DeleteMedia` would delete for the same target, and the bytes they would
-  // free, deleting nothing. Needs `PERMISSION_DELETE_MEDIA`. Fails as `DeleteMedia` does.
+  // free, deleting nothing. Needs `PERMISSION_DELETE_MEDIA`. Fails as `DeleteMedia` does, except
+  // that a read-only Library folder is named in `read_only_folder` rather than refused.
   rpc PreviewDeleteMedia(PreviewDeleteMediaRequest) returns (PreviewDeleteMediaResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -52,10 +53,16 @@ service LibraryService {
   // by `.` or `-`, and that aren't videos), and the folders that leaves empty, never a Library's
   // own folder or above it. The Versions whose files went are removed as a scan removes them, with
   // `LibraryItemRemoved`. A file that can't be deleted is listed with why, and the rest still go.
-  // The Playback Plans playing the Versions end first, each with `PlaybackEnded`, and a Version
-  // being served for Direct Play is cut off. Needs `PERMISSION_DELETE_MEDIA` and Recent
-  // Authentication. Fails with `invalid_argument` if the target is missing, or names a Library of
-  // the wrong kind, and with `not_found` if there is no such Library, title, Season or Version.
+  // Before deleting anything, it asks every enabled Fulfiller of its kind, such as Radarr or Sonarr,
+  // to stop monitoring what goes, which it keeps; one that can't be told is listed, and doesn't
+  // stop it.
+  // The Playback Plans playing the Versions end next, each with `PlaybackEnded`, and a Version
+  // being served for Direct Play is cut off. Last, the open Requests for the Movie or each Season
+  // it took anything of are cancelled, each with `RequestCancelled` naming who deleted it. Needs
+  // `PERMISSION_DELETE_MEDIA` and Recent Authentication. Fails with `invalid_argument` if the
+  // target is missing, or names a Library of the wrong kind, with `not_found` if there is no such
+  // Library, title, Season or Version, and with `failed_precondition` if a file it would delete is
+  // in a Library folder the Server couldn't write to when it last scanned the Library.
   rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
 }
 
@@ -80,6 +87,17 @@ message Library {
   // Each folder belongs to at most one Library. Empty in `ListLibraries` for a caller without
   // `PERMISSION_MANAGE_LIBRARIES`.
   repeated string folders = 4;
+  // The URL on this Server of the Backdrop the Library is shown by: its Custom Image, or else
+  // the Backdrop of the Matched title most recently added to it that has one. Unset when no
+  // Matched title in it has a Backdrop. The Server draws nothing into it; a client draws the
+  // Library's name over it.
+  optional string backdrop_url = 5;
+  // Whether `backdrop_url` is the Library's Custom Image, which `DELETE
+  // /custom-images/library/<id>/backdrop` removes. `PUT` there uploads one, for a User with
+  // `PERMISSION_MANAGE_LIBRARIES`. Deleting the Library deletes it.
+  bool custom_backdrop = 6;
+  // As `Movie.backdrop_thumbhash`.
+  optional bytes backdrop_thumbhash = 7;
 }
 
 message CreateLibraryRequest {
@@ -152,6 +170,20 @@ message PreviewDeleteMediaResponse {
   repeated EpisodeTakenAlong episodes_taken_along = 3;
   // How many Playback Plans play the Versions now: how many people deleting them stops watching.
   uint32 playing = 4;
+  // The Library folder holding `files` that the Server couldn't write to when it last scanned the
+  // Library, if there is one, in which case `DeleteMedia` is refused.
+  optional string read_only_folder = 5;
+  // The open Requests deleting would cancel: those Pending, Approved, Processing or Partially
+  // Available for the Movie or a Season it takes anything of. Available ones stay as they are.
+  repeated RequestToCancel requests_cancelled = 6;
+}
+
+// An open Request a delete would cancel, as its Requesters know it.
+message RequestToCancel {
+  // The Movie's title, or the Show's for a Season, in the metadata Provider's language.
+  string title = 1;
+  // The Season's number. Unset for a Movie.
+  optional uint32 season_number = 2;
 }
 
 message DeleteMediaRequest {
@@ -166,6 +198,9 @@ message DeleteMediaResponse {
   // Each file that couldn't be deleted. A Version whose own file is here stays, with its
   // sidecars.
   repeated FileNotDeleted not_deleted = 3;
+  // The name of each Fulfiller that couldn't be told to stop monitoring what was deleted, so its
+  // service may download it again. The Server doesn't try it again.
+  repeated string fulfillers_not_told = 4;
 }
 
 // What to delete: a title's every Version, or one Version. A file holding several Episodes goes

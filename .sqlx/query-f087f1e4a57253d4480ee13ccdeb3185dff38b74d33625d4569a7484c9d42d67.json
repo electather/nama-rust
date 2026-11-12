@@ -1,0 +1,71 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_id AS \"library!\", plugin AS \"plugin!\", backdrop AS \"backdrop!\",\n                      tmdb_id AS \"tmdb_id?: i64\", imdb_id AS \"imdb_id?: String\",\n                      tvdb_id AS \"tvdb_id?: i64\"\n               FROM (SELECT library_files.library_id, item_matches.plugin, item_matches.backdrop,\n                            IIF(library_items.kind = 'movie', item_matches.tmdb_id,\n                                item_matches.show_tmdb_id) AS tmdb_id,\n                            IIF(library_items.kind = 'movie', item_matches.imdb_id,\n                                item_matches.show_imdb_id) AS imdb_id,\n                            IIF(library_items.kind = 'movie', item_matches.tvdb_id,\n                                item_matches.show_tvdb_id) AS tvdb_id,\n                            ROW_NUMBER() OVER (PARTITION BY library_files.library_id\n                                               ORDER BY library_items.id DESC) AS newest\n                     FROM item_matches\n                     JOIN library_items ON library_items.id = item_matches.item_id\n                     JOIN library_files ON library_files.id = library_items.file_id\n                     WHERE item_matches.state = 'matched' AND item_matches.backdrop IS NOT NULL)\n               WHERE newest = 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "library!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "plugin!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "backdrop!",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "backdrop"
+          }
+        }
+      },
+      {
+        "name": "tmdb_id?: i64",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "imdb_id?: String",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "name": "tvdb_id?: i64",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "f087f1e4a57253d4480ee13ccdeb3185dff38b74d33625d4569a7484c9d42d67"
+}

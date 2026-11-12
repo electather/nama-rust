@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT key, thumbhash FROM image_thumbhashes WHERE instr(key, ?) = 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "key",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "image_thumbhashes",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "thumbhash",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "image_thumbhashes",
+            "name": "thumbhash"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "3e9ba435f2290d7155d30b772eaa4e0efe3dda8d0a1a192bbc4beaaff48e2a73"
+}

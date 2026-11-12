@@ -24,6 +24,23 @@ pub struct LibraryView<'a> {
     ///
     /// Field 4: `folders`
     pub folders: ::buffa::RepeatedView<'a, &'a str>,
+    /// The URL on this Server of the Backdrop the Library is shown by: its Custom Image, or else
+    /// the Backdrop of the Matched title most recently added to it that has one. Unset when no
+    /// Matched title in it has a Backdrop. The Server draws nothing into it; a client draws the
+    /// Library's name over it.
+    ///
+    /// Field 5: `backdrop_url`
+    pub backdrop_url: ::core::option::Option<&'a str>,
+    /// Whether `backdrop_url` is the Library's Custom Image, which `DELETE
+    /// /custom-images/library/\<id\>/backdrop` removes. `PUT` there uploads one, for a User with
+    /// `PERMISSION_MANAGE_LIBRARIES`. Deleting the Library deletes it.
+    ///
+    /// Field 6: `custom_backdrop`
+    pub custom_backdrop: bool,
+    /// As `Movie.backdrop_thumbhash`.
+    ///
+    /// Field 7: `backdrop_thumbhash`
+    pub backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
@@ -79,6 +96,27 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.backdrop_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.custom_backdrop = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.backdrop_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -116,6 +154,9 @@ impl<'a> ::buffa::MessageView<'a> for LibraryView<'a> {
             name: self.name.to_string(),
             kind: self.kind,
             folders: self.folders.iter().map(|s| s.to_string()).collect(),
+            backdrop_url: self.backdrop_url.map(|s| s.to_string()),
+            custom_backdrop: self.custom_backdrop,
+            backdrop_thumbhash: self.backdrop_thumbhash.map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -142,6 +183,15 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
         for v in &self.folders {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.backdrop_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.custom_backdrop {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -167,6 +217,15 @@ impl<'a> ::buffa::ViewEncode<'a> for LibraryView<'a> {
         }
         for v in &self.folders {
             ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        if let Some(ref v) = self.backdrop_url {
+            ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        if self.custom_backdrop {
+            ::buffa::types::put_bool_field(6u32, self.custom_backdrop, buf);
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            ::buffa::types::put_shared_bytes_field(7u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -200,6 +259,19 @@ impl<'__a> ::serde::Serialize for LibraryView<'__a> {
         }
         if !self.folders.is_empty() {
             __map.serialize_entry("folders", &*self.folders)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.backdrop_url {
+            __map.serialize_entry("backdropUrl", __v)?;
+        }
+        if self.custom_backdrop {
+            __map.serialize_entry("customBackdrop", &self.custom_backdrop)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.backdrop_thumbhash {
+            __map
+                .serialize_entry(
+                    "backdropThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
         }
         __map.end()
     }
@@ -321,6 +393,32 @@ impl LibraryOwnedView {
     #[must_use]
     pub fn folders(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().folders
+    }
+    /// The URL on this Server of the Backdrop the Library is shown by: its Custom Image, or else
+    /// the Backdrop of the Matched title most recently added to it that has one. Unset when no
+    /// Matched title in it has a Backdrop. The Server draws nothing into it; a client draws the
+    /// Library's name over it.
+    ///
+    /// Field 5: `backdrop_url`
+    #[must_use]
+    pub fn backdrop_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().backdrop_url
+    }
+    /// Whether `backdrop_url` is the Library's Custom Image, which `DELETE
+    /// /custom-images/library/\<id\>/backdrop` removes. `PUT` there uploads one, for a User with
+    /// `PERMISSION_MANAGE_LIBRARIES`. Deleting the Library deletes it.
+    ///
+    /// Field 6: `custom_backdrop`
+    #[must_use]
+    pub fn custom_backdrop(&self) -> bool {
+        self.0.reborrow().custom_backdrop
+    }
+    /// As `Movie.backdrop_thumbhash`.
+    ///
+    /// Field 7: `backdrop_thumbhash`
+    #[must_use]
+    pub fn backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().backdrop_thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<LibraryView<'static>>>
@@ -3926,6 +4024,19 @@ pub struct PreviewDeleteMediaResponseView<'a> {
     ///
     /// Field 4: `playing`
     pub playing: u32,
+    /// The Library folder holding `files` that the Server couldn't write to when it last scanned the
+    /// Library, if there is one, in which case `DeleteMedia` is refused.
+    ///
+    /// Field 5: `read_only_folder`
+    pub read_only_folder: ::core::option::Option<&'a str>,
+    /// The open Requests deleting would cancel: those Pending, Approved, Processing or Partially
+    /// Available for the Movie or a Season it takes anything of. Available ones stay as they are.
+    ///
+    /// Field 6: `requests_cancelled`
+    pub requests_cancelled: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::RequestToCancelView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
@@ -3972,6 +4083,13 @@ impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
                 )?;
                 view.playing = ::buffa::types::decode_uint32(&mut cur)?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.read_only_folder = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -4005,6 +4123,26 @@ impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
                 view.episodes_taken_along
                     .push(
                         <super::super::__buffa::view::EpisodeTakenAlongView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::RequestToCancelView,
+                    >(),
+                )?;
+                view.requests_cancelled
+                    .push(
+                        <super::super::__buffa::view::RequestToCancelView as ::buffa::MessageView>::decode_view_ctx(
                             sub,
                             __sub_ctx,
                         )?,
@@ -4050,6 +4188,12 @@ impl<'a> ::buffa::MessageView<'a> for PreviewDeleteMediaResponseView<'a> {
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             playing: self.playing,
+            read_only_folder: self.read_only_folder.map(|s| s.to_string()),
+            requests_cancelled: self
+                .requests_cancelled
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4083,6 +4227,17 @@ impl<'a> ::buffa::ViewEncode<'a> for PreviewDeleteMediaResponseView<'a> {
         if self.playing != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.playing) as u64;
         }
+        if let Some(ref v) = self.read_only_folder {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.requests_cancelled {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4115,6 +4270,17 @@ impl<'a> ::buffa::ViewEncode<'a> for PreviewDeleteMediaResponseView<'a> {
         }
         if self.playing != 0u32 {
             ::buffa::types::put_uint32_field(4u32, self.playing, buf);
+        }
+        if let Some(ref v) = self.read_only_folder {
+            ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        for v in &self.requests_cancelled {
+            ::buffa::types::put_len_delimited_header(
+                6u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4156,6 +4322,12 @@ impl<'__a> ::serde::Serialize for PreviewDeleteMediaResponseView<'__a> {
                     "playing",
                     &::buffa::json_helpers::ProtoJson(&self.playing),
                 )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.read_only_folder {
+            __map.serialize_entry("readOnlyFolder", __v)?;
+        }
+        if !self.requests_cancelled.is_empty() {
+            __map.serialize_entry("requestsCancelled", &*self.requests_cancelled)?;
         }
         __map.end()
     }
@@ -4288,6 +4460,27 @@ impl PreviewDeleteMediaResponseOwnedView {
     pub fn playing(&self) -> u32 {
         self.0.reborrow().playing
     }
+    /// The Library folder holding `files` that the Server couldn't write to when it last scanned the
+    /// Library, if there is one, in which case `DeleteMedia` is refused.
+    ///
+    /// Field 5: `read_only_folder`
+    #[must_use]
+    pub fn read_only_folder(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().read_only_folder
+    }
+    /// The open Requests deleting would cancel: those Pending, Approved, Processing or Partially
+    /// Available for the Movie or a Season it takes anything of. Available ones stay as they are.
+    ///
+    /// Field 6: `requests_cancelled`
+    #[must_use]
+    pub fn requests_cancelled(
+        &self,
+    ) -> &::buffa::RepeatedView<
+        '_,
+        super::super::__buffa::view::RequestToCancelView<'_>,
+    > {
+        &self.0.reborrow().requests_cancelled
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<PreviewDeleteMediaResponseView<'static>>>
 for PreviewDeleteMediaResponseOwnedView {
@@ -4312,6 +4505,290 @@ impl ::buffa::HasMessageView for super::super::PreviewDeleteMediaResponse {
     type ViewHandle = PreviewDeleteMediaResponseOwnedView;
 }
 impl ::serde::Serialize for PreviewDeleteMediaResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// An open Request a delete would cancel, as its Requesters know it.
+#[derive(Clone, Debug, Default)]
+pub struct RequestToCancelView<'a> {
+    /// The Movie's title, or the Show's for a Season, in the metadata Provider's language.
+    ///
+    /// Field 1: `title`
+    pub title: &'a str,
+    /// The Season's number. Unset for a Movie.
+    ///
+    /// Field 2: `season_number`
+    pub season_number: ::core::option::Option<u32>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for RequestToCancelView<'a> {
+    type Owned = super::super::RequestToCancel;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.season_number = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::RequestToCancel, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::RequestToCancel, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::RequestToCancel {
+            title: self.title.to_string(),
+            season_number: self.season_number,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for RequestToCancelView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.title.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
+        }
+        if let Some(v) = self.season_number {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.title.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.title, buf);
+        }
+        if let Some(v) = self.season_number {
+            ::buffa::types::put_uint32_field(2u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for RequestToCancelView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.title) {
+            __map.serialize_entry("title", self.title)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.season_number {
+            __map
+                .serialize_entry(
+                    "seasonNumber",
+                    &::buffa::json_helpers::ProtoJson(&__v),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for RequestToCancelView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "RequestToCancel";
+    const FULL_NAME: &'static str = "nama.v1.RequestToCancel";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RequestToCancel";
+}
+::buffa::impl_default_view_instance!(RequestToCancelView);
+::buffa::impl_view_reborrow!(RequestToCancelView);
+/** Self-contained, `'static` owned view of a `RequestToCancel` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`RequestToCancelView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`RequestToCancelView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct RequestToCancelOwnedView(::buffa::OwnedView<RequestToCancelView<'static>>);
+impl RequestToCancelOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RequestToCancelOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RequestToCancelOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::RequestToCancel,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RequestToCancelOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`RequestToCancelView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &RequestToCancelView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::RequestToCancel {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Movie's title, or the Show's for a Season, in the metadata Provider's language.
+    ///
+    /// Field 1: `title`
+    #[must_use]
+    pub fn title(&self) -> &'_ str {
+        self.0.reborrow().title
+    }
+    /// The Season's number. Unset for a Movie.
+    ///
+    /// Field 2: `season_number`
+    #[must_use]
+    pub fn season_number(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().season_number
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<RequestToCancelView<'static>>>
+for RequestToCancelOwnedView {
+    fn from(inner: ::buffa::OwnedView<RequestToCancelView<'static>>) -> Self {
+        RequestToCancelOwnedView(inner)
+    }
+}
+impl ::core::convert::From<RequestToCancelOwnedView>
+for ::buffa::OwnedView<RequestToCancelView<'static>> {
+    fn from(wrapper: RequestToCancelOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<RequestToCancelView<'static>>>
+for RequestToCancelOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<RequestToCancelView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::RequestToCancel {
+    type View<'a> = RequestToCancelView<'a>;
+    type ViewHandle = RequestToCancelOwnedView;
+}
+impl ::serde::Serialize for RequestToCancelOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,
@@ -4627,6 +5104,11 @@ pub struct DeleteMediaResponseView<'a> {
         'a,
         super::super::__buffa::view::FileNotDeletedView<'a>,
     >,
+    /// The name of each Fulfiller that couldn't be told to stop monitoring what was deleted, so its
+    /// service may download it again. The Server doesn't try it again.
+    ///
+    /// Field 4: `fulfillers_not_told`
+    pub fulfillers_not_told: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DeleteMediaResponseView<'a> {
@@ -4704,6 +5186,17 @@ impl<'a> ::buffa::MessageView<'a> for DeleteMediaResponseView<'a> {
                         )?,
                     );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.fulfillers_not_told.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4743,6 +5236,11 @@ impl<'a> ::buffa::MessageView<'a> for DeleteMediaResponseView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            fulfillers_not_told: self
+                .fulfillers_not_told
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4773,6 +5271,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DeleteMediaResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.fulfillers_not_told {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4802,6 +5303,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DeleteMediaResponseView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        for v in &self.fulfillers_not_told {
+            ::buffa::types::put_string_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4836,6 +5340,9 @@ impl<'__a> ::serde::Serialize for DeleteMediaResponseView<'__a> {
         }
         if !self.not_deleted.is_empty() {
             __map.serialize_entry("notDeleted", &*self.not_deleted)?;
+        }
+        if !self.fulfillers_not_told.is_empty() {
+            __map.serialize_entry("fulfillersNotTold", &*self.fulfillers_not_told)?;
         }
         __map.end()
     }
@@ -4960,6 +5467,14 @@ impl DeleteMediaResponseOwnedView {
         super::super::__buffa::view::FileNotDeletedView<'_>,
     > {
         &self.0.reborrow().not_deleted
+    }
+    /// The name of each Fulfiller that couldn't be told to stop monitoring what was deleted, so its
+    /// service may download it again. The Server doesn't try it again.
+    ///
+    /// Field 4: `fulfillers_not_told`
+    #[must_use]
+    pub fn fulfillers_not_told(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().fulfillers_not_told
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DeleteMediaResponseView<'static>>>

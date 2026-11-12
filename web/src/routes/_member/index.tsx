@@ -2,6 +2,7 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 import { Link, type LinkOptions, createFileRoute } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 
+import { LibraryCard } from "@/components/library-card";
 import { Page } from "@/components/page";
 import { Poster, PosterGrid, posterLink } from "@/components/poster";
 import {
@@ -10,7 +11,7 @@ import {
   type ContinueWatchingEpisode,
   type Movie,
 } from "@/gen/nama/v1/browse_pb";
-import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
+import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { metadataLine, seasonName, titleParam, yearOf } from "@/lib/browse";
 
@@ -35,7 +36,7 @@ function Home() {
   return (
     <Page heading={server.name}>
       <ContinueWatching />
-      <section aria-labelledby="libraries" className="mt-10 max-w-2xl">
+      <section aria-labelledby="libraries" className="mt-10">
         <h2 id="libraries" className="font-medium">
           Libraries
         </h2>
@@ -91,6 +92,7 @@ function movieCard(libraryId: string, movie: Movie): Card {
     },
     poster: {
       url: movie.posterUrl,
+      thumbhash: movie.posterThumbhash,
       title: movie.title,
       detail: yearOf(movie.releaseDate),
       watchState: movie.watchState,
@@ -114,6 +116,7 @@ function episodeCard(libraryId: string, { show, episode }: ContinueWatchingEpiso
       },
       poster: {
         url: show.posterUrl,
+        thumbhash: show.posterThumbhash,
         title: show.title,
         detail: metadataLine(seasonName(episode.seasonNumber), `Episode ${number}`),
         watchState: episode.watchState,
@@ -132,19 +135,15 @@ function Libraries() {
     );
   }
   return (
-    // Pulled out by the rows' own padding, so the names line up with the heading.
-    <ul className="mt-2 -mx-3">
+    <ul className="mt-4 grid gap-x-4 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
       {data.libraries.map((library) => (
-        <li key={String(library.id)} className="border-b last:border-b-0">
+        <li key={String(library.id)}>
           <Link
             to="/libraries/$libraryId"
             params={{ libraryId: String(library.id) }}
-            className="flex min-h-14 items-center gap-3 rounded-lg px-3 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+            className={posterLink}
           >
-            <span className="truncate text-lg font-medium">{library.name}</span>
-            <span className="ms-auto text-sm text-muted-foreground">
-              {library.kind === LibraryKind.SHOWS ? "Shows" : "Movies"}
-            </span>
+            <LibraryCard library={library} />
           </Link>
         </li>
       ))}

@@ -1,6 +1,6 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
-use std::{net::IpAddr, sync::Arc};
+use std::{collections::HashMap, net::IpAddr, sync::Arc};
 
 use axum::{
     extract::Request,
@@ -21,6 +21,7 @@ use crate::{
     config::Config,
     connections::Connections,
     contents::Contents,
+    custom_images::{self, CustomImages},
     db::{Database, now},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
@@ -28,11 +29,12 @@ use crate::{
     libraries::Libraries,
     metadata::MetadataSource,
     playback::running::RunningPlans,
+    plugin_logos::{self, PluginLogos},
     plugin_settings::PluginSettings,
     probing::Probing,
     requests::Requests,
     scanner::Scanner,
-    server_settings,
+    server_settings::{self, ImageSettings},
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie},
     track_preferences::TrackPreferences,
     tracks::Tracks,
@@ -71,11 +73,18 @@ use watch_states::WatchStateServiceHandler;
     reason = "each is a separate handle the services are built from; a struct bundling them would \
               exist only for this call"
 )]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one flat list wiring each service to its handles; split, it would be read in pieces"
+)]
 pub(crate) fn router(
     config: &Config,
     db: Arc<Database>,
     plugin_settings: PluginSettings,
     scanner: Scanner,
+    custom_images: CustomImages,
+    plugin_logos: PluginLogos,
+    artwork: Artwork,
     probing: Probing,
     events: EventBus,
     requests: Requests,
@@ -89,8 +98,8 @@ pub(crate) fn router(
     let plugins = plugin_settings.extension_points();
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
-    let artwork = Artwork::new(&config.data_dir, plugins.clone());
-    let artwork_router = artwork::router(artwork.clone(), contents.clone());
+    let image_settings = settings.images();
+    let artwork_router = artwork::router(artwork.clone(), contents.clone(), image_settings.clone());
     let media = crate::playback::router(
         contents,
         running.clone(),
@@ -99,6 +108,11 @@ pub(crate) fn router(
         subtitles,
     )
     .merge(crate::playback::running::router(running.clone()));
+    let images = ImageSources::new(
+        custom_images.clone(),
+        artwork.clone(),
+        image_settings.clone(),
+    );
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let playback = settings.playback();
@@ -121,6 +135,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
+            images: images.clone(),
         }))
         .add_service(Arc::new(WatchStateServiceHandler {
             browse: browse.clone(),
@@ -132,12 +147,22 @@ pub(crate) fn router(
             settings: playback,
             preferences: TrackPreferences::new(Arc::clone(&db)),
         }))
-        .add_service(Arc::new(RequestServiceHandler { requests, artwork }))
-        .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
+        .add_service(Arc::new(RequestServiceHandler {
+            requests,
+            artwork,
+            images: images.clone(),
+        }))
+        .add_service(Arc::new(PluginServiceHandler {
+            plugin_settings,
+            custom_images: custom_images.clone(),
+            plugin_logos: plugin_logos.clone(),
+        }))
         .add_service(Arc::new(LibraryServiceHandler {
-            libraries: Libraries::new(db),
+            libraries: Libraries::new(Arc::clone(&db)),
             scanner,
             browse,
+            contents: Contents::new(db),
+            images,
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,
@@ -149,6 +174,8 @@ pub(crate) fn router(
         }))
         .into_axum_router()
         .merge(artwork_router)
+        .merge(custom_images::router(custom_images, image_settings))
+        .merge(plugin_logos::router(plugin_logos))
         .merge(media)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
@@ -192,7 +219,7 @@ const REQUEST_TV: Access = Access::Needs(Permission::RequestTv);
 const DELETE_MEDIA: Access = Access::Needs(Permission::DeleteMedia);
 
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
-/// RPCs start closed"). Media has its own entry, [`MEDIA`].
+/// RPCs start closed"). Media and uploads have their own entries, in [`PREFIXES`].
 // One row per RPC reads as a table; rustfmt would split most rows over four lines.
 #[rustfmt::skip]
 const ACCESS: &[(&str, Access)] = &[
@@ -202,6 +229,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_GET_PLAYBACK_STATUS_SPEC.procedure,    ADMIN),
     (proto::SERVER_SERVICE_GET_PLAYBACK_SETTINGS_SPEC.procedure,  ADMIN),
     (proto::SERVER_SERVICE_UPDATE_PLAYBACK_SETTINGS_SPEC.procedure, ADMIN),
+    (proto::SERVER_SERVICE_GET_IMAGE_SETTINGS_SPEC.procedure,     MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_UPDATE_IMAGE_SETTINGS_SPEC.procedure,  MANAGE_SETTINGS),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
@@ -283,16 +312,22 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC.procedure,      MANAGE_SETTINGS),
 ];
 
-/// Who may fetch media: every path under this prefix, which the media routes share.
-const MEDIA: (&str, Access) = ("/media/", Access::SignedIn);
+/// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media
+/// routes share, and uploading or removing a Plugin's, a title's or a Library's Custom Image. The
+/// first prefix a path starts with decides.
+const PREFIXES: [(&str, Access); 3] = [
+    ("/media/", Access::SignedIn),
+    ("/custom-images/plugin/", MANAGE_SETTINGS),
+    ("/custom-images/", MANAGE_LIBRARIES),
+];
 
 impl Access {
-    /// Who may request `path`: an RPC's `/<service>/<method>` as [`ACCESS`] lists it, or media
-    /// as [`MEDIA`] does. `None` if nobody may.
+    /// Who may request `path`: an RPC's `/<service>/<method>` as [`ACCESS`] lists it, or a path
+    /// under one of [`PREFIXES`]. `None` if nobody may.
     fn of(path: &str) -> Option<Self> {
-        let (media, media_access) = MEDIA;
-        if path.starts_with(media) {
-            return Some(media_access);
+        let prefixed = PREFIXES.iter().find(|(prefix, _)| path.starts_with(prefix));
+        if let Some(&(_, access)) = prefixed {
+            return Some(access);
         }
         ACCESS
             .iter()
@@ -541,7 +576,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SETTINGS_CHECK_FAILED
         | R::REFUSAL_REASON_CHOICE_NOT_OFFERED
         | R::REFUSAL_REASON_FULFILLER_TAKEN
-        | R::REFUSAL_REASON_PLUGIN_REFUSED => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_PLUGIN_REFUSED
+        | R::REFUSAL_REASON_FOLDER_READ_ONLY => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -618,6 +654,54 @@ fn unknown_enum_value(field: &str, message: &str) -> ConnectError {
 fn database_failed(err: sqlx::Error) -> ConnectError {
     tracing::error!("a request failed: {err}");
     ConnectError::internal("the Server's database failed")
+}
+
+/// What a response shows of images: the Custom Images in place of the downloaded ones, and the
+/// thumbhash of each image resized so far, by URL.
+struct ShownImages {
+    custom: custom_images::Urls,
+    thumbhashes: HashMap<String, Vec<u8>>,
+}
+
+impl ShownImages {
+    /// The thumbhash to send beside `url`, if the image there has one.
+    fn thumbhash(&self, url: Option<&str>) -> Option<Vec<u8>> {
+        self.thumbhashes.get(url?).cloned()
+    }
+}
+
+/// Where a response finds the images it shows: see [`ImageSources::shown`].
+#[derive(Clone)]
+struct ImageSources {
+    custom_images: CustomImages,
+    artwork: Artwork,
+    settings: ImageSettings,
+}
+
+impl ImageSources {
+    const fn new(custom_images: CustomImages, artwork: Artwork, settings: ImageSettings) -> Self {
+        Self {
+            custom_images,
+            artwork,
+            settings,
+        }
+    }
+
+    /// What a response shows of images, with no thumbhashes while resizing is off (ADR 0039).
+    async fn shown(&self) -> Result<ShownImages, ConnectError> {
+        let custom = self.custom_images.urls().await.map_err(database_failed)?;
+        let mut thumbhashes = HashMap::new();
+        if self.settings.resizing().is_some() {
+            let artwork = self.artwork.thumbhashes().await.map_err(database_failed)?;
+            let custom_images = self.custom_images.thumbhashes().await;
+            thumbhashes.extend(artwork);
+            thumbhashes.extend(custom_images.map_err(database_failed)?);
+        }
+        Ok(ShownImages {
+            custom,
+            thumbhashes,
+        })
+    }
 }
 
 /// The client IP address `ctx` came from, which rate limits count by.

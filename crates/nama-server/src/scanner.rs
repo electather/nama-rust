@@ -10,6 +10,8 @@
 //!
 //! Files are only listed and their metadata read, never opened: sidecars such as `.nfo` files
 //! are ignored, except that deleting media deletes them too (see [`deleting`]).
+//! A scan also records which of the Library's folders the Server can't write to, so a delete from
+//! one is refused before anyone tries (ADR 0038).
 //!
 //! A scan publishes its start, then after each batch is written its progress and the Items it
 //! added and removed, then its finish, then once Matching has decided what it could
@@ -17,7 +19,9 @@
 //!
 //! After each scan the Library's items are Matched (see [`crate::matching`]), still under the
 //! Library's scan lock, so Matching sees the items the scan stored. Then [`crate::probing`] is told
-//! its files changed, and probes them in the background without holding up the next scan.
+//! its files changed, and probes them in the background without holding up the next scan. Last,
+//! the images no Match stores any more are deleted, and those the Library's Matches store and the
+//! store lacks are downloaded in the background (see [`crate::artwork`]).
 //!
 //! Probing passes of one Library overlap, so `ProbingFinished` says the Library has caught up, not
 //! that one pass is done (ADR 0030): a pass waits for the files it left to another prober, and
@@ -39,6 +43,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use nama_plugin_api::fulfiller::{Fulfiller, Movies, Shows, StopMonitoring};
 use nama_proto::nama::v1::{
     MatchingFinished, ProbingFinished, ScanFinished, ScanProgress, ScanStarted,
 };
@@ -46,7 +51,9 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use walkdir::{DirEntry, WalkDir};
 
 use crate::{
+    artwork::Artwork,
     contents::{Change, Contents, Stored},
+    custom_images::CustomImages,
     db::{Database, detached},
     events::{EventBus, event},
     libraries::{self, Kind, Libraries, Library},
@@ -54,6 +61,7 @@ use crate::{
     playback::running::RunningPlans,
     plugins::ExtensionPoints,
     probing::Probing,
+    requests::{self, RequestTitle, Requests},
 };
 
 /// Extensions, in lowercase, of the files the scanner treats as video.
@@ -95,6 +103,13 @@ pub(crate) enum Error {
     /// The Server is shutting down.
     #[error("the scan was cancelled")]
     Cancelled,
+    /// A delete names media in this folder of its Library, which the Library's last scan found the
+    /// Server can't write to.
+    #[error("media in {0} can't be deleted: the Server can't write to it")]
+    ReadOnly(String),
+    /// The Requests a delete cancels couldn't be read or cancelled.
+    #[error(transparent)]
+    Requests(#[from] requests::Error),
 }
 
 impl From<matching::Error> for Error {
@@ -116,13 +131,21 @@ pub(crate) struct Scanner {
 #[derive(Debug)]
 struct Inner {
     contents: Contents,
+    /// Downloads the images Matches store, and deletes those none does.
+    artwork: Artwork,
+    /// Deletes a deleted Library's Custom Image.
+    custom_images: CustomImages,
     libraries: Libraries,
     matcher: Matcher,
+    /// Asks Fulfillers to stop monitoring what a delete takes.
+    plugins: ExtensionPoints,
     events: EventBus,
     /// Told when a scan finishes and asked to clean subtitles, unless nothing probes.
     probing: Option<Probing>,
     /// Asked what plays media about to be deleted, and to end it, unless nothing plays.
     running: Option<RunningPlans>,
+    /// Asked which Requests a delete cancels, and to cancel them, unless nothing has Requests.
+    requests: Option<Requests>,
     /// Background scans, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
@@ -169,22 +192,41 @@ impl ScanLock {
 
 impl Scanner {
     /// Tells `probing` each Library whose scan finished and has it clean subtitles, or does
-    /// neither where nothing probes, and has `running` end the plans playing media it deletes.
+    /// neither where nothing probes, has `running` end the plans playing media it deletes, and has
+    /// `requests` cancel the Requests still waiting on it.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is a separate handle the Scanner is built from; a struct bundling them \
+                  would exist only for this call"
+    )]
     pub(crate) fn new(
         db: Arc<Database>,
         plugins: ExtensionPoints,
+        artwork: Artwork,
+        custom_images: CustomImages,
         events: EventBus,
         probing: Option<Probing>,
         running: Option<RunningPlans>,
+        requests: Option<Requests>,
     ) -> Self {
         let locks = ScanLocks(Arc::default());
         Self {
             inner: Arc::new(Inner {
                 libraries: Libraries::new(Arc::clone(&db)),
-                matcher: Matcher::new(Arc::clone(&db), plugins, events.clone(), locks.clone()),
+                matcher: Matcher::new(
+                    Arc::clone(&db),
+                    plugins.clone(),
+                    artwork.clone(),
+                    events.clone(),
+                    locks.clone(),
+                ),
+                artwork,
+                custom_images,
+                plugins,
                 events,
                 probing,
                 running,
+                requests,
                 contents: Contents::new(db),
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
@@ -248,11 +290,18 @@ impl Scanner {
     }
 
     /// Deletes the Library `id`, then throws away its Versions' cached subtitles where something
-    /// probes, and stops watching its folders, even if the caller stops waiting (ADR 0029).
+    /// probes, the images only its Matches stored and its Custom Image, and stops watching its
+    /// folders, even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_library(&self, id: i64) -> Result<(), libraries::Error> {
         let scanner = self.clone();
         detached(async move {
             scanner.inner.libraries.delete(id).await?;
+            scanner
+                .inner
+                .artwork
+                .drop_unused(&scanner.inner.contents)
+                .await;
+            scanner.inner.custom_images.delete_library(id).await;
             if let Some(probing) = &scanner.inner.probing {
                 probing.clean_subtitles().await;
             }
@@ -262,22 +311,39 @@ impl Scanner {
         .await
     }
 
-    /// What [`Self::delete_media`] would delete and stop playing, deleting nothing.
+    /// What [`Self::delete_media`] would delete, stop playing and cancel, deleting nothing.
     pub(crate) async fn preview_delete(&self, doomed: Doomed) -> Result<Deleted, Error> {
-        let playing = (self.inner.running.as_ref())
-            .map_or(0, |running| running.playing(&doomed.version_ids()));
+        let versions = doomed.version_ids();
+        let playing = (self.inner.running.as_ref()).map_or(0, |running| running.playing(&versions));
+        let requests = match &self.inner.requests {
+            Some(requests) => (requests.waiting_on(&doomed.request_titles(&versions))).await?,
+            None => Vec::new(),
+        };
         let planned = tokio::task::spawn_blocking(move || deleting::preview(&doomed)).await?;
-        Ok(Deleted { playing, ..planned })
+        Ok(Deleted {
+            playing,
+            requests,
+            ..planned
+        })
     }
 
-    /// Ends the plans playing `doomed`, then deletes it from disk for good, then removes the
-    /// Versions whose files went as a scan removes them, and logs that `by` deleted them. The one
-    /// way to delete media (see AGENTS.md, "One path for deleting media"). It holds the Library's
-    /// scan lock, so a scan racing it sees either everything or nothing gone, and finishes even if
-    /// the caller stops waiting (ADR 0029).
+    /// Asks every Fulfiller of its kind to stop monitoring `doomed`, then ends the plans playing it,
+    /// deletes it from disk for good, removes the Versions whose files went as a scan removes
+    /// them, with the images only their Matches stored, and logs that `by` deleted them, and
+    /// cancels the Requests still waiting on what they were of. It
+    /// refuses, before any of that, media in a folder the Library's last scan found
+    /// read-only ([`Error::ReadOnly`]). Once the files are deleted it returns what went: a later
+    /// step's failure is only logged. The one way to delete media (see AGENTS.md, "One path for deleting
+    /// media"). It holds the Library's scan lock, so a scan racing it sees
+    /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
+        if let Some(folder) = doomed.read_only_folder() {
+            return Err(Error::ReadOnly(folder.to_owned()));
+        }
         let scanner = self.clone();
         detached(async move {
+            // First, so the service can't see the file missing and download it again (ADR 0038).
+            let not_told = scanner.stop_monitoring(&doomed).await;
             let library = doomed.library.id;
             let _scan = scanner.inner.locks.lock(library).await;
             // Held until the Versions are gone, so none is served again before.
@@ -288,12 +354,13 @@ impl Scanner {
             let folders: Vec<String> = (scanner.inner.libraries.list().await?.into_iter())
                 .flat_map(|other| other.folders)
                 .collect();
-            let (doomed, deleted) = tokio::task::spawn_blocking(move || {
+            let (doomed, mut deleted) = tokio::task::spawn_blocking(move || {
                 let kept: Vec<&Path> = folders.iter().map(Path::new).collect();
                 let deleted = deleting::delete(&doomed, &kept);
                 (doomed, deleted)
             })
             .await?;
+            deleted.fulfillers_not_told.extend(not_told);
             // Before anything else can fail: the files are gone for good.
             let files: Vec<_> = deleted.files.iter().map(|file| &file.path).collect();
             tracing::info!(
@@ -306,18 +373,96 @@ impl Scanner {
                 "deleted media"
             );
             let removed = deleted.versions.iter().copied().map(Change::Remove);
-            let events = scanner
+            let events = match scanner
                 .inner
                 .contents
                 .apply(library, removed.collect())
-                .await?;
+                .await
+            {
+                Ok(events) => events,
+                Err(error) => {
+                    // The next scan removes them, as it does any file gone from disk.
+                    tracing::error!(
+                        %error,
+                        title = %doomed.title,
+                        library,
+                        "couldn't remove the deleted Versions; they stay listed until the next scan"
+                    );
+                    Vec::new()
+                }
+            };
             if let Some(probing) = &scanner.inner.probing {
                 probing.clean_subtitles().await;
             }
             scanner.inner.events.publish(events);
+            scanner
+                .inner
+                .artwork
+                .drop_unused(&scanner.inner.contents)
+                .await;
+            (scanner.cancel_requests(doomed.request_titles(&deleted.versions), by)).await;
             Ok(deleted)
         })
         .await
+    }
+
+    /// Cancels the Requests still waiting on `titles`, whose media `by` deleted. A failure is
+    /// logged, not returned: the media is gone by then, and an error would hide what went.
+    async fn cancel_requests(&self, titles: Vec<RequestTitle>, by: String) {
+        let Some(requests) = &self.inner.requests else {
+            return;
+        };
+        if let Err(error) = requests.cancel_deleted(titles.clone(), by).await {
+            tracing::error!(
+                %error,
+                ?titles,
+                "couldn't cancel the Requests waiting on deleted media; they stay open"
+            );
+        }
+    }
+
+    /// Asks each enabled Fulfiller of `doomed`'s Library's kind to stop monitoring what it takes.
+    /// Returns the name of each that couldn't be told, failing or panicking, which isn't asked
+    /// again.
+    async fn stop_monitoring(&self, doomed: &Doomed) -> Vec<String> {
+        let Some(title) = doomed.to_unmonitor.clone() else {
+            return Vec::new();
+        };
+        let title = StopMonitoring {
+            title: Some(title),
+            ..Default::default()
+        };
+        match doomed.library.kind {
+            Kind::Movies => self.ask_to_stop::<Movies>(&title, &doomed.title).await,
+            Kind::Shows => self.ask_to_stop::<Shows>(&title, &doomed.title).await,
+        }
+    }
+
+    /// Asks each enabled Fulfiller of the kind `K` to stop monitoring `title`, which the log calls
+    /// `name`. Returns the name of each that couldn't be told.
+    async fn ask_to_stop<K: 'static>(&self, title: &StopMonitoring, name: &str) -> Vec<String> {
+        let stop = |fulfiller: Arc<dyn Fulfiller<K>>| async move {
+            fulfiller.stop_monitoring(title).await
+        };
+        let plugins = &self.inner.plugins;
+        let mut not_told = Vec::new();
+        for plugin in plugins.providers::<dyn Fulfiller<K>>() {
+            let answer = plugins.ask(&plugin, &stop).await;
+            // `None`: it panicked, which disabled it, or was disabled meanwhile.
+            let reason = match answer.map(|answer| answer.result) {
+                Some(Ok(())) => continue,
+                Some(Err(failure)) => failure.message,
+                None => "it panicked or was disabled".to_owned(),
+            };
+            tracing::warn!(
+                plugin = %plugin,
+                title = name,
+                reason,
+                "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
+            );
+            not_told.push(plugins.name(&plugin));
+        }
+        not_told
     }
 
     /// The Matcher that fixes a Match by hand, waiting for a scan of the item's Library.
@@ -360,6 +505,10 @@ impl Scanner {
         let stored = self.inner.contents.stored(id).await?;
         let walking = cancel.clone();
         let found = tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;
+        if found.read_only != library.read_only {
+            let read_only = found.read_only.clone();
+            self.inner.libraries.set_read_only(id, read_only).await?;
+        }
         let (changes, summary) = plan(library.kind, stored, found);
         let files_total = count(changes.len());
         let mut files_done = 0;
@@ -422,6 +571,10 @@ impl Scanner {
                 },
             ),
         }
+        // Last, so no event of the scan waits on it.
+        let contents = &self.inner.contents;
+        self.inner.artwork.drop_unused(contents).await;
+        self.inner.artwork.download_missing(contents.clone(), id);
         Ok(summary)
     }
 
@@ -467,6 +620,8 @@ struct Walked {
     files: Vec<Found>,
     /// Folders and files that couldn't be read. What's stored under them is kept.
     unreadable: Vec<PathBuf>,
+    /// The Library's folders the Server can't write to.
+    read_only: Vec<String>,
 }
 
 /// Blocks, so call it from `spawn_blocking`.
@@ -474,6 +629,9 @@ fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Walked, Error>
     let mut walked = Walked::default();
     for folder in folders {
         let root = Path::new(folder);
+        if !writable(root) {
+            walked.read_only.push(folder.clone());
+        }
         let entries = WalkDir::new(root)
             .follow_links(true)
             .into_iter()
@@ -494,6 +652,20 @@ fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Walked, Error>
         }
     }
     Ok(walked)
+}
+
+/// Whether the Server may delete what's in `folder`.
+#[cfg(unix)]
+fn writable(folder: &Path) -> bool {
+    // A read-only mount, such as the README's Docker example, leaves the folder's mode writable.
+    rustix::fs::access(folder, rustix::fs::Access::WRITE_OK).is_ok()
+}
+
+// ponytail: Windows folders count as writable, so a delete there fails file by file instead of
+// being refused; read their ACLs once a Server runs on Windows.
+#[cfg(not(unix))]
+const fn writable(_folder: &Path) -> bool {
+    true
 }
 
 /// Whether a file or folder is hidden: dot files, and the thumbnails Synology NASes leave.
@@ -617,16 +789,20 @@ mod tests {
     use nama_proto::nama::v1::{Lagged, subscribe_response};
     use tempfile::TempDir;
 
-    use super::{Scanner, Summary};
+    use super::{Doomed, Scanner, Summary};
     use crate::{
-        contents::{Contents, File, Item},
+        artwork::Artwork,
+        contents::{Contents, File, Item, Version},
+        custom_images::CustomImages,
         db::Database,
         events::{EventBus, Filter},
         ffmpeg::Ffmpeg,
+        images::ImageStore,
         libraries::{self, Kind, Libraries},
         playback::subtitles,
         plugins::ExtensionPoints,
         probing::Probing,
+        requests::Requests,
         server_settings::ServerUrl,
     };
 
@@ -639,6 +815,7 @@ mod tests {
         scanner: Scanner,
         /// What the scanner tells a scan finished, if anything probes.
         probing: Option<Probing>,
+        db: Arc<Database>,
         contents: Contents,
         events: EventBus,
         library: i64,
@@ -679,16 +856,25 @@ mod tests {
                 let subtitles = subtitles::Cache::new(data.path());
                 Probing::new(Arc::clone(&db), Arc::new(ffmpeg), subtitles)
             });
+            let images = ImageStore::new(data.path(), Arc::clone(&db));
             Self {
                 scanner: Scanner::new(
                     Arc::clone(&db),
                     ExtensionPoints::default(),
+                    Artwork::new(images.clone(), ExtensionPoints::default()),
+                    CustomImages::new(Arc::clone(&db), images),
                     events.clone(),
                     probing.clone(),
                     None,
+                    Some(Requests::new(
+                        Arc::clone(&db),
+                        events.clone(),
+                        ExtensionPoints::default(),
+                    )),
                 ),
                 probing,
-                contents: Contents::new(db),
+                contents: Contents::new(Arc::clone(&db)),
+                db,
                 events,
                 library: library.id,
                 root,
@@ -709,6 +895,35 @@ mod tests {
 
         async fn scan(&self) -> Summary {
             self.scanner.scan(self.library).await.unwrap()
+        }
+
+        /// Every stored file of the Library, as one title to delete.
+        async fn doomed(&self) -> Doomed {
+            let stored = self.contents.stored(self.library).await.unwrap();
+            Doomed {
+                library: self
+                    .scanner
+                    .inner
+                    .libraries
+                    .get(self.library)
+                    .await
+                    .unwrap(),
+                title: "Everything".to_owned(),
+                to_unmonitor: None,
+                versions: (stored.into_iter())
+                    .map(|(path, file)| Version { file, path })
+                    .collect(),
+                taken_along: Vec::new(),
+                requested: Vec::new(),
+            }
+        }
+
+        /// Makes every later write fail, as a database that can't be written to does.
+        async fn stop_writes(&self) {
+            self.db
+                .write(|tx| Box::pin(sqlx::query("PRAGMA query_only = ON").execute(&mut **tx)))
+                .await
+                .unwrap();
         }
 
         /// The stored files, as `/`-separated paths relative to the Library folder, whatever
@@ -809,6 +1024,40 @@ mod tests {
                 ),
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn writes_failing_once_the_files_are_gone_are_logged_and_the_delete_still_reports_them() {
+        let media = Fixture::new(Kind::Movies).await;
+        media.write("Alien (1979)/Alien (1979).mkv", 10);
+        media.scan().await;
+        let doomed = media.doomed().await;
+        media.stop_writes().await;
+        let log = tempfile::NamedTempFile::new().unwrap();
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(Arc::new(log.reopen().unwrap()))
+            .with_ansi(false)
+            .finish();
+        // The test's runtime has one thread, so the delete's tasks log to it too. A thread-local
+        // subscriber is safe here, unlike in `tests/support/log.rs`: only this test reaches the
+        // error lines it reads, so no other test races it over whether they're enabled.
+        let logging = tracing::subscriber::set_default(subscriber);
+
+        let deleted = media.scanner.delete_media(doomed, "ada".to_owned()).await;
+
+        drop(logging);
+        let deleted = deleted.unwrap();
+        let files: Vec<_> = deleted.files.iter().map(|file| &file.path).collect();
+        assert_eq!(files, [&media.path("Alien (1979)/Alien (1979).mkv")]);
+        assert_eq!(deleted.bytes_freed(), 10);
+        assert!(!media.path("Alien (1979)").exists());
+        let log = fs::read_to_string(log.path()).unwrap();
+        let logged = |step: &str| {
+            log.lines()
+                .any(|line| line.contains("ERROR") && line.contains(step))
+        };
+        assert!(logged("couldn't remove the deleted Versions"), "{log}");
+        assert!(logged("couldn't cancel the Requests"), "{log}");
     }
 
     #[tokio::test]

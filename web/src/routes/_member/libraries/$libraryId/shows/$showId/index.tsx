@@ -2,13 +2,16 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 
 import { DeleteEpisode, DeleteFromShow } from "@/components/delete-from-show";
+import { EditImages, showImages } from "@/components/edit-images";
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { MarkPlayedMenu } from "@/components/mark-played-menu";
 import { PlayedIconButton, WatchedBar } from "@/components/watch-state";
 import { BrowseService, type Episode, type Season } from "@/gen/nama/v1/browse_pb";
 import {
+  type DeletedSearch,
   dateOf,
+  deletedFromSearch,
   externalIdFromParam,
   isGone,
   libraryFromParam,
@@ -19,12 +22,14 @@ import {
   versionLine,
   versionToPlay,
 } from "@/lib/browse";
+// oxlint-disable-next-line import/max-dependencies -- the page puts together a Show's Seasons, Episodes, Watch State and what an admin may change
 import { useSetPlayed } from "@/lib/watch-state";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showId/")({
-  validateSearch: (search): { season?: number } => {
+  validateSearch: (search): { season?: number } & DeletedSearch => {
     const season = Number(search["season"]);
-    return Number.isInteger(season) && season >= 0 ? { season } : {};
+    const deleted = deletedFromSearch(search);
+    return Number.isInteger(season) && season >= 0 ? { season, ...deleted } : deleted;
   },
   loaderDeps: ({ search }) => ({ season: search.season }),
   loader: async ({ context, params, deps }) => {
@@ -55,7 +60,11 @@ function Show() {
   });
   if (!data.show || isGone(error)) return <NotFound />;
   return (
-    <TitlePage title={data.show.title} backdropUrl={data.show.backdropUrl}>
+    <TitlePage
+      title={data.show.title}
+      backdropUrl={data.show.backdropUrl}
+      backdropThumbhash={data.show.backdropThumbhash}
+    >
       {/* Pulled out like the Episodes below, so the menu lines up with their toggles. */}
       <div className="-me-3 flex max-w-3xl items-start gap-2">
         <Seasons seasons={data.seasons} current={seasonNumber} />
@@ -71,6 +80,14 @@ function Show() {
       <SeasonShown seasons={data.seasons} current={seasonNumber} />
       {/* Out of the way below the Episodes, and pulled out by the buttons' own padding. */}
       <div className="mt-6 -ms-4 flex max-w-3xl flex-wrap gap-2 empty:hidden">
+        <EditImages
+          title={data.show.title}
+          images={showImages(
+            show.showId,
+            data.show,
+            data.seasons.find(({ number }) => number === seasonNumber),
+          )}
+        />
         <DeleteFromShow
           {...show}
           title={data.show.title}

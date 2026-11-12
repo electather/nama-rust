@@ -46,6 +46,22 @@ pub type OwnedUpdatePlaybackSettingsRequestView = ::buffa::view::OwnedView<
 pub type OwnedUpdatePlaybackSettingsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::UpdatePlaybackSettingsResponseView<'static>,
 >;
+///Shorthand for `OwnedView<GetImageSettingsRequestView<'static>>`.
+pub type OwnedGetImageSettingsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetImageSettingsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetImageSettingsResponseView<'static>>`.
+pub type OwnedGetImageSettingsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetImageSettingsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<UpdateImageSettingsRequestView<'static>>`.
+pub type OwnedUpdateImageSettingsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdateImageSettingsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<UpdateImageSettingsResponseView<'static>>`.
+pub type OwnedUpdateImageSettingsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdateImageSettingsResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::GetServerInfoResponse>
 for crate::messages::nama::v1::__buffa::view::GetServerInfoResponseView<'_> {
     fn encode(
@@ -250,6 +266,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetImageSettingsResponse>
+for crate::messages::nama::v1::__buffa::view::GetImageSettingsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetImageSettingsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetImageSettingsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UpdateImageSettingsResponse>
+for crate::messages::nama::v1::__buffa::view::UpdateImageSettingsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UpdateImageSettingsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdateImageSettingsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const SERVER_SERVICE_SERVICE_NAME: &str = "nama.v1.ServerService";
 /// Static [`Spec`](::connectrpc::Spec) for the `GetServerInfo` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -285,6 +369,18 @@ pub const SERVER_SERVICE_GET_PLAYBACK_SETTINGS_SPEC: ::connectrpc::Spec = ::conn
 /// Static [`Spec`](::connectrpc::Spec) for the `UpdatePlaybackSettings` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const SERVER_SERVICE_UPDATE_PLAYBACK_SETTINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.ServerService/UpdatePlaybackSettings",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetImageSettings` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_GET_IMAGE_SETTINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/GetImageSettings",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `UpdateImageSettings` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_UPDATE_IMAGE_SETTINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/UpdateImageSettings",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -482,6 +578,54 @@ pub trait ServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::UpdatePlaybackSettingsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns how the Server resizes Posters and Backdrops. Needs `PERMISSION_MANAGE_SETTINGS`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_image_settings<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetImageSettingsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetImageSettingsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Replaces how the Server resizes Posters and Backdrops, from the next image asked for. Needs
+    /// `PERMISSION_MANAGE_SETTINGS`. A `resized_cache_mib` set to 0 is refused with
+    /// `REFUSAL_REASON_FIELD_REQUIRED` naming it, and nothing changes.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn update_image_settings<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::UpdateImageSettingsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::UpdateImageSettingsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -691,6 +835,64 @@ impl<S: ServerService> ServerServiceExt for S {
                 },
             )
             .with_spec(SERVER_SERVICE_UPDATE_PLAYBACK_SETTINGS_SPEC)
+            .route_view_idempotent(
+                SERVER_SERVICE_SERVICE_NAME,
+                "GetImageSettings",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetImageSettingsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetImageSettingsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_image_settings(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetImageSettingsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_GET_IMAGE_SETTINGS_SPEC)
+            .route_view(
+                SERVER_SERVICE_SERVICE_NAME,
+                "UpdateImageSettings",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::UpdateImageSettingsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::UpdateImageSettingsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.update_image_settings(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::UpdateImageSettingsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_UPDATE_IMAGE_SETTINGS_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -779,6 +981,18 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(SERVER_SERVICE_UPDATE_PLAYBACK_SETTINGS_SPEC),
+                )
+            }
+            "GetImageSettings" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(SERVER_SERVICE_GET_IMAGE_SETTINGS_SPEC),
+                )
+            }
+            "UpdateImageSettings" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SERVER_SERVICE_UPDATE_IMAGE_SETTINGS_SPEC),
                 )
             }
             _ => None,
@@ -925,6 +1139,50 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::UpdatePlaybackSettingsResponse,
+                        >(format)
+                })
+            }
+            "GetImageSettings" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetImageSettingsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetImageSettingsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetImageSettingsRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_image_settings(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::GetImageSettingsResponse,
+                        >(format)
+                })
+            }
+            "UpdateImageSettings" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::UpdateImageSettingsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::UpdateImageSettingsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::UpdateImageSettingsRequest,
+                    >::from_parts(&req, &body);
+                    svc.update_image_settings(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::UpdateImageSettingsResponse,
                         >(format)
                 })
             }
@@ -1320,6 +1578,96 @@ where
                 &self.transport,
                 &self.config,
                 SERVER_SERVICE_UPDATE_PLAYBACK_SETTINGS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetImageSettings RPC. Sends a request to /nama.v1.ServerService/GetImageSettings.
+    pub async fn get_image_settings(
+        &self,
+        request: crate::messages::nama::v1::GetImageSettingsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetImageSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_image_settings_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetImageSettings RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_image_settings_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetImageSettingsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetImageSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_GET_IMAGE_SETTINGS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the UpdateImageSettings RPC. Sends a request to /nama.v1.ServerService/UpdateImageSettings.
+    pub async fn update_image_settings(
+        &self,
+        request: crate::messages::nama::v1::UpdateImageSettingsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UpdateImageSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.update_image_settings_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the UpdateImageSettings RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn update_image_settings_with_options(
+        &self,
+        request: crate::messages::nama::v1::UpdateImageSettingsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UpdateImageSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_UPDATE_IMAGE_SETTINGS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
