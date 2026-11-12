@@ -88,8 +88,12 @@ _Avoid_: third-party plugin, external plugin, WASM plugin
 The file an Installed Plugin is loaded from, which gives its Manifest and its code.
 _Avoid_: wasm file, module, binary
 
+**Plugin contract**:
+What an Installed Plugin is built against, with a version of its own that a Manifest's requirement is matched against.
+_Avoid_: plugin API, SDK, Nama API
+
 **Manifest**:
-What a Plugin says about itself before it is enabled: its id, name, version, description and logo, the Nama API versions it works with, its settings, the hosts it may reach, and its Extension Points. A Built-in Plugin's comes from its code, an Installed Plugin's from its package. A Server outside those Nama API versions refuses the Plugin, as it refuses an Installed Plugin naming an Extension Point it doesn't know or lacking an export one needs, and a Plugin may take part only at the Extension Points it names.
+What a Plugin says about itself before it is enabled: its id, name, version, description and logo, the Plugin contract versions it works with, its settings, the hosts it may reach, and its Extension Points. A Built-in Plugin's comes from its code, an Installed Plugin's from its package. A Server outside those Plugin contract versions refuses the Plugin, as it refuses an Installed Plugin naming an Extension Point it doesn't know or lacking an export one needs, and a Plugin may take part only at the Extension Points it names.
 _Avoid_: descriptor, plugin.json, metadata
 
 **Extension Point**:
