@@ -6,7 +6,7 @@ Research for the on-request image resizer: can JPEG XL (JXL) be the main format 
 
 1. **Yes, as the first choice, not as the only format.** Chrome 155+ (2026-10-06), Firefox 158+ (2026-10-13) and Safari 17+ (2023-09-18) decode `image/jxl` by default and name it in the `Accept` header of image requests. caniuse counts 54% of global usage with full support and 15% with partial support (Safari) today.
 2. **A fallback stays mandatory.** Edge does not decode JXL in any version, nor do Samsung Internet, smart-TV web runtimes (Tizen on Chromium M130, webOS on Chromium 132), Android's platform decoder or Kodi's own ffmpeg build. So: negotiate on `Accept`, send `Vary: Accept`, keep WebP or JPEG.
-3. **No encoder is free of cost under this repo's rules.** The reference encoder (libjxl) is reachable through `jpegxl-rs`, which is `GPL-3.0-or-later` and fails `deny.toml`, or through `jxl-sys`, which is raw FFI and needs `unsafe` in the Server; both need cmake and a C++ toolchain on all five release targets. Two pure-Rust lossy encoders now pass `cargo deny` as they are, `jixel` (BSD-3-Clause OR Apache-2.0) and `jxl-encoder` (AGPL-3.0-only OR commercial), but both are under a year old and were not compiled or run here.
+3. **No encoder is free of cost under this repo's rules.** The reference encoder (libjxl) is reachable through `jpegxl-rs`, which is `GPL-3.0-or-later` and fails `deny.toml`, or through `jxl-sys`, which is raw FFI and needs `unsafe` in the Server; both need cmake and a C++ toolchain on all five release targets. Two pure-Rust lossy encoders now pass `cargo deny` as they are, `jixel` (BSD-3-Clause OR Apache-2.0) and `jxl-encoder` (AGPL-3.0-only OR commercial), but both are under a year old. Section 11, added on 2026-11-12, measures both: each passes every check that could be run here, and `jixel` needs a third of the memory.
 4. **The ffmpeg route is closed.** jellyfin-ffmpeg8 is built without libjxl, and ffmpeg's libjxl wrapper has no option that writes a progressive file.
 5. **Speed is not the obstacle.** Measured with libjxl 0.12.0 on one thread: effort 3 to 4 encodes 640x960 in 17 to 19 ms and 1920x1080 in 40 to 44 ms, faster than libwebp at its default method (29 and 92 ms). Effort 7 costs 142 and 442 ms.
 6. **Smaller files are not a given at poster sizes.** The JPEG XL authors' own summary of subjective tests has JXL about 20 to 30% ahead of WebP on photographs and level with WebP on illustrations and text. The local test here was inconclusive: VMAF put JXL about 27 to 30% under WebP, SSIM and XPSNR put it above.
@@ -203,7 +203,7 @@ Both decoders pass `deny.toml`, are pure Rust and plug into `image`:
 
 **Assessment (mine).** If JXL uploads are to be accepted, take `jxl` with `jxl-image-rs-integration`. For encoding there are three honest options, each with a named price:
 
-1. A pure-Rust encoder, `jixel` first (permissive, no dependencies, has progressive DC) and `jxl-encoder` second. Price: betting the main output format on a crate less than a year old. Nothing here verified their quality, speed or that browsers decode their progressive files; that needs a prototype before any decision.
+1. A pure-Rust encoder, `jixel` first (permissive, no dependencies, has progressive DC) and `jxl-encoder` second. Price: betting the main output format on a crate less than a year old. Section 11 is the prototype that measured their quality, speed, memory and browser support.
 2. libjxl through `jpegxl-rs` with `vendored`. Price: two licence exceptions in `deny.toml`, and a C++ build on five targets in release CI.
 3. No JXL encoding yet. Price: none; the `Accept` negotiation and cache key are built so that JXL can be added later.
 
@@ -250,7 +250,7 @@ Measured here. Encode time is the encoder alone: for libjxl, the megapixels per 
 - The whole process (`cjxl` start, read, encode, write) took 21 to 22 ms at effort 3 to 4 for 640x960 and 45 to 49 ms for 1920x1080.
 - On request, the sensible range is effort 3 or 4 on one thread per image. Effort 7 on one thread is close to half a second for a backdrop.
 
-This is libjxl. It says nothing about how fast `jixel` or `jxl-encoder` are.
+This is libjxl. Section 11 times `jixel` and `jxl-encoder`.
 
 ## 7. Size at web sizes
 
@@ -330,6 +330,108 @@ Of six image services, three can negotiate JXL (imgproxy, Fastly, Cloudinary), e
 - Encoder churn. Three of the four usable encoders are single-maintainer, and two are months old.
 - Cache size. A second format doubles the stored variants for every size that both kinds of client ask for.
 
+## 11. Encoders measured
+
+Measured on 2026-11-12 for #728, which picks the encoder #739 uses. Both pure-Rust candidates were compiled and run against the six gates #728 sets; libjxl was not a candidate (section 4: two GPL exceptions and a C++ build on five targets).
+
+### Result
+
+| Gate | `jxl-encoder` 0.3.4, effort 3, distance 1.5 | `jixel` 0.5.7, `UltraFast`, distance 1.2, lossless alpha |
+| --- | --- | --- |
+| 1. Chrome, Firefox and Safari show the files | Chrome 157 and Firefox 160 showed all six, each within 0.33 of 255 (mean) of `djxl`'s decode. Safari: not yet checked, by hand on a Mac (#728) | The same |
+| 2. Chrome and Firefox paint a blurred full frame early | Opaque files: from 1 to 2% of the file (0.6 to 1.1 KB), in both. Files with alpha: no, and no encoder's do (below) | Opaque files: from 1 to 2% (0.4 to 0.9 KB). Files with alpha: no |
+| 3. One job within 128 MiB above idle | Worst 110.7 MiB, the RGBA PNG to a Backdrop | Worst 86.7 MiB, the RGBA PNG to a Backdrop, in the resize |
+| 4. Encodes on the calling thread | Yes. Without its `parallel` feature it has no threads | Yes, with `with_num_threads(1)`. Its default is one thread per core |
+| 5. 1920x1080 in 200 ms or less on one thread | 71 to 83 ms | 63 to 71 ms |
+| 6. `cargo deny`; `cargo check` on the five targets | Pass; pass | Pass; pass |
+| Peak memory of its own per output pixel, 2 MP and up | 49 to 51 bytes | 14 to 16 bytes |
+| Size against the Server's JPEG at the same look | 40 to 52% smaller | 46 to 58% smaller; 8 to 18% smaller than `jxl-encoder` |
+| New crates in `Cargo.lock` | 9 | 1 |
+
+Both pass every gate run here; Safari is still to be checked. By #728's ranking (memory per output pixel, then speed, then size, then upkeep) **`jixel` wins on the first criterion**, and on the next two. `jxl-encoder` is better kept: a company, output checked against three decoders, `#![forbid(unsafe_code)]`; `jixel` has one maintainer, 48 releases since 2026-05-27 and 2,051 uses of `unsafe` (section 4). Upkeep comes last, so it was not reached.
+
+**Pixel limit.** The encode stage, the encoder plus the image it encodes, needs about 17.0 MiB per megapixel plus 5.4 MiB with `jixel` for RGBA, and 15.6 MiB plus 5.5 MiB for RGB. 128 MiB holds 7.2 megapixels of RGBA and 7.8 of RGB, so the limit is **7 megapixels**. On the Server's width list, 2:3 images fit up to 1920 px (5.5 MP) and 16:9 up to 2560 px (3.7 MP); a 2:3 image at 2560 px (9.8 MP) goes as JPEG. `jxl-encoder` would fit 2.4 megapixels. The limit bounds the encode only: decode and resize stay under #725's rules, and the RGBA PNG to 1920x2880 peaked at 113 MiB in the resize.
+
+### Method
+
+- **Machine and pipeline.** The machine of `image-memory-use.md` (Ryzen 9 7950X3D, glibc 2.44, rustc 1.99.1), load average under 1. A scratch crate outside the repo runs the Server's pipeline: `image` 0.25.10 decodes from the file; `fast_image_resize` 6 resizes with Lanczos3, cropping the centre to the output's shape, alpha premultiplied in place, resized with `use_alpha(false)` and divided back; the source is dropped; one encode follows on the calling thread.
+- **Inputs.** The three images of `image-memory-use.md`: a 3840x2160 JPEG, a 2000x3000 JPEG and a 4000x4000 RGBA PNG. All three are synthetic (noise and grain), not film art. Each becomes a Poster at 640x960 and a Backdrop at 1920x1080; the scaling runs go up to 2560x3840.
+- **Features.** `jxl-encoder` with `default-features = false, features = ["std"]`: no `parallel`, no `unsafe-performance`, no Butteraugli loop, which only effort 8 and up use. `jixel` with `default-features = false, features = ["avx", "sse", "neon"]`. Its defaults also turn on `wasm`, `splines` and `extraslow`, and `extraslow` pulls in two crates.
+- **Memory** as in `image-memory-use.md`: `VmHWM` reset at each stage, exact `Rss` at stage edges, pinned to one CPU, transparent huge pages off, five runs, highest kept. With `GLIBC_TUNABLES=glibc.malloc.mmap_threshold=131072` every figure was the same or up to 6 MiB lower; the tables give glibc's defaults.
+- **Threads.** `Threads` in `/proc/self/status` before and after the encode, and the encode's CPU time for the whole process (`RUSAGE_SELF`) against the calling thread's (`RUSAGE_THREAD`). For both encoders no thread was added, and no CPU time was spent on another thread.
+- **Time.** One process per case, a first encode, then 15 timed ones; best and median. The first encode in a process is 10 to 30 ms slower.
+- **Quality.** SSIMULACRA2 (the `ssimulacra2` crate 0.5.1) of `djxl`'s decode against the resized source, alpha flattened on mid-grey; then 2x crops by eye.
+- **Browsers.** Firefox 160.0 driven over WebDriver BiDi, and Chrome for Testing 157.0.8103.78 over the DevTools protocol, both headless. The local server of section 2 sends the first N bytes with the full `Content-Length` and then stalls, and each browser is screenshotted 1.2 s later. Prefixes of 1, 2, 3, 5, 10, 20, 30, 50 and 70%, and the whole file. "Painted" means at least 99% of the image's opaque area is covered.
+- **Safari** gets a page of the same files, which reports whether each one decoded, for a hand check on a Mac.
+
+### Choosing the distance and effort
+
+The distance is the one at which an encoder's files look like the JPEGs the Server sends today: JPEG quality 80, from #725. Over the four opaque cases, mean SSIMULACRA2 is 81.35 for JPEG, 81.34 for `jxl-encoder` at distance 1.5, and 81.23 for `jixel` `UltraFast` at 1.2. The two encoders' distances don't mean the same thing: at 1.5, `jixel`'s opaque files are 32 to 46% smaller than `jxl-encoder`'s and score 4.6 points lower on average (76.8 against 81.3).
+
+| Case | JPEG q80: KB, SSIMULACRA2 | `jxl-encoder`, effort 3, distance 1.5 | `jixel`, `UltraFast`, distance 1.2 |
+| --- | --- | --- | --- |
+| 4K JPEG to Poster | 57.3, 81.9 | 31.4, 82.7 | 28.5, 82.8 |
+| 4K JPEG to Backdrop | 197.5, 82.0 | 98.8, 81.9 | 91.3, 81.8 |
+| 2000x3000 JPEG to Poster | 67.3, 82.6 | 40.2, 83.4 | 36.6, 83.4 |
+| 2000x3000 JPEG to Backdrop | 219.5, 78.9 | 105.6, 77.3 | 93.1, 76.9 |
+| RGBA PNG to Poster | sent as stored | 58.1, 85.1 | 48.4, 84.5 |
+| RGBA PNG to Backdrop | sent as stored | 125.4, 85.4 | 103.1, 84.2 |
+
+KB is 1000 bytes. By eye at 2x, both JPEG XL encoders smooth the grain a little more than the JPEG does, and the JPEG shows faint blocks; the two encoders' crops can't be told apart.
+
+The effort is the lowest whose files look acceptable at that distance:
+
+- **`jxl-encoder`.** Efforts 1 to 4 decode to identical pixels at a given distance and differ only in coding. Effort 3 files are 12 to 25% smaller than effort 1's and 2's, for 5 MiB less memory and 6 ms more at 1920x1080, so effort 3. Effort 5 adds the block-size search and took 271 ms at 1920x1080; 6 took 501 ms and 7 took 568 ms.
+- **`jixel`.** `UltraFast`, its lowest. `Fastest` and `Fast` look a little better at the same distance but took 137 to 149 ms and 262 ms at 1920x1080 for opaque images.
+- **`jixel`'s alpha.** By default `jixel` codes alpha lossily at the frame's distance, which took 251 ms for the RGBA Backdrop at distance 1.2. With `with_alpha_distance(0.0)` alpha is lossless, as libjxl and `jxl-encoder` code it by default, and the same encode took 70 ms. Its own memory fell from 28 to 30 bytes per output pixel to 15 to 16. All `jixel` figures in this section use lossless alpha.
+- **Progressive DC** is turned on with `with_lf_frame(true)` and `with_progressive_dc(true)`. `jxl-encoder`'s `with_effort` rebuilds its settings and drops `lf_frame`, so the effort has to be set first. Progressive DC cost `jxl-encoder` 4.6 to 7.1% more bytes. It cost `jixel` nothing: its files came out 0.2 to 0.6% smaller.
+
+### Memory and time
+
+Peak of the whole job above idle, and the encoder's own share: the encode stage's peak less the memory in use before it, which is mostly the image being encoded. Times are for the encode alone, best and median of 15.
+
+| Case | `jxl-encoder`: job, own MiB | encode ms | `jixel`: job, own MiB | encode ms |
+| --- | --- | --- | --- | --- |
+| 4K JPEG to Poster | 33.5, 30.4 | 25 / 25 | 30.6, 11.8 | 21 / 21 |
+| 4K JPEG to Backdrop | 106.7, 99.4 | 71 / 71 | 42.7, 30.0 | 63 / 64 |
+| 2000x3000 JPEG to Poster | 33.5, 30.4 | 26 / 26 | 25.5, 11.7 | 21 / 21 |
+| 2000x3000 JPEG to Backdrop | 106.5, 99.2 | 74 / 74 | 37.9, 30.6 | 68 / 69 |
+| RGBA PNG to Poster | 74.2, 31.1 | 31 / 31 | 74.5, 23.3 | 26 / 26 |
+| RGBA PNG to Backdrop | 110.7, 101.4 | 82 / 83 | 86.7, 31.3 | 70 / 71 |
+
+The jobs from the RGBA PNG peak at 74 to 87 MiB in decode and resize, whichever encoder follows. Encode stage above idle by output size, from which the pixel limit above is fitted:
+
+| Output | `jxl-encoder` RGB | `jxl-encoder` RGBA | `jixel` RGB | `jixel` RGBA |
+| --- | --- | --- | --- | --- |
+| 1280x720, 0.9 MP | 48.9 | 50.9 | 19.8 | 26.5 |
+| 1920x1080, 2.1 MP | 106.7 | 110.3 | 37.9 | 40.7 |
+| 2560x1440, 3.7 MP | 187.1 | 194.5 | 62.3 | 68.1 |
+| 1920x2880, 5.5 MP | 277.0 | 290.5 | 90.7 | 99.5 |
+| 2560x3840, 9.8 MP | 490.6 | | 159.0 | |
+
+### Early paint
+
+Share of the image's opaque area painted in Firefox 160 when the file stops at each point. Chrome 157 gave the same table for every file, as both use the `jxl` decoder.
+
+| File | 1% | 2% | 5% | 30% | 50% | 70% |
+| --- | --- | --- | --- | --- | --- | --- |
+| Opaque, either encoder, progressive DC | 0 or 1 | 1 | 1 | 1, once 0 (below) | 1 | 1 |
+| Opaque, either encoder, no progressive DC | 0 | 0 | 0 | 0 or 1 | 1 | 1 |
+| RGBA, `jxl-encoder` with its LF frame | 0 | 0 | 0 | 0 | 0.20 to 0.22 | 0.57 to 0.68 |
+| RGBA, `cjxl -e 3 --progressive_dc=1` | 0 | 0 | 0 | 0.04 to 0.08 | 0.20 to 0.32 | 0.61 to 0.68 |
+| RGBA, `jixel`, lossless alpha | 0 | 0 | 0 | 0 | 0.20 to 0.28 | 0.61 to 0.68 |
+
+- **Files with alpha get no early blur**, whichever encoder wrote them, libjxl included. They fill in by rows of groups from about half the file. `jixel` ignores progressive DC on frames with alpha (its files are byte-identical with it on or off), but that changes nothing a browser shows. Images with transparency rely on the thumbhash.
+- **The blur can drop out for a moment.** For one cut between 25 and 30% of the file, both browsers showed nothing where the cuts on either side showed the blurred frame. That happened once in 97 to 98 cuts at every 1% for each of four Posters, `jxl-encoder`'s as well as `jixel`'s. With the rest of the file sent after a 3 s stall at that cut, the whole image showed. It is the decoder's behaviour, not either encoder's.
+- Chrome 157 sends `image/jxl,image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8` with image requests.
+
+### Not verified here
+
+- Safari, until the hand check is done. Nothing in this section was run on a Mac, on Windows or on ARM; those targets were only checked with `cargo check`, so `jixel`'s NEON code has not run.
+- Real posters and backdrops. The inputs are synthetic, and quality was judged by one metric and by eye.
+- Times on a small device. They are for one core of a desktop CPU and will be several times longer there.
+- `jxl-oxide`. `jixel`'s files were decoded by `djxl` (libjxl 0.12.0) and by the `jxl` decoder in two browsers, not by `jxl-oxide`.
+
 ## Findings that differ from a year-old memory
 
 - **Chrome ships JPEG XL.** A year ago Chrome had removed it and had only just said it would welcome a memory-safe decoder. It has been on by default since Chrome 155.
@@ -345,7 +447,7 @@ Of six image services, three can negotiate JXL (imgproxy, Fastly, Cloudinary), e
 
 ## Not verified
 
-- Chrome's progressive painting was read from source, not seen: no Chrome is installed here. The Firefox measurements may not carry over exactly, since Chrome 157 bundles `jxl` 0.7.4 and Firefox 160 bundles 0.8.0.
+- Chrome's progressive painting was read from source, not seen: no Chrome is installed here. Section 11 later saw it in Chrome for Testing 157, painting exactly as Firefox 160 did.
 - JXL on Chrome for Android, Android WebView and Firefox for Android was taken from chromestatus, MDN data and Mozilla's intent; no Android device was tested.
 - What Edge sends in `Accept`, whether it has a flag, and why Microsoft left JXL out. Only the absence of support is established.
 - Safari's behaviour was taken from WebKit source, the WebKit bug and Mozilla's statement; no Safari was run. Whether Safari on macOS Ventura and Monterey really decodes JXL, as the WebKit post says, was not checked elsewhere.
@@ -353,7 +455,7 @@ Of six image services, three can negotiate JXL (imgproxy, Fastly, Cloudinary), e
 - Which Chromium Samsung Internet 31 is built on, and whether Opera, Brave and Vivaldi decode JXL; caniuse lists Opera 139 as supporting it.
 - That ImageIO decodes JXL for native apps on iOS 17, tvOS 17 and macOS 14. Apple's documentation only shows the `UTType` constant, from 18.2 and 15.2.
 - Kodi built against a system ffmpeg; Plex's handling of JXL.
-- **No crate was compiled or run.** Unknown for `jixel` and `jxl-encoder`: encode time, file size, visual quality, whether Chrome, Firefox and Safari decode their output, and whether their progressive-DC files paint early. Unknown for `jpegxl-rs` and `jxl-sys`: whether they build on each of the five release targets, above all `x86_64-pc-windows-msvc` and the two macOS targets, and how cargo-dist's runners would cope with cmake.
+- **No crate was compiled or run** for sections 1 to 10. Section 11 measures `jixel` and `jxl-encoder`. Unknown for `jpegxl-rs` and `jxl-sys`: whether they build on each of the five release targets, above all `x86_64-pc-windows-msvc` and the two macOS targets, and how cargo-dist's runners would cope with cmake.
 - The libjxl timings are from `cjxl`'s own report of its encode speed. Calling libjxl from Rust in-process was not timed.
 - Decode time in browsers, and decode cost on phones, were not measured. Mozilla's intent mentions a larger gap to other formats on small images.
 - Size at matched perceptual quality. The local metrics disagreed, the test images are not film posters or stills, and no study at 300 to 800 px was found.
