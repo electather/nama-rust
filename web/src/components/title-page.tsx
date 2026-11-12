@@ -38,8 +38,8 @@ export function TitlePage({
               alt=""
               className="absolute inset-0 -z-10 size-full object-cover"
             />
-            {/* Clear at the top, so the art shows, and from 60% up from the bottom at least the
-                scrim's 70% black, fading into the page: the title sits there, at the bottom. */}
+            {/* Clear at the top, so the art shows, and over its bottom 60%, where the title sits,
+                at least the scrim's 70% black, fading into the page. */}
             <div className="absolute inset-0 -z-10 bg-linear-to-t from-background via-scrim via-60% to-transparent" />
           </>
         )}

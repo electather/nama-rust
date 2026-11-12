@@ -45,7 +45,7 @@ function Movie() {
           "Movie",
           ...movie.genres,
           yearOf(movie.releaseDate),
-          runtimeOf(movie.runtimeMinutes),
+          runtimeOf(movie.runtimeMinutes, "short"),
         ]}
         boxed={[movie.contentRating, ...movieBadges(movie.versions)]}
       />

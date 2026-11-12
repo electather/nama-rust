@@ -118,24 +118,23 @@ export function dayOf(seconds: bigint) {
   return new Date(Number(seconds) * 1000).toLocaleDateString(undefined, { dateStyle: "medium" });
 }
 
-/** A runtime in plain words, such as "2 h 16 min", or nothing when it isn't known. */
-export function runtimeOf(minutes = 0) {
-  return hoursAndMinutes(minutes, " h", " min");
-}
-
-/** What's left of a started Movie or Episode, such as "1h 12m left", or nothing if unknown. */
-export function timeLeft(state: WatchState | undefined) {
-  const minutes = state ? Math.ceil(Number(state.durationMs - state.positionMs) / 60_000) : 0;
-  return minutes > 0 ? `${hoursAndMinutes(minutes, "h", "m")} left` : undefined;
-}
-
-/** `minutes` in whole hours and minutes, each followed by its unit and left out when 0. */
-function hoursAndMinutes(minutes: number, hourUnit: string, minuteUnit: string) {
+/**
+ * A runtime in whole hours and minutes, each left out when 0: in plain words, such as "2 h 16 min",
+ * or short, "2h 16m". Nothing when it isn't known.
+ */
+export function runtimeOf(minutes = 0, form: "long" | "short" = "long") {
+  const [hourUnit, minuteUnit] = form === "long" ? [" h", " min"] : ["h", "m"];
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return [hours > 0 ? `${hours}${hourUnit}` : "", rest > 0 ? `${rest}${minuteUnit}` : ""]
     .filter(Boolean)
     .join(" ");
+}
+
+/** What's left of a started Movie or Episode, such as "1h 12m left", or nothing if unknown. */
+export function timeLeft(state: WatchState | undefined) {
+  const minutes = state ? Math.ceil(Number(state.durationMs - state.positionMs) / 60_000) : 0;
+  return minutes > 0 ? `${runtimeOf(minutes, "short")} left` : undefined;
 }
 
 const gigabytes = new Intl.NumberFormat("en", {

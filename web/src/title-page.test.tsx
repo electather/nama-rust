@@ -50,7 +50,7 @@ test("a Movie's page shows its Title Logo with its genres, year, runtime and Con
   expect(within(heading).getByRole("img").getAttribute("src")).toBe(
     "/media/artwork/tmdb/%2Fparasite-logo.png",
   );
-  expect(screen.getByText("Movie · Thriller · Drama · 2019 · 2 h 13 min")).toBeDefined();
+  expect(screen.getByText("Movie · Thriller · Drama · 2019 · 2h 13m")).toBeDefined();
   expect(screen.getByText("R")).toBeDefined();
 });
 
