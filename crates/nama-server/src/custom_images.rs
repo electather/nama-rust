@@ -1,16 +1,17 @@
 //! Custom Images: the Posters and Backdrops an admin uploads for a Movie, Show or Season, and the
-//! Backdrop for a Library, which everyone sees in place of the downloaded or newest title's ones
-//! until they are removed (ADR 0036).
+//! logos for a Plugin and a Backdrop for a Library, which everyone sees in place of the downloaded,
+//! newest title's or Manifest's ones until they are removed (ADR 0036).
 //!
 //! [`CustomImages`] owns `custom_images` (see `AGENTS.md`). It keeps a title's against the title's
 //! external id, as Watch State is (ADR 0013), never against an Item, so one outlives its title's
-//! files. A Library's goes with the Library. The bytes are in the [`ImageStore`], under a version
-//! taken from them.
+//! files, and a Plugin's against the Plugin's id, so one outlives its Package. A Library's goes
+//! with the Library. The bytes are in the [`ImageStore`], under a version taken from them.
 //!
 //! An image is the body of one plain HTTP request (ADR 0007): `PUT /custom-images/<slot>` uploads
 //! it and `DELETE` there removes it, which `PREFIXES` in `src/api.rs` lets only Users with Manage
-//! Libraries do. Anyone with a session fetches it at its [`Urls`] entry, under `/media/`, resized
-//! by `?width=` as a downloaded image is (`crate::artwork`).
+//! Libraries do, or for a Plugin's, Manage Settings. Anyone with a session fetches it at its
+//! [`Urls`] entry, under `/media/`, resized by `?width=` as a downloaded image is
+//! (`crate::artwork`).
 
 use std::{collections::HashMap, io, iter, sync::Arc};
 
@@ -22,13 +23,13 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, put},
 };
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::{PluginId, metadata::ExternalId};
 use sqlx::SqliteConnection;
 
 use crate::{
     contents::parse_hint,
     db::Database,
-    images::{Asked, ImageStore, Received, Resize, UploadError},
+    images::{Asked, ImageStore, Received, Resize, SVG, UploadError},
     server_settings::ImageSettings,
 };
 
@@ -49,9 +50,9 @@ pub(crate) enum Role {
     Backdrop,
 }
 
-/// Which image of which title or Library a Custom Image stands in for, as its paths name it:
-/// `movie/tmdb-348/poster`, `show/tmdb-1399/backdrop`, `show/tmdb-1399/season/2/poster` or
-/// `library/3/backdrop`.
+/// Which image of which title, Plugin or Library a Custom Image stands in for, as its paths name
+/// it: `movie/tmdb-348/poster`, `show/tmdb-1399/backdrop`, `show/tmdb-1399/season/2/poster`,
+/// `plugin/sonarr/logo` or `library/3/backdrop`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Slot(String);
 
@@ -99,6 +100,16 @@ impl Slot {
         Self(format!("show/{show}/season/{number}/poster"))
     }
 
+    /// A Plugin has only a logo.
+    pub(crate) fn plugin(id: &PluginId) -> Self {
+        Self(format!("plugin/{id}/logo"))
+    }
+
+    /// Only a Plugin's logo may be an SVG.
+    fn accepts_svg(&self) -> bool {
+        self.0.starts_with("plugin/")
+    }
+
     /// A Library has only a Backdrop.
     pub(crate) fn library(id: i64) -> Self {
         Self(format!("library/{id}/backdrop"))
@@ -124,6 +135,9 @@ impl Slot {
             ["show", id, name] => Self::show(&parse_hint(id)?, role(name)?),
             ["show", id, "season", number, "poster"] => {
                 Self::season(&parse_hint(id)?, number.parse::<u32>().ok()?.into())
+            }
+            ["plugin", id, "logo"] if !id.is_empty() => {
+                Self::plugin(&PluginId::from(id.to_owned()))
             }
             ["library", id, "backdrop"] => Self::library(id.parse::<u32>().ok()?.into()),
             _ => return None,
@@ -186,7 +200,10 @@ impl CustomImages {
 
     /// Keeps `body` as the Custom Image at `slot`, in place of any there before.
     async fn upload(&self, slot: Slot, body: Body) -> Result<(), Error> {
-        let received = self.store.receive(&slot.key(), body).await?;
+        let received = self
+            .store
+            .receive(&slot.key(), body, slot.accepts_svg())
+            .await?;
         let version = received.version.clone();
         let stored = slot.0.clone();
         let library = slot.library_id();
@@ -273,6 +290,7 @@ impl CustomImages {
         let content_type = match current.content_type.as_str() {
             "image/png" => "image/png",
             "image/webp" => "image/webp",
+            SVG => SVG,
             _ => "image/jpeg",
         };
         let mut key = slot.key();
@@ -355,7 +373,7 @@ async fn upload(
     match uploaded.await.unwrap_or_else(|err| Err(err.into())) {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         // Each refusal has a status of its own, which the web app tells the admin.
-        Err(Error::Upload(refused @ UploadError::TooBig)) => {
+        Err(Error::Upload(refused @ (UploadError::TooBig | UploadError::SvgTooBig))) => {
             (StatusCode::PAYLOAD_TOO_LARGE, refused.to_string()).into_response()
         }
         Err(Error::Upload(refused @ UploadError::NotAnImage)) => {
@@ -428,6 +446,7 @@ mod tests {
             "movie/imdb-tt0078748/backdrop",
             "show/tvdb-81189/backdrop",
             "show/tmdb-1399/season/0/poster",
+            "plugin/sonarr/logo",
             "library/3/backdrop",
         ] {
             assert_eq!(Slot::parse(path), Some(Slot(path.to_owned())), "{path}");
@@ -441,6 +460,8 @@ mod tests {
             "show/tmdb-1399/season/-1/poster",
             "movie/tmdb-348/poster/",
             "movie/../poster",
+            "plugin//logo",
+            "plugin/sonarr/poster",
             "library/03/backdrop",
             "library/-3/backdrop",
             "library/3/poster",

@@ -434,7 +434,12 @@ async fn a_plugins_logo_from_its_manifest_comes_through_list_and_get_plugin() {
     started.drop_in("test.wasm", "");
 
     let listed = started.listed("test-plugin").await.unwrap();
-    assert!(listed.logo_svg.starts_with("<svg"), "{listed:?}");
+    assert!(
+        listed
+            .logo_url
+            .starts_with("/media/plugin-logos/test-plugin/"),
+        "{listed:?}"
+    );
     let got = started.got("test-plugin").await;
     assert_eq!(got.summary.into_option(), Some(listed));
 }

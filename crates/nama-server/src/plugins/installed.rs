@@ -870,7 +870,7 @@ fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<Manifest, Re
 fn manifest(package: &mut wire::Manifest, points: &[&Point]) -> Result<Manifest, Refused> {
     let settings = settings_schema(package)?;
     let id = PluginId::from(package.id.clone());
-    let logo_svg = kept_logo(&id, mem::take(&mut package.logo_svg));
+    let logo_svg = kept_logo(&id, &mem::take(&mut package.logo_svg));
     Ok(Manifest {
         id,
         name: package.name.clone(),
@@ -1252,10 +1252,23 @@ mod tests {
             manifest.extension_points,
             [PointKey::provide::<dyn Notifier>()]
         );
-        assert_eq!(
-            manifest.logo_svg.as_deref(),
-            Some(r#"<svg xmlns="http://www.w3.org/2000/svg"/>"#)
-        );
+        assert!(manifest.logo_svg.unwrap().contains("<svg"));
+    }
+
+    #[test]
+    fn a_logo_is_kept_without_its_scripts() {
+        let (judged, _) = judged(Manifest {
+            logo_svg: r#"<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">
+                <script>alert(2)</script><circle r="4" onclick="alert(3)"/></svg>"#
+                .to_owned(),
+            ..notifier()
+        });
+
+        let logo = judged.unwrap().logo_svg.unwrap();
+        assert!(logo.contains("<circle"), "{logo}");
+        for gone in ["onload", "script", "onclick", "alert"] {
+            assert!(!logo.contains(gone), "{logo}");
+        }
     }
 
     #[test]
@@ -1356,21 +1369,20 @@ mod tests {
     }
 
     #[test]
-    fn a_logo_over_16_kib_or_not_svg_is_dropped_saying_why_and_the_plugin_still_taken() {
-        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"/>"#;
-        let padding = " ".repeat(16 * 1024);
+    fn a_logo_over_64_kib_or_not_svg_is_dropped_saying_why_and_the_plugin_still_taken() {
+        let padding = " ".repeat(64 * 1024);
         let dropped = [
             (
                 format!(r#"<svg xmlns="http://www.w3.org/2000/svg">{padding}</svg>"#),
-                "it is over 16384 bytes",
+                "it is over 65536 bytes",
             ),
             (
                 r#"<html xmlns="http://www.w3.org/1999/xhtml"/>"#.to_owned(),
-                "it isn't SVG: its root is <html>",
+                "No acceptable SVG elements found",
             ),
             (
-                format!(r#"<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "x.dtd">{svg}"#),
-                "it isn't SVG: XML with DTD detected",
+                r#"<svg xmlns="http://www.w3.org/2000/svg">"#.to_owned(),
+                "it isn't SVG",
             ),
         ];
 

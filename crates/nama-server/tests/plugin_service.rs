@@ -295,7 +295,10 @@ async fn every_builtin_and_bundled_plugin_has_a_logo_the_server_keeps() {
     let listed = list_plugins_with(BTreeMap::new()).await;
 
     for plugin in &listed.summaries {
-        assert!(plugin.logo_svg.starts_with("<svg"), "{plugin:?}");
+        assert!(
+            plugin.logo_url.starts_with("/media/plugin-logos/"),
+            "{plugin:?}"
+        );
     }
 }
 

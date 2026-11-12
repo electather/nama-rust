@@ -48,4 +48,5 @@
 0048_read_only_folders.sql
 0049_custom_images.sql
 0050_image_settings.sql
-0051_image_thumbhashes.sql
+0051_plugin_custom_images.sql
+0052_image_thumbhashes.sql

@@ -29,6 +29,7 @@ use crate::{
     libraries::Libraries,
     metadata::MetadataSource,
     playback::running::RunningPlans,
+    plugin_logos::{self, PluginLogos},
     plugin_settings::PluginSettings,
     probing::Probing,
     requests::Requests,
@@ -82,6 +83,7 @@ pub(crate) fn router(
     plugin_settings: PluginSettings,
     scanner: Scanner,
     custom_images: CustomImages,
+    plugin_logos: PluginLogos,
     artwork: Artwork,
     probing: Probing,
     events: EventBus,
@@ -150,7 +152,11 @@ pub(crate) fn router(
             artwork,
             images: images.clone(),
         }))
-        .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
+        .add_service(Arc::new(PluginServiceHandler {
+            plugin_settings,
+            custom_images: custom_images.clone(),
+            plugin_logos: plugin_logos.clone(),
+        }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(Arc::clone(&db)),
             scanner,
@@ -169,6 +175,7 @@ pub(crate) fn router(
         .into_axum_router()
         .merge(artwork_router)
         .merge(custom_images::router(custom_images, image_settings))
+        .merge(plugin_logos::router(plugin_logos))
         .merge(media)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
@@ -306,9 +313,11 @@ const ACCESS: &[(&str, Access)] = &[
 ];
 
 /// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media
-/// routes share, and uploading or removing a title's or Library's Custom Image.
-const PREFIXES: [(&str, Access); 2] = [
+/// routes share, and uploading or removing a Plugin's, a title's or a Library's Custom Image. The
+/// first prefix a path starts with decides.
+const PREFIXES: [(&str, Access); 3] = [
     ("/media/", Access::SignedIn),
+    ("/custom-images/plugin/", MANAGE_SETTINGS),
     ("/custom-images/", MANAGE_LIBRARIES),
 ];
 

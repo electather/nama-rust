@@ -18,6 +18,7 @@ mod libraries;
 mod matching;
 mod metadata;
 mod playback;
+mod plugin_logos;
 pub mod plugin_settings;
 pub mod plugins;
 mod probing;
@@ -52,6 +53,7 @@ use crate::{
     images::ImageStore,
     playback::running::RunningPlans,
     playback::subtitles,
+    plugin_logos::PluginLogos,
     plugin_settings::PluginSettings,
     probing::Probing,
     requests::Requests,
@@ -117,6 +119,7 @@ pub fn serve(
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
     let images = ImageStore::new(&config.data_dir, Arc::clone(&db));
     let artwork = Artwork::new(images.clone(), points.clone());
+    let plugin_logos = PluginLogos::new(images.clone());
     let custom_images = CustomImages::new(Arc::clone(&db), images);
     let scanner = Scanner::new(
         Arc::clone(&db),
@@ -136,6 +139,7 @@ pub fn serve(
         plugins.clone(),
         scanner.clone(),
         custom_images,
+        plugin_logos,
         artwork,
         probing.clone(),
         events.clone(),
