@@ -20,7 +20,10 @@ use crate::{
     scanner::{self, Deleted, Scanner},
 };
 
-use super::{caller, database_failed, proto_number, refuse, required_id, unknown_enum_value};
+use super::{
+    browse::{Fields, refused},
+    caller, database_failed, proto_number, refuse, required_id, unknown_enum_value,
+};
 
 /// `nama.v1.LibraryService`: managing the Server's Libraries. Needs `PERMISSION_MANAGE_LIBRARIES`,
 /// which [`require_access`](super::require_access) enforces, except listing them, which any
@@ -208,24 +211,45 @@ fn to_delete_from_proto(target: Option<MediaToDelete>) -> Result<ToDelete, Conne
 }
 
 /// What makes the Connect error for a delete's target that Browse didn't find, naming the
-/// request's fields for the Library and the Version.
-fn target_refused(target: &ToDelete) -> impl FnOnce(browse::Error) -> ConnectError + use<> {
-    let (library, version) = match target {
-        ToDelete::Title { title, .. } => {
-            let library = match title {
-                Target::Movie(_) => "target.movie.library_id",
-                Target::Show(_) => "target.show.library_id",
-                Target::Season { .. } => "target.season.library_id",
-                Target::Episode(_) => "target.episode.library_id",
-            };
-            (library, "target.version_id")
-        }
-        ToDelete::Version(_) => ("target.movie.library_id", "target.version_id"),
-        ToDelete::EpisodeVersion { .. } => {
-            ("target.episode.library_id", "target.episode.version_id")
-        }
+/// target's own fields.
+fn target_refused(target: &ToDelete) -> impl Fn(browse::Error) -> ConnectError + use<> {
+    let fields = match target {
+        ToDelete::Title { title, .. } => match title {
+            Target::Movie(_) => Fields {
+                library: "target.movie.library_id",
+                title: "target.movie.movie_id",
+                ..Fields::NONE
+            },
+            Target::Show(_) => Fields {
+                library: "target.show.library_id",
+                title: "target.show.show_id",
+                ..Fields::NONE
+            },
+            Target::Season { .. } => Fields {
+                library: "target.season.library_id",
+                title: "target.season.show_id",
+                season: "target.season.season_number",
+                ..Fields::NONE
+            },
+            Target::Episode(_) => Fields {
+                library: "target.episode.library_id",
+                title: "target.episode.episode_id",
+                ..Fields::NONE
+            },
+        },
+        ToDelete::Version(_) => Fields {
+            library: "target.movie.library_id",
+            version: "target.version_id",
+            ..Fields::NONE
+        },
+        ToDelete::EpisodeVersion { .. } => Fields {
+            library: "target.episode.library_id",
+            title: "target.episode.episode_id",
+            version: "target.episode.version_id",
+            ..Fields::NONE
+        },
     };
-    move |err| super::browse::refused(err, library, version)
+    refused(fields)
 }
 
 fn taken_along_to_proto(episode: Episode) -> EpisodeTakenAlong {

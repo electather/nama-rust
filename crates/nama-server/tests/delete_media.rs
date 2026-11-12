@@ -100,12 +100,13 @@ fn show(library: i64, tmdb: i64) -> MediaToDelete {
     }
 }
 
-/// Every Version of every Episode of Dark's Season `number` in `library`.
-fn dark_season(library: i64, number: u32) -> MediaToDelete {
+/// Every Version of every Episode of Season `number` of the Show with the TMDB id `tmdb` in
+/// `library`.
+fn season(library: i64, tmdb: i64, number: u32) -> MediaToDelete {
     MediaToDelete {
         target: Some(media_to_delete::Target::Season(Box::new(SeasonToDelete {
             library_id: library,
-            show_id: tmdb_id(DARK).into(),
+            show_id: tmdb_id(tmdb).into(),
             season_number: number,
             ..Default::default()
         }))),
@@ -590,11 +591,12 @@ async fn a_library_movie_or_version_that_isnt_there_is_refused_naming_its_field(
         RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
     );
     assert_eq!(no_library.field, "target.movie.library_id");
-    assert_refused(
+    let no_movie = assert_refused(
         fx.delete(movie(fx.library, 404)).await,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
     );
+    assert_eq!(no_movie.field, "target.movie.movie_id");
     let no_version = assert_refused(
         fx.preview(version(404)).await,
         ErrorCode::NotFound,
@@ -771,8 +773,8 @@ async fn deleting_one_version_of_an_episode_with_two_leaves_the_other() {
 async fn deleting_a_season_deletes_each_of_its_files_once_and_leaves_other_seasons() {
     let fx = Fixture::dark().await;
 
-    let preview = fx.preview(dark_season(fx.library, 1)).await.unwrap();
-    fx.delete(dark_season(fx.library, 1)).await.unwrap();
+    let preview = fx.preview(season(fx.library, DARK, 1)).await.unwrap();
+    fx.delete(season(fx.library, DARK, 1)).await.unwrap();
 
     assert_eq!(preview.bytes_freed, 9 + 12 + 11);
     assert_eq!(taken_along(&preview), []);
@@ -831,11 +833,41 @@ async fn a_season_or_episode_version_that_isnt_there_or_a_show_in_a_movies_libra
         .await;
     let other = fx.dark_version("Dark - S01E01.mkv").await;
 
-    assert_refused(
-        fx.preview(dark_season(fx.library, 3)).await,
-        ErrorCode::NotFound,
-        RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
-    );
+    for (reason, field, refused) in [
+        (
+            RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+            "target.season.library_id",
+            fx.preview(season(fx.library + 100, DARK, 1)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "target.show.show_id",
+            fx.preview(show(fx.library, 404)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "target.season.show_id",
+            fx.preview(season(fx.library, 404, 1)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
+            "target.season.season_number",
+            fx.preview(season(fx.library, DARK, 3)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "target.episode.episode_id",
+            fx.preview(episode(fx.library, 404, None)).await,
+        ),
+        (
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "target.episode.episode_id",
+            fx.preview(episode(fx.library, 404, Some(other))).await,
+        ),
+    ] {
+        let refusal = assert_refused(refused, ErrorCode::NotFound, reason);
+        assert_eq!(refusal.field, field);
+    }
     let not_lies = assert_refused(
         fx.delete(episode(fx.library, LIES, Some(other))).await,
         ErrorCode::NotFound,

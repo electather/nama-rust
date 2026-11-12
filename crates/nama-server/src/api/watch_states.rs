@@ -8,7 +8,10 @@ use nama_proto::nama::v1::{
 
 use crate::{browse, watch_states::Progress};
 
-use super::{caller, refuse, required_id};
+use super::{
+    browse::{Fields, refused},
+    caller, refuse, required_id,
+};
 
 /// `nama.v1.WatchStateService`: each signed-in User's progress through what they play.
 pub(super) struct WatchStateServiceHandler {
@@ -39,7 +42,11 @@ impl WatchStateService for WatchStateServiceHandler {
             })?;
         self.browse
             .report(user, request.version_id, progress)
-            .await?;
+            .await
+            .map_err(refused(Fields {
+                version: "version_id",
+                ..Fields::NONE
+            }))?;
         Response::ok(ReportProgressResponse::default())
     }
 
@@ -62,20 +69,34 @@ impl WatchStateService for WatchStateServiceHandler {
             )
             .field("target")
         })?;
+        let (title_field, season_field) = match &target {
+            Target::MovieId(_) => ("movie_id", ""),
+            Target::EpisodeId(_) => ("episode_id", ""),
+            Target::Season(_) => ("season.show_id", "season.season_number"),
+            Target::ShowId(_) => ("show_id", ""),
+        };
         let target = match target {
             Target::MovieId(id) => {
-                browse::Target::Movie(required_id(Some(*id), "movie_id", "Movie")?)
+                browse::Target::Movie(required_id(Some(*id), title_field, "Movie")?)
             }
             Target::EpisodeId(id) => {
-                browse::Target::Episode(required_id(Some(*id), "episode_id", "Episode")?)
+                browse::Target::Episode(required_id(Some(*id), title_field, "Episode")?)
             }
             Target::Season(season) => browse::Target::Season {
-                show: required_id(season.show_id.into_option(), "season.show_id", "Show")?,
+                show: required_id(season.show_id.into_option(), title_field, "Show")?,
                 number: i64::from(season.season_number),
             },
-            Target::ShowId(id) => browse::Target::Show(required_id(Some(*id), "show_id", "Show")?),
+            Target::ShowId(id) => {
+                browse::Target::Show(required_id(Some(*id), title_field, "Show")?)
+            }
         };
-        self.browse.mark(user, library, target, played).await?;
+        let fields = Fields {
+            title: title_field,
+            season: season_field,
+            ..Fields::LIBRARY
+        };
+        let marked = self.browse.mark(user, library, target, played).await;
+        marked.map_err(refused(fields))?;
         Response::ok(SetPlayedResponse::default())
     }
 }
