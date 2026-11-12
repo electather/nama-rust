@@ -13,7 +13,7 @@ import {
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
-import { admin, fakeServer, newUser, openApp } from "./test-app";
+import { type ServerState, admin, eventFeed, fakeServer, newUser, openApp } from "./test-app";
 import { confirmItsYou, recentAuthenticationRequired, refused } from "./test-refusal";
 
 afterEach(cleanup);
@@ -27,17 +27,24 @@ type Target = MessageInitShape<typeof MediaToDeleteSchema>["target"];
 
 /**
  * Alien's page in a Movies Library, for a User with `permissions`, deleting through `library`, with
- * the read-only folder that `GetMovie` says refuses deleting it, if any.
+ * the read-only folder that `GetMovie` says refuses deleting it each time it's asked, if any, and
+ * the Server's `events`.
  */
 function openAlien(
   permissions: Permission[],
   library: Partial<ServiceImpl<typeof LibraryService>> = {},
-  readOnlyFolder?: string,
+  {
+    readOnlyFolder = () => {},
+    events = new ReadableStream(),
+  }: Pick<ServerState, "events"> & {
+    readOnlyFolder?: () => string | undefined;
+  } = {},
 ) {
   const transport = fakeServer(
     {
       signedIn: permissions,
       libraries: [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }],
+      events,
       libraryService: {
         previewDeleteMedia: ({ target }) => ({
           files: [
@@ -56,7 +63,7 @@ function openAlien(
       router.service(BrowseService, {
         getMovie: () => ({
           movie: { title: "Alien", versions: [ALIEN_2160P, ALIEN_1080P] },
-          readOnlyFolder,
+          readOnlyFolder: readOnlyFolder(),
         }),
         listMovies: () => ({ movies: [] }),
       });
@@ -154,13 +161,30 @@ function deletingOnlyOnceConfirmed(deleted: Target[]): Partial<ServiceImpl<typeo
 }
 
 test("a read-only folder disables the Delete action, saying which folder", async () => {
-  openAlien(deletesMedia, {}, "/media/movies");
+  openAlien(deletesMedia, {}, { readOnlyFolder: () => "/media/movies" });
 
   const action = await screen.findByRole("button", { name: "Delete Alien" });
 
   expect(action).toHaveProperty("disabled", true);
   expect(action.getAttribute("aria-describedby")).not.toBeNull();
   expect(screen.getByText(/the Server can’t write to \/media\/movies/u)).toBeDefined();
+});
+
+test("a scan that makes the folder writable enables the open page's Delete action", async () => {
+  const events = eventFeed();
+  let readOnlyFolder: string | undefined = "/media/movies";
+  openAlien(deletesMedia, {}, { readOnlyFolder: () => readOnlyFolder, events: events.stream });
+  expect(await screen.findByRole("button", { name: "Delete Alien" })).toHaveProperty(
+    "disabled",
+    true,
+  );
+
+  readOnlyFolder = undefined;
+  events.send({ event: { case: "scanFinished", value: { libraryId: 1n } } });
+
+  await waitFor(() => {
+    expect(screen.getByRole("button", { name: "Delete Alien" })).toHaveProperty("disabled", false);
+  });
 });
 
 test("a delete the Server refuses for a read-only folder says which folder", async () => {
