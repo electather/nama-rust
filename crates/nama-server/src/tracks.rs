@@ -515,7 +515,6 @@ async fn store(
     Ok(())
 }
 
-/// Stores `track` as the Version `version`'s Track at `position`.
 async fn store_track(
     conn: &mut SqliteConnection,
     version: i64,
