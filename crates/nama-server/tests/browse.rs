@@ -47,6 +47,12 @@ const HOME_MOVIES: &str = "Home Movies (2019)/Home Movies (2019).mkv";
 const DARK_S01E01_E02: &str = "Dark (2017)/Season 01/Dark - S01E01-E02.mkv";
 const DARK_S01E01: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E01.mkv";
 const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
+/// A special of Dark, Season 0, with a Poster of its own, and an Episode of Season 1. The
+/// special's title is the shorter, so a search for "dark" ranks it first.
+const DARK_S00E01: &str = "Dark (2017)/Specials/Dark - S00E01.mkv";
+const DARK_S01E03: &str = "Dark (2017)/Season 01/Dark - S01E03.mkv";
+const DARK_SPECIALS_POSTER: &str = "/media/artwork/tmdb/%2FhzSbK1qcDnvyH2EaqqrOLzNwW5w.jpg";
+const DARK_SEASON_1_POSTER: &str = "/media/artwork/tmdb/%2F5LoHuHWA4H8jElFlZDvsmU2n63b.jpg";
 /// The TMDB ids of Dark's Episodes S01E01, S01E02 and S02E01.
 const SECRETS: i64 = 1_388_538;
 const LIES: i64 = 1_388_539;
@@ -84,6 +90,16 @@ impl Fixture {
         fx.write(DARK_S01E01, b"one episode");
         fx.write(DARK_S02E01, b"video");
         fx.write(THE_OFFICE, b"video");
+        fx.items = fx.scan_and_match().await;
+        fx
+    }
+
+    /// Starts a Server with a Shows Library holding a special and an Episode of Dark's Season 1,
+    /// scanned and Matched.
+    async fn dark_with_specials() -> Self {
+        let mut fx = Self::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
+        fx.write(DARK_S00E01, b"special");
+        fx.write(DARK_S01E03, b"episode");
         fx.items = fx.scan_and_match().await;
         fx
     }
@@ -523,11 +539,8 @@ async fn episodes_of_one_show_in_several_folders_are_one_show_with_its_seasons()
     assert_eq!(listed, slice::from_ref(&show));
     assert_eq!(show.id.as_option(), Some(&tmdb_id(DARK)));
     assert_eq!(show.title, "Dark");
-    // Season 1's poster: a Match stores no poster of the Show's own.
-    assert_eq!(
-        show.poster_url.as_deref(),
-        Some("/media/artwork/tmdb/%2F5LoHuHWA4H8jElFlZDvsmU2n63b.jpg")
-    );
+    // Season 1's poster, its first Season's: a Match stores no poster of the Show's own.
+    assert_eq!(show.poster_url.as_deref(), Some(DARK_SEASON_1_POSTER));
     assert_eq!(
         show.backdrop_url.as_deref(),
         Some("/media/artwork/tmdb/%2F3lBDg3i6nn5R2NKFCJ6oKyUo2j5.jpg")
@@ -539,6 +552,39 @@ async fn episodes_of_one_show_in_several_folders_are_one_show_with_its_seasons()
             season(2, "/media/artwork/tmdb/%2FkaReZbBdlEAJzfUbuPBRQLrSh9z.jpg"),
         ]
     );
+}
+
+#[tokio::test]
+async fn a_show_with_specials_is_shown_by_its_first_seasons_poster() {
+    let fx = Fixture::dark_with_specials().await;
+
+    let listed = fx.list_shows(fx.library).await.unwrap();
+    let got = fx.get_show(fx.library, DARK).await.unwrap();
+
+    let show = got.show.into_option().unwrap();
+    assert_eq!(listed, slice::from_ref(&show));
+    assert_eq!(show.poster_url.as_deref(), Some(DARK_SEASON_1_POSTER));
+    assert_eq!(
+        got.seasons,
+        [
+            season(0, DARK_SPECIALS_POSTER),
+            season(1, DARK_SEASON_1_POSTER)
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_search_shows_a_show_by_the_poster_its_library_shows() {
+    let fx = Fixture::dark_with_specials().await;
+
+    let found = fx.search("dark").await.shows;
+
+    let listed = fx.list_shows(fx.library).await.unwrap();
+    let posters: Vec<_> = (found.iter())
+        .map(|show| show.poster_url.as_deref())
+        .collect();
+    assert_eq!(posters, [listed[0].poster_url.as_deref()]);
+    assert_eq!(posters, [Some(DARK_SEASON_1_POSTER)]);
 }
 
 #[tokio::test]

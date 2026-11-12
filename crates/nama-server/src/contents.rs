@@ -279,12 +279,23 @@ pub(crate) struct Show<V = Version> {
     pub(crate) seasons: BTreeMap<i64, Season<V>>,
 }
 
+/// The poster of the lowest-numbered Season after the Specials (Season 0) that has one, or else
+/// the Specials'. `seasons` are Season numbers with their posters, in any order.
+fn show_poster<'a>(seasons: impl IntoIterator<Item = (i64, Option<&'a str>)>) -> Option<&'a str> {
+    (seasons.into_iter())
+        .filter_map(|(number, poster)| Some((number, poster?)))
+        .min_by_key(|&(number, _)| (number == 0, number))
+        .map(|(_, poster)| poster)
+}
+
 impl<V> Show<V> {
-    /// The Show's poster: its first Season's, since a Match stores each Episode's Season poster
-    /// and none of the Show's own.
+    /// The Show's poster: a Season's, since a Match stores each Episode's Season poster and none
+    /// of the Show's own. The Specials' (Season 0) only stand for the Show when no other Season
+    /// has one: see [`show_poster`].
     pub(crate) fn poster(&self) -> Option<&str> {
-        let (_, first) = self.seasons.first_key_value()?;
-        first.poster.as_deref()
+        show_poster(
+            (self.seasons.iter()).map(|(number, season)| (*number, season.poster.as_deref())),
+        )
     }
 
     /// Every Episode of every Season, by season and episode number.
@@ -392,7 +403,7 @@ pub(crate) struct FoundShow {
     /// The Plugin whose metadata Provider made the Match, which the poster's path is for.
     pub(crate) plugin: String,
     pub(crate) title: String,
-    /// The best-fitting Episode's Season's.
+    /// As [`Show::poster`] picks it from the Seasons of its Episodes the Library has.
     pub(crate) poster: Option<String>,
 }
 
@@ -946,27 +957,12 @@ impl Contents {
                 }),
             }
         }
-        for row in self.search_rows(&words.in_column("show_title")).await? {
-            let (Some(id), Some(title)) = (primary_id(row.show_ids()), row.show_title) else {
-                continue;
-            };
-            found.shows.push(FoundShow {
-                library: row.library,
-                id,
-                plugin: row.plugin,
-                title,
-                poster: row.poster,
-            });
-        }
-        // A Movie, Show or Episode has a row per Item; the first fits best.
+        found.shows = found_shows(self.search_rows(&words.in_column("show_title")).await?);
+        // A Movie or Episode has a row per Item; the first fits best.
         let mut seen = HashSet::new();
         found
             .movies
             .retain(|movie| seen.insert((movie.library, movie.id.clone())));
-        seen.clear();
-        found
-            .shows
-            .retain(|show| seen.insert((show.library, show.id.clone())));
         seen.clear();
         found
             .episodes
@@ -1159,6 +1155,36 @@ impl SearchRow {
             tvdb: self.show_tvdb_id,
         }
     }
+}
+
+/// The Shows that `rows`, best fit first, are Episodes of: each once per Library, in the place of
+/// its first row.
+fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
+    let rows: Vec<(ExternalId, SearchRow)> = (rows.into_iter())
+        .filter_map(|row| Some((primary_id(row.show_ids())?, row)))
+        .collect();
+    let mut seen = HashSet::new();
+    let mut shows = Vec::new();
+    for (id, row) in &rows {
+        let Some(title) = &row.show_title else {
+            continue;
+        };
+        if !seen.insert((row.library, id)) {
+            continue;
+        }
+        // Every Episode of a Show fits its title alike, so its rows hold all its Seasons.
+        let seasons = (rows.iter())
+            .filter(|(other, it)| it.library == row.library && other == id)
+            .filter_map(|(_, it)| Some((it.season?, it.poster.as_deref())));
+        shows.push(FoundShow {
+            library: row.library,
+            id: id.clone(),
+            plugin: row.plugin.clone(),
+            title: title.clone(),
+            poster: show_poster(seasons).map(str::to_owned),
+        });
+    }
+    shows
 }
 
 /// A search query's words, and the year it ends with, if any.
@@ -1888,6 +1914,7 @@ mod tests {
     use super::{
         Change, Contents, Decided, FileItem, Item, Metadata, Pin,
         fixture::{MatchedMovie, decide, tmdb_movie},
+        show_poster,
     };
     use crate::{
         db::Database,
@@ -2483,5 +2510,18 @@ mod tests {
 
         assert!(found.movies.is_empty(), "{:?}", found.movies);
         assert!(found.episodes.is_empty(), "{:?}", found.episodes);
+    }
+
+    #[test]
+    fn a_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
+        let specials_and_first = [(0, Some("/specials.jpg")), (1, Some("/1.jpg"))];
+        let first_without = [(2, Some("/2.jpg")), (1, None)];
+        let specials_alone = [(0, Some("/specials.jpg"))];
+        let none = [(0, None), (1, None)];
+
+        assert_eq!(show_poster(specials_and_first), Some("/1.jpg"));
+        assert_eq!(show_poster(first_without), Some("/2.jpg"));
+        assert_eq!(show_poster(specials_alone), Some("/specials.jpg"));
+        assert_eq!(show_poster(none), None);
     }
 }
