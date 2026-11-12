@@ -3,7 +3,7 @@ use std::sync::Arc;
 use buffa::Message;
 
 use nama_plugin_api::{
-    PluginId, PointKey,
+    Plugin, PluginId, PointKey, Registrar,
     fulfiller::{Fulfiller, Movies, StopMonitoring, stop_monitoring::Title},
     notifier::Notifier,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
@@ -551,5 +551,29 @@ fn a_point_this_server_doesnt_know_refuses_the_plugin() {
             "its Manifest names observer OBSERVE_POINT_UNSPECIFIED, an Extension Point this Server doesn't know",
         ]
         .map(|refusal| Some(refusal.to_owned()))
+    );
+}
+
+#[test]
+fn register_says_when_the_package_wont_compile_with_its_settings() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let cache_config = write_cache_config(data_dir.path()).unwrap();
+    let (_, wasm) = BUNDLED
+        .iter()
+        .find(|(file, _)| *file == "radarr.wasm")
+        .unwrap();
+    let radarr = load(wasm.to_vec(), &cache_config).unwrap();
+    let mut broken = radarr.clone();
+    broken.wasm = Arc::from(&b"not a module"[..]);
+    let register = |plugin: &dyn Plugin| {
+        Plugin::register(plugin, &mut Registrar::with_settings(Settings::default()))
+    };
+
+    // The intact Package registers, so only compiling the broken one fails.
+    register(&radarr).unwrap();
+    let err = register(&broken).unwrap_err().to_string();
+    assert!(
+        err.starts_with("could not compile it with its settings"),
+        "{err}"
     );
 }
