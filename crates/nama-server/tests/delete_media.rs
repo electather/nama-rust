@@ -891,7 +891,7 @@ async fn deleting_episodes_or_a_season_has_the_shows_fulfiller_stop_monitoring_j
         .unwrap();
     // Its file holds Secrets too, which goes along.
     fx.delete(episode(fx.library, LIES, None)).await.unwrap();
-    let season = fx.delete(dark_season(fx.library, 2)).await.unwrap();
+    let season = fx.delete(season(fx.library, DARK, 2)).await.unwrap();
 
     assert_eq!(
         fx.server.fulfiller().stopped_monitoring_shows(),
@@ -946,7 +946,7 @@ async fn deleting_a_season_has_sonarr_unmonitor_it_and_its_episodes_and_leave_th
     // Season 2 is all in the Library, so following Dark didn't have Sonarr fetch it.
     assert_eq!(sonarr.monitored_seasons(DARK_TVDB), [1, 3]);
 
-    fx.delete(dark_season(fx.library, 1)).await.unwrap();
+    fx.delete(season(fx.library, DARK, 1)).await.unwrap();
 
     assert_eq!(sonarr.monitored_seasons(DARK_TVDB), [3]);
     assert_eq!(sonarr.unmonitored_episodes(), [SONARR_SECRETS, SONARR_LIES]);
@@ -993,7 +993,7 @@ async fn with_sonarr_down_the_delete_goes_ahead_and_names_sonarr() {
     let (fx, mut sonarr) = Fixture::dark_in_sonarr().await;
     sonarr.go_down();
 
-    let deleted = fx.delete(dark_season(fx.library, 1)).await.unwrap();
+    let deleted = fx.delete(season(fx.library, DARK, 1)).await.unwrap();
 
     assert_eq!(deleted.fulfillers_not_told, ["Sonarr"]);
     assert!(!fx.exists(DARK_S01E01_E02) && !fx.exists(DARK_S01E01));
