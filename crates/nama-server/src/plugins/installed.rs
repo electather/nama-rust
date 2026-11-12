@@ -578,9 +578,9 @@ impl SettingsCheck for Installed {
                 // So the registry logs why and fails the check in plain words, as it does when a
                 // Built-in Plugin's check panics.
                 Ok(Err(err)) if is_crash(&err) => {
-                    panic::resume_unwind(Box::new(err.root_cause().to_string()))
+                    panic::resume_unwind(Box::new(failure_cause(&err)))
                 }
-                Ok(Err(err)) => return Err(err.root_cause().to_string().into()),
+                Ok(Err(err)) => return Err(failure_cause(&err).into()),
                 Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
                 Err(err) => return Err(err.into()),
             };

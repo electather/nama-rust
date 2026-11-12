@@ -666,14 +666,23 @@ async fn testing_an_unsaved_url_reaches_its_host_for_that_test_alone() {
 
 #[tokio::test]
 async fn a_check_that_loops_forever_or_panics_fails_in_plain_words_and_the_server_carries_on() {
+    let log = Log::global();
     let started = Started::new().await;
     started.drop_in("test.wasm", "");
     assert!(started.listed("test-plugin").await.is_some());
 
     let looped = started.test_settings(&[("fail_with", "loop")]).await;
     let panicked = started.test_settings(&[("fail_with", "panic")]).await;
+    let hoarded = started.test_settings(&[("fail_with", "hoard")]).await;
+    log.wait_for(&["test-plugin", "it used more than 128 MiB of memory"], 1)
+        .await;
 
     for (failed, message, timeout_seconds) in [
+        (
+            hoarded,
+            "test-plugin failed while checking its settings",
+            None,
+        ),
         (
             looped,
             "test-plugin didn't finish checking its settings within 5 seconds",

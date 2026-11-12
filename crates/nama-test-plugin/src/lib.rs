@@ -31,8 +31,8 @@ mod exports {
     /// The setting that picks what its Notifier does: `post`, `error`, `loop` or `panic`.
     const NOTIFIER: &str = "notifier";
 
-    /// The setting that makes its settings check fail with its text, or loop forever or panic for
-    /// `loop` or `panic`.
+    /// The setting that makes its settings check fail with its text, or hoard 256 MiB, loop
+    /// forever or panic for `hoard`, `loop` or `panic`.
     const FAIL_WITH: &str = "fail_with";
 
     // Says who the Plugin is, that it observes Events, fulfills Movie Requests and notifies, and
@@ -228,13 +228,18 @@ mod exports {
     }
 
     // Requests its `url` setting's URL, if it has one, as Sonarr's check would, then offers two
-    // profiles. Its `fail_with` setting makes it fail, loop forever or panic instead.
+    // profiles. Its `fail_with` setting makes it fail, hoard 256 MiB, loop forever or panic
+    // instead.
     #[plugin_fn]
     pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
         match config::get(FAIL_WITH)?.as_deref() {
             Some("loop") => loop_forever(),
             #[expect(clippy::panic, reason = "it panics on purpose")]
             Some("panic") => panic!("the test Plugin's check was set to panic"),
+            Some("hoard") => {
+                std::hint::black_box(vec![1_u8; 256 << 20]);
+                Err(Error::msg("test-plugin hoarded").into())
+            }
             Some(error) => Err(Error::msg(error.to_owned()).into()),
             None => {
                 if let Some(url) = config::get("url")? {
