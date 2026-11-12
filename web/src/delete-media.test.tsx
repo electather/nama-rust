@@ -178,6 +178,7 @@ test("a scan that makes the folder writable enables the open page's Delete actio
     "disabled",
     true,
   );
+  expect(screen.getByText(/the Server can’t write to \/media\/movies/u)).toBeDefined();
 
   readOnlyFolder = undefined;
   events.send({ event: { case: "scanFinished", value: { libraryId: 1n } } });
