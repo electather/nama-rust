@@ -2306,18 +2306,25 @@ async fn the_users_own_audio_language_starts_a_show_with_no_audio_preference_of_
 async fn a_shows_audio_preference_wins_over_the_users_own_even_when_it_matches_nothing() {
     let bin = tempfile::tempdir().unwrap();
     let (fx, [first, second]) = Fixture::dark_remuxed_in_english_and_german(bin.path()).await;
+
+    set_own_audio(fx.server.client_config(), Some("en"))
+        .await
+        .unwrap();
+    fx.pick(first, AUDIO, Some(GERMAN_AUDIO)).await.unwrap();
+    let shows_german = fx.plan(second).await.unwrap();
     set_own_audio(fx.server.client_config(), Some("de"))
         .await
         .unwrap();
-
-    fx.pick(first, AUDIO, Some(ENGLISH_AUDIO)).await.unwrap();
-    let shows_english = fx.plan(second).await.unwrap();
     fx.pick(first, AUDIO, Some(FRENCH_AUDIO_IN_S01E01))
         .await
         .unwrap();
     let shows_french = fx.plan(second).await.unwrap();
 
-    assert_eq!(shows_english.audio_track, Some(ENGLISH_AUDIO));
+    assert_eq!(
+        shows_german.audio_track,
+        Some(GERMAN_AUDIO),
+        "the Show's German, not the User's English"
+    );
     assert_eq!(
         shows_french.audio_track,
         Some(ENGLISH_AUDIO),
