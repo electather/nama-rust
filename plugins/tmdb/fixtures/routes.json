@@ -9,6 +9,7 @@
   "/3/movie/438631?append_to_response=external_ids": "movie-438631.json",
   "/3/movie/949?append_to_response=external_ids": "movie-949.json",
   "/3/tv/70523?append_to_response=external_ids": "tv-70523.json",
+  "/3/tv/70523/season/0?append_to_response=external_ids": "tv-70523-season-0.json",
   "/3/tv/70523/season/1?append_to_response=external_ids": "tv-70523-season-1.json",
   "/3/tv/70523/season/2?append_to_response=external_ids": "tv-70523-season-2.json",
   "/3/tv/70523/season/3?append_to_response=external_ids": "tv-70523-season-3.json",
