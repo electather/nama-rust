@@ -3189,8 +3189,8 @@ pub struct Show {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub title: ::buffa::alloc::string::String,
-    /// Its poster's URL on this Server: its Custom Image if it has one, else its own, else, until
-    /// the Server has fetched its own, its first Season's after the Specials.
+    /// Its poster's URL on this Server: its Custom Image if it has one, else its own, else (as
+    /// before the Server has fetched its own) its first Season's after the Specials.
     ///
     /// Field 3: `poster_url`
     #[serde(

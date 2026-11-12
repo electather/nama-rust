@@ -223,8 +223,8 @@ message Show {
   ExternalId id = 1;
   // The title, in the metadata Provider's language.
   string title = 2;
-  // Its poster's URL on this Server: its Custom Image if it has one, else its own, else, until
-  // the Server has fetched its own, its first Season's after the Specials.
+  // Its poster's URL on this Server: its Custom Image if it has one, else its own, else (as
+  // before the Server has fetched its own) its first Season's after the Specials.
   optional string poster_url = 3;
   // The backdrop's URL on this Server.
   optional string backdrop_url = 4;

@@ -509,8 +509,8 @@ export type Show = Message<"nama.v1.Show"> & {
   title: string;
 
   /**
-   * Its poster's URL on this Server: its Custom Image if it has one, else its own, else, until
-   * the Server has fetched its own, its first Season's after the Specials.
+   * Its poster's URL on this Server: its Custom Image if it has one, else its own, else (as
+   * before the Server has fetched its own) its first Season's after the Specials.
    *
    * @generated from field: optional string poster_url = 3;
    */

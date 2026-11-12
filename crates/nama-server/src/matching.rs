@@ -1448,6 +1448,7 @@ mod tests {
         media.scan(shows).await;
         media.contents.stored_by_older_metadata(shows.id).await;
         let older = media.contents.shows(shows.id).await.unwrap().remove(0);
+        let searches = media.searches();
 
         media.scan(shows).await;
 
@@ -1466,6 +1467,7 @@ mod tests {
         );
         assert_eq!(dark.genres, ["Crime", "Drama", "Mystery"]);
         assert_eq!(dark.content_rating.as_deref(), Some("TV-MA"));
+        assert_eq!(media.searches(), searches);
     }
 
     #[tokio::test]

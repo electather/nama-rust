@@ -129,7 +129,7 @@ impl MovieDetails {
             poster: present(self.poster_path),
             backdrop: present(self.backdrop_path),
             title_logo: self.images.title_logo(language),
-            genres: names(self.genres),
+            genres: genre_names(self.genres),
             content_rating: releases.and_then(|releases| {
                 (releases.release_dates.into_iter())
                     .find_map(|release| present(release.certification))
@@ -179,7 +179,7 @@ impl ShowDetails {
             backdrop: present(self.backdrop_path),
             seasons: self.seasons.iter().map(|s| s.season_number).collect(),
             title_logo: self.images.title_logo(language),
-            genres: names(self.genres),
+            genres: genre_names(self.genres),
             content_rating: rated.and_then(|rated| present(rated.rating)),
         }
     }
@@ -190,7 +190,7 @@ struct Genre {
     name: String,
 }
 
-fn names(genres: Vec<Genre>) -> Vec<String> {
+fn genre_names(genres: Vec<Genre>) -> Vec<String> {
     genres.into_iter().map(|genre| genre.name).collect()
 }
 
@@ -254,8 +254,8 @@ struct CountryRating {
     rating: Option<String>,
 }
 
-/// The one of `entries` whose ISO 3166-1 code `code` gives is `country`. `None` without a
-/// country: never another country's.
+/// The entry for `country` among `entries`, each of which `code` gives the ISO 3166-1 code of.
+/// `None` without a country: never another country's.
 fn in_country<T>(entries: Vec<T>, country: Option<&str>, code: fn(&T) -> &str) -> Option<T> {
     let country = country?;
     (entries.into_iter()).find(|entry| code(entry).eq_ignore_ascii_case(country))

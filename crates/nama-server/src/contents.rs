@@ -315,8 +315,17 @@ pub(crate) struct Show<V = Version> {
     pub(crate) seasons: BTreeMap<i64, Season<V>>,
 }
 
-/// The poster of the lowest-numbered Season after the Specials (Season 0) that has one, or else
-/// the Specials'. `seasons` are Season numbers with their posters, in any order.
+/// A Show's Poster: `own`, or else, as for a Match stored before Matches had a Show's own, the
+/// Poster of the lowest-numbered Season after the Specials (Season 0) that has one, or else the
+/// Specials'. `seasons` are Season numbers with their Posters, in any order. A Season's Custom
+/// Poster never stands for its Show.
+fn show_poster<'a>(
+    own: Option<&'a str>,
+    seasons: impl IntoIterator<Item = (i64, Option<&'a str>)>,
+) -> Option<&'a str> {
+    own.or_else(|| first_season_poster(seasons))
+}
+
 fn first_season_poster<'a>(
     seasons: impl IntoIterator<Item = (i64, Option<&'a str>)>,
 ) -> Option<&'a str> {
@@ -327,14 +336,11 @@ fn first_season_poster<'a>(
 }
 
 impl<V> Show<V> {
-    /// Its own Poster, or else its first Season's (see [`first_season_poster`]), as for a Match
-    /// stored before Matches had a Show's own. A Season's Custom Poster never stands for it.
+    /// The Poster it is shown by: see [`show_poster`].
     pub(crate) fn poster(&self) -> Option<&str> {
         let seasons =
             (self.seasons.iter()).map(|(&number, season)| (number, season.poster.as_deref()));
-        self.own_poster
-            .as_deref()
-            .or_else(|| first_season_poster(seasons))
+        show_poster(self.own_poster.as_deref(), seasons)
     }
 
     /// Every Episode of every Season, by season and episode number.
@@ -1388,9 +1394,7 @@ fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
             id: id.clone(),
             plugin: row.plugin.clone(),
             title: title.clone(),
-            poster: (row.show_poster.as_deref())
-                .or_else(|| first_season_poster(seasons))
-                .map(str::to_owned),
+            poster: show_poster(row.show_poster.as_deref(), seasons).map(str::to_owned),
         });
     }
     shows
@@ -2197,8 +2201,9 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{
-        Change, Contents, Decided, FileItem, Item, Metadata, Pin, first_season_poster,
+        Change, Contents, Decided, FileItem, Item, Metadata, Pin,
         fixture::{MatchedMovie, decide, tmdb_movie},
+        show_poster,
     };
     use crate::{
         db::Database,
@@ -2804,15 +2809,15 @@ mod tests {
     }
 
     #[test]
-    fn a_shows_first_season_poster_is_the_first_after_the_specials_that_has_one() {
+    fn without_its_own_a_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
         let specials_and_first = [(0, Some("/specials.jpg")), (1, Some("/1.jpg"))];
         let first_without = [(2, Some("/2.jpg")), (1, None)];
         let specials_alone = [(0, Some("/specials.jpg"))];
         let none = [(0, None), (1, None)];
 
-        assert_eq!(first_season_poster(specials_and_first), Some("/1.jpg"));
-        assert_eq!(first_season_poster(first_without), Some("/2.jpg"));
-        assert_eq!(first_season_poster(specials_alone), Some("/specials.jpg"));
-        assert_eq!(first_season_poster(none), None);
+        assert_eq!(show_poster(None, specials_and_first), Some("/1.jpg"));
+        assert_eq!(show_poster(None, first_without), Some("/2.jpg"));
+        assert_eq!(show_poster(None, specials_alone), Some("/specials.jpg"));
+        assert_eq!(show_poster(None, none), None);
     }
 }

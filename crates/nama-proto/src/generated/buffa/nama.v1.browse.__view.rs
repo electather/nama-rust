@@ -4188,8 +4188,8 @@ pub struct ShowView<'a> {
     ///
     /// Field 2: `title`
     pub title: &'a str,
-    /// Its poster's URL on this Server: its Custom Image if it has one, else its own, else, until
-    /// the Server has fetched its own, its first Season's after the Specials.
+    /// Its poster's URL on this Server: its Custom Image if it has one, else its own, else (as
+    /// before the Server has fetched its own) its first Season's after the Specials.
     ///
     /// Field 3: `poster_url`
     pub poster_url: ::core::option::Option<&'a str>,
@@ -4700,8 +4700,8 @@ impl ShowOwnedView {
     pub fn title(&self) -> &'_ str {
         self.0.reborrow().title
     }
-    /// Its poster's URL on this Server: its Custom Image if it has one, else its own, else, until
-    /// the Server has fetched its own, its first Season's after the Specials.
+    /// Its poster's URL on this Server: its Custom Image if it has one, else its own, else (as
+    /// before the Server has fetched its own) its first Season's after the Specials.
     ///
     /// Field 3: `poster_url`
     #[must_use]

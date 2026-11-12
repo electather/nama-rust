@@ -36,7 +36,7 @@ use nama_server::{
 use refused::assert_refused;
 use server::{
     SignedIn,
-    tmdb::{ALIEN, DARK, DUNE, THE_OFFICE as THE_OFFICE_US},
+    tmdb::{ALIEN, DARK, DUNE, HEAT, THE_OFFICE as THE_OFFICE_US},
 };
 
 /// TMDB finds nothing for this file, so it is Unmatched.
@@ -633,6 +633,19 @@ async fn a_movie_has_its_title_logo_genres_and_content_rating() {
         assert_eq!(movie.genres, ["Horror", "Science Fiction"]);
         assert_eq!(movie.content_rating.as_deref(), Some("R"));
     }
+}
+
+/// TMDB has a logo for Heat only in German, and rates it only in Germany.
+#[tokio::test]
+async fn a_movie_with_no_logo_in_the_providers_language_or_rating_in_its_country_has_neither() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write("Heat {tmdb-949}/Heat.mkv", b"video");
+    fx.scan_and_match().await;
+
+    let heat = fx.get_movie(fx.library, HEAT).await.unwrap();
+
+    assert_eq!((heat.title_logo_url, heat.content_rating), (None, None));
+    assert_eq!(heat.genres, ["Action", "Crime", "Drama"]);
 }
 
 #[tokio::test]
