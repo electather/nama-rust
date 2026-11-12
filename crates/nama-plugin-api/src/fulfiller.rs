@@ -14,7 +14,10 @@
 
 use std::collections::HashMap;
 
-pub use nama_proto::nama::plugin::v1::{Fulfilled, StopMonitoring, stop_monitoring};
+pub use nama_proto::nama::plugin::v1::{
+    EpisodeNumber, EpisodeNumbers, Fulfilled, ShowDeleted, StopMonitoring, show_deleted,
+    stop_monitoring,
+};
 use nama_proto::nama::v1::Request;
 pub use nama_proto::nama::v1::{Download, DownloadStatus};
 

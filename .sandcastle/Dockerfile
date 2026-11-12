@@ -60,6 +60,9 @@ RUN vp env default node@26 && vp env default pnpm@12 && vp env install node@26 p
 
 ENV PATH="/home/agent/.local/bin:/home/agent/.cargo/bin:$PATH"
 
+# Refuses `git stash`: refs/stash lives in the host .git that every sandbox shares (#750). Last, so edits rebuild little.
+COPY git-guard.sh /usr/local/bin/git
+
 # Sandcastle bind-mounts the worktree at /home/agent/workspace
 WORKDIR /home/agent
 ENTRYPOINT ["sleep", "infinity"]

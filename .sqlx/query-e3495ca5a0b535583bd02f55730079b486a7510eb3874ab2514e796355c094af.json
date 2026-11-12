@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH matched AS (\n                   SELECT item_matches.plugin, item_matches.poster, item_matches.backdrop\n                   FROM item_matches\n                   JOIN library_items ON library_items.id = item_matches.item_id\n                   JOIN library_files ON library_files.id = library_items.file_id\n                   WHERE item_matches.state = 'matched'\n                     AND (?1 IS NULL OR library_files.library_id = ?1))\n               SELECT plugin AS \"plugin!\", poster AS \"path!\" FROM matched WHERE poster IS NOT NULL\n               UNION\n               SELECT plugin, backdrop FROM matched WHERE backdrop IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "path!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "poster"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "e3495ca5a0b535583bd02f55730079b486a7510eb3874ab2514e796355c094af"
+}
