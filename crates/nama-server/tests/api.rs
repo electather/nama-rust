@@ -456,6 +456,12 @@ async fn segment_folder(client: &ServerServiceClient<HttpClient>) -> String {
         .clone()
 }
 
+/// A segment folder that's absolute where the tests run: on Windows one needs a drive.
+#[cfg(windows)]
+const FOLDER: &str = r"C:\nama";
+#[cfg(not(windows))]
+const FOLDER: &str = "/dev/shm/nama";
+
 fn set_segment_folder(folder: &str) -> UpdatePlaybackSettingsRequest {
     UpdatePlaybackSettingsRequest {
         settings: PlaybackSettings {
@@ -474,12 +480,12 @@ async fn the_segment_folder_is_empty_until_an_admin_sets_it() {
     let unset = segment_folder(&client).await;
 
     client
-        .update_playback_settings(set_segment_folder(" /dev/shm/nama "))
+        .update_playback_settings(set_segment_folder(&format!(" {FOLDER} ")))
         .await
         .unwrap();
 
     assert_eq!(unset, "");
-    assert_eq!(segment_folder(&client).await, "/dev/shm/nama");
+    assert_eq!(segment_folder(&client).await, FOLDER);
 }
 
 #[tokio::test]
@@ -551,7 +557,7 @@ async fn a_transcode_cap_set_to_0_is_refused_naming_it_and_nothing_changes() {
     let updated = client
         .update_playback_settings(UpdatePlaybackSettingsRequest {
             settings: PlaybackSettings {
-                segment_folder: "/dev/shm/nama".to_owned(),
+                segment_folder: FOLDER.to_owned(),
                 max_transcodes: Some(0),
                 ..Default::default()
             }
@@ -696,7 +702,7 @@ async fn a_segment_folder_that_isnt_an_absolute_path_is_refused_naming_it_and_no
     let server = TestServer::builder().start().await;
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
     client
-        .update_playback_settings(set_segment_folder("/dev/shm/nama"))
+        .update_playback_settings(set_segment_folder(FOLDER))
         .await
         .unwrap();
 
@@ -710,7 +716,7 @@ async fn a_segment_folder_that_isnt_an_absolute_path_is_refused_naming_it_and_no
         RefusalReason::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
     );
     assert_eq!(refusal.field, "settings.segment_folder");
-    assert_eq!(segment_folder(&client).await, "/dev/shm/nama");
+    assert_eq!(segment_folder(&client).await, FOLDER);
 }
 
 /// Saving the Playback settings with `api` on the GPU `id`, named `name` by the client, and the

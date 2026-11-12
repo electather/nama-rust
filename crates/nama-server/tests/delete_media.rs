@@ -1106,6 +1106,8 @@ async fn deleting_a_version_being_transcoded_ends_its_plan_which_the_preview_cou
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     let ended = [EventType::EVENT_TYPE_PLAYBACK_ENDED];
     let mut subscription = subscribe(&fx.server.client_config(), &ended).await;
+    // Read before deleting: a slow shell killed before it writes its pid leaves none.
+    let pid = running_ffmpeg(bin.path()).await;
 
     let preview = fx.preview(version(alien)).await.unwrap();
     fx.delete(version(alien)).await.unwrap();
@@ -1117,9 +1119,22 @@ async fn deleting_a_version_being_transcoded_ends_its_plan_which_the_preview_cou
     assert_eq!(told.playback.version_id, alien);
     let token = Some(fx.server.admin_token.as_str());
     assert_eq!(fetch(&fx.server, &plan.url, token).await.status, 404);
-    let pid = fs::read_to_string(bin.path().join("ffmpeg.pid")).unwrap();
-    let pid = pid.trim();
-    assert!(stops(pid).await, "ffmpeg {pid} still runs");
+    assert!(stops(&pid).await, "ffmpeg {pid} still runs");
+}
+
+/// The process id the fake ffmpeg in `bin` writes once it runs, waiting up to 10 seconds for it.
+#[cfg(unix)]
+#[expect(clippy::panic, reason = "ffmpeg not starting fails the test")]
+async fn running_ffmpeg(bin: &Path) -> String {
+    for _ in 0..100 {
+        if let Ok(pid) = fs::read_to_string(bin.join("ffmpeg.pid"))
+            && pid.ends_with('\n')
+        {
+            return pid.trim().to_owned();
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    panic!("ffmpeg didn't start");
 }
 
 /// Whether the process `pid` ends, reaped or not, within 10 seconds.

@@ -1324,13 +1324,18 @@ mod tests {
         let media = Fixture::new(Kind::Movies).await;
         watch(&media).await;
 
-        let mut file = fs::File::create(media.path("Alien (1979).mkv")).unwrap();
         for _ in 0..5 {
+            // Closed after each chunk: macOS reports a file's writes only once it's closed.
+            let mut file = fs::File::options()
+                .create(true)
+                .append(true)
+                .open(media.path("Alien (1979).mkv"))
+                .unwrap();
             file.write_all(&[0; 1024]).unwrap();
             file.sync_all().unwrap();
+            drop(file);
             tokio::time::sleep(QUIET / 5).await;
         }
-        drop(file);
         wait_for_files(&media, &["Alien (1979).mkv"]).await;
         tokio::time::sleep(QUIET * 2).await;
 

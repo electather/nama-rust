@@ -5,6 +5,9 @@
 //! Events aren't reliable everywhere (network shares send none for changes made from other
 //! machines, Docker bind mounts on macOS drop them, inotify has a per-user watch limit), so every
 //! Library is also scanned now and then, and a folder that can't be watched is left to that.
+//!
+//! ponytail: macOS reports a file's writes only once it's closed, so a file written there for
+//! longer than the quiet period is scanned when it's created and again once it's closed.
 
 use std::{
     collections::HashMap,

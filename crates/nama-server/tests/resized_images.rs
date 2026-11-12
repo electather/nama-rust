@@ -35,7 +35,14 @@ const POSTER: &str = "artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg";
 async fn alien_with_poster(poster: &[u8]) -> (Fixture, String) {
     let fx = Fixture::alien().await;
     let stored = fx.server.data_dir().join(POSTER);
-    fs::create_dir_all(stored.parent().unwrap()).unwrap();
+    // The Match downloads the Poster in the background, which would replace the one written here.
+    let downloaded = tokio::time::timeout(Duration::from_secs(10), async {
+        while !stored.exists() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await;
+    assert!(downloaded.is_ok(), "Alien's Poster was never downloaded");
     fs::write(&stored, poster).unwrap();
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     (fx, movie.poster_url.unwrap())
@@ -208,7 +215,12 @@ async fn past_its_limit_the_cache_deletes_the_least_recently_sent_copies_until_i
     for (copy, sent) in [(&older, an_hour_ago), (&newer, SystemTime::now())] {
         fs::write(copy, vec![0; 600 * 1024]).unwrap();
         let times = FileTimes::new().set_accessed(sent);
-        File::open(copy).unwrap().set_times(times).unwrap();
+        File::options()
+            .write(true)
+            .open(copy)
+            .unwrap()
+            .set_times(times)
+            .unwrap();
     }
 
     fetch_at(&fx, &poster, 640).await;
@@ -231,7 +243,12 @@ async fn a_copy_just_made_is_sent_though_it_is_not_the_most_recently_sent() {
     fs::write(&other, vec![0; 1024 * 1024]).unwrap();
     // Sent after the copy below is made, as by a request racing it.
     let sent_later = FileTimes::new().set_accessed(SystemTime::now() + Duration::from_hours(1));
-    File::open(&other).unwrap().set_times(sent_later).unwrap();
+    File::options()
+        .write(true)
+        .open(&other)
+        .unwrap()
+        .set_times(sent_later)
+        .unwrap();
 
     let reply = fetch_at(&fx, &poster, 640).await;
 

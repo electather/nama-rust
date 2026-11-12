@@ -587,6 +587,12 @@ mod tests {
 
     const DEFAULT_FOLDER: &str = "/data/transcodes";
 
+    /// A segment folder that's absolute where the tests run: on Windows one needs a drive.
+    #[cfg(windows)]
+    const FOLDER: &str = r"C:\nama";
+    #[cfg(not(windows))]
+    const FOLDER: &str = "/tmp/nama";
+
     async fn fresh() -> (tempfile::TempDir, Settings) {
         let data_dir = tempfile::tempdir().unwrap();
         let db = Database::open(data_dir.path()).await.unwrap();
@@ -682,7 +688,7 @@ mod tests {
         let stored = settings
             .change_playback(
                 PlaybackChange {
-                    segment_folder: " /tmp/nama ",
+                    segment_folder: &format!(" {FOLDER} "),
                     max_transcodes: Some(5),
                     keep_behind_minutes: Some(12),
                     hardware: HardwareChoice::Api(Accel::Vaapi, None),
@@ -694,7 +700,7 @@ mod tests {
             .unwrap();
 
         let expected = PlaybackValues {
-            segment_folder: "/tmp/nama".to_owned(),
+            segment_folder: FOLDER.to_owned(),
             max_transcodes: NonZeroU32::new(5),
             keep_behind_minutes: NonZeroU32::new(12),
             hardware: HardwareChoice::Api(Accel::Vaapi, None),
@@ -702,11 +708,11 @@ mod tests {
         };
         assert_eq!(stored, expected);
         assert_eq!(playback.now(), expected);
-        assert_eq!(playback.path(), Path::new("/tmp/nama"));
+        assert_eq!(playback.path(), Path::new(FOLDER));
         assert_eq!(playback.keep_behind_ms(), 720_000);
         assert_eq!(
             playback.leftover_paths(),
-            [PathBuf::from("/tmp/nama"), DEFAULT_FOLDER.into()]
+            [PathBuf::from(FOLDER), DEFAULT_FOLDER.into()]
         );
         assert_eq!(restarted(&settings).await.playback().now(), expected);
     }
@@ -717,7 +723,7 @@ mod tests {
         settings
             .change_playback(
                 PlaybackChange {
-                    segment_folder: "/tmp/nama",
+                    segment_folder: FOLDER,
                     max_transcodes: Some(5),
                     keep_behind_minutes: Some(12),
                     hardware: HardwareChoice::Off,
@@ -757,7 +763,7 @@ mod tests {
                 PlaybackChange {
                     max_transcodes: Some(0),
                     hardware: HardwareChoice::Off,
-                    ..change("/tmp/nama")
+                    ..change(FOLDER)
                 },
                 &[],
             )
@@ -779,7 +785,7 @@ mod tests {
             .change_playback(
                 PlaybackChange {
                     keep_behind_minutes: Some(0),
-                    ..change("/tmp/nama")
+                    ..change(FOLDER)
                 },
                 &[],
             )
@@ -929,16 +935,13 @@ mod tests {
     async fn changing_one_group_keeps_the_others_stored_values() {
         let (_data_dir, settings) = fresh().await;
         settings.set_url("https://nama.example.com").await.unwrap();
-        settings
-            .change_playback(change("/tmp/nama"), &[])
-            .await
-            .unwrap();
+        settings.change_playback(change(FOLDER), &[]).await.unwrap();
         let after_playback = restarted(&settings).await.now();
         settings.set_url("https://other.example.com").await.unwrap();
         let after_url = restarted(&settings).await.now();
 
         assert_eq!(after_playback.url, "https://nama.example.com");
-        assert_eq!(after_url.playback.segment_folder, "/tmp/nama");
+        assert_eq!(after_url.playback.segment_folder, FOLDER);
     }
 
     #[tokio::test]
@@ -962,10 +965,7 @@ mod tests {
     async fn changing_the_playback_settings_first_stores_no_url() {
         let (_data_dir, settings) = fresh().await;
 
-        settings
-            .change_playback(change("/tmp/nama"), &[])
-            .await
-            .unwrap();
+        settings.change_playback(change(FOLDER), &[]).await.unwrap();
 
         assert_eq!(restarted(&settings).await.now().url, "");
     }
