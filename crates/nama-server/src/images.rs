@@ -137,8 +137,7 @@ impl ImageStore {
     }
 
     /// Stores `bytes` as the image at `key`, so no reader ever sees part of it, keeping an image
-    /// already stored there: a key names its bytes, so they are the same, and replacing the file
-    /// would change the `ETag` a browser already holds.
+    /// already stored there (a key names its bytes: see the crate's `AGENTS.md`).
     ///
     /// # Errors
     ///
