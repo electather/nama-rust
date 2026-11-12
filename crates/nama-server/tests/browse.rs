@@ -610,6 +610,28 @@ async fn list_episodes_lists_one_seasons_episodes_in_episode_order() {
     assert_eq!(secrets.runtime_minutes, Some(52));
 }
 
+/// TMDB has Stills for Dark's Season 1 Episodes and none for Season 2's.
+#[tokio::test]
+async fn list_episodes_sends_each_episodes_still_where_the_provider_has_one() {
+    let fx = Fixture::shows().await;
+
+    let first = fx.list_episodes(fx.library, DARK, 1).await.unwrap();
+    let second = fx.list_episodes(fx.library, DARK, 2).await.unwrap();
+
+    let stills: Vec<_> = (first.iter().chain(&second))
+        .map(|episode| episode.still_url.as_deref())
+        .collect();
+    assert_eq!(
+        stills,
+        [
+            Some("/media/artwork/tmdb/%2FgNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg"),
+            Some("/media/artwork/tmdb/%2FqnF7sOyOTeOXBp5aSl8bEtyxjYt.jpg"),
+            None
+        ]
+    );
+    assert_eq!(first[0].still_thumbhash, None, "not resized yet");
+}
+
 #[tokio::test]
 async fn a_file_holding_two_episodes_is_a_version_of_each() {
     let fx = Fixture::shows().await;

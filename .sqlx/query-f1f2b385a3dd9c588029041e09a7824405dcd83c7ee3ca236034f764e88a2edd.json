@@ -1,0 +1,131 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_items.id AS \"id!\", library_items.kind AS \"kind: ItemKind\",\n                      library_items.title, library_items.year, library_items.hint,\n                      library_items.season, library_items.episode,\n                      item_matches.plugin AS \"plugin!\",\n                      IIF(library_items.kind = 'movie', item_matches.tmdb_id,\n                          item_matches.show_tmdb_id) AS \"tmdb_id?: i64\",\n                      IIF(library_items.kind = 'movie', item_matches.imdb_id,\n                          item_matches.show_imdb_id) AS \"imdb_id?: String\",\n                      IIF(library_items.kind = 'movie', item_matches.tvdb_id,\n                          item_matches.show_tvdb_id) AS \"tvdb_id?: i64\"\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND item_matches.state = 'matched'\n                 AND item_matches.metadata_version < ?\n               ORDER BY library_items.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "kind: ItemKind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "year",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "year"
+          }
+        }
+      },
+      {
+        "name": "hint",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "hint"
+          }
+        }
+      },
+      {
+        "name": "season",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "season"
+          }
+        }
+      },
+      {
+        "name": "episode",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "episode"
+          }
+        }
+      },
+      {
+        "name": "plugin!",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "tmdb_id?: i64",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "imdb_id?: String",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "name": "tvdb_id?: i64",
+        "ordinal": 10,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "f1f2b385a3dd9c588029041e09a7824405dcd83c7ee3ca236034f764e88a2edd"
+}

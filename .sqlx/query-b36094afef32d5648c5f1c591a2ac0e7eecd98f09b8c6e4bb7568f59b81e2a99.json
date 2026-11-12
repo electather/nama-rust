@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                      library_files.modified_ns, library_files.parser_version,\n                      library_items.season AS \"season!\", library_items.episode AS \"episode!\",\n                      item_matches.plugin AS \"plugin!\", item_matches.tmdb_id,\n                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.show_tmdb_id,\n                      item_matches.show_imdb_id, item_matches.show_tvdb_id,\n                      item_matches.title AS \"title!\", item_matches.show_title AS \"show_title!\",\n                      item_matches.overview, item_matches.release_date,\n                      item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND library_items.kind = 'episode'\n                 AND item_matches.state = 'matched'\n               ORDER BY library_items.season, library_items.episode, library_files.path",
+  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                      library_files.modified_ns, library_files.parser_version,\n                      library_items.season AS \"season!\", library_items.episode AS \"episode!\",\n                      item_matches.plugin AS \"plugin!\", item_matches.tmdb_id,\n                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.show_tmdb_id,\n                      item_matches.show_imdb_id, item_matches.show_tvdb_id,\n                      item_matches.title AS \"title!\", item_matches.show_title AS \"show_title!\",\n                      item_matches.overview, item_matches.release_date,\n                      item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop,\n                      item_matches.still\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND library_items.kind = 'episode'\n                 AND item_matches.state = 'matched'\n               ORDER BY library_items.season, library_items.episode, library_files.path",
   "describe": {
     "columns": [
       {
@@ -233,6 +233,17 @@
             "name": "backdrop"
           }
         }
+      },
+      {
+        "name": "still",
+        "ordinal": 21,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "still"
+          }
+        }
       }
     ],
     "parameters": {
@@ -259,8 +270,9 @@
       true,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "e483d75574991874c9ebbe7f2419045b24bcf086f3faa88bee54b4de47eaa6b7"
+  "hash": "b36094afef32d5648c5f1c591a2ac0e7eecd98f09b8c6e4bb7568f59b81e2a99"
 }

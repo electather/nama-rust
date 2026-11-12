@@ -24,8 +24,8 @@ use http::fetch;
 use nama_plugin_api::PluginId;
 use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::{
-    DeleteLibraryRequest, LibraryKind, LibraryServiceClient, RequestServiceClient,
-    SearchMoviesRequest, SetMatchRequest,
+    ClearMatchRequest, DeleteLibraryRequest, LibraryKind, LibraryServiceClient,
+    RequestServiceClient, SearchMoviesRequest, SetMatchRequest,
 };
 use nama_server::{
     artwork::{Artwork, Error},
@@ -45,6 +45,9 @@ const HEAT_BACKDROP: &str = "/rfEXNlql4CafRmtgp2VLrdyBMCo.jpg";
 /// Dark's Season 1 Poster and its Show's Backdrop.
 const DARK_SEASON_1_POSTER: &str = "/5LoHuHWA4H8jElFlZDvsmU2n63b.jpg";
 const DARK_BACKDROP: &str = "/3lBDg3i6nn5R2NKFCJ6oKyUo2j5.jpg";
+/// The Still of Dark's S01E01.
+const SECRETS_STILL: &str = "/gNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
+const DARK_S01E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
 
 /// Where `server` keeps TMDB's image at `path`, as the store escapes its leading `/`.
 fn kept(server: &TestServer, path: &str) -> PathBuf {
@@ -74,13 +77,35 @@ async fn a_scan_downloads_a_matched_movies_poster_and_backdrop_before_anyone_vie
 }
 
 #[tokio::test]
-async fn a_scan_downloads_an_episodes_season_poster_and_show_backdrop() {
+async fn a_scan_downloads_an_episodes_season_poster_show_backdrop_and_still() {
     let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
-    fx.write("Dark (2017)/Season 01/Dark - S01E01.mkv", b"video");
+    fx.write(DARK_S01E01, b"video");
 
     fx.scan_and_match().await;
 
-    until_kept(&fx.server, &[DARK_SEASON_1_POSTER, DARK_BACKDROP]).await;
+    until_kept(
+        &fx.server,
+        &[DARK_SEASON_1_POSTER, DARK_BACKDROP, SECRETS_STILL],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn an_episodes_still_is_dropped_once_no_match_stores_it() {
+    let mut fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
+    fx.write(DARK_S01E01, b"video");
+    fx.items = fx.scan_and_match().await;
+    until_kept(&fx.server, &[SECRETS_STILL]).await;
+
+    fx.matches
+        .clear_match(ClearMatchRequest {
+            item_id: fx.item(DARK_S01E01),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert!(!kept(&fx.server, SECRETS_STILL).exists());
 }
 
 #[tokio::test]

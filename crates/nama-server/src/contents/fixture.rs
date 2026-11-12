@@ -114,5 +114,6 @@ pub(crate) fn tmdb_movie(tmdb: i64, title: &str) -> Metadata {
         runtime_minutes: None,
         poster: None,
         backdrop: None,
+        still: None,
     }
 }
