@@ -36,7 +36,7 @@ use nama_server::{
 use refused::assert_refused;
 use server::{
     SignedIn,
-    tmdb::{ALIEN, DARK, DUNE, THE_OFFICE as THE_OFFICE_US},
+    tmdb::{ALIEN, DARK, DUNE, HEAT, THE_OFFICE as THE_OFFICE_US},
 };
 
 /// TMDB finds nothing for this file, so it is Unmatched.
@@ -53,6 +53,8 @@ const DARK_S00E01: &str = "Dark (2017)/Specials/Dark - S00E01.mkv";
 const DARK_S01E03: &str = "Dark (2017)/Season 01/Dark - S01E03.mkv";
 const DARK_SPECIALS_POSTER: &str = "/media/artwork/tmdb/%2FhzSbK1qcDnvyH2EaqqrOLzNwW5w.jpg";
 const DARK_SEASON_1_POSTER: &str = "/media/artwork/tmdb/%2F5LoHuHWA4H8jElFlZDvsmU2n63b.jpg";
+/// Dark's own Poster.
+const DARK_POSTER: &str = "/media/artwork/tmdb/%2FapbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg";
 /// The TMDB ids of Dark's Episodes S01E01, S01E02 and S02E01.
 const SECRETS: i64 = 1_388_538;
 const LIES: i64 = 1_388_539;
@@ -540,8 +542,7 @@ async fn episodes_of_one_show_in_several_folders_are_one_show_with_its_seasons()
     assert_eq!(listed, slice::from_ref(&show));
     assert_eq!(show.id.as_option(), Some(&tmdb_id(DARK)));
     assert_eq!(show.title, "Dark");
-    // Season 1's poster, its first Season's: a Match stores no poster of the Show's own.
-    assert_eq!(show.poster_url.as_deref(), Some(DARK_SEASON_1_POSTER));
+    assert_eq!(show.poster_url.as_deref(), Some(DARK_POSTER));
     assert_eq!(
         show.backdrop_url.as_deref(),
         Some("/media/artwork/tmdb/%2F3lBDg3i6nn5R2NKFCJ6oKyUo2j5.jpg")
@@ -556,7 +557,7 @@ async fn episodes_of_one_show_in_several_folders_are_one_show_with_its_seasons()
 }
 
 #[tokio::test]
-async fn a_show_with_specials_is_shown_by_its_first_seasons_poster() {
+async fn a_show_with_specials_is_shown_by_its_own_poster() {
     let fx = Fixture::dark_with_specials().await;
 
     let listed = fx.list_shows(fx.library).await.unwrap();
@@ -564,7 +565,7 @@ async fn a_show_with_specials_is_shown_by_its_first_seasons_poster() {
 
     let show = got.show.into_option().unwrap();
     assert_eq!(listed, slice::from_ref(&show));
-    assert_eq!(show.poster_url.as_deref(), Some(DARK_SEASON_1_POSTER));
+    assert_eq!(show.poster_url.as_deref(), Some(DARK_POSTER));
     assert_eq!(
         got.seasons,
         [
@@ -585,7 +586,88 @@ async fn a_search_shows_a_show_by_the_poster_its_library_shows() {
         .map(|show| show.poster_url.as_deref())
         .collect();
     assert_eq!(posters, [listed[0].poster_url.as_deref()]);
-    assert_eq!(posters, [Some(DARK_SEASON_1_POSTER)]);
+    assert_eq!(posters, [Some(DARK_POSTER)]);
+}
+
+#[tokio::test]
+async fn a_show_is_shown_by_its_own_poster_in_its_library_page_continue_watching_and_search() {
+    let fx = Fixture::shows().await;
+    let viewer = fx.admin();
+    let second_season = fx.dark_version(2, "Dark - S02E01.mkv").await;
+    viewer
+        .report(second_season, MINUTE, TWO_HOURS)
+        .await
+        .unwrap();
+
+    let listed = fx.list_shows(fx.library).await.unwrap();
+    let got = fx.get_show(fx.library, DARK).await.unwrap();
+    let started = viewer.continue_watching().await;
+    let found = fx.search("dark").await.shows;
+
+    let Some(continue_watching_entry::MovieOrEpisode::Episode(continued)) =
+        &started[0].movie_or_episode
+    else {
+        panic!("an Episode of Dark was started");
+    };
+    let posters = [
+        listed[0].poster_url.as_deref(),
+        got.show.as_option().unwrap().poster_url.as_deref(),
+        continued.show.as_option().unwrap().poster_url.as_deref(),
+        found[0].poster_url.as_deref(),
+    ];
+    assert_eq!(posters, [Some(DARK_POSTER); 4]);
+}
+
+#[tokio::test]
+async fn a_movie_has_its_title_logo_genres_and_content_rating() {
+    let fx = Fixture::alien().await;
+
+    let listed = fx.list_movies(fx.library).await.unwrap();
+    let got = fx.get_movie(fx.library, ALIEN).await.unwrap();
+
+    for movie in [&listed[0], &got] {
+        assert_eq!(
+            movie.title_logo_url.as_deref(),
+            Some("/media/artwork/tmdb/%2FfzbFBy8eTB3hbmHDgSrbNdhDzA9.png")
+        );
+        assert_eq!(movie.genres, ["Horror", "Science Fiction"]);
+        assert_eq!(movie.content_rating.as_deref(), Some("R"));
+    }
+}
+
+/// TMDB has a Title Logo for Heat only in German, and rates it only in Germany.
+#[tokio::test]
+async fn a_movie_with_no_title_logo_in_the_providers_language_or_rating_in_its_country_has_neither()
+{
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write("Heat {tmdb-949}/Heat.mkv", b"video");
+    fx.scan_and_match().await;
+
+    let heat = fx.get_movie(fx.library, HEAT).await.unwrap();
+
+    assert_eq!((heat.title_logo_url, heat.content_rating), (None, None));
+    assert_eq!(heat.genres, ["Action", "Crime", "Drama"]);
+}
+
+#[tokio::test]
+async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_and_content_rating() {
+    let fx = Fixture::shows().await;
+
+    let got = fx.get_show(fx.library, DARK).await.unwrap();
+
+    let show = got.show.into_option().unwrap();
+    assert!(
+        (show.overview.as_deref()).is_some_and(|overview| overview.starts_with("A missing child")),
+        "{:?}",
+        show.overview
+    );
+    assert_eq!(show.first_air_date.as_deref(), Some("2017-12-01"));
+    assert_eq!(
+        show.title_logo_url.as_deref(),
+        Some("/media/artwork/tmdb/%2F7l3H2B3ofXWDNfjX9XvZf2cdUOT.png")
+    );
+    assert_eq!(show.genres, ["Crime", "Drama", "Mystery"]);
+    assert_eq!(show.content_rating.as_deref(), Some("TV-MA"));
 }
 
 #[tokio::test]

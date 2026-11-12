@@ -103,6 +103,33 @@ impl Client {
             .await
     }
 
+    /// The details of the Movie or Show at `path`, with its Title Logos in the setting's language
+    /// and `ratings`, the field its ratings by country are appended as.
+    async fn title_details<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        ratings: &str,
+    ) -> Result<T, MetadataError> {
+        let append = format!("external_ids,images,{ratings}");
+        let params = [
+            ("append_to_response", append.as_str()),
+            ("include_image_language", self.image_language()),
+        ];
+        self.api(path, &params).await
+    }
+
+    /// The language part of the Language setting, `en` of `en-US`, which Title Logos are in.
+    fn image_language(&self) -> &str {
+        self.language.split('-').next().unwrap_or_default()
+    }
+
+    /// The country part of the Language setting, `US` of `en-US` or `TW` of `zh-Hant-TW`, whose
+    /// Content Ratings count, if it names one.
+    fn country(&self) -> Option<&str> {
+        // A region subtag is the two-letter one after the language (RFC 5646).
+        (self.language.split('-').skip(1)).find(|subtag| subtag.len() == 2)
+    }
+
     /// GETs `url`, returning the content type and body of a successful response.
     async fn get(&self, url: Url) -> Result<(Option<String>, Bytes), MetadataError> {
         let request = Request::get(url.as_str())
@@ -191,16 +218,18 @@ impl MetadataProvider for Client {
     fn movie<'a>(&'a self, id: &'a ExternalId) -> BoxFuture<'a, Result<Movie, MetadataError>> {
         Box::pin(async move {
             let id = self.find(TitleKind::Movie, id).await?;
-            let movie: MovieDetails = self.details(&format!("/movie/{id}")).await?;
-            Ok(movie.into())
+            let path = format!("/movie/{id}");
+            let movie: MovieDetails = self.title_details(&path, "release_dates").await?;
+            Ok(movie.into_movie(self.image_language(), self.country()))
         })
     }
 
     fn show<'a>(&'a self, id: &'a ExternalId) -> BoxFuture<'a, Result<Show, MetadataError>> {
         Box::pin(async move {
             let id = self.find(TitleKind::Show, id).await?;
-            let show: ShowDetails = self.details(&format!("/tv/{id}")).await?;
-            Ok(show.into())
+            let path = format!("/tv/{id}");
+            let show: ShowDetails = self.title_details(&path, "content_ratings").await?;
+            Ok(show.into_show(self.image_language(), self.country()))
         })
     }
 

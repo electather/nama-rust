@@ -52,3 +52,4 @@
 0052_image_thumbhashes.sql
 0053_match_metadata_version.sql
 0054_subtitle_headers.sql
+0055_match_title_details.sql

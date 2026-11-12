@@ -201,6 +201,14 @@ pub(crate) struct Metadata {
     pub(crate) backdrop: Option<String>,
     /// For an Episode, its Still.
     pub(crate) still: Option<String>,
+    /// A Movie's, or for an Episode its Show's, as are `genres` and `content_rating`.
+    pub(crate) title_logo: Option<String>,
+    pub(crate) genres: Vec<String>,
+    pub(crate) content_rating: Option<String>,
+    /// For an Episode, its Show's own Poster, as `poster` holds its Season's.
+    pub(crate) show_poster: Option<String>,
+    pub(crate) show_overview: Option<String>,
+    pub(crate) show_first_air_date: Option<String>,
 }
 
 /// A Library's downloaded Backdrop: see [`Contents::newest_backdrops`].
@@ -228,6 +236,9 @@ pub(crate) struct Movie<V = Version> {
     pub(crate) runtime_minutes: Option<i64>,
     pub(crate) poster: Option<String>,
     pub(crate) backdrop: Option<String>,
+    pub(crate) title_logo: Option<String>,
+    pub(crate) genres: Vec<String>,
+    pub(crate) content_rating: Option<String>,
     /// The files Matched to it, by path.
     pub(crate) versions: Vec<V>,
 }
@@ -245,6 +256,9 @@ impl<V> Movie<V> {
             runtime_minutes: self.runtime_minutes,
             poster: self.poster,
             backdrop: self.backdrop,
+            title_logo: self.title_logo,
+            genres: self.genres,
+            content_rating: self.content_rating,
             versions: self.versions.into_iter().map(version).collect(),
         }
     }
@@ -289,14 +303,40 @@ pub(crate) struct Show<V = Version> {
     /// The Plugin whose metadata Provider made the Match, which the image paths are for.
     pub(crate) plugin: String,
     pub(crate) title: String,
+    /// Its own Poster: see [`Show::poster`] for the one it shows.
+    pub(crate) own_poster: Option<String>,
+    /// The [`METADATA_VERSION`] that stored `own_poster`.
+    pub(crate) metadata_version: i64,
     pub(crate) backdrop: Option<String>,
+    pub(crate) overview: Option<String>,
+    pub(crate) first_air_date: Option<String>,
+    pub(crate) title_logo: Option<String>,
+    pub(crate) genres: Vec<String>,
+    pub(crate) content_rating: Option<String>,
     /// The Seasons the Library has Episodes of, by number.
     pub(crate) seasons: BTreeMap<i64, Season<V>>,
 }
 
-/// The poster of the lowest-numbered Season after the Specials (Season 0) that has one, or else
-/// the Specials'. A Match stores each Episode's Season poster and none of the Show's own. `seasons` are Season numbers with their posters, in any order.
-pub(crate) fn show_poster<'a>(
+/// The [`METADATA_VERSION`] whose Matches first stored a Show's own Poster.
+const SHOW_POSTERS_SINCE: i64 = 2;
+
+/// A Show's Poster: `own`, from a Match stored at metadata version `version`. A Match stored
+/// before Matches had a Show's own has, until refreshed, the Poster of the lowest-numbered Season
+/// after the Specials (Season 0) that has one, or else the Specials'. `seasons` are Season numbers
+/// with their Posters, in any order. A Season's Custom Poster never stands for its Show.
+fn show_poster<'a>(
+    own: Option<&'a str>,
+    version: i64,
+    seasons: impl IntoIterator<Item = (i64, Option<&'a str>)>,
+) -> Option<&'a str> {
+    if version < SHOW_POSTERS_SINCE {
+        first_season_poster(seasons)
+    } else {
+        own
+    }
+}
+
+fn first_season_poster<'a>(
     seasons: impl IntoIterator<Item = (i64, Option<&'a str>)>,
 ) -> Option<&'a str> {
     (seasons.into_iter())
@@ -306,6 +346,13 @@ pub(crate) fn show_poster<'a>(
 }
 
 impl<V> Show<V> {
+    /// The Poster it is shown by: see [`show_poster`].
+    pub(crate) fn poster(&self) -> Option<&str> {
+        let seasons =
+            (self.seasons.iter()).map(|(&number, season)| (number, season.poster.as_deref()));
+        show_poster(self.own_poster.as_deref(), self.metadata_version, seasons)
+    }
+
     /// Every Episode of every Season, by season and episode number.
     pub(crate) fn episodes(&self) -> impl Iterator<Item = &Episode<V>> {
         self.seasons.values().flat_map(|season| &season.episodes)
@@ -330,7 +377,14 @@ impl<V> Show<V> {
             tvdb_id: self.tvdb_id,
             plugin: self.plugin,
             title: self.title,
+            own_poster: self.own_poster,
+            metadata_version: self.metadata_version,
             backdrop: self.backdrop,
+            overview: self.overview,
+            first_air_date: self.first_air_date,
+            title_logo: self.title_logo,
+            genres: self.genres,
+            content_rating: self.content_rating,
             seasons,
         }
     }
@@ -417,7 +471,8 @@ pub(crate) struct FoundShow {
     /// The Plugin whose metadata Provider made the Match, which the poster's path is for.
     pub(crate) plugin: String,
     pub(crate) title: String,
-    /// As [`Show::poster`] picks it, from the Seasons of the Show's Episodes the search found.
+    /// As [`Show::poster`] picks it, from the Match and the Seasons of the Show's Episodes the
+    /// search found.
     pub(crate) poster: Option<String>,
 }
 
@@ -707,7 +762,7 @@ impl Contents {
         sqlx::query_scalar!(
             r#"SELECT EXISTS (SELECT 1 FROM item_matches
                               WHERE state = 'matched' AND plugin = ?
-                                AND (poster = ?2 OR backdrop = ?2 OR still = ?2))
+                                AND ?2 IN (poster, backdrop, still, title_logo, show_poster))
                AS "stored!: bool""#,
             plugin,
             image
@@ -725,7 +780,7 @@ impl Contents {
         let rows = sqlx::query!(
             r#"WITH matched AS (
                    SELECT item_matches.plugin, item_matches.poster, item_matches.backdrop,
-                          item_matches.still
+                          item_matches.still, item_matches.title_logo, item_matches.show_poster
                    FROM item_matches
                    JOIN library_items ON library_items.id = item_matches.item_id
                    JOIN library_files ON library_files.id = library_items.file_id
@@ -735,7 +790,11 @@ impl Contents {
                UNION
                SELECT plugin, backdrop FROM matched WHERE backdrop IS NOT NULL
                UNION
-               SELECT plugin, still FROM matched WHERE still IS NOT NULL"#,
+               SELECT plugin, still FROM matched WHERE still IS NOT NULL
+               UNION
+               SELECT plugin, title_logo FROM matched WHERE title_logo IS NOT NULL
+               UNION
+               SELECT plugin, show_poster FROM matched WHERE show_poster IS NOT NULL"#,
             library
         )
         .fetch_all(self.db.reader())
@@ -922,7 +981,8 @@ impl Contents {
                       item_matches.imdb_id, item_matches.tvdb_id, item_matches.title AS "title!",
                       item_matches.original_title, item_matches.overview,
                       item_matches.release_date, item_matches.runtime_minutes,
-                      item_matches.poster, item_matches.backdrop
+                      item_matches.poster, item_matches.backdrop, item_matches.title_logo,
+                      item_matches.genres, item_matches.content_rating
                FROM item_matches
                JOIN library_items ON library_items.id = item_matches.item_id
                JOIN library_files ON library_files.id = library_items.file_id
@@ -968,6 +1028,9 @@ impl Contents {
                     runtime_minutes: row.runtime_minutes,
                     poster: row.poster,
                     backdrop: row.backdrop,
+                    title_logo: row.title_logo,
+                    genres: genres(row.genres.as_deref())?,
+                    content_rating: row.content_rating,
                     versions: vec![version],
                 }),
             }
@@ -978,6 +1041,10 @@ impl Contents {
 
     /// By title, grouped by the Episodes' Show ids' [`primary_id`], each Season's Episodes by
     /// their own.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one query's columns, and the Show, Season and Episode each row fills"
+    )]
     pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
@@ -989,7 +1056,10 @@ impl Contents {
                       item_matches.title AS "title!", item_matches.show_title AS "show_title!",
                       item_matches.overview, item_matches.release_date,
                       item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop,
-                      item_matches.still
+                      item_matches.still, item_matches.title_logo, item_matches.genres,
+                      item_matches.content_rating, item_matches.show_poster,
+                      item_matches.show_overview, item_matches.show_first_air_date,
+                      item_matches.metadata_version
                FROM item_matches
                JOIN library_items ON library_items.id = item_matches.item_id
                JOIN library_files ON library_files.id = library_items.file_id
@@ -1018,12 +1088,20 @@ impl Contents {
             let (Some(show_id), Some(id)) = (primary_id(show_ids), primary_id(ids)) else {
                 continue;
             };
+            let genres = genres(row.genres.as_deref())?;
             let show = shows.entry(show_id.clone()).or_insert_with(|| Show {
                 id: show_id,
                 tvdb_id: row.show_tvdb_id,
                 plugin: row.plugin.clone(),
                 title: row.show_title,
+                own_poster: row.show_poster,
+                metadata_version: row.metadata_version,
                 backdrop: row.backdrop,
+                overview: row.show_overview,
+                first_air_date: row.show_first_air_date,
+                title_logo: row.title_logo,
+                genres,
+                content_rating: row.content_rating,
                 seasons: BTreeMap::new(),
             });
             let season = show.seasons.entry(row.season).or_insert_with(|| Season {
@@ -1122,7 +1200,8 @@ impl Contents {
                       item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,
                       item_matches.show_tmdb_id, item_matches.show_imdb_id,
                       item_matches.show_tvdb_id, item_matches.title AS "title!",
-                      item_matches.show_title, item_matches.release_date, item_matches.poster
+                      item_matches.show_title, item_matches.release_date, item_matches.poster,
+                      item_matches.show_poster, item_matches.metadata_version
                FROM title_search
                JOIN item_matches ON item_matches.item_id = title_search.rowid
                JOIN library_items ON library_items.id = item_matches.item_id
@@ -1279,6 +1358,8 @@ struct SearchRow {
     show_title: Option<String>,
     release_date: Option<String>,
     poster: Option<String>,
+    show_poster: Option<String>,
+    metadata_version: i64,
 }
 
 impl SearchRow {
@@ -1327,7 +1408,8 @@ fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
             id: id.clone(),
             plugin: row.plugin.clone(),
             title: title.clone(),
-            poster: show_poster(seasons).map(str::to_owned),
+            poster: show_poster(row.show_poster.as_deref(), row.metadata_version, seasons)
+                .map(str::to_owned),
         });
     }
     shows
@@ -1667,9 +1749,11 @@ async fn insert_decisions(
             "INSERT OR REPLACE INTO item_matches (
                  item_id, state, plugin, tmdb_id, imdb_id, tvdb_id,
                  show_tmdb_id, show_imdb_id, show_tvdb_id, title, original_title, show_title,
-                 overview, release_date, runtime_minutes, poster, backdrop, still,
+                 overview, release_date, runtime_minutes, poster, backdrop, still, title_logo,
+                 genres, content_rating, show_poster, show_overview, show_first_air_date,
                  unmatched_reason, tied_titles, metadata_version, decided_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
@@ -1689,6 +1773,12 @@ async fn insert_decisions(
             row.metadata.poster,
             row.metadata.backdrop,
             row.metadata.still,
+            row.metadata.title_logo,
+            row.metadata.genres,
+            row.metadata.content_rating,
+            row.metadata.show_poster,
+            row.metadata.show_overview,
+            row.metadata.show_first_air_date,
             row.unmatched_reason,
             row.tied_titles,
             METADATA_VERSION,
@@ -1837,6 +1927,14 @@ fn parse_tied(json: &str) -> Result<Vec<TiedTitle>, sqlx::Error> {
         .collect()
 }
 
+/// The genres in the `genres` column's JSON, `json`: none where it's NULL, as for a Match stored
+/// before Matches had them.
+fn genres(json: Option<&str>) -> Result<Vec<String>, sqlx::Error> {
+    json.map_or(Ok(Vec::new()), |json| {
+        serde_json::from_str(json).map_err(|err| sqlx::Error::Decode(err.into()))
+    })
+}
+
 fn tied_json(tied: &[TiedTitle]) -> String {
     let rows: Vec<serde_json::Value> = tied
         .iter()
@@ -1868,6 +1966,13 @@ struct MetadataColumns<'a> {
     poster: Option<&'a str>,
     backdrop: Option<&'a str>,
     still: Option<&'a str>,
+    title_logo: Option<&'a str>,
+    /// A JSON array of their names, which [`genres`] reads.
+    genres: Option<String>,
+    content_rating: Option<&'a str>,
+    show_poster: Option<&'a str>,
+    show_overview: Option<&'a str>,
+    show_first_air_date: Option<&'a str>,
 }
 
 impl<'a> From<&'a Decided> for MatchRow<'a> {
@@ -1902,6 +2007,12 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     poster: metadata.poster.as_deref(),
                     backdrop: metadata.backdrop.as_deref(),
                     still: metadata.still.as_deref(),
+                    title_logo: metadata.title_logo.as_deref(),
+                    genres: Some(serde_json::Value::from(metadata.genres.clone()).to_string()),
+                    content_rating: metadata.content_rating.as_deref(),
+                    show_poster: metadata.show_poster.as_deref(),
+                    show_overview: metadata.show_overview.as_deref(),
+                    show_first_air_date: metadata.show_first_air_date.as_deref(),
                 },
                 unmatched_reason: None,
                 tied_titles: None,
@@ -2050,19 +2161,21 @@ impl Contents {
             .unwrap();
     }
 
-    /// Marks the Matches of the Library `library` as stored by the metadata version before the
-    /// current one, without the Stills that version added, as before a version bump.
+    /// Marks the Matches of the Library `library` as stored before Matches had a metadata
+    /// version, without what the versions since added, as before a version bump.
     pub(crate) async fn stored_by_older_metadata(&self, library: i64) {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "UPDATE item_matches SET metadata_version = ? - 1, still = NULL
+                        "UPDATE item_matches
+                         SET metadata_version = 0, still = NULL, title_logo = NULL, genres = NULL,
+                             content_rating = NULL, show_poster = NULL, show_overview = NULL,
+                             show_first_air_date = NULL
                          WHERE item_id IN (SELECT library_items.id FROM library_items
                                            JOIN library_files
                                              ON library_files.id = library_items.file_id
                                            WHERE library_files.library_id = ?)",
-                        METADATA_VERSION,
                         library
                     )
                     .execute(&mut **tx)
@@ -2103,7 +2216,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{
-        Change, Contents, Decided, FileItem, Item, Metadata, Pin,
+        Change, Contents, Decided, FileItem, Item, METADATA_VERSION, Metadata, Pin,
         fixture::{MatchedMovie, decide, tmdb_movie},
         show_poster,
     };
@@ -2590,6 +2703,12 @@ mod tests {
             poster: None,
             backdrop: None,
             still: None,
+            title_logo: None,
+            genres: Vec::new(),
+            content_rating: None,
+            show_poster: None,
+            show_overview: None,
+            show_first_air_date: None,
         }))
     }
 
@@ -2705,15 +2824,26 @@ mod tests {
     }
 
     #[test]
-    fn a_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
+    fn an_unrefreshed_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
         let specials_and_first = [(0, Some("/specials.jpg")), (1, Some("/1.jpg"))];
         let first_without = [(2, Some("/2.jpg")), (1, None)];
         let specials_alone = [(0, Some("/specials.jpg"))];
         let none = [(0, None), (1, None)];
 
-        assert_eq!(show_poster(specials_and_first), Some("/1.jpg"));
-        assert_eq!(show_poster(first_without), Some("/2.jpg"));
-        assert_eq!(show_poster(specials_alone), Some("/specials.jpg"));
-        assert_eq!(show_poster(none), None);
+        assert_eq!(show_poster(None, 0, specials_and_first), Some("/1.jpg"));
+        assert_eq!(show_poster(None, 0, first_without), Some("/2.jpg"));
+        assert_eq!(show_poster(None, 0, specials_alone), Some("/specials.jpg"));
+        assert_eq!(show_poster(None, 0, none), None);
+    }
+
+    #[test]
+    fn a_refreshed_show_without_its_own_poster_has_none_not_a_seasons() {
+        let seasons = [(1, Some("/1.jpg"))];
+
+        assert_eq!(show_poster(None, METADATA_VERSION, seasons), None);
+        assert_eq!(
+            show_poster(Some("/own.jpg"), METADATA_VERSION, seasons),
+            Some("/own.jpg")
+        );
     }
 }

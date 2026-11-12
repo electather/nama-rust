@@ -27,7 +27,7 @@ Plugin settings live in the Server's database. On its first start, fresh or afte
 ```toml
 [plugins.tmdb]
 api_key = "your TMDB API key"
-# language = "en-US"   # the language titles and overviews are fetched in
+# language = "en-US"   # the language titles, overviews and Title Logos are fetched in; its country picks the Content Rating
 ```
 
 After that it ignores those tables, and logs that it does, so editing them changes nothing.

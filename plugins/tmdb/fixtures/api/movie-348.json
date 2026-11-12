@@ -20,5 +20,22 @@
   "video": false,
   "vote_average": 8.2,
   "vote_count": 15210,
-  "external_ids": {"imdb_id": "tt0078748", "wikidata_id": "Q103569", "facebook_id": "AlienAnthology", "instagram_id": null, "twitter_id": null}
+  "external_ids": {"imdb_id": "tt0078748", "wikidata_id": "Q103569", "facebook_id": "AlienAnthology", "instagram_id": null, "twitter_id": null},
+  "images": {
+    "backdrops": [],
+    "logos": [
+      {"aspect_ratio": 3.2, "file_path": "/v5yKu2vPJkbkzkxKLXFyGcqDtZz.png", "height": 400, "iso_639_1": "en", "vote_average": 5.3, "vote_count": 4, "width": 1280},
+      {"aspect_ratio": 3.6, "file_path": "/fzbFBy8eTB3hbmHDgSrbNdhDzA9.png", "height": 355, "iso_639_1": "en", "vote_average": 5.6, "vote_count": 6, "width": 1280}
+    ],
+    "posters": []
+  },
+  "release_dates": {
+    "results": [
+      {"iso_3166_1": "GB", "release_dates": [{"certification": "18", "descriptors": [], "iso_639_1": "", "note": "", "release_date": "1979-09-06T00:00:00.000Z", "type": 3}]},
+      {"iso_3166_1": "US", "release_dates": [
+        {"certification": "", "descriptors": [], "iso_639_1": "", "note": "Premiere", "release_date": "1979-05-25T00:00:00.000Z", "type": 1},
+        {"certification": "R", "descriptors": [], "iso_639_1": "", "note": "", "release_date": "1979-06-22T00:00:00.000Z", "type": 3}
+      ]}
+    ]
+  }
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                      library_files.modified_ns, library_files.parser_version,\n                      library_items.season AS \"season!\", library_items.episode AS \"episode!\",\n                      item_matches.plugin AS \"plugin!\", item_matches.tmdb_id,\n                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.show_tmdb_id,\n                      item_matches.show_imdb_id, item_matches.show_tvdb_id,\n                      item_matches.title AS \"title!\", item_matches.show_title AS \"show_title!\",\n                      item_matches.overview, item_matches.release_date,\n                      item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop,\n                      item_matches.still\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND library_items.kind = 'episode'\n                 AND item_matches.state = 'matched'\n               ORDER BY library_items.season, library_items.episode, library_files.path",
+  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                      library_files.modified_ns, library_files.parser_version,\n                      library_items.season AS \"season!\", library_items.episode AS \"episode!\",\n                      item_matches.plugin AS \"plugin!\", item_matches.tmdb_id,\n                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.show_tmdb_id,\n                      item_matches.show_imdb_id, item_matches.show_tvdb_id,\n                      item_matches.title AS \"title!\", item_matches.show_title AS \"show_title!\",\n                      item_matches.overview, item_matches.release_date,\n                      item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop,\n                      item_matches.still, item_matches.title_logo, item_matches.genres,\n                      item_matches.content_rating, item_matches.show_poster,\n                      item_matches.show_overview, item_matches.show_first_air_date,\n                      item_matches.metadata_version\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND library_items.kind = 'episode'\n                 AND item_matches.state = 'matched'\n               ORDER BY library_items.season, library_items.episode, library_files.path",
   "describe": {
     "columns": [
       {
@@ -244,6 +244,83 @@
             "name": "still"
           }
         }
+      },
+      {
+        "name": "title_logo",
+        "ordinal": 22,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "title_logo"
+          }
+        }
+      },
+      {
+        "name": "genres",
+        "ordinal": 23,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "genres"
+          }
+        }
+      },
+      {
+        "name": "content_rating",
+        "ordinal": 24,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "content_rating"
+          }
+        }
+      },
+      {
+        "name": "show_poster",
+        "ordinal": 25,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_poster"
+          }
+        }
+      },
+      {
+        "name": "show_overview",
+        "ordinal": 26,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_overview"
+          }
+        }
+      },
+      {
+        "name": "show_first_air_date",
+        "ordinal": 27,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_first_air_date"
+          }
+        }
+      },
+      {
+        "name": "metadata_version",
+        "ordinal": 28,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "metadata_version"
+          }
+        }
       }
     ],
     "parameters": {
@@ -271,8 +348,15 @@
       true,
       true,
       true,
-      true
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
     ]
   },
-  "hash": "b36094afef32d5648c5f1c591a2ac0e7eecd98f09b8c6e4bb7568f59b81e2a99"
+  "hash": "c3c30d7e26956410abb788468055867ff4545495461bedd6dbeac7a0999952df"
 }

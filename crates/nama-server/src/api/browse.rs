@@ -14,7 +14,7 @@ use nama_proto::nama::v1::{
 use crate::{
     artwork,
     browse::{self, Browse, Episode, Movie, Show, Started, Version},
-    contents::{FoundEpisode, FoundMovie, FoundShow, show_poster},
+    contents::{FoundEpisode, FoundMovie, FoundShow},
     custom_images::{Role, Slot},
     libraries::Kind,
     tracks::track_to_proto,
@@ -260,6 +260,9 @@ fn movie_to_proto(
     let poster_url = custom_poster.or_else(|| movie.poster.map(artwork_url));
     let backdrop_url = custom_backdrop.or_else(|| movie.backdrop.map(artwork_url));
     proto::Movie {
+        title_logo_url: movie.title_logo.map(artwork_url),
+        genres: movie.genres,
+        content_rating: movie.content_rating,
         custom_poster: poster_is_custom,
         custom_backdrop: backdrop_is_custom,
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
@@ -322,23 +325,15 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
 }
 
 /// A Show as clients see it, without its Seasons, with its images as URLs on this Server and their
-/// thumbhashes, and its Custom Images in `images` in place of the downloaded ones. Without a
-/// Poster of its own, it has its first Season's.
+/// thumbhashes, and its Custom Images in `images` in place of the downloaded ones.
 fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
+    let artwork_url = |path: &str| artwork::url(&show.plugin, path);
     let custom_poster = images.custom.of(&Slot::show(&show.id, Role::Poster));
     let custom_backdrop = images.custom.of(&Slot::show(&show.id, Role::Backdrop));
     let (poster_is_custom, backdrop_is_custom) =
         (custom_poster.is_some(), custom_backdrop.is_some());
-    let season_posters: Vec<_> = (show.seasons.keys())
-        .filter_map(|&number| Some((number, season_poster(show, number, images).0?)))
-        .collect();
-    let downloaded_backdrop =
-        (show.backdrop.as_deref()).map(|path| artwork::url(&show.plugin, path));
-    let poster_url = custom_poster.or_else(|| {
-        let posters = (season_posters.iter()).map(|(n, url)| (*n, Some(url.as_str())));
-        show_poster(posters).map(str::to_owned)
-    });
-    let backdrop_url = custom_backdrop.or(downloaded_backdrop);
+    let poster_url = custom_poster.or_else(|| show.poster().map(artwork_url));
+    let backdrop_url = custom_backdrop.or_else(|| show.backdrop.as_deref().map(artwork_url));
     proto::Show {
         id: external_id_to_proto(show.id.clone()).into(),
         title: show.title.clone(),
@@ -348,6 +343,11 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         backdrop_thumbhash: images.thumbhash(backdrop_url.as_deref()),
         poster_url,
         backdrop_url,
+        title_logo_url: show.title_logo.as_deref().map(artwork_url),
+        genres: show.genres.clone(),
+        content_rating: show.content_rating.clone(),
+        overview: show.overview.clone(),
+        first_air_date: show.first_air_date.clone(),
         ..Default::default()
     }
 }

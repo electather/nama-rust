@@ -92,6 +92,14 @@ message Movie {
   optional bytes poster_thumbhash = 13;
   // As `poster_thumbhash`, for the backdrop.
   optional bytes backdrop_thumbhash = 14;
+  // Its Title Logo's URL on this Server, lettered in the metadata Provider's language. Unset if
+  // the Provider has none in that language: show `title` as text instead.
+  optional string title_logo_url = 15;
+  // Its genres' names, in the metadata Provider's language.
+  repeated string genres = 16;
+  // Its Content Rating in the metadata Provider's country, such as `R`. Unset if it has none
+  // there.
+  optional string content_rating = 17;
 }
 
 // One file a Movie or Episode is available in.
@@ -215,7 +223,8 @@ message Show {
   ExternalId id = 1;
   // The title, in the metadata Provider's language.
   string title = 2;
-  // Its poster's URL on this Server: its Custom Image if it has one, else its first Season's.
+  // Its poster's URL on this Server: its Custom Image if it has one, else its own, else (as
+  // before the Server has fetched its own) its first Season's after the Specials.
   optional string poster_url = 3;
   // The backdrop's URL on this Server.
   optional string backdrop_url = 4;
@@ -228,6 +237,15 @@ message Show {
   optional bytes poster_thumbhash = 7;
   // As `Movie.backdrop_thumbhash`.
   optional bytes backdrop_thumbhash = 8;
+  // As `Movie.title_logo_url`.
+  optional string title_logo_url = 9;
+  // As `Movie.genres`.
+  repeated string genres = 10;
+  // As `Movie.content_rating`, such as `TV-MA`.
+  optional string content_rating = 11;
+  optional string overview = 12;
+  // When it first aired, as `YYYY-MM-DD`.
+  optional string first_air_date = 13;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.

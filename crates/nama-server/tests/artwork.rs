@@ -40,11 +40,15 @@ use server::{
 
 const POSTER: &str = "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg";
 const BACKDROP: &str = "/AmR3JG1VQVxU8TfAvljUhfSFUOx.jpg";
+const TITLE_LOGO: &str = "/fzbFBy8eTB3hbmHDgSrbNdhDzA9.png";
 const HEAT_POSTER: &str = "/umSVjVdbVwtx5ryCA2QXL44Durm.jpg";
 const HEAT_BACKDROP: &str = "/rfEXNlql4CafRmtgp2VLrdyBMCo.jpg";
 /// Dark's Season 1 Poster and its Show's Backdrop.
 const DARK_SEASON_1_POSTER: &str = "/5LoHuHWA4H8jElFlZDvsmU2n63b.jpg";
 const DARK_BACKDROP: &str = "/3lBDg3i6nn5R2NKFCJ6oKyUo2j5.jpg";
+/// Dark's own Poster and Title Logo.
+const DARK_POSTER: &str = "/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg";
+const DARK_TITLE_LOGO: &str = "/7l3H2B3ofXWDNfjX9XvZf2cdUOT.png";
 /// The Still of Dark's S01E01.
 const SECRETS_STILL: &str = "/gNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
 const DARK_S01E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
@@ -70,14 +74,16 @@ async fn until_kept(server: &TestServer, paths: &[&str]) {
 }
 
 #[tokio::test]
-async fn a_scan_downloads_a_matched_movies_poster_and_backdrop_before_anyone_views_them() {
+async fn a_scan_downloads_a_matched_movies_poster_backdrop_and_title_logo_before_anyone_views_them()
+{
     let fx = Fixture::alien().await;
 
-    until_kept(&fx.server, &[POSTER, BACKDROP]).await;
+    until_kept(&fx.server, &[POSTER, BACKDROP, TITLE_LOGO]).await;
 }
 
 #[tokio::test]
-async fn a_scan_downloads_an_episodes_season_poster_show_backdrop_and_still() {
+async fn a_scan_downloads_an_episodes_still_and_season_poster_and_its_shows_poster_backdrop_and_title_logo()
+ {
     let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, TestServer::builder()).await;
     fx.write(DARK_S01E01, b"video");
 
@@ -85,7 +91,13 @@ async fn a_scan_downloads_an_episodes_season_poster_show_backdrop_and_still() {
 
     until_kept(
         &fx.server,
-        &[DARK_SEASON_1_POSTER, DARK_BACKDROP, SECRETS_STILL],
+        &[
+            DARK_SEASON_1_POSTER,
+            DARK_BACKDROP,
+            SECRETS_STILL,
+            DARK_POSTER,
+            DARK_TITLE_LOGO,
+        ],
     )
     .await;
 }
