@@ -19,15 +19,15 @@ use std::{
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use nama_plugin_api::{
     PluginId,
-    fulfiller::{Fulfilled, Fulfiller, Movies, Shows},
+    fulfiller::{Fulfiller, Movies, Shows},
     metadata::{Candidate, Episode, ExternalId, ExternalIds, SearchQuery, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{
     DefaultQuality, Event, FollowedShow, FollowedShowCancelled, FollowedShowCreated,
     FollowedShowRequesterAdded, FollowedShowRequesterRemoved, FollowedShowStateChanged,
     FollowedShowWithdrawn, FoundSeason, ListRequestsResponse, Permission, Quality, QualityChange,
-    Request, RequestCancelled, RequestCreated, RequestState, RequestStateChanged, RequestWithdrawn,
-    RequestedMovie, RequestedQuality, RequestedSeason, Requester, RequesterAdded, RequesterRemoved,
+    Request, RequestCancelled, RequestCreated, RequestState, RequestWithdrawn, RequestedMovie,
+    RequestedQuality, RequestedSeason, Requester, RequesterAdded, RequesterRemoved,
     request::MovieOrSeason,
 };
 use serde::{Deserialize, Serialize};
@@ -39,30 +39,21 @@ use crate::{
     events::{EventBus, event},
     library::contents::{self, Contents, Metadata},
     metadata::{self, MetadataSource},
-    plugins::{Answer, ExtensionPoints},
+    plugins::ExtensionPoints,
     users::User,
 };
 
 mod asked;
 mod hand_off;
 mod progress;
+mod state;
 // Neighbours address it as `requests::qualities`: its names (`list`, `Refused`) read only with it.
 pub(crate) mod qualities;
 
 pub(crate) use asked::{Asked, may_see};
 use hand_off::HandOff;
 use progress::Progress;
-
-/// Each Request state as `requests.state` stores it.
-const STATES: [(RequestState, &str); 7] = [
-    (RequestState::Pending, "pending"),
-    (RequestState::Approved, "approved"),
-    (RequestState::Declined, "declined"),
-    (RequestState::Processing, "processing"),
-    (RequestState::PartiallyAvailable, "partially_available"),
-    (RequestState::Available, "available"),
-    (RequestState::Failed, "failed"),
-];
+use state::{change_state, open_request, read_state, state_changed, stored};
 
 /// Why a Request couldn't be made, found or changed.
 #[derive(Debug, thiserror::Error)]
@@ -466,20 +457,6 @@ impl Requests {
             return Err(err);
         }
         Ok(value.handed_back(&handed))
-    }
-
-    /// Settles the Hand-off of the Request `id`, asked for at the Quality `asked`, with what its
-    /// Fulfiller answered, through [`Self::apply`]'s path in the Hand-off's own task. Returns the
-    /// Request as it is now, or `None` if it was changed meanwhile.
-    async fn settle_hand_off(
-        &self,
-        id: i64,
-        fulfilled: Answer<Fulfilled>,
-        asked: Option<RequestedQuality>,
-    ) -> Result<Option<Request>, Error> {
-        // Not detached again: the Hand-off already is.
-        self.applied(move |tx| Box::pin(settle(tx, id, fulfilled, asked)))
-            .await
     }
 
     /// The enabled Plugin providing the Fulfiller of `Kind`, if any.
@@ -1758,86 +1735,6 @@ async fn was_available(
     .await
 }
 
-/// Moves the Request `id` to `state`, Available or Partially Available, and returns the event for
-/// it, or `None` if it didn't move. Only a Request its Fulfiller has becomes Partially Available:
-/// one not yet handed off keeps its state, so it can still be decided, handed off or retried
-/// (ADR 0012).
-async fn change_state(
-    conn: &mut SqliteConnection,
-    id: i64,
-    state: RequestState,
-) -> Result<Option<Event>, sqlx::Error> {
-    let state = stored(state);
-    macro_rules! change {
-        ($fulfilling:literal) => {
-            sqlx::query!(
-                "UPDATE requests SET state = ?1, failure_reason = NULL
-                 WHERE id = ?2 AND state != ?1 AND (?1 = 'available' OR "
-                    + $fulfilling
-                    + ")",
-                state,
-                id
-            )
-        };
-    }
-    let changed = progress::fulfilling_sql!(change)
-        .execute(&mut *conn)
-        .await?
-        .rows_affected()
-        > 0;
-    if !changed {
-        return Ok(None);
-    }
-    let request = load_one(conn, id).await?.ok_or(sqlx::Error::RowNotFound)?;
-    Ok(Some(event(RequestStateChanged {
-        request: request.into(),
-        ..Default::default()
-    })))
-}
-
-// sqlx reads a query from string literals alone, so SQL that queries share is a literal a macro
-// hands to each query's local macro, as `asked::per_kind!` hands it a table's name.
-
-/// Hands `$query!` the SQL for whether a Request is open. It must match the
-/// `one_open_request_per_movie_or_season` index's.
-macro_rules! open_request_sql {
-    ($query:ident) => {
-        $query!("state NOT IN ('declined', 'available')")
-    };
-}
-
-/// Hands `$query!` the SQL for whether a Followed Show is open. It must match the
-/// `one_open_followed_show` index's.
-macro_rules! open_followed_show_sql {
-    ($query:ident) => {
-        $query!("state != 'declined'")
-    };
-}
-
-/// Whether a Request in `state` is open: Declined and Available ones are closed, and Cancelled or
-/// Withdrawn ones are gone.
-pub(crate) fn is_open(state: RequestState) -> bool {
-    !matches!(state, RequestState::Declined | RequestState::Available)
-}
-
-/// The open Request for the Movie `tmdb_id`, or for its Season `season` if `tmdb_id` is a Show's.
-async fn open_request(
-    conn: &mut SqliteConnection,
-    tmdb_id: i64,
-    season: Option<u32>,
-) -> Result<Option<i64>, sqlx::Error> {
-    macro_rules! find {
-        ($open:literal) => {
-            sqlx::query_scalar!(
-                "SELECT id FROM requests WHERE tmdb_id = ? AND season IS ? AND " + $open,
-                tmdb_id,
-                season
-            )
-        };
-    }
-    open_request_sql!(find).fetch_optional(&mut *conn).await
-}
-
 /// Moves the Pending Request `id` to `state` with `reason`, and returns it as it is now.
 async fn decide(
     conn: &mut SqliteConnection,
@@ -1966,7 +1863,9 @@ async fn requality(
                 )
             };
         }
-        open_followed_show_sql!(change).execute(&mut *conn).await?;
+        state::open_followed_show_sql!(change)
+            .execute(&mut *conn)
+            .await?;
     }
     Ok(())
 }
@@ -2011,7 +1910,7 @@ async fn show_requests(
             )
         };
     }
-    let followed = open_followed_show_sql!(followed)
+    let followed = state::open_followed_show_sql!(followed)
         .fetch_optional(&mut *conn)
         .await?;
     Ok(qualities::ShowRequests {
@@ -2021,64 +1920,6 @@ async fn show_requests(
             stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
         }),
     })
-}
-
-/// Moves the Approved Request `id`, asked at the Quality `asked`, on as its Fulfiller said: to
-/// Processing, keeping its reference and the Quality used, or to Failed, keeping why. Either way
-/// it keeps the Plugin that answered. Returns it as it is now, or `None` if it isn't Approved any
-/// more.
-async fn settle(
-    conn: &mut SqliteConnection,
-    id: i64,
-    answered: Answer<Fulfilled>,
-    asked: Option<RequestedQuality>,
-) -> Result<Applied<Option<Request>>, Error> {
-    let Answer { plugin, result } = answered;
-    // In the same write as the reference, so a failed read can't lose a Request the Fulfiller took.
-    let (state, reference, used, reason) = match result {
-        Ok(fulfilled) => {
-            let listed = qualities::list(conn, &plugin).await?;
-            let used = qualities::used(asked.as_ref(), &listed, &fulfilled);
-            (
-                RequestState::Processing,
-                Some(fulfilled.reference),
-                used,
-                None,
-            )
-        }
-        Err(failure) => (RequestState::Failed, None, None, Some(failure.message)),
-    };
-    let state = stored(state);
-    let (used_id, used_name, used_profile_id) = quality_columns(used.as_ref());
-    let plugin = plugin.as_str();
-    let settled = sqlx::query!(
-        "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?,
-                             fulfiller_plugin_id = ?,
-                             quality_used_id = ?, quality_used_name = ?, quality_used_profile_id = ?
-         WHERE id = ? AND state = 'approved'",
-        state,
-        reference,
-        reason,
-        plugin,
-        used_id,
-        used_name,
-        used_profile_id,
-        id
-    )
-    .execute(&mut *conn)
-    .await?
-    .rows_affected()
-        > 0;
-    if !settled {
-        return Ok(Applied::quiet(None));
-    }
-    let request = load_one(conn, id)
-        .await?
-        .ok_or(Error::NoSuch(Asked::Request, id))?;
-    Ok(Applied::saying(
-        Some(request.clone()),
-        state_changed(request),
-    ))
 }
 
 /// Moves the Failed Request `id` back to Approved at `new_quality`, if given, forgetting why it
@@ -2286,7 +2127,7 @@ async fn open_followed_show(
             )
         };
     }
-    open_followed_show_sql!(find)
+    state::open_followed_show_sql!(find)
         .fetch_optional(&mut *conn)
         .await
 }
@@ -2583,29 +2424,6 @@ fn stored_quality(
         profile_id: profile_id?,
         ..Default::default()
     })
-}
-
-/// The event saying `request` is now in the state it has.
-fn state_changed(request: Request) -> Event {
-    event(RequestStateChanged {
-        request: request.into(),
-        ..Default::default()
-    })
-}
-
-/// `state` as `requests.state` stores it. Unspecified has no stored form: `""` fails the CHECK.
-fn stored(state: RequestState) -> &'static str {
-    STATES
-        .iter()
-        .find(|&&(known, _)| known == state)
-        .map_or("", |&(_, name)| name)
-}
-
-fn read_state(stored: &str) -> RequestState {
-    STATES
-        .iter()
-        .find(|&&(_, name)| name == stored)
-        .map_or(RequestState::REQUEST_STATE_UNSPECIFIED, |&(state, _)| state)
 }
 
 /// Locks `mutex`, taking its value even if poisoned: nothing panics while one is held, so it is

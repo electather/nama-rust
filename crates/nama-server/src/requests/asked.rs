@@ -163,7 +163,7 @@ pub(super) async fn decide(
     state: RequestState,
     reason: Option<&str>,
 ) -> Result<bool, sqlx::Error> {
-    let state = super::stored(state);
+    let state = super::state::stored(state);
     macro_rules! decide {
         ($table:literal, $requesters:literal, $asked_id:literal) => {
             sqlx::query!(

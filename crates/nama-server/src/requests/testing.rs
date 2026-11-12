@@ -14,10 +14,10 @@ use nama_proto::nama::v1::{
 };
 use sqlx::SqliteConnection;
 
+use super::state::{STATES, settle};
 use super::{
-    Applied, MovieOrSeason, RequestedMovie, RequestedSeason, Requests, STATES, Wanted,
-    WantedSeasons, ask, ask_movie, follow, make_seasons_available, opening_state, qualities,
-    settle,
+    Applied, MovieOrSeason, RequestedMovie, RequestedSeason, Requests, Wanted, WantedSeasons, ask,
+    ask_movie, follow, make_seasons_available, opening_state, qualities,
 };
 use crate::{
     db::Database,

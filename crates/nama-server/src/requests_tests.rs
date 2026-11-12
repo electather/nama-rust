@@ -23,16 +23,16 @@ use nama_proto::nama::v1::{
 use tokio::sync::Notify;
 
 use super::testing::{
-    ADA, Asked, BOB, DARK, FulfillerPlugin, NOTHING, ada, ada_and_bob, answered, approved_for,
-    approved_on, ask_as, ask_each, ask_for, asked_season, breaking_bad, come_up, dark, dark_season,
-    downloading, episode, follow_as, fulfilled, handed_off, happened, insert_in_each_state,
-    match_dark_episodes, match_in_a_library, matched, movie, next_happened, requests_on, said,
-    scan_dark, season_1, season_ids, settled, tmdb, user,
+    ADA, Asked, BOB, DARK, FulfillerPlugin, NOTHING, ada, ada_and_bob, approved_for, approved_on,
+    ask_as, ask_each, ask_for, asked_season, breaking_bad, come_up, dark, dark_season, downloading,
+    episode, follow_as, fulfilled, handed_off, happened, insert_in_each_state, match_dark_episodes,
+    match_in_a_library, matched, movie, next_happened, requests_on, said, scan_dark, season_1,
+    season_ids, settled, tmdb, user,
 };
 use super::{
     Applied, Error, Requests, Wanted, WantedSeasons, approve, ask_movie, ask_seasons, asked,
-    availability, cancel, cancel_followed, decide_followed, decline, is_open, load, load_one,
-    progress, qualities, retry, settle, withdraw, withdraw_followed,
+    availability, cancel, cancel_followed, decide_followed, decline, load, load_one, progress,
+    qualities, retry, withdraw, withdraw_followed,
 };
 use crate::{
     artwork::Artwork,
@@ -273,32 +273,6 @@ async fn only_a_request_its_fulfiller_has_that_isnt_available_yet_is_asked_about
 }
 
 #[tokio::test]
-async fn sql_and_rust_agree_on_which_requests_are_open() {
-    let data = tempfile::tempdir().unwrap();
-    let db = Database::open(data.path()).await.unwrap();
-    let inserted = db
-        .write(|tx| Box::pin(insert_in_each_state(tx)))
-        .await
-        .unwrap();
-    macro_rules! read {
-        ($open:literal) => {
-            sqlx::query_scalar!(r#"SELECT id AS "id!" FROM requests WHERE "# + $open)
-        };
-    }
-    let open: HashSet<i64> = open_request_sql!(read)
-        .fetch_all(db.reader())
-        .await
-        .unwrap()
-        .into_iter()
-        .collect();
-
-    for (id, state, reference) in inserted {
-        let expected = is_open(state);
-        assert_eq!(open.contains(&id), expected, "{state:?} with {reference:?}");
-    }
-}
-
-#[tokio::test]
 async fn sql_and_rust_agree_on_which_requests_their_fulfiller_has() {
     let data = tempfile::tempdir().unwrap();
     let db = Database::open(data.path()).await.unwrap();
@@ -330,37 +304,6 @@ async fn sql_and_rust_agree_on_which_requests_their_fulfiller_has() {
             "{state:?} with {reference:?}"
         );
     }
-}
-
-#[tokio::test]
-async fn only_a_declined_followed_show_is_closed() {
-    let data = tempfile::tempdir().unwrap();
-    let db = Database::open(data.path()).await.unwrap();
-    db.write(|tx| {
-        Box::pin(
-            sqlx::query(
-                "INSERT INTO followed_shows (id, tmdb_id, title, state, created_at)
-                 VALUES (1, 1, 'Show', 'pending', 0), (2, 2, 'Show', 'approved', 0),
-                        (3, 3, 'Show', 'declined', 0)",
-            )
-            .execute(&mut **tx),
-        )
-    })
-    .await
-    .unwrap();
-    macro_rules! read {
-        ($open:literal) => {
-            sqlx::query_scalar!(r#"SELECT id AS "id!" FROM followed_shows WHERE "# + $open)
-        };
-    }
-    let open: HashSet<i64> = open_followed_show_sql!(read)
-        .fetch_all(db.reader())
-        .await
-        .unwrap()
-        .into_iter()
-        .collect();
-
-    assert_eq!(open, HashSet::from([1, 2]));
 }
 
 #[tokio::test]
@@ -892,49 +835,6 @@ async fn declining_a_pending_request_hands_nothing_off() {
     assert_eq!(handed_off(&declined), NOTHING);
     assert_eq!(declined.value.decline_reason.as_deref(), Some("No."));
     assert!(matches!(again, Err(Error::NotPending(..))), "{again:?}");
-}
-
-#[tokio::test]
-async fn settling_an_approved_request_moves_it_to_processing_or_failed_once() {
-    let (_data, db) = ada_and_bob().await;
-    let taken = ask_for(&db, ADA, 949, RequestState::Approved)
-        .await
-        .value
-        .id;
-    let refused = ask_for(&db, ADA, 603, RequestState::Approved)
-        .await
-        .value
-        .id;
-
-    let processing = settled(&db, taken, Ok(fulfilled())).await;
-    let failed = settled(&db, refused, Err("no space".to_owned())).await;
-    let again = settled(&db, taken, Ok(fulfilled())).await;
-
-    assert_eq!(happened(&processing), [("moved", RequestState::Processing)]);
-    assert_eq!(happened(&failed), [("moved", RequestState::Failed)]);
-    assert_eq!(handed_off(&processing), NOTHING);
-    assert_eq!(handed_off(&failed), NOTHING);
-    assert!(again.value.is_none());
-    assert_eq!(again.events.len(), 0);
-}
-
-#[tokio::test]
-async fn settling_a_request_names_the_plugin_whose_fulfiller_failed_it() {
-    let (_data, db) = ada_and_bob().await;
-    let id = ask_for(&db, ADA, 949, RequestState::Approved)
-        .await
-        .value
-        .id;
-    let failed_by_radarr = answered("radarr", Err("no space".to_owned()));
-
-    let failed = db
-        .write(move |tx| Box::pin(settle(tx, id, failed_by_radarr, None)))
-        .await
-        .unwrap()
-        .value
-        .unwrap();
-
-    assert_eq!(failed.fulfiller_plugin_id.as_deref(), Some("radarr"));
 }
 
 #[tokio::test]

@@ -16,7 +16,8 @@ use nama_proto::nama::v1::{
 };
 use sqlx::SqliteConnection;
 
-use crate::{db::Database, requests, users::User};
+use super::state::is_open;
+use crate::{db::Database, users::User};
 
 /// The choice setting whose choices are the profiles a Fulfiller's Qualities may offer. A
 /// Fulfiller takes a Request's profile in its place, so the setting stays the fallback.
@@ -436,7 +437,7 @@ pub(crate) struct Moves {
 
 impl SeasonRequest {
     fn is_open(&self) -> bool {
-        requests::is_open(self.state)
+        is_open(self.state)
     }
 
     /// The Quality it holds its Show to: what the service used, as Sonarr keeps a series'
