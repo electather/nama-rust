@@ -451,6 +451,35 @@ pub struct Movie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// Its Title Logo's URL on this Server, lettered in the metadata Provider's language. Unset if
+    /// the Provider has none in that language: show `title` as text instead.
+    ///
+    /// Field 15: `title_logo_url`
+    #[serde(
+        rename = "titleLogoUrl",
+        alias = "title_logo_url",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub title_logo_url: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Its genres' names, in the metadata Provider's language.
+    ///
+    /// Field 16: `genres`
+    #[serde(
+        rename = "genres",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub genres: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// Its Content Rating in the metadata Provider's country, such as `R`. Unset if it has none
+    /// there.
+    ///
+    /// Field 17: `content_rating`
+    #[serde(
+        rename = "contentRating",
+        alias = "content_rating",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub content_rating: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -472,6 +501,9 @@ impl ::core::fmt::Debug for Movie {
             .field("custom_backdrop", &self.custom_backdrop)
             .field("poster_thumbhash", &self.poster_thumbhash)
             .field("backdrop_thumbhash", &self.backdrop_thumbhash)
+            .field("title_logo_url", &self.title_logo_url)
+            .field("genres", &self.genres)
+            .field("content_rating", &self.content_rating)
             .finish()
     }
 }
@@ -560,6 +592,26 @@ impl Movie {
         self.backdrop_thumbhash = Some(value.into());
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::title_logo_url`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_title_logo_url(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.title_logo_url = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::content_rating`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_content_rating(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.content_rating = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Movie);
 impl ::buffa::MessageName for Movie {
@@ -638,6 +690,15 @@ impl ::buffa::Message for Movie {
         if let Some(ref v) = self.backdrop_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.title_logo_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.genres {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 2u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -704,6 +765,15 @@ impl ::buffa::Message for Movie {
         }
         if let Some(ref v) = self.backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(14u32, v, buf);
+        }
+        if let Some(ref v) = self.title_logo_url {
+            ::buffa::types::put_string_field(15u32, v, buf);
+        }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(16u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(17u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -866,6 +936,41 @@ impl ::buffa::Message for Movie {
                     buf,
                 )?;
             }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .title_logo_url
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.genres.push(__elem);
+            }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .content_rating
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -888,6 +993,9 @@ impl ::buffa::Message for Movie {
         self.custom_backdrop = false;
         self.poster_thumbhash = ::core::option::Option::None;
         self.backdrop_thumbhash = ::core::option::Option::None;
+        self.title_logo_url = ::core::option::Option::None;
+        self.genres.clear();
+        self.content_rating = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3081,7 +3189,8 @@ pub struct Show {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub title: ::buffa::alloc::string::String,
-    /// Its poster's URL on this Server: its Custom Image if it has one, else its first Season's.
+    /// Its poster's URL on this Server: its Custom Image if it has one, else its own, else (as
+    /// before the Server has fetched its own) its first Season's after the Specials.
     ///
     /// Field 3: `poster_url`
     #[serde(
@@ -3140,6 +3249,48 @@ pub struct Show {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// As `Movie.title_logo_url`.
+    ///
+    /// Field 9: `title_logo_url`
+    #[serde(
+        rename = "titleLogoUrl",
+        alias = "title_logo_url",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub title_logo_url: ::core::option::Option<::buffa::alloc::string::String>,
+    /// As `Movie.genres`.
+    ///
+    /// Field 10: `genres`
+    #[serde(
+        rename = "genres",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub genres: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// As `Movie.content_rating`, such as `TV-MA`.
+    ///
+    /// Field 11: `content_rating`
+    #[serde(
+        rename = "contentRating",
+        alias = "content_rating",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub content_rating: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Field 12: `overview`
+    #[serde(
+        rename = "overview",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub overview: ::core::option::Option<::buffa::alloc::string::String>,
+    /// When it first aired, as `YYYY-MM-DD`.
+    ///
+    /// Field 13: `first_air_date`
+    #[serde(
+        rename = "firstAirDate",
+        alias = "first_air_date",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub first_air_date: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3155,6 +3306,11 @@ impl ::core::fmt::Debug for Show {
             .field("custom_backdrop", &self.custom_backdrop)
             .field("poster_thumbhash", &self.poster_thumbhash)
             .field("backdrop_thumbhash", &self.backdrop_thumbhash)
+            .field("title_logo_url", &self.title_logo_url)
+            .field("genres", &self.genres)
+            .field("content_rating", &self.content_rating)
+            .field("overview", &self.overview)
+            .field("first_air_date", &self.first_air_date)
             .finish()
     }
 }
@@ -3204,6 +3360,46 @@ impl Show {
         value: impl Into<::buffa::alloc::vec::Vec<u8>>,
     ) -> Self {
         self.backdrop_thumbhash = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::title_logo_url`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_title_logo_url(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.title_logo_url = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::content_rating`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_content_rating(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.content_rating = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::overview`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_overview(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.overview = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::first_air_date`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_first_air_date(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.first_air_date = Some(value.into());
         self
     }
 }
@@ -3256,6 +3452,21 @@ impl ::buffa::Message for Show {
         if let Some(ref v) = self.backdrop_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.title_logo_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.overview {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.first_air_date {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3294,6 +3505,21 @@ impl ::buffa::Message for Show {
         }
         if let Some(ref v) = self.backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(8u32, v, buf);
+        }
+        if let Some(ref v) = self.title_logo_url {
+            ::buffa::types::put_string_field(9u32, v, buf);
+        }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(10u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(11u32, v, buf);
+        }
+        if let Some(ref v) = self.overview {
+            ::buffa::types::put_string_field(12u32, v, buf);
+        }
+        if let Some(ref v) = self.first_air_date {
+            ::buffa::types::put_string_field(13u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3388,6 +3614,65 @@ impl ::buffa::Message for Show {
                     buf,
                 )?;
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .title_logo_url
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.genres.push(__elem);
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .content_rating
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .overview
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .first_air_date
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3404,6 +3689,11 @@ impl ::buffa::Message for Show {
         self.custom_backdrop = false;
         self.poster_thumbhash = ::core::option::Option::None;
         self.backdrop_thumbhash = ::core::option::Option::None;
+        self.title_logo_url = ::core::option::Option::None;
+        self.genres.clear();
+        self.content_rating = ::core::option::Option::None;
+        self.overview = ::core::option::Option::None;
+        self.first_air_date = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -40,7 +40,7 @@ pub trait MetadataProvider: Send + Sync + 'static {
         episode: u32,
     ) -> BoxFuture<'a, Result<Episode, MetadataError>>;
 
-    /// The image at `path`, as this Provider gave it in a poster, backdrop or still.
+    /// The image at `path`, as this Provider gave it in a poster, backdrop, Still or Title Logo.
     ///
     /// A path names bytes that never change, as TMDB's do: the Server keeps an image under its
     /// path and browsers cache it for good, so a changed image needs a new path.
@@ -139,6 +139,14 @@ pub struct Movie {
     pub poster: Option<String>,
     /// The backdrop, as a path for [`MetadataProvider::image`].
     pub backdrop: Option<String>,
+    /// Its Title Logo in the Provider's language, as a path for [`MetadataProvider::image`]. `None`
+    /// rather than one in another language.
+    pub title_logo: Option<String>,
+    /// Its genres' names, in the Provider's language.
+    pub genres: Vec<String>,
+    /// Its Content Rating in the Provider's country, such as `R`. `None` rather than another
+    /// country's.
+    pub content_rating: Option<String>,
 }
 
 /// A Show's details.
@@ -160,6 +168,12 @@ pub struct Show {
     pub backdrop: Option<String>,
     /// The numbers of its Seasons, in order. Season 0 holds specials.
     pub seasons: Vec<u32>,
+    /// As [`Movie::title_logo`].
+    pub title_logo: Option<String>,
+    /// As [`Movie::genres`].
+    pub genres: Vec<String>,
+    /// As [`Movie::content_rating`], such as `TV-MA`.
+    pub content_rating: Option<String>,
 }
 
 /// One Season of a Show, with its Episodes.

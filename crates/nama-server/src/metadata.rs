@@ -176,6 +176,12 @@ impl Metadata {
             poster: movie.poster,
             backdrop: movie.backdrop,
             still: None,
+            title_logo: movie.title_logo,
+            genres: movie.genres,
+            content_rating: movie.content_rating,
+            show_poster: None,
+            show_overview: None,
+            show_first_air_date: None,
         }
     }
 }

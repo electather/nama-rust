@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO item_matches (\n                 item_id, state, plugin, tmdb_id, imdb_id, tvdb_id,\n                 show_tmdb_id, show_imdb_id, show_tvdb_id, title, original_title, show_title,\n                 overview, release_date, runtime_minutes, poster, backdrop, still, title_logo,\n                 genres, content_rating, show_poster, show_overview, show_first_air_date,\n                 unmatched_reason, tied_titles, metadata_version, decided_at)\n             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,\n                    ?\n             WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 29
+    },
+    "nullable": []
+  },
+  "hash": "28f6e1ea6868522bc552bcd59c1c2bd432e142c27b71ab7aec213c33e56dc5b9"
+}

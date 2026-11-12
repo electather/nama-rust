@@ -67,7 +67,7 @@ use confidence::Decision;
 
 /// The version of what a Match stores from the metadata Provider, stored with each Match. See the
 /// crate's `AGENTS.md` for when to bump it.
-pub(crate) const METADATA_VERSION: i64 = 1;
+pub(crate) const METADATA_VERSION: i64 = 2;
 
 /// What one pass of Matching decided.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -245,6 +245,12 @@ impl Metadata {
             poster: season.poster.clone().or_else(|| show.poster.clone()),
             backdrop: show.backdrop.clone(),
             still: episode.still.clone(),
+            title_logo: show.title_logo.clone(),
+            genres: show.genres.clone(),
+            content_rating: show.content_rating.clone(),
+            show_poster: show.poster.clone(),
+            show_overview: show.overview.clone(),
+            show_first_air_date: show.first_air_date.clone(),
         }
     }
 }
@@ -1423,6 +1429,45 @@ mod tests {
         assert_eq!(media.outcomes(movies).await, [matched(348, "Alien")]);
         assert_eq!(media.searches(), searches);
         assert_eq!(movie_fetches(), before + 1);
+        let alien = media.contents.movies(movies.id).await.unwrap().remove(0);
+        assert_eq!(
+            (alien.title_logo, alien.genres, alien.content_rating),
+            (
+                Some("/fzbFBy8eTB3hbmHDgSrbNdhDzA9.png".to_owned()),
+                vec!["Horror".to_owned(), "Science Fiction".to_owned()],
+                Some("R".to_owned())
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn a_show_stored_at_an_older_metadata_version_gets_its_own_details_on_the_next_scan() {
+        let media = Fixture::new().await;
+        let shows = &media.shows;
+        shows.write(SECRETS);
+        media.scan(shows).await;
+        media.contents.stored_by_older_metadata(shows.id).await;
+        let older = media.contents.shows(shows.id).await.unwrap().remove(0);
+        let searches = media.searches();
+
+        media.scan(shows).await;
+
+        let dark = media.contents.shows(shows.id).await.unwrap().remove(0);
+        // Until then, it is shown by its first Season's Poster.
+        assert_eq!(older.poster(), Some("/5LoHuHWA4H8jElFlZDvsmU2n63b.jpg"));
+        assert_eq!(dark.poster(), Some("/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg"));
+        assert!(
+            dark.overview
+                .is_some_and(|it| it.starts_with("A missing child"))
+        );
+        assert_eq!(dark.first_air_date.as_deref(), Some("2017-12-01"));
+        assert_eq!(
+            dark.title_logo.as_deref(),
+            Some("/7l3H2B3ofXWDNfjX9XvZf2cdUOT.png")
+        );
+        assert_eq!(dark.genres, ["Crime", "Drama", "Mystery"]);
+        assert_eq!(dark.content_rating.as_deref(), Some("TV-MA"));
+        assert_eq!(media.searches(), searches);
     }
 
     #[tokio::test]

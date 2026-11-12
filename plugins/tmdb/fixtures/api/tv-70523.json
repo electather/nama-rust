@@ -26,5 +26,18 @@
   "type": "Scripted",
   "vote_average": 8.4,
   "vote_count": 6900,
-  "external_ids": {"imdb_id": "tt5753856", "freebase_mid": null, "freebase_id": null, "tvdb_id": 334824, "tvrage_id": null, "wikidata_id": "Q30750960", "facebook_id": "DarkNetflix", "instagram_id": null, "twitter_id": "dark"}
+  "external_ids": {"imdb_id": "tt5753856", "freebase_mid": null, "freebase_id": null, "tvdb_id": 334824, "tvrage_id": null, "wikidata_id": "Q30750960", "facebook_id": "DarkNetflix", "instagram_id": null, "twitter_id": "dark"},
+  "images": {
+    "backdrops": [],
+    "logos": [
+      {"aspect_ratio": 3.9, "file_path": "/7l3H2B3ofXWDNfjX9XvZf2cdUOT.png", "height": 328, "iso_639_1": "en", "vote_average": 5.5, "vote_count": 3, "width": 1280}
+    ],
+    "posters": []
+  },
+  "content_ratings": {
+    "results": [
+      {"descriptors": [], "iso_3166_1": "DE", "rating": "16"},
+      {"descriptors": [], "iso_3166_1": "US", "rating": "TV-MA"}
+    ]
+  }
 }
