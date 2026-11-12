@@ -504,6 +504,9 @@ pub enum SubtitleFormat {
     SUBTITLE_FORMAT_PGS = 2i32,
     /// ASS or SSA with its styling, as the Track's own `.ass`, drawn with the fonts its file carries.
     SUBTITLE_FORMAT_ASS = 3i32,
+    /// DVD's image subtitles, as the Track copied into Matroska (`.mks`), which carries its palette
+    /// and size.
+    SUBTITLE_FORMAT_VOBSUB = 4i32,
 }
 impl SubtitleFormat {
     ///Idiomatic alias for [`Self::SUBTITLE_FORMAT_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -518,6 +521,9 @@ impl SubtitleFormat {
     ///Idiomatic alias for [`Self::SUBTITLE_FORMAT_ASS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Ass: Self = Self::SUBTITLE_FORMAT_ASS;
+    ///Idiomatic alias for [`Self::SUBTITLE_FORMAT_VOBSUB`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Vobsub: Self = Self::SUBTITLE_FORMAT_VOBSUB;
 }
 impl ::core::default::Default for SubtitleFormat {
     fn default() -> Self {
@@ -619,6 +625,7 @@ impl ::buffa::Enumeration for SubtitleFormat {
             1i32 => ::core::option::Option::Some(Self::SUBTITLE_FORMAT_WEBVTT),
             2i32 => ::core::option::Option::Some(Self::SUBTITLE_FORMAT_PGS),
             3i32 => ::core::option::Option::Some(Self::SUBTITLE_FORMAT_ASS),
+            4i32 => ::core::option::Option::Some(Self::SUBTITLE_FORMAT_VOBSUB),
             _ => ::core::option::Option::None,
         }
     }
@@ -631,6 +638,7 @@ impl ::buffa::Enumeration for SubtitleFormat {
             Self::SUBTITLE_FORMAT_WEBVTT => "SUBTITLE_FORMAT_WEBVTT",
             Self::SUBTITLE_FORMAT_PGS => "SUBTITLE_FORMAT_PGS",
             Self::SUBTITLE_FORMAT_ASS => "SUBTITLE_FORMAT_ASS",
+            Self::SUBTITLE_FORMAT_VOBSUB => "SUBTITLE_FORMAT_VOBSUB",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -647,6 +655,9 @@ impl ::buffa::Enumeration for SubtitleFormat {
             "SUBTITLE_FORMAT_ASS" => {
                 ::core::option::Option::Some(Self::SUBTITLE_FORMAT_ASS)
             }
+            "SUBTITLE_FORMAT_VOBSUB" => {
+                ::core::option::Option::Some(Self::SUBTITLE_FORMAT_VOBSUB)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -656,6 +667,7 @@ impl ::buffa::Enumeration for SubtitleFormat {
             Self::SUBTITLE_FORMAT_WEBVTT,
             Self::SUBTITLE_FORMAT_PGS,
             Self::SUBTITLE_FORMAT_ASS,
+            Self::SUBTITLE_FORMAT_VOBSUB,
         ]
     }
 }
@@ -1415,6 +1427,9 @@ pub enum PlaybackReasonKind {
     /// Rules out Direct Play and Remux: the ASS subtitles chosen need Burn-in on a Device that draws
     /// ASS, because their file carries no fonts to draw them with (ADR 0033).
     PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS = 31i32,
+    /// Rules out Direct Play and Remux: the VobSub subtitles chosen need Burn-in on a Device that
+    /// draws VobSub, because their Track carries no palette to draw them with (ADR 0033).
+    PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE = 32i32,
     /// The rest rule nothing out.
     ///
     /// The plan converts the audio to fewer channels because the Device says it plays fewer.
@@ -1509,6 +1524,9 @@ impl PlaybackReasonKind {
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SubtitlesFileCarriesNoFonts: Self = Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SubtitlesTrackCarriesNoPalette: Self = Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE;
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const DevicePlaysFewerChannels: Self = Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS;
@@ -1724,6 +1742,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS,
                 )
             }
+            32i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE,
+                )
+            }
             16i32 => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
@@ -1852,6 +1875,9 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS => {
                 "PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS"
             }
+            Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE => {
+                "PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE"
+            }
             Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS => {
                 "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS"
             }
@@ -1978,6 +2004,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS,
                 )
             }
+            "PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE,
+                )
+            }
             "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS" => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
@@ -2073,6 +2104,7 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_PICTURE_SCALED_DOWN,
             Self::PLAYBACK_REASON_KIND_SUBTITLES_BURNED_IN,
             Self::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS,
+            Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE,
             Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
             Self::PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN,
             Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED,

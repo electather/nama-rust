@@ -33,7 +33,9 @@ use buffa::Enumeration;
 use futures_util::StreamExt as _;
 use nama_proto::nama::v1 as proto;
 use proto::PlaybackReasonKind as Kind;
-use proto::SubtitleFormat::{SUBTITLE_FORMAT_ASS as ASS, SUBTITLE_FORMAT_WEBVTT as WEBVTT};
+use proto::SubtitleFormat::{
+    SUBTITLE_FORMAT_ASS as ASS, SUBTITLE_FORMAT_VOBSUB as VOBSUB, SUBTITLE_FORMAT_WEBVTT as WEBVTT,
+};
 use tower_http::services::ServeFile;
 
 use crate::{
@@ -1328,11 +1330,17 @@ fn chosen_subtitle(facts: &Facts, candidates: Option<&Candidates>) -> Vec<Reason
         candidates.is_some_and(|candidates| candidates.transcode.video.burn_in.is_some());
     if let Some(track) = chosen_subtitle_track(facts).filter(|_| transcode_burns_in) {
         let name = subtitle_format_name(&track.codec);
-        // It draws ASS only with fonts its file carries (`draws_with_styling`).
+        // It draws ASS only with fonts its file carries (`draws_with_styling`), and VobSub only
+        // with the palette its Track carries (`subtitles::served_as`).
         let (kind, why) = if track.is_ass_subtitle() && lists(&facts.device, ASS) {
             (
                 Kind::PLAYBACK_REASON_KIND_SUBTITLES_FILE_CARRIES_NO_FONTS,
                 format!("Its file carries no fonts to draw its {name} subtitles with"),
+            )
+        } else if track.is_vobsub_subtitle() && lists(&facts.device, VOBSUB) {
+            (
+                Kind::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE,
+                format!("This Track carries no palette to draw its {name} subtitles with"),
             )
         } else {
             (
@@ -1383,7 +1391,7 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
     let track = (probe.tracks.get(place)).filter(|track| burns_in(&facts.device, probe, track))?;
     let subtitle = probe.ffmpeg_index(place)?;
     Some(
-        if matches!(track.kind, TrackKind::Subtitle { image: true }) {
+        if matches!(track.kind, TrackKind::Subtitle { image: true, .. }) {
             BurnIn::Image {
                 subtitle,
                 picture: picture(facts),
@@ -1455,7 +1463,7 @@ fn same_title(track: &Track, wanted: &Description) -> bool {
 /// doesn't draw, whose styling its WebVTT drops.
 fn burns_in(device: &DeviceDecoding, probe: &Probe, track: &Track) -> bool {
     match track.kind {
-        TrackKind::Subtitle { image } => {
+        TrackKind::Subtitle { image, .. } => {
             let drawn = shown_as(device, probe, track).is_some_and(|format| format != WEBVTT);
             (image || track.is_ass_subtitle()) && !drawn
         }
@@ -2057,7 +2065,14 @@ mod tests {
     }
 
     fn subtitle() -> Track {
-        track("subrip", true, TrackKind::Subtitle { image: false })
+        track(
+            "subrip",
+            true,
+            TrackKind::Subtitle {
+                image: false,
+                header: false,
+            },
+        )
     }
 
     /// A reason's kind and params, as a test expects them.
@@ -2483,13 +2498,30 @@ mod tests {
 
     #[test]
     fn a_direct_play_or_remux_offers_the_text_subtitles_by_their_place_but_not_image_or_teletext() {
-        let english = track("subrip", false, TrackKind::Subtitle { image: false });
+        let english = track(
+            "subrip",
+            false,
+            TrackKind::Subtitle {
+                image: false,
+                header: false,
+            },
+        );
         let pgs = track(
             "hdmv_pgs_subtitle",
             false,
-            TrackKind::Subtitle { image: true },
+            TrackKind::Subtitle {
+                image: true,
+                header: false,
+            },
         );
-        let teletext = track("dvb_teletext", false, TrackKind::Subtitle { image: false });
+        let teletext = track(
+            "dvb_teletext",
+            false,
+            TrackKind::Subtitle {
+                image: false,
+                header: false,
+            },
+        );
         let french = Track {
             language: Some("fre".to_owned()),
             ..english.clone()
@@ -3130,7 +3162,14 @@ mod tests {
     }
 
     fn image_subtitle(codec: &str) -> Track {
-        track(codec, false, TrackKind::Subtitle { image: true })
+        track(
+            codec,
+            false,
+            TrackKind::Subtitle {
+                image: true,
+                header: false,
+            },
+        )
     }
 
     /// A Device that draws PGS subtitles itself.
@@ -3143,10 +3182,17 @@ mod tests {
 
     #[test]
     fn a_chosen_subtitle_the_device_cant_draw_is_burned_in_by_a_transcode_and_the_plan_names_it() {
-        let ass = track("ass", false, TrackKind::Subtitle { image: false });
+        let ass = track(
+            "ass",
+            false,
+            TrackKind::Subtitle {
+                image: false,
+                header: false,
+            },
+        );
         let cases = [
             (pgs(), firefox(), "PGS"),
-            (image_subtitle("dvd_subtitle"), drawing_pgs(), "VobSub"),
+            (vobsub(), drawing_pgs(), "VobSub"),
             (image_subtitle("dvb_subtitle"), drawing_pgs(), "DVB"),
             (image_subtitle("xsub"), drawing_pgs(), "XSUB"),
             (ass, drawing_pgs(), "ASS"),
@@ -3229,8 +3275,93 @@ mod tests {
         assert_eq!(plan.burn_in, None);
     }
 
+    /// A VobSub Track whose file carries its header.
+    fn vobsub() -> Track {
+        track(
+            "dvd_subtitle",
+            false,
+            TrackKind::Subtitle {
+                image: true,
+                header: true,
+            },
+        )
+    }
+
+    /// A Device that draws VobSub subtitles itself.
+    fn drawing_vobsub() -> DeviceDecoding {
+        DeviceDecoding {
+            subtitle_formats: vec![SubtitleFormat::SUBTITLE_FORMAT_VOBSUB],
+            ..firefox()
+        }
+    }
+
+    #[test]
+    fn a_device_that_draws_vobsub_shows_each_vobsub_track_with_its_header_itself_even_when_transcoding()
+     {
+        for (video_codec, method) in [("h264", Method::DirectPlay), ("hevc", Method::Transcode)] {
+            let tracks = vec![video(video_codec), audio("aac", true), vobsub()];
+            let mut facts = Facts {
+                device: drawing_vobsub(),
+                ..facts(Some(tracks))
+            };
+
+            let plan = build(&mut facts);
+
+            assert_eq!(plan.method(), Some(method), "{video_codec}");
+            assert_eq!(
+                plan.subtitles,
+                [Subtitle {
+                    track: vobsub(),
+                    place: 2,
+                    format: SubtitleFormat::SUBTITLE_FORMAT_VOBSUB,
+                    url: "/media/versions/7/subtitles/2".to_owned(),
+                    font_urls: vec![],
+                }],
+                "{video_codec}"
+            );
+            assert_eq!(plan.offers.burn_in, Vec::<usize>::new(), "{video_codec}");
+        }
+    }
+
+    #[test]
+    fn a_vobsub_track_without_its_header_is_burned_in_on_a_device_that_lists_vobsub() {
+        let mut facts = Facts {
+            subtitle: Some(2),
+            device: drawing_vobsub(),
+            ..facts(Some(vec![
+                video("h264"),
+                audio("aac", true),
+                image_subtitle("dvd_subtitle"),
+            ]))
+        };
+
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), Some(Method::Transcode));
+        let reason = reason_of(
+            &plan,
+            Kind::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE,
+        );
+        assert!(reason.decided);
+        assert_eq!(
+            reason.text,
+            "This Track carries no palette to draw its VobSub subtitles with, so the ones chosen \
+             are burned into its picture, which only a Transcode does"
+        );
+        assert_eq!(plan.subtitles, []);
+        assert_eq!(plan.burn_in, Some(2));
+        assert_eq!(plan.offers.burn_in, vec![2]);
+    }
+
     fn ass() -> Track {
-        track("ass", false, TrackKind::Subtitle { image: false })
+        track(
+            "ass",
+            false,
+            TrackKind::Subtitle {
+                image: false,
+                header: false,
+            },
+        )
     }
 
     /// A Device that draws ASS subtitles itself.
@@ -3412,7 +3543,14 @@ mod tests {
             title: title.map(str::to_owned),
             forced,
             sdh,
-            ..track(codec, false, TrackKind::Subtitle { image })
+            ..track(
+                codec,
+                false,
+                TrackKind::Subtitle {
+                    image,
+                    header: false,
+                },
+            )
         }
     }
 
@@ -3725,7 +3863,14 @@ mod tests {
 
     #[test]
     fn a_subtitle_choice_that_isnt_an_image_or_ass_subtitle_burns_nothing_in() {
-        let teletext = track("dvb_teletext", false, TrackKind::Subtitle { image: false });
+        let teletext = track(
+            "dvb_teletext",
+            false,
+            TrackKind::Subtitle {
+                image: false,
+                header: false,
+            },
+        );
         let tracks = vec![video("h264"), audio("aac", true), teletext, subtitle()];
         for chosen in [None, Some(1), Some(2), Some(3), Some(9)] {
             let mut facts = Facts {
@@ -4133,7 +4278,10 @@ echo '{"streams": [{"codec_name": "h264", "codec_type": "video"},
         let pgs = track(
             "hdmv_pgs_subtitle",
             false,
-            TrackKind::Subtitle { image: true },
+            TrackKind::Subtitle {
+                image: true,
+                header: false,
+            },
         );
         facts(Some(vec![
             video("h264"),

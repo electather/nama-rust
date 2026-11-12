@@ -80,7 +80,7 @@ export function useDrawnSubtitle(
       const settle = (state: SubtitleState) => {
         setStates((before) => ({ ...before, [subtitle.url]: state }));
       };
-      const render = subtitle.format === SubtitleFormat.ASS ? renderAss : renderPgs;
+      const render = subtitle.format === SubtitleFormat.ASS ? renderAss : renderBitmap;
       return draw(on, subtitle, render, settle, () => {
         rendererFailed(subtitle.format);
       });
@@ -144,22 +144,27 @@ function draw(
   };
 }
 
-/** Draws a PGS subtitle with libbitsub. */
-const renderPgs: Render = async (video, { url }, ready, failed) => {
-  const sup = await fetchSubtitle(url);
-  if (sup === null) return null;
-  // Fetched only once a PGS subtitle is turned on.
-  const { PgsRenderer } = await import("libbitsub");
+/** Draws a PGS subtitle, or a VobSub one from its Track copied into Matroska, with libbitsub. */
+const renderBitmap: Render = async (video, { url, format }, ready, failed) => {
+  const content = await fetchSubtitle(url);
+  if (content === null) return null;
+  // Fetched only once such a subtitle is turned on.
+  const libbitsub = await import("libbitsub");
   // It mounts its canvas in the `<video>`'s parent, the player, which full screen carries.
-  return new PgsRenderer({
+  const options = {
     video,
-    subContent: sup,
+    subContent: content,
     onLoaded: ready,
     // Not `onError`, which misses a renderer that won't start.
-    onEvent: (event) => {
+    onEvent: (event: { type: string }) => {
       if (event.type === "error") failed();
     },
-  });
+  };
+  if (format !== SubtitleFormat.VOBSUB) return new libbitsub.PgsRenderer(options);
+  // ponytail: libbitsub 1.13.2 never reports a VobSub load that throws (altqx/libbitsub#14), so
+  // the picker stays on "Loading…"; a release that fixes it lets the fall back to Burn-in catch it.
+  // The name says Matroska, which carries the palette and size, rather than a `.sub` and `.idx`.
+  return new libbitsub.VobSubRenderer({ ...options, fileName: "track.mks" });
 };
 
 /** Draws an ASS subtitle with libass, with all the fonts its file carries. */

@@ -149,6 +149,7 @@ test("a drawn ASS Track is one entry, with no new plan or styling to choose", as
   expect(items).toEqual(["Off", "Persian Signs"]);
   expect(asked[0]?.deviceDecoding?.subtitleFormats).toEqual([
     SubtitleFormat.PGS,
+    SubtitleFormat.VOBSUB,
     SubtitleFormat.ASS,
   ]);
 });
@@ -204,7 +205,10 @@ test("a renderer that won't start has the ASS Track burned in by a plan that doe
     expect(asked).toHaveLength(2);
   });
   expect(asked[1]?.subtitleTrack).toBe(1);
-  expect(asked[1]?.deviceDecoding?.subtitleFormats).toEqual([SubtitleFormat.PGS]);
+  expect(asked[1]?.deviceDecoding?.subtitleFormats).toEqual([
+    SubtitleFormat.PGS,
+    SubtitleFormat.VOBSUB,
+  ]);
   await waitFor(() => {
     expect(screen.getByLabelText("Alien")).not.toBe(directPlay);
   });

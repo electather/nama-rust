@@ -143,7 +143,10 @@ test("this Device says it draws PGS, so the PGS Track is a subtitle the player s
 
   const items = screen.getAllByRole("menuitemradio").map((item) => item.textContent);
   expect(items).toEqual(["Off", "English", "English Signs"]);
-  expect(asked[0]?.deviceDecoding?.subtitleFormats).toEqual([SubtitleFormat.PGS]);
+  expect(asked[0]?.deviceDecoding?.subtitleFormats).toEqual([
+    SubtitleFormat.PGS,
+    SubtitleFormat.VOBSUB,
+  ]);
   // Only the text one is a `<track>`: the PGS one is drawn.
   const tracks = [...video.querySelectorAll("track")].map((track) => track.getAttribute("src"));
   expect(tracks).toEqual([ENGLISH]);
@@ -256,7 +259,7 @@ test("a renderer that won't start has the Track burned in by a plan that doesn't
     expect(asked).toHaveLength(2);
   });
   expect(asked.map((request) => request.subtitleTrack)).toEqual([undefined, 3]);
-  expect(asked[1]?.deviceDecoding?.subtitleFormats).toEqual([]);
+  expect(asked[1]?.deviceDecoding?.subtitleFormats).toEqual([SubtitleFormat.VOBSUB]);
   await waitFor(() => {
     expect(screen.getByLabelText("Alien")).not.toBe(directPlay);
   });

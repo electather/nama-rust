@@ -18,7 +18,7 @@ use crate::{contents::Stored, db::Database, ffmpeg::TEXT_SUBTITLES};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
-pub(crate) const PROBE_VERSION: i64 = 7;
+pub(crate) const PROBE_VERSION: i64 = 8;
 
 /// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on at an older one is tried
 /// again, and those it read are left alone; when to bump it is in `AGENTS.md`. A
@@ -153,6 +153,9 @@ pub(crate) enum TrackKind {
     Subtitle {
         /// A bitmap, such as PGS, rather than text, such as SRT.
         image: bool,
+        /// Whether the file carries the Track's codec header, such as VobSub's `.idx` with its
+        /// palette and size.
+        header: bool,
     },
 }
 
@@ -173,6 +176,11 @@ impl Track {
     /// Whether it's a PGS subtitle, Blu-ray's image ones.
     pub(crate) fn is_pgs_subtitle(&self) -> bool {
         matches!(self.kind, TrackKind::Subtitle { .. }) && self.codec == "hdmv_pgs_subtitle"
+    }
+
+    /// Whether it's a VobSub subtitle, DVD's image ones.
+    pub(crate) fn is_vobsub_subtitle(&self) -> bool {
+        matches!(self.kind, TrackKind::Subtitle { .. }) && self.codec == "dvd_subtitle"
     }
 }
 
@@ -411,7 +419,7 @@ impl Tracks {
                       forced AS "forced: bool", sdh AS "sdh: bool", width, height, frame_rate, bit_depth, hdr,
                       dolby_vision_profile,
                       dolby_vision_base_layer,
-                      channels, image AS "image: bool"
+                      channels, image AS "image: bool", header AS "header: bool"
                FROM tracks
                WHERE version_id IN (SELECT value FROM json_each(?))
                ORDER BY version_id, position"#,
@@ -437,6 +445,8 @@ impl Tracks {
                 },
                 _ => TrackKind::Subtitle {
                     image: row.image.unwrap_or_default(),
+                    // Unknown for a file probed before it was recorded.
+                    header: row.header.unwrap_or_default(),
                 },
             };
             let track = Track {
@@ -500,7 +510,20 @@ async fn store(
     .execute(&mut *conn)
     .await?;
     for (position, track) in (0_i64..).zip(probe.tracks) {
-        let (kind, width, height, frame_rate, bit_depth, hdr, channels, image) = match track.kind {
+        store_track(conn, version, position, track).await?;
+    }
+    Ok(())
+}
+
+/// Stores `track` as the Version `version`'s Track at `position`.
+async fn store_track(
+    conn: &mut SqliteConnection,
+    version: i64,
+    position: i64,
+    track: Track,
+) -> Result<(), sqlx::Error> {
+    let (kind, width, height, frame_rate, bit_depth, hdr, channels, image, header) =
+        match track.kind {
             TrackKind::Video {
                 width,
                 height,
@@ -508,45 +531,53 @@ async fn store(
                 bit_depth,
                 hdr,
             } => (
-                "video", width, height, frame_rate, bit_depth, hdr, None, None,
+                "video", width, height, frame_rate, bit_depth, hdr, None, None, None,
             ),
             TrackKind::Audio { channels } => {
-                ("audio", None, None, None, None, None, channels, None)
+                ("audio", None, None, None, None, None, channels, None, None)
             }
-            TrackKind::Subtitle { image } => {
-                ("subtitle", None, None, None, None, None, None, Some(image))
-            }
+            TrackKind::Subtitle { image, header } => (
+                "subtitle",
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(image),
+                Some(header),
+            ),
         };
-        let (hdr, dolby_vision_profile, dolby_vision_base_layer) = hdr_columns(hdr);
-        sqlx::query!(
-            "INSERT INTO tracks (version_id, position, kind, codec, language, title, is_default,
-                                 forced, sdh, width, height, frame_rate, bit_depth, hdr,
-                                 dolby_vision_profile, dolby_vision_base_layer, channels,
-                                 image)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            version,
-            position,
-            kind,
-            track.codec,
-            track.language,
-            track.title,
-            track.default,
-            track.forced,
-            track.sdh,
-            width,
-            height,
-            frame_rate,
-            bit_depth,
-            hdr,
-            dolby_vision_profile,
-            dolby_vision_base_layer,
-            channels,
-            image,
-        )
-        .execute(&mut *conn)
-        .await?;
-    }
-    Ok(())
+    let (hdr, dolby_vision_profile, dolby_vision_base_layer) = hdr_columns(hdr);
+    sqlx::query!(
+        "INSERT INTO tracks (version_id, position, kind, codec, language, title, is_default,
+                             forced, sdh, width, height, frame_rate, bit_depth, hdr,
+                             dolby_vision_profile, dolby_vision_base_layer, channels,
+                             image, header)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        version,
+        position,
+        kind,
+        track.codec,
+        track.language,
+        track.title,
+        track.default,
+        track.forced,
+        track.sdh,
+        width,
+        height,
+        frame_rate,
+        bit_depth,
+        hdr,
+        dolby_vision_profile,
+        dolby_vision_base_layer,
+        channels,
+        image,
+        header,
+    )
+    .execute(&mut *conn)
+    .await
+    .map(drop)
 }
 
 /// `hdr` as its `tracks` columns: its name, and Dolby Vision's profile and Base Layer.
@@ -623,7 +654,7 @@ pub(crate) fn track_to_proto(track: &Track) -> proto::Track {
             ..Default::default()
         }
         .into(),
-        TrackKind::Subtitle { image } => proto::SubtitleTrack {
+        TrackKind::Subtitle { image, .. } => proto::SubtitleTrack {
             image,
             ..Default::default()
         }
@@ -778,7 +809,12 @@ mod tests {
             })
         };
         let audio = || track(TrackKind::Audio { channels: None });
-        let subtitle = |image| track(TrackKind::Subtitle { image });
+        let subtitle = |image| {
+            track(TrackKind::Subtitle {
+                image,
+                header: false,
+            })
+        };
         let probe = Probe {
             container: String::new(),
             duration_ms: None,
