@@ -187,6 +187,8 @@ struct ProbedStream {
     #[serde(default)]
     side_data_list: Vec<ProbedSideData>,
     channels: Option<i64>,
+    /// How many bytes of codec header the file carries for it, such as VobSub's `.idx`.
+    extradata_size: Option<i64>,
     nb_frames: Option<String>,
     #[serde(default)]
     disposition: HashMap<String, u8>,
@@ -266,6 +268,9 @@ fn track(mut stream: ProbedStream) -> Option<Track> {
         },
         "subtitle" => TrackKind::Subtitle {
             image: IMAGE_SUBTITLES.contains(&stream.codec_name.as_str()),
+            // ponytail: a VobSub header without a `palette:` line passes and draws black; read the
+            // extradata itself if one turns up.
+            header: stream.extradata_size.is_some_and(|size| size > 0),
         },
         _ => return None,
     };
@@ -408,7 +413,10 @@ mod tests {
                             "hdmv_pgs_subtitle",
                             Some("fre"),
                             false,
-                            TrackKind::Subtitle { image: true },
+                            TrackKind::Subtitle {
+                                image: true,
+                                header: false,
+                            },
                         )
                     },
                     Track {
@@ -417,13 +425,35 @@ mod tests {
                             "subrip",
                             Some("eng"),
                             false,
-                            TrackKind::Subtitle { image: false },
+                            TrackKind::Subtitle {
+                                image: false,
+                                header: false,
+                            },
                         )
                     },
                 ],
                 font_attachments: vec![0],
             }
         );
+    }
+
+    #[test]
+    fn a_subtitle_carries_its_header_only_when_ffprobe_counts_bytes_of_one() {
+        let json = r#"{
+            "streams": [
+                {"codec_name": "dvd_subtitle", "codec_type": "subtitle", "extradata_size": 391},
+                {"codec_name": "dvd_subtitle", "codec_type": "subtitle", "extradata_size": 0},
+                {"codec_name": "dvd_subtitle", "codec_type": "subtitle"}
+            ],
+            "format": {"format_name": "mpeg"}
+        }"#;
+
+        let probe = parse_probe(json.as_bytes()).unwrap();
+
+        let headers: Vec<_> = (probe.tracks.iter())
+            .map(|track| matches!(track.kind, TrackKind::Subtitle { header: true, .. }))
+            .collect();
+        assert_eq!(headers, [true, false, false]);
     }
 
     #[test]

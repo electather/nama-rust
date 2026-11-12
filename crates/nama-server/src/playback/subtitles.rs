@@ -1,6 +1,6 @@
-//! Subtitles a Device shows itself: text ones served as WebVTT for a player's `<track>`, and PGS
-//! and ASS ones as the Track's own `.sup` or `.ass` for a Device that draws them, with the fonts
-//! an ASS one's file carries (ADR 0033).
+//! Subtitles a Device shows itself: text ones served as WebVTT for a player's `<track>`, and PGS,
+//! VobSub and ASS ones as the Track's own `.sup`, `.mks` or `.ass` for a Device that draws them,
+//! with the fonts an ASS one's file carries (ADR 0033).
 //!
 //! Where a subtitle comes from is kept apart from how it's served. [`Embedded`] is the one source
 //! so far, a subtitle Track inside a Version's file. [`Cache`] serves any source's subtitle: it
@@ -32,7 +32,8 @@ use axum::{
 use nama_proto::nama::v1 as proto;
 use proto::SubtitleFormat::{
     SUBTITLE_FORMAT_ASS as ASS, SUBTITLE_FORMAT_PGS as PGS,
-    SUBTITLE_FORMAT_UNSPECIFIED as UNSPECIFIED, SUBTITLE_FORMAT_WEBVTT as WEBVTT,
+    SUBTITLE_FORMAT_UNSPECIFIED as UNSPECIFIED, SUBTITLE_FORMAT_VOBSUB as VOBSUB,
+    SUBTITLE_FORMAT_WEBVTT as WEBVTT,
 };
 
 mod ass;
@@ -41,7 +42,7 @@ use crate::{
     contents::{Contents, Stored},
     ffmpeg::{Ffmpeg, SubtitleError},
     images::write_atomically,
-    tracks::{PROBE_VERSION, Probe, Track, Tracks},
+    tracks::{PROBE_VERSION, Probe, Track, TrackKind, Tracks},
 };
 
 /// The version of how a source makes WebVTT, part of every cache key so what an older one made is
@@ -66,12 +67,19 @@ pub(super) fn font_url(version: i64, font: usize) -> String {
 }
 
 /// The format `track` is served in at its plain [`url`], if it's served: WebVTT for a text one, or
-/// a PGS one's own.
+/// a PGS one's own, or a VobSub one's own if its file carries its header.
 pub(super) fn served_as(track: &Track) -> Option<proto::SubtitleFormat> {
     if track.is_text_subtitle() {
         Some(WEBVTT)
     } else if track.is_pgs_subtitle() {
         Some(PGS)
+    } else if track.is_vobsub_subtitle()
+        && matches!(track.kind, TrackKind::Subtitle { header: true, .. })
+    {
+        // Without its `.idx` header, libbitsub 1.13.2 hangs loading it, or draws every cue as a
+        // black box, where Burn-in's ffmpeg guesses a grey palette that stays legible. MKV and MP4
+        // rips carry it; a DVD dump in `.mpg` or `.ts` may not.
+        Some(VOBSUB)
     } else {
         None
     }
@@ -235,6 +243,7 @@ impl Embedded {
         let name = match self.served_as {
             // Read out as they are, so how WebVTT is made doesn't change them.
             PGS => format!("{}.sup", self.track),
+            VOBSUB => format!("{}.mks", self.track),
             ASS => format!("{}.ass", self.track),
             UNSPECIFIED | WEBVTT => format!("{}.v{WEBVTT_VERSION}.vtt", self.track),
         };
@@ -243,8 +252,8 @@ impl Embedded {
 
     const fn content_type(&self) -> &'static str {
         match self.served_as {
-            // PGS has no registered media type.
-            PGS => "application/octet-stream",
+            // Neither PGS nor VobSub has a registered media type.
+            PGS | VOBSUB => "application/octet-stream",
             // Nor has ASS: this is the one players and media servers use.
             ASS => "text/x-ssa; charset=utf-8",
             UNSPECIFIED | WEBVTT => "text/vtt; charset=utf-8",
@@ -252,11 +261,13 @@ impl Embedded {
     }
 
     /// Reads it out of the file: a PGS Track copied into `.sup`, the framing a Device's renderer
-    /// reads, an ASS or SSA one as ASS for a Device that draws it, and any other as WebVTT.
+    /// reads, a VobSub one into Matroska, which carries its palette and size beside it, an ASS or
+    /// SSA one as ASS for a Device that draws it, and any other as WebVTT.
     async fn read(&self, ffmpeg: &Ffmpeg) -> Result<Vec<u8>, Error> {
         let (path, subtitle) = (&self.path, self.subtitle);
         match self.served_as {
             PGS => Ok(ffmpeg.subtitle(path, subtitle, "copy", "sup").await?),
+            VOBSUB => Ok(ffmpeg.subtitle(path, subtitle, "copy", "matroska").await?),
             ASS => Ok(ffmpeg.subtitle(path, subtitle, "ass", "ass").await?),
             UNSPECIFIED | WEBVTT if self.ass => {
                 let ass = ffmpeg.subtitle(path, subtitle, "ass", "ass").await?;

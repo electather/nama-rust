@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT version_id, kind, codec, language, title, is_default AS \"default: bool\",\n                      forced AS \"forced: bool\", sdh AS \"sdh: bool\", width, height, frame_rate, bit_depth, hdr,\n                      dolby_vision_profile,\n                      dolby_vision_base_layer,\n                      channels, image AS \"image: bool\"\n               FROM tracks\n               WHERE version_id IN (SELECT value FROM json_each(?))\n               ORDER BY version_id, position",
+  "query": "SELECT version_id, kind, codec, language, title, is_default AS \"default: bool\",\n                      forced AS \"forced: bool\", sdh AS \"sdh: bool\", width, height, frame_rate, bit_depth, hdr,\n                      dolby_vision_profile,\n                      dolby_vision_base_layer,\n                      channels, image AS \"image: bool\", header AS \"header: bool\"\n               FROM tracks\n               WHERE version_id IN (SELECT value FROM json_each(?))\n               ORDER BY version_id, position",
   "describe": {
     "columns": [
       {
@@ -189,6 +189,17 @@
             "name": "image"
           }
         }
+      },
+      {
+        "name": "header: bool",
+        "ordinal": 17,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tracks",
+            "name": "header"
+          }
+        }
       }
     ],
     "parameters": {
@@ -211,8 +222,9 @@
       true,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "8b0d1185f99131f9dc3e9b545aa5d359c7790c4518059b1e2d6ca051ffcf599d"
+  "hash": "a21399cc434a26aa13b50582593330ad5af2ceb19368fffc79e78588a289c745"
 }
