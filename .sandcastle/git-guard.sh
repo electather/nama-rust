@@ -6,6 +6,7 @@ skip=
 for arg do
   if [ -n "$skip" ]; then skip=; continue; fi
   case $arg in
+    # Global options whose value is the next argument; their `--opt=value` forms fall through to -*.
     -C | -c | --git-dir | --work-tree | --namespace | --config-env) skip=1 ;;
     -*) ;;
     stash)
