@@ -48,7 +48,7 @@ How strict they are:
 
 ## Running against a Server
 
-Start a Server (it listens on `http://localhost:7980` by default), then run `vp dev`. The dev server proxies every Connect path (`/nama.…`) and `/media/…` to `NAMA_SERVER_URL`, which defaults to that address. The browser sees one origin, so the `SameSite=Strict` session cookie works as it does in production and no CORS is involved (ADR 0015).
+Start a Server (it listens on `http://localhost:7980` by default), then run `vp dev`. The dev server proxies every Connect path (`/nama.…`), `/media/…` and `/custom-images/…` to `NAMA_SERVER_URL`, which defaults to that address. The browser sees one origin, so the `SameSite=Strict` session cookie works as it does in production and no CORS is involved (ADR 0015).
 
 Tests never need a Server. They fake RPCs with Connect's `createRouterTransport`, built from the same generated descriptors.
 

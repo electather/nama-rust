@@ -1372,7 +1372,7 @@ export type MovieHit = Message<"nama.v1.MovieHit"> & {
   year?: number | undefined;
 
   /**
-   * The poster's URL, under `/media/artwork/` on this Server.
+   * The poster's URL on this Server: its Custom Image, if it has one.
    *
    * @generated from field: optional string poster_url = 6;
    */
@@ -1441,14 +1441,14 @@ export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
   runtimeMinutes?: number | undefined;
 
   /**
-   * The poster's URL, under `/media/artwork/` on this Server.
+   * The poster's URL on this Server: its Custom Image, if it has one.
    *
    * @generated from field: optional string poster_url = 6;
    */
   posterUrl?: string | undefined;
 
   /**
-   * The backdrop's URL, under `/media/artwork/` on this Server.
+   * The backdrop's URL on this Server: its Custom Image, if it has one.
    *
    * @generated from field: optional string backdrop_url = 7;
    */
@@ -1578,7 +1578,7 @@ export type ShowHit = Message<"nama.v1.ShowHit"> & {
   year?: number | undefined;
 
   /**
-   * The poster's URL, under `/media/artwork/` on this Server.
+   * The poster's URL on this Server: its Custom Image, if it has one.
    *
    * @generated from field: optional string poster_url = 5;
    */
@@ -1627,14 +1627,14 @@ export type FoundShow = Message<"nama.v1.FoundShow"> & {
   overview?: string | undefined;
 
   /**
-   * The poster's URL, under `/media/artwork/` on this Server.
+   * The poster's URL on this Server: its Custom Image, if it has one.
    *
    * @generated from field: optional string poster_url = 5;
    */
   posterUrl?: string | undefined;
 
   /**
-   * The backdrop's URL, under `/media/artwork/` on this Server.
+   * The backdrop's URL on this Server: its Custom Image, if it has one.
    *
    * @generated from field: optional string backdrop_url = 6;
    */

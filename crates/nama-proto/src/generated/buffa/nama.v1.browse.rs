@@ -371,7 +371,7 @@ pub struct Movie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub runtime_minutes: ::core::option::Option<u32>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server.
     ///
     /// Field 7: `poster_url`
     #[serde(
@@ -380,7 +380,7 @@ pub struct Movie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server.
     ///
     /// Field 8: `backdrop_url`
     #[serde(
@@ -408,6 +408,28 @@ pub struct Movie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub watch_state: ::buffa::MessageField<WatchState, ::buffa::Inline<WatchState>>,
+    /// Whether `poster_url` is a Custom Image, which `DELETE /custom-images/movie/<id>/poster`
+    /// removes, `<id>` being `id` as `tmdb-348`, `imdb-tt0078748` or `tvdb-81189`. `PUT` there
+    /// uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
+    ///
+    /// Field 11: `custom_poster`
+    #[serde(
+        rename = "customPoster",
+        alias = "custom_poster",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub custom_poster: bool,
+    /// Whether `backdrop_url` is a Custom Image, at `/custom-images/movie/<id>/backdrop`.
+    ///
+    /// Field 12: `custom_backdrop`
+    #[serde(
+        rename = "customBackdrop",
+        alias = "custom_backdrop",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub custom_backdrop: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -425,6 +447,8 @@ impl ::core::fmt::Debug for Movie {
             .field("backdrop_url", &self.backdrop_url)
             .field("versions", &self.versions)
             .field("watch_state", &self.watch_state)
+            .field("custom_poster", &self.custom_poster)
+            .field("custom_backdrop", &self.custom_backdrop)
             .finish()
     }
 }
@@ -559,6 +583,12 @@ impl ::buffa::Message for Movie {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.custom_poster {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.custom_backdrop {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -613,6 +643,12 @@ impl ::buffa::Message for Movie {
                 buf,
             );
             self.watch_state.write_to(__cache, buf);
+        }
+        if self.custom_poster {
+            ::buffa::types::put_bool_field(11u32, self.custom_poster, buf);
+        }
+        if self.custom_backdrop {
+            ::buffa::types::put_bool_field(12u32, self.custom_backdrop, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -737,6 +773,20 @@ impl ::buffa::Message for Movie {
                     ctx,
                 )?;
             }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.custom_poster = ::buffa::types::decode_bool(buf)?;
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.custom_backdrop = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -755,6 +805,8 @@ impl ::buffa::Message for Movie {
         self.backdrop_url = ::core::option::Option::None;
         self.versions.clear();
         self.watch_state = ::buffa::MessageField::none();
+        self.custom_poster = false;
+        self.custom_backdrop = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2948,7 +3000,7 @@ pub struct Show {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub title: ::buffa::alloc::string::String,
-    /// Its first Season's poster's URL, under `/media/artwork/` on this Server.
+    /// Its poster's URL on this Server: its Custom Image if it has one, else its first Season's.
     ///
     /// Field 3: `poster_url`
     #[serde(
@@ -2957,7 +3009,7 @@ pub struct Show {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server.
     ///
     /// Field 4: `backdrop_url`
     #[serde(
@@ -2966,6 +3018,27 @@ pub struct Show {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub backdrop_url: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Whether `poster_url` is the Show's own Custom Image, at `/custom-images/show/<id>/poster`,
+    /// as for `Movie.custom_poster`.
+    ///
+    /// Field 5: `custom_poster`
+    #[serde(
+        rename = "customPoster",
+        alias = "custom_poster",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub custom_poster: bool,
+    /// Whether `backdrop_url` is a Custom Image, at `/custom-images/show/<id>/backdrop`.
+    ///
+    /// Field 6: `custom_backdrop`
+    #[serde(
+        rename = "customBackdrop",
+        alias = "custom_backdrop",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub custom_backdrop: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2977,6 +3050,8 @@ impl ::core::fmt::Debug for Show {
             .field("title", &self.title)
             .field("poster_url", &self.poster_url)
             .field("backdrop_url", &self.backdrop_url)
+            .field("custom_poster", &self.custom_poster)
+            .field("custom_backdrop", &self.custom_backdrop)
             .finish()
     }
 }
@@ -3046,6 +3121,12 @@ impl ::buffa::Message for Show {
         if let Some(ref v) = self.backdrop_url {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.custom_poster {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.custom_backdrop {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3072,6 +3153,12 @@ impl ::buffa::Message for Show {
         }
         if let Some(ref v) = self.backdrop_url {
             ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        if self.custom_poster {
+            ::buffa::types::put_bool_field(5u32, self.custom_poster, buf);
+        }
+        if self.custom_backdrop {
+            ::buffa::types::put_bool_field(6u32, self.custom_backdrop, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3128,6 +3215,20 @@ impl ::buffa::Message for Show {
                     buf,
                 )?;
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.custom_poster = ::buffa::types::decode_bool(buf)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.custom_backdrop = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3140,6 +3241,8 @@ impl ::buffa::Message for Show {
         self.title.clear();
         self.poster_url = ::core::option::Option::None;
         self.backdrop_url = ::core::option::Option::None;
+        self.custom_poster = false;
+        self.custom_backdrop = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3186,7 +3289,7 @@ pub struct Season {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub number: u32,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server.
     ///
     /// Field 2: `poster_url`
     #[serde(
@@ -3195,6 +3298,17 @@ pub struct Season {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Whether `poster_url` is a Custom Image, at
+    /// `/custom-images/show/<show id>/season/<number>/poster`, as for `Movie.custom_poster`.
+    ///
+    /// Field 3: `custom_poster`
+    #[serde(
+        rename = "customPoster",
+        alias = "custom_poster",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub custom_poster: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3204,6 +3318,7 @@ impl ::core::fmt::Debug for Season {
         f.debug_struct("Season")
             .field("number", &self.number)
             .field("poster_url", &self.poster_url)
+            .field("custom_poster", &self.custom_poster)
             .finish()
     }
 }
@@ -3252,6 +3367,9 @@ impl ::buffa::Message for Season {
         if let Some(ref v) = self.poster_url {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.custom_poster {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3267,6 +3385,9 @@ impl ::buffa::Message for Season {
         }
         if let Some(ref v) = self.poster_url {
             ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        if self.custom_poster {
+            ::buffa::types::put_bool_field(3u32, self.custom_poster, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3300,6 +3421,13 @@ impl ::buffa::Message for Season {
                     buf,
                 )?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.custom_poster = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3310,6 +3438,7 @@ impl ::buffa::Message for Season {
     fn clear(&mut self) {
         self.number = 0u32;
         self.poster_url = ::core::option::Option::None;
+        self.custom_poster = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -5820,7 +5949,7 @@ pub struct MovieInLibrary {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub release_date: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 5: `poster_url`
     #[serde(
@@ -6080,7 +6209,7 @@ pub struct ShowInLibrary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub title: ::buffa::alloc::string::String,
-    /// A Season's poster's URL, under `/media/artwork/` on this Server.
+    /// The Show's Custom Poster's URL on this Server, or else a Season's poster's.
     ///
     /// Field 4: `poster_url`
     #[serde(
