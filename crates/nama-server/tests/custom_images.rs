@@ -23,7 +23,7 @@ use image::ImageFormat;
 use nama_proto::nama::v1::{
     BrowseServiceClient, ContinueWatchingEntry, LibraryKind, ListContinueWatchingRequest,
     ListEpisodesRequest, LookUpMovieRequest, LookUpShowRequest, ReportProgressRequest,
-    RequestServiceClient, SetMatchRequest, WatchStateServiceClient,
+    RequestServiceClient, SetMatchRequest, Show, WatchStateServiceClient,
     continue_watching_entry::MovieOrEpisode,
 };
 use server::tmdb::{ALIEN, DARK, DUNE};
@@ -88,10 +88,10 @@ impl Fixture {
     }
 }
 
-/// The Poster URL of the Show of `entry`, an Episode.
-fn shows_poster(entry: &ContinueWatchingEntry) -> Option<String> {
+/// The Show of `entry`, an Episode.
+fn show_of(entry: &ContinueWatchingEntry) -> Option<&Show> {
     match &entry.movie_or_episode {
-        Some(MovieOrEpisode::Episode(started)) => started.show.as_option()?.poster_url.clone(),
+        Some(MovieOrEpisode::Episode(started)) => started.show.as_option(),
         _ => None,
     }
 }
@@ -275,7 +275,7 @@ async fn a_seasons_custom_poster_shows_on_the_season_and_for_its_episode_in_cont
     let poster = season.poster_url.clone().unwrap();
     assert!(poster.starts_with("/media/custom-images/show/tmdb-70523/season/1/poster/"));
     let started = fx.continue_watching_dark().await;
-    assert_eq!(shows_poster(&started[0]), Some(poster));
+    assert_eq!(show_of(&started[0]).unwrap().poster_url, Some(poster));
 }
 
 #[tokio::test]
@@ -292,7 +292,7 @@ async fn a_shows_custom_poster_shows_in_continue_watching_and_on_a_request_for_i
     assert!(show.custom_poster);
     let poster = show.poster_url;
     let started = fx.continue_watching_dark().await;
-    assert_eq!(shows_poster(&started[0]), poster);
+    assert_eq!(show_of(&started[0]).unwrap().poster_url, poster);
     let looked_up = fx
         .requests()
         .look_up_show(LookUpShowRequest {
@@ -306,6 +306,24 @@ async fn a_shows_custom_poster_shows_in_continue_watching_and_on_a_request_for_i
         .into_option()
         .unwrap();
     assert_eq!(looked_up.poster_url, poster);
+}
+
+#[tokio::test]
+async fn a_shows_custom_backdrop_is_the_backdrop_continue_watching_returns_for_its_episodes() {
+    let fx = Fixture::dark().await;
+
+    fx.upload(
+        &format!("/custom-images/show/tmdb-{DARK}/backdrop"),
+        &image(ImageFormat::Png, 3, 2),
+    )
+    .await;
+
+    let show = fx.get_dark().await.show.into_option().unwrap();
+    assert!(show.custom_backdrop);
+    let backdrop = show.backdrop_url.unwrap();
+    assert!(backdrop.starts_with("/media/custom-images/show/tmdb-70523/backdrop/"));
+    let started = fx.continue_watching_dark().await;
+    assert_eq!(show_of(&started[0]).unwrap().backdrop_url, Some(backdrop));
 }
 
 #[tokio::test]

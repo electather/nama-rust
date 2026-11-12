@@ -5,7 +5,7 @@ import { PlayedMark, WatchedBar } from "@/components/watch-state";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { useSrcSet } from "@/lib/image-sizes";
 
-/** The classes for a link wrapping a `Poster`, which shows focus around it. */
+/** The classes for a link wrapping a `Poster` or `BackdropCard`, which shows focus around it. */
 export const posterLink =
   "block rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
