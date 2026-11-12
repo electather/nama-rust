@@ -16,7 +16,7 @@ use std::{
 use axum::{
     body::Body,
     extract::Request,
-    http::{HeaderValue, StatusCode, header},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -28,7 +28,7 @@ use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt as _;
 use tower_http::services::ServeFile;
 
-use resized::{Copied, ResizeThread};
+use resized::{Copied, Format, ResizeThread};
 
 use crate::{db::Database, server_settings::ImageSettings};
 
@@ -203,9 +203,11 @@ impl ImageStore {
     /// The image at `key` as the answer to `request`, sent as `content_type`: 404 if none is
     /// stored, 304 for a matching `If-None-Match`, else the bytes with an `ETag`.
     ///
-    /// With a `resize`, it is sent as a JPEG copy that wide, made the first time it is asked for,
-    /// or else as it is stored where it can't or needn't be resized (see `make_copy`), varying by
-    /// `Accept` either way. Making a copy keeps the image's thumbhash, for `thumbhashes`.
+    /// With a `resize`, it is sent as a copy that wide, made the first time it is asked for, or
+    /// else as it is stored where it can't or needn't be resized (see `make_copy`), varying by
+    /// `Accept` either way. The copy is a JPEG XL where `Accept` lists `image/jxl`, else a JPEG, as
+    /// it is too where a JPEG XL would be over 7 megapixels.
+    /// Making a copy keeps the image's thumbhash, for `thumbhashes`.
     /// The copy is made from the image's key alone, so it is never made again if the image at
     /// `key` changes.
     ///
@@ -225,13 +227,14 @@ impl ImageStore {
         let Some(resize) = resize else {
             return serve_file(self.path(key), content_type, request).await;
         };
-        let copy = self.copy_path(key, resize.width);
-        let mut response = if self.ensure_copy(key, &copy, resize).await {
+        let asked = format_asked(request.headers());
+        let mut response = if let Some(format) = self.ensure_copy(key, resize, asked).await {
             // The copy can go between making it and sending it, deleted with the folder or by
             // another request's eviction, so the original stands in for it.
             let (head, _empty) = request.into_parts();
             let for_copy = Request::from_parts(head.clone(), Body::empty());
-            let sent = serve_file(copy, "image/jpeg", for_copy).await?;
+            let copy = self.copy_path(key, resize.width, format);
+            let sent = serve_file(copy, format.content_type(), for_copy).await?;
             if sent.status() == StatusCode::NOT_FOUND {
                 let for_original = Request::from_parts(head, Body::empty());
                 serve_file(self.path(key), content_type, for_original).await?
@@ -241,35 +244,37 @@ impl ImageStore {
         } else {
             serve_file(self.path(key), content_type, request).await?
         };
-        // Browsers that accept JPEG XL are to get it at the same URL (#739).
         response
             .headers_mut()
             .insert(header::VARY, HeaderValue::from_static("accept"));
         Ok(response)
     }
 
-    /// Whether the copy at `copy` of the image at `key` is there to send, made now if it wasn't.
-    /// An image that can't be resized is logged and sent as stored.
-    async fn ensure_copy(&self, key: &[&str], copy: &Path, resize: Resize) -> bool {
-        let sent = copy.to_owned();
+    /// The format of the copy of the image at `key` to send for `resize`, made now if it wasn't
+    /// there: `asked`, or JPEG where `make_copy` puts one in its place. `None` to send the image
+    /// as stored, which an image that can't be resized also is, after a warning is logged.
+    async fn ensure_copy(&self, key: &[&str], resize: Resize, asked: Format) -> Option<Format> {
+        let copy = self.copy_path(key, resize.width, asked);
+        let sent = copy.clone();
         let touch = tokio::task::spawn_blocking(move || resized::touch(&sent)).await;
         match touch.map_err(io::Error::from).and_then(|touched| touched) {
-            Ok(()) => return true,
+            Ok(()) => return Some(asked),
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
             // It's there, and not marking it only lets eviction pick it sooner.
             Err(err) => {
                 tracing::warn!("could not mark {} as sent: {err}", copy.display());
-                return true;
+                return Some(asked);
             }
         }
-        let (original, copy) = (self.path(key), copy.to_owned());
+        let (original, folder) = (self.path(key), self.copies_path(key));
         let cache = self.dir.join(RESIZED_DIR);
         let resized = self
             .resizer
             .run(move || {
-                let copied = resized::make_copy(&original, &copy, resize.width);
-                if matches!(copied, Ok(Copied::Made { .. }))
-                    && let Err(err) = resized::evict(&cache, resize.cache_limit, &copy)
+                let copied = resized::make_copy(&original, &folder, resize.width, asked);
+                if let Ok(Copied::Made { format, .. }) = copied
+                    && let made = folder.join(format.file_name(resize.width))
+                    && let Err(err) = resized::evict(&cache, resize.cache_limit, &made)
                 {
                     tracing::error!("could not keep the resized images within their limit: {err}");
                 }
@@ -281,20 +286,20 @@ impl ImageStore {
             .map_err(|err| err.to_string())
             .and_then(|copied| copied);
         match copied {
-            Ok(Copied::Found) => true,
-            Ok(Copied::Made { thumbhash }) => {
+            Ok(Copied::Found(format)) => Some(format),
+            Ok(Copied::Made { format, thumbhash }) => {
                 // Without it the image only goes without a placeholder.
                 // ponytail: a Custom Image replaced while it is resized can leave its thumbhash
                 // behind, a row no URL sent names; sweep rows without a file if that matters.
                 if let Err(err) = self.keep_thumbhash(key, thumbhash).await {
                     tracing::error!("could not keep the thumbhash of {key:?}: {err}");
                 }
-                true
+                Some(format)
             }
-            Ok(Copied::Unneeded) => false,
+            Ok(Copied::Unneeded) => None,
             Err(err) => {
                 tracing::warn!("{err}, so it is sent as it is");
-                false
+                None
             }
         }
     }
@@ -408,15 +413,46 @@ impl ImageStore {
         under(self.dir.clone(), key)
     }
 
-    /// Where the copy `width` pixels wide of the image at `key` is kept.
-    fn copy_path(&self, key: &[&str], width: u32) -> PathBuf {
-        self.copies_path(key).join(format!("{width}.jpg"))
+    /// Where the copy `width` pixels wide in `format` of the image at `key` is kept.
+    fn copy_path(&self, key: &[&str], width: u32, format: Format) -> PathBuf {
+        self.copies_path(key).join(format.file_name(width))
     }
 
     /// The folder the resized copies of the image at `key`, or of every image under it, are kept
     /// in.
     fn copies_path(&self, key: &[&str]) -> PathBuf {
         under(self.dir.join(RESIZED_DIR), key)
+    }
+}
+
+/// JPEG XL where `headers` hold an `Accept` that lists `image/jxl` at a quality above 0, else
+/// JPEG.
+fn format_asked(headers: &HeaderMap) -> Format {
+    let is_quality_zero = |param: &str| {
+        param.split_once('=').is_some_and(|(name, value)| {
+            name.trim().eq_ignore_ascii_case("q")
+                && value
+                    .trim()
+                    .parse::<f32>()
+                    .is_ok_and(|quality| quality <= 0.0)
+        })
+    };
+    let accepts_jxl = headers
+        .get_all(header::ACCEPT)
+        .iter()
+        .filter_map(|accept| accept.to_str().ok())
+        .flat_map(|accept| accept.split(','))
+        .any(|range| {
+            let mut parts = range.split(';');
+            parts
+                .next()
+                .is_some_and(|media| media.trim().eq_ignore_ascii_case("image/jxl"))
+                && !parts.any(is_quality_zero)
+        });
+    if accepts_jxl {
+        Format::Jxl
+    } else {
+        Format::Jpeg
     }
 }
 
@@ -662,7 +698,9 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use super::{ImageStore, file_name, unescape};
+    use axum::http::{HeaderMap, HeaderValue, header};
+
+    use super::{Format, ImageStore, file_name, format_asked, unescape};
     use crate::db::Database;
 
     const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
@@ -732,6 +770,24 @@ mod tests {
             store.list("nothing-yet").await.unwrap(),
             Vec::<Vec<String>>::new()
         );
+    }
+
+    #[test]
+    fn jpeg_xl_is_accepted_where_listed_at_a_quality_above_zero() {
+        let accepts = |values: &[&'static str]| {
+            let mut headers = HeaderMap::new();
+            for value in values {
+                headers.append(header::ACCEPT, HeaderValue::from_static(value));
+            }
+            format_asked(&headers) == Format::Jxl
+        };
+
+        assert!(accepts(&["image/avif, Image/JXL ;q=0.5"]));
+        assert!(accepts(&["image/webp", "image/jxl"]));
+        assert!(!accepts(&["image/jxl;q=0", "image/*"]));
+        assert!(!accepts(&["image/jxl; q=0.000"]));
+        assert!(!accepts(&["image/*,*/*;q=0.8"]));
+        assert!(!accepts(&[]));
     }
 
     #[test]

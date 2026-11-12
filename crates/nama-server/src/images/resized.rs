@@ -1,5 +1,5 @@
-//! Resized copies of stored images, as JPEG: made on one thread, one at a time, and kept in a
-//! cache that drops the least recently sent once it passes its limit (ADR 0039).
+//! Resized copies of stored images, as JPEG or JPEG XL: made on one thread, one at a time, and
+//! kept in a cache that drops the least recently sent once it passes its limit (ADR 0039).
 
 use std::{
     error::Error,
@@ -11,11 +11,11 @@ use std::{
     time::SystemTime,
 };
 
-use fast_image_resize::Resizer;
+use fast_image_resize::{MulDiv, ResizeOptions, Resizer};
 use image::{
-    DynamicImage, ImageDecoder as _, ImageReader, RgbImage, codecs::jpeg::JpegEncoder,
-    metadata::Orientation,
+    DynamicImage, ImageDecoder as _, ImageReader, codecs::jpeg::JpegEncoder, metadata::Orientation,
 };
+use jixel::{EncodeConfig, Speed};
 use walkdir::WalkDir;
 
 use super::write_now;
@@ -30,6 +30,16 @@ const MAX_BITMAP_BYTES: u64 = 64 * 1024 * 1024;
 
 /// The JPEG quality of every copy.
 const QUALITY: u8 = 80;
+
+/// The `jixel` speed of every JPEG XL copy, its fastest, which ADR 0039 picked.
+const JXL_SPEED: Speed = Speed::UltraFast;
+
+/// The JPEG XL distance of every copy, at which it looks like the JPEG at [`QUALITY`] (ADR 0039).
+const JXL_DISTANCE: f32 = 1.2;
+
+/// The most pixels a JPEG XL copy may have: `jixel` needs about 17 MiB per megapixel, and 7 fit
+/// within the 128 MiB a resize may take (ADR 0039).
+const MAX_JXL_PIXELS: u64 = 7_000_000;
 
 /// The most pixels a side of the image a thumbhash is taken from may have, `thumbhash`'s limit.
 const THUMBHASH_SIDE: u32 = 100;
@@ -77,21 +87,48 @@ impl ResizeThread {
     }
 }
 
+/// A format copies are made in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Format {
+    Jpeg,
+    Jxl,
+}
+
+impl Format {
+    /// The content type copies in this format are sent as.
+    pub(super) const fn content_type(self) -> &'static str {
+        match self {
+            Self::Jpeg => "image/jpeg",
+            Self::Jxl => "image/jxl",
+        }
+    }
+
+    /// The file name of the copy `width` pixels wide in this format, in its image's folder of
+    /// copies. The format is part of it, so each format of a width is a copy of its own.
+    pub(super) fn file_name(self, width: u32) -> String {
+        match self {
+            Self::Jpeg => format!("{width}.jpg"),
+            Self::Jxl => format!("{width}.jxl"),
+        }
+    }
+}
+
 /// What [`make_copy`] did.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum Copied {
-    /// It was there already.
-    Found,
-    /// It was made now, and the original's thumbhash taken on the way.
-    Made { thumbhash: Vec<u8> },
+    /// It was there already, in this format.
+    Found(Format),
+    /// It was made now in this format, and the original's thumbhash taken on the way.
+    Made { format: Format, thumbhash: Vec<u8> },
     /// None is made: the original is to be sent as it is.
     Unneeded,
 }
 
-/// Writes `original` resized to `width`, its shape kept, as a JPEG at `copy`, unless a copy is
-/// there already. Makes none where the original is to be sent as it is: it isn't a format the
-/// Server reads (such as SVG), has transparency, is over [`MAX_PIXELS`] or [`MAX_BITMAP_BYTES`],
-/// or is no wider than `width`.
+/// Writes `original` resized to `width`, its shape kept, in `copies` as the format `asked`,
+/// unless a copy is there already. A JPEG XL over [`MAX_JXL_PIXELS`] is made as a JPEG instead.
+/// Makes none where the original is to be sent as it is: it isn't a format the Server reads (such
+/// as SVG), is over [`MAX_PIXELS`] or [`MAX_BITMAP_BYTES`], is no wider than `width`, or has
+/// transparency and would be a JPEG, which has none.
 ///
 /// # Errors
 ///
@@ -99,12 +136,13 @@ pub(super) enum Copied {
 /// can't be written.
 pub(super) fn make_copy(
     original: &Path,
-    copy: &Path,
+    copies: &Path,
     width: u32,
+    asked: Format,
 ) -> Result<Copied, Box<dyn Error + Send + Sync>> {
     // A request that waited behind the one that made it finds it here.
-    if copy.try_exists()? {
-        return Ok(Copied::Found);
+    if copies.join(asked.file_name(width)).try_exists()? {
+        return Ok(Copied::Found(asked));
     }
     // Read from the file, not a copy in memory: the JPEG decoder buffers the whole input itself.
     let reader = ImageReader::open(original)?.with_guessed_format()?;
@@ -124,37 +162,93 @@ pub(super) fn make_copy(
     let pixels = u64::from(stored_width) * u64::from(stored_height);
     let color = decoder.color_type();
     let bitmap_bytes = pixels * u64::from(color.bytes_per_pixel());
-    if pixels > MAX_PIXELS
-        || bitmap_bytes > MAX_BITMAP_BYTES
-        || color.has_alpha()
-        || width >= shown_width
-    {
+    if pixels > MAX_PIXELS || bitmap_bytes > MAX_BITMAP_BYTES || width >= shown_width {
         return Ok(Copied::Unneeded);
+    }
+    let height = u64::from(shown_height) * u64::from(width) / u64::from(shown_width);
+    let height = u32::try_from(height)?.max(1);
+    let over_jxl_limit = u64::from(width) * u64::from(height) > MAX_JXL_PIXELS;
+    let format = if over_jxl_limit { Format::Jpeg } else { asked };
+    if format == Format::Jpeg && color.has_alpha() {
+        return Ok(Copied::Unneeded);
+    }
+    let copy = copies.join(format.file_name(width));
+    // The caller looked for and marked only the format asked for, which isn't this one.
+    // ponytail: so each such request waits for the resize thread to read the original's header;
+    // remember which widths go as JPEG if that queue grows long.
+    if format != asked && copy.try_exists()? {
+        if let Err(err) = touch(&copy) {
+            tracing::warn!("could not mark {} as sent: {err}", copy.display());
+        }
+        return Ok(Copied::Found(format));
     }
     let mut source = DynamicImage::from_decoder(decoder)?;
     source.apply_orientation(orientation);
-    let source = source.into_rgb8();
-    let height = u64::from(shown_height) * u64::from(width) / u64::from(shown_width);
-    let mut resized = RgbImage::new(width, u32::try_from(height)?.max(1));
-    Resizer::new().resize(&source, &mut resized, None)?;
+    let alpha = MulDiv::default();
+    let source = if color.has_alpha() {
+        let mut rgba = DynamicImage::from(source.into_rgba8());
+        // In place: left to `Resizer`, it premultiplies into a copy of the whole source, which
+        // the 128 MiB of ADR 0039 has no room for.
+        alpha.multiply_alpha_inplace(&mut rgba)?;
+        rgba
+    } else {
+        DynamicImage::from(source.into_rgb8())
+    };
+    let mut resized = DynamicImage::new(width, height, source.color());
+    let premultiplied = ResizeOptions::new().use_alpha(false);
+    Resizer::new().resize(&source, &mut resized, &premultiplied)?;
     drop(source);
-    let mut jpeg = Vec::new();
-    JpegEncoder::new_with_quality(&mut jpeg, QUALITY).encode_image(&resized)?;
+    if color.has_alpha() {
+        alpha.divide_alpha_inplace(&mut resized)?;
+    }
+    let encoded = encode(&resized, format)?;
     // Before the copy is written: once it is, the image is never resized again to take one.
     let thumbhash = thumbhash_of(&resized)?;
-    write_now(copy, &jpeg)?;
-    Ok(Copied::Made { thumbhash })
+    write_now(&copy, &encoded)?;
+    Ok(Copied::Made { format, thumbhash })
+}
+
+/// `image`, 8-bit RGB or RGBA, encoded as `format`. Only a JPEG XL keeps its alpha.
+fn encode(image: &DynamicImage, format: Format) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    let (width, height) = (
+        usize::try_from(image.width())?,
+        usize::try_from(image.height())?,
+    );
+    Ok(match (format, image) {
+        (Format::Jpeg, _) => {
+            let mut jpeg = Vec::new();
+            image.write_with_encoder(JpegEncoder::new_with_quality(&mut jpeg, QUALITY))?;
+            jpeg
+        }
+        (Format::Jxl, DynamicImage::ImageRgba8(rgba)) => {
+            jixel::encode_image_with_alpha(rgba.as_raw(), width, height, &jxl_config())?
+        }
+        (Format::Jxl, _) => jixel::encode_image(image.as_bytes(), width, height, &jxl_config())?,
+    })
+}
+
+/// How every JPEG XL copy is encoded (ADR 0039). Progressive DC lets Chrome and Firefox paint a
+/// blur of an opaque one from its first kilobyte.
+fn jxl_config() -> EncodeConfig {
+    EncodeConfig::default()
+        .with_speed(JXL_SPEED)
+        .with_distance(JXL_DISTANCE)
+        // Its default codes alpha lossily, which took over three times as long.
+        .with_alpha_distance(0.0)
+        .with_progressive_dc(true)
+        // Its default is a thread per core, and ADR 0039 allows one resize thread.
+        .with_num_threads(1)
 }
 
 /// The thumbhash of `image`, shrunk first to the size `thumbhash` takes, so the original is never
 /// decoded for it alone.
-fn thumbhash_of(image: &RgbImage) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
-    let (width, height) = image.dimensions();
+fn thumbhash_of(image: &DynamicImage) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>> {
+    let (width, height) = (image.width(), image.height());
     let longest = width.max(height);
     let fit = |side: u32| (side * THUMBHASH_SIDE / longest).max(1);
-    let mut small = RgbImage::new(fit(width), fit(height));
+    let mut small = DynamicImage::new(fit(width), fit(height), image.color());
     Resizer::new().resize(image, &mut small, None)?;
-    let small = DynamicImage::from(small).into_rgba8();
+    let small = small.into_rgba8();
     Ok(thumbhash::rgba_to_thumb_hash(
         usize::try_from(small.width())?,
         usize::try_from(small.height())?,
