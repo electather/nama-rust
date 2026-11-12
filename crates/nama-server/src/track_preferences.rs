@@ -1,9 +1,10 @@
 //! Track Preferences: what a User wants a kind of Track to start as when they play something (ADR
-//! 0035). So far only the Subtitle and Audio Preferences a User's pick keeps for a Show or Movie.
+//! 0035). So far the Subtitle and Audio Preferences a User's pick keeps for a Show or Movie, and the
+//! User's own Subtitle Preference, set in Settings.
 //!
 //! [`TrackPreferences`] alone reads and writes `track_preferences` (`AGENTS.md`, "Data"). It keeps
-//! them against a Show's or Movie's external id, as Watch State is kept (ADR 0013), so an
-//! Unmatched Item keeps none.
+//! a pick's against a Show's or Movie's external id, as Watch State is kept (ADR 0013), so an
+//! Unmatched Item keeps none, and the User's own at the `user` scope.
 
 use std::sync::Arc;
 
@@ -56,11 +57,39 @@ impl Description {
     }
 }
 
-/// The Show or Movie a Preference is kept for: its scope and external id, the key after the User.
+/// The Subtitle Preference a plan starts with, and whose it is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Preferred {
+    pub(crate) preference: SubtitlePreference,
+    /// The User's own, set without a title, rather than the Show's or Movie's.
+    pub(crate) users_own: bool,
+}
+
+/// What a Preference is kept for: a Show or Movie, by its scope and external id, or everything the
+/// User plays. The key after the User.
 #[derive(Debug)]
 pub(crate) struct KeptFor {
     scope: &'static str,
     title_id: String,
+}
+
+impl KeptFor {
+    /// Everything the User plays: their own Preference, set in Settings.
+    pub(crate) const USERS_OWN: Self = Self {
+        scope: USER,
+        title_id: String::new(),
+    };
+}
+
+// The scope of a User's own Preference, kept with an empty `title_id`.
+const USER: &str = "user";
+
+/// A `track_preferences` row: whether it is off, what describes the Track it wants, and whether
+/// it is the User's own.
+struct Row {
+    off: bool,
+    description: Description,
+    users_own: bool,
 }
 
 /// Why what a Version is of couldn't be found.
@@ -111,21 +140,28 @@ impl TrackPreferences {
         self.keep(user, kept_for, AUDIO, Some(description)).await
     }
 
-    /// The User `user`'s Subtitle Preference for the Show or Movie the Version `version` is of,
-    /// `None` if they have none, or it's of nothing that keeps one.
+    /// The Subtitle Preference a plan of the Version `version` starts with for the User `user`:
+    /// the one kept for the Show or Movie it is of, which wins even when no Track matches it, or
+    /// else their own. `None` if they have neither.
     pub(crate) async fn subtitle(
         &self,
         user: i64,
         version: i64,
-    ) -> Result<Option<SubtitlePreference>, sqlx::Error> {
-        let kept = self.kept(user, version, SUBTITLE).await?;
-        Ok(kept.map(|(off, description)| {
-            if off {
-                SubtitlePreference::Off
-            } else {
-                SubtitlePreference::Like(description)
-            }
+    ) -> Result<Option<Preferred>, sqlx::Error> {
+        let row = self.kept(user, version, SUBTITLE).await?;
+        Ok(row.map(|row| Preferred {
+            preference: subtitle_preference(row.off, row.description),
+            users_own: row.users_own,
         }))
+    }
+
+    /// The User `user`'s own Subtitle Preference, set in Settings, `None` if they never set one.
+    pub(crate) async fn users_subtitle(
+        &self,
+        user: i64,
+    ) -> Result<Option<SubtitlePreference>, sqlx::Error> {
+        let row = self.row(user, KeptFor::USERS_OWN, SUBTITLE).await?;
+        Ok(row.map(|row| subtitle_preference(row.off, row.description)))
     }
 
     /// What describes the audio Track the User `user` wants for the Show or Movie the Version
@@ -136,8 +172,9 @@ impl TrackPreferences {
         user: i64,
         version: i64,
     ) -> Result<Option<Description>, sqlx::Error> {
-        let kept = self.kept(user, version, AUDIO).await?;
-        Ok(kept.map(|(_, description)| description))
+        let row = self.kept(user, version, AUDIO).await?;
+        // Whether audio falls back to a User's own Audio Preference is #691's to decide.
+        Ok(row.filter(|row| !row.users_own).map(|row| row.description))
     }
 
     /// Keeps a Track like `like`, or `None` for off, as the User `user`'s `kind` Preference for
@@ -179,39 +216,52 @@ impl TrackPreferences {
             .await
     }
 
-    /// The User `user`'s `kind` Preference for the Show or Movie the Version `version` is of:
-    /// whether it is off, and what describes the Track it wants.
-    async fn kept(
-        &self,
-        user: i64,
-        version: i64,
-        kind: &str,
-    ) -> Result<Option<(bool, Description)>, sqlx::Error> {
-        let KeptFor { scope, title_id } = match self.kept_for(version).await {
-            Ok(Some(kept_for)) => kept_for,
-            Ok(None) | Err(Error::NoSuchVersion) => return Ok(None),
+    /// The User `user`'s `kind` Preference for the Show or Movie the Version `version` is of, or
+    /// else their own.
+    async fn kept(&self, user: i64, version: i64, kind: &str) -> Result<Option<Row>, sqlx::Error> {
+        // ADR 0035: the User's own applies wherever no Show's or Movie's does, an Unmatched
+        // Item's included.
+        let kept_for = match self.kept_for(version).await {
+            Ok(kept_for) => kept_for.unwrap_or(KeptFor::USERS_OWN),
+            Err(Error::NoSuchVersion) => KeptFor::USERS_OWN,
             Err(Error::Database(err)) => return Err(err),
         };
+        self.row(user, kept_for, kind).await
+    }
+
+    /// The User `user`'s `kind` Preference for `kept_for`, or else their own.
+    async fn row(
+        &self,
+        user: i64,
+        KeptFor { scope, title_id }: KeptFor,
+        kind: &str,
+    ) -> Result<Option<Row>, sqlx::Error> {
         let row = sqlx::query!(
-            r#"SELECT off AS "off: bool", language, forced AS "forced: bool", sdh AS "sdh: bool",
-                      title
+            r#"SELECT scope = ? AS "users_own!: bool", off AS "off: bool", language,
+                      forced AS "forced: bool", sdh AS "sdh: bool", title
                FROM track_preferences
-               WHERE user_id = ? AND scope = ? AND title_id = ? AND kind = ?"#,
+               WHERE user_id = ? AND kind = ? AND ((scope = ? AND title_id = ?) OR scope = ?)
+               ORDER BY scope = ?
+               LIMIT 1"#,
+            USER,
             user,
+            kind,
             scope,
             title_id,
-            kind,
+            USER,
+            USER,
         )
         .fetch_optional(self.db.reader())
         .await?;
-        Ok(row.map(|row| {
-            let description = Description {
+        Ok(row.map(|row| Row {
+            off: row.off,
+            description: Description {
                 language: row.language,
                 forced: row.forced,
                 sdh: row.sdh,
                 title: row.title,
-            };
-            (row.off, description)
+            },
+            users_own: row.users_own,
         }))
     }
 
@@ -231,6 +281,26 @@ impl TrackPreferences {
             }),
         })
     }
+}
+
+/// The Subtitle Preference a row that is `off`, or wants a Track like `description`, keeps.
+fn subtitle_preference(off: bool, description: Description) -> SubtitlePreference {
+    if off {
+        SubtitlePreference::Off
+    } else {
+        SubtitlePreference::Like(description)
+    }
+}
+
+/// Whether `code` is an ISO 639-1, 639-2 or 639-3 code of a language, which a User's own
+/// Preference names its language by. ISO 639's codes for no particular language, such as `und`
+/// and `mul`, aren't.
+pub(crate) fn is_language(code: &str) -> bool {
+    const NO_PARTICULAR_LANGUAGE: [&str; 4] = ["mis", "mul", "und", "zxx"];
+    let none = NO_PARTICULAR_LANGUAGE
+        .iter()
+        .any(|no| no.eq_ignore_ascii_case(code));
+    !none && language(code).is_some()
 }
 
 /// Whether the language tags `a` and `b` name the same language, whichever ISO 639 code each
@@ -290,7 +360,17 @@ const BIBLIOGRAPHIC: [(&str, &str); 20] = [
 
 #[cfg(test)]
 mod tests {
-    use super::same_language;
+    use super::{is_language, same_language};
+
+    #[test]
+    fn a_language_is_named_by_any_iso_639_code_of_one_language() {
+        for code in ["en", "eng", "ger", "deu", "DE", "tlh"] {
+            assert!(is_language(code), "{code}");
+        }
+        for code in ["klingon", "und", "mul", "zxx", "mis", "pt-BR", ""] {
+            assert!(!is_language(code), "{code}");
+        }
+    }
 
     #[test]
     fn languages_match_whichever_iso_639_code_names_them() {

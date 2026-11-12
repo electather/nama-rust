@@ -1,11 +1,17 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT off AS \"off: bool\", language, forced AS \"forced: bool\", sdh AS \"sdh: bool\",\n                      title\n               FROM track_preferences\n               WHERE user_id = ? AND scope = ? AND title_id = ? AND kind = ?",
+  "query": "SELECT scope = ? AS \"users_own!: bool\", off AS \"off: bool\", language,\n                      forced AS \"forced: bool\", sdh AS \"sdh: bool\", title\n               FROM track_preferences\n               WHERE user_id = ? AND kind = ? AND ((scope = ? AND title_id = ?) OR scope = ?)\n               ORDER BY scope = ?\n               LIMIT 1",
   "describe": {
     "columns": [
       {
-        "name": "off: bool",
+        "name": "users_own!: bool",
         "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "off: bool",
+        "ordinal": 1,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -16,7 +22,7 @@
       },
       {
         "name": "language",
-        "ordinal": 1,
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +33,7 @@
       },
       {
         "name": "forced: bool",
-        "ordinal": 2,
+        "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -38,7 +44,7 @@
       },
       {
         "name": "sdh: bool",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -49,7 +55,7 @@
       },
       {
         "name": "title",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -60,9 +66,10 @@
       }
     ],
     "parameters": {
-      "Right": 4
+      "Right": 7
     },
     "nullable": [
+      false,
       false,
       true,
       false,
@@ -70,5 +77,5 @@
       true
     ]
   },
-  "hash": "a64a10dcb2929acb15bfefe8daaea486422888b558d99cbf1a1c2da9860d8bfd"
+  "hash": "2b4203a65747b1e603d814562a81eabc8a3e39017007011c626cb067d2ed09de"
 }

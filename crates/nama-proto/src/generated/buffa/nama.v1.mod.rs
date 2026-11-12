@@ -114,6 +114,11 @@ pub mod __buffa {
         reg.register_json_any(super::__MOVIE_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__SHOW_IN_LIBRARY_JSON_ANY);
         reg.register_json_any(super::__EPISODE_IN_LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__GET_TRACK_PREFERENCES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__USERS_SUBTITLE_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__REPORT_TRACK_PICK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__REPORT_TRACK_PICK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__STOP_PLAYBACK_REQUEST_JSON_ANY);
@@ -520,6 +525,26 @@ pub use self::__buffa::view::ShowInLibraryOwnedView;
 pub use self::__buffa::view::EpisodeInLibraryView;
 #[doc(inline)]
 pub use self::__buffa::view::EpisodeInLibraryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetTrackPreferencesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetTrackPreferencesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetTrackPreferencesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetTrackPreferencesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitlePreferenceRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitlePreferenceRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitlePreferenceResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSubtitlePreferenceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersSubtitlePreferenceView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersSubtitlePreferenceOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ReportTrackPickRequestView;
 #[doc(inline)]

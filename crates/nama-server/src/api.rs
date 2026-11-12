@@ -264,6 +264,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC.procedure,        Access::SignedIn),
     (proto::PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC.procedure,        Access::SignedIn),
     (proto::PLAYBACK_SERVICE_REPORT_TRACK_PICK_SPEC.procedure,    Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_GET_TRACK_PREFERENCES_SPEC.procedure, Access::SignedIn),
+    (proto::PLAYBACK_SERVICE_SET_SUBTITLE_PREFERENCE_SPEC.procedure, Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
@@ -550,7 +552,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_QUALITY_NOT_OFFERED
         | R::REFUSAL_REASON_PAGE_TOKEN_INVALID
         | R::REFUSAL_REASON_SHOW_HAS_QUALITY
-        | R::REFUSAL_REASON_GPU_NOT_OFFERED => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_GPU_NOT_OFFERED
+        | R::REFUSAL_REASON_UNKNOWN_LANGUAGE => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD

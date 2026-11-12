@@ -16,10 +16,12 @@ import {
   SubscribeResponseSchema,
 } from "@/gen/nama/v1/event_pb";
 import { LibraryService, type LibrarySchema } from "@/gen/nama/v1/library_pb";
+import { PlaybackService } from "@/gen/nama/v1/playback_pb";
 import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
 import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 
+// oxlint-disable-next-line import/max-dependencies -- the fake Server answers each service a signed-in page calls as it loads
 import { getRouter } from "./router";
 
 // A file's first `findBy…` waits while the app's route chunks load for the first time, which took
@@ -44,6 +46,8 @@ export interface ServerState {
   serverService?: Partial<ServiceImpl<typeof ServerService>>;
   /** How the fake Server answers the rest of `LibraryService`, such as deleting media. */
   libraryService?: Partial<ServiceImpl<typeof LibraryService>>;
+  /** How the fake Server answers `PlaybackService` RPCs, over its default: no Track Preferences. */
+  playbackService?: Partial<ServiceImpl<typeof PlaybackService>>;
 }
 
 /**
@@ -91,6 +95,8 @@ export function fakeServer(
       listLibraries: () => ({ libraries: state.libraries ?? [] }),
       ...state.libraryService,
     });
+    // Settings shows your own Track Preferences. A test's own `PlaybackService` in `more` replaces this.
+    router.service(PlaybackService, { getTrackPreferences: () => ({}), ...state.playbackService });
     // Every signed-in page follows the Server's Events.
     router.service(EventService, { subscribe: () => state.events ?? new ReadableStream() });
     more(router);

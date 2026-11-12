@@ -76,7 +76,7 @@ test("cancelling “Confirm it’s you” leaves the form as it was, without an 
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
   expect(screen.getByLabelText<HTMLInputElement>("New password").value).toBe("battery staple");
-  expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual(["", ""]);
+  expect(screen.getAllByRole("alert").filter((alert) => alert.textContent !== "")).toEqual([]);
   expect(await screen.findByRole("button", { name: "Change password" })).toBeDefined();
   expect(changedTo).toEqual([]);
 });

@@ -26,13 +26,13 @@ use connectrpc::{
 use http::{fetch, fetch_with};
 use nama_proto::nama::v1::{
     AudioCodec, ClearMatchRequest, Container, DeleteLibraryRequest, DeleteUserRequest,
-    DeviceDecoding, EventType, Gpu, HardwareAcceleration, HdrFormat, LibraryKind,
-    LibraryServiceClient, ListEpisodesRequest, PickedTrackKind, PlanPlaybackRequest, Playback,
-    PlaybackEnded, PlaybackLimit, PlaybackMethod, PlaybackPlan, PlaybackReason, PlaybackReasonKind,
-    PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason,
-    ReportTrackPickRequest, ServerServiceClient, SetMatchRequest, StopPlaybackRequest,
-    SubtitleFormat, Track, UpdatePlaybackSettingsRequest, UserServiceClient, Version, VideoCodec,
-    VideoTrack,
+    DeviceDecoding, EventType, GetTrackPreferencesRequest, Gpu, HardwareAcceleration, HdrFormat,
+    LibraryKind, LibraryServiceClient, ListEpisodesRequest, PickedTrackKind, PlanPlaybackRequest,
+    Playback, PlaybackEnded, PlaybackLimit, PlaybackMethod, PlaybackPlan, PlaybackReason,
+    PlaybackReasonKind, PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason,
+    ReportTrackPickRequest, ServerServiceClient, SetMatchRequest, SetSubtitlePreferenceRequest,
+    StopPlaybackRequest, SubtitleFormat, SubtitleKind, Track, UpdatePlaybackSettingsRequest,
+    UserServiceClient, UsersSubtitlePreference, Version, VideoCodec, VideoTrack,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::{fake, fake::script};
@@ -2088,4 +2088,148 @@ async fn picking_no_audio_track_or_one_that_isnt_audio_is_refused() {
         (missing.field.as_str(), not_audio.field.as_str()),
         ("track", "track")
     );
+}
+
+/// Sets the own Subtitle Preference of whoever `as_user` calls as to subtitles in `language` of
+/// `kind`, or off.
+async fn set_own_subtitle(
+    as_user: ClientConfig,
+    language: Option<&str>,
+    kind: SubtitleKind,
+) -> Result<(), ConnectError> {
+    PlaybackServiceClient::new(HttpClient::plaintext(), as_user)
+        .set_subtitle_preference(SetSubtitlePreferenceRequest {
+            subtitle: UsersSubtitlePreference {
+                language: language.map(str::to_owned),
+                kind: kind.into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+/// The own Subtitle Preference of whoever `as_user` calls as, as the Server gives it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn own_subtitle(as_user: ClientConfig) -> (Option<String>, SubtitleKind) {
+    let subtitle = PlaybackServiceClient::new(HttpClient::plaintext(), as_user)
+        .get_track_preferences(GetTrackPreferencesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .subtitle
+        .into_option()
+        .unwrap_or_default();
+    (subtitle.language, subtitle.kind.as_known().unwrap())
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_users_own_subtitle_preference_starts_every_episode_until_the_shows_own_says_otherwise()
+{
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::dark_in_english_and_german(bin.path()).await;
+
+    set_own_subtitle(
+        fx.server.client_config(),
+        Some("de"),
+        SubtitleKind::SUBTITLE_KIND_FULL,
+    )
+    .await
+    .unwrap();
+    let own = fx.plan(second).await.unwrap();
+    fx.pick_subtitle(first, None).await.unwrap();
+    let shows_off = fx.plan(second).await.unwrap();
+
+    assert_eq!(own.starting_subtitle, Some(GERMAN), "`de` matches `ger`");
+    assert_eq!(shows_off.starting_subtitle, None, "the Show's own wins");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_forced_only_own_preference_takes_no_full_subtitle() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, _]) = Fixture::dark_in_english_and_german(bin.path()).await;
+
+    set_own_subtitle(
+        fx.server.client_config(),
+        Some("de"),
+        SubtitleKind::SUBTITLE_KIND_FORCED,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(fx.plan(first).await.unwrap().starting_subtitle, None);
+}
+
+#[tokio::test]
+async fn a_users_own_subtitle_preference_is_theirs_alone_and_starts_off() {
+    let server = TestServer::builder().start().await;
+    let ripley = server.user("Ripley", &[]).await;
+    let off = (None, SubtitleKind::SUBTITLE_KIND_UNSPECIFIED);
+
+    let never_set = own_subtitle(server.client_config()).await;
+    set_own_subtitle(
+        server.client_config(),
+        Some("EN"),
+        SubtitleKind::SUBTITLE_KIND_SDH,
+    )
+    .await
+    .unwrap();
+    let set = own_subtitle(server.client_config()).await;
+    let ripleys = own_subtitle(ripley.client_config()).await;
+    set_own_subtitle(
+        server.client_config(),
+        None,
+        SubtitleKind::SUBTITLE_KIND_UNSPECIFIED,
+    )
+    .await
+    .unwrap();
+    let turned_off = own_subtitle(server.client_config()).await;
+
+    assert_eq!(never_set, off);
+    assert_eq!(
+        set,
+        (Some("en".to_owned()), SubtitleKind::SUBTITLE_KIND_SDH),
+        "kept in lower case"
+    );
+    assert_eq!(ripleys, off);
+    assert_eq!(turned_off, off);
+}
+
+#[tokio::test]
+async fn an_own_subtitle_preference_in_no_iso_639_language_or_of_no_kind_is_refused() {
+    let server = TestServer::builder().start().await;
+
+    let klingon = set_own_subtitle(
+        server.client_config(),
+        Some("klingon"),
+        SubtitleKind::SUBTITLE_KIND_FULL,
+    )
+    .await;
+    let no_kind = set_own_subtitle(
+        server.client_config(),
+        Some("en"),
+        SubtitleKind::SUBTITLE_KIND_UNSPECIFIED,
+    )
+    .await;
+
+    let unknown_language = assert_refused(
+        klingon,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_LANGUAGE,
+    );
+    let unknown_kind = assert_refused(
+        no_kind,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
+    );
+    assert_eq!(unknown_language.field, "subtitle.language");
+    assert_eq!(unknown_kind.field, "subtitle.kind");
+    assert_eq!(own_subtitle(server.client_config()).await.0, None);
 }

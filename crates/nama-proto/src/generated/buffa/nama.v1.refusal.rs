@@ -180,6 +180,9 @@ pub enum RefusalReason {
     /// `failed_precondition`: what a delete names is in a Library folder the Server couldn't write
     /// to when it last scanned the Library, so nothing is deleted. Params: `folder`.
     REFUSAL_REASON_FOLDER_READ_ONLY = 63i32,
+    /// `invalid_argument`: the language named isn't an ISO 639 code. `field` is
+    /// `subtitle.language`. Params: `language`.
+    REFUSAL_REASON_UNKNOWN_LANGUAGE = 64i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -374,6 +377,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_READ_ONLY`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const FolderReadOnly: Self = Self::REFUSAL_REASON_FOLDER_READ_ONLY;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_UNKNOWN_LANGUAGE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const UnknownLanguage: Self = Self::REFUSAL_REASON_UNKNOWN_LANGUAGE;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -601,6 +607,7 @@ impl ::buffa::Enumeration for RefusalReason {
             61i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_GPU_NOT_OFFERED),
             62i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_TRACK_NOT_FOUND),
             63i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_READ_ONLY),
+            64i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_LANGUAGE),
             _ => ::core::option::Option::None,
         }
     }
@@ -727,6 +734,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_GPU_NOT_OFFERED => "REFUSAL_REASON_GPU_NOT_OFFERED",
             Self::REFUSAL_REASON_TRACK_NOT_FOUND => "REFUSAL_REASON_TRACK_NOT_FOUND",
             Self::REFUSAL_REASON_FOLDER_READ_ONLY => "REFUSAL_REASON_FOLDER_READ_ONLY",
+            Self::REFUSAL_REASON_UNKNOWN_LANGUAGE => "REFUSAL_REASON_UNKNOWN_LANGUAGE",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -937,6 +945,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_FOLDER_READ_ONLY" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_READ_ONLY)
             }
+            "REFUSAL_REASON_UNKNOWN_LANGUAGE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_LANGUAGE)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1006,6 +1017,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_GPU_NOT_OFFERED,
             Self::REFUSAL_REASON_TRACK_NOT_FOUND,
             Self::REFUSAL_REASON_FOLDER_READ_ONLY,
+            Self::REFUSAL_REASON_UNKNOWN_LANGUAGE,
         ]
     }
 }

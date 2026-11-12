@@ -3,9 +3,11 @@
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
-    self as proto, PickedTrackKind, PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService,
-    RefusalReason, ReportTrackPickRequest, ReportTrackPickResponse, StopPlaybackRequest,
-    StopPlaybackResponse,
+    self as proto, GetTrackPreferencesRequest, GetTrackPreferencesResponse, PickedTrackKind,
+    PlanPlaybackRequest, PlanPlaybackResponse, PlaybackService, RefusalReason,
+    ReportTrackPickRequest, ReportTrackPickResponse, SetSubtitlePreferenceRequest,
+    SetSubtitlePreferenceResponse, StopPlaybackRequest, StopPlaybackResponse, SubtitleKind,
+    UsersSubtitlePreference,
 };
 
 use crate::{
@@ -17,7 +19,7 @@ use crate::{
     },
     probing::{self, Probing},
     server_settings::PlaybackSettings,
-    track_preferences::{self, Description, SubtitlePreference, TrackPreferences},
+    track_preferences::{self, Description, KeptFor, SubtitlePreference, TrackPreferences},
     tracks::{TrackKind, track_to_proto},
 };
 
@@ -186,6 +188,93 @@ impl PlaybackService for PlaybackServiceHandler {
         stored.map_err(database_failed)?;
         Response::ok(ReportTrackPickResponse::default())
     }
+
+    async fn get_track_preferences(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, GetTrackPreferencesRequest>,
+    ) -> ServiceResult<GetTrackPreferencesResponse> {
+        let user = caller(&ctx)?.user.id;
+        let subtitle = (self.preferences.users_subtitle(user).await).map_err(database_failed)?;
+        Response::ok(GetTrackPreferencesResponse {
+            subtitle: users_subtitle_to_proto(subtitle).into(),
+            ..Default::default()
+        })
+    }
+
+    async fn set_subtitle_preference(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetSubtitlePreferenceRequest>,
+    ) -> ServiceResult<SetSubtitlePreferenceResponse> {
+        let user = caller(&ctx)?.user.id;
+        let wanted = request
+            .to_owned_message()
+            .subtitle
+            .into_option()
+            .unwrap_or_default();
+        let preference = users_subtitle_from_proto(wanted)?;
+        (self.preferences)
+            .keep_subtitle(user, KeptFor::USERS_OWN, preference)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(SetSubtitlePreferenceResponse::default())
+    }
+}
+
+/// The User's own Subtitle Preference `preference`, `None` being one never set, as the API sends
+/// it.
+fn users_subtitle_to_proto(preference: Option<SubtitlePreference>) -> UsersSubtitlePreference {
+    let Some(SubtitlePreference::Like(description)) = preference else {
+        return UsersSubtitlePreference::default();
+    };
+    let kind = match (description.forced, description.sdh) {
+        (true, _) => SubtitleKind::SUBTITLE_KIND_FORCED,
+        (false, true) => SubtitleKind::SUBTITLE_KIND_SDH,
+        (false, false) => SubtitleKind::SUBTITLE_KIND_FULL,
+    };
+    UsersSubtitlePreference {
+        language: description.language,
+        kind: kind.into(),
+        ..Default::default()
+    }
+}
+
+/// The User's own Subtitle Preference `wanted` names, refusing a language that isn't ISO 639 or a
+/// kind this Server doesn't know.
+fn users_subtitle_from_proto(
+    wanted: UsersSubtitlePreference,
+) -> Result<SubtitlePreference, ConnectError> {
+    let Some(language) = wanted.language else {
+        return Ok(SubtitlePreference::Off);
+    };
+    if !track_preferences::is_language(&language) {
+        return Err(refuse(
+            RefusalReason::REFUSAL_REASON_UNKNOWN_LANGUAGE,
+            format!("{language:?} isn't an ISO 639 language code, such as `en` or `eng`"),
+        )
+        .field("subtitle.language")
+        .param("language", &language)
+        .into());
+    }
+    let (forced, sdh) = match wanted.kind {
+        EnumValue::Known(SubtitleKind::SUBTITLE_KIND_FULL) => (false, false),
+        EnumValue::Known(SubtitleKind::SUBTITLE_KIND_SDH) => (false, true),
+        EnumValue::Known(SubtitleKind::SUBTITLE_KIND_FORCED) => (true, false),
+        EnumValue::Known(SubtitleKind::SUBTITLE_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => {
+            return Err(unknown_enum_value(
+                "subtitle.kind",
+                "say which subtitle in that language: full, SDH or forced-only",
+            ));
+        }
+    };
+    Ok(SubtitlePreference::Like(Description {
+        // So a client gets back the code it would have sent itself.
+        language: Some(language.to_ascii_lowercase()),
+        forced,
+        sdh,
+        title: None,
+    }))
 }
 
 /// The Track a `ReportTrackPick` call says the User picked, by its place in the Version's Tracks.
