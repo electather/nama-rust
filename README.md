@@ -38,7 +38,7 @@ Approved Movie Requests go to Radarr through the Radarr Plugin ([`plugins/radarr
 
 ## Custom Images
 
-A User with Manage Libraries can upload their own Poster or Backdrop for a Movie or Show, or their own Poster for a Season, with "Edit images" on its page. The Server keeps them in `custom-images/` in its data directory (`/data/custom-images` in Docker). They exist nowhere else, so back that folder up together with the database, `nama.db`, which records which image is current. The other images in the data directory are downloaded again when they're missing.
+A User with Manage Libraries can upload their own Poster or Backdrop for a Movie or Show, or their own Poster for a Season, with "Edit images" on its page, and a User with Manage Settings their own logo for a Plugin, on its page under Plugins. The Server keeps them in `custom-images/` in its data directory (`/data/custom-images` in Docker). They exist nowhere else, so back that folder up together with the database, `nama.db`, which records which image is current. The other images in the data directory are downloaded or written again when they're missing.
 
 ## Docker
 

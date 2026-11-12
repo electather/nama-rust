@@ -28,12 +28,20 @@ pub const MAX_UPLOAD_BYTES: u64 = 20 * 1024 * 1024;
 /// The most pixels an uploaded image may have: 12 megapixels (ADR 0039).
 pub const MAX_PIXELS: u64 = 12_000_000;
 
+/// The most bytes an SVG may have, a Plugin's logo being the one image that may be one: 64 KiB.
+pub const MAX_SVG_BYTES: usize = 64 * 1024;
+
+/// The content type of an SVG, which [`ImageStore::serve`] sends with headers that keep its
+/// scripts from running.
+pub const SVG: &str = "image/svg+xml";
+
 /// An uploaded image the store kept: see [`ImageStore::receive`].
 #[derive(Debug)]
 pub struct Received {
     /// Taken from its bytes, and the last part of its key.
     pub version: String,
-    /// What it is, told from its bytes: `image/jpeg`, `image/png` or `image/webp`.
+    /// What it is, told from its bytes: `image/jpeg`, `image/png`, `image/webp`, or [`SVG`] where
+    /// one is accepted.
     pub content_type: &'static str,
 }
 
@@ -49,6 +57,9 @@ pub enum UploadError {
     /// Over [`MAX_PIXELS`].
     #[error("the image is over 12 megapixels")]
     TooManyPixels,
+    /// Not a JPEG, PNG or WebP, where an SVG is accepted, and over [`MAX_SVG_BYTES`] for one.
+    #[error("the image isn't a JPEG, PNG or WebP, and is over 64 KiB for an SVG")]
+    SvgTooBig,
     /// The body stopped arriving, such as when the client went away.
     #[error("the upload broke off: {0}")]
     BrokeOff(axum::Error),
@@ -82,14 +93,20 @@ impl ImageStore {
         write_atomically(&self.path(key), bytes).await
     }
 
-    /// Keeps `body`, a JPEG, PNG or WebP of at most [`MAX_UPLOAD_BYTES`] and [`MAX_PIXELS`], in
+    /// Keeps `body`, a JPEG, PNG or WebP of at most [`MAX_UPLOAD_BYTES`] and [`MAX_PIXELS`], or
+    /// if `svg_accepted` an SVG of at most [`MAX_SVG_BYTES`], kept as [`clean_svg`] leaves it, in
     /// `dir` under a version taken from its bytes, writing it as it arrives rather than holding it
     /// whole. A refused or broken-off upload leaves nothing behind.
     ///
     /// # Errors
     ///
     /// If the image is refused, the body breaks off, or the store can't be written.
-    pub async fn receive(&self, dir: &[&str], body: Body) -> Result<Received, UploadError> {
+    pub async fn receive(
+        &self,
+        dir: &[&str],
+        body: Body,
+        svg_accepted: bool,
+    ) -> Result<Received, UploadError> {
         let dir = self.path(dir);
         let partial = {
             let dir = dir.clone();
@@ -103,7 +120,10 @@ impl ImageStore {
         };
         let version = write_hashed(&partial, body).await?;
         tokio::task::spawn_blocking(move || {
-            let content_type = content_type_of(partial.path())?;
+            let content_type = match content_type_of(partial.path()) {
+                Err(UploadError::NotAnImage) if svg_accepted => clean_svg_in(&partial)?,
+                other => other?,
+            };
             // Synced before the rename, or a crash can leave a whole name over an empty file.
             partial.as_file().sync_all()?;
             partial
@@ -161,6 +181,18 @@ impl ImageStore {
             // `ServeFile` guesses by extension, and would send an SVG as an image.
             headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
         }
+        if content_type == SVG {
+            // `sandbox` keeps a script from running when someone opens the SVG in its own tab, and
+            // `attachment` from it showing there at all; cleaning it is the second layer.
+            headers.insert(
+                header::CONTENT_SECURITY_POLICY,
+                HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'; sandbox"),
+            );
+            headers.insert(
+                header::CONTENT_DISPOSITION,
+                HeaderValue::from_static("attachment"),
+            );
+        }
         if status.is_success() || status == StatusCode::NOT_MODIFIED {
             headers.insert(
                 header::CACHE_CONTROL,
@@ -199,7 +231,7 @@ impl ImageStore {
 }
 
 /// Writes `body` to `partial` as it arrives, refusing it past [`MAX_UPLOAD_BYTES`], and returns a
-/// version taken from its bytes: the start of their SHA-256, in URL-safe base64.
+/// version taken from its bytes.
 async fn write_hashed(partial: &NamedTempFile, body: Body) -> Result<String, UploadError> {
     let mut file = tokio::fs::File::from_std(partial.as_file().try_clone()?);
     let mut hash = Sha256::new();
@@ -215,8 +247,17 @@ async fn write_hashed(partial: &NamedTempFile, body: Body) -> Result<String, Upl
         file.write_all(&chunk).await?;
     }
     file.flush().await?;
-    let hash = hash.finalize();
-    Ok(URL_SAFE_NO_PAD.encode(hash.get(..12).unwrap_or_default()))
+    Ok(version_from(&hash.finalize()))
+}
+
+/// A version taken from `bytes`, as [`ImageStore::receive`] takes an upload's.
+pub(crate) fn version_of(bytes: &[u8]) -> String {
+    version_from(&Sha256::digest(bytes))
+}
+
+/// The version of the bytes whose SHA-256 is `hash`: its start, in URL-safe base64.
+fn version_from(hash: &[u8]) -> String {
+    URL_SAFE_NO_PAD.encode(hash.get(..12).unwrap_or_default())
 }
 
 /// The content type of the image at `path`, a JPEG, PNG or WebP of at most [`MAX_PIXELS`], told
@@ -237,6 +278,41 @@ fn content_type_of(path: &Path) -> Result<&'static str, UploadError> {
     }
     Ok(content_type)
 }
+
+/// Replaces the upload in `partial` with itself as [`clean_svg`] leaves it, and returns [`SVG`].
+fn clean_svg_in(partial: &NamedTempFile) -> Result<&'static str, UploadError> {
+    if partial.as_file().metadata()?.len() > MAX_SVG_BYTES as u64 {
+        return Err(UploadError::SvgTooBig);
+    }
+    let svg = std::fs::read(partial.path())?;
+    let cleaned = clean_svg(&svg).map_err(|_not_svg| UploadError::NotAnImage)?;
+    std::fs::write(partial.path(), cleaned)?;
+    Ok(SVG)
+}
+
+/// `svg` as `svg-hush` leaves it: only the elements and attributes on its allowlist, which run
+/// no script and load nothing from elsewhere.
+///
+/// # Errors
+///
+/// If `svg` isn't well-formed XML, or holds no element in the SVG namespace that is kept.
+pub fn clean_svg(svg: &[u8]) -> Result<Vec<u8>, NotSvg> {
+    let mut cleaned = Vec::new();
+    svg_hush::Filter::new()
+        .filter(svg, &mut cleaned)
+        .map_err(|err| {
+            // `FError` says only which side failed; its source says what.
+            let why = std::error::Error::source(&err)
+                .map_or_else(|| err.to_string(), ToString::to_string);
+            NotSvg(why)
+        })?;
+    Ok(cleaned)
+}
+
+/// Why [`clean_svg`] refused a document, in the XML parser's words.
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub struct NotSvg(String);
 
 /// Writes `bytes` to `path` so no reader ever sees a partial file, even if two writes of the
 /// same file race or the machine stops midway.

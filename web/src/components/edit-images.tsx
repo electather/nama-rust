@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { type QueryKey, useQueryClient } from "@tanstack/react-query";
 import { useRouteContext } from "@tanstack/react-router";
 import { cn } from "cn";
 import { type ChangeEvent, useId, useRef, useState } from "react";
@@ -31,12 +31,26 @@ const shapes = {
 /** The most bytes the Server takes for an image: 20 MiB. */
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
-/** Why the Server refused an upload or removal, by its HTTP status. */
-const refusals: Partial<Record<number, string>> = {
-  403: "This needs the Manage Libraries Permission.",
-  413: "That file is over 20 MB. Pick a smaller one.",
-  415: "That isn’t a JPEG, PNG or WebP image.",
-  422: "That image is over 12 megapixels. Pick a smaller one.",
+/** What a kind of image may be, and what to read again once it changes. */
+export interface ImageRules {
+  /** The file types the picker offers. */
+  accept: string;
+  /** Why the Server refused an upload or removal, by its HTTP status. */
+  refusals: Partial<Record<number, string>>;
+  /** The queries that send its URL. */
+  queryKey: QueryKey;
+}
+
+/** A title's Poster or Backdrop, which Browse sends. */
+const titleImages: ImageRules = {
+  accept: "image/jpeg,image/png,image/webp",
+  refusals: {
+    403: "This needs the Manage Libraries Permission.",
+    413: "That file is over 20 MB. Pick a smaller one.",
+    415: "That isn’t a JPEG, PNG or WebP image.",
+    422: "That image is over 12 megapixels. Pick a smaller one.",
+  },
+  queryKey: browseKey,
 };
 
 /** A Movie's Poster and Backdrop, for {@link EditImages}. */
@@ -136,35 +150,53 @@ export function EditImages({ title, images }: { title: string; images: EditableI
   );
 }
 
-/** One image, with Upload and, for a Custom Image, Remove, and why the Server refused either. */
+/** One image, with a way to change it. */
 function ImageChoice({ image }: { image: EditableImage }) {
-  const { upload, change, pending, error } = useChangeImage(image.path);
   return (
     <figure className="flex items-start gap-4">
       <Preview image={image} />
       <div className="min-w-0 flex-1">
         <figcaption className="text-sm font-medium">{image.name}</figcaption>
         {image.custom && <p className="text-sm text-muted-foreground">Custom image</p>}
-        <div className="mt-2 -ms-3 flex flex-wrap">
-          <UploadButton name={image.name} pending={pending} onPicked={upload} />
-          {image.custom && (
-            <Button
-              variant="ghost"
-              aria-label={`Remove custom image: ${image.name}`}
-              disabled={pending}
-              onClick={() => void change({ method: "DELETE" })}
-            >
-              Remove custom image
-            </Button>
-          )}
-        </div>
-        {error !== undefined && (
-          <p role="alert" className="text-sm text-pretty text-destructive">
-            {error}
-          </p>
-        )}
+        <ChangeImage image={image} rules={titleImages} />
       </div>
     </figure>
+  );
+}
+
+/**
+ * Upload and, for a Custom Image, Remove, for the image `image` names, and why the Server refused
+ * either.
+ */
+export function ChangeImage({
+  image,
+  rules,
+}: {
+  image: Pick<EditableImage, "name" | "custom" | "path">;
+  rules: ImageRules;
+}) {
+  const { upload, change, pending, error } = useChangeImage(image.path, rules);
+  return (
+    <>
+      <div className="mt-2 -ms-3 flex flex-wrap">
+        <UploadButton name={image.name} accept={rules.accept} pending={pending} onPicked={upload} />
+        {image.custom && (
+          <Button
+            variant="ghost"
+            aria-label={`Remove custom image: ${image.name}`}
+            disabled={pending}
+            onClick={() => void change({ method: "DELETE" })}
+          >
+            Remove custom image
+          </Button>
+        )}
+      </div>
+      {error !== undefined && (
+        <p role="alert" className="text-sm text-pretty text-destructive">
+          {error}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -179,13 +211,15 @@ function Preview({ image }: { image: EditableImage }) {
   );
 }
 
-/** A button that picks a JPEG, PNG or WebP file to upload as the image `name`. */
+/** A button that picks a file of a type in `accept` to upload as the image `name`. */
 function UploadButton({
   name,
+  accept,
   pending,
   onPicked,
 }: {
   name: string;
+  accept: string;
   pending: boolean;
   onPicked: (file: File) => void;
 }) {
@@ -206,7 +240,7 @@ function UploadButton({
       Upload
       <input
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept={accept}
         aria-label={`Upload a ${name}`}
         disabled={pending}
         onChange={picked}
@@ -220,7 +254,7 @@ function UploadButton({
  * Uploads to or removes the Custom Image at `path` with `change`, then has the page read its images
  * again, and says why the Server refused.
  */
-function useChangeImage(path: string) {
+function useChangeImage(path: string, { refusals, queryKey }: ImageRules) {
   const queryClient = useQueryClient();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
@@ -231,8 +265,8 @@ function useChangeImage(path: string) {
     try {
       const response = await fetch(path, init);
       if (response.ok) {
-        // The page reads its images from Browse, which now sends the new URL.
-        await queryClient.invalidateQueries({ queryKey: browseKey });
+        // The page reads its images from those queries, which now send the new URL.
+        await queryClient.invalidateQueries({ queryKey });
       } else {
         setError(refusals[response.status] ?? "The Server couldn’t change the image. Try again.");
       }

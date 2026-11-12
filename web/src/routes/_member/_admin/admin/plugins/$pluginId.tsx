@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { ExtensionPoints, PluginLogo } from "@/components/plugin-at-a-glance";
+import { ExtensionPoints, LogoChoice, PluginLogo } from "@/components/plugin-at-a-glance";
 import { Page } from "@/components/page";
 import { PluginQualities } from "@/components/plugin-qualities";
 import { PluginSettings } from "@/components/plugin-settings";
@@ -41,6 +41,7 @@ function PluginPage() {
       </div>
       {summary.refusedReason === "" ? (
         <>
+          <LogoChoice summary={summary} />
           <Settings plugin={plugin} />
           <PluginQualities plugin={plugin} />
         </>
