@@ -13,7 +13,7 @@ import {
 } from "@/gen/nama/v1/browse_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
-import { metadataLine, episodeName, timeLeft, titleParam } from "@/lib/browse";
+import { episodeName, metadataLine, timeLeft, titleParam } from "@/lib/browse";
 
 export const Route = createFileRoute("/_member/")({
   loader: ({ context: { queryClient, transport } }) =>
@@ -119,7 +119,7 @@ function episodeCard(libraryId: string, { show, episode }: ContinueWatchingEpiso
         thumbhash: show.backdropThumbhash,
         title: show.title,
         detail: metadataLine(
-          episodeName(episode.seasonNumber, episode.episodeNumber, "card"),
+          episodeName(episode.seasonNumber, episode.episodeNumber, "short"),
           timeLeft(episode.watchState),
         ),
         watchState: episode.watchState,

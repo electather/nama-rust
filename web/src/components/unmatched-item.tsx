@@ -66,7 +66,10 @@ export function UnmatchedRow({
   );
 }
 
-/** What an Item's file name was parsed as, such as "Alien (1979)" or "Severance · Specials, Episode 2". */
+/**
+ * What an Item's file name was parsed as, such as "Alien (1979)", "Severance · Season 1, Episode 2"
+ * or "Severance · Specials, Episode 2".
+ */
 function parsedAs(item: UnmatchedItem) {
   const title = withYear(item.title, item.year);
   if (item.season === undefined || item.episode === undefined) return title;
