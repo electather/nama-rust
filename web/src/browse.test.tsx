@@ -172,7 +172,7 @@ test("a Show's Episodes each say the picture and sound of the Version they play"
   expect(await screen.findByText("Feb 18, 2022 · 1080p · 7.1")).toBeDefined();
 });
 
-/** A fake Server with a Show whose only Season is `seasonNumber`, holding Episode 3, `title`. */
+/** A fake Server with a Show whose only Season is `seasonNumber`, holding Episode 3, `title`, with `stillUrl`. */
 function serverWithEpisode(seasonNumber: number, title: string, stillUrl?: string) {
   return serverToBrowse({
     getShow: () => ({ show: { title: "Severance" }, seasons: [{ number: seasonNumber }] }),
