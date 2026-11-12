@@ -183,6 +183,10 @@ pub enum RefusalReason {
     /// `invalid_argument`: the language named isn't an ISO 639 code. `field` is
     /// `subtitle.language` or `audio.language`. Params: `language`.
     REFUSAL_REASON_UNKNOWN_LANGUAGE = 64i32,
+    /// `invalid_argument`: a Subtitle Preference for forced-only subtitles asks for them only over
+    /// audio in another language, but forced-only Tracks are for audio in their own. `field` is
+    /// `subtitle.foreign_audio_only`.
+    REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL = 65i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -380,6 +384,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNKNOWN_LANGUAGE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const UnknownLanguage: Self = Self::REFUSAL_REASON_UNKNOWN_LANGUAGE;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ForeignAudioOnlyNotFull: Self = Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -608,6 +615,11 @@ impl ::buffa::Enumeration for RefusalReason {
             62i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_TRACK_NOT_FOUND),
             63i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_READ_ONLY),
             64i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_LANGUAGE),
+            65i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -735,6 +747,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_TRACK_NOT_FOUND => "REFUSAL_REASON_TRACK_NOT_FOUND",
             Self::REFUSAL_REASON_FOLDER_READ_ONLY => "REFUSAL_REASON_FOLDER_READ_ONLY",
             Self::REFUSAL_REASON_UNKNOWN_LANGUAGE => "REFUSAL_REASON_UNKNOWN_LANGUAGE",
+            Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL => {
+                "REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -948,6 +963,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_UNKNOWN_LANGUAGE" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_LANGUAGE)
             }
+            "REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1018,6 +1038,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_TRACK_NOT_FOUND,
             Self::REFUSAL_REASON_FOLDER_READ_ONLY,
             Self::REFUSAL_REASON_UNKNOWN_LANGUAGE,
+            Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL,
         ]
     }
 }

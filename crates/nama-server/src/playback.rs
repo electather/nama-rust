@@ -401,7 +401,11 @@ pub(crate) async fn plan(
         Err(probing::Error::Database(err)) => return Err(err.into()),
     };
     let audio = audio_asked(audio, probe.as_ref(), &decoding);
-    let (subtitle, shown_subtitle) = subtitles_asked(subtitle, probe.as_ref(), &decoding);
+    let (subtitle, subtitle_preference) = match subtitle {
+        AskedSubtitle::BurnIn(place) => (Some(place), None),
+        AskedSubtitle::None => (None, None),
+        AskedSubtitle::Preferred(preferred) => (None, preferred),
+    };
     let mut facts = Facts {
         version,
         probe,
@@ -417,7 +421,8 @@ pub(crate) async fn plan(
             Network::Remote(settings.remote_limit)
         },
         subtitle,
-        shown_subtitle,
+        shown_subtitle: None,
+        subtitle_preference,
         hardware_choice: settings.hardware,
         dropped: BTreeSet::new(),
     };
@@ -445,27 +450,48 @@ fn audio_asked(asked: AskedAudio, probe: Option<&Probe>, device: &DeviceDecoding
     }
 }
 
-/// The subtitle Track `asked` asks to burn in and the one it asks the Device to show, each by its
-/// place in `probe`'s Tracks: a Track the Server chose by the User's Subtitle Preference is shown
-/// by the Device if it can, since that is no input to the plan (ADR 0033), and burned in if not.
-fn subtitles_asked(
-    asked: AskedSubtitle,
-    probe: Option<&Probe>,
-    device: &DeviceDecoding,
+/// The subtitle Track the User's Subtitle Preference `preferred` asks to burn in and the one it
+/// asks the Device to show, each by its place in the Version's Tracks, over the audio the plan for
+/// `facts` plays: a Track it matches is shown by the Device if it can, since that is no input to
+/// the plan (ADR 0033), and burned in if not.
+fn preferred_subtitles(
+    facts: &Facts,
+    preferred: &Preferred<SubtitlePreference>,
 ) -> (Option<usize>, Option<usize>) {
-    match asked {
-        AskedSubtitle::BurnIn(place) => (Some(place), None),
-        AskedSubtitle::None | AskedSubtitle::Preferred(None) => (None, None),
-        AskedSubtitle::Preferred(Some(preferred)) => {
-            let Some(probe) = probe else {
-                return (None, None);
-            };
-            let place = preferred_subtitle(&preferred, probe, device);
-            match place.and_then(|place| probe.tracks.get(place)) {
-                Some(track) if shown_as(device, probe, track).is_some() => (None, place),
-                _ => (place, None),
+    let Some(probe) = &facts.probe else {
+        return (None, None);
+    };
+    let audio = played_audio_place(facts).and_then(|place| probe.tracks.get(place));
+    let preferred = over_audio(preferred, audio.and_then(|track| track.language.as_deref()));
+    let place = preferred_subtitle(&preferred, probe, &facts.device);
+    match place.and_then(|place| probe.tracks.get(place)) {
+        Some(track) if shown_as(&facts.device, probe, track).is_some() => (None, place),
+        _ => (place, None),
+    }
+}
+
+/// What `preferred` wants over audio in `audio_language`: if it wants full subtitles only over
+/// audio in another language and the audio is in theirs, that language's forced-only Track
+/// (ADR 0035). Audio with no language, or a tag that isn't ISO 639, is in another.
+fn over_audio(
+    preferred: &Preferred<SubtitlePreference>,
+    audio_language: Option<&str>,
+) -> Preferred<SubtitlePreference> {
+    match &preferred.preference {
+        SubtitlePreference::Like(wanted)
+            if preferred.foreign_audio_only
+                && audio_language.is_some()
+                && same_language(audio_language, wanted.language.as_deref()) =>
+        {
+            Preferred {
+                preference: SubtitlePreference::Like(Description {
+                    forced: true,
+                    ..wanted.clone()
+                }),
+                ..preferred.clone()
             }
         }
+        SubtitlePreference::Off | SubtitlePreference::Like(_) => preferred.clone(),
     }
 }
 
@@ -557,6 +583,9 @@ struct Facts {
     /// The text subtitle Track the Server chose by the User's Subtitle Preference for the Device
     /// to show itself, by its place in the Version's Tracks, if it chose one.
     shown_subtitle: Option<usize>,
+    /// The User's Subtitle Preference the Server chooses `subtitle` or `shown_subtitle` by, which
+    /// [`build`] matches once it knows the audio the plan plays.
+    subtitle_preference: Option<Preferred<SubtitlePreference>>,
     /// What the admin chose for Transcodes to run on.
     hardware_choice: HardwareChoice,
     /// The User's choices the plan doesn't honour, as [`build`] found.
@@ -618,6 +647,10 @@ const CHOICE_STEPS: [(Choice, Step); 4] = [
 /// `facts.dropped` and the steps run again without it, since what the earlier steps see, such as
 /// the audio the Device must decode, may change with it.
 fn build(facts: &mut Facts) -> Plan {
+    // Matched here, not before, since a dropped audio choice changes the audio it's matched over.
+    if let Some(preferred) = &facts.subtitle_preference {
+        (facts.subtitle, facts.shown_subtitle) = preferred_subtitles(facts, preferred);
+    }
     let candidates = candidates(facts);
     let candidates = candidates.as_ref();
     let mut reasons = vec![];
@@ -1903,10 +1936,9 @@ mod tests {
     };
 
     use super::{
-        AskedAudio, AskedSubtitle, Candidates, DeviceDecoding, Facts, Fallback, Method, Network,
-        Offers, PickedLimit, Plan, PlaybackLimit, Playing, Reason, Subtitle, audio_asked, build,
-        default_max_transcodes, narrowed, on_local_network, preferred_subtitle, subtitles_asked,
-        too_busy_to_play,
+        AskedAudio, Candidates, DeviceDecoding, Facts, Fallback, Method, Network, Offers,
+        PickedLimit, Plan, PlaybackLimit, Playing, Reason, Subtitle, audio_asked, build,
+        default_max_transcodes, narrowed, on_local_network, preferred_subtitle, too_busy_to_play,
     };
     use crate::{
         ffmpeg::{
@@ -2027,6 +2059,7 @@ mod tests {
             network: Network::Local,
             subtitle: None,
             shown_subtitle: None,
+            subtitle_preference: None,
             hardware_choice: HardwareChoice::Automatic,
             dropped: BTreeSet::new(),
         }
@@ -3437,6 +3470,7 @@ mod tests {
         Preferred {
             preference: SubtitlePreference::Like(Description::of(track)),
             users_own: false,
+            foreign_audio_only: false,
         }
     }
 
@@ -3448,6 +3482,7 @@ mod tests {
                 ..Description::of(track)
             }),
             users_own: true,
+            foreign_audio_only: false,
         }
     }
 
@@ -3476,6 +3511,7 @@ mod tests {
         let off = Preferred {
             preference: SubtitlePreference::Off,
             users_own: false,
+            foreign_audio_only: false,
         };
         assert_eq!(preferred_among(&off, &tracks, &device), None);
     }
@@ -3577,10 +3613,10 @@ mod tests {
     fn a_preferred_text_subtitle_is_shown_by_the_device_and_the_plan_starts_with_it() {
         let english = subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, None);
         let tracks = vec![video("h264"), audio("aac", true), english.clone()];
-        let mut facts = facts(Some(tracks));
-        let asked = AskedSubtitle::Preferred(Some(like(&english)));
-        (facts.subtitle, facts.shown_subtitle) =
-            subtitles_asked(asked, facts.probe.as_ref(), &facts.device);
+        let mut facts = Facts {
+            subtitle_preference: Some(like(&english)),
+            ..facts(Some(tracks))
+        };
 
         let plan = build(&mut facts);
 
@@ -3592,12 +3628,9 @@ mod tests {
     fn a_preferred_image_subtitle_is_burned_in_or_dropped_as_a_chosen_one_is() {
         let pgs = subtitle_in("hdmv_pgs_subtitle", Some("eng"), NOT_FORCED_OR_SDH, None);
         let tracks = vec![video("h264"), audio("aac", true), pgs.clone()];
-        let preferred = || {
-            let mut facts = facts(Some(tracks.clone()));
-            let asked = AskedSubtitle::Preferred(Some(like(&pgs)));
-            (facts.subtitle, facts.shown_subtitle) =
-                subtitles_asked(asked, facts.probe.as_ref(), &facts.device);
-            facts
+        let preferred = || Facts {
+            subtitle_preference: Some(like(&pgs)),
+            ..facts(Some(tracks.clone()))
         };
 
         let burned_in = build(&mut preferred());
@@ -3618,6 +3651,129 @@ mod tests {
                 Kind::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED
             )
             .decided
+        );
+    }
+
+    const FORCED: (bool, bool) = (true, false);
+
+    /// Full and forced-only English subtitles, at places 3 and 4 after a video and two audio
+    /// Tracks.
+    fn english_subtitles() -> [Track; 2] {
+        [
+            subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, None),
+            subtitle_in("subrip", Some("eng"), FORCED, None),
+        ]
+    }
+
+    /// The User's own Subtitle Preference for full English subtitles only over audio in another
+    /// language.
+    fn english_over_foreign_audio() -> Preferred<SubtitlePreference> {
+        let [full, _] = english_subtitles();
+        Preferred {
+            foreign_audio_only: true,
+            ..users_own_like(&full)
+        }
+    }
+
+    /// The subtitle a plan starts with by `preferred`, of a Version with a video Track, then the
+    /// audio Tracks `audio`, then the subtitle Tracks `subtitles`.
+    fn starting_subtitle(
+        preferred: Preferred<SubtitlePreference>,
+        audio: &[Track],
+        subtitles: &[Track],
+    ) -> Option<usize> {
+        let tracks = [&[video("h264")], audio, subtitles].concat();
+        let mut facts = Facts {
+            subtitle_preference: Some(preferred),
+            ..facts(Some(tracks))
+        };
+        build(&mut facts).starting_subtitle
+    }
+
+    #[test]
+    fn subtitles_wanted_over_foreign_audio_start_full_over_japanese_or_untagged_audio() {
+        let japanese = audio_in("aac", "jpn", None, true);
+        let untagged = audio("aac", true);
+        let undetermined = audio_in("aac", "und", None, true);
+        let not_iso_639 = audio_in("aac", "en-US", None, true);
+        let english = audio_in("aac", "eng", None, false);
+
+        for (case, played) in [
+            ("Japanese", japanese),
+            ("untagged", untagged),
+            ("`und`", undetermined),
+            ("`en-US`", not_iso_639),
+        ] {
+            let audio = [played, english.clone()];
+            assert_eq!(
+                starting_subtitle(english_over_foreign_audio(), &audio, &english_subtitles()),
+                Some(3),
+                "{case}"
+            );
+        }
+    }
+
+    #[test]
+    fn subtitles_wanted_over_foreign_audio_start_forced_or_none_over_audio_in_their_language() {
+        let audio = || {
+            [
+                audio_in("aac", "en", None, true),
+                audio_in("aac", "jpn", None, false),
+            ]
+        };
+        let [full, _] = english_subtitles();
+
+        let forced =
+            starting_subtitle(english_over_foreign_audio(), &audio(), &english_subtitles());
+        let none = starting_subtitle(english_over_foreign_audio(), &audio(), &[full]);
+
+        assert_eq!(forced, Some(4));
+        assert_eq!(none, None);
+    }
+
+    #[test]
+    fn subtitles_wanted_over_foreign_audio_look_at_the_files_own_once_the_plan_drops_the_asked() {
+        let tracks = [
+            vec![
+                video("h264"),
+                audio_in("aac", "eng", None, true),
+                audio_in("aac", "jpn", None, false),
+            ],
+            english_subtitles().to_vec(),
+        ]
+        .concat();
+        let japanese_asked = || Facts {
+            audio: Some(2),
+            subtitle_preference: Some(english_over_foreign_audio()),
+            ..facts(Some(tracks.clone()))
+        };
+
+        let remuxed = build(&mut japanese_asked());
+        let mut no_ffmpeg = japanese_asked();
+        without_ffmpeg(&mut no_ffmpeg);
+        let dropped = build(&mut no_ffmpeg);
+
+        assert_eq!(
+            (remuxed.audio, remuxed.starting_subtitle),
+            (Some(2), Some(3))
+        );
+        assert_eq!(
+            (dropped.audio, dropped.starting_subtitle),
+            (Some(1), Some(4))
+        );
+    }
+
+    #[test]
+    fn a_shows_subtitle_preference_starts_its_subtitles_over_audio_in_their_language() {
+        let [full, _] = english_subtitles();
+        let audio = [
+            audio_in("aac", "eng", None, true),
+            audio_in("aac", "jpn", None, false),
+        ];
+
+        assert_eq!(
+            starting_subtitle(like(&full), &audio, &english_subtitles()),
+            Some(3)
         );
     }
 
@@ -3642,6 +3798,7 @@ mod tests {
         Preferred {
             preference: Description::of(track),
             users_own: false,
+            foreign_audio_only: false,
         }
     }
 
@@ -3730,6 +3887,7 @@ mod tests {
                 ..Description::default()
             },
             users_own: true,
+            foreign_audio_only: false,
         };
         let untitled = audio_in("aac", "eng", None, false);
 

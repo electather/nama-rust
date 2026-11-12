@@ -145,11 +145,13 @@ export function Choices({
   name,
   choices,
   chosen = choices[0]?.[0],
+  onChoose,
 }: {
   legend: string;
   name: string;
   choices: [value: string, label: string][];
   chosen?: string | undefined;
+  onChoose?: (value: string) => void;
 }) {
   return (
     <fieldset className="flex flex-col gap-2">
@@ -161,6 +163,7 @@ export function Choices({
             name={name}
             value={value}
             defaultChecked={value === chosen}
+            onChange={() => onChoose?.(value)}
             className="size-4 accent-foreground"
           />
           {label}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO track_preferences\n                             (user_id, scope, title_id, kind, off, language, forced, sdh, title,\n                              foreign_audio_only)\n                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n                         ON CONFLICT (user_id, scope, title_id, kind) DO UPDATE\n                         SET off = excluded.off, language = excluded.language,\n                             forced = excluded.forced, sdh = excluded.sdh, title = excluded.title,\n                             foreign_audio_only = excluded.foreign_audio_only",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "07edae8aafd6638bf14d95c3462dfb70f19a5f3ef958e50acb0843f50ff6188b"
+}

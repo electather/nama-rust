@@ -215,4 +215,8 @@ enum RefusalReason {
   // `invalid_argument`: the language named isn't an ISO 639 code. `field` is
   // `subtitle.language` or `audio.language`. Params: `language`.
   REFUSAL_REASON_UNKNOWN_LANGUAGE = 64;
+  // `invalid_argument`: a Subtitle Preference for forced-only subtitles asks for them only over
+  // audio in another language, but forced-only Tracks are for audio in their own. `field` is
+  // `subtitle.foreign_audio_only`.
+  REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL = 65;
 }

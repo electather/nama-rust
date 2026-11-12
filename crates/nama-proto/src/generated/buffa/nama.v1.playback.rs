@@ -3037,6 +3037,18 @@ pub struct UsersSubtitlePreference {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub kind: ::buffa::EnumValue<SubtitleKind>,
+    /// Whether full subtitles start only over audio in another language; over audio in `language`, a
+    /// forced-only Track in it starts instead, if there is one. Ignored when `language` is unset, and
+    /// refused with `SUBTITLE_KIND_FORCED`.
+    ///
+    /// Field 3: `foreign_audio_only`
+    #[serde(
+        rename = "foreignAudioOnly",
+        alias = "foreign_audio_only",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub foreign_audio_only: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3046,6 +3058,7 @@ impl ::core::fmt::Debug for UsersSubtitlePreference {
         f.debug_struct("UsersSubtitlePreference")
             .field("language", &self.language)
             .field("kind", &self.kind)
+            .field("foreign_audio_only", &self.foreign_audio_only)
             .finish()
     }
 }
@@ -3097,6 +3110,9 @@ impl ::buffa::Message for UsersSubtitlePreference {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if self.foreign_audio_only {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3115,6 +3131,9 @@ impl ::buffa::Message for UsersSubtitlePreference {
             if val != 0 {
                 ::buffa::types::put_int32_field(2u32, val, buf);
             }
+        }
+        if self.foreign_audio_only {
+            ::buffa::types::put_bool_field(3u32, self.foreign_audio_only, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3148,6 +3167,13 @@ impl ::buffa::Message for UsersSubtitlePreference {
                 )?;
                 self.kind = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.foreign_audio_only = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3158,6 +3184,7 @@ impl ::buffa::Message for UsersSubtitlePreference {
     fn clear(&mut self) {
         self.language = ::core::option::Option::None;
         self.kind = ::buffa::EnumValue::from(0);
+        self.foreign_audio_only = false;
         self.__buffa_unknown_fields.clear();
     }
 }

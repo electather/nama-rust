@@ -2111,14 +2111,22 @@ async fn set_own_subtitle(
     language: Option<&str>,
     kind: SubtitleKind,
 ) -> Result<(), ConnectError> {
+    let subtitle = UsersSubtitlePreference {
+        language: language.map(str::to_owned),
+        kind: kind.into(),
+        ..Default::default()
+    };
+    set_own_subtitle_preference(as_user, subtitle).await
+}
+
+/// Sets the own Subtitle Preference of whoever `as_user` calls as to `subtitle`.
+async fn set_own_subtitle_preference(
+    as_user: ClientConfig,
+    subtitle: UsersSubtitlePreference,
+) -> Result<(), ConnectError> {
     PlaybackServiceClient::new(HttpClient::plaintext(), as_user)
         .set_subtitle_preference(SetSubtitlePreferenceRequest {
-            subtitle: UsersSubtitlePreference {
-                language: language.map(str::to_owned),
-                kind: kind.into(),
-                ..Default::default()
-            }
-            .into(),
+            subtitle: subtitle.into(),
             ..Default::default()
         })
         .await?;
@@ -2131,15 +2139,81 @@ async fn set_own_subtitle(
     reason = "a test helper fails its test by panicking"
 )]
 async fn own_subtitle(as_user: ClientConfig) -> (Option<String>, SubtitleKind) {
-    let subtitle = PlaybackServiceClient::new(HttpClient::plaintext(), as_user)
+    let subtitle = own_subtitle_preference(as_user).await;
+    (subtitle.language, subtitle.kind.as_known().unwrap())
+}
+
+/// The own Subtitle Preference of whoever `as_user` calls as, whole, as the Server gives it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn own_subtitle_preference(as_user: ClientConfig) -> UsersSubtitlePreference {
+    PlaybackServiceClient::new(HttpClient::plaintext(), as_user)
         .get_track_preferences(GetTrackPreferencesRequest::default())
         .await
         .unwrap()
         .into_owned()
         .subtitle
         .into_option()
-        .unwrap_or_default();
-    (subtitle.language, subtitle.kind.as_known().unwrap())
+        .unwrap_or_default()
+}
+
+/// An own Subtitle Preference for subtitles in `language` of `kind`, only over audio in another
+/// language.
+fn over_foreign_audio(language: Option<&str>, kind: SubtitleKind) -> UsersSubtitlePreference {
+    UsersSubtitlePreference {
+        language: language.map(str::to_owned),
+        kind: kind.into(),
+        foreign_audio_only: true,
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn an_own_subtitle_preference_keeps_only_over_foreign_audio_unless_subtitles_are_off() {
+    let server = TestServer::builder().start().await;
+    let set = async |subtitle| {
+        set_own_subtitle_preference(server.client_config(), subtitle)
+            .await
+            .unwrap();
+        own_subtitle_preference(server.client_config()).await
+    };
+
+    let never_set = own_subtitle_preference(server.client_config()).await;
+    let sdh = set(over_foreign_audio(
+        Some("en"),
+        SubtitleKind::SUBTITLE_KIND_SDH,
+    ))
+    .await;
+    let off = set(over_foreign_audio(
+        None,
+        SubtitleKind::SUBTITLE_KIND_UNSPECIFIED,
+    ))
+    .await;
+
+    assert!(!never_set.foreign_audio_only);
+    assert!(sdh.foreign_audio_only);
+    assert_eq!(off, UsersSubtitlePreference::default());
+}
+
+#[tokio::test]
+async fn a_forced_only_own_preference_only_over_foreign_audio_is_refused() {
+    let server = TestServer::builder().start().await;
+
+    let forced = set_own_subtitle_preference(
+        server.client_config(),
+        over_foreign_audio(Some("en"), SubtitleKind::SUBTITLE_KIND_FORCED),
+    )
+    .await;
+
+    let refusal = assert_refused(
+        forced,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL,
+    );
+    assert_eq!(refusal.field, "subtitle.foreign_audio_only");
+    assert_eq!(own_subtitle(server.client_config()).await.0, None);
 }
 
 #[cfg(unix)]
