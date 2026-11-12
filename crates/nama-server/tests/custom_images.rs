@@ -391,3 +391,23 @@ async fn a_custom_image_gets_a_thumbhash_of_its_own_once_resized_and_a_new_one_r
         shape(&second)
     );
 }
+
+#[tokio::test]
+async fn a_custom_image_removed_and_uploaded_again_gets_its_thumbhash_back_once_resized() {
+    let fx = Fixture::alien().await;
+    let jpeg = image(ImageFormat::Jpeg, 1000, 1500);
+    let resize = || async {
+        let (url, _) = fx.alien_poster(fx.library).await;
+        assert_eq!(fx.fetch(&format!("{url}?width=640")).await.status, 200);
+    };
+    fx.upload(&alien_poster(), &jpeg).await;
+    resize().await;
+
+    fx.remove(&alien_poster()).await;
+    // The same bytes, so the same URL as before.
+    fx.upload(&alien_poster(), &jpeg).await;
+    resize().await;
+
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    assert!(movie.poster_thumbhash.is_some());
+}

@@ -323,42 +323,55 @@ impl ImageStore {
             .collect())
     }
 
-    /// Deletes the image at `key`, if one is stored, and its thumbhash.
+    /// Deletes the image at `key`, if one is stored, with its resized copies and thumbhash.
     ///
     /// # Errors
     ///
-    /// If the file is there but can't be deleted, or the thumbhash can't be.
+    /// If the file or its copies are there but can't be deleted, or the thumbhash can't be.
     pub async fn delete(&self, key: &[&str]) -> io::Result<()> {
-        let row = row_key(key);
-        // The thumbhash first: one left behind would outlive its image for good.
+        self.forget_thumbhashes(key).await?;
+        unless_gone(tokio::fs::remove_file(self.path(key)).await)?;
+        self.delete_copies(key).await
+    }
+
+    /// Deletes the folder at `key` and every image in it, if it is there, with their resized
+    /// copies and thumbhashes.
+    ///
+    /// # Errors
+    ///
+    /// If the folder or the copies are there but can't be deleted, or the thumbhashes can't be.
+    pub async fn delete_dir(&self, key: &[&str]) -> io::Result<()> {
+        self.forget_thumbhashes(key).await?;
+        unless_gone(tokio::fs::remove_dir_all(self.path(key)).await)?;
+        self.delete_copies(key).await
+    }
+
+    /// Deletes the thumbhash of the image at `key`, or of every image under it. First, before the
+    /// image: one left behind would outlive its image for good.
+    async fn forget_thumbhashes(&self, key: &[&str]) -> io::Result<()> {
+        let (row, below) = (row_key(key), format!("{}/", row_key(key)));
         let forgotten = self
             .db
             .write(move |tx| {
                 Box::pin(async move {
-                    sqlx::query!("DELETE FROM image_thumbhashes WHERE key = ?", row)
-                        .execute(&mut **tx)
-                        .await
-                        .map(drop)
+                    sqlx::query!(
+                        "DELETE FROM image_thumbhashes WHERE key = ? OR instr(key, ?) = 1",
+                        row,
+                        below,
+                    )
+                    .execute(&mut **tx)
+                    .await
+                    .map(drop)
                 })
             })
             .await;
-        forgotten.map_err(io::Error::other)?;
-        match tokio::fs::remove_file(self.path(key)).await {
-            Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err),
-            _ => Ok(()),
-        }
+        forgotten.map_err(io::Error::other)
     }
 
-    /// Deletes the folder at `key` and every image in it, if it is there.
-    ///
-    /// # Errors
-    ///
-    /// If the folder is there but can't be deleted.
-    pub async fn delete_dir(&self, key: &[&str]) -> io::Result<()> {
-        match tokio::fs::remove_dir_all(self.path(key)).await {
-            Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err),
-            _ => Ok(()),
-        }
+    /// Deletes the resized copies of the image at `key`, or of every image under it. Left, they
+    /// would be found by an image stored at `key` again, which then never gets a thumbhash.
+    async fn delete_copies(&self, key: &[&str]) -> io::Result<()> {
+        unless_gone(tokio::fs::remove_dir_all(self.copies_path(key)).await)
     }
 
     /// The key of every image stored under `dir`, each starting with `dir`.
@@ -377,7 +390,21 @@ impl ImageStore {
 
     /// Where the copy `width` pixels wide of the image at `key` is kept.
     fn copy_path(&self, key: &[&str], width: u32) -> PathBuf {
-        under(self.dir.join(RESIZED_DIR), key).join(format!("{width}.jpg"))
+        self.copies_path(key).join(format!("{width}.jpg"))
+    }
+
+    /// The folder the resized copies of the image at `key`, or of every image under it, are kept
+    /// in.
+    fn copies_path(&self, key: &[&str]) -> PathBuf {
+        under(self.dir.join(RESIZED_DIR), key)
+    }
+}
+
+/// `deleted`, with what was already gone counted as deleted.
+fn unless_gone(deleted: io::Result<()>) -> io::Result<()> {
+    match deleted {
+        Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err),
+        _ => Ok(()),
     }
 }
 

@@ -3589,17 +3589,12 @@ mod tests {
         };
         requests.contents.apply(library, vec![store]).await.unwrap();
         let item = requests.contents.files(library).await.unwrap()[0].items[0].id;
+        let images = ImageStore::new(data.path(), Arc::clone(&requests.db));
         let scanner = Scanner::new(
             Arc::clone(&requests.db),
             requests.plugins.clone(),
-            Artwork::new(
-                ImageStore::new(data.path(), Arc::clone(&requests.db)),
-                requests.plugins.clone(),
-            ),
-            CustomImages::new(
-                Arc::clone(&requests.db),
-                ImageStore::new(data.path(), Arc::clone(&requests.db)),
-            ),
+            Artwork::new(images.clone(), requests.plugins.clone()),
+            CustomImages::new(Arc::clone(&requests.db), images),
             requests.events.clone(),
             None,
             None,

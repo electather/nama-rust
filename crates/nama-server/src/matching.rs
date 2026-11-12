@@ -702,17 +702,12 @@ mod tests {
                 ExtensionPoints::default(),
                 ServerUrl::default(),
             );
+            let images = ImageStore::new(data.path(), Arc::clone(&db));
             let scanner = Scanner::new(
                 Arc::clone(&db),
                 plugins.extension_points(),
-                Artwork::new(
-                    ImageStore::new(data.path(), Arc::clone(&db)),
-                    plugins.extension_points(),
-                ),
-                CustomImages::new(
-                    Arc::clone(&db),
-                    ImageStore::new(data.path(), Arc::clone(&db)),
-                ),
+                Artwork::new(images.clone(), plugins.extension_points()),
+                CustomImages::new(Arc::clone(&db), images),
                 events.clone(),
                 None,
                 None,

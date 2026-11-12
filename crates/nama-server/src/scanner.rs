@@ -856,18 +856,13 @@ mod tests {
                 let subtitles = subtitles::Cache::new(data.path());
                 Probing::new(Arc::clone(&db), Arc::new(ffmpeg), subtitles)
             });
+            let images = ImageStore::new(data.path(), Arc::clone(&db));
             Self {
                 scanner: Scanner::new(
                     Arc::clone(&db),
                     ExtensionPoints::default(),
-                    Artwork::new(
-                        ImageStore::new(data.path(), Arc::clone(&db)),
-                        ExtensionPoints::default(),
-                    ),
-                    CustomImages::new(
-                        Arc::clone(&db),
-                        ImageStore::new(data.path(), Arc::clone(&db)),
-                    ),
+                    Artwork::new(images.clone(), ExtensionPoints::default()),
+                    CustomImages::new(Arc::clone(&db), images),
                     events.clone(),
                     probing.clone(),
                     None,

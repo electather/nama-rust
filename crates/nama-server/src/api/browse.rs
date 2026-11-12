@@ -321,8 +321,8 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
 }
 
 /// A Show as clients see it, without its Seasons, with its images as URLs on this Server and their
-/// thumbhashes, and its Custom Images in `images` in place of the downloaded ones. Without a Poster of its own, it
-/// has its first Season's.
+/// thumbhashes, and its Custom Images in `images` in place of the downloaded ones. Without a
+/// Poster of its own, it has its first Season's.
 fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
     let custom_poster = images.custom.of(&Slot::show(&show.id, Role::Poster));
     let custom_backdrop = images.custom.of(&Slot::show(&show.id, Role::Backdrop));

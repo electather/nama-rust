@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Thumbhash } from "@/components/poster";
+import { Thumbhash } from "@/components/thumbhash";
 import { useSrcSet } from "@/lib/image-sizes";
 
 /**
