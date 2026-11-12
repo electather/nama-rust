@@ -136,14 +136,15 @@ impl ImageStore {
         }
     }
 
-    /// Stores `bytes` as the image at `key`, replacing any there, so no reader ever sees part of
-    /// it.
+    /// Stores `bytes` as the image at `key`, so no reader ever sees part of it, keeping an image
+    /// already stored there (a key names its bytes: see the crate's `AGENTS.md`).
     ///
     /// # Errors
     ///
     /// If the file can't be written.
     pub async fn write(&self, key: &[&str], bytes: &[u8]) -> io::Result<()> {
-        write_atomically(&self.path(key), bytes).await
+        let (path, bytes) = (self.path(key), bytes.to_vec());
+        tokio::task::spawn_blocking(move || write_unless_stored(&path, &bytes)).await?
     }
 
     /// Keeps `body`, a JPEG, PNG or WebP of at most [`MAX_UPLOAD_BYTES`] and [`MAX_PIXELS`], or
@@ -614,6 +615,22 @@ pub(crate) async fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()
 
 /// [`write_atomically`], blocking the thread it runs on.
 fn write_now(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    synced_beside(path, bytes)?.persist(path)?;
+    Ok(())
+}
+
+/// [`ImageStore::write`], blocking the thread it runs on.
+fn write_unless_stored(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    match synced_beside(path, bytes)?.persist_noclobber(path) {
+        Ok(_file) => Ok(()),
+        // Something other than a file at `path`, such as a folder, isn't a stored image.
+        Err(err) if err.error.kind() == io::ErrorKind::AlreadyExists && path.is_file() => Ok(()),
+        Err(err) => Err(err.error),
+    }
+}
+
+/// A temporary file of `bytes` in `path`'s folder, synced to disk, to rename to `path`.
+fn synced_beside(path: &Path, bytes: &[u8]) -> io::Result<NamedTempFile> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
     std::fs::create_dir_all(dir)?;
     // Its name starts with `.`, which `file_name` never gives, so no key names it.
@@ -621,8 +638,7 @@ fn write_now(path: &Path, bytes: &[u8]) -> io::Result<()> {
     partial.write_all(bytes)?;
     // Synced before the rename, or a crash can leave a whole name over an empty file.
     partial.as_file().sync_all()?;
-    partial.persist(path)?;
-    Ok(())
+    Ok(partial)
 }
 
 /// `text` as one safe file name: letters, digits, `-`, `_` and (except first) `.` are kept, and
@@ -726,6 +742,29 @@ mod tests {
             .map(|entry| entry.unwrap().file_name())
             .collect();
         assert_eq!(left, ["%2Fposter.jpg"]);
+    }
+
+    #[tokio::test]
+    async fn writing_a_stored_key_again_keeps_the_first_file_and_its_etag() {
+        let data = tempfile::tempdir().unwrap();
+        let store = store_in(&data).await;
+        let get = || Request::get("/").body(Body::empty()).unwrap();
+        store.write(KEY, b"\xff\xd8first").await.unwrap();
+        let first = store.serve(KEY, "image/jpeg", None, get()).await.unwrap();
+        let etag = first.headers()[header::ETAG].clone();
+
+        store.write(KEY, b"\xff\xd8second!").await.unwrap();
+
+        let mut again = get();
+        again.headers_mut().insert(header::IF_NONE_MATCH, etag);
+        let response = store.serve(KEY, "image/jpeg", None, again).await.unwrap();
+        assert_eq!(response.status(), 304);
+        let folder = data.path().join("artwork/tmdb");
+        assert_eq!(
+            std::fs::read(folder.join("%2Fposter.jpg")).unwrap(),
+            b"\xff\xd8first"
+        );
+        assert_eq!(std::fs::read_dir(folder).unwrap().count(), 1);
     }
 
     #[tokio::test]
