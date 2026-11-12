@@ -1,6 +1,7 @@
 //! The Radarr Installed Plugin, bundled in the Server, against a fake Radarr: its settings check
 //! on the Plugins page, Movie Requests handed to it once Approved, and their download progress.
 
+#[expect(dead_code, reason = "this binary deletes no media")]
 #[path = "support/fake_radarr.rs"]
 mod fake_radarr;
 #[path = "support/refused.rs"]
@@ -15,13 +16,12 @@ use connectrpc::ErrorCode;
 use fake_radarr::{API_KEY as RADARR_KEY, FakeRadarr};
 use nama_plugin_api::fulfiller::Movies;
 use nama_proto::nama::v1::{
-    Download, DownloadStatus, EnablePluginRequest, EventType, Quality, RefusalReason, Request,
-    RequestState, UpdatePluginSettingsRequest, event,
+    Download, DownloadStatus, EventType, Quality, RefusalReason, Request, RequestState, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
 use serde_json::json;
-use servarr::{ServarrFixture, choices, text};
+use servarr::{ServarrFixture, choices};
 use server::{
     SignedIn, Subscription, TestServer,
     fulfiller::quality,
@@ -61,10 +61,6 @@ impl ServarrFixture for Fixture {
     }
 }
 
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 impl Fixture {
     async fn start() -> Self {
         let plugins = Registry::new();
@@ -89,25 +85,7 @@ impl Fixture {
     /// [`Self::with_radarr_enabled`], with the Radarr quality profile `profile` as its setting.
     async fn with_radarr_enabled_at(profile: &str) -> Self {
         let fixture = Self::start().await;
-        let mut settings = fixture.settings(RADARR_KEY);
-        settings.extend([("quality_profile", profile), ("root_folder", "/movies")].map(text));
-        fixture
-            .plugins()
-            .update_plugin_settings(UpdatePluginSettingsRequest {
-                id: "radarr".to_owned(),
-                settings: settings.into_iter().collect(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
-        fixture
-            .plugins()
-            .enable_plugin(EnablePluginRequest {
-                id: "radarr".to_owned(),
-                ..Default::default()
-            })
-            .await
-            .unwrap();
+        fixture.radarr.enable_on(&fixture.server, profile).await;
         fixture
     }
 

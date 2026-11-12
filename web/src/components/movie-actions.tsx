@@ -42,8 +42,12 @@ export function MovieActions({
               ? { target: { case: "movie", value: { libraryId, movieId } } }
               : { target: { case: "versionId", value: versionId } }
           }
-          onDeletedEveryVersion={() =>
-            navigate({ to: "/libraries/$libraryId", params: { libraryId: String(libraryId) } })
+          onDeletedEveryVersion={(notTold) =>
+            navigate({
+              to: "/libraries/$libraryId",
+              params: { libraryId: String(libraryId) },
+              search: notTold.length > 0 ? { deleted: movie.title, notTold } : {},
+            })
           }
         />
       )}

@@ -150,7 +150,8 @@ pub enum ProvidePoint {
     PROVIDE_POINT_UNSPECIFIED = 0i32,
     /// The Fulfiller for Movie Requests. The Plugin's `fulfill` export takes each Request as a
     /// `nama.v1.Request` and returns `Fulfilled`, and its `progress` export takes `ProgressAsked` and
-    /// returns `Progress`.
+    /// returns `Progress`. Its `stop_monitoring` export, which takes `StopMonitoring`, is optional: a
+    /// Plugin without it isn't asked.
     PROVIDE_POINT_MOVIE_FULFILLER = 1i32,
     /// The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER and
     /// an `unfollow` export, which takes a Season Request of a Followed Show that ended as a

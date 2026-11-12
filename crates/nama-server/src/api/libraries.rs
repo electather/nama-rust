@@ -246,6 +246,7 @@ fn deleted_to_proto(deleted: Deleted) -> DeleteMediaResponse {
                 ..Default::default()
             })
             .collect(),
+        fulfillers_not_told: deleted.fulfillers_not_told,
         ..Default::default()
     }
 }

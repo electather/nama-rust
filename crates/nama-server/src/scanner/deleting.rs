@@ -20,6 +20,9 @@ use crate::{
 pub(crate) struct Doomed {
     pub(crate) library: Library,
     pub(crate) title: String,
+    /// The Movie's TMDB id, which the Movies Fulfiller is asked to stop monitoring. `None` for a
+    /// Movie Matched without one, which no Fulfiller knows.
+    pub(crate) tmdb_id: Option<i64>,
     /// Each file once.
     pub(crate) versions: Vec<Version>,
     /// The Episodes the title isn't, that a file of `versions` holds too.
@@ -51,6 +54,8 @@ pub(crate) struct Deleted {
     pub(crate) failed: Vec<(PathBuf, io::Error)>,
     /// The Versions whose own files went.
     pub(crate) versions: Vec<i64>,
+    /// The name of each Fulfiller that couldn't be told to stop monitoring the title.
+    pub(crate) fulfillers_not_told: Vec<String>,
     /// How many Playback Plans play the Versions, as a preview finds them.
     pub(crate) playing: usize,
 }
@@ -248,6 +253,7 @@ mod tests {
                     folders: vec![self.path("")],
                 },
                 title: "Title".to_owned(),
+                tmdb_id: None,
                 versions: versions.collect(),
                 taken_along: Vec::new(),
             }

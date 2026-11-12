@@ -36,7 +36,7 @@ use nama_proto::{
         plugin::v1::{
             self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled,
             ConnectionStart, Delivered, Delivery, Fulfilled, ObservePoint, ObservedEvents,
-            Progress, ProgressAsked, ProvidePoint,
+            Progress, ProgressAsked, ProvidePoint, StopMonitoring,
         },
         v1::{Event, PluginKind, Request},
     },
@@ -64,6 +64,8 @@ const CHECK_SETTINGS: &str = "check_settings";
 
 const FULFILL: &str = "fulfill";
 const UNFOLLOW: &str = "unfollow";
+/// A Fulfiller's optional export: a Plugin built before it isn't asked.
+const STOP_MONITORING: &str = "stop_monitoring";
 const PROGRESS: &str = "progress";
 const DELIVER: &str = "deliver";
 const START_CONNECTION: &str = "start_connection";
@@ -197,6 +199,8 @@ struct Installed {
     cache_config: Arc<Path>,
     /// Whether it exports [`CHECK_SETTINGS`].
     checks_settings: bool,
+    /// Whether it exports [`STOP_MONITORING`].
+    stops_monitoring: bool,
 }
 
 /// An enabled Installed Plugin, compiled once with its allowed hosts and settings. Each call into
@@ -210,6 +214,8 @@ struct Running {
     /// How many calls in a row crashed, counted apart for its Observer, its Fulfiller, its
     /// Notifier and its Connector.
     crashes: Arc<AtomicU32>,
+    /// Whether it exports [`STOP_MONITORING`].
+    stops_monitoring: bool,
 }
 
 impl Running {
@@ -339,6 +345,7 @@ impl Plugin for Installed {
             compiled: Arc::new(compiled),
             secrets: secret_values(schema, settings).into(),
             crashes: Arc::default(),
+            stops_monitoring: self.stops_monitoring,
         };
         // The Kernel refuses a Plugin registering at a point its Manifest doesn't name, so read
         // them from the same list the Kernel checks.
@@ -422,6 +429,17 @@ impl<Kind: 'static> Fulfiller<Kind> for Running {
     fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
         let input = request.encode_to_vec();
         Box::pin(async move { self.provide(UNFOLLOW, input).await.map(drop) })
+    }
+
+    fn stop_monitoring<'a>(
+        &'a self,
+        title: &'a StopMonitoring,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        if !self.stops_monitoring {
+            return Box::pin(async { Ok(()) });
+        }
+        let input = title.encode_to_vec();
+        Box::pin(async move { self.provide(STOP_MONITORING, input).await.map(drop) })
     }
 
     fn progress<'a>(
@@ -796,7 +814,7 @@ fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
             .map_err(Refused::Manifest)?;
         let known_exports = POINTS.iter().flat_map(|point| point.exports);
         let exported = known_exports
-            .chain([&CHECK_SETTINGS])
+            .chain([&CHECK_SETTINGS, &STOP_MONITORING])
             .filter(|export| plugin.function_exists(export))
             .copied()
             .collect();
@@ -810,6 +828,7 @@ fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
         wasm: wasm.into(),
         cache_config: cache_config.into(),
         checks_settings: exported.contains(&CHECK_SETTINGS),
+        stops_monitoring: exported.contains(&STOP_MONITORING),
     })
 }
 
@@ -989,6 +1008,7 @@ mod tests {
 
     use nama_plugin_api::{
         PluginId, PointKey,
+        fulfiller::{Fulfiller, Movies, StopMonitoring, stop_monitoring::Title},
         notifier::Notifier,
         settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
     };
@@ -1001,8 +1021,8 @@ mod tests {
     };
 
     use super::{
-        BUNDLED, allowed_hosts, check_allowed_hosts, check_exports, decode, extism_config,
-        is_crash, judge, load, points, settings_schema, write_cache_config,
+        BUNDLED, Running, allowed_hosts, check_allowed_hosts, check_exports, compile, decode,
+        extism_config, is_crash, judge, load, points, settings_schema, write_cache_config,
     };
 
     // The errors as Extism 1.41 gives them for the test Plugin's Observer.
@@ -1456,6 +1476,49 @@ mod tests {
         let refused = refused_for_lacking(ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER, "unfollow");
 
         assert_eq!(refused, None);
+    }
+
+    #[test]
+    fn a_fulfiller_needs_no_stop_monitoring_export() {
+        let refused = [
+            ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER,
+            ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER,
+        ]
+        .map(|named| refused_for_lacking(named, "stop_monitoring"));
+
+        assert_eq!(refused, [None, None]);
+    }
+
+    #[tokio::test]
+    async fn a_fulfiller_without_the_stop_monitoring_export_isnt_asked() {
+        let data_dir = tempfile::tempdir().unwrap();
+        let cache_config = write_cache_config(data_dir.path()).unwrap();
+        let (_, wasm) = BUNDLED
+            .iter()
+            .find(|(file, _)| *file == "radarr.wasm")
+            .unwrap();
+        let radarr = load(wasm.to_vec(), &cache_config).unwrap();
+        // Without its settings Radarr fails when asked, so only one not asked succeeds.
+        let running_with = |stops_monitoring| Running {
+            package: Arc::clone(&radarr.package),
+            compiled: Arc::new(compile(wasm, &cache_config, Vec::new(), Vec::new()).unwrap()),
+            secrets: Arc::default(),
+            crashes: Arc::default(),
+            stops_monitoring,
+        };
+        let alien = StopMonitoring {
+            title: Some(Title::MovieTmdbId(348)),
+            ..Default::default()
+        };
+        let stop = async |running: Running| {
+            Fulfiller::<Movies>::stop_monitoring(&running, &alien)
+                .await
+                .is_ok()
+        };
+
+        assert!(radarr.stops_monitoring);
+        assert!(!stop(running_with(true)).await);
+        assert!(stop(running_with(false)).await);
     }
 
     #[test]

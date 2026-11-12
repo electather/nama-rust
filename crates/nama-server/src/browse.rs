@@ -263,6 +263,7 @@ impl Browse {
             let movie = titles.movie(&id)?;
             return Ok(Doomed {
                 library,
+                tmdb_id: tmdb_id_of(&movie.id),
                 title: movie.title,
                 versions: movie.versions,
                 taken_along: Vec::new(),
@@ -278,14 +279,15 @@ impl Browse {
         let Titles::Movies(movies) = self.titles(&library).await? else {
             return Err(Error::NoSuchVersion);
         };
-        let (title, version) = (movies.into_iter())
+        let (title, tmdb_id, version) = (movies.into_iter())
             .find_map(|movie| {
                 let version = movie.versions.into_iter().find(|v| v.file.id == version)?;
-                Some((movie.title, version))
+                Some((movie.title, tmdb_id_of(&movie.id), version))
             })
             .ok_or(Error::NoSuchVersion)?;
         Ok(Doomed {
             library,
+            tmdb_id,
             title,
             versions: vec![version],
             taken_along: Vec::new(),
@@ -438,6 +440,7 @@ fn doomed_episodes(
         .collect();
     Ok(Doomed {
         library,
+        tmdb_id: None,
         title,
         versions,
         taken_along,
@@ -544,6 +547,13 @@ fn started_episodes(
         }
     }
     started
+}
+
+const fn tmdb_id_of(id: &ExternalId) -> Option<i64> {
+    match id {
+        ExternalId::Tmdb(tmdb) => Some(*tmdb),
+        ExternalId::Imdb(_) | ExternalId::Tvdb(_) => None,
+    }
 }
 
 /// What [`Libraries::get`] or [`Libraries::list`] failing means to Browse.

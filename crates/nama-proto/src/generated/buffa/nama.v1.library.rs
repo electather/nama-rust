@@ -2517,6 +2517,17 @@ pub struct DeleteMediaResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub not_deleted: ::buffa::alloc::vec::Vec<FileNotDeleted>,
+    /// The name of each Fulfiller that couldn't be told to stop monitoring what was deleted, so its
+    /// service may download it again. The Server doesn't try it again.
+    ///
+    /// Field 4: `fulfillers_not_told`
+    #[serde(
+        rename = "fulfillersNotTold",
+        alias = "fulfillers_not_told",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub fulfillers_not_told: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2527,6 +2538,7 @@ impl ::core::fmt::Debug for DeleteMediaResponse {
             .field("deleted", &self.deleted)
             .field("bytes_freed", &self.bytes_freed)
             .field("not_deleted", &self.not_deleted)
+            .field("fulfillers_not_told", &self.fulfillers_not_told)
             .finish()
     }
 }
@@ -2576,6 +2588,9 @@ impl ::buffa::Message for DeleteMediaResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.fulfillers_not_told {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2604,6 +2619,9 @@ impl ::buffa::Message for DeleteMediaResponse {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        for v in &self.fulfillers_not_told {
+            ::buffa::types::put_string_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2649,6 +2667,17 @@ impl ::buffa::Message for DeleteMediaResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.not_deleted.push(elem);
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.fulfillers_not_told.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2660,6 +2689,7 @@ impl ::buffa::Message for DeleteMediaResponse {
         self.deleted.clear();
         self.bytes_freed = 0u64;
         self.not_deleted.clear();
+        self.fulfillers_not_told.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

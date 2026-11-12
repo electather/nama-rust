@@ -1,9 +1,13 @@
 //! Deleting media through `LibraryService.PreviewDeleteMedia` and `DeleteMedia`, over a real
-//! socket, against Libraries over temporary folders with real files and TMDB on against a fake.
+//! socket, against Libraries over temporary folders with real files and TMDB on against a fake,
+//! and the Radarr Plugin, bundled in the Server, against a fake Radarr.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
 mod browsing;
+#[expect(dead_code, reason = "this binary only deletes")]
+#[path = "support/fake_radarr.rs"]
+mod fake_radarr;
 #[expect(dead_code, reason = "this binary reads only the status")]
 #[path = "support/http.rs"]
 mod http;
@@ -21,6 +25,7 @@ use std::path::Path;
 
 use browsing::{ALIEN_1080P, ALIEN_2160P, Fixture, tmdb_id};
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use fake_radarr::{Changed, FakeRadarr};
 use http::fetch;
 use log::Log;
 use nama_proto::nama::v1::{
@@ -34,8 +39,11 @@ use nama_proto::nama::v1::{
 #[cfg(unix)]
 use nama_server::ffmpeg::{Ffmpeg, fake::script};
 use refused::assert_refused;
+use serde_json::json;
 use server::{
-    TestServer, subscribe, subscribe_with,
+    Builder, TestServer,
+    fulfiller::MOVIE_FULFILLER,
+    subscribe, subscribe_with,
     tmdb::{ALIEN, DARK, DUNE},
 };
 
@@ -46,6 +54,8 @@ const ALIEN_FOLDER_ART: &str = "Alien (1979)/folder.jpg";
 /// Straight in the Library's folder, with nothing else of its own.
 const DUNE_VIDEO: &str = "Dune (2021).mkv";
 const DUNE_NFO: &str = "Dune (2021).nfo";
+/// One of the fake Radarr's quality profiles, which a delete never reads.
+const ANY_PROFILE: &str = "1";
 
 /// Dark in two folders. The first file holds Secrets and Lies, Season 1's first two Episodes, and
 /// the second is Secrets again.
@@ -125,7 +135,12 @@ impl Fixture {
     /// A Movies Library holding Alien in two Versions and Dune, with their sidecars, scanned and
     /// Matched.
     async fn alien_and_dune() -> Self {
-        let fx = Self::start_on(LibraryKind::LIBRARY_KIND_MOVIES, TestServer::builder()).await;
+        Self::alien_and_dune_on(TestServer::builder()).await
+    }
+
+    /// [`Self::alien_and_dune`] on a Server `builder` starts.
+    async fn alien_and_dune_on(builder: Builder) -> Self {
+        let fx = Self::start_on(LibraryKind::LIBRARY_KIND_MOVIES, builder).await;
         fx.write(ALIEN_1080P, b"1080p video");
         fx.write(ALIEN_2160P, b"2160p video, which is larger");
         fx.write(ALIEN_1080P_SUBTITLES, b"subtitles");
@@ -402,6 +417,100 @@ async fn a_file_that_cant_be_deleted_is_reported_with_why_while_the_rest_go() {
     // Its sidecar stays with it.
     assert!(fx.exists(ALIEN_2160P_POSTER));
     assert_eq!(fx.version_ids(ALIEN).await.len(), 1);
+}
+
+#[tokio::test]
+async fn deleting_a_movie_or_one_of_its_versions_has_the_movie_fulfiller_stop_monitoring_it() {
+    let fx = Fixture::alien_and_dune_on(TestServer::builder().fulfiller(&[])).await;
+    let first = fx.version_ids(ALIEN).await[0];
+
+    let one_version = fx.delete(version(first)).await.unwrap();
+    let every_version = fx.delete(movie(fx.library, DUNE)).await.unwrap();
+
+    assert_eq!(fx.server.fulfiller().stopped_monitoring(), [ALIEN, DUNE]);
+    assert_eq!(one_version.fulfillers_not_told, [""; 0]);
+    assert_eq!(every_version.fulfillers_not_told, [""; 0]);
+}
+
+#[tokio::test]
+async fn a_fulfiller_that_cant_be_told_is_named_and_the_delete_still_happens() {
+    let fx = Fixture::alien_and_dune_on(TestServer::builder().fulfiller(&[])).await;
+    fx.server.fulfiller().refuse();
+
+    let deleted = fx.delete(movie(fx.library, DUNE)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, [MOVIE_FULFILLER]);
+    assert!(!fx.exists(DUNE_VIDEO));
+    assert_eq!(fx.titles().await, ["Alien"]);
+}
+
+/// What the fake Radarr is asked when told to unmonitor Alien, which it has as its Movie 2, while
+/// the file it watches is `still_there` or not.
+fn unmonitored_alien(still_there: bool) -> Changed {
+    Changed {
+        request: "PUT /api/v3/movie/editor".to_owned(),
+        body: json!({ "movieIds": [2], "monitored": false }),
+        watched_was_there: still_there,
+    }
+}
+
+#[tokio::test]
+async fn a_fulfiller_that_panics_when_asked_is_named_and_the_delete_still_happens() {
+    let fx = Fixture::alien_and_dune_on(TestServer::builder().fulfiller(&[])).await;
+    fx.server.fulfiller().panic_stopping_monitoring();
+
+    let deleted = fx.delete(movie(fx.library, DUNE)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, [MOVIE_FULFILLER]);
+    assert!(!fx.exists(DUNE_VIDEO));
+}
+
+#[tokio::test]
+async fn deleting_a_movie_or_one_of_its_versions_has_radarr_unmonitor_it_first_and_keep_it() {
+    let fx = Fixture::alien_and_dune().await;
+    let radarr = FakeRadarr::start(&[ALIEN], &[]).await;
+    radarr.enable_on(&fx.server, ANY_PROFILE).await;
+    let first = fx.version_ids(ALIEN).await[0];
+
+    radarr.watch(fx.folder.join(ALIEN_1080P));
+    let one_version = fx.delete(version(first)).await.unwrap();
+    radarr.watch(fx.folder.join(ALIEN_2160P));
+    let every_version = fx.delete(movie(fx.library, ALIEN)).await.unwrap();
+
+    assert_eq!(
+        radarr.changes(),
+        [unmonitored_alien(true), unmonitored_alien(true)]
+    );
+    assert_eq!(one_version.fulfillers_not_told, [""; 0]);
+    assert_eq!(every_version.fulfillers_not_told, [""; 0]);
+    assert!(!fx.exists(ALIEN_1080P) && !fx.exists(ALIEN_2160P));
+}
+
+#[tokio::test]
+async fn a_movie_radarr_doesnt_have_deletes_with_nothing_reported() {
+    let fx = Fixture::alien_and_dune().await;
+    let radarr = FakeRadarr::start(&[], &[]).await;
+    radarr.enable_on(&fx.server, ANY_PROFILE).await;
+
+    let deleted = fx.delete(movie(fx.library, ALIEN)).await.unwrap();
+
+    assert_eq!(radarr.changes(), []);
+    assert_eq!(deleted.fulfillers_not_told, [""; 0]);
+    assert!(!fx.exists(ALIEN_1080P));
+}
+
+#[tokio::test]
+async fn with_radarr_down_the_delete_goes_ahead_and_names_radarr() {
+    let fx = Fixture::alien_and_dune().await;
+    let mut radarr = FakeRadarr::start(&[ALIEN], &[]).await;
+    radarr.enable_on(&fx.server, ANY_PROFILE).await;
+    radarr.go_down();
+
+    let deleted = fx.delete(movie(fx.library, ALIEN)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, ["Radarr"]);
+    assert!(!fx.exists(ALIEN_1080P) && !fx.exists(ALIEN_2160P));
+    assert_eq!(fx.titles().await, ["Dune"]);
 }
 
 #[tokio::test]

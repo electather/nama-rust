@@ -7,6 +7,7 @@ import { useSensitiveMutation } from "@/components/confirm-its-you";
 import { FormSelect } from "@/components/form-field";
 import type { Version } from "@/gen/nama/v1/browse_pb";
 import {
+  type DeleteMediaResponse,
   type EpisodeTakenAlong,
   type FileNotDeleted,
   LibraryService,
@@ -46,10 +47,13 @@ export function DeleteMedia({
   action?: string;
   /** The button's accessible name, where `action` alone doesn't say what goes, such as "Delete Alien". */
   name?: string;
-  /** Called once every Version went, so the page can leave what's gone. */
-  onDeletedEveryVersion?: () => Promise<unknown>;
+  /**
+   * Called once every Version went, so the page can leave what's gone, with the names of the
+   * Fulfillers that couldn't be told.
+   */
+  onDeletedEveryVersion?: (fulfillersNotTold: string[]) => Promise<unknown>;
 }) {
-  const [notDeleted, setNotDeleted] = useState<FileNotDeleted[]>([]);
+  const [result, setResult] = useState<Outcome>({ notDeleted: [], fulfillersNotTold: [] });
   const remove = useSensitiveMutation(LibraryService.method.deleteMedia);
   return (
     <>
@@ -61,16 +65,17 @@ export function DeleteMedia({
         onConfirm={async (typed) => {
           const chosen = formText(typed, "version") || EVERY_VERSION;
           const deleted = await remove.mutateAsync({ target: targetOf(deletable, chosen) });
-          setNotDeleted(deleted.notDeleted);
+          setResult(deleted);
           if (chosen === EVERY_VERSION && deleted.notDeleted.length === 0) {
-            await onDeletedEveryVersion();
+            await onDeletedEveryVersion(deleted.fulfillersNotTold);
           }
         }}
         refusal={(error) => refusal(error, "delete it", {}).form}
       >
         <WhatGoes {...deletable} />
       </ConfirmDialog>
-      <NotDeleted files={notDeleted} />
+      <NotDeleted files={result.notDeleted} />
+      <MayDownloadAgain title={deletable.title} fulfillers={result.fulfillersNotTold} />
     </>
   );
 }
@@ -186,6 +191,22 @@ function NotDeleted({ files }: { files: FileNotDeleted[] }) {
     </div>
   );
 }
+
+/** Says which Fulfillers couldn't be told a delete of `title` happened, so they may download it again. */
+export function MayDownloadAgain({ title, fulfillers }: { title: string; fulfillers: string[] }) {
+  return (
+    <output className="block basis-full text-sm text-pretty empty:hidden">
+      {fulfillers.length > 0 &&
+        `${names.format(fulfillers)} couldn’t be told about the delete, so ${fulfillers.length === 1 ? "it" : "they"} may download ${title} again.`}
+    </output>
+  );
+}
+
+// "en-GB" for "Radarr and Sonarr", without the serial comma, as the rest of the app writes lists.
+const names = new Intl.ListFormat("en-GB", { type: "conjunction" });
+
+/** What the last delete reports: the files it couldn't delete and the Fulfillers it couldn't tell. */
+type Outcome = Pick<DeleteMediaResponse, "notDeleted" | "fulfillersNotTold">;
 
 /** What deleting `chosen` of `deletable` names: every Version, or the one with that id. */
 function targetOf({ target }: Deletable, chosen: string) {
