@@ -14,7 +14,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    browse::{self, Browse, Target, ToDelete},
+    browse::{Browse, Target, ToDelete},
     contents::Episode,
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     scanner::{self, Deleted, Scanner},
@@ -138,9 +138,9 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, PreviewDeleteMediaRequest>,
     ) -> ServiceResult<PreviewDeleteMediaResponse> {
-        let target = to_delete_from_proto(request.to_owned_message().target.into_option())?;
-        let refused = target_refused(&target);
-        let mut doomed = self.browse.doomed(target).await.map_err(refused)?;
+        let (target, fields) =
+            to_delete_from_proto(request.to_owned_message().target.into_option())?;
+        let mut doomed = self.browse.doomed(target).await.map_err(refused(fields))?;
         let read_only_folder = doomed.read_only_folder().map(str::to_owned);
         let taken_along = std::mem::take(&mut doomed.taken_along);
         let planned = self.scanner.preview_delete(doomed).await;
@@ -161,94 +161,91 @@ impl LibraryService for LibraryServiceHandler {
         request: ServiceRequest<'_, DeleteMediaRequest>,
     ) -> ServiceResult<DeleteMediaResponse> {
         let by = caller(&ctx)?.user.name.clone();
-        let target = to_delete_from_proto(request.to_owned_message().target.into_option())?;
-        let refused = target_refused(&target);
-        let doomed = self.browse.doomed(target).await.map_err(refused)?;
+        let (target, fields) =
+            to_delete_from_proto(request.to_owned_message().target.into_option())?;
+        let doomed = self.browse.doomed(target).await.map_err(refused(fields))?;
         let deleted = self.scanner.delete_media(doomed, by).await;
         Response::ok(deleted_to_proto(deleted.map_err(deleting_failed)?))
     }
 }
 
-fn to_delete_from_proto(target: Option<MediaToDelete>) -> Result<ToDelete, ConnectError> {
+/// What a delete's `target` asks for, and the request's fields naming what it looks up.
+fn to_delete_from_proto(target: Option<MediaToDelete>) -> Result<(ToDelete, Fields), ConnectError> {
     use media_to_delete::Target as T;
-    let title = |library, title| Ok(ToDelete::Title { library, title });
-    match target.and_then(|target| target.target) {
-        Some(T::Movie(movie)) => {
-            let id = movie.movie_id.into_option();
-            let id = required_id(id, "target.movie.movie_id", "Movie")?;
-            title(movie.library_id, Target::Movie(id))
-        }
-        Some(T::VersionId(version)) => Ok(ToDelete::Version(version)),
-        Some(T::Show(show)) => {
-            let id = required_id(show.show_id.into_option(), "target.show.show_id", "Show")?;
-            title(show.library_id, Target::Show(id))
-        }
-        Some(T::Season(season)) => {
-            let show = season.show_id.into_option();
-            let show = required_id(show, "target.season.show_id", "Show")?;
-            let number = i64::from(season.season_number);
-            title(season.library_id, Target::Season { show, number })
-        }
-        Some(T::Episode(episode)) => {
-            let id = episode.episode_id.into_option();
-            let id = required_id(id, "target.episode.episode_id", "Episode")?;
-            match episode.version_id {
-                Some(version) => Ok(ToDelete::EpisodeVersion {
-                    library: episode.library_id,
-                    episode: id,
-                    version,
-                }),
-                None => title(episode.library_id, Target::Episode(id)),
-            }
-        }
-        None => Err(refuse(
+    let title = |library, title| ToDelete::Title { library, title };
+    let Some(target) = target.and_then(|target| target.target) else {
+        return Err(refuse(
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             "say what to delete",
         )
         .field("target")
-        .into()),
-    }
-}
-
-/// What makes the Connect error for a delete's target that Browse didn't find, naming the
-/// target's own fields.
-fn target_refused(target: &ToDelete) -> impl Fn(browse::Error) -> ConnectError + use<> {
-    let fields = match target {
-        ToDelete::Title { title, .. } => match title {
-            Target::Movie(_) => Fields {
+        .into());
+    };
+    Ok(match target {
+        T::Movie(movie) => {
+            let fields = Fields {
                 library: "target.movie.library_id",
                 title: "target.movie.movie_id",
                 ..Fields::NONE
-            },
-            Target::Show(_) => Fields {
+            };
+            let id = required_id(movie.movie_id.into_option(), fields.title, "Movie")?;
+            (title(movie.library_id, Target::Movie(id)), fields)
+        }
+        T::VersionId(version) => {
+            let fields = Fields {
+                version: "target.version_id",
+                ..Fields::NONE
+            };
+            (ToDelete::Version(version), fields)
+        }
+        T::Show(show) => {
+            let fields = Fields {
                 library: "target.show.library_id",
                 title: "target.show.show_id",
                 ..Fields::NONE
-            },
-            Target::Season { .. } => Fields {
+            };
+            let id = required_id(show.show_id.into_option(), fields.title, "Show")?;
+            (title(show.library_id, Target::Show(id)), fields)
+        }
+        T::Season(season) => {
+            let fields = Fields {
                 library: "target.season.library_id",
                 title: "target.season.show_id",
                 season: "target.season.season_number",
                 ..Fields::NONE
-            },
-            Target::Episode(_) => Fields {
+            };
+            let show = required_id(season.show_id.into_option(), fields.title, "Show")?;
+            let number = i64::from(season.season_number);
+            (
+                title(season.library_id, Target::Season { show, number }),
+                fields,
+            )
+        }
+        T::Episode(episode) => {
+            let fields = Fields {
                 library: "target.episode.library_id",
                 title: "target.episode.episode_id",
                 ..Fields::NONE
-            },
-        },
-        ToDelete::Version(_) => Fields {
-            version: "target.version_id",
-            ..Fields::NONE
-        },
-        ToDelete::EpisodeVersion { .. } => Fields {
-            library: "target.episode.library_id",
-            title: "target.episode.episode_id",
-            version: "target.episode.version_id",
-            ..Fields::NONE
-        },
-    };
-    refused(fields)
+            };
+            let id = required_id(episode.episode_id.into_option(), fields.title, "Episode")?;
+            match episode.version_id {
+                Some(version) => {
+                    let fields = Fields {
+                        version: "target.episode.version_id",
+                        ..fields
+                    };
+                    let library = episode.library_id;
+                    let one_version = ToDelete::EpisodeVersion {
+                        library,
+                        episode: id,
+                        version,
+                    };
+                    (one_version, fields)
+                }
+                None => (title(episode.library_id, Target::Episode(id)), fields),
+            }
+        }
+    })
 }
 
 fn taken_along_to_proto(episode: Episode) -> EpisodeTakenAlong {
