@@ -59,3 +59,4 @@
 
 - **File size.** No `.rs` file under `src/` or `tests/`, nor `build.rs`, is over 800 lines, except those `tests/structure.rs` lists with a ceiling, a multiple of 100 lines the file stays at or under. A ceiling only comes down, to the next 100 above the file as it shrinks, and its entry goes once the file is 800 lines or fewer. The table takes a new file only when a move-only change makes it out of a listed one.
 - **Owned tables.** Each table a "One owner" rule above names is listed with its owner in `tests/structure.rs`, which fails on SQL naming it in any other file, tests included. A new such rule adds its tables there.
+- **Named paths exist.** A path an `AGENTS.md` here names in backticks, one with a `/` in it, exists relative to that file's folder or the workspace root. `tests/structure.rs` checks it, so a move updates the rules that name what moved.

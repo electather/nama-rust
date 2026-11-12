@@ -241,3 +241,76 @@ fn sql_tables_reads_the_word_after_a_keyword_across_lines() {
         [("FROM", "watch_states"), ("JOIN", "tracks")]
     );
 }
+
+/// The paths `text`, an `AGENTS.md`, names: inline code spans outside fenced blocks that hold a `/`.
+// ponytail: a bare file name without a `/` (`README.md`, `libraries.rs`) is not checked, since
+// it rarely says which folder it means; name it with its folder to have it checked.
+fn named_paths(text: &str) -> Vec<&str> {
+    let mut fenced = false;
+    let mut paths = Vec::new();
+    for line in text.lines() {
+        if line.trim_start().starts_with("```") {
+            fenced = !fenced;
+            continue;
+        }
+        if fenced {
+            continue;
+        }
+        // Spans sit between backticks, so they are the odd pieces of a split.
+        paths.extend(line.split('`').skip(1).step_by(2).filter(|span| {
+            span.contains('/')
+                && !span.starts_with('/')
+                && !span.contains(char::is_whitespace)
+                && !span.contains(['*', '<', '>', '{', ':'])
+        }));
+    }
+    paths
+}
+
+#[expect(clippy::unwrap_used, reason = "an unreadable folder fails the test")]
+fn collect_agents_files(dir: &Path, paths: &mut Vec<PathBuf>) {
+    for entry in fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            if path.file_name().is_some_and(|name| name != "target") {
+                collect_agents_files(&path, paths);
+            }
+        } else if path.file_name().is_some_and(|name| name == "AGENTS.md") {
+            paths.push(path);
+        }
+    }
+}
+
+#[test]
+fn every_path_an_agents_md_names_exists() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace = root.parent().unwrap().parent().unwrap();
+    let mut agents_files = Vec::new();
+    collect_agents_files(root, &mut agents_files);
+    let mut problems = Vec::new();
+    for agents in &agents_files {
+        let text = fs::read_to_string(agents).unwrap();
+        let paths = named_paths(&text);
+        let folder = agents.parent().unwrap();
+        let shown = agents.strip_prefix(workspace).unwrap().display();
+        if agents == &root.join("AGENTS.md") {
+            assert!(
+                paths.len() >= 10,
+                "{shown} named only {} paths: the extractor is missing them",
+                paths.len()
+            );
+        }
+        for path in paths {
+            if !folder.join(path).exists() && !workspace.join(path).exists() {
+                problems.push(format!("{shown}: {path}"));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+#[test]
+fn named_paths_skips_fences_urls_globs_and_bare_names() {
+    let text = "`src/a.rs` `/media/` `*.rs` `a/<id>` `x::y/z` `README.md` `a b/c`\n```\n`src/fenced.rs`\n```\n`.sqlx/`";
+    assert_eq!(named_paths(text), ["src/a.rs", ".sqlx/"]);
+}
