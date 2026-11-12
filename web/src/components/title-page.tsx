@@ -38,18 +38,22 @@ export function TitlePage({
               alt=""
               className="absolute inset-0 -z-10 size-full object-cover"
             />
-            {/* Clear at the top, so the art shows, and over its bottom 60%, where the title sits,
-                at least the scrim's 70% black, fading into the page. */}
-            <div className="absolute inset-0 -z-10 bg-linear-to-t from-background via-scrim via-60% to-transparent" />
           </>
         )}
         <div
-          className="mx-auto flex min-h-40 max-w-5xl items-end px-4 pt-10 pb-6 data-backdrop:min-h-72 sm:px-6 sm:data-backdrop:min-h-112"
-          data-backdrop={backdropUrl === undefined ? undefined : ""}
+          className="group flex min-h-40 flex-col justify-end pt-10 data-art:min-h-72 sm:data-art:min-h-112"
+          data-art={backdropUrl === undefined ? undefined : ""}
         >
-          <h1 className="text-display font-medium text-balance">
-            {logoUrl === undefined ? title : <TitleLogo url={logoUrl} title={title} />}
-          </h1>
+          {/* The art is clear above the title, so it shows, and the title sits on at least the
+              scrim's 70% black however many lines it takes, fading into the page at the bottom. */}
+          <div className="hidden h-24 bg-linear-to-t from-scrim group-data-art:block" />
+          <div className="group-data-art:bg-linear-to-t group-data-art:from-background group-data-art:to-scrim">
+            <div className="mx-auto max-w-5xl px-4 pb-6 sm:px-6">
+              <h1 className="text-display font-medium text-balance">
+                {logoUrl === undefined ? title : <TitleLogo url={logoUrl} title={title} />}
+              </h1>
+            </div>
+          </div>
         </div>
       </div>
       <div className="mx-auto max-w-5xl px-4 pb-16 sm:px-6">{children}</div>

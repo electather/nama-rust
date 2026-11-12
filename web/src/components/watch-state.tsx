@@ -58,7 +58,7 @@ export function PlayOrResume({
       {started && (
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <div className="w-20">
-            <Progress value={watchedPercent(state)} aria-label="Watched" />
+            <WatchedBar state={state} />
           </div>
           {detail}
         </div>
