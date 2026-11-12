@@ -85,7 +85,7 @@ Building the Server builds the Plugins it bundles for wasm32 (`crates/nama-serve
 
 `cargo deny check advisories` fails a PR only on an advisory its own `Cargo.lock` adds, not one already on main ([`.github/scripts/advisories.sh`](.github/scripts/advisories.sh)). The [`advisories`](.github/workflows/advisories.yml) workflow checks main daily and opens a `needs-triage` issue for each advisory it finds there.
 
-`buf breaking` fails a change that breaks the schema in `proto/` against main, unless the change declares the break with a new entry in [`proto/BREAKING.md`](proto/BREAKING.md) ([`.github/scripts/buf-breaking.sh`](.github/scripts/buf-breaking.sh), ADR 0032).
+`buf breaking` fails a change that breaks the client API in `proto/nama/v1/` against main, unless the change declares the break with a new entry in [`proto/BREAKING.md`](proto/BREAKING.md) ([`.github/scripts/buf-breaking.sh`](.github/scripts/buf-breaking.sh), ADR 0032). The Plugin contract in `proto/nama/plugin/` has its own version instead (ADR 0041).
 
 CI also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md).
 

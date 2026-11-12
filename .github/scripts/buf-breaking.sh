@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Usage: buf-breaking.sh <base>
-# Runs `buf breaking` on the working tree's proto/ against <base>'s. A break passes only when
-# proto/BREAKING.md has more entries than at <base>; otherwise it fails as buf does.
+# Runs `buf breaking` on the client API, proto/nama/v1/, against <base>'s; the Plugin contract,
+# proto/nama/plugin/, has its own version (ADR 0041). A break passes only when proto/BREAKING.md
+# has more entries than at <base>; otherwise it fails as buf does.
 # The rule this enforces: crates/nama-proto/AGENTS.md.
 set -euo pipefail
 
@@ -12,7 +13,7 @@ cd "$(git rev-parse --show-toplevel)/proto"
 buf build
 buf build "../.git#ref=$base,subdir=proto"
 status=0
-buf breaking --against "../.git#ref=$base,subdir=proto" || status=$?
+buf breaking --path nama/v1 --against "../.git#ref=$base,subdir=proto" || status=$?
 if [ "$status" -ne 100 ]; then
   exit "$status"
 fi
@@ -25,5 +26,5 @@ if (( entries_now > entries_before )); then
   echo "These breaks are declared in proto/BREAKING.md, so they pass."
   exit 0
 fi
-echo "To break the schema on purpose, declare it in proto/BREAKING.md (crates/nama-proto/README.md)." >&2
+echo "To break the client API on purpose, declare it in proto/BREAKING.md (crates/nama-proto/README.md)." >&2
 exit "$status"

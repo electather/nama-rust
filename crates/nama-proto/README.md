@@ -45,7 +45,7 @@ buf generate
 
 ## Breaking the schema on purpose
 
-CI runs `buf breaking` against main and fails a change that breaks the schema, such as changing a field's type or moving it into a oneof. To make such a change on purpose, add an entry to the top of [`proto/BREAKING.md`](../../proto/BREAKING.md) in the same change, holding what the top of that file lists. CI then prints the breaks and passes (ADR 0032).
+CI runs `buf breaking` on the client API, `proto/nama/v1/`, against main and fails a change that breaks it, such as changing a field's type or moving it into a oneof. To make such a change on purpose, add an entry to the top of [`proto/BREAKING.md`](../../proto/BREAKING.md) in the same change, holding what the top of that file lists. CI then prints the breaks and passes (ADR 0032). A change under `proto/nama/plugin/` is not checked and needs no entry: the Plugin contract's own version covers it (ADR 0041).
 
 To see what CI will report, run from the repo root:
 
@@ -53,4 +53,4 @@ To see what CI will report, run from the repo root:
 .github/scripts/buf-breaking.sh origin/main
 ```
 
-It prints each break by file, and passes once the entry is there. For each break's rule, which the entry names, run `buf breaking --against '../.git#ref=origin/main,subdir=proto' --error-format json` in `proto/` and read `type`.
+It prints each break by file, and passes once the entry is there. For each break's rule, which the entry names, run `buf breaking --path nama/v1 --against '../.git#ref=origin/main,subdir=proto' --error-format json` in `proto/` and read `type`.
