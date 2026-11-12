@@ -57,8 +57,10 @@ export type GetServerInfoResponse = Message<"nama.v1.GetServerInfoResponse"> & {
    * The widths, in pixels and smallest first, an image's URL may ask for by adding `?width=` and
    * one of them, such as `/media/artwork/tmdb/%2Fposter.jpg?width=640`. Any other width is
    * refused with HTTP 400. While resizing is on (`ImageSettings.resize_images`), the Server sends
-   * the image as a JPEG that wide, with its shape kept, or the stored image if it is no wider, an
-   * SVG, has transparency or is over 12 megapixels. While it's off, the width is ignored.
+   * the image that wide, with its shape kept: as a JPEG XL where the request's `Accept` lists
+   * `image/jxl` and it would be at most 7 megapixels, else as a JPEG. It sends the stored image if
+   * that is no wider, an SVG, or over 12 megapixels, or has transparency and would be a JPEG.
+   * While it's off, the width is ignored.
    *
    * @generated from field: repeated uint32 image_widths = 4;
    */

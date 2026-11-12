@@ -29,6 +29,8 @@ getrandom = "0.4"
 glob = "0.3"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 isolang = { version = "2.4", default-features = false }
+# Its defaults add `extraslow`, which pulls in two crates for speeds the Server never uses (ADR 0039).
+jixel = { version = "0.5.7", default-features = false, features = ["avx", "neon", "sse"] }
 nama-plugin-api = { version = "0.1.0", path = "../nama-plugin-api" }
 nama-plugin-local-auth = { version = "0.1.0", path = "../../plugins/local-auth" }
 nama-plugin-log-events = { version = "0.1.0", path = "../../plugins/log-events" }
@@ -65,6 +67,7 @@ figment = { version = "0.10", features = ["test"] }
 http-body-util = "0.1"
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
+jxl = "0.8"
 nama-server = { path = ".", features = ["testing"] }
 nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb", features = ["testing"] }
 tokio = { version = "1", features = ["test-util"] }
