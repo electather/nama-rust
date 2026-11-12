@@ -94,7 +94,7 @@ fn read(root: &Path, path: &Path) -> SourceFile {
 fn problem(path: &str, lines: Option<usize>, ceiling: Option<usize>) -> Option<String> {
     match (lines, ceiling) {
         (Some(lines), None) if lines > MAX_LINES => Some(format!(
-            "{path} is {lines} lines, over {MAX_LINES}: split it (CEILINGS takes no new files)"
+            "{path} is {lines} lines, over {MAX_LINES}: split it, or list it in CEILINGS if a move-only change made it out of a listed file"
         )),
         (_, None) => None,
         (None, Some(_)) => Some(format!("{path} is gone: remove its CEILINGS entry")),
@@ -290,6 +290,11 @@ fn every_path_an_agents_md_names_exists() {
     let workspace = root.parent().unwrap().parent().unwrap();
     let mut agents_files = Vec::new();
     collect_agents_files(root, &mut agents_files);
+    assert!(
+        agents_files.contains(&root.join("AGENTS.md")),
+        "the walk found no {}: it is checking nothing",
+        root.join("AGENTS.md").display()
+    );
     let mut problems = Vec::new();
     for agents in &agents_files {
         let text = fs::read_to_string(agents).unwrap();
@@ -314,6 +319,16 @@ fn every_path_an_agents_md_names_exists() {
 
 #[test]
 fn named_paths_skips_fences_urls_globs_and_bare_names() {
-    let text = "`src/a.rs` `/media/` `*.rs` `a/<id>` `x::y/z` `README.md` `a b/c`\n```\n`src/fenced.rs`\n```\n`.sqlx/`";
+    let text = "`src/a.rs` `/media/` `*.rs` `src/*.rs` `src/{a,b}.rs` `a/<id>` `x::y/z` `README.md` `a b/c`\n```\n`src/fenced.rs`\n```\n`.sqlx/`";
     assert_eq!(named_paths(text), ["src/a.rs", ".sqlx/"]);
+}
+
+#[test]
+fn ceilings_are_sorted_by_path_and_list_no_path_twice() {
+    if let Some(pair) = CEILINGS.windows(2).find(|pair| pair[0].0 >= pair[1].0) {
+        panic!(
+            "CEILINGS lists {} before {}: keep it sorted by path with each path once",
+            pair[0].0, pair[1].0
+        );
+    }
 }
