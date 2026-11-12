@@ -14,6 +14,8 @@ import { expectUnderField } from "./test-refusal";
 
 afterEach(cleanup);
 
+const FOREIGN_AUDIO_ONLY = "Only when the audio is in another language";
+
 /** A fake Server where the signed-in User's own Subtitle Preference is `subtitle`. */
 function server(
   subtitle: MessageInitShape<typeof UsersSubtitlePreferenceSchema> = {},
@@ -59,6 +61,7 @@ test("a User's own subtitles show as they set them, and picking Off turns them o
   );
   fill("Subtitles", "Off");
   expect(screen.queryByRole("group", { name: "Which subtitles" })).toBeNull();
+  expect(screen.queryByLabelText(FOREIGN_AUDIO_ONLY)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Save subtitles" }));
 
   expect(await screen.findByText("Saved.")).toBeDefined();
@@ -76,6 +79,40 @@ test("a language not on the list is refused under the field, and nothing is save
 
   await expectUnderField("Subtitles", "“Klingon” isn’t a language on the list. Pick one from it.");
   expect(set).toEqual([]);
+});
+
+test("full subtitles can start only over audio in another language", async () => {
+  const set: SetSubtitlePreferenceRequest[] = [];
+  openApp("/settings", server({}, set));
+
+  await screen.findByLabelText("Subtitles");
+  expect(screen.queryByLabelText(FOREIGN_AUDIO_ONLY)).toBeNull();
+  fill("Subtitles", "german");
+  const foreignAudioOnly = screen.getByLabelText<HTMLInputElement>(FOREIGN_AUDIO_ONLY);
+  expect(foreignAudioOnly.checked).toBe(false);
+  fireEvent.click(foreignAudioOnly);
+  fireEvent.click(screen.getByRole("button", { name: "Save subtitles" }));
+
+  expect(await screen.findByText("Saved.")).toBeDefined();
+  expect(set).toMatchObject([
+    { subtitle: { language: "de", kind: SubtitleKind.FULL, foreignAudioOnly: true } },
+  ]);
+});
+
+test("choosing Forced only hides the switch and turns it off", async () => {
+  const set: SetSubtitlePreferenceRequest[] = [];
+  openApp(
+    "/settings",
+    server({ language: "en", kind: SubtitleKind.SDH, foreignAudioOnly: true }, set),
+  );
+
+  expect((await screen.findByLabelText<HTMLInputElement>(FOREIGN_AUDIO_ONLY)).checked).toBe(true);
+  fireEvent.click(screen.getByLabelText("Forced only, for signs and foreign dialogue"));
+  expect(screen.queryByLabelText(FOREIGN_AUDIO_ONLY)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Save subtitles" }));
+
+  expect(await screen.findByText("Saved.")).toBeDefined();
+  expect(set).toMatchObject([{ subtitle: { kind: SubtitleKind.FORCED, foreignAudioOnly: false } }]);
 });
 
 /** A fake Server that keeps the signed-in User's own Audio Preference, starting at `audio`. */

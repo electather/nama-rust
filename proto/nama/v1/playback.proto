@@ -40,7 +40,9 @@ service PlaybackService {
   }
   // Sets the caller's own Subtitle Preference, which a plan starts with when the Show or Movie
   // has none of its own, an Unmatched Item's Version included (ADR 0035). Refused with
-  // `REFUSAL_REASON_UNKNOWN_LANGUAGE` if the language isn't an ISO 639 code.
+  // `REFUSAL_REASON_UNKNOWN_LANGUAGE` if the language isn't an ISO 639 code, and with
+  // `REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL` if it asks for forced-only subtitles only over
+  // audio in another language.
   rpc SetSubtitlePreference(SetSubtitlePreferenceRequest) returns (SetSubtitlePreferenceResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -89,6 +91,10 @@ message UsersSubtitlePreference {
   optional string language = 1;
   // Which subtitle in that language. Ignored when `language` is unset.
   SubtitleKind kind = 2;
+  // Whether full subtitles start only over audio in another language; over audio in `language`, a
+  // forced-only Track in it starts instead, if there is one. Ignored when `language` is unset, and
+  // refused with `SUBTITLE_KIND_FORCED`.
+  bool foreign_audio_only = 3;
 }
 
 // Which of a language's subtitle Tracks a User's own Subtitle Preference wants.

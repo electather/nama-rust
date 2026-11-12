@@ -449,7 +449,9 @@ pub trait PlaybackService: Send + Sync + 'static {
     > + Send;
     /// Sets the caller's own Subtitle Preference, which a plan starts with when the Show or Movie
     /// has none of its own, an Unmatched Item's Version included (ADR 0035). Refused with
-    /// `REFUSAL_REASON_UNKNOWN_LANGUAGE` if the language isn't an ISO 639 code.
+    /// `REFUSAL_REASON_UNKNOWN_LANGUAGE` if the language isn't an ISO 639 code, and with
+    /// `REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL` if it asks for forced-only subtitles only over
+    /// audio in another language.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

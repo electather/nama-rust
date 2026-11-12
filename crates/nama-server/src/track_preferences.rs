@@ -64,6 +64,9 @@ pub(crate) struct Preferred<P> {
     pub(crate) preference: P,
     /// The User's own, set without a title, rather than the Show's or Movie's.
     pub(crate) users_own: bool,
+    /// Whether it wants full subtitles only over audio in another language, which only the User's
+    /// own Subtitle Preference can (ADR 0035).
+    pub(crate) foreign_audio_only: bool,
 }
 
 /// What a Preference is kept for: a Show or Movie, by its scope and external id, or everything the
@@ -85,13 +88,8 @@ impl KeptFor {
 // The scope of a User's own Preference, kept with an empty `title_id`.
 const USER: &str = "user";
 
-/// A `track_preferences` row: whether it is off, what describes the Track it wants, and whether
-/// it is the User's own.
-struct Row {
-    off: bool,
-    description: Description,
-    users_own: bool,
-}
+/// A `track_preferences` row: what describes the Track it wants, `None` for off, and whose it is.
+type Row = Preferred<Option<Description>>;
 
 /// Why what a Version is of couldn't be found.
 #[derive(Debug, thiserror::Error)]
@@ -118,11 +116,21 @@ impl TrackPreferences {
         kept_for: KeptFor,
         preference: SubtitlePreference,
     ) -> Result<(), sqlx::Error> {
-        let like = match preference {
-            SubtitlePreference::Off => None,
-            SubtitlePreference::Like(description) => Some(description),
-        };
-        self.keep(user, kept_for, SUBTITLE, like).await
+        self.keep(user, kept_for, SUBTITLE, like(preference), false)
+            .await
+    }
+
+    /// Keeps `preference` as the User `user`'s own Subtitle Preference, wanting it only over audio
+    /// in another language if `foreign_audio_only`, in place of any they had.
+    pub(crate) async fn keep_users_subtitle(
+        &self,
+        user: i64,
+        preference: SubtitlePreference,
+        foreign_audio_only: bool,
+    ) -> Result<(), sqlx::Error> {
+        let like = like(preference);
+        self.keep(user, KeptFor::USERS_OWN, SUBTITLE, like, foreign_audio_only)
+            .await
     }
 
     /// Keeps a Track like `picked` as the User `user`'s Audio Preference for `kept_for`, in place
@@ -138,7 +146,8 @@ impl TrackPreferences {
             title: picked.title,
             ..Description::default()
         };
-        self.keep(user, kept_for, AUDIO, Some(description)).await
+        self.keep(user, kept_for, AUDIO, Some(description), false)
+            .await
     }
 
     /// The Subtitle Preference a plan of the Version `version` starts with for the User `user`:
@@ -150,19 +159,16 @@ impl TrackPreferences {
         version: i64,
     ) -> Result<Option<Preferred<SubtitlePreference>>, sqlx::Error> {
         let row = self.kept(user, version, SUBTITLE).await?;
-        Ok(row.map(|row| Preferred {
-            preference: subtitle_preference(row.off, row.description),
-            users_own: row.users_own,
-        }))
+        Ok(row.map(preferred_subtitle))
     }
 
     /// The User `user`'s own Subtitle Preference, set in Settings, `None` if they never set one.
     pub(crate) async fn users_subtitle(
         &self,
         user: i64,
-    ) -> Result<Option<SubtitlePreference>, sqlx::Error> {
+    ) -> Result<Option<Preferred<SubtitlePreference>>, sqlx::Error> {
         let row = self.row(user, KeptFor::USERS_OWN, SUBTITLE).await?;
-        Ok(row.map(|row| subtitle_preference(row.off, row.description)))
+        Ok(row.map(preferred_subtitle))
     }
 
     /// Keeps audio in `language` as the User `user`'s own Audio Preference, or `None` for the
@@ -186,7 +192,7 @@ impl TrackPreferences {
     /// never set one.
     pub(crate) async fn users_audio(&self, user: i64) -> Result<Option<String>, sqlx::Error> {
         let row = self.row(user, KeptFor::USERS_OWN, AUDIO).await?;
-        Ok(row.and_then(|row| row.description.language))
+        Ok(row.and_then(|row| row.preference?.language))
     }
 
     /// What describes the audio Track a plan of the Version `version` starts with for the User
@@ -198,9 +204,11 @@ impl TrackPreferences {
         version: i64,
     ) -> Result<Option<Preferred<Description>>, sqlx::Error> {
         let row = self.kept(user, version, AUDIO).await?;
+        // Audio is never off.
         Ok(row.map(|row| Preferred {
-            preference: row.description,
+            preference: row.preference.unwrap_or_default(),
             users_own: row.users_own,
+            foreign_audio_only: false,
         }))
     }
 
@@ -225,13 +233,18 @@ impl TrackPreferences {
     }
 
     /// Keeps a Track like `like`, or `None` for off, as the User `user`'s `kind` Preference for
-    /// `kept_for`.
+    /// `kept_for`, wanting it only over audio in another language if `foreign_audio_only`.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the row's key and columns, each set by a different public `keep_*`"
+    )]
     async fn keep(
         &self,
         user: i64,
         KeptFor { scope, title_id }: KeptFor,
         kind: &'static str,
         like: Option<Description>,
+        foreign_audio_only: bool,
     ) -> Result<(), sqlx::Error> {
         let off = like.is_none();
         let description = like.unwrap_or_default();
@@ -240,11 +253,13 @@ impl TrackPreferences {
                 Box::pin(async move {
                     sqlx::query!(
                         "INSERT INTO track_preferences
-                             (user_id, scope, title_id, kind, off, language, forced, sdh, title)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             (user_id, scope, title_id, kind, off, language, forced, sdh, title,
+                              foreign_audio_only)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                          ON CONFLICT (user_id, scope, title_id, kind) DO UPDATE
                          SET off = excluded.off, language = excluded.language,
-                             forced = excluded.forced, sdh = excluded.sdh, title = excluded.title",
+                             forced = excluded.forced, sdh = excluded.sdh, title = excluded.title,
+                             foreign_audio_only = excluded.foreign_audio_only",
                         user,
                         scope,
                         title_id,
@@ -254,6 +269,7 @@ impl TrackPreferences {
                         description.forced,
                         description.sdh,
                         description.title,
+                        foreign_audio_only,
                     )
                     .execute(&mut **tx)
                     .await?;
@@ -285,7 +301,8 @@ impl TrackPreferences {
     ) -> Result<Option<Row>, sqlx::Error> {
         let row = sqlx::query!(
             r#"SELECT scope = ? AS "users_own!: bool", off AS "off: bool", language,
-                      forced AS "forced: bool", sdh AS "sdh: bool", title
+                      forced AS "forced: bool", sdh AS "sdh: bool", title,
+                      foreign_audio_only AS "foreign_audio_only: bool"
                FROM track_preferences
                WHERE user_id = ? AND kind = ? AND ((scope = ? AND title_id = ?) OR scope = ?)
                ORDER BY scope = ?
@@ -301,14 +318,14 @@ impl TrackPreferences {
         .fetch_optional(self.db.reader())
         .await?;
         Ok(row.map(|row| Row {
-            off: row.off,
-            description: Description {
+            preference: (!row.off).then_some(Description {
                 language: row.language,
                 forced: row.forced,
                 sdh: row.sdh,
                 title: row.title,
-            },
+            }),
             users_own: row.users_own,
+            foreign_audio_only: row.foreign_audio_only,
         }))
     }
 
@@ -330,12 +347,23 @@ impl TrackPreferences {
     }
 }
 
-/// The Subtitle Preference a row that is `off`, or wants a Track like `description`, keeps.
-fn subtitle_preference(off: bool, description: Description) -> SubtitlePreference {
-    if off {
-        SubtitlePreference::Off
-    } else {
-        SubtitlePreference::Like(description)
+/// The Subtitle Preference `row` keeps, and whose it is.
+fn preferred_subtitle(row: Row) -> Preferred<SubtitlePreference> {
+    Preferred {
+        preference: row
+            .preference
+            .map_or(SubtitlePreference::Off, SubtitlePreference::Like),
+        users_own: row.users_own,
+        // ADR 0035: a Show's or Movie's has no condition, whatever its row holds.
+        foreign_audio_only: row.users_own && row.foreign_audio_only,
+    }
+}
+
+/// What describes the Track `preference` wants, `None` for off.
+fn like(preference: SubtitlePreference) -> Option<Description> {
+    match preference {
+        SubtitlePreference::Off => None,
+        SubtitlePreference::Like(description) => Some(description),
     }
 }
 
@@ -409,7 +437,9 @@ const BIBLIOGRAPHIC: [(&str, &str); 20] = [
 mod tests {
     use std::sync::Arc;
 
-    use super::{Description, Preferred, TrackPreferences, is_language, same_language};
+    use super::{
+        Description, Preferred, SubtitlePreference, TrackPreferences, is_language, same_language,
+    };
     use crate::{
         contents::{
             Contents, Decided,
@@ -519,8 +549,114 @@ mod tests {
                     ..Description::default()
                 },
                 users_own: true,
+                foreign_audio_only: false,
             })
         );
+    }
+
+    /// Full English subtitles.
+    fn english() -> SubtitlePreference {
+        SubtitlePreference::Like(Description {
+            language: Some("en".to_owned()),
+            ..Description::default()
+        })
+    }
+
+    #[tokio::test]
+    async fn a_movies_subtitle_preference_wants_its_subtitles_over_any_audio_whatever_the_users_own()
+     {
+        let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let (preferences, user) = track_preferences(&data).await;
+        let alien =
+            MatchedMovie::new(&preferences.db, media.path(), tmdb_movie(348, "Alien")).await;
+        let movie = preferences.kept_for(alien.version).await.unwrap().unwrap();
+
+        preferences
+            .keep_users_subtitle(user, english(), true)
+            .await
+            .unwrap();
+        preferences
+            .keep_subtitle(user, movie, english())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            preferences.subtitle(user, alien.version).await.unwrap(),
+            Some(Preferred {
+                preference: english(),
+                users_own: false,
+                foreign_audio_only: false,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn the_users_own_subtitles_only_over_foreign_audio_reach_a_version_of_an_unmatched_item()
+    {
+        let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let (preferences, user) = track_preferences(&data).await;
+        let alien =
+            MatchedMovie::new(&preferences.db, media.path(), tmdb_movie(348, "Alien")).await;
+        Contents::new(Arc::clone(&preferences.db))
+            .record(vec![(alien.item, Decided::Unmatched(None))])
+            .await
+            .unwrap();
+
+        preferences
+            .keep_users_subtitle(user, english(), true)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            preferences.subtitle(user, alien.version).await.unwrap(),
+            Some(Preferred {
+                preference: english(),
+                users_own: true,
+                foreign_audio_only: true,
+            })
+        );
+    }
+
+    /// Keeps English subtitles as the User `user`'s own, as the Server did before the switch
+    /// "Only when the audio is in another language" existed.
+    async fn keep_english_subtitles_as_before_the_switch(
+        preferences: &TrackPreferences,
+        user: i64,
+    ) {
+        (preferences.db)
+            .write(move |tx| {
+                Box::pin(async move {
+                    let insert = sqlx::query(
+                        "INSERT INTO track_preferences
+                             (user_id, scope, title_id, kind, off, language, forced, sdh)
+                         VALUES (?, 'user', '', 'subtitle', 0, 'en', 0, 0)",
+                    );
+                    insert.bind(user).execute(&mut **tx).await
+                })
+            })
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_users_own_subtitles_kept_before_the_condition_start_over_any_audio_until_it_is_set()
+    {
+        let data = tempfile::tempdir().unwrap();
+        let (preferences, user) = track_preferences(&data).await;
+        keep_english_subtitles_as_before_the_switch(&preferences, user).await;
+        let foreign_audio_only = async || {
+            let preferred = preferences.users_subtitle(user).await.unwrap().unwrap();
+            preferred.foreign_audio_only
+        };
+
+        let before = foreign_audio_only().await;
+        preferences
+            .keep_users_subtitle(user, english(), true)
+            .await
+            .unwrap();
+
+        assert!(!before);
+        assert!(foreign_audio_only().await);
     }
 
     #[test]
