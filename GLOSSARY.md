@@ -154,6 +154,10 @@ _Avoid_: chapter, part
 One of the files a Movie or Episode is available in. A Movie with two Matched files has two Versions.
 _Avoid_: copy, edition, file
 
+**Content Rating**:
+The age guidance a country's ratings board gives a Movie or Show, such as PG-13 or TV-MA.
+_Avoid_: certification, age rating, parental rating, maturity rating
+
 **Poster**:
 The tall image that stands for a Movie, Show or Season.
 _Avoid_: cover, thumbnail, primary image
@@ -161,6 +165,14 @@ _Avoid_: cover, thumbnail, primary image
 **Backdrop**:
 The wide image shown behind a Movie's or Show's page, and the one a Library is shown by. A Library's is that of the title most recently added to it.
 _Avoid_: fanart, art, background, banner
+
+**Still**:
+The wide image that stands for an Episode: a frame from it.
+_Avoid_: thumbnail, thumb, screenshot
+
+**Title Logo**:
+The image of a Movie's or Show's title, lettered as its artwork letters it, shown in place of the title's text.
+_Avoid_: logo, title treatment, clearlogo, wordmark
 
 **Custom Image**:
 An image an admin uploaded to show in place of the one the Server would otherwise show, such as a Movie's Poster or a Plugin's logo. Everyone sees it until it is removed, which brings the other back. A title's stays with the title, whatever happens to its files.
