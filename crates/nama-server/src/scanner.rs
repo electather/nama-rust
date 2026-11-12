@@ -1028,7 +1028,9 @@ mod tests {
             .with_writer(Arc::new(log.reopen().unwrap()))
             .with_ansi(false)
             .finish();
-        // The test's runtime has one thread, so the delete's tasks log to it too.
+        // The test's runtime has one thread, so the delete's tasks log to it too. A thread-local
+        // subscriber is safe here, unlike in `tests/support/log.rs`: only this test reaches the
+        // error lines it reads, so no other test races it over whether they're enabled.
         let logging = tracing::subscriber::set_default(subscriber);
 
         let deleted = media.scanner.delete_media(doomed, "ada".to_owned()).await;
