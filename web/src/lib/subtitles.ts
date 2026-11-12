@@ -162,7 +162,7 @@ const renderBitmap: Render = async (video, { url, format }, ready, failed) => {
   };
   if (format !== SubtitleFormat.VOBSUB) return new libbitsub.PgsRenderer(options);
   // ponytail: libbitsub 1.13.2 never reports a VobSub load that throws (altqx/libbitsub#14), so
-  // the picker stays on "Loading…"; a release that fixes it lets the fall back to Burn-in catch it.
+  // the picker stays on "Loading…"; a release that fixes it lets the fallback to Burn-in catch it.
   // The name says Matroska, which carries the palette and size, rather than a `.sub` and `.idx`.
   return new libbitsub.VobSubRenderer({ ...options, fileName: "track.mks" });
 };

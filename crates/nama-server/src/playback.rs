@@ -2065,9 +2065,16 @@ mod tests {
     }
 
     fn subtitle() -> Track {
+        Track {
+            default: true,
+            ..text_subtitle("subrip")
+        }
+    }
+
+    fn text_subtitle(codec: &str) -> Track {
         track(
-            "subrip",
-            true,
+            codec,
+            false,
             TrackKind::Subtitle {
                 image: false,
                 header: false,
@@ -2498,14 +2505,7 @@ mod tests {
 
     #[test]
     fn a_direct_play_or_remux_offers_the_text_subtitles_by_their_place_but_not_image_or_teletext() {
-        let english = track(
-            "subrip",
-            false,
-            TrackKind::Subtitle {
-                image: false,
-                header: false,
-            },
-        );
+        let english = text_subtitle("subrip");
         let pgs = track(
             "hdmv_pgs_subtitle",
             false,
@@ -2514,14 +2514,7 @@ mod tests {
                 header: false,
             },
         );
-        let teletext = track(
-            "dvb_teletext",
-            false,
-            TrackKind::Subtitle {
-                image: false,
-                header: false,
-            },
-        );
+        let teletext = text_subtitle("dvb_teletext");
         let french = Track {
             language: Some("fre".to_owned()),
             ..english.clone()
@@ -3182,20 +3175,12 @@ mod tests {
 
     #[test]
     fn a_chosen_subtitle_the_device_cant_draw_is_burned_in_by_a_transcode_and_the_plan_names_it() {
-        let ass = track(
-            "ass",
-            false,
-            TrackKind::Subtitle {
-                image: false,
-                header: false,
-            },
-        );
         let cases = [
             (pgs(), firefox(), "PGS"),
             (vobsub(), drawing_pgs(), "VobSub"),
             (image_subtitle("dvb_subtitle"), drawing_pgs(), "DVB"),
             (image_subtitle("xsub"), drawing_pgs(), "XSUB"),
-            (ass, drawing_pgs(), "ASS"),
+            (ass(), drawing_pgs(), "ASS"),
         ];
         for (chosen, device, name) in cases {
             let mut facts = Facts {
@@ -3354,14 +3339,7 @@ mod tests {
     }
 
     fn ass() -> Track {
-        track(
-            "ass",
-            false,
-            TrackKind::Subtitle {
-                image: false,
-                header: false,
-            },
-        )
+        text_subtitle("ass")
     }
 
     /// A Device that draws ASS subtitles itself.
@@ -3863,14 +3841,7 @@ mod tests {
 
     #[test]
     fn a_subtitle_choice_that_isnt_an_image_or_ass_subtitle_burns_nothing_in() {
-        let teletext = track(
-            "dvb_teletext",
-            false,
-            TrackKind::Subtitle {
-                image: false,
-                header: false,
-            },
-        );
+        let teletext = text_subtitle("dvb_teletext");
         let tracks = vec![video("h264"), audio("aac", true), teletext, subtitle()];
         for chosen in [None, Some(1), Some(2), Some(3), Some(9)] {
             let mut facts = Facts {
