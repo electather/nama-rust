@@ -20,9 +20,6 @@ import { formText, refusal } from "@/lib/forms";
 /** The choice that deletes every Version, where any other choice is one Version's id. */
 const EVERY_VERSION = "every";
 
-/** What a page does once every Version went, when it shows something else that stays. */
-const stay = async () => {};
-
 /** A Movie, Show, Season or Episode, as deleting it needs it. */
 export interface Deletable {
   /** What the dialog asks about deleting, such as the Movie's title. */
@@ -41,7 +38,7 @@ export interface Deletable {
 export function DeleteMedia({
   action = "Delete",
   name = action,
-  onDeletedEveryVersion = stay,
+  onDeletedEveryVersion,
   ...deletable
 }: Deletable & {
   /** What the button says, such as "Delete Show" where "Delete" alone wouldn't say what goes. */
@@ -50,9 +47,9 @@ export function DeleteMedia({
   name?: string;
   /**
    * Called once every Version went, so the page can leave what's gone, with the names of the
-   * Fulfillers that couldn't be told.
+   * Fulfillers that couldn't be told, which the page then reports.
    */
-  onDeletedEveryVersion?: (fulfillersNotTold: string[]) => Promise<unknown>;
+  onDeletedEveryVersion: (fulfillersNotTold: string[]) => Promise<unknown>;
 }) {
   const [result, setResult] = useState<Outcome>({ notDeleted: [], fulfillersNotTold: [] });
   const remove = useSensitiveMutation(LibraryService.method.deleteMedia);
@@ -66,10 +63,13 @@ export function DeleteMedia({
         onConfirm={async (typed) => {
           const chosen = formText(typed, "version") || EVERY_VERSION;
           const deleted = await remove.mutateAsync({ target: targetOf(deletable, chosen) });
-          setResult(deleted);
           if (chosen === EVERY_VERSION && deleted.notDeleted.length === 0) {
+            // This may stay mounted for another title, such as the next Season, so the page reports.
+            setResult({ notDeleted: [], fulfillersNotTold: [] });
             await onDeletedEveryVersion(deleted.fulfillersNotTold);
+            return;
           }
+          setResult(deleted);
         }}
         refusal={(error) => refusal(error, "delete it", {}).form}
       >

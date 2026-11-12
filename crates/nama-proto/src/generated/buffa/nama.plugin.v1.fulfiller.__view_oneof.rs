@@ -5,7 +5,26 @@ pub mod stop_monitoring {
     #[allow(unused_imports)]
     use super::*;
     #[derive(Clone, Debug)]
-    pub enum Title {
+    pub enum Title<'a> {
         MovieTmdbId(i64),
+        Show(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ShowDeletedView<'a>,
+            >,
+        ),
+    }
+}
+pub mod show_deleted {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, Debug)]
+    pub enum Deleted<'a> {
+        EveryCurrentSeason(bool),
+        SeasonNumber(u32),
+        Episodes(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::EpisodeNumbersView<'a>,
+            >,
+        ),
     }
 }

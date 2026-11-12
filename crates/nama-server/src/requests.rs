@@ -2648,6 +2648,7 @@ mod tests {
         withdraw_followed,
     };
     use crate::{
+        artwork::Artwork,
         contents::{
             Change, Contents, Decided, Decisions, Item, Metadata,
             fixture::{MatchedMovie, movies_library, tmdb_movie},
@@ -3561,7 +3562,7 @@ mod tests {
         let folder = tempfile::tempdir().unwrap();
         let plugins = Registry::new();
         enable_tmdb(&plugins, &tmdb);
-        let (_data, requests) =
+        let (data, requests) =
             approved_on::<Movies>(&plugins, &[949], Arc::new(Asked::default())).await;
         let root = folder.path().canonicalize().unwrap();
         let library = Libraries::new(Arc::clone(&requests.db))
@@ -3589,6 +3590,7 @@ mod tests {
         let scanner = Scanner::new(
             Arc::clone(&requests.db),
             requests.plugins.clone(),
+            Artwork::new(data.path(), requests.plugins.clone()),
             requests.events.clone(),
             None,
             None,

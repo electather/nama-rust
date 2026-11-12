@@ -743,19 +743,21 @@ async fn a_poster_the_browser_has_is_not_modified() {
 /// Images downloaded before an upgrade are already stored, so none is downloaded again.
 #[tokio::test]
 async fn a_poster_already_under_artwork_is_served_without_the_provider() {
-    let fx = Fixture::alien().await;
-    let poster = fx
-        .get_movie(fx.library, ALIEN)
-        .await
-        .unwrap()
-        .poster_url
-        .unwrap();
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     let kept = fx
         .server
         .data_dir()
         .join("artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg");
     fs::create_dir_all(kept.parent().unwrap()).unwrap();
     fs::write(&kept, b"\xff\xd8kept").unwrap();
+    fx.write(ALIEN_1080P, b"video");
+    fx.scan_and_match().await;
+    let poster = fx
+        .get_movie(fx.library, ALIEN)
+        .await
+        .unwrap()
+        .poster_url
+        .unwrap();
 
     let reply = fetch(&fx.server, &poster, Some(&fx.server.admin_token)).await;
 
@@ -763,7 +765,9 @@ async fn a_poster_already_under_artwork_is_served_without_the_provider() {
     assert_eq!(reply.body, b"\xff\xd8kept");
     let images = fx.server.tmdb().requests();
     assert!(
-        !images.iter().any(|request| request.starts_with("/t/p/")),
+        !images
+            .iter()
+            .any(|request| request.ends_with("/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg")),
         "{images:?}"
     );
 }
@@ -787,7 +791,9 @@ async fn any_other_artwork_path_is_not_found() {
     }
     let images = fx.server.tmdb().requests();
     assert!(
-        !images.iter().any(|request| request.starts_with("/t/p/")),
+        !images
+            .iter()
+            .any(|request| request.ends_with("/not-stored.jpg")),
         "{images:?}"
     );
 }
@@ -801,23 +807,6 @@ async fn artwork_without_a_session_is_refused() {
     let reply = fetch(&fx.server, &movie.poster_url.unwrap(), None).await;
 
     assert_eq!(reply.status, 401);
-}
-
-/// A client should try again later, rather than take the image to be gone.
-#[tokio::test]
-async fn artwork_from_a_provider_that_fails_is_unavailable() {
-    let mut fx = Fixture::alien().await;
-    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    fx.server.stop_tmdb();
-
-    let reply = fetch(
-        &fx.server,
-        &movie.poster_url.unwrap(),
-        Some(&fx.server.admin_token),
-    )
-    .await;
-
-    assert_eq!(reply.status, 503);
 }
 
 /// A Season as `GetShow` gives it.

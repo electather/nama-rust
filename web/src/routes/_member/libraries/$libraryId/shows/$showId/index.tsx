@@ -8,7 +8,9 @@ import { MarkPlayedMenu } from "@/components/mark-played-menu";
 import { PlayedIconButton, WatchedBar } from "@/components/watch-state";
 import { BrowseService, type Episode, type Season } from "@/gen/nama/v1/browse_pb";
 import {
+  type DeletedSearch,
   dateOf,
+  deletedFromSearch,
   externalIdFromParam,
   isGone,
   libraryFromParam,
@@ -22,9 +24,10 @@ import {
 import { useSetPlayed } from "@/lib/watch-state";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showId/")({
-  validateSearch: (search): { season?: number } => {
+  validateSearch: (search): { season?: number } & DeletedSearch => {
     const season = Number(search["season"]);
-    return Number.isInteger(season) && season >= 0 ? { season } : {};
+    const deleted = deletedFromSearch(search);
+    return Number.isInteger(season) && season >= 0 ? { season, ...deleted } : deleted;
   },
   loaderDeps: ({ search }) => ({ season: search.season }),
   loader: async ({ context, params, deps }) => {

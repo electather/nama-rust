@@ -9,6 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use nama_plugin_api::fulfiller::stop_monitoring::Title;
 use nama_proto::nama::v1::Request;
 
 use super::is_video;
@@ -23,9 +24,9 @@ use crate::{
 pub(crate) struct Doomed {
     pub(crate) library: Library,
     pub(crate) title: String,
-    /// The Movie's TMDB id, which the Movies Fulfiller is asked to stop monitoring. `None` for a
-    /// Movie Matched without one, which no Fulfiller knows.
-    pub(crate) tmdb_id: Option<i64>,
+    /// What the Library's Fulfillers are asked to stop monitoring. `None` for a title Matched
+    /// without the ids they know it by.
+    pub(crate) to_unmonitor: Option<Title>,
     /// Each file once.
     pub(crate) versions: Vec<Version>,
     /// The Episodes the title isn't, that a file of `versions` holds too.
@@ -289,7 +290,7 @@ mod tests {
                     read_only: Vec::new(),
                 },
                 title: "Title".to_owned(),
-                tmdb_id: None,
+                to_unmonitor: None,
                 versions: versions.collect(),
                 taken_along: Vec::new(),
                 requested: Vec::new(),
