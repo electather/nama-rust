@@ -28,8 +28,7 @@ use thiserror::Error;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
-/// The most a Plugin's logo may take, in bytes, since every list of Plugins carries it inline.
-const MAX_LOGO_BYTES: usize = 16 * 1024;
+use crate::images::{MAX_SVG_BYTES, clean_svg};
 
 /// How long a Plugin's settings check may take before it counts as failed.
 pub const SETTINGS_CHECK_TIMEOUT: Duration = Duration::from_secs(10);
@@ -1038,37 +1037,24 @@ fn asked(plugin: &dyn Plugin) -> Option<(Manifest, bool)> {
     Some((manifest, checks_settings))
 }
 
-/// The Plugin's `logo` if the Server keeps it: at most [`MAX_LOGO_BYTES`] and an SVG document.
-/// Logs why it drops one, which leaves the Plugin without a logo but otherwise as it was. An empty
-/// one, as protobuf sends no logo, is none.
-fn kept_logo(plugin: &PluginId, logo: String) -> Option<String> {
+/// The Plugin's `logo` as [`clean_svg`] leaves it, if the Server keeps it: at most
+/// [`MAX_SVG_BYTES`] and an SVG document. Logs why it drops one, which leaves the Plugin without a
+/// logo but otherwise as it was. An empty one, as protobuf sends no logo, is none.
+fn kept_logo(plugin: &PluginId, logo: &str) -> Option<String> {
     if logo.is_empty() {
         return None;
     }
-    let why = if logo.len() > MAX_LOGO_BYTES {
-        format!("it is over {MAX_LOGO_BYTES} bytes")
-    } else if let Some(why) = why_not_svg(&logo) {
-        format!("it isn't SVG: {why}")
+    let why = if logo.len() > MAX_SVG_BYTES {
+        format!("it is over {MAX_SVG_BYTES} bytes")
     } else {
-        return Some(logo);
+        match clean_svg(logo.as_bytes()) {
+            // svg-hush writes UTF-8 whatever it reads, so nothing is lost.
+            Ok(cleaned) => return Some(String::from_utf8_lossy(&cleaned).into_owned()),
+            Err(err) => format!("it isn't SVG: {err}"),
+        }
     };
     warn!(plugin = %plugin, "dropped its logo: {why}");
     None
-}
-
-/// Why `text` isn't an XML document whose root is SVG's `<svg>`, as a browser needs to show it as
-/// an `image/svg+xml` image. roxmltree refuses a DTD, so entities can't blow it up; the reason
-/// names the DOCTYPE for an author whose editor wrote one.
-fn why_not_svg(text: &str) -> Option<String> {
-    match roxmltree::Document::parse(text) {
-        Err(err) => Some(err.to_string()),
-        Ok(document) => {
-            let root = document.root_element().tag_name();
-            let svg =
-                root.name() == "svg" && root.namespace() == Some("http://www.w3.org/2000/svg");
-            (!svg).then(|| format!("its root is <{}>", root.name()))
-        }
-    }
 }
 
 /// `answer`, its error turned into a [`Failure`] once it is ready, for [`contain`] to await.

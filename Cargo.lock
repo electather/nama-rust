@@ -756,6 +756,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "data-url"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
+
+[[package]]
 name = "debugid"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2141,13 +2147,13 @@ dependencies = [
  "nama-server",
  "notify",
  "regex",
- "roxmltree",
  "rustix",
  "semver",
  "serde",
  "serde_json",
  "sha2 0.11.1",
  "sqlx",
+ "svg-hush",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -3254,6 +3260,19 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+
+[[package]]
+name = "svg-hush"
+version = "0.9.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e690409a034dc81758d2986dcc0e01ffe4a77c65902a120777f5182dd40b1f7f"
+dependencies = [
+ "base64 0.23.1",
+ "data-url",
+ "quick-error",
+ "url",
+ "xml",
+]
 
 [[package]]
 name = "syn"
@@ -4571,6 +4590,12 @@ name = "writeable"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
+
+[[package]]
+name = "xml"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f45bb2c13fec6a6cb4c0f76a7e94839e110a14ec803ec2940777a94c347bc52"
 
 [[package]]
 name = "yansi"

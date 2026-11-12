@@ -18,6 +18,7 @@ mod libraries;
 mod matching;
 mod metadata;
 mod playback;
+mod plugin_logos;
 pub mod plugin_settings;
 pub mod plugins;
 mod probing;

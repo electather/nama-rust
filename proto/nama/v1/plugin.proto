@@ -213,10 +213,17 @@ message PluginSummary {
   // The Extension Points it takes part at, as its Manifest names them, whether it is enabled or
   // not. Empty for a refused Plugin.
   repeated ExtensionPoint extension_points = 9;
-  // Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
-  // it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
-  // page, where its scripts would run.
-  string logo_svg = 10;
+  // Held its logo's SVG text, which `logo_url` replaces.
+  reserved 10;
+  reserved "logo_svg";
+  // Its logo's URL on this Server, or empty if it has none: its Custom Image if it has one, else
+  // its Manifest's. An SVG may be one an Installed Plugin's author wrote, so show it only as an
+  // image, never inline in a page.
+  string logo_url = 11;
+  // Whether `logo_url` is a Custom Image, which `DELETE /custom-images/plugin/<id>/logo` removes.
+  // `PUT` there uploads one, a JPEG, PNG or WebP, or an SVG of at most 64 KiB, for a User with
+  // `PERMISSION_MANAGE_SETTINGS`.
+  bool custom_logo = 12;
 }
 
 // A unit of trusted functionality that plugs into a Server.

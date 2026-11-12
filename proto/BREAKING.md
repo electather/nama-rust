@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-12, #727
+
+- None that `buf breaking` reports: `nama/v1/plugin.proto`'s `PluginSummary.logo_svg` (10) is deleted with its number and name reserved.
+- A Plugin's logo is no longer sent as SVG text. `PluginSummary.logo_url` (11) is its URL under `/media/`, its Custom Image's or its Manifest's, and `custom_logo` (12) says whether it is a Custom Image.
+- A client built before still decodes a Plugin, and finds no logo; once it regenerates it shows the logo from `logo_url`, as an image. The web app is the only client. No Installed Plugin sees `PluginSummary`, and a Manifest's `logo_svg` is unchanged.
+
 ## 2026-11-11, #689
 
 - `FIELD_NO_DELETE_UNLESS_NAME_RESERVED`, `nama/v1/playback.proto`: `PlaybackPlan.reasons` (4); `nama/v1/event.proto`: `Playback.reasons` (6).

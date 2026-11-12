@@ -22,18 +22,32 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
+    custom_images::{CustomImages, Slot, Urls},
+    plugin_logos::PluginLogos,
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     qualities,
 };
 
-use super::{database_failed, refuse};
+use super::{custom_image_urls, database_failed, refuse};
 
 /// `nama.v1.PluginService`: the Server's Plugins and their settings. Needs
 /// `PERMISSION_MANAGE_SETTINGS`, which [`require_access`](super::require_access) enforces.
 pub(super) struct PluginServiceHandler {
     /// Each Plugin with what is stored for it, which every change to one goes through.
     pub(super) plugin_settings: PluginSettings,
+    /// The logos admins uploaded, shown in place of the Manifests'.
+    pub(super) custom_images: CustomImages,
+    /// The Manifests' logos, stored as their URLs are handed out.
+    pub(super) plugin_logos: PluginLogos,
+}
+
+/// A Plugin's logo as clients fetch it.
+struct Logo {
+    /// Empty if it has none.
+    url: String,
+    /// Whether it is a Custom Image.
+    custom: bool,
 }
 
 #[expect(
@@ -47,14 +61,13 @@ impl PluginService for PluginServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, ListPluginsRequest>,
     ) -> ServiceResult<ListPluginsResponse> {
-        let summaries = self
-            .plugin_settings
-            .list()
-            .await
-            .map_err(list_failed)?
-            .into_iter()
-            .map(|StoredPlugin { plugin, stored }| plugin_summary_to_proto(plugin, stored.settings))
-            .collect();
+        let listed = self.plugin_settings.list().await.map_err(list_failed)?;
+        let custom = custom_image_urls(&self.custom_images).await?;
+        let mut summaries = Vec::with_capacity(listed.len());
+        for StoredPlugin { plugin, stored } in listed {
+            let logo = self.logo(&plugin, &custom).await;
+            summaries.push(plugin_summary_to_proto(plugin, stored.settings, logo));
+        }
         Response::ok(ListPluginsResponse {
             summaries,
             ..Default::default()
@@ -67,10 +80,9 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, GetPluginRequest>,
     ) -> ServiceResult<GetPluginResponse> {
         // Doesn't read `plugins/` again as listing does: the details page opens from the list.
-        let StoredPlugin { plugin, stored } =
-            self.known(&PluginId::from(request.id.to_owned())).await?;
+        let stored = self.known(&PluginId::from(request.id.to_owned())).await?;
         Response::ok(GetPluginResponse {
-            plugin: plugin_to_proto(plugin, stored.settings).into(),
+            plugin: self.plugin_with_logo(stored).await?.into(),
             ..Default::default()
         })
     }
@@ -82,13 +94,13 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<UpdatePluginSettingsResponse> {
         let request = request.to_owned_message();
         let id = PluginId::from(request.id);
-        let StoredPlugin { plugin, stored } = self
+        let stored = self
             .plugin_settings
             .update(&id, settings_from_proto(&request.settings))
             .await
             .map_err(change_refused)?;
         Response::ok(UpdatePluginSettingsResponse {
-            plugin: plugin_to_proto(plugin, stored.settings).into(),
+            plugin: self.plugin_with_logo(stored).await?.into(),
             ..Default::default()
         })
     }
@@ -186,6 +198,35 @@ impl PluginServiceHandler {
             .await
             .map_err(database_failed)?
             .ok_or_else(|| plugin_not_found(id))
+    }
+
+    /// `stored` as `Plugin`, with its logo.
+    async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
+        let custom = custom_image_urls(&self.custom_images).await?;
+        let logo = self.logo(&stored.plugin, &custom).await;
+        Ok(plugin_to_proto(stored.plugin, stored.stored.settings, logo))
+    }
+
+    /// `plugin`'s logo: its Custom Image, among `custom`, else its Manifest's, which is stored
+    /// first if it isn't. Without a URL if the store fails, which is logged: the Plugin is still
+    /// listed.
+    async fn logo(&self, plugin: &Listed, custom: &Urls) -> Logo {
+        if let Some(url) = custom.of(&Slot::plugin(&plugin.id)) {
+            return Logo { url, custom: true };
+        }
+        let manifest_logo = plugin
+            .manifest
+            .as_ref()
+            .ok()
+            .and_then(|it| it.logo_svg.as_deref());
+        let url = match manifest_logo {
+            Some(svg) => self.plugin_logos.stored_url(&plugin.id, svg).await.unwrap_or_else(|err| {
+                tracing::error!(plugin = %plugin.id, "could not store the Plugin's logo: {err}");
+                String::new()
+            }),
+            None => String::new(),
+        };
+        Logo { url, custom: false }
     }
 }
 
@@ -320,6 +361,7 @@ fn settings_refused(err: SettingsError) -> ConnectError {
 fn plugin_summary_to_proto(
     plugin: Listed,
     stored: BTreeMap<String, settings::SettingValue>,
+    logo: Logo,
 ) -> proto::PluginSummary {
     let (manifest, refused_reason) = manifest_and_refusal(&plugin.id, plugin.manifest);
     // `EnablePlugin`'s own check, so the list offers Set up exactly where enabling would be refused
@@ -338,7 +380,8 @@ fn plugin_summary_to_proto(
         kind: plugin.kind.into(),
         enabled: plugin.enabled,
         refused_reason,
-        logo_svg: manifest.logo_svg.unwrap_or_default(),
+        logo_url: logo.url,
+        custom_logo: logo.custom,
         ..Default::default()
     }
 }
@@ -346,6 +389,7 @@ fn plugin_summary_to_proto(
 fn plugin_to_proto(
     plugin: Listed,
     stored: BTreeMap<String, settings::SettingValue>,
+    logo: Logo,
 ) -> proto::Plugin {
     // A refused Plugin has no settings schema, so it comes with none.
     let settings = plugin
@@ -357,7 +401,7 @@ fn plugin_to_proto(
     proto::Plugin {
         checks_settings: plugin.checks_settings,
         settings,
-        summary: plugin_summary_to_proto(plugin, stored).into(),
+        summary: plugin_summary_to_proto(plugin, stored, logo).into(),
         ..Default::default()
     }
 }

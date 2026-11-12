@@ -37,12 +37,12 @@ nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb" }
 nama-proto = { version = "0.2.0", path = "../nama-proto" }
 notify = "8.2.2"
 regex = "1"
-roxmltree = "0.21"
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
 sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "runtime-tokio", "sqlite-bundled"] }
+svg-hush = "0.9.7"
 tempfile = "3"
 thiserror = "2"
 tokio = { version = "1", features = ["fs", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }

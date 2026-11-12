@@ -3352,18 +3352,30 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub extension_points: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ExtensionPoint>>,
-    /// Its logo, an SVG document's text, or empty if it has none. An Installed Plugin's author wrote
-    /// it, so show it only as an image, such as from a `data:image/svg+xml` URL, never inline in a
-    /// page, where its scripts would run.
+    /// Its logo's URL on this Server, or empty if it has none: its Custom Image if it has one, else
+    /// its Manifest's. An SVG may be one an Installed Plugin's author wrote, so show it only as an
+    /// image, never inline in a page.
     ///
-    /// Field 10: `logo_svg`
+    /// Field 11: `logo_url`
     #[serde(
-        rename = "logoSvg",
-        alias = "logo_svg",
+        rename = "logoUrl",
+        alias = "logo_url",
         with = "::buffa::json_helpers::proto_string",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
-    pub logo_svg: ::buffa::alloc::string::String,
+    pub logo_url: ::buffa::alloc::string::String,
+    /// Whether `logo_url` is a Custom Image, which `DELETE /custom-images/plugin/<id>/logo` removes.
+    /// `PUT` there uploads one, a JPEG, PNG or WebP, or an SVG of at most 64 KiB, for a User with
+    /// `PERMISSION_MANAGE_SETTINGS`.
+    ///
+    /// Field 12: `custom_logo`
+    #[serde(
+        rename = "customLogo",
+        alias = "custom_logo",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub custom_logo: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3380,7 +3392,8 @@ impl ::core::fmt::Debug for PluginSummary {
             .field("name", &self.name)
             .field("description", &self.description)
             .field("extension_points", &self.extension_points)
-            .field("logo_svg", &self.logo_svg)
+            .field("logo_url", &self.logo_url)
+            .field("custom_logo", &self.custom_logo)
             .finish()
     }
 }
@@ -3448,8 +3461,11 @@ impl ::buffa::Message for PluginSummary {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
-        if !self.logo_svg.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
+        if !self.logo_url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_url) as u64;
+        }
+        if self.custom_logo {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -3499,8 +3515,11 @@ impl ::buffa::Message for PluginSummary {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
             }
         }
-        if !self.logo_svg.is_empty() {
-            ::buffa::types::put_string_field(10u32, &self.logo_svg, buf);
+        if !self.logo_url.is_empty() {
+            ::buffa::types::put_string_field(11u32, &self.logo_url, buf);
+        }
+        if self.custom_logo {
+            ::buffa::types::put_bool_field(12u32, self.custom_logo, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3609,12 +3628,19 @@ impl ::buffa::Message for PluginSummary {
                     );
                 }
             }
-            10u32 => {
+            11u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                ::buffa::types::merge_string(&mut self.logo_svg, buf)?;
+                ::buffa::types::merge_string(&mut self.logo_url, buf)?;
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.custom_logo = ::buffa::types::decode_bool(buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -3633,7 +3659,8 @@ impl ::buffa::Message for PluginSummary {
         self.name.clear();
         self.description.clear();
         self.extension_points.clear();
-        self.logo_svg.clear();
+        self.logo_url.clear();
+        self.custom_logo = false;
         self.__buffa_unknown_fields.clear();
     }
 }
