@@ -14,7 +14,7 @@ use nama_proto::nama::v1::{
 use crate::{
     artwork,
     browse::{self, Browse, Episode, Movie, Show, Started, Version},
-    contents::{FoundEpisode, FoundMovie, FoundShow},
+    contents::{FoundEpisode, FoundMovie, FoundShow, show_poster},
     custom_images::{CustomImages, Role, Slot, Urls},
     libraries::Kind,
     tracks::track_to_proto,
@@ -311,7 +311,9 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
 fn show_to_proto(show: &Show, custom: &Urls) -> proto::Show {
     let custom_poster = custom.of(&Slot::show(&show.id, Role::Poster));
     let custom_backdrop = custom.of(&Slot::show(&show.id, Role::Backdrop));
-    let first_season = show.seasons.keys().next();
+    let season_posters: Vec<_> = (show.seasons.keys())
+        .filter_map(|&number| Some((number, season_poster(show, number, custom).0?)))
+        .collect();
     let downloaded_backdrop =
         (show.backdrop.as_deref()).map(|path| artwork::url(&show.plugin, path));
     proto::Show {
@@ -319,8 +321,10 @@ fn show_to_proto(show: &Show, custom: &Urls) -> proto::Show {
         title: show.title.clone(),
         custom_poster: custom_poster.is_some(),
         custom_backdrop: custom_backdrop.is_some(),
-        poster_url: custom_poster
-            .or_else(|| first_season.and_then(|&number| season_poster(show, number, custom).0)),
+        poster_url: custom_poster.or_else(|| {
+            let posters = (season_posters.iter()).map(|(n, url)| (*n, Some(url.as_str())));
+            show_poster(posters).map(str::to_owned)
+        }),
         backdrop_url: custom_backdrop.or(downloaded_backdrop),
         ..Default::default()
     }
