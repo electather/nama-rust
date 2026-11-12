@@ -290,7 +290,8 @@ impl Matcher {
     }
 
     /// Removes the Match of the item `item` and of every item named like it, and pins them
-    /// Unmatched, after any scan of its Library.
+    /// Unmatched, after any scan of its Library. Its images are deleted unless another Match
+    /// stores them.
     pub(crate) async fn clear_match(&self, item: i64) -> Result<Summary, ManualError> {
         let (_scan, named) = self.lock_named_like(item).await?;
         let outcomes = named

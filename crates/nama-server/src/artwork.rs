@@ -27,7 +27,7 @@ use axum::{
     routing::get,
 };
 use nama_plugin_api::PluginId;
-use tokio::sync::{OwnedSemaphorePermit, RwLock, Semaphore};
+use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
 
 use crate::{
     contents::Contents,
@@ -59,8 +59,8 @@ pub struct Artwork {
     offered: Arc<Mutex<HashSet<(String, String)>>>,
     /// Taken by each background download, across every clone.
     downloads: Arc<Semaphore>,
-    /// Written while unused images are deleted, and read while one is stored or served, so a
-    /// Match stored meanwhile never finds its image there and then has it deleted.
+    /// Written while unused images are deleted, and read while one is looked for, written or
+    /// served, so a Match stored meanwhile never finds its image there and then has it deleted.
     sweeping: Arc<RwLock<()>>,
 }
 
@@ -119,7 +119,7 @@ impl Artwork {
     ///
     /// If the Provider has no such image, can't be reached, or the store can't be written.
     pub async fn keep(&self, plugin: &PluginId, path: &str) -> Result<(), Error> {
-        self.store_in(KEPT_DIR, plugin, path).await
+        self.store_in(KEPT_DIR, plugin, path).await.map(drop)
     }
 
     /// Downloads, in the background, each image a Match in the Library `library` stores that
@@ -150,7 +150,6 @@ impl Artwork {
 
     /// Keeps one image for [`Self::download`], logging a failure, then lets the next start.
     async fn download_one(self, plugin: String, path: String, _permit: OwnedSemaphorePermit) {
-        let _sweeping = self.sweeping.read().await;
         if let Err(err) = self.keep(&PluginId::from(plugin), &path).await {
             tracing::warn!(path, "could not download an image: {err}");
         }
@@ -168,6 +167,8 @@ impl Artwork {
         contents: &Contents,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let _sweeping = self.sweeping.write().await;
+        // ponytail: lists every kept image and every Match on each scan and correction; delete
+        // by what the change removed instead if that gets slow on a big store.
         let kept = self.store.list(KEPT_DIR).await?;
         let used: HashSet<(String, String)> = contents.images(None).await?.into_iter().collect();
         for key in kept {
@@ -182,11 +183,24 @@ impl Artwork {
     }
 
     /// Stores the image at `path` from `plugin`'s Provider in `dir`, downloading it unless it is
-    /// stored there already.
-    async fn store_in(&self, dir: &str, plugin: &PluginId, path: &str) -> Result<(), Error> {
+    /// stored there already. Returns holding off [`Self::drop_unused`], so the image stays until
+    /// the guard is dropped.
+    async fn store_in(
+        &self,
+        dir: &str,
+        plugin: &PluginId,
+        path: &str,
+    ) -> Result<RwLockReadGuard<'_, ()>, Error> {
         let key = key(dir, plugin.as_str(), path);
-        if self.store.contains(&key).await? {
-            return Ok(());
+        // The lock isn't held across the download: a sweep waiting on a slow Provider would hold
+        // up the scan that runs it, and every image request queued behind the sweep. A sweep
+        // meanwhile can't delete what isn't stored yet.
+        // ponytail: an image downloaded while its Match is corrected stays until the next sweep.
+        {
+            let sweeping = self.sweeping.read().await;
+            if self.store.contains(&key).await? {
+                return Ok(sweeping);
+            }
         }
         let image = self
             .metadata
@@ -198,7 +212,9 @@ impl Artwork {
                     "{plugin} isn't enabled, doesn't provide metadata, or failed"
                 )),
             })?;
-        Ok(self.store.write(&key, &image.bytes).await?)
+        let sweeping = self.sweeping.read().await;
+        self.store.write(&key, &image.bytes).await?;
+        Ok(sweeping)
     }
 
     /// The image at `path` from `plugin`'s Provider as the answer to `request`, stored first if it
@@ -210,8 +226,8 @@ impl Artwork {
         path: &str,
         request: Request,
     ) -> Result<Response, Error> {
-        let _sweeping = self.sweeping.read().await;
-        self.store_in(dir, &PluginId::from(plugin.to_owned()), path)
+        let _sweeping = self
+            .store_in(dir, &PluginId::from(plugin.to_owned()), path)
             .await?;
         Ok(self
             .store
@@ -297,9 +313,10 @@ mod tests {
     use axum::{Router, body::Body, extract::Request, http::header};
     use nama_plugin_api::settings::{SettingValue, Settings};
     use nama_plugin_tmdb::{Endpoints, Tmdb, testing::API_KEY};
+    use tempfile::TempDir;
 
     use super::Artwork;
-    use crate::{images::ImageStore, plugins::Registry};
+    use crate::{contents::Contents, db::Database, images::ImageStore, plugins::Registry};
 
     /// How many image requests are running, and the most that ever were.
     #[derive(Default)]
@@ -317,14 +334,11 @@ mod tests {
         b"\xff\xd8"
     }
 
-    #[tokio::test]
-    async fn no_more_than_two_images_download_at_once() {
-        let running = Arc::new(Running::default());
-        let counted = Arc::clone(&running);
-        let slow_images = Router::new().fallback(move || slow_image(Arc::clone(&counted)));
+    /// Artwork in `data`, through a TMDB whose images `images` answers.
+    async fn artwork_on(data: &TempDir, images: Router) -> Artwork {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
-        tokio::spawn(axum::serve(listener, slow_images).into_future());
+        tokio::spawn(axum::serve(listener, images).into_future());
         let plugins = Registry::new();
         let tmdb = Tmdb::with_endpoints(Endpoints {
             api: url.clone(),
@@ -332,8 +346,16 @@ mod tests {
         });
         let key = BTreeMap::from([("api_key".to_owned(), SettingValue::Text(API_KEY.to_owned()))]);
         (plugins.enable_with_settings(Arc::new(tmdb), Settings::new(key))).unwrap();
+        Artwork::new(data.path(), plugins.extension_points())
+    }
+
+    #[tokio::test]
+    async fn no_more_than_two_images_download_at_once() {
+        let running = Arc::new(Running::default());
+        let counted = Arc::clone(&running);
+        let slow_images = Router::new().fallback(move || slow_image(Arc::clone(&counted)));
         let data = tempfile::tempdir().unwrap();
-        let artwork = Artwork::new(data.path(), plugins.extension_points());
+        let artwork = artwork_on(&data, slow_images).await;
         let images = (0..5).map(|n| ("tmdb".to_owned(), format!("/{n}.jpg")));
 
         artwork.download(images.collect()).await;
@@ -342,6 +364,31 @@ mod tests {
         assert_eq!(running.most.load(Ordering::SeqCst), 2);
         let kept = ImageStore::new(data.path()).list("artwork").await.unwrap();
         assert_eq!(kept.len(), 5);
+    }
+
+    /// The sweep runs at the end of a scan, under its Library's scan lock.
+    #[tokio::test]
+    async fn deleting_unused_images_does_not_wait_for_a_download() {
+        let asked = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&asked);
+        let never_answers = Router::new().fallback(move || {
+            counted.fetch_add(1, Ordering::SeqCst);
+            std::future::pending::<()>()
+        });
+        let data = tempfile::tempdir().unwrap();
+        let artwork = artwork_on(&data, never_answers).await;
+        let contents = Contents::new(Arc::new(Database::open(data.path()).await.unwrap()));
+        artwork
+            .download(vec![("tmdb".to_owned(), "/slow.jpg".to_owned())])
+            .await;
+        while asked.load(Ordering::SeqCst) == 0 {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+
+        let swept =
+            tokio::time::timeout(Duration::from_secs(1), artwork.drop_unused(&contents)).await;
+
+        assert!(swept.is_ok(), "the sweep waited for the download");
     }
 
     #[tokio::test]
