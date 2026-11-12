@@ -36,6 +36,10 @@ After that it ignores those tables, and logs that it does, so editing them chang
 
 Approved Movie Requests go to Radarr through the Radarr Plugin ([`plugins/radarr`](plugins/radarr)), and Approved Season Requests to Sonarr through the Sonarr Plugin ([`plugins/sonarr`](plugins/sonarr)), both Installed Plugins bundled in the Server. An Admin enables each on its page under Plugins with its URL and API key, and "Test" offers its quality profiles and root folders to pick from. Sonarr finds a Show by its TVDB id, so a Show the metadata source has none for can't go to Sonarr. Asking for a whole Show also has Sonarr monitor the Show's new Seasons, until its Followed Show ends. Deleting a Movie, or one of its Versions, first has Radarr stop monitoring it, so it doesn't download it again; Radarr keeps the Movie. If Radarr can't be told, the delete still happens, and the web app says Radarr may download it again.
 
+## Custom Images
+
+A User with Manage Libraries can upload their own Poster or Backdrop for a Movie or Show, or their own Poster for a Season, with "Edit images" on its page. The Server keeps them in `custom-images/` in its data directory (`/data/custom-images` in Docker). They exist nowhere else, so back that folder up together with the database, `nama.db`, which records which image is current. The other images in the data directory are downloaded again when they're missing.
+
 ## Docker
 
 Each release, prereleases aside, is also a Docker image for amd64 and arm64, `ghcr.io/electather/nama-server`, with [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg) as its ffmpeg and ffprobe, the easiest way to get hardware Transcoding. It runs as user 1000, keeps its state in `/data`, and reads `/data/nama.toml` if there is one. The image sets `data_dir`, `ffmpeg` and `ffprobe` through `NAMA_*` variables, which beat that file, so change those with `-e`. Mount each Library's folder and give the Library the path inside the container:

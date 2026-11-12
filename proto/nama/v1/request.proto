@@ -576,7 +576,7 @@ message MovieHit {
   string title = 2;
   // The year it was released, if known.
   optional int32 year = 3;
-  // The poster's URL, under `/media/artwork/` on this Server.
+  // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 6;
   // The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
   // by `tmdb_id`.
@@ -596,9 +596,9 @@ message FoundMovie {
   // What it is about, in the metadata Provider's language.
   optional string overview = 4;
   optional uint32 runtime_minutes = 5;
-  // The poster's URL, under `/media/artwork/` on this Server.
+  // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 6;
-  // The backdrop's URL, under `/media/artwork/` on this Server.
+  // The backdrop's URL on this Server: its Custom Image, if it has one.
   optional string backdrop_url = 7;
   // The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
   // by `tmdb_id`.
@@ -634,7 +634,7 @@ message ShowHit {
   string title = 2;
   // The year it first aired, if known.
   optional int32 year = 3;
-  // The poster's URL, under `/media/artwork/` on this Server.
+  // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 5;
 }
 
@@ -648,9 +648,9 @@ message FoundShow {
   optional int32 year = 3;
   // What it is about, in the metadata Provider's language.
   optional string overview = 4;
-  // The poster's URL, under `/media/artwork/` on this Server.
+  // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 5;
-  // The backdrop's URL, under `/media/artwork/` on this Server.
+  // The backdrop's URL on this Server: its Custom Image, if it has one.
   optional string backdrop_url = 6;
   // Its Seasons, in order.
   repeated FoundSeason seasons = 7;

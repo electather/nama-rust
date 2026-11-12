@@ -9,11 +9,53 @@ use std::{
 };
 
 use axum::{
+    body::Body,
     extract::Request,
     http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use futures_util::StreamExt as _;
+use image::{ImageFormat, ImageReader};
+use sha2::{Digest as _, Sha256};
+use tempfile::NamedTempFile;
+use tokio::io::AsyncWriteExt as _;
 use tower_http::services::ServeFile;
+
+/// The most bytes an uploaded image may have: 20 MiB.
+pub const MAX_UPLOAD_BYTES: u64 = 20 * 1024 * 1024;
+
+/// The most pixels an uploaded image may have: 12 megapixels (ADR 0039).
+pub const MAX_PIXELS: u64 = 12_000_000;
+
+/// An uploaded image the store kept: see [`ImageStore::receive`].
+#[derive(Debug)]
+pub struct Received {
+    /// Taken from its bytes, and the last part of its key.
+    pub version: String,
+    /// What it is, told from its bytes: `image/jpeg`, `image/png` or `image/webp`.
+    pub content_type: &'static str,
+}
+
+/// Why an upload wasn't kept.
+#[derive(Debug, thiserror::Error)]
+pub enum UploadError {
+    /// Over [`MAX_UPLOAD_BYTES`].
+    #[error("the image is over 20 MiB")]
+    TooBig,
+    /// Its bytes aren't a JPEG, PNG or WebP, whatever its name or `Content-Type` says.
+    #[error("the file isn't a JPEG, PNG or WebP image")]
+    NotAnImage,
+    /// Over [`MAX_PIXELS`].
+    #[error("the image is over 12 megapixels")]
+    TooManyPixels,
+    /// The body stopped arriving, such as when the client went away.
+    #[error("the upload broke off: {0}")]
+    BrokeOff(axum::Error),
+    /// The store couldn't be written.
+    #[error("image store error: {0}")]
+    Io(#[from] io::Error),
+}
 
 /// Stored images, under the data directory.
 #[derive(Debug, Clone)]
@@ -38,6 +80,42 @@ impl ImageStore {
     /// If the file can't be written.
     pub async fn write(&self, key: &[&str], bytes: &[u8]) -> io::Result<()> {
         write_atomically(&self.path(key), bytes).await
+    }
+
+    /// Keeps `body`, a JPEG, PNG or WebP of at most [`MAX_UPLOAD_BYTES`] and [`MAX_PIXELS`], in
+    /// `dir` under a version taken from its bytes, writing it as it arrives rather than holding it
+    /// whole. A refused or broken-off upload leaves nothing behind.
+    ///
+    /// # Errors
+    ///
+    /// If the image is refused, the body breaks off, or the store can't be written.
+    pub async fn receive(&self, dir: &[&str], body: Body) -> Result<Received, UploadError> {
+        let dir = self.path(dir);
+        let partial = {
+            let dir = dir.clone();
+            tokio::task::spawn_blocking(move || {
+                std::fs::create_dir_all(&dir)?;
+                // Its name starts with `.`, which `file_name` never gives, so no key names it.
+                NamedTempFile::new_in(dir)
+            })
+            .await
+            .map_err(io::Error::from)??
+        };
+        let version = write_hashed(&partial, body).await?;
+        tokio::task::spawn_blocking(move || {
+            let content_type = content_type_of(partial.path())?;
+            // Synced before the rename, or a crash can leave a whole name over an empty file.
+            partial.as_file().sync_all()?;
+            partial
+                .persist(dir.join(&version))
+                .map_err(io::Error::from)?;
+            Ok(Received {
+                version,
+                content_type,
+            })
+        })
+        .await
+        .map_err(io::Error::from)?
     }
 
     /// Whether an image is stored at `key`.
@@ -110,6 +188,46 @@ impl ImageStore {
     }
 }
 
+/// Writes `body` to `partial` as it arrives, refusing it past [`MAX_UPLOAD_BYTES`], and returns a
+/// version taken from its bytes: the start of their SHA-256, in URL-safe base64.
+async fn write_hashed(partial: &NamedTempFile, body: Body) -> Result<String, UploadError> {
+    let mut file = tokio::fs::File::from_std(partial.as_file().try_clone()?);
+    let mut hash = Sha256::new();
+    let mut size = 0;
+    let mut chunks = body.into_data_stream();
+    while let Some(chunk) = chunks.next().await {
+        let chunk = chunk.map_err(UploadError::BrokeOff)?;
+        size += chunk.len() as u64;
+        if size > MAX_UPLOAD_BYTES {
+            return Err(UploadError::TooBig);
+        }
+        hash.update(&chunk);
+        file.write_all(&chunk).await?;
+    }
+    file.flush().await?;
+    let hash = hash.finalize();
+    Ok(URL_SAFE_NO_PAD.encode(hash.get(..12).unwrap_or_default()))
+}
+
+/// The content type of the image at `path`, a JPEG, PNG or WebP of at most [`MAX_PIXELS`], told
+/// from its bytes. Only its header is read, never its pixels.
+fn content_type_of(path: &Path) -> Result<&'static str, UploadError> {
+    let reader = ImageReader::open(path)?.with_guessed_format()?;
+    let content_type = match reader.format() {
+        Some(ImageFormat::Jpeg) => "image/jpeg",
+        Some(ImageFormat::Png) => "image/png",
+        Some(ImageFormat::WebP) => "image/webp",
+        _ => return Err(UploadError::NotAnImage),
+    };
+    let (width, height) = reader
+        .into_dimensions()
+        .map_err(|_unreadable| UploadError::NotAnImage)?;
+    if u64::from(width) * u64::from(height) > MAX_PIXELS {
+        return Err(UploadError::TooManyPixels);
+    }
+    Ok(content_type)
+}
+
 /// Writes `bytes` to `path` so no reader ever sees a partial file, even if two writes of the
 /// same file race or the machine stops midway.
 pub(crate) async fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
@@ -118,7 +236,7 @@ pub(crate) async fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()
         let dir = path.parent().unwrap_or_else(|| Path::new("."));
         std::fs::create_dir_all(dir)?;
         // Its name starts with `.`, which `file_name` never gives, so no key names it.
-        let mut partial = tempfile::NamedTempFile::new_in(dir)?;
+        let mut partial = NamedTempFile::new_in(dir)?;
         partial.write_all(&bytes)?;
         // Synced before the rename, or a crash can leave a whole name over an empty file.
         partial.as_file().sync_all()?;

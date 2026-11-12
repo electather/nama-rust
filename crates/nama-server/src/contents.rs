@@ -280,13 +280,6 @@ pub(crate) struct Show<V = Version> {
 }
 
 impl<V> Show<V> {
-    /// The Show's poster: its first Season's, since a Match stores each Episode's Season poster
-    /// and none of the Show's own.
-    pub(crate) fn poster(&self) -> Option<&str> {
-        let (_, first) = self.seasons.first_key_value()?;
-        first.poster.as_deref()
-    }
-
     /// Every Episode of every Season, by season and episode number.
     pub(crate) fn episodes(&self) -> impl Iterator<Item = &Episode<V>> {
         self.seasons.values().flat_map(|season| &season.episodes)
@@ -1204,7 +1197,7 @@ impl<'a> SearchWords<'a> {
 }
 
 /// The ID Hint stored as `text`, which is how [`ExternalId`] displays.
-fn parse_hint(text: &str) -> Option<ExternalId> {
+pub(crate) fn parse_hint(text: &str) -> Option<ExternalId> {
     match text.split_once('-')? {
         ("tmdb", id) => id.parse().ok().map(ExternalId::Tmdb),
         ("tvdb", id) => id.parse().ok().map(ExternalId::Tvdb),

@@ -3,16 +3,19 @@ import { useId } from "react";
 
 import { DeleteMedia } from "@/components/delete-media";
 import { Button } from "@/components/ui/button";
+import { EditImages, movieImages } from "@/components/edit-images";
 import { PlayedButton } from "@/components/watch-state";
 import type { Movie } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { may } from "@/lib/permissions";
+// oxlint-disable-next-line import/max-dependencies -- the Movie's actions put together marking it played, its Custom Images and deleting it
 import { useSetPlayed } from "@/lib/watch-state";
 
 /**
  * What the signed-in User may do to `movie` of the Library `libraryId` besides playing it: mark it
- * played or unplayed, and delete it with Delete media unless `readOnlyFolder` holds it.
+ * played or unplayed, give it Custom Images with Manage Libraries, and delete it with Delete media
+ * unless `readOnlyFolder` holds it.
  */
 export function MovieActions({
   libraryId,
@@ -37,6 +40,7 @@ export function MovieActions({
           setPlayed({ libraryId, target: { case: "movieId", value: movieId }, played });
         }}
       />
+      <EditImages title={movie.title} images={movieImages(movieId, movie)} />
       {may(signedIn.user, Permission.DELETE_MEDIA) &&
         (readOnlyFolder === undefined ? (
           <DeleteMedia

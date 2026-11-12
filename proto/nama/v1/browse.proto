@@ -72,15 +72,21 @@ message Movie {
   // When it was released, as `YYYY-MM-DD`.
   optional string release_date = 5;
   optional uint32 runtime_minutes = 6;
-  // The poster's URL, under `/media/artwork/` on this Server.
+  // The poster's URL on this Server.
   optional string poster_url = 7;
-  // The backdrop's URL, under `/media/artwork/` on this Server.
+  // The backdrop's URL on this Server.
   optional string backdrop_url = 8;
   // The files the Movie is available in, by path. There is at least one.
   repeated Version versions = 9;
   // The caller's progress through it, kept across all its Versions. Unset if they haven't
   // started it.
   WatchState watch_state = 10;
+  // Whether `poster_url` is a Custom Image, which `DELETE /custom-images/movie/<id>/poster`
+  // removes, `<id>` being `id` as `tmdb-348`, `imdb-tt0078748` or `tvdb-81189`. `PUT` there
+  // uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
+  bool custom_poster = 11;
+  // Whether `backdrop_url` is a Custom Image, at `/custom-images/movie/<id>/backdrop`.
+  bool custom_backdrop = 12;
 }
 
 // One file a Movie or Episode is available in.
@@ -204,18 +210,26 @@ message Show {
   ExternalId id = 1;
   // The title, in the metadata Provider's language.
   string title = 2;
-  // Its first Season's poster's URL, under `/media/artwork/` on this Server.
+  // Its poster's URL on this Server: its Custom Image if it has one, else its first Season's.
   optional string poster_url = 3;
-  // The backdrop's URL, under `/media/artwork/` on this Server.
+  // The backdrop's URL on this Server.
   optional string backdrop_url = 4;
+  // Whether `poster_url` is the Show's own Custom Image, at `/custom-images/show/<id>/poster`,
+  // as for `Movie.custom_poster`.
+  bool custom_poster = 5;
+  // Whether `backdrop_url` is a Custom Image, at `/custom-images/show/<id>/backdrop`.
+  bool custom_backdrop = 6;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.
 message Season {
   // The season number. Season 0 holds specials.
   uint32 number = 1;
-  // The poster's URL, under `/media/artwork/` on this Server.
+  // The poster's URL on this Server.
   optional string poster_url = 2;
+  // Whether `poster_url` is a Custom Image, at
+  // `/custom-images/show/<show id>/season/<number>/poster`, as for `Movie.custom_poster`.
+  bool custom_poster = 3;
 }
 
 // An Episode some items of a Library are Matched to, with the metadata its Match stores.
@@ -322,7 +336,7 @@ message MovieInLibrary {
   string title = 3;
   // When it was released, as `YYYY-MM-DD`.
   optional string release_date = 4;
-  // The poster's URL, under `/media/artwork/` on this Server.
+  // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 5;
 }
 
@@ -333,7 +347,7 @@ message ShowInLibrary {
   // As `ListShows` gives it.
   ExternalId id = 2;
   string title = 3;
-  // A Season's poster's URL, under `/media/artwork/` on this Server.
+  // The Show's Custom Poster's URL on this Server, or else a Season's poster's.
   optional string poster_url = 4;
 }
 

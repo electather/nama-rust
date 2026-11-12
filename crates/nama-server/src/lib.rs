@@ -7,6 +7,7 @@ pub mod codes;
 pub mod config;
 mod connections;
 mod contents;
+mod custom_images;
 pub mod db;
 mod device_names;
 mod events;

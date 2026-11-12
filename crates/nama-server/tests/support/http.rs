@@ -40,24 +40,47 @@ pub(crate) async fn fetch_with(
     token: Option<&str>,
     headers: &[(&str, &str)],
 ) -> Reply {
-    use http_body_util::{BodyExt, Empty};
-    use hyper::{Request, body::Bytes, client::conn::http1};
+    let mut request = hyper::Request::get(path);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let empty = http_body_util::Empty::<hyper::body::Bytes>::new();
+    send(server, request.body(empty).unwrap(), token).await
+}
+
+/// Sends `request` to `server` over plain HTTP/1.1, presenting `token`, if any, in the session
+/// cookie, as a browser does.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+pub(crate) async fn send<B>(
+    server: &TestServer,
+    mut request: hyper::Request<B>,
+    token: Option<&str>,
+) -> Reply
+where
+    B: hyper::body::Body + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    use http_body_util::BodyExt;
+    use hyper::{client::conn::http1, header::HeaderValue};
     use hyper_util::rt::TokioIo;
 
     let stream = tokio::net::TcpStream::connect(server.addr).await.unwrap();
     let (mut sender, connection) = http1::handshake(TokioIo::new(stream)).await.unwrap();
     tokio::spawn(connection);
-    let mut request = Request::get(path).header("host", server.addr.to_string());
+    let headers = request.headers_mut();
+    headers.insert(
+        "host",
+        HeaderValue::from_str(&server.addr.to_string()).unwrap(),
+    );
     if let Some(token) = token {
-        request = request.header("cookie", format!("nama_session={token}"));
+        let cookie = format!("nama_session={token}");
+        headers.insert("cookie", HeaderValue::from_str(&cookie).unwrap());
     }
-    for (name, value) in headers {
-        request = request.header(*name, *value);
-    }
-    let response = sender
-        .send_request(request.body(Empty::<Bytes>::new()).unwrap())
-        .await
-        .unwrap();
+    let response = sender.send_request(request).await.unwrap();
     let (parts, body) = response.into_parts();
     Reply {
         status: parts.status.as_u16(),
