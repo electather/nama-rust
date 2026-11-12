@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ChangePassword } from "@/components/change-password";
 import { DefaultQualities } from "@/components/default-qualities";
 import { DeviceList, yourDevicesQuery } from "@/components/device-list";
+import { ImageSettingsForm, imageSettingsQuery } from "@/components/image-settings";
 import { Page } from "@/components/page";
 import { PluginConnections } from "@/components/plugin-connections";
 import { ServerUrl, serverSettingsQuery } from "@/components/server-url";
@@ -15,6 +16,8 @@ export const Route = createFileRoute("/_member/settings")({
       queryClient.query(yourDevicesQuery(transport)),
       may(signedIn.user, Permission.MANAGE_SETTINGS) &&
         queryClient.query(serverSettingsQuery(transport)),
+      may(signedIn.user, Permission.MANAGE_SETTINGS) &&
+        queryClient.query(imageSettingsQuery(transport)),
     ]),
   component: Settings,
 });
@@ -48,6 +51,14 @@ function Settings() {
             Server
           </h2>
           <ServerUrl />
+        </section>
+      )}
+      {may(signedIn.user, Permission.MANAGE_SETTINGS) && (
+        <section aria-labelledby="images" className="mt-12 max-w-md">
+          <h2 id="images" className="font-medium">
+            Images
+          </h2>
+          <ImageSettingsForm />
         </section>
       )}
     </Page>

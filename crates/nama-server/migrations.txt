@@ -47,3 +47,4 @@
 0047_keep_behind.sql
 0048_read_only_folders.sql
 0049_custom_images.sql
+0050_image_settings.sql

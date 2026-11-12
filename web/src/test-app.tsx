@@ -65,6 +65,7 @@ export function fakeServer(
         }),
       getServerSettings: () => ({ settings: {} }),
       getPlaybackSettings: () => ({ settings: {} }),
+      getImageSettings: () => ({ settings: { resizeImages: true } }),
       ...state.serverService,
     });
     router.service(SignInService, {

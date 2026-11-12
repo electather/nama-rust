@@ -38,6 +38,16 @@ service ServerService {
   rpc UpdatePlaybackSettings(UpdatePlaybackSettingsRequest) returns (UpdatePlaybackSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Returns how the Server resizes Posters and Backdrops. Needs `PERMISSION_MANAGE_SETTINGS`.
+  rpc GetImageSettings(GetImageSettingsRequest) returns (GetImageSettingsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Replaces how the Server resizes Posters and Backdrops, from the next image asked for. Needs
+  // `PERMISSION_MANAGE_SETTINGS`. A `resized_cache_mib` set to 0 is refused with
+  // `REFUSAL_REASON_FIELD_REQUIRED` naming it, and nothing changes.
+  rpc UpdateImageSettings(UpdateImageSettingsRequest) returns (UpdateImageSettingsResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 message GetServerInfoRequest {}
@@ -50,6 +60,12 @@ message GetServerInfoResponse {
   // Whether the Server has no Users yet, so the first Admin still has to be created with
   // `SignInService.Setup`.
   bool setup_required = 3;
+  // The widths, in pixels and smallest first, an image's URL may ask for by adding `?width=` and
+  // one of them, such as `/media/artwork/tmdb/%2Fposter.jpg?width=640`. Any other width is
+  // refused with HTTP 400. While resizing is on (`ImageSettings.resize_images`), the Server sends
+  // the image as a JPEG that wide, with its shape kept, or the stored image if it is no wider, an
+  // SVG, has transparency or is over 12 megapixels. While it's off, the width is ignored.
+  repeated uint32 image_widths = 4;
 }
 
 message GetServerSettingsRequest {}
@@ -202,4 +218,30 @@ message PlaybackSettings {
   // files, so skipping back that far plays at once, at least 1. Unset for the default, 5. A change
   // applies to running plans from the Server's next look at them, within about 10 seconds.
   optional uint32 keep_behind_minutes = 6;
+}
+
+message GetImageSettingsRequest {}
+
+message GetImageSettingsResponse {
+  ImageSettings settings = 1;
+}
+
+message UpdateImageSettingsRequest {
+  ImageSettings settings = 1;
+}
+
+message UpdateImageSettingsResponse {
+  // The settings as saved.
+  ImageSettings settings = 1;
+}
+
+// What an admin sets about how the Server resizes Posters and Backdrops.
+message ImageSettings {
+  // Whether an image asked for at a width (`GetServerInfoResponse.image_widths`) is sent resized
+  // to it. Off, every image is sent as stored, and the browser scales it. On by default.
+  bool resize_images = 1;
+  // The most disk, in MiB, the resized copies the Server keeps take, at least 1. Once a new copy
+  // takes them past it, those least recently sent are deleted until they fit. Unset for the
+  // default, 1024.
+  optional uint32 resized_cache_mib = 2;
 }

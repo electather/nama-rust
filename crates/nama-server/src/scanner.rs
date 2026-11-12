@@ -332,7 +332,8 @@ impl Scanner {
     /// them, with the images only their Matches stored, and logs that `by` deleted them, and
     /// cancels the Requests still waiting on what they were of. It
     /// refuses, before any of that, media in a folder the Library's last scan found
-    /// read-only ([`Error::ReadOnly`]). The one way to delete media (see AGENTS.md, "One path for deleting
+    /// read-only ([`Error::ReadOnly`]). Once the files are deleted it returns what went: a later
+    /// step's failure is only logged. The one way to delete media (see AGENTS.md, "One path for deleting
     /// media"). It holds the Library's scan lock, so a scan racing it sees
     /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
@@ -372,11 +373,24 @@ impl Scanner {
                 "deleted media"
             );
             let removed = deleted.versions.iter().copied().map(Change::Remove);
-            let events = scanner
+            let events = match scanner
                 .inner
                 .contents
                 .apply(library, removed.collect())
-                .await?;
+                .await
+            {
+                Ok(events) => events,
+                Err(error) => {
+                    // The next scan removes them, as it does any file gone from disk.
+                    tracing::error!(
+                        %error,
+                        title = %doomed.title,
+                        library,
+                        "couldn't remove the deleted Versions; they stay listed until the next scan"
+                    );
+                    Vec::new()
+                }
+            };
             if let Some(probing) = &scanner.inner.probing {
                 probing.clean_subtitles().await;
             }
@@ -398,8 +412,12 @@ impl Scanner {
         let Some(requests) = &self.inner.requests else {
             return;
         };
-        if let Err(error) = requests.cancel_deleted(titles, by).await {
-            tracing::warn!(%error, "couldn't cancel the Requests waiting on deleted media");
+        if let Err(error) = requests.cancel_deleted(titles.clone(), by).await {
+            tracing::error!(
+                %error,
+                ?titles,
+                "couldn't cancel the Requests waiting on deleted media; they stay open"
+            );
         }
     }
 
@@ -771,10 +789,10 @@ mod tests {
     use nama_proto::nama::v1::{Lagged, subscribe_response};
     use tempfile::TempDir;
 
-    use super::{Scanner, Summary};
+    use super::{Doomed, Scanner, Summary};
     use crate::{
         artwork::Artwork,
-        contents::{Contents, File, Item},
+        contents::{Contents, File, Item, Version},
         custom_images::CustomImages,
         db::Database,
         events::{EventBus, Filter},
@@ -783,6 +801,7 @@ mod tests {
         playback::subtitles,
         plugins::ExtensionPoints,
         probing::Probing,
+        requests::Requests,
         server_settings::ServerUrl,
     };
 
@@ -795,6 +814,7 @@ mod tests {
         scanner: Scanner,
         /// What the scanner tells a scan finished, if anything probes.
         probing: Option<Probing>,
+        db: Arc<Database>,
         contents: Contents,
         events: EventBus,
         library: i64,
@@ -844,10 +864,15 @@ mod tests {
                     events.clone(),
                     probing.clone(),
                     None,
-                    None,
+                    Some(Requests::new(
+                        Arc::clone(&db),
+                        events.clone(),
+                        ExtensionPoints::default(),
+                    )),
                 ),
                 probing,
-                contents: Contents::new(db),
+                contents: Contents::new(Arc::clone(&db)),
+                db,
                 events,
                 library: library.id,
                 root,
@@ -868,6 +893,35 @@ mod tests {
 
         async fn scan(&self) -> Summary {
             self.scanner.scan(self.library).await.unwrap()
+        }
+
+        /// Every stored file of the Library, as one title to delete.
+        async fn doomed(&self) -> Doomed {
+            let stored = self.contents.stored(self.library).await.unwrap();
+            Doomed {
+                library: self
+                    .scanner
+                    .inner
+                    .libraries
+                    .get(self.library)
+                    .await
+                    .unwrap(),
+                title: "Everything".to_owned(),
+                to_unmonitor: None,
+                versions: (stored.into_iter())
+                    .map(|(path, file)| Version { file, path })
+                    .collect(),
+                taken_along: Vec::new(),
+                requested: Vec::new(),
+            }
+        }
+
+        /// Makes every later write fail, as a database that can't be written to does.
+        async fn stop_writes(&self) {
+            self.db
+                .write(|tx| Box::pin(sqlx::query("PRAGMA query_only = ON").execute(&mut **tx)))
+                .await
+                .unwrap();
         }
 
         /// The stored files, as `/`-separated paths relative to the Library folder, whatever
@@ -968,6 +1022,40 @@ mod tests {
                 ),
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn writes_failing_once_the_files_are_gone_are_logged_and_the_delete_still_reports_them() {
+        let media = Fixture::new(Kind::Movies).await;
+        media.write("Alien (1979)/Alien (1979).mkv", 10);
+        media.scan().await;
+        let doomed = media.doomed().await;
+        media.stop_writes().await;
+        let log = tempfile::NamedTempFile::new().unwrap();
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(Arc::new(log.reopen().unwrap()))
+            .with_ansi(false)
+            .finish();
+        // The test's runtime has one thread, so the delete's tasks log to it too. A thread-local
+        // subscriber is safe here, unlike in `tests/support/log.rs`: only this test reaches the
+        // error lines it reads, so no other test races it over whether they're enabled.
+        let logging = tracing::subscriber::set_default(subscriber);
+
+        let deleted = media.scanner.delete_media(doomed, "ada".to_owned()).await;
+
+        drop(logging);
+        let deleted = deleted.unwrap();
+        let files: Vec<_> = deleted.files.iter().map(|file| &file.path).collect();
+        assert_eq!(files, [&media.path("Alien (1979)/Alien (1979).mkv")]);
+        assert_eq!(deleted.bytes_freed(), 10);
+        assert!(!media.path("Alien (1979)").exists());
+        let log = fs::read_to_string(log.path()).unwrap();
+        let logged = |step: &str| {
+            log.lines()
+                .any(|line| line.contains("ERROR") && line.contains(step))
+        };
+        assert!(logged("couldn't remove the deleted Versions"), "{log}");
+        assert!(logged("couldn't cancel the Requests"), "{log}");
     }
 
     #[tokio::test]

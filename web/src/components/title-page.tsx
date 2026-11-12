@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { useSrcSet } from "@/lib/image-sizes";
+
 /**
  * A Movie's or Show's page: its title over its backdrop, then `children`. The backdrop sits under
  * the scrim, so the title keeps its contrast whatever the image (DESIGN.md, "The Legible Over Art
@@ -14,6 +16,7 @@ export function TitlePage({
   backdropUrl: string | undefined;
   children: ReactNode;
 }) {
+  const srcSet = useSrcSet(backdropUrl);
   return (
     <main>
       <div className="relative isolate">
@@ -21,6 +24,8 @@ export function TitlePage({
           <>
             <img
               src={backdropUrl}
+              srcSet={srcSet}
+              sizes="100vw"
               alt=""
               className="absolute inset-0 -z-10 size-full object-cover"
             />
