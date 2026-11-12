@@ -209,4 +209,7 @@ enum RefusalReason {
   // `not_found`: the Version has no Track of the kind picked at the place named. `field` is
   // `track`.
   REFUSAL_REASON_TRACK_NOT_FOUND = 62;
+  // `failed_precondition`: what a delete names is in a Library folder the Server couldn't write
+  // to when it last scanned the Library, so nothing is deleted. Params: `folder`.
+  REFUSAL_REASON_FOLDER_READ_ONLY = 63;
 }

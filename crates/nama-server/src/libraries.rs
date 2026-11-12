@@ -27,6 +27,9 @@ pub(crate) struct Library {
     pub(crate) kind: Kind,
     /// Canonical absolute paths, in the order the admin gave them.
     pub(crate) folders: Vec<String>,
+    /// Those of `folders` the Server couldn't write to when it last scanned the Library, so media
+    /// in them isn't deleted (ADR 0038).
+    pub(crate) read_only: Vec<String>,
 }
 
 /// Why a change to the Libraries was refused or failed.
@@ -103,12 +106,18 @@ impl Libraries {
         .fetch_all(&mut *tx)
         .await?;
         let mut folders: HashMap<i64, Vec<String>> = HashMap::new();
+        let mut read_only: HashMap<i64, Vec<String>> = HashMap::new();
         for folder in sqlx::query!(
-            "SELECT library_id, path FROM library_folders ORDER BY library_id, position"
+            r#"SELECT library_id, path, read_only AS "read_only: bool" FROM library_folders
+               ORDER BY library_id, position"#
         )
         .fetch_all(&mut *tx)
         .await?
         {
+            if folder.read_only {
+                let library = read_only.entry(folder.library_id).or_default();
+                library.push(folder.path.clone());
+            }
             folders
                 .entry(folder.library_id)
                 .or_default()
@@ -119,6 +128,7 @@ impl Libraries {
             .into_iter()
             .map(|row| Library {
                 folders: folders.remove(&row.id).unwrap_or_default(),
+                read_only: read_only.remove(&row.id).unwrap_or_default(),
                 id: row.id,
                 name: row.name,
                 kind: row.kind,
@@ -135,19 +145,31 @@ impl Libraries {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(Error::NotFound(id))?;
-        let folders = sqlx::query_scalar!(
-            "SELECT path FROM library_folders WHERE library_id = ? ORDER BY position",
+        let rows = sqlx::query!(
+            r#"SELECT path, read_only AS "read_only: bool" FROM library_folders
+               WHERE library_id = ? ORDER BY position"#,
             id
         )
         .fetch_all(&mut *tx)
         .await?;
         tx.commit().await?;
+        let read_only = (rows.iter().filter(|folder| folder.read_only))
+            .map(|folder| folder.path.clone())
+            .collect();
         Ok(Library {
             id,
             name: row.name,
             kind: row.kind,
-            folders,
+            folders: rows.into_iter().map(|folder| folder.path).collect(),
+            read_only,
         })
+    }
+
+    /// Records that the Server can write to each of the Library `id`'s folders but `read_only`.
+    pub(crate) async fn set_read_only(&self, id: i64, read_only: Vec<String>) -> Result<(), Error> {
+        self.db
+            .write(move |tx| Box::pin(set_read_only(tx, id, read_only)))
+            .await
     }
 
     /// Renames the Library and replaces its folders; its kind can't change.
@@ -191,6 +213,7 @@ async fn create(
         name,
         kind,
         folders,
+        read_only: Vec::new(),
     })
 }
 
@@ -210,15 +233,28 @@ async fn update(
     .await?
     .ok_or(Error::NotFound(id))?;
     ensure_folders_free(conn, &folders, Some(id)).await?;
+    // A folder it keeps stays read-only until a scan says otherwise; a new one holds nothing to
+    // delete until a scan, which checks it.
+    let read_only: Vec<String> = sqlx::query_scalar!(
+        "SELECT path FROM library_folders WHERE library_id = ? AND read_only = 1",
+        id
+    )
+    .fetch_all(&mut *conn)
+    .await?;
     sqlx::query!("DELETE FROM library_folders WHERE library_id = ?", id)
         .execute(&mut *conn)
         .await?;
     insert_folders(conn, id, &folders).await?;
+    let read_only: Vec<String> = (read_only.into_iter())
+        .filter(|folder| folders.contains(folder))
+        .collect();
+    set_read_only(conn, id, read_only.clone()).await?;
     Ok(Library {
         id,
         name,
         kind,
         folders,
+        read_only,
     })
 }
 
@@ -229,6 +265,29 @@ async fn delete(conn: &mut SqliteConnection, id: i64) -> Result<(), Error> {
         .await?;
     if deleted.rows_affected() == 0 {
         return Err(Error::NotFound(id));
+    }
+    Ok(())
+}
+
+async fn set_read_only(
+    conn: &mut SqliteConnection,
+    id: i64,
+    read_only: Vec<String>,
+) -> Result<(), Error> {
+    sqlx::query!(
+        "UPDATE library_folders SET read_only = 0 WHERE library_id = ?",
+        id
+    )
+    .execute(&mut *conn)
+    .await?;
+    for folder in read_only {
+        sqlx::query!(
+            "UPDATE library_folders SET read_only = 1 WHERE library_id = ? AND path = ?",
+            id,
+            folder,
+        )
+        .execute(&mut *conn)
+        .await?;
     }
     Ok(())
 }

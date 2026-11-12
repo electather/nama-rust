@@ -2753,13 +2753,27 @@ pub struct GetMovieResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub movie: ::buffa::MessageField<Movie, ::buffa::Inline<Movie>>,
+    /// The Library folder holding a Version of the Movie that the Server couldn't write to when it
+    /// last scanned the Library, if there is one, in which case deleting the Movie is refused. Set
+    /// only for a caller with `PERMISSION_DELETE_MEDIA`.
+    ///
+    /// Field 2: `read_only_folder`
+    #[serde(
+        rename = "readOnlyFolder",
+        alias = "read_only_folder",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub read_only_folder: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for GetMovieResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("GetMovieResponse").field("movie", &self.movie).finish()
+        f.debug_struct("GetMovieResponse")
+            .field("movie", &self.movie)
+            .field("read_only_folder", &self.read_only_folder)
+            .finish()
     }
 }
 impl GetMovieResponse {
@@ -2768,6 +2782,18 @@ impl GetMovieResponse {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.GetMovieResponse";
+}
+impl GetMovieResponse {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::read_only_folder`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_read_only_folder(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.read_only_folder = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(GetMovieResponse);
 impl ::buffa::MessageName for GetMovieResponse {
@@ -2797,6 +2823,9 @@ impl ::buffa::Message for GetMovieResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.read_only_folder {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2814,6 +2843,9 @@ impl ::buffa::Message for GetMovieResponse {
                 buf,
             );
             self.movie.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.read_only_folder {
+            ::buffa::types::put_string_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2839,6 +2871,18 @@ impl ::buffa::Message for GetMovieResponse {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .read_only_folder
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2848,6 +2892,7 @@ impl ::buffa::Message for GetMovieResponse {
     }
     fn clear(&mut self) {
         self.movie = ::buffa::MessageField::none();
+        self.read_only_folder = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

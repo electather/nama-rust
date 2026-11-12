@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_id, path, read_only AS \"read_only: bool\" FROM library_folders\n               ORDER BY library_id, position",
+  "describe": {
+    "columns": [
+      {
+        "name": "library_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_folders",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_folders",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "read_only: bool",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_folders",
+            "name": "read_only"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "18470f92abdc759717e04808aefbc7663fc5e4e6ec376bdd37f17dc8c586aae4"
+}

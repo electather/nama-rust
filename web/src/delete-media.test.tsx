@@ -1,4 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { Code } from "@connectrpc/connect";
 import type { ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
@@ -9,10 +10,11 @@ import {
   type LibraryService,
   type MediaToDeleteSchema,
 } from "@/gen/nama/v1/library_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
 import { admin, fakeServer, newUser, openApp } from "./test-app";
-import { confirmItsYou, recentAuthenticationRequired } from "./test-refusal";
+import { confirmItsYou, recentAuthenticationRequired, refused } from "./test-refusal";
 
 afterEach(cleanup);
 
@@ -23,10 +25,14 @@ const ALIEN_2160P = { id: 2n, fileName: "Alien (1979) - 2160p.mkv", size: 60_000
 
 type Target = MessageInitShape<typeof MediaToDeleteSchema>["target"];
 
-/** Alien's page in a Movies Library, for a User with `permissions`, deleting through `library`. */
+/**
+ * Alien's page in a Movies Library, for a User with `permissions`, deleting through `library`, with
+ * the read-only folder that `GetMovie` says refuses deleting it, if any.
+ */
 function openAlien(
   permissions: Permission[],
   library: Partial<ServiceImpl<typeof LibraryService>> = {},
+  readOnlyFolder?: string,
 ) {
   const transport = fakeServer(
     {
@@ -48,7 +54,10 @@ function openAlien(
     {},
     (router) => {
       router.service(BrowseService, {
-        getMovie: () => ({ movie: { title: "Alien", versions: [ALIEN_2160P, ALIEN_1080P] } }),
+        getMovie: () => ({
+          movie: { title: "Alien", versions: [ALIEN_2160P, ALIEN_1080P] },
+          readOnlyFolder,
+        }),
         listMovies: () => ({ movies: [] }),
       });
     },
@@ -142,6 +151,51 @@ function deletingOnlyOnceConfirmed(deleted: Target[]): Partial<ServiceImpl<typeo
       return {};
     },
   };
+}
+
+test("a read-only folder disables the Delete action, saying which folder", async () => {
+  openAlien(deletesMedia, {}, "/media/movies");
+
+  const action = await screen.findByRole("button", { name: "Delete Alien" });
+
+  expect(action).toHaveProperty("disabled", true);
+  expect(action.getAttribute("aria-describedby")).not.toBeNull();
+  expect(screen.getByText(/the Server can’t write to \/media\/movies/u)).toBeDefined();
+});
+
+test("a delete the Server refuses for a read-only folder says which folder", async () => {
+  openAlien(deletesMedia, { deleteMedia: () => folderReadOnly("/media/movies") });
+  const dialog = await openDeleteDialog();
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+
+  expect(
+    await within(dialog).findByText(/the Server can’t write to \/media\/movies/u),
+  ).toBeDefined();
+});
+
+test("the confirmation says a read-only folder refuses the delete", async () => {
+  openAlien(deletesMedia, {
+    previewDeleteMedia: () => ({
+      files: [ALIEN_1080P],
+      bytesFreed: ALIEN_1080P.size,
+      readOnlyFolder: "/media/movies",
+    }),
+  });
+
+  const dialog = await openDeleteDialog();
+
+  expect(
+    await within(dialog).findByText(/refuse to delete them: it can’t write to \/media\/movies/u),
+  ).toBeDefined();
+});
+
+/** The Server's refusal to delete from `folder`, which it couldn't write to when it last scanned. */
+function folderReadOnly(folder: string): never {
+  throw refused(Code.FailedPrecondition, `media in ${folder} can't be deleted`, {
+    reason: RefusalReason.FOLDER_READ_ONLY,
+    params: { folder },
+  });
 }
 
 test("files that couldn't be deleted are listed with why", async () => {
