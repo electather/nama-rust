@@ -2049,10 +2049,7 @@ impl Contents {
             .await
             .unwrap();
     }
-}
 
-#[cfg(test)]
-impl Contents {
     /// Marks the Matches of the Library `library` as stored by the metadata version before the
     /// current one, without the Stills that version added, as before a version bump.
     pub(crate) async fn stored_by_older_metadata(&self, library: i64) {
@@ -2067,6 +2064,24 @@ impl Contents {
                                            WHERE library_files.library_id = ?)",
                         METADATA_VERSION,
                         library
+                    )
+                    .execute(&mut **tx)
+                    .await
+                })
+            })
+            .await
+            .unwrap();
+    }
+
+    /// Marks the Match of the item `item` as made by the Plugin `plugin`.
+    pub(crate) async fn matched_by(&self, item: i64, plugin: &'static str) {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE item_matches SET plugin = ? WHERE item_id = ?",
+                        plugin,
+                        item
                     )
                     .execute(&mut **tx)
                     .await

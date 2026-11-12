@@ -39,7 +39,10 @@
 
 mod confidence;
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use nama_plugin_api::{
     PluginId,
@@ -390,18 +393,27 @@ impl Matcher {
     }
 
     /// Fetches the titles of the Library `library`'s Matches stored at an older
-    /// [`METADATA_VERSION`] again and stores what it gets, until `cancel` is cancelled or the
-    /// Provider fails. Returns whether every Provider asked could answer.
+    /// [`METADATA_VERSION`] again and stores what it gets, until `cancel` is cancelled. Returns
+    /// whether every Provider asked could answer.
     async fn refresh(&self, library: i64, cancel: &CancellationToken) -> Result<bool, Error> {
         let Outdated { movies, shows } = self.outdated(library).await?;
+        // Once a Plugin fails (or is disabled or gone), asking it about its other titles would
+        // only fail too, but another Plugin's Matches can still be fetched.
+        let mut unavailable = BTreeSet::new();
         for ((plugin, id), items) in movies {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
-            let movie = match self.only(plugin).metadata.movie(&id).await {
+            if unavailable.contains(&plugin) {
+                continue;
+            }
+            let movie = match self.only(plugin.clone()).metadata.movie(&id).await {
                 Ok(movie) => movie,
                 Err(metadata::Error::NotFound) => continue,
-                Err(metadata::Error::Unavailable) => return Ok(false),
+                Err(metadata::Error::Unavailable) => {
+                    unavailable.insert(plugin);
+                    continue;
+                }
             };
             let found = items.into_iter().map(|item| (item, Ok(movie.clone())));
             self.store_refreshed(found.collect()).await?;
@@ -410,20 +422,25 @@ impl Matcher {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);
             }
-            let only = self.only(plugin);
+            if unavailable.contains(&plugin) {
+                continue;
+            }
+            let only = self.only(plugin.clone());
             let show = match only.fetch_show(&id).await {
                 Ok(show) => show,
                 Err(metadata::Error::NotFound) => continue,
-                Err(metadata::Error::Unavailable) => return Ok(false),
+                Err(metadata::Error::Unavailable) => {
+                    unavailable.insert(plugin);
+                    continue;
+                }
             };
             let found = only.match_in_show(&show, &episodes).await;
-            let available = !found.any_undecided();
-            self.store_refreshed(found).await?;
-            if !available {
-                return Ok(false);
+            if found.any_undecided() {
+                unavailable.insert(plugin);
             }
+            self.store_refreshed(found).await?;
         }
-        Ok(true)
+        Ok(unavailable.is_empty())
     }
 
     async fn outdated(&self, library: i64) -> Result<Outdated, sqlx::Error> {
@@ -1474,6 +1491,26 @@ mod tests {
         assert_eq!(outcome, [matched(1_388_538, "Secrets")]);
         assert_eq!(disabled, [None]);
         assert_eq!(media.stills(shows).await, [Some(SECRETS_STILL.to_owned())]);
+    }
+
+    #[tokio::test]
+    async fn a_match_from_a_gone_plugin_does_not_stop_others_being_refreshed() {
+        let media = Fixture::new().await;
+        let shows = &media.shows;
+        shows.write(SECRETS);
+        shows.write(BEGINNINGS_AND_ENDINGS);
+        media.scan(shows).await;
+        media.contents.stored_by_older_metadata(shows.id).await;
+        // Sorts before `tmdb`, so its title is asked about first.
+        let gone = media.item(shows, BEGINNINGS_AND_ENDINGS).await;
+        media.contents.matched_by(gone, "gone").await;
+
+        media.scan(shows).await;
+
+        assert_eq!(
+            media.stills(shows).await,
+            [Some(SECRETS_STILL.to_owned()), None]
+        );
     }
 
     #[tokio::test]
