@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT path FROM library_folders WHERE library_id = ? ORDER BY position",
+  "query": "SELECT path FROM library_folders WHERE library_id = ? AND read_only = 1",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "614599db690ce19c2a004502c251d9192d25cbe52bb236d8c0c82f7726510345"
+  "hash": "a1b55cbfe8a98f9a25ee367e822521b4c3ac057d15129568484e15d32e9784c0"
 }

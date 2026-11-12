@@ -191,6 +191,10 @@ message GetMovieRequest {
 
 message GetMovieResponse {
   Movie movie = 1;
+  // The Library folder holding a Version of the Movie that the Server couldn't write to when it
+  // last scanned the Library, if there is one, in which case deleting the Movie is refused. Set
+  // only for a caller with `PERMISSION_DELETE_MEDIA`.
+  optional string read_only_folder = 2;
 }
 
 // A Show some items of a Library are Matched to Episodes of.

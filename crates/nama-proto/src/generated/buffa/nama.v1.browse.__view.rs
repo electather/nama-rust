@@ -3647,6 +3647,12 @@ impl ::serde::Serialize for GetMovieRequestOwnedView {
 pub struct GetMovieResponseView<'a> {
     /// Field 1: `movie`
     pub movie: ::buffa::MessageFieldView<super::super::__buffa::view::MovieView<'a>>,
+    /// The Library folder holding a Version of the Movie that the Server couldn't write to when it
+    /// last scanned the Library, if there is one, in which case deleting the Movie is refused. Set
+    /// only for a caller with `PERMISSION_DELETE_MEDIA`.
+    ///
+    /// Field 2: `read_only_folder`
+    pub read_only_folder: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetMovieResponseView<'a> {
@@ -3700,6 +3706,13 @@ impl<'a> ::buffa::MessageView<'a> for GetMovieResponseView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.read_only_folder = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3731,6 +3744,7 @@ impl<'a> ::buffa::MessageView<'a> for GetMovieResponseView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            read_only_folder: self.read_only_folder.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3750,6 +3764,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetMovieResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.read_only_folder {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3768,6 +3785,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetMovieResponseView<'a> {
                 buf,
             );
             self.movie.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.read_only_folder {
+            ::buffa::types::put_string_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3794,6 +3814,9 @@ impl<'__a> ::serde::Serialize for GetMovieResponseView<'__a> {
             if let ::core::option::Option::Some(__v) = self.movie.as_option() {
                 __map.serialize_entry("movie", __v)?;
             }
+        }
+        if let ::core::option::Option::Some(__v) = self.read_only_folder {
+            __map.serialize_entry("readOnlyFolder", __v)?;
         }
         __map.end()
     }
@@ -3894,6 +3917,15 @@ impl GetMovieResponseOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::MovieView<'_>> {
         &self.0.reborrow().movie
+    }
+    /// The Library folder holding a Version of the Movie that the Server couldn't write to when it
+    /// last scanned the Library, if there is one, in which case deleting the Movie is refused. Set
+    /// only for a caller with `PERMISSION_DELETE_MEDIA`.
+    ///
+    /// Field 2: `read_only_folder`
+    #[must_use]
+    pub fn read_only_folder(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().read_only_folder
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetMovieResponseView<'static>>>

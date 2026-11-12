@@ -541,7 +541,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SETTINGS_CHECK_FAILED
         | R::REFUSAL_REASON_CHOICE_NOT_OFFERED
         | R::REFUSAL_REASON_FULFILLER_TAKEN
-        | R::REFUSAL_REASON_PLUGIN_REFUSED => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_PLUGIN_REFUSED
+        | R::REFUSAL_REASON_FOLDER_READ_ONLY => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND

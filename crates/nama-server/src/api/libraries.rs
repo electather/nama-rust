@@ -138,6 +138,7 @@ impl LibraryService for LibraryServiceHandler {
         let target = to_delete_from_proto(request.to_owned_message().target.into_option())?;
         let refused = target_refused(&target);
         let mut doomed = self.browse.doomed(target).await.map_err(refused)?;
+        let read_only_folder = doomed.read_only_folder().map(str::to_owned);
         let taken_along = std::mem::take(&mut doomed.taken_along);
         let planned = self.scanner.preview_delete(doomed).await;
         let planned = planned.map_err(deleting_failed)?;
@@ -146,6 +147,7 @@ impl LibraryService for LibraryServiceHandler {
             files: planned.files.iter().map(file_to_proto).collect(),
             episodes_taken_along: taken_along.into_iter().map(taken_along_to_proto).collect(),
             playing: u32::try_from(planned.playing).unwrap_or(u32::MAX),
+            read_only_folder,
             ..Default::default()
         })
     }
@@ -268,14 +270,16 @@ fn file_name(path: &Path) -> String {
         .into_owned()
 }
 
-/// The Connect error for a delete or its preview that failed on the Server's side, which is
-/// logged, not sent.
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "by value, so callers can write `.map_err(deleting_failed)`"
-)]
+/// The Connect error for a delete or its preview that was refused, or that failed on the
+/// Server's side, which is logged, not sent.
 fn deleting_failed(err: scanner::Error) -> ConnectError {
-    tracing::error!("deleting media failed: {err}");
+    let message = err.to_string();
+    if let scanner::Error::ReadOnly(folder) = err {
+        return refuse(RefusalReason::REFUSAL_REASON_FOLDER_READ_ONLY, message)
+            .param("folder", &folder)
+            .into();
+    }
+    tracing::error!("deleting media failed: {message}");
     ConnectError::internal("deleting failed on the Server")
 }
 
