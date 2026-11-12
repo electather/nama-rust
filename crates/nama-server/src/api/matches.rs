@@ -9,8 +9,8 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    contents::{Contents, Item, TiedTitle, Unmatched, UnmatchedReason},
     libraries::Libraries,
+    library::contents::{Contents, Item, TiedTitle, Unmatched, UnmatchedReason},
     matching::{ManualError, Matcher},
     metadata::{self, MetadataSource},
 };

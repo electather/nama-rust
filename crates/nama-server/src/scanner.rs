@@ -52,11 +52,11 @@ use walkdir::{DirEntry, WalkDir};
 
 use crate::{
     artwork::Artwork,
-    contents::{Change, Contents, Stored},
     custom_images::CustomImages,
     db::{Database, detached},
     events::{EventBus, event},
     libraries::{self, Kind, Libraries, Library},
+    library::contents::{Change, Contents, Stored},
     matching::{self, Matcher, count},
     playback::running::RunningPlans,
     plugins::ExtensionPoints,
@@ -792,13 +792,13 @@ mod tests {
     use super::{Doomed, Scanner, Summary};
     use crate::{
         artwork::Artwork,
-        contents::{Contents, File, Item, Version},
         custom_images::CustomImages,
         db::Database,
         events::{EventBus, Filter},
         ffmpeg::Ffmpeg,
         images::ImageStore,
         libraries::{self, Kind, Libraries},
+        library::contents::{Contents, File, Item, Version},
         playback::subtitles,
         plugins::ExtensionPoints,
         probing::Probing,

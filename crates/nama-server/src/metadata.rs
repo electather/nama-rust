@@ -14,7 +14,7 @@ use nama_plugin_api::{
 };
 
 use crate::{
-    contents::Metadata,
+    library::contents::Metadata,
     plugins::{Answer, ExtensionPoints, Failure, ProviderError},
 };
 

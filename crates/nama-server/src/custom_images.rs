@@ -27,9 +27,9 @@ use nama_plugin_api::{PluginId, metadata::ExternalId};
 use sqlx::SqliteConnection;
 
 use crate::{
-    contents::parse_hint,
     db::Database,
     images::{Asked, ImageStore, Received, Resize, SVG, UploadError},
+    library::contents::parse_hint,
     server_settings::ImageSettings,
 };
 

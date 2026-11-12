@@ -53,11 +53,11 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     artwork::Artwork,
-    contents::{
-        Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin, TiedTitle, UnmatchedReason,
-    },
     db::{Database, detached},
     events::{EventBus, event},
+    library::contents::{
+        Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin, TiedTitle, UnmatchedReason,
+    },
     metadata::{self, MetadataSource},
     plugins::ExtensionPoints,
     scanner::{ScanLock, ScanLocks, country_tag},
@@ -737,12 +737,12 @@ mod tests {
     use super::{ManualError, Matcher, Summary};
     use crate::{
         artwork::Artwork,
-        contents::{Change, Contents, Decided, FileItem, Item, Recorded, Show},
         custom_images::CustomImages,
         db::Database,
         events::{EventBus, Filter, event},
         images::ImageStore,
         libraries::{Kind, Libraries},
+        library::contents::{Change, Contents, Decided, FileItem, Item, Recorded, Show},
         plugins::{ExtensionPoints, Registry},
         scanner::Scanner,
         server_settings::ServerUrl,

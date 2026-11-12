@@ -17,9 +17,9 @@ use nama_plugin_api::{
 };
 
 use crate::{
-    contents::{self, Contents, Found, MatchedTo, Stored},
     db::Database,
     libraries::{self, Kind, Libraries, Library},
+    library::contents::{self, Contents, Found, MatchedTo, Stored},
     requests::RequestTitle,
     scanner::{Doomed, deleting},
     tracks::{Probe, Track, Tracks},
@@ -680,12 +680,12 @@ mod tests {
 
     use super::{Browse, Error, Started, Target};
     use crate::{
-        contents::{
+        db::Database,
+        libraries::{Kind, Libraries},
+        library::contents::{
             Change, Contents, Decided, Item, Metadata, Stored,
             fixture::{MatchedMovie, decide, tmdb_movie},
         },
-        db::Database,
-        libraries::{Kind, Libraries},
         plugins::Registry,
         tracks::{Probe, Track, TrackKind, Tracks},
         users::{Permissions, User, Users},

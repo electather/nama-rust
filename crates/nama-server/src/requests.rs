@@ -35,9 +35,9 @@ use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 use crate::{
-    contents::{self, Contents, Metadata},
     db::{BoxFuture, Database, detached, now},
     events::{EventBus, event},
+    library::contents::{self, Contents, Metadata},
     metadata::{self, MetadataSource},
     plugins::{Answer, ExtensionPoints},
     qualities,

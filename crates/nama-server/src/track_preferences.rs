@@ -11,8 +11,8 @@ use std::sync::Arc;
 use isolang::Language;
 
 use crate::{
-    contents::{Contents, MatchedTo},
     db::Database,
+    library::contents::{Contents, MatchedTo},
     tracks::Track,
 };
 
@@ -411,11 +411,11 @@ mod tests {
 
     use super::{Description, Preferred, TrackPreferences, is_language, same_language};
     use crate::{
-        contents::{
+        db::Database,
+        library::contents::{
             Contents, Decided,
             fixture::{MatchedMovie, tmdb_movie},
         },
-        db::Database,
         plugins::Registry,
         users::{Permissions, User, Users},
     };

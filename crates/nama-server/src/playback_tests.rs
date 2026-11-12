@@ -2315,13 +2315,13 @@ async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() 
     use std::sync::Arc;
 
     use crate::{
-        contents::{
-            Contents,
-            fixture::{MatchedMovie, tmdb_movie},
-        },
         db::Database,
         events::EventBus,
         ffmpeg::{Abilities, Ffmpeg},
+        library::contents::{
+            Contents,
+            fixture::{MatchedMovie, tmdb_movie},
+        },
         playback::{
             Asked, AskedAudio, AskedSubtitle, Planned, StartedPlan, plan, running::RunningPlans,
             subtitles,

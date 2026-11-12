@@ -14,9 +14,9 @@ use nama_proto::nama::v1::{
 use crate::{
     artwork,
     browse::{self, Browse, Episode, Movie, Show, Started, Version},
-    contents::{FoundEpisode, FoundMovie, FoundShow, show_poster},
     custom_images::{Role, Slot},
     libraries::Kind,
+    library::contents::{FoundEpisode, FoundMovie, FoundShow, show_poster},
     tracks::track_to_proto,
     watch_states::WatchState,
 };

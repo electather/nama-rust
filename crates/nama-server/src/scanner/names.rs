@@ -19,7 +19,7 @@ use std::{path::Path, sync::LazyLock};
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use regex::Regex;
 
-use crate::{contents::Item, libraries::Kind};
+use crate::{libraries::Kind, library::contents::Item};
 
 /// The version of this parser, stored with each file it reads. See the crate's `AGENTS.md` for
 /// when to bump it.
@@ -355,7 +355,7 @@ mod tests {
     use nama_plugin_api::metadata::ExternalId;
 
     use super::{is_extra, parse};
-    use crate::{contents::Item, libraries::Kind};
+    use crate::{libraries::Kind, library::contents::Item};
 
     const fn tmdb(id: i64) -> ExternalId {
         ExternalId::Tmdb(id)

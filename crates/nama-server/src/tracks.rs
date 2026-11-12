@@ -3,7 +3,7 @@
 //!
 //! [`Tracks`] owns `version_probes`, `tracks` and `probe_failures` (see the crate's `AGENTS.md`).
 //! Their rows are keyed by Version id and go when the file goes; which files there are is for
-//! [`crate::contents::Contents`] to say.
+//! [`crate::library::contents::Contents`] to say.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -14,7 +14,7 @@ use std::{
 use nama_proto::nama::v1 as proto;
 use sqlx::SqliteConnection;
 
-use crate::{contents::Stored, db::Database, ffmpeg::TEXT_SUBTITLES};
+use crate::{db::Database, ffmpeg::TEXT_SUBTITLES, library::contents::Stored};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.

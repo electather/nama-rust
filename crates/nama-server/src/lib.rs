@@ -6,7 +6,6 @@ mod browse;
 pub mod codes;
 pub mod config;
 mod connections;
-mod contents;
 mod custom_images;
 pub mod db;
 mod device_names;
@@ -15,6 +14,7 @@ pub mod ffmpeg;
 mod forwarded;
 pub mod images;
 mod libraries;
+mod library;
 mod matching;
 mod metadata;
 mod playback;
@@ -45,12 +45,12 @@ use crate::{
     artwork::Artwork,
     codes::SetupCode,
     config::Config,
-    contents::Contents,
     custom_images::CustomImages,
     db::Database,
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     images::ImageStore,
+    library::contents::Contents,
     playback::running::RunningPlans,
     playback::subtitles,
     plugin_logos::PluginLogos,

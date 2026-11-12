@@ -17,9 +17,9 @@ use nama_proto::nama::v1::{
 use crate::{
     artwork,
     browse::{Browse, Target, ToDelete},
-    contents::{Contents, Episode, NewestBackdrop},
     custom_images::{Role, Slot},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
+    library::contents::{Contents, Episode, NewestBackdrop},
     scanner::{self, Deleted, Scanner},
 };
 

@@ -39,11 +39,11 @@ use proto::SubtitleFormat::{
 use tower_http::services::ServeFile;
 
 use crate::{
-    contents::Contents,
     ffmpeg::{
         Abilities, Accel, BurnIn, CanDo, Ffmpeg, Gpu, Hardware, Remux, RemuxAudio, ToneMapper,
         Transcode, TranscodeAudio, VideoConversion, VideoLimit,
     },
+    library::contents::Contents,
     probing::{self, ProbeError, Probing},
     server_settings::{HardwareChoice, PlaybackValues},
     track_preferences::{Description, Preferred, SubtitlePreference, same_language},

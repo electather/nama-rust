@@ -31,8 +31,8 @@ use nama_plugin_api::PluginId;
 use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
 
 use crate::{
-    contents::Contents,
     images::{Asked, ImageStore, Resize, file_name},
+    library::contents::Contents,
     metadata::{self, MetadataSource},
     plugins::ExtensionPoints,
     server_settings::ImageSettings,
@@ -350,7 +350,7 @@ mod tests {
     use tempfile::TempDir;
 
     use super::Artwork;
-    use crate::{contents::Contents, db::Database, images::ImageStore, plugins::Registry};
+    use crate::{db::Database, images::ImageStore, library::contents::Contents, plugins::Registry};
 
     /// How many image requests are running, and the most that ever were.
     #[derive(Default)]

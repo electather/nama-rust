@@ -19,10 +19,10 @@ use super::{
     sweep_leftovers,
 };
 use crate::{
-    contents::Contents,
     db::Database,
     events::{EventBus, Filter, event},
     ffmpeg::{Ffmpeg, Keyframe, hls_init},
+    library::contents::Contents,
     playback::subtitles,
     plugins::ExtensionPoints,
     probing::Probing,

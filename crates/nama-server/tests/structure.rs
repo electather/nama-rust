@@ -11,9 +11,9 @@ const MAX_LINES: usize = 800;
 /// Today's files over `MAX_LINES`, sorted by path, each with the ceiling it stays at or under.
 const CEILINGS: &[(&str, usize)] = &[
     ("src/browse.rs", 1200),
-    ("src/contents.rs", 2800),
     ("src/ffmpeg.rs", 2600),
     ("src/images.rs", 900),
+    ("src/library/contents.rs", 2800),
     ("src/matching.rs", 1900),
     ("src/playback.rs", 2000),
     ("src/playback/running.rs", 1200),
@@ -155,7 +155,7 @@ fn a_ceiling_only_comes_down() {
 /// The tables a "One owner" rule in `AGENTS.md` names, each with its owner's path without `.rs`.
 const OWNED_TABLES: &[(&str, &[&str])] = &[
     (
-        "src/contents",
+        "src/library/contents",
         &[
             "library_files",
             "library_items",

@@ -26,9 +26,9 @@ use tokio::sync::watch;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::{
-    contents::{Contents, Stored},
     db::Database,
     ffmpeg::Ffmpeg,
+    library::contents::{Contents, Stored},
     playback::subtitles,
     tracks::{LastingReason, PassingReason, Probe, ProbeFailure, Tracks},
 };
@@ -501,13 +501,13 @@ mod tests {
     use super::{Error, PROBES_AT_ONCE, ProbeError, Probing, ffprobe};
     use crate::{
         config::Config,
-        contents::{
-            Change, Contents, Decided, Item, Stored,
-            fixture::{decide, tmdb_movie},
-        },
         db::Database,
         ffmpeg::{self, Ffmpeg},
         libraries::{Kind, Libraries},
+        library::contents::{
+            Change, Contents, Decided, Item, Stored,
+            fixture::{decide, tmdb_movie},
+        },
         playback::subtitles,
         tracks::{
             BaseLayer, Hdr, PROBE_ATTEMPTS, PROBE_VERSION, PassingReason, Probe, ProbeFailure,

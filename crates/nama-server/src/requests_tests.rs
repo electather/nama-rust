@@ -31,15 +31,15 @@ use super::{
 };
 use crate::{
     artwork::Artwork,
-    contents::{
-        Change, Contents, Decided, Decisions, Item, Metadata,
-        fixture::{MatchedMovie, movies_library, tmdb_movie},
-    },
     custom_images::CustomImages,
     db::Database,
     events::{EventBus, Filter},
     images::ImageStore,
     libraries::{Kind, Libraries},
+    library::contents::{
+        Change, Contents, Decided, Decisions, Item, Metadata,
+        fixture::{MatchedMovie, movies_library, tmdb_movie},
+    },
     plugins::{Answer, ExtensionPoints, Failure, Registry},
     qualities,
     scanner::Scanner,
