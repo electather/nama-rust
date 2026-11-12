@@ -623,10 +623,10 @@ fn write_now(path: &Path, bytes: &[u8]) -> io::Result<()> {
 /// [`ImageStore::write`], blocking the thread it runs on.
 fn write_unless_stored(path: &Path, bytes: &[u8]) -> io::Result<()> {
     match synced_beside(path, bytes)?.persist_noclobber(path) {
+        Ok(_file) => Ok(()),
         // Something other than a file at `path`, such as a folder, isn't a stored image.
         Err(err) if err.error.kind() == io::ErrorKind::AlreadyExists && path.is_file() => Ok(()),
         Err(err) => Err(err.error),
-        Ok(_file) => Ok(()),
     }
 }
 
