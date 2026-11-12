@@ -6149,13 +6149,19 @@ impl ::serde::Serialize for RequestStateChangedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A User with `PERMISSION_MANAGE_REQUESTS` cancelled a Request, which removed it.
+/// A Request was cancelled, which removed it: by a User with `PERMISSION_MANAGE_REQUESTS`, or by
+/// deleting media it was still waiting on.
 #[derive(Clone, Debug, Default)]
 pub struct RequestCancelledView<'a> {
     /// The Request as it was before it was removed.
     ///
     /// Field 1: `request`
     pub request: ::buffa::MessageFieldView<super::super::__buffa::view::RequestView<'a>>,
+    /// The name of the User who deleted media the Request was still waiting on, when that cancelled
+    /// it. Unset when a Request manager cancelled it.
+    ///
+    /// Field 2: `deleted_by`
+    pub deleted_by: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for RequestCancelledView<'a> {
@@ -6209,6 +6215,13 @@ impl<'a> ::buffa::MessageView<'a> for RequestCancelledView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.deleted_by = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -6240,6 +6253,7 @@ impl<'a> ::buffa::MessageView<'a> for RequestCancelledView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            deleted_by: self.deleted_by.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -6259,6 +6273,9 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestCancelledView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if let Some(ref v) = self.deleted_by {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -6277,6 +6294,9 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestCancelledView<'a> {
                 buf,
             );
             self.request.write_to(__cache, buf);
+        }
+        if let Some(ref v) = self.deleted_by {
+            ::buffa::types::put_string_field(2u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6303,6 +6323,9 @@ impl<'__a> ::serde::Serialize for RequestCancelledView<'__a> {
             if let ::core::option::Option::Some(__v) = self.request.as_option() {
                 __map.serialize_entry("request", __v)?;
             }
+        }
+        if let ::core::option::Option::Some(__v) = self.deleted_by {
+            __map.serialize_entry("deletedBy", __v)?;
         }
         __map.end()
     }
@@ -6405,6 +6428,14 @@ impl RequestCancelledOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::RequestView<'_>> {
         &self.0.reborrow().request
+    }
+    /// The name of the User who deleted media the Request was still waiting on, when that cancelled
+    /// it. Unset when a Request manager cancelled it.
+    ///
+    /// Field 2: `deleted_by`
+    #[must_use]
+    pub fn deleted_by(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().deleted_by
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<RequestCancelledView<'static>>>

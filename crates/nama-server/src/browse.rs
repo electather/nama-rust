@@ -15,6 +15,7 @@ use crate::{
     contents::{self, Contents, Found, MatchedTo, Stored},
     db::Database,
     libraries::{self, Kind, Libraries, Library},
+    requests::RequestTitle,
     scanner::{Doomed, deleting},
     tracks::{Probe, Track, Tracks},
     watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
@@ -265,10 +266,12 @@ impl Browse {
         let titles = self.titles(&library).await?;
         if let Target::Movie(id) = title {
             let movie = titles.movie(&id)?;
+            let tmdb_id = tmdb_id_of(&movie.id);
             return Ok(Doomed {
                 library,
-                tmdb_id: tmdb_id_of(&movie.id),
+                tmdb_id,
                 title: movie.title,
+                requested: movie_requested(tmdb_id, &movie.versions),
                 versions: movie.versions,
                 taken_along: Vec::new(),
             });
@@ -289,11 +292,13 @@ impl Browse {
                 Some((movie.title, tmdb_id_of(&movie.id), version))
             })
             .ok_or(Error::NoSuchVersion)?;
+        let versions = vec![version];
         Ok(Doomed {
             library,
             tmdb_id,
             title,
-            versions: vec![version],
+            requested: movie_requested(tmdb_id, &versions),
+            versions,
             taken_along: Vec::new(),
         })
     }
@@ -446,9 +451,49 @@ fn doomed_episodes(
         library,
         tmdb_id: None,
         title,
+        requested: seasons_requested(shows, &files),
         versions,
         taken_along,
     })
+}
+
+/// Each of `versions` with the Movie `tmdb_id` it is of, as a Request names it. None without one.
+fn movie_requested(
+    tmdb_id: Option<i64>,
+    versions: &[contents::Version],
+) -> Vec<(i64, RequestTitle)> {
+    let Some(tmdb_id) = tmdb_id else {
+        return Vec::new();
+    };
+    let title = RequestTitle {
+        tmdb_id,
+        season: None,
+    };
+    (versions.iter())
+        .map(|version| (version.file.id, title))
+        .collect()
+}
+
+/// Each of `files` with the Season of each Episode of `shows` it holds, as a Request names it.
+fn seasons_requested(shows: &[contents::Show], files: &HashSet<i64>) -> Vec<(i64, RequestTitle)> {
+    let mut requested = Vec::new();
+    for show in shows {
+        let Some(tmdb_id) = tmdb_id_of(&show.id) else {
+            continue;
+        };
+        for episode in show.episodes() {
+            let Ok(season) = u32::try_from(episode.season) else {
+                continue;
+            };
+            let title = RequestTitle {
+                tmdb_id,
+                season: Some(season),
+            };
+            let held = (episode.versions.iter()).filter(|version| files.contains(&version.file.id));
+            requested.extend(held.map(|version| (version.file.id, title)));
+        }
+    }
+    requested
 }
 
 /// The Episodes of `shows` that `title` names, with its name for the log. A Movie is in no Shows

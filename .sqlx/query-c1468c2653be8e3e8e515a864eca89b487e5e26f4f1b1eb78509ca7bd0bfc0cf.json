@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id FROM requests WHERE tmdb_id = ? AND season IS ?\n         AND state IN ('pending', 'approved', 'processing', 'partially_available')",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c1468c2653be8e3e8e515a864eca89b487e5e26f4f1b1eb78509ca7bd0bfc0cf"
+}

@@ -12,6 +12,7 @@ import {
   type FileNotDeleted,
   LibraryService,
   type MediaToDeleteSchema,
+  type RequestToCancel,
 } from "@/gen/nama/v1/library_pb";
 import { metadataLine, seasonName, sizeOf, versionLine } from "@/lib/browse";
 import { formText, refusal } from "@/lib/forms";
@@ -109,8 +110,8 @@ function WhatGoes(deletable: Deletable) {
 
 /**
  * The files deleting `chosen` of `deletable` takes, the space that frees, the other Episodes
- * those files hold and the read-only folder that refuses it if a scan found one since the page
- * loaded, as the Server previews it.
+ * those files hold, the Requests it cancels and the read-only folder that refuses it if a scan
+ * found one since the page loaded, as the Server previews it.
  */
 function FilesThatGo({ deletable, chosen }: { deletable: Deletable; chosen: string }) {
   const { data, error } = useQuery(LibraryService.method.previewDeleteMedia, {
@@ -137,6 +138,7 @@ function FilesThatGo({ deletable, chosen }: { deletable: Deletable; chosen: stri
         </ul>
       </div>
       <TakenAlong episodes={data.episodesTakenAlong} />
+      <Cancelled requests={data.requestsCancelled} />
       <Watching playing={data.playing} />
       <RefusedFor folder={data.readOnlyFolder} />
     </div>
@@ -176,6 +178,25 @@ function TakenAlong({ episodes }: { episodes: EpisodeTakenAlong[] }) {
             {seasonName(episode.seasonNumber)}, Episode {episode.episodeNumber}: {episode.title}
           </li>
         ))}
+      </ul>
+    </div>
+  );
+}
+
+/** The open Requests still waiting on what goes, which deleting it cancels. */
+function Cancelled({ requests }: { requests: RequestToCancel[] }) {
+  if (requests.length === 0) return null;
+  return (
+    <div>
+      <p>
+        It cancels {requests.length === 1 ? "this open Request" : "these open Requests"}, telling
+        whoever asked that you deleted it:
+      </p>
+      <ul className="mt-2 flex flex-col gap-1 text-muted-foreground">
+        {requests.map(({ title, seasonNumber }) => {
+          const name = seasonNumber === undefined ? title : `${title}, ${seasonName(seasonNumber)}`;
+          return <li key={name}>{name}</li>;
+        })}
       </ul>
     </div>
   );

@@ -620,7 +620,8 @@ pub trait LibraryService: Send + Sync + 'static {
     /// Before deleting anything, it asks every enabled Fulfiller of its kind, such as Radarr, to stop
     /// monitoring the title, which it keeps; one that can't be told is listed, and doesn't stop it.
     /// The Playback Plans playing the Versions end next, each with `PlaybackEnded`, and a Version
-    /// being served for Direct Play is cut off. Needs `PERMISSION_DELETE_MEDIA` and Recent
+    /// being served for Direct Play is cut off. Last, the open Requests for the Movie or each Season
+    /// it took anything of are cancelled, each with `RequestCancelled` naming who deleted it. Needs `PERMISSION_DELETE_MEDIA` and Recent
     /// Authentication. Fails with `invalid_argument` if the target is missing, or names a Library of
     /// the wrong kind, with `not_found` if there is no such Library, title, Season or Version, and
     /// with `failed_precondition` if a file it would delete is in a Library folder the Server

@@ -29,13 +29,14 @@ use fake_radarr::{Changed, FakeRadarr};
 use http::fetch;
 use log::Log;
 use nama_proto::nama::v1::{
-    AudioCodec, BrowseServiceClient, Container, DeleteMediaRequest, DeleteMediaResponse,
-    DeviceDecoding, Episode, EpisodeToDelete, EventType, GetMovieRequest, GetShowRequest,
-    LibraryKind, LibraryServiceClient, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest,
-    MediaFile, MediaToDelete, MovieToDelete, Permission, PlanPlaybackRequest, PlaybackMethod,
-    PlaybackPlan, PlaybackServiceClient, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse,
-    RefusalReason, SeasonToDelete, ShowToDelete, SubscribeRequest, UpdateLibraryRequest,
-    VideoCodec, event, media_to_delete,
+    ApproveFollowedShowRequest, AudioCodec, BrowseServiceClient, CancelRequestRequest, Container,
+    DeleteMediaRequest, DeleteMediaResponse, DeviceDecoding, Episode, EpisodeToDelete, EventType,
+    FollowedShow, GetMovieRequest, GetShowRequest, LibraryKind, LibraryServiceClient,
+    ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, MediaFile, MediaToDelete,
+    MovieToDelete, Permission, PlanPlaybackRequest, PlaybackMethod, PlaybackPlan,
+    PlaybackServiceClient, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason,
+    RequestServiceClient, RequestState, SeasonToDelete, ShowToDelete, SubscribeRequest,
+    UpdateLibraryRequest, VideoCodec, event, media_to_delete, request::MovieOrSeason,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::{Ffmpeg, fake::script};
@@ -44,6 +45,7 @@ use serde_json::json;
 use server::{
     Builder, TestServer,
     fulfiller::MOVIE_FULFILLER,
+    requests::Requester,
     subscribe, subscribe_with,
     tmdb::{ALIEN, DARK, DUNE},
 };
@@ -960,4 +962,154 @@ async fn a_direct_play_of_a_deleted_version_gets_no_more_of_its_file() {
     assert!(received < BIGGER_THAN_SOCKET_BUFFERS, "{received} bytes");
     let token = Some(fx.server.admin_token.as_str());
     assert_eq!(fetch(&fx.server, &plan.url, token).await.status, 404);
+}
+
+/// What a new User gets, enough to ask for titles: `REQUEST` and `VIEW_REQUESTS`.
+const REQUESTER: [Permission; 2] = [Permission::Request, Permission::ViewRequests];
+const DARK_S03E01: &str = "Dark {tmdb-70523}/Season 03/Dark - S03E01.mkv";
+
+/// The title and Season number of each Request a preview says deleting would cancel.
+fn cancelled(preview: &PreviewDeleteMediaResponse) -> Vec<(&str, Option<u32>)> {
+    (preview.requests_cancelled.iter())
+        .map(|request| (request.title.as_str(), request.season_number))
+        .collect()
+}
+
+#[tokio::test]
+async fn deleting_an_episode_of_a_partially_available_season_cancels_its_request_naming_who_deleted_it()
+ {
+    let builder = TestServer::builder().shows_fulfiller(&[]);
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, builder).await;
+    let ada = fx.server.user("Ada", &REQUESTER).await;
+    let season_1 = fx.server.requests(&ada).ask_seasons(DARK, &[1]).await;
+    fx.server.approve(season_1[0].id).await;
+    fx.write(DARK_S01E01, b"one episode");
+    fx.scan_and_match().await;
+    let ada_requests = fx.server.requests(&ada);
+    let partly = ada_requests.get(season_1[0].id).await.state;
+    let grace = fx.server.user("Grace", &[Permission::DeleteMedia]).await;
+    let as_grace = LibraryServiceClient::new(HttpClient::plaintext(), grace.client_config());
+    let mut adas_events = subscribe(
+        &ada.client_config(),
+        &[EventType::EVENT_TYPE_REQUEST_CANCELLED],
+    )
+    .await;
+
+    let preview = fx
+        .preview(episode(fx.library, SECRETS, None))
+        .await
+        .unwrap();
+    fx.delete_as(&as_grace, episode(fx.library, SECRETS, None))
+        .await
+        .unwrap();
+
+    assert_eq!(partly, RequestState::PartiallyAvailable);
+    assert_eq!(cancelled(&preview), [("Dark", Some(1))]);
+    let event::Event::RequestCancelled(told) = adas_events.next().await else {
+        panic!("not a cancelled Request");
+    };
+    assert_eq!(told.request.id, season_1[0].id);
+    assert_eq!(told.deleted_by.as_deref(), Some("Grace"));
+    assert_eq!(ada_requests.list().await, []);
+}
+
+#[tokio::test]
+async fn deleting_a_movie_leaves_its_available_request_and_it_can_be_requested_and_handed_off_again()
+ {
+    let builder = TestServer::builder().fulfiller(&[]);
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, builder).await;
+    let ada = fx.server.requests(&fx.server.user("Ada", &REQUESTER).await);
+    let first = ada.ask(DUNE).await;
+    fx.server.approve(first.id).await;
+    fx.write(DUNE_VIDEO, b"dune video");
+    fx.scan_and_match().await;
+
+    let preview = fx.preview(movie(fx.library, DUNE)).await.unwrap();
+    fx.delete(movie(fx.library, DUNE)).await.unwrap();
+    let again = ada.ask(DUNE).await;
+    fx.server.approve(again.id).await;
+
+    assert_eq!(cancelled(&preview), []);
+    assert_eq!(ada.get(first.id).await.state, RequestState::Available);
+    assert_ne!(again.id, first.id);
+    assert_eq!(fx.server.fulfiller().handed(), [DUNE, DUNE]);
+}
+
+#[tokio::test]
+async fn deleting_a_followed_show_keeps_following_it_and_a_later_season_still_opens_a_request() {
+    let builder = TestServer::builder().shows_fulfiller(&[]);
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_SHOWS, builder).await;
+    let ada = fx.server.user("Ada", &REQUESTER).await;
+    let ada_requests = fx.server.requests(&ada);
+    let followed = follow_dark_before_season_3(&fx, &ada_requests).await;
+    (fx.server.admin_requests())
+        .approve_followed_show(ApproveFollowedShowRequest {
+            id: followed.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    fx.write(DARK_S01E01, b"one episode");
+    fx.scan_and_match().await;
+
+    let preview = fx.preview(show(fx.library, DARK)).await.unwrap();
+    fx.delete(show(fx.library, DARK)).await.unwrap();
+    let mut adas_events = subscribe(
+        &ada.client_config(),
+        &[EventType::EVENT_TYPE_REQUEST_CREATED],
+    )
+    .await;
+    fx.write(DARK_S03E01, b"a later season");
+    fx.scan_and_match().await;
+
+    assert_eq!(cancelled(&preview), [("Dark", Some(1))]);
+    let (_, followed_shows) = ada_requests.list_in(RequestState::Unspecified).await;
+    let following: Vec<_> = (followed_shows.iter())
+        .map(|show| (show.id, show.state.as_known()))
+        .collect();
+    assert_eq!(following, [(followed.id, Some(RequestState::Approved))]);
+    assert_eq!(fx.server.fulfiller().unfollowed(), [0; 0]);
+    let event::Event::RequestCreated(created) = adas_events.next().await else {
+        panic!("not a new Request");
+    };
+    let request = created.request.into_option().unwrap();
+    assert_eq!(request.followed_show_id, Some(followed.id));
+    assert!(matches!(
+        request.movie_or_season,
+        Some(MovieOrSeason::Season(season)) if season.season_number == 3
+    ));
+}
+
+/// Has `requester` follow Dark as though its Season 3 came out after: asks for every Season, then
+/// cancels Season 3's Request and has the Followed Show remember only Seasons 1 and 2, so a scan
+/// finding Season 3 opens its Request. The fake TMDB always has all three Seasons.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn follow_dark_before_season_3(
+    fx: &Fixture,
+    requester: &RequestServiceClient<HttpClient>,
+) -> FollowedShow {
+    let (followed, mut asked) = requester.follow(DARK).await;
+    let season_3 = asked.pop().unwrap();
+    (fx.server.admin_requests())
+        .cancel_request(CancelRequestRequest {
+            id: season_3.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let id = followed.id;
+    (fx.server.db())
+        .write(move |tx| {
+            Box::pin(
+                sqlx::query("UPDATE followed_shows SET latest_season = 2 WHERE id = ?")
+                    .bind(id)
+                    .execute(&mut **tx),
+            )
+        })
+        .await
+        .unwrap();
+    followed
 }
