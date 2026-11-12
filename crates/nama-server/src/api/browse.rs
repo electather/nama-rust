@@ -45,7 +45,8 @@ impl BrowseService for BrowseServiceHandler {
         request: ServiceRequest<'_, ListMoviesRequest>,
     ) -> ServiceResult<ListMoviesResponse> {
         let user = caller(&ctx)?.user.id;
-        let movies = self.browse.movies(user, request.library_id).await?;
+        let movies = self.browse.movies(user, request.library_id).await;
+        let movies = movies.map_err(refused(Fields::LIBRARY))?;
         let custom = custom_image_urls(&self.custom_images).await?;
         Response::ok(ListMoviesResponse {
             movies: movies
@@ -64,8 +65,11 @@ impl BrowseService for BrowseServiceHandler {
         let user = &caller(&ctx)?.user;
         let request = request.to_owned_message();
         let id = required_id(request.movie_id.into_option(), "movie_id", "Movie")?;
-        let (movie, state, read_only_folder) =
-            self.browse.movie(user.id, request.library_id, &id).await?;
+        let found = self.browse.movie(user.id, request.library_id, &id).await;
+        let (movie, state, read_only_folder) = found.map_err(refused(Fields {
+            title: "movie_id",
+            ..Fields::LIBRARY
+        }))?;
         let custom = custom_image_urls(&self.custom_images).await?;
         Response::ok(GetMovieResponse {
             movie: movie_to_proto(movie, state, &custom).into(),
@@ -82,7 +86,8 @@ impl BrowseService for BrowseServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, ListShowsRequest>,
     ) -> ServiceResult<ListShowsResponse> {
-        let shows = self.browse.shows(request.library_id).await?;
+        let shows = self.browse.shows(request.library_id).await;
+        let shows = shows.map_err(refused(Fields::LIBRARY))?;
         let custom = custom_image_urls(&self.custom_images).await?;
         Response::ok(ListShowsResponse {
             shows: shows
@@ -100,7 +105,11 @@ impl BrowseService for BrowseServiceHandler {
     ) -> ServiceResult<GetShowResponse> {
         let request = request.to_owned_message();
         let id = required_id(request.show_id.into_option(), "show_id", "Show")?;
-        let show = self.browse.show(request.library_id, &id).await?;
+        let show = self.browse.show(request.library_id, &id).await;
+        let show = show.map_err(refused(Fields {
+            title: "show_id",
+            ..Fields::LIBRARY
+        }))?;
         let custom = custom_image_urls(&self.custom_images).await?;
         let seasons = (show.seasons.keys())
             .map(|&number| {
@@ -132,7 +141,12 @@ impl BrowseService for BrowseServiceHandler {
         let episodes = self
             .browse
             .episodes(user, request.library_id, &show, number)
-            .await?;
+            .await
+            .map_err(refused(Fields {
+                title: "show_id",
+                season: "season_number",
+                ..Fields::LIBRARY
+            }))?;
         Response::ok(ListEpisodesResponse {
             episodes: episodes
                 .into_iter()
@@ -147,7 +161,8 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListContinueWatchingRequest>,
     ) -> ServiceResult<ListContinueWatchingResponse> {
-        let started = self.browse.continue_watching(caller(&ctx)?.user.id).await?;
+        let started = self.browse.continue_watching(caller(&ctx)?.user.id).await;
+        let started = started.map_err(refused(Fields::NONE))?;
         let custom = custom_image_urls(&self.custom_images).await?;
         Response::ok(ListContinueWatchingResponse {
             entries: (started.into_iter())
@@ -162,7 +177,8 @@ impl BrowseService for BrowseServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, SearchLibrariesRequest>,
     ) -> ServiceResult<SearchLibrariesResponse> {
-        let found = self.browse.search(request.query).await?;
+        let found = self.browse.search(request.query).await;
+        let found = found.map_err(refused(Fields::NONE))?;
         let custom = custom_image_urls(&self.custom_images).await?;
         Response::ok(SearchLibrariesResponse {
             movies: (found.movies.into_iter())
@@ -359,44 +375,64 @@ fn version_to_proto(version: &Version) -> proto::Version {
     }
 }
 
-/// The Connect error a client gets for a Library, title, Season or Version that Browse didn't
-/// find. Database failures are logged, not sent.
-impl From<browse::Error> for ConnectError {
-    fn from(err: browse::Error) -> Self {
-        // Every Browse call that looks up a Library names it in `library_id`, and a Version in
-        // `version_id`; reporting progress looks no Library up.
-        refused(err, "library_id", "version_id")
-    }
+/// The request's fields naming what Browse looks up, so the refusal for one it didn't find names
+/// its field. A request without one has `""`, and its refusal no field.
+#[derive(Clone, Copy)]
+pub(super) struct Fields {
+    pub(super) library: &'static str,
+    /// The Movie's, Show's or Episode's id; a Season's Show's.
+    pub(super) title: &'static str,
+    pub(super) season: &'static str,
+    pub(super) version: &'static str,
 }
 
-/// The Connect error for `err`, from a request naming its Library in the field `library_field`
-/// and its Version in `version_field`.
-pub(super) fn refused(
-    err: browse::Error,
-    library_field: &str,
-    version_field: &str,
-) -> ConnectError {
-    use RefusalReason as R;
-    let message = err.to_string();
-    let refused = match err {
-        browse::Error::NoSuchLibrary(id) => refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message)
-            .field(library_field)
-            .param("libraryId", &id),
-        browse::Error::NothingMatched => refuse(R::REFUSAL_REASON_NOTHING_MATCHED, message),
-        browse::Error::NoSuchSeason => refuse(R::REFUSAL_REASON_SEASON_NOT_FOUND, message),
-        browse::Error::NoSuchVersion => {
-            refuse(R::REFUSAL_REASON_VERSION_NOT_FOUND, message).field(version_field)
-        }
-        browse::Error::WrongKind { wanted } => {
-            let kind = match wanted {
-                Kind::Movies => "movies",
-                Kind::Shows => "shows",
-            };
-            refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
-                .field(library_field)
-                .param("libraryKind", &kind)
-        }
-        browse::Error::Database(err) => return database_failed(err),
+impl Fields {
+    /// For a call that looks nothing up by id.
+    pub(super) const NONE: Self = Self {
+        library: "",
+        title: "",
+        season: "",
+        version: "",
     };
-    refused.into()
+    /// A Browse request naming only its Library, in `library_id`.
+    pub(super) const LIBRARY: Self = Self {
+        library: "library_id",
+        ..Self::NONE
+    };
+}
+
+/// What makes the Connect error a client gets for a Library, title, Season or Version that
+/// Browse didn't find, naming its field in `fields`. Database failures are logged, not sent.
+pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError {
+    move |err| {
+        use RefusalReason as R;
+        let message = err.to_string();
+        let refused = match err {
+            browse::Error::NoSuchLibrary(id) => {
+                refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message)
+                    .field(fields.library)
+                    .param("libraryId", &id)
+            }
+            browse::Error::NothingMatched => {
+                refuse(R::REFUSAL_REASON_NOTHING_MATCHED, message).field(fields.title)
+            }
+            browse::Error::NoSuchSeason => {
+                refuse(R::REFUSAL_REASON_SEASON_NOT_FOUND, message).field(fields.season)
+            }
+            browse::Error::NoSuchVersion => {
+                refuse(R::REFUSAL_REASON_VERSION_NOT_FOUND, message).field(fields.version)
+            }
+            browse::Error::WrongKind { wanted } => {
+                let kind = match wanted {
+                    Kind::Movies => "movies",
+                    Kind::Shows => "shows",
+                };
+                refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
+                    .field(fields.library)
+                    .param("libraryKind", &kind)
+            }
+            browse::Error::Database(err) => return database_failed(err),
+        };
+        refused.into()
+    }
 }

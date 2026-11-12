@@ -494,11 +494,12 @@ async fn get_movie_for_an_id_nothing_matches_is_not_found() {
 
     let got = fx.get_movie(fx.library, 949).await;
 
-    assert_refused(
+    let refusal = assert_refused(
         got,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
     );
+    assert_eq!(refusal.field, "movie_id");
 }
 
 #[tokio::test]
@@ -635,21 +636,24 @@ async fn an_unknown_show_or_season_is_not_found() {
     let episodes = fx.list_episodes(fx.library, THE_OFFICE_US, 1).await;
     let season = fx.list_episodes(fx.library, DARK, 3).await;
 
-    assert_refused(
+    let show = assert_refused(
         show,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
     );
-    assert_refused(
+    let episodes = assert_refused(
         episodes,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
     );
-    assert_refused(
+    let season = assert_refused(
         season,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
     );
+    assert_eq!(show.field, "show_id");
+    assert_eq!(episodes.field, "show_id");
+    assert_eq!(season.field, "season_number");
 }
 
 #[tokio::test]
@@ -1364,39 +1368,52 @@ async fn marking_an_unknown_target_is_not_found() {
     let (in_shows, in_movies) = (shows.admin(), movies.admin());
     let unknown_id = 1;
 
-    for (reason, marked) in [
+    for (reason, field, marked) in [
         (
             RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+            "library_id",
             in_shows
                 .set_played(shows.library + 100, show(DARK), true)
                 .await,
         ),
         (
             RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "show_id",
             in_shows
                 .set_played(shows.library, show(unknown_id), true)
                 .await,
         ),
         (
+            RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "season.show_id",
+            in_shows
+                .set_played(shows.library, season_of(unknown_id, 1), true)
+                .await,
+        ),
+        (
             RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
+            "season.season_number",
             in_shows
                 .set_played(shows.library, season_of(DARK, 9), true)
                 .await,
         ),
         (
             RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "episode_id",
             in_shows
                 .set_played(shows.library, episode(unknown_id), true)
                 .await,
         ),
         (
             RefusalReason::REFUSAL_REASON_NOTHING_MATCHED,
+            "movie_id",
             in_movies
                 .set_played(movies.library, movie(unknown_id), true)
                 .await,
         ),
     ] {
-        assert_refused(marked, ErrorCode::NotFound, reason);
+        let refusal = assert_refused(marked, ErrorCode::NotFound, reason);
+        assert_eq!(refusal.field, field);
     }
 }
 
