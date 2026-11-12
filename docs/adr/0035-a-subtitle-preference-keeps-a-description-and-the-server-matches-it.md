@@ -14,6 +14,9 @@ Only the User's own pick changes a Preference. The player reports each pick in i
 - **A plan request counts as a pick**: rejected. The Server never hears of a subtitle the Device draws, and the player repeats a burned-in one in later requests, such as after an audio change.
 - **Keep the Track's format**: rejected. Whether a Track is drawn or burned in depends on the Device, so a pick on one Device would force a Transcode on another that has the same subtitle as text.
 - **A separate store for the User's default**: rejected. A default language is the same description without a title, matched by the same rule.
+- **"Another language" is the Audio Preference's**: rejected. Japanese audio with English subtitles would start subtitles only over audio that isn't Japanese, and an Audio Preference of the file's default names no language.
+- **The condition on a Show's or Movie's Preference too**: rejected. It would hide a subtitle the User picked over audio in its own language, for accents or hearing, by a condition they never saw.
+- **The condition compares the audio asked for**: rejected. When the plan drops it, the file's own audio may be in another language, and subtitles the User needs wouldn't start.
 
 ## Consequences
 
@@ -21,9 +24,11 @@ Only the User's own pick changes a Preference. The player reports each pick in i
 - An Unmatched Item keeps no Preference, as it keeps no Watch State.
 - The User's own Preference still applies where no Show's or Movie's does, an Unmatched Item's included. A Show's or Movie's that matches nothing doesn't fall back to it.
 - Matching the User's own Preference skips the title: it was set without one, so no title can't mean an untitled Track.
+- The User's own Preference for full subtitles can ask for them only over audio in another language. The audio is the Track the plan plays: the one asked for, unless the plan drops it, or else the file's own. Over audio in the Preference's language, a forced Track in it starts instead, if the Version has one. Audio with no language, or a tag that isn't ISO 639, counts as another language, since subtitles the User didn't need cost less than ones they did.
+- A Show's or Movie's Preference has no such condition. A pick made over audio in its own language was meant.
 - A dropped Burn-in, a renderer that failed and an Episode where nothing matched all leave the Preference as it was. So does a subtitle turned on for one scene, until the User turns it off.
 - A Show's Preference doesn't follow a later change to the User's. A new pick replaces it, and nothing else clears it.
 - Languages are compared as languages, so `eng` matches `en`. A Track with no language matches only another with none.
-- Nothing is said when no Track matches. A Playback Reason for it would be API contract for good (ADR 0034), and the subtitle menu already shows what the Version has.
+- Nothing is said when no Track matches, or when the audio's language holds subtitles back. A Playback Reason for it would be API contract for good (ADR 0034), and the subtitle menu already shows what the Version has.
 - An audio Track's Preference is another kind in the same store, kept by the same call.
 - The Hub gets no copy.
