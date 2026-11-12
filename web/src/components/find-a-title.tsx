@@ -124,7 +124,12 @@ function ShowCard({ show }: { show: ShowHit }) {
   return (
     <li>
       <Link to="/shows/$showId" params={{ showId: `tmdb-${show.tmdbId}` }} className={posterLink}>
-        <Poster url={show.posterUrl} title={show.title} detail={show.year?.toString()} />
+        <Poster
+          url={show.posterUrl}
+          thumbhash={show.posterThumbhash}
+          title={show.title}
+          detail={show.year?.toString()}
+        />
       </Link>
     </li>
   );
@@ -134,7 +139,12 @@ function ShowCard({ show }: { show: ShowHit }) {
 function MovieCard({ movie, you }: { movie: MovieHit; you: bigint | undefined }) {
   const movieId = `tmdb-${movie.tmdbId}`;
   const poster = (
-    <Poster url={movie.posterUrl} title={movie.title} detail={movie.year?.toString()} />
+    <Poster
+      url={movie.posterUrl}
+      thumbhash={movie.posterThumbhash}
+      title={movie.title}
+      detail={movie.year?.toString()}
+    />
   );
   return (
     <li className="flex flex-col">

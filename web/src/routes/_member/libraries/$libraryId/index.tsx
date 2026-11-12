@@ -62,6 +62,7 @@ function Movies({ libraryId }: { libraryId: bigint }) {
           >
             <Poster
               url={movie.posterUrl}
+              thumbhash={movie.posterThumbhash}
               title={movie.title}
               detail={yearOf(movie.releaseDate)}
               watchState={movie.watchState}
@@ -84,7 +85,7 @@ function Shows({ libraryId }: { libraryId: bigint }) {
             params={{ libraryId: String(libraryId), showId: titleParam(show.id) }}
             className={posterLink}
           >
-            <Poster url={show.posterUrl} title={show.title} />
+            <Poster url={show.posterUrl} thumbhash={show.posterThumbhash} title={show.title} />
           </Link>
         </li>
       ))}

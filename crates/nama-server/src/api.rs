@@ -1,6 +1,6 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
-use std::{net::IpAddr, sync::Arc};
+use std::{collections::HashMap, net::IpAddr, sync::Arc};
 
 use axum::{
     extract::Request,
@@ -34,7 +34,7 @@ use crate::{
     probing::Probing,
     requests::Requests,
     scanner::Scanner,
-    server_settings,
+    server_settings::{self, ImageSettings},
     sessions::{cleared_session_cookie, identify_caller, in_session_cookie},
     track_preferences::TrackPreferences,
     tracks::Tracks,
@@ -75,14 +75,15 @@ use watch_states::WatchStateServiceHandler;
 )]
 #[expect(
     clippy::too_many_lines,
-    reason = "one place wires every service to the handles it shares; split, it would hide which \
-              share what"
+    reason = "one flat list wiring each service to its handles; split, it would be read in pieces"
 )]
 pub(crate) fn router(
     config: &Config,
     db: Arc<Database>,
     plugin_settings: PluginSettings,
     scanner: Scanner,
+    custom_images: CustomImages,
+    plugin_logos: PluginLogos,
     artwork: Artwork,
     probing: Probing,
     events: EventBus,
@@ -97,7 +98,8 @@ pub(crate) fn router(
     let plugins = plugin_settings.extension_points();
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
-    let artwork_router = artwork::router(artwork.clone(), contents.clone(), settings.images());
+    let image_settings = settings.images();
+    let artwork_router = artwork::router(artwork.clone(), contents.clone(), image_settings.clone());
     let media = crate::playback::router(
         contents,
         running.clone(),
@@ -106,8 +108,11 @@ pub(crate) fn router(
         subtitles,
     )
     .merge(crate::playback::running::router(running.clone()));
-    let custom_images = CustomImages::new(Arc::clone(&db), &config.data_dir);
-    let plugin_logos = PluginLogos::new(&config.data_dir);
+    let images = ImageSources::new(
+        custom_images.clone(),
+        artwork.clone(),
+        image_settings.clone(),
+    );
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let playback = settings.playback();
@@ -130,7 +135,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
-            custom_images: custom_images.clone(),
+            images: images.clone(),
         }))
         .add_service(Arc::new(WatchStateServiceHandler {
             browse: browse.clone(),
@@ -145,7 +150,7 @@ pub(crate) fn router(
         .add_service(Arc::new(RequestServiceHandler {
             requests,
             artwork,
-            custom_images: custom_images.clone(),
+            images: images.clone(),
         }))
         .add_service(Arc::new(PluginServiceHandler {
             plugin_settings,
@@ -157,7 +162,7 @@ pub(crate) fn router(
             scanner,
             browse,
             contents: Contents::new(db),
-            custom_images: custom_images.clone(),
+            images,
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,
@@ -169,7 +174,7 @@ pub(crate) fn router(
         }))
         .into_axum_router()
         .merge(artwork_router)
-        .merge(custom_images::router(custom_images))
+        .merge(custom_images::router(custom_images, image_settings))
         .merge(plugin_logos::router(plugin_logos))
         .merge(media)
         .layer(middleware::from_fn(require_access))
@@ -651,11 +656,52 @@ fn database_failed(err: sqlx::Error) -> ConnectError {
     ConnectError::internal("the Server's database failed")
 }
 
-/// Where clients fetch each Custom Image, which a response shows in place of the downloaded one.
-async fn custom_image_urls(
-    custom_images: &CustomImages,
-) -> Result<custom_images::Urls, ConnectError> {
-    custom_images.urls().await.map_err(database_failed)
+/// What a response shows of images: the Custom Images in place of the downloaded ones, and the
+/// thumbhash of each image resized so far, by URL.
+struct ShownImages {
+    custom: custom_images::Urls,
+    thumbhashes: HashMap<String, Vec<u8>>,
+}
+
+impl ShownImages {
+    /// The thumbhash to send beside `url`, if the image there has one.
+    fn thumbhash(&self, url: Option<&str>) -> Option<Vec<u8>> {
+        self.thumbhashes.get(url?).cloned()
+    }
+}
+
+/// Where a response finds the images it shows: see [`ImageSources::shown`].
+#[derive(Clone)]
+struct ImageSources {
+    custom_images: CustomImages,
+    artwork: Artwork,
+    settings: ImageSettings,
+}
+
+impl ImageSources {
+    const fn new(custom_images: CustomImages, artwork: Artwork, settings: ImageSettings) -> Self {
+        Self {
+            custom_images,
+            artwork,
+            settings,
+        }
+    }
+
+    /// What a response shows of images, with no thumbhashes while resizing is off (ADR 0039).
+    async fn shown(&self) -> Result<ShownImages, ConnectError> {
+        let custom = self.custom_images.urls().await.map_err(database_failed)?;
+        let mut thumbhashes = HashMap::new();
+        if self.settings.resizing().is_some() {
+            let artwork = self.artwork.thumbhashes().await.map_err(database_failed)?;
+            let custom_images = self.custom_images.thumbhashes().await;
+            thumbhashes.extend(artwork);
+            thumbhashes.extend(custom_images.map_err(database_failed)?);
+        }
+        Ok(ShownImages {
+            custom,
+            thumbhashes,
+        })
+    }
 }
 
 /// The client IP address `ctx` came from, which rate limits count by.

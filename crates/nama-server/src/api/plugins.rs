@@ -29,7 +29,7 @@ use crate::{
     qualities,
 };
 
-use super::{custom_image_urls, database_failed, refuse};
+use super::{database_failed, refuse};
 
 /// `nama.v1.PluginService`: the Server's Plugins and their settings. Needs
 /// `PERMISSION_MANAGE_SETTINGS`, which [`require_access`](super::require_access) enforces.
@@ -62,7 +62,7 @@ impl PluginService for PluginServiceHandler {
         _request: ServiceRequest<'_, ListPluginsRequest>,
     ) -> ServiceResult<ListPluginsResponse> {
         let listed = self.plugin_settings.list().await.map_err(list_failed)?;
-        let custom = custom_image_urls(&self.custom_images).await?;
+        let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let mut summaries = Vec::with_capacity(listed.len());
         for StoredPlugin { plugin, stored } in listed {
             let logo = self.logo(&plugin, &custom).await;
@@ -202,7 +202,7 @@ impl PluginServiceHandler {
 
     /// `stored` as `Plugin`, with its logo.
     async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
-        let custom = custom_image_urls(&self.custom_images).await?;
+        let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let logo = self.logo(&stored.plugin, &custom).await;
         Ok(plugin_to_proto(stored.plugin, stored.stored.settings, logo))
     }

@@ -123,7 +123,12 @@ function MovieFound({ movie }: { movie: MovieInLibrary }) {
         params={{ libraryId: String(movie.libraryId), movieId: titleParam(movie.id) }}
         className={posterLink}
       >
-        <Poster url={movie.posterUrl} title={movie.title} detail={yearOf(movie.releaseDate)} />
+        <Poster
+          url={movie.posterUrl}
+          thumbhash={movie.posterThumbhash}
+          title={movie.title}
+          detail={yearOf(movie.releaseDate)}
+        />
       </Link>
     </li>
   );
@@ -137,7 +142,7 @@ function ShowFound({ show }: { show: ShowInLibrary }) {
         params={{ libraryId: String(show.libraryId), showId: titleParam(show.id) }}
         className={posterLink}
       >
-        <Poster url={show.posterUrl} title={show.title} />
+        <Poster url={show.posterUrl} thumbhash={show.posterThumbhash} title={show.title} />
       </Link>
     </li>
   );

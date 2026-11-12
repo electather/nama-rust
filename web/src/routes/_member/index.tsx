@@ -2,6 +2,7 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 import { Link, type LinkOptions, createFileRoute } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 
+import { LibraryCard } from "@/components/library-card";
 import { Page } from "@/components/page";
 import { Poster, PosterGrid, posterLink } from "@/components/poster";
 import {
@@ -10,10 +11,9 @@ import {
   type ContinueWatchingEpisode,
   type Movie,
 } from "@/gen/nama/v1/browse_pb";
-import { type Library, LibraryService } from "@/gen/nama/v1/library_pb";
+import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { metadataLine, seasonName, titleParam, yearOf } from "@/lib/browse";
-import { kindName } from "@/lib/libraries";
 
 export const Route = createFileRoute("/_member/")({
   loader: ({ context: { queryClient, transport } }) =>
@@ -92,6 +92,7 @@ function movieCard(libraryId: string, movie: Movie): Card {
     },
     poster: {
       url: movie.posterUrl,
+      thumbhash: movie.posterThumbhash,
       title: movie.title,
       detail: yearOf(movie.releaseDate),
       watchState: movie.watchState,
@@ -115,6 +116,7 @@ function episodeCard(libraryId: string, { show, episode }: ContinueWatchingEpiso
       },
       poster: {
         url: show.posterUrl,
+        thumbhash: show.posterThumbhash,
         title: show.title,
         detail: metadataLine(seasonName(episode.seasonNumber), `Episode ${number}`),
         watchState: episode.watchState,
@@ -146,40 +148,5 @@ function Libraries() {
         </li>
       ))}
     </ul>
-  );
-}
-
-/**
- * A Library's Backdrop with its name over it, or without one a plain box of the same size, so the
- * row doesn't shift. Art is always shown in the dark scheme, so the name keeps the scrim's 70%
- * black and light ink over a light image too (DESIGN.md, "The Legible Over Art Rule").
- */
-function LibraryCard({ library }: { library: Library }) {
-  const art = library.backdropUrl !== undefined;
-  return (
-    <>
-      <div
-        className="group dark relative flex aspect-video items-end overflow-hidden rounded-lg border bg-muted"
-        data-art={art ? "" : undefined}
-      >
-        {art && (
-          // Its name is drawn over it, so the image itself says nothing more.
-          <img
-            src={library.backdropUrl}
-            alt=""
-            loading="lazy"
-            className="absolute inset-0 size-full object-cover"
-          />
-        )}
-        <div className="relative w-full">
-          {art && <div className="h-8 bg-linear-to-t from-scrim" />}
-          {/* On the scrim's full strength however many lines it takes, under a fade into the art. */}
-          <p className="px-4 pb-3 text-2xl font-semibold tracking-tight text-balance text-foreground group-data-art:bg-scrim">
-            {library.name}
-          </p>
-        </div>
-      </div>
-      <p className="mt-1.5 text-sm text-muted-foreground">{kindName(library.kind)}</p>
-    </>
   );
 }

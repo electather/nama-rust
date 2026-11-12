@@ -350,3 +350,64 @@ async fn a_path_naming_no_slot_is_not_found() {
         assert_eq!(reply.status, 404, "{path}");
     }
 }
+
+#[tokio::test]
+async fn a_custom_image_gets_a_thumbhash_of_its_own_once_resized_and_a_new_one_replaces_it() {
+    let fx = Fixture::alien().await;
+    let thumbhash = || async {
+        fx.get_movie(fx.library, ALIEN)
+            .await
+            .unwrap()
+            .poster_thumbhash
+    };
+    let resize = || async {
+        let (url, _) = fx.alien_poster(fx.library).await;
+        assert_eq!(fx.fetch(&format!("{url}?width=640")).await.status, 200);
+    };
+
+    fx.upload(&alien_poster(), &image(ImageFormat::Jpeg, 1000, 1500))
+        .await;
+    let before_resizing = thumbhash().await;
+    resize().await;
+    let first = thumbhash().await.unwrap();
+    fx.upload(&alien_poster(), &image(ImageFormat::Png, 1500, 1000))
+        .await;
+    let replaced = thumbhash().await;
+    resize().await;
+    let second = thumbhash().await.unwrap();
+
+    assert_eq!(before_resizing, None);
+    assert_eq!(replaced, None);
+    // A thumbhash keeps its image's shape only roughly.
+    let shape = |hash: &[u8]| thumbhash::thumb_hash_to_approximate_aspect_ratio(hash).unwrap();
+    assert!(
+        shape(&first) < 1.0,
+        "the first, a portrait, is {}",
+        shape(&first)
+    );
+    assert!(
+        shape(&second) > 1.0,
+        "the second, a landscape, is {}",
+        shape(&second)
+    );
+}
+
+#[tokio::test]
+async fn a_custom_image_removed_and_uploaded_again_gets_its_thumbhash_back_once_resized() {
+    let fx = Fixture::alien().await;
+    let jpeg = image(ImageFormat::Jpeg, 1000, 1500);
+    let resize = || async {
+        let (url, _) = fx.alien_poster(fx.library).await;
+        assert_eq!(fx.fetch(&format!("{url}?width=640")).await.status, 200);
+    };
+    fx.upload(&alien_poster(), &jpeg).await;
+    resize().await;
+
+    fx.remove(&alien_poster()).await;
+    // The same bytes, so the same URL as before.
+    fx.upload(&alien_poster(), &jpeg).await;
+    resize().await;
+
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    assert!(movie.poster_thumbhash.is_some());
+}

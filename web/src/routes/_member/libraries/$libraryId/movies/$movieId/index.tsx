@@ -33,7 +33,11 @@ function Movie() {
   // The largest until one is chosen, and again if an Event removed the chosen one.
   const version = versionToPlay(movie.versions, chosen);
   return (
-    <TitlePage title={movie.title} backdropUrl={movie.backdropUrl}>
+    <TitlePage
+      title={movie.title}
+      backdropUrl={movie.backdropUrl}
+      backdropThumbhash={movie.backdropThumbhash}
+    >
       <p className="text-sm text-muted-foreground">
         {metadataLine(
           yearOf(movie.releaseDate),

@@ -222,6 +222,16 @@ pub struct Library {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub custom_backdrop: bool,
+    /// As `Movie.backdrop_thumbhash`.
+    ///
+    /// Field 7: `backdrop_thumbhash`
+    #[serde(
+        rename = "backdropThumbhash",
+        alias = "backdrop_thumbhash",
+        with = "::buffa::json_helpers::opt_bytes",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -235,6 +245,7 @@ impl ::core::fmt::Debug for Library {
             .field("folders", &self.folders)
             .field("backdrop_url", &self.backdrop_url)
             .field("custom_backdrop", &self.custom_backdrop)
+            .field("backdrop_thumbhash", &self.backdrop_thumbhash)
             .finish()
     }
 }
@@ -254,6 +265,16 @@ impl Library {
         value: impl Into<::buffa::alloc::string::String>,
     ) -> Self {
         self.backdrop_url = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::backdrop_thumbhash`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_backdrop_thumbhash(
+        mut self,
+        value: impl Into<::buffa::alloc::vec::Vec<u8>>,
+    ) -> Self {
+        self.backdrop_thumbhash = Some(value.into());
         self
     }
 }
@@ -298,6 +319,9 @@ impl ::buffa::Message for Library {
         if self.custom_backdrop {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -328,6 +352,9 @@ impl ::buffa::Message for Library {
         }
         if self.custom_backdrop {
             ::buffa::types::put_bool_field(6u32, self.custom_backdrop, buf);
+        }
+        if let Some(ref v) = self.backdrop_thumbhash {
+            ::buffa::types::put_shared_bytes_field(7u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -393,6 +420,18 @@ impl ::buffa::Message for Library {
                 )?;
                 self.custom_backdrop = ::buffa::types::decode_bool(buf)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_bytes(
+                    self
+                        .backdrop_thumbhash
+                        .get_or_insert_with(::buffa::alloc::vec::Vec::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -407,6 +446,7 @@ impl ::buffa::Message for Library {
         self.folders.clear();
         self.backdrop_url = ::core::option::Option::None;
         self.custom_backdrop = false;
+        self.backdrop_thumbhash = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

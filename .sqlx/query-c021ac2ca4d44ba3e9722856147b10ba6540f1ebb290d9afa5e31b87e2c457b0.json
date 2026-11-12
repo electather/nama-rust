@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO image_thumbhashes (key, thumbhash) VALUES (?, ?)\n                         ON CONFLICT (key) DO UPDATE SET thumbhash = excluded.thumbhash",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "c021ac2ca4d44ba3e9722856147b10ba6540f1ebb290d9afa5e31b87e2c457b0"
+}

@@ -2,7 +2,7 @@
 //! served by URL (ADR 0037). A Plugin's Custom Image, which stands in for its logo, is
 //! `CustomImages`'.
 
-use std::{io, path::Path};
+use std::io;
 
 use axum::{
     Router,
@@ -25,11 +25,9 @@ pub(crate) struct PluginLogos {
 }
 
 impl PluginLogos {
-    /// The logos stored in `data_dir`.
-    pub(crate) fn new(data_dir: &Path) -> Self {
-        Self {
-            store: ImageStore::new(data_dir),
-        }
+    /// The logos kept in `store`.
+    pub(crate) const fn new(store: ImageStore) -> Self {
+        Self { store }
     }
 
     /// Stores `logo`, the Plugin `id`'s Manifest's logo as the Server cleaned it, if it isn't, in

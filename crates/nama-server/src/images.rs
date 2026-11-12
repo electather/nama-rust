@@ -2,13 +2,15 @@
 //!
 //! Only [`ImageStore`] reads or writes them (`AGENTS.md`). A key names an image by a few parts,
 //! each escaped to one file name, so no key reaches outside the store. Resized copies are kept
-//! apart, in a `resized` folder, and can be deleted at any time (ADR 0039).
+//! apart, in a `resized` folder, and can be deleted at any time (ADR 0039). An image's thumbhash is
+//! kept in the database once it has been resized.
 
 mod resized;
 
 use std::{
     io::{self, Write as _},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use axum::{
@@ -20,12 +22,15 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures_util::StreamExt as _;
 use image::{ImageFormat, ImageReader};
+use serde::Deserialize;
 use sha2::{Digest as _, Sha256};
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt as _;
 use tower_http::services::ServeFile;
 
-use resized::ResizeThread;
+use resized::{Copied, ResizeThread};
+
+use crate::{db::Database, server_settings::ImageSettings};
 
 /// The widths an image is resized to, smallest first: those the web app's Poster grid and
 /// Backdrops are shown at, at one to three device pixels per CSS pixel. Any other is refused.
@@ -80,11 +85,12 @@ pub enum UploadError {
     Io(#[from] io::Error),
 }
 
-/// Stored images, under the data directory. Clones share one thread that resizes images
-/// (`AGENTS.md`).
+/// Stored images, under the data directory, and their thumbhashes in `db`. Clones share one
+/// thread that resizes images (`AGENTS.md`).
 #[derive(Debug, Clone)]
 pub struct ImageStore {
     dir: PathBuf,
+    db: Arc<Database>,
     resizer: ResizeThread,
 }
 
@@ -95,23 +101,37 @@ pub struct Resize {
     cache_limit: u64,
 }
 
-impl Resize {
-    /// A copy `width` pixels wide, keeping the resized copies within `cache_limit` bytes, or
-    /// `None` if `width` isn't one of [`WIDTHS`].
-    #[must_use]
-    pub fn to(width: u32, cache_limit: u64) -> Option<Self> {
+/// What an image's URL asks for after the `?`.
+#[derive(Debug, Deserialize)]
+pub(crate) struct Asked {
+    width: Option<u32>,
+}
+
+impl Asked {
+    /// The copy asked for, or `None` for the stored image, which is all there is while `images`
+    /// has resizing off (ADR 0039).
+    ///
+    /// # Errors
+    ///
+    /// 400 for a width not on [`WIDTHS`] while resizing is on.
+    pub(crate) fn resize(&self, images: &ImageSettings) -> Result<Option<Resize>, StatusCode> {
+        let (Some(width), Some(cache_limit)) = (self.width, images.resizing()) else {
+            return Ok(None);
+        };
         WIDTHS
             .contains(&width)
-            .then_some(Self { width, cache_limit })
+            .then_some(Some(Resize { width, cache_limit }))
+            .ok_or(StatusCode::BAD_REQUEST)
     }
 }
 
 impl ImageStore {
-    /// The images stored in `data_dir`.
+    /// The images stored in `data_dir`, their thumbhashes kept in `db`.
     #[must_use]
-    pub fn new(data_dir: &Path) -> Self {
+    pub fn new(data_dir: &Path, db: Arc<Database>) -> Self {
         Self {
             dir: data_dir.to_owned(),
+            db,
             resizer: ResizeThread::start(),
         }
     }
@@ -185,8 +205,9 @@ impl ImageStore {
     ///
     /// With a `resize`, it is sent as a JPEG copy that wide, made the first time it is asked for,
     /// or else as it is stored where it can't or needn't be resized (see `make_copy`), varying by
-    /// `Accept` either way. The copy is made from the image's key alone, so it is never made again
-    /// if the image at `key` changes.
+    /// `Accept` either way. Making a copy keeps the image's thumbhash, for `thumbhashes`.
+    /// The copy is made from the image's key alone, so it is never made again if the image at
+    /// `key` changes.
     ///
     /// Browsers keep the response for good, so serve it only at a URL that names these bytes
     /// alone: a Provider's path, or a version taken from the bytes.
@@ -247,7 +268,7 @@ impl ImageStore {
             .resizer
             .run(move || {
                 let copied = resized::make_copy(&original, &copy, resize.width);
-                if matches!(copied, Ok(true))
+                if matches!(copied, Ok(Copied::Made { .. }))
                     && let Err(err) = resized::evict(&cache, resize.cache_limit, &copy)
                 {
                     tracing::error!("could not keep the resized images within their limit: {err}");
@@ -259,34 +280,118 @@ impl ImageStore {
         let copied = resized
             .map_err(|err| err.to_string())
             .and_then(|copied| copied);
-        copied.unwrap_or_else(|err| {
-            tracing::warn!("{err}, so it is sent as it is");
-            false
-        })
+        match copied {
+            Ok(Copied::Found) => true,
+            Ok(Copied::Made { thumbhash }) => {
+                // Without it the image only goes without a placeholder.
+                // ponytail: a Custom Image replaced while it is resized can leave its thumbhash
+                // behind, a row no URL sent names; sweep rows without a file if that matters.
+                if let Err(err) = self.keep_thumbhash(key, thumbhash).await {
+                    tracing::error!("could not keep the thumbhash of {key:?}: {err}");
+                }
+                true
+            }
+            Ok(Copied::Unneeded) => false,
+            Err(err) => {
+                tracing::warn!("{err}, so it is sent as it is");
+                false
+            }
+        }
     }
 
-    /// Deletes the image at `key`, if one is stored.
+    async fn keep_thumbhash(&self, key: &[&str], thumbhash: Vec<u8>) -> sqlx::Result<()> {
+        let key = row_key(key);
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "INSERT INTO image_thumbhashes (key, thumbhash) VALUES (?, ?)
+                         ON CONFLICT (key) DO UPDATE SET thumbhash = excluded.thumbhash",
+                        key,
+                        thumbhash,
+                    )
+                    .execute(&mut **tx)
+                    .await
+                    .map(drop)
+                })
+            })
+            .await
+    }
+
+    /// The key and thumbhash of every image stored under `dir` that has been resized, each key
+    /// starting with `dir`.
     ///
     /// # Errors
     ///
-    /// If the file is there but can't be deleted.
+    /// If the database can't be read.
+    // ponytail: reads every thumbhash under `dir` for each response that shows images; query by
+    // key if a store of tens of thousands of images makes that slow.
+    pub(crate) async fn thumbhashes(&self, dir: &str) -> sqlx::Result<Vec<(Vec<String>, Vec<u8>)>> {
+        let under = format!("{}/", file_name(dir));
+        let rows = sqlx::query!(
+            "SELECT key, thumbhash FROM image_thumbhashes WHERE instr(key, ?) = 1",
+            under
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| {
+                let key = row.key.split('/').map(unescape).collect::<Option<_>>()?;
+                Some((key, row.thumbhash))
+            })
+            .collect())
+    }
+
+    /// Deletes the image at `key`, if one is stored, with its resized copies and thumbhash.
+    ///
+    /// # Errors
+    ///
+    /// If the file or its copies are there but can't be deleted, or the thumbhash can't be.
     pub async fn delete(&self, key: &[&str]) -> io::Result<()> {
-        match tokio::fs::remove_file(self.path(key)).await {
-            Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err),
-            _ => Ok(()),
-        }
+        self.forget_thumbhashes(key).await?;
+        unless_gone(tokio::fs::remove_file(self.path(key)).await)?;
+        self.delete_copies(key).await
     }
 
-    /// Deletes the folder at `key` and every image in it, if it is there.
+    /// Deletes the folder at `key` and every image in it, if it is there, with their resized
+    /// copies and thumbhashes.
     ///
     /// # Errors
     ///
-    /// If the folder is there but can't be deleted.
+    /// If the folder or the copies are there but can't be deleted, or the thumbhashes can't be.
     pub async fn delete_dir(&self, key: &[&str]) -> io::Result<()> {
-        match tokio::fs::remove_dir_all(self.path(key)).await {
-            Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err),
-            _ => Ok(()),
-        }
+        self.forget_thumbhashes(key).await?;
+        unless_gone(tokio::fs::remove_dir_all(self.path(key)).await)?;
+        self.delete_copies(key).await
+    }
+
+    /// Deletes the thumbhash of the image at `key`, or of every image under it. First, before the
+    /// image: one left behind would outlive its image for good.
+    async fn forget_thumbhashes(&self, key: &[&str]) -> io::Result<()> {
+        let (row, below) = (row_key(key), format!("{}/", row_key(key)));
+        let forgotten = self
+            .db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "DELETE FROM image_thumbhashes WHERE key = ? OR instr(key, ?) = 1",
+                        row,
+                        below,
+                    )
+                    .execute(&mut **tx)
+                    .await
+                    .map(drop)
+                })
+            })
+            .await;
+        forgotten.map_err(io::Error::other)
+    }
+
+    /// Deletes the resized copies of the image at `key`, or of every image under it. Left, they
+    /// would be found by an image stored at `key` again, which then never gets a thumbhash.
+    async fn delete_copies(&self, key: &[&str]) -> io::Result<()> {
+        unless_gone(tokio::fs::remove_dir_all(self.copies_path(key)).await)
     }
 
     /// The key of every image stored under `dir`, each starting with `dir`.
@@ -305,8 +410,28 @@ impl ImageStore {
 
     /// Where the copy `width` pixels wide of the image at `key` is kept.
     fn copy_path(&self, key: &[&str], width: u32) -> PathBuf {
-        under(self.dir.join(RESIZED_DIR), key).join(format!("{width}.jpg"))
+        self.copies_path(key).join(format!("{width}.jpg"))
     }
+
+    /// The folder the resized copies of the image at `key`, or of every image under it, are kept
+    /// in.
+    fn copies_path(&self, key: &[&str]) -> PathBuf {
+        under(self.dir.join(RESIZED_DIR), key)
+    }
+}
+
+/// `deleted`, with what was already gone counted as deleted.
+fn unless_gone(deleted: io::Result<()>) -> io::Result<()> {
+    match deleted {
+        Err(err) if err.kind() != io::ErrorKind::NotFound => Err(err),
+        _ => Ok(()),
+    }
+}
+
+/// `key` as the database names it: each part escaped as [`file_name`] does, joined by `/`.
+fn row_key(key: &[&str]) -> String {
+    let parts: Vec<String> = key.iter().map(|part| file_name(part)).collect();
+    parts.join("/")
 }
 
 /// `key` as a path in `folder`, each part one escaped file name.
@@ -533,14 +658,24 @@ fn unescape(name: &str) -> Option<String> {
 mod tests {
     use axum::{body::Body, extract::Request};
 
+    use std::sync::Arc;
+
+    use tempfile::TempDir;
+
     use super::{ImageStore, file_name, unescape};
+    use crate::db::Database;
 
     const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
+
+    async fn store_in(data: &TempDir) -> ImageStore {
+        let db = Database::open(data.path()).await.unwrap();
+        ImageStore::new(data.path(), Arc::new(db))
+    }
 
     #[tokio::test]
     async fn a_failed_write_leaves_nothing_behind() {
         let data = tempfile::tempdir().unwrap();
-        let store = ImageStore::new(data.path());
+        let store = store_in(&data).await;
         // A folder where the image goes, so the write can't put it there.
         let blocked = data.path().join("artwork/tmdb/%2Fposter.jpg");
         std::fs::create_dir_all(blocked.join("in-the-way")).unwrap();
@@ -558,7 +693,7 @@ mod tests {
     #[tokio::test]
     async fn deleting_an_image_twice_leaves_none_stored() {
         let data = tempfile::tempdir().unwrap();
-        let store = ImageStore::new(data.path());
+        let store = store_in(&data).await;
         store.write(KEY, b"\xff\xd8").await.unwrap();
 
         store.delete(KEY).await.unwrap();
@@ -572,7 +707,8 @@ mod tests {
         let data = tempfile::tempdir().unwrap();
         let request = Request::get("/").body(Body::empty()).unwrap();
 
-        let response = ImageStore::new(data.path())
+        let response = store_in(&data)
+            .await
             .serve(KEY, "image/jpeg", None, request)
             .await
             .unwrap();
@@ -583,7 +719,7 @@ mod tests {
     #[tokio::test]
     async fn listing_gives_the_key_of_each_image_stored_under_a_folder() {
         let data = tempfile::tempdir().unwrap();
-        let store = ImageStore::new(data.path());
+        let store = store_in(&data).await;
         store.write(KEY, b"\xff\xd8").await.unwrap();
         store.write(&["elsewhere", "x"], b"\xff\xd8").await.unwrap();
         // As a write leaves it while it is under way.

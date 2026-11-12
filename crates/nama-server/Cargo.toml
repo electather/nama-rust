@@ -45,6 +45,7 @@ sqlx = { version = "0.9", default-features = false, features = ["macros", "migra
 svg-hush = "0.9.7"
 tempfile = "3"
 thiserror = "2"
+thumbhash = "0.1"
 tokio = { version = "1", features = ["fs", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tower-http = { version = "0.7.1", default-features = false, features = ["fs"] }

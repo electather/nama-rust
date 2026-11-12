@@ -797,6 +797,7 @@ mod tests {
         db::Database,
         events::{EventBus, Filter},
         ffmpeg::Ffmpeg,
+        images::ImageStore,
         libraries::{self, Kind, Libraries},
         playback::subtitles,
         plugins::ExtensionPoints,
@@ -855,12 +856,13 @@ mod tests {
                 let subtitles = subtitles::Cache::new(data.path());
                 Probing::new(Arc::clone(&db), Arc::new(ffmpeg), subtitles)
             });
+            let images = ImageStore::new(data.path(), Arc::clone(&db));
             Self {
                 scanner: Scanner::new(
                     Arc::clone(&db),
                     ExtensionPoints::default(),
-                    Artwork::new(data.path(), ExtensionPoints::default()),
-                    CustomImages::new(Arc::clone(&db), data.path()),
+                    Artwork::new(images.clone(), ExtensionPoints::default()),
+                    CustomImages::new(Arc::clone(&db), images),
                     events.clone(),
                     probing.clone(),
                     None,

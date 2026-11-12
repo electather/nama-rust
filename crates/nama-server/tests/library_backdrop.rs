@@ -235,3 +235,18 @@ async fn an_image_for_a_library_that_isnt_there_is_not_found_and_not_kept() {
     let folder = format!("custom-images/library/{missing}");
     assert!(!fx.server.data_dir().join(folder).exists());
 }
+
+#[tokio::test]
+async fn once_a_librarys_backdrop_is_resized_it_is_listed_with_its_thumbhash() {
+    let fx = Fixture::alien().await;
+    let jpeg = image(ImageFormat::Jpeg, 1920, 1080);
+    fx.upload(&backdrop_path(fx.library), &jpeg).await;
+    let before = fx.listed().await;
+
+    let url = format!("{}?width=640", before.backdrop_url.clone().unwrap());
+    fetch(&fx.server, &url, Some(&fx.server.admin_token)).await;
+    let after = fx.listed().await;
+
+    assert_eq!(before.backdrop_thumbhash, None);
+    assert!(after.backdrop_thumbhash.is_some());
+}

@@ -40,7 +40,11 @@ function MovieToRequest() {
   const { movie } = useSuspenseQuery(RequestService.method.lookUpMovie, input).data;
   if (!movie) return <NotFound />;
   return (
-    <TitlePage title={movie.title} backdropUrl={movie.backdropUrl}>
+    <TitlePage
+      title={movie.title}
+      backdropUrl={movie.backdropUrl}
+      backdropThumbhash={movie.backdropThumbhash}
+    >
       <p className="text-sm text-muted-foreground">
         {metadataLine(movie.year?.toString(), runtimeOf(movie.runtimeMinutes))}
       </p>
