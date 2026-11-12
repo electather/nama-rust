@@ -54,3 +54,7 @@
 - **One fixture.** Server tests in `tests/` build on `TestServer` in `tests/support`, started through `TestServer::builder()`. Their setup goes through the API, as a client's would; a shared helper never writes the database. A test file adds a fixture of its own only for what that file alone needs, and a shortcut one test needs stays in that test's file.
 - **One in-file fixture.** An in-file test that needs a Library with a Matched Movie builds it with `contents::fixture` and adds what else it needs on top, so a change to how a Match is stored touches one place.
 - **Fake programs.** Fake programs a test runs are written only through `ffmpeg::fake::script`. Writing one with `fs::write` can fail with "Text file busy" (#411).
+
+### Structure
+
+- **File size.** No `.rs` file under `src/` or `tests/`, nor `build.rs`, is over 800 lines, except those `tests/structure.rs` lists with a ceiling, a multiple of 100 lines the file stays at or under. A ceiling only comes down, to the next 100 above the file as it shrinks, and its entry goes once the file is 800 lines or fewer. The table takes a new file only when a move-only change makes it out of a listed one.
