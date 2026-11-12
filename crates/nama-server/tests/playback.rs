@@ -30,9 +30,10 @@ use nama_proto::nama::v1::{
     LibraryKind, LibraryServiceClient, ListEpisodesRequest, PickedTrackKind, PlanPlaybackRequest,
     Playback, PlaybackEnded, PlaybackLimit, PlaybackMethod, PlaybackPlan, PlaybackReason,
     PlaybackReasonKind, PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason,
-    ReportTrackPickRequest, ServerServiceClient, SetMatchRequest, SetSubtitlePreferenceRequest,
-    StopPlaybackRequest, SubtitleFormat, SubtitleKind, Track, UpdatePlaybackSettingsRequest,
-    UserServiceClient, UsersSubtitlePreference, Version, VideoCodec, VideoTrack,
+    ReportTrackPickRequest, ServerServiceClient, SetAudioPreferenceRequest, SetMatchRequest,
+    SetSubtitlePreferenceRequest, StopPlaybackRequest, SubtitleFormat, SubtitleKind, Track,
+    UpdatePlaybackSettingsRequest, UserServiceClient, UsersAudioPreference,
+    UsersSubtitlePreference, Version, VideoCodec, VideoTrack,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::{fake, fake::script};
@@ -1761,22 +1762,29 @@ const DARK_S02E01: &str = "Dark {tmdb-70523}/Season 02/Dark - S02E01.mkv";
 /// The place of the German subtitle in each of Dark's Episodes, as
 /// [`ffprobe_reading_english_and_german_tracks`] reads them.
 const GERMAN: u32 = 3;
+/// The place of the English audio each of Dark's Episodes plays by default.
+const ENGLISH_AUDIO: u32 = 1;
 /// The place of the German audio, after the subtitles.
 const GERMAN_AUDIO: u32 = 4;
+/// The place of the French audio, which only Dark's S01E01 has.
+const FRENCH_AUDIO_IN_S01E01: u32 = 5;
 
 /// A Server whose ffprobe, a shell script in `bin`, reads every file as an H.264 MP4 with English
 /// AAC audio played by default, English, then German, SRT subtitles, and a German AAC dub, tagged
-/// with ISO 639-2/B codes as files often are.
+/// with ISO 639-2/B codes as files often are. Dark's S01E01 has a French AAC dub after those.
 #[cfg(unix)]
 fn ffprobe_reading_english_and_german_tracks(bin: &Path) -> Ffmpeg {
     let ffprobe = r#"#!/bin/sh
-cat <<'EOF'
+case "$*" in
+  *S01E01*) french=',{"codec_name": "aac", "codec_type": "audio", "tags": {"language": "fre"}}' ;;
+esac
+cat <<EOF
 {"streams": [{"codec_name": "h264", "codec_type": "video"},
              {"codec_name": "aac", "codec_type": "audio", "disposition": {"default": 1},
               "tags": {"language": "eng"}},
              {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"language": "eng"}},
              {"codec_name": "subrip", "codec_type": "subtitle", "tags": {"language": "ger"}},
-             {"codec_name": "aac", "codec_type": "audio", "tags": {"language": "ger"}}],
+             {"codec_name": "aac", "codec_type": "audio", "tags": {"language": "ger"}}$french],
  "format": {"format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "1.000000"}}
 EOF
 "#;
@@ -1798,6 +1806,21 @@ impl Fixture {
     /// Episodes.
     async fn dark_in_english_and_german(bin: &Path) -> (Self, [i64; 2]) {
         Self::dark_probed_by(ffprobe_reading_english_and_german_tracks(bin)).await
+    }
+
+    /// [`Self::dark_in_english_and_german`], on a Server whose ffmpeg Remuxes, so a dub the
+    /// Device would need Remuxed plays.
+    async fn dark_remuxed_in_english_and_german(bin: &Path) -> (Self, [i64; 2]) {
+        let remuxing = Ffmpeg {
+            // Lists no encoders or filters, and Remuxes by writing nothing until it's stopped.
+            ffmpeg: Ok(script(
+                bin,
+                "ffmpeg",
+                "#!/bin/sh\ncase \"$*\" in *-encoders*|*-filters*) ;; *) exec sleep 600 ;; esac\n",
+            )),
+            ..ffprobe_reading_english_and_german_tracks(bin)
+        };
+        Self::dark_probed_by(remuxing).await
     }
 
     /// [`Self::dark_in_english_and_german`], on a Server running `ffmpeg`.
@@ -2027,16 +2050,7 @@ const AUDIO: PickedTrackKind = PickedTrackKind::PICKED_TRACK_KIND_AUDIO;
 #[tokio::test]
 async fn an_audio_track_picked_in_an_episode_is_chosen_for_the_shows_next_episode() {
     let bin = tempfile::tempdir().unwrap();
-    let remuxing = Ffmpeg {
-        // Lists no encoders or filters, and Remuxes by writing nothing until it's stopped.
-        ffmpeg: Ok(script(
-            bin.path(),
-            "ffmpeg",
-            "#!/bin/sh\ncase \"$*\" in *-encoders*|*-filters*) ;; *) exec sleep 600 ;; esac\n",
-        )),
-        ..ffprobe_reading_english_and_german_tracks(bin.path())
-    };
-    let (fx, [first, second]) = Fixture::dark_probed_by(remuxing).await;
+    let (fx, [first, second]) = Fixture::dark_remuxed_in_english_and_german(bin.path()).await;
     let ripley = fx.server.user("Ripley", &[]).await;
     let before = fx.plan(second).await.unwrap();
 
@@ -2232,4 +2246,132 @@ async fn an_own_subtitle_preference_in_no_iso_639_language_or_of_no_kind_is_refu
     assert_eq!(unknown_language.field, "subtitle.language");
     assert_eq!(unknown_kind.field, "subtitle.kind");
     assert_eq!(own_subtitle(server.client_config()).await.0, None);
+}
+
+/// Sets the own Audio Preference of whoever `as_user` calls as to audio in `language`, or the
+/// file's default.
+async fn set_own_audio(as_user: ClientConfig, language: Option<&str>) -> Result<(), ConnectError> {
+    PlaybackServiceClient::new(HttpClient::plaintext(), as_user)
+        .set_audio_preference(SetAudioPreferenceRequest {
+            audio: UsersAudioPreference {
+                language: language.map(str::to_owned),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+/// The language of the own Audio Preference of whoever `as_user` calls as, as the Server gives
+/// it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn own_audio(as_user: ClientConfig) -> Option<String> {
+    PlaybackServiceClient::new(HttpClient::plaintext(), as_user)
+        .get_track_preferences(GetTrackPreferencesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .audio
+        .into_option()
+        .unwrap_or_default()
+        .language
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_users_own_audio_language_starts_a_show_with_no_audio_preference_of_its_own() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [_, second]) = Fixture::dark_remuxed_in_english_and_german(bin.path()).await;
+
+    set_own_audio(fx.server.client_config(), Some("de"))
+        .await
+        .unwrap();
+    let own = fx.plan(second).await.unwrap();
+    set_own_audio(fx.server.client_config(), None)
+        .await
+        .unwrap();
+    let files_default = fx.plan(second).await.unwrap();
+
+    assert_eq!(own.audio_track, Some(GERMAN_AUDIO), "`de` matches `ger`");
+    assert_eq!(files_default.audio_track, Some(ENGLISH_AUDIO));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_shows_audio_preference_wins_over_the_users_own_even_when_it_matches_nothing() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::dark_remuxed_in_english_and_german(bin.path()).await;
+    set_own_audio(fx.server.client_config(), Some("de"))
+        .await
+        .unwrap();
+
+    fx.pick(first, AUDIO, Some(ENGLISH_AUDIO)).await.unwrap();
+    let shows_english = fx.plan(second).await.unwrap();
+    fx.pick(first, AUDIO, Some(FRENCH_AUDIO_IN_S01E01))
+        .await
+        .unwrap();
+    let shows_french = fx.plan(second).await.unwrap();
+
+    assert_eq!(shows_english.audio_track, Some(ENGLISH_AUDIO));
+    assert_eq!(
+        shows_french.audio_track,
+        Some(ENGLISH_AUDIO),
+        "S02E01 has no French, so the file's default, not the User's German"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_plan_request_naming_audio_ignores_both_preferences_and_a_pick_leaves_the_users_own() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [first, second]) = Fixture::dark_remuxed_in_english_and_german(bin.path()).await;
+    set_own_audio(fx.server.client_config(), Some("de"))
+        .await
+        .unwrap();
+    fx.pick(first, AUDIO, Some(GERMAN_AUDIO)).await.unwrap();
+
+    let named = fx.plan_with_audio(second, ENGLISH_AUDIO, 0).await.unwrap();
+
+    assert_eq!(named.audio_track, Some(ENGLISH_AUDIO));
+    assert_eq!(
+        own_audio(fx.server.client_config()).await.as_deref(),
+        Some("de")
+    );
+}
+
+#[tokio::test]
+async fn a_users_own_audio_preference_is_theirs_alone_and_starts_at_the_files_default() {
+    let server = TestServer::builder().start().await;
+    let ripley = server.user("Ripley", &[]).await;
+
+    let never_set = own_audio(server.client_config()).await;
+    set_own_audio(server.client_config(), Some("JA"))
+        .await
+        .unwrap();
+    let set = own_audio(server.client_config()).await;
+    let ripleys = own_audio(ripley.client_config()).await;
+
+    assert_eq!(never_set, None);
+    assert_eq!(set.as_deref(), Some("ja"), "kept in lower case");
+    assert_eq!(ripleys, None);
+}
+
+#[tokio::test]
+async fn an_own_audio_preference_in_no_iso_639_language_is_refused() {
+    let server = TestServer::builder().start().await;
+
+    let klingon = set_own_audio(server.client_config(), Some("klingon")).await;
+
+    let refusal = assert_refused(
+        klingon,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_LANGUAGE,
+    );
+    assert_eq!(refusal.field, "audio.language");
+    assert_eq!(own_audio(server.client_config()).await, None);
 }

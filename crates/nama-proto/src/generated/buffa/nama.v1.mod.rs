@@ -118,6 +118,9 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_SUBTITLE_PREFERENCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_AUDIO_PREFERENCE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_AUDIO_PREFERENCE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__USERS_AUDIO_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__USERS_SUBTITLE_PREFERENCE_JSON_ANY);
         reg.register_json_any(super::__REPORT_TRACK_PICK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__REPORT_TRACK_PICK_RESPONSE_JSON_ANY);
@@ -541,6 +544,18 @@ pub use self::__buffa::view::SetSubtitlePreferenceRequestOwnedView;
 pub use self::__buffa::view::SetSubtitlePreferenceResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetSubtitlePreferenceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAudioPreferenceRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAudioPreferenceRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAudioPreferenceResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetAudioPreferenceResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersAudioPreferenceView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersAudioPreferenceOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UsersSubtitlePreferenceView;
 #[doc(inline)]

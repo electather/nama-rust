@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM track_preferences\n                         WHERE user_id = ? AND scope = ? AND kind = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "3f79c20f0c31c867017f7544846e78d3b526f90b4ad639d57d22935065a123e9"
+}

@@ -1,4 +1,4 @@
-// ISO 639-1, which the Server accepts for a User's own Subtitle Preference (ADR 0035).
+// ISO 639-1, which the Server accepts for a User's own Subtitle and Audio Preferences (ADR 0035).
 const codes = (
   "aa ab ae af ak am an ar as av ay az ba be bg bi bm bn bo br bs ca ce ch co cr cs cu cv cy da " +
   "de dv dz ee el en eo es et eu fa ff fi fj fo fr fy ga gd gl gn gu gv ha he hi ho hr ht hu hy " +
@@ -10,7 +10,7 @@ const codes = (
 
 const names = new Intl.DisplayNames(["en"], { type: "language" });
 
-/** A language a User can pick for their own Subtitle Preference: its ISO 639-1 code and name. */
+/** A language a User can pick for their own Track Preferences: its ISO 639-1 code and name. */
 export interface Language {
   code: string;
   name: string;

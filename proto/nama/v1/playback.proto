@@ -44,6 +44,12 @@ service PlaybackService {
   rpc SetSubtitlePreference(SetSubtitlePreferenceRequest) returns (SetSubtitlePreferenceResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Sets the caller's own Audio Preference, which a plan starts with when the Show or Movie has
+  // none of its own, an Unmatched Item's Version included (ADR 0035). Refused with
+  // `REFUSAL_REASON_UNKNOWN_LANGUAGE` if the language isn't an ISO 639 code.
+  rpc SetAudioPreference(SetAudioPreferenceRequest) returns (SetAudioPreferenceResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 message GetTrackPreferencesRequest {}
@@ -51,6 +57,8 @@ message GetTrackPreferencesRequest {}
 message GetTrackPreferencesResponse {
   // The caller's own Subtitle Preference: off when they never set one.
   UsersSubtitlePreference subtitle = 1;
+  // The caller's own Audio Preference: the file's default when they never set one.
+  UsersAudioPreference audio = 2;
 }
 
 message SetSubtitlePreferenceRequest {
@@ -59,6 +67,20 @@ message SetSubtitlePreferenceRequest {
 }
 
 message SetSubtitlePreferenceResponse {}
+
+message SetAudioPreferenceRequest {
+  // The caller's own Audio Preference from now on.
+  UsersAudioPreference audio = 1;
+}
+
+message SetAudioPreferenceResponse {}
+
+// What a User wants audio to start as in everything they play, unless the Show or Movie has an
+// Audio Preference of its own.
+message UsersAudioPreference {
+  // The language, an ISO 639 code such as `en` or `eng`. Unset for the file's default.
+  optional string language = 1;
+}
 
 // What a User wants subtitles to start as in everything they play, unless the Show or Movie has a
 // Subtitle Preference of its own.

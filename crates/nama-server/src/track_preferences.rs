@@ -1,6 +1,6 @@
 //! Track Preferences: what a User wants a kind of Track to start as when they play something (ADR
-//! 0035). So far the Subtitle and Audio Preferences a User's pick keeps for a Show or Movie, and the
-//! User's own Subtitle Preference, set in Settings.
+//! 0035): the Subtitle and Audio Preferences a User's pick keeps for a Show or Movie, and the
+//! User's own, set in Settings.
 //!
 //! [`TrackPreferences`] alone reads and writes `track_preferences` (`AGENTS.md`, "Data"). It keeps
 //! a pick's against a Show's or Movie's external id, as Watch State is kept (ADR 0013), so an
@@ -57,10 +57,11 @@ impl Description {
     }
 }
 
-/// The Subtitle Preference a plan starts with, and whose it is.
+/// The Preference a plan starts with, a [`SubtitlePreference`] or the [`Description`] of an audio
+/// Track, and whose it is.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Preferred {
-    pub(crate) preference: SubtitlePreference,
+pub(crate) struct Preferred<P> {
+    pub(crate) preference: P,
     /// The User's own, set without a title, rather than the Show's or Movie's.
     pub(crate) users_own: bool,
 }
@@ -147,7 +148,7 @@ impl TrackPreferences {
         &self,
         user: i64,
         version: i64,
-    ) -> Result<Option<Preferred>, sqlx::Error> {
+    ) -> Result<Option<Preferred<SubtitlePreference>>, sqlx::Error> {
         let row = self.kept(user, version, SUBTITLE).await?;
         Ok(row.map(|row| Preferred {
             preference: subtitle_preference(row.off, row.description),
@@ -164,17 +165,63 @@ impl TrackPreferences {
         Ok(row.map(|row| subtitle_preference(row.off, row.description)))
     }
 
-    /// What describes the audio Track the User `user` wants for the Show or Movie the Version
-    /// `version` is of: their Audio Preference, `None` if they have none, or it's of nothing that
-    /// keeps one.
+    /// Keeps audio in `language` as the User `user`'s own Audio Preference, or `None` for the
+    /// file's default, which keeps none since audio is never off.
+    pub(crate) async fn keep_users_audio(
+        &self,
+        user: i64,
+        language: Option<String>,
+    ) -> Result<(), sqlx::Error> {
+        let Some(language) = language else {
+            return self.forget_users_audio(user).await;
+        };
+        let description = Description {
+            language: Some(language),
+            ..Description::default()
+        };
+        self.keep_audio(user, KeptFor::USERS_OWN, description).await
+    }
+
+    /// The language of the User `user`'s own Audio Preference, set in Settings, `None` if they
+    /// never set one.
+    pub(crate) async fn users_audio(&self, user: i64) -> Result<Option<String>, sqlx::Error> {
+        let row = self.row(user, KeptFor::USERS_OWN, AUDIO).await?;
+        Ok(row.and_then(|row| row.description.language))
+    }
+
+    /// What describes the audio Track a plan of the Version `version` starts with for the User
+    /// `user`: the one kept for the Show or Movie it is of, which wins even when no Track matches
+    /// it, or else their own. `None` if they have neither.
     pub(crate) async fn audio(
         &self,
         user: i64,
         version: i64,
-    ) -> Result<Option<Description>, sqlx::Error> {
+    ) -> Result<Option<Preferred<Description>>, sqlx::Error> {
         let row = self.kept(user, version, AUDIO).await?;
-        // Whether audio falls back to a User's own Audio Preference is #691's to decide.
-        Ok(row.filter(|row| !row.users_own).map(|row| row.description))
+        Ok(row.map(|row| Preferred {
+            preference: row.description,
+            users_own: row.users_own,
+        }))
+    }
+
+    /// Removes the User `user`'s own Audio Preference, if they have one.
+    async fn forget_users_audio(&self, user: i64) -> Result<(), sqlx::Error> {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "DELETE FROM track_preferences
+                         WHERE user_id = ? AND scope = ? AND kind = ?",
+                        user,
+                        USER,
+                        AUDIO,
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    Ok::<_, sqlx::Error>(())
+                })
+            })
+            .await
     }
 
     /// Keeps a Track like `like`, or `None` for off, as the User `user`'s `kind` Preference for
@@ -360,7 +407,121 @@ const BIBLIOGRAPHIC: [(&str, &str); 20] = [
 
 #[cfg(test)]
 mod tests {
-    use super::{is_language, same_language};
+    use std::sync::Arc;
+
+    use super::{Description, Preferred, TrackPreferences, is_language, same_language};
+    use crate::{
+        contents::{
+            Contents, Decided,
+            fixture::{MatchedMovie, tmdb_movie},
+        },
+        db::Database,
+        plugins::Registry,
+        users::{Permissions, User, Users},
+    };
+
+    /// Track Preferences on a database in a temp folder, and a User to keep them for.
+    async fn track_preferences(data: &tempfile::TempDir) -> (TrackPreferences, i64) {
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let root = User {
+            id: 0,
+            name: "Root".to_owned(),
+            permissions: Permissions::ADMIN,
+            created_at: 0,
+        };
+        let plugins = Registry::new();
+        plugins
+            .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
+            .unwrap();
+        let user = Users::new(Arc::clone(&db), plugins.extension_points())
+            .create(&root, "Ada", "correct horse battery staple")
+            .await
+            .unwrap();
+        (TrackPreferences::new(db), user)
+    }
+
+    /// Each `track_preferences` row, as `(scope, title_id, kind, off, language, forced, sdh,
+    /// title)`.
+    async fn rows(
+        preferences: &TrackPreferences,
+    ) -> Vec<(
+        String,
+        String,
+        String,
+        i64,
+        Option<String>,
+        i64,
+        i64,
+        Option<String>,
+    )> {
+        sqlx::query_as(
+            "SELECT scope, title_id, kind, off, language, forced, sdh, title
+             FROM track_preferences",
+        )
+        .fetch_all(preferences.db.reader())
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_users_own_audio_language_is_kept_as_their_untitled_audio_row_until_the_files_default()
+     {
+        let data = tempfile::tempdir().unwrap();
+        let (preferences, user) = track_preferences(&data).await;
+
+        preferences
+            .keep_users_audio(user, Some("de".to_owned()))
+            .await
+            .unwrap();
+        let kept = rows(&preferences).await;
+        let read = preferences.users_audio(user).await.unwrap();
+        preferences.keep_users_audio(user, None).await.unwrap();
+
+        let german = (
+            "user".to_owned(),
+            String::new(),
+            "audio".to_owned(),
+            0,
+            Some("de".to_owned()),
+            0,
+            0,
+            None,
+        );
+        assert_eq!(kept, [german]);
+        assert_eq!(read.as_deref(), Some("de"));
+        assert_eq!(rows(&preferences).await, []);
+        assert_eq!(preferences.users_audio(user).await.unwrap(), None);
+    }
+
+    // An Unmatched Item's Version can't be planned yet (`Contents::version_file`), so this is
+    // where the User's own is seen to reach one.
+    #[tokio::test]
+    async fn the_users_own_audio_preference_reaches_a_version_of_an_unmatched_item() {
+        let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let (preferences, user) = track_preferences(&data).await;
+        let alien =
+            MatchedMovie::new(&preferences.db, media.path(), tmdb_movie(348, "Alien")).await;
+        Contents::new(Arc::clone(&preferences.db))
+            .record(vec![(alien.item, Decided::Unmatched(None))])
+            .await
+            .unwrap();
+
+        preferences
+            .keep_users_audio(user, Some("de".to_owned()))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            preferences.audio(user, alien.version).await.unwrap(),
+            Some(Preferred {
+                preference: Description {
+                    language: Some("de".to_owned()),
+                    ..Description::default()
+                },
+                users_own: true,
+            })
+        );
+    }
 
     #[test]
     fn a_language_is_named_by_any_iso_639_code_of_one_language() {
