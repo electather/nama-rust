@@ -7,13 +7,16 @@ import { ImageSettingsForm, imageSettingsQuery } from "@/components/image-settin
 import { Page } from "@/components/page";
 import { PluginConnections } from "@/components/plugin-connections";
 import { ServerUrl, serverSettingsQuery } from "@/components/server-url";
+import { TrackPreferences, trackPreferencesQuery } from "@/components/track-preferences";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
+// oxlint-disable-next-line import/max-dependencies -- Settings puts together a section per thing a User sets, from their password to the Server's own
 import { may } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_member/settings")({
   loader: ({ context: { queryClient, transport, signedIn } }) =>
     Promise.all([
       queryClient.query(yourDevicesQuery(transport)),
+      queryClient.query(trackPreferencesQuery(transport)),
       may(signedIn.user, Permission.MANAGE_SETTINGS) &&
         queryClient.query(serverSettingsQuery(transport)),
       may(signedIn.user, Permission.MANAGE_SETTINGS) &&
@@ -43,6 +46,7 @@ function Settings() {
           <DeviceList />
         </div>
       </section>
+      <TrackPreferences />
       {may(signedIn.user, Permission.CHOOSE_QUALITY) && <DefaultQualities />}
       <PluginConnections />
       {may(signedIn.user, Permission.MANAGE_SETTINGS) && (

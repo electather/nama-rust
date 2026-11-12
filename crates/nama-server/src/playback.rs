@@ -44,7 +44,7 @@ use crate::{
     },
     probing::{self, ProbeError, Probing},
     server_settings::{HardwareChoice, PlaybackValues},
-    track_preferences::{Description, SubtitlePreference, same_language},
+    track_preferences::{Description, Preferred, SubtitlePreference, same_language},
     tracks::{Hdr, Probe, Track, TrackKind, Tracks, hdr_to_proto},
     users::{Caller, User},
 };
@@ -355,9 +355,9 @@ pub(crate) enum AskedSubtitle {
     BurnIn(usize),
     /// None burned in, and none for the Server to choose.
     None,
-    /// The Server's choice, by the User's Subtitle Preference for what the Version is of, if they
-    /// have one (ADR 0035).
-    Preferred(Option<SubtitlePreference>),
+    /// The Server's choice, by the User's Subtitle Preference for what the Version is of, or else
+    /// their own, if they have one (ADR 0035).
+    Preferred(Option<Preferred>),
 }
 
 /// Plans what `asked` asks on `caller`'s Device, by the Playback settings `settings`, and starts
@@ -456,11 +456,11 @@ fn subtitles_asked(
     match asked {
         AskedSubtitle::BurnIn(place) => (Some(place), None),
         AskedSubtitle::None | AskedSubtitle::Preferred(None) => (None, None),
-        AskedSubtitle::Preferred(Some(preference)) => {
+        AskedSubtitle::Preferred(Some(preferred)) => {
             let Some(probe) = probe else {
                 return (None, None);
             };
-            let place = preferred_subtitle(&preference, probe, device);
+            let place = preferred_subtitle(&preferred, probe, device);
             match place.and_then(|place| probe.tracks.get(place)) {
                 Some(track) if shown_as(device, probe, track).is_some() => (None, place),
                 _ => (place, None),
@@ -1394,16 +1394,17 @@ fn burn_in(facts: &Facts) -> Option<BurnIn> {
     )
 }
 
-/// The place in `probe`'s Tracks of the subtitle Track `preference` starts playback with, `None` for off or
+/// The place in `probe`'s Tracks of the subtitle Track `preferred` starts playback with, `None` for off or
 /// when none matches. A Track in its language and as forced matches; among those, the same SDH
 /// wins, then the same title, then one the Device shows itself over one that needs Burn-in, then
-/// the first.
+/// the first. The User's own Preference skips the title: it was set without one, which doesn't
+/// mean an untitled Track.
 fn preferred_subtitle(
-    preference: &SubtitlePreference,
+    preferred: &Preferred,
     probe: &Probe,
     device: &DeviceDecoding,
 ) -> Option<usize> {
-    let SubtitlePreference::Like(wanted) = preference else {
+    let SubtitlePreference::Like(wanted) = &preferred.preference else {
         return None;
     };
     (probe.tracks.iter().enumerate())
@@ -1416,7 +1417,7 @@ fn preferred_subtitle(
         .min_by_key(|(_, track)| {
             (
                 track.sdh != wanted.sdh,
-                !same_title(track, wanted),
+                !preferred.users_own && !same_title(track, wanted),
                 shown_as(device, probe, track).is_none(),
             )
         })
@@ -1907,7 +1908,7 @@ mod tests {
             VideoLimit,
         },
         server_settings::{HardwareChoice, PickedGpu},
-        track_preferences::{Description, SubtitlePreference},
+        track_preferences::{Description, Preferred, SubtitlePreference},
         tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
     };
 
@@ -3417,17 +3418,31 @@ mod tests {
 
     /// The place [`preferred_subtitle`] picks among `tracks`, in a file that carries no fonts.
     fn preferred_among(
-        preference: &SubtitlePreference,
+        preferred: &Preferred,
         tracks: &[Track],
         device: &DeviceDecoding,
     ) -> Option<usize> {
         let probe = facts(Some(tracks.to_vec())).probe.unwrap();
-        preferred_subtitle(preference, &probe, device)
+        preferred_subtitle(preferred, &probe, device)
     }
 
-    /// A Subtitle Preference for a Track like `track`.
-    fn like(track: &Track) -> SubtitlePreference {
-        SubtitlePreference::Like(Description::of(track))
+    /// A Show's or Movie's Subtitle Preference for a Track like `track`.
+    fn like(track: &Track) -> Preferred {
+        Preferred {
+            preference: SubtitlePreference::Like(Description::of(track)),
+            users_own: false,
+        }
+    }
+
+    /// The User's own Subtitle Preference for a Track like `track`, which keeps no title.
+    fn users_own_like(track: &Track) -> Preferred {
+        Preferred {
+            preference: SubtitlePreference::Like(Description {
+                title: None,
+                ..Description::of(track)
+            }),
+            users_own: true,
+        }
     }
 
     const NOT_FORCED_OR_SDH: (bool, bool) = (false, false);
@@ -3452,9 +3467,38 @@ mod tests {
         );
         let french = subtitle_in("subrip", Some("fre"), NOT_FORCED_OR_SDH, None);
         assert_eq!(preferred_among(&like(&french), &tracks, &device), None);
+        let off = Preferred {
+            preference: SubtitlePreference::Off,
+            users_own: false,
+        };
+        assert_eq!(preferred_among(&off, &tracks, &device), None);
+    }
+
+    #[test]
+    fn the_users_own_preference_ranks_sdh_then_one_the_device_shows_whatever_the_title() {
+        let device = firefox();
+        let english = subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, None);
+        let english_sdh = subtitle_in("subrip", Some("eng"), (false, true), None);
+        let tracks = [
+            subtitle_in("subrip", Some("eng"), (false, true), None),
+            subtitle_in("hdmv_pgs_subtitle", Some("eng"), NOT_FORCED_OR_SDH, None),
+            subtitle_in("subrip", Some("eng"), NOT_FORCED_OR_SDH, Some("English")),
+            subtitle_in("subrip", Some("eng"), (true, false), None),
+        ];
+
         assert_eq!(
-            preferred_among(&SubtitlePreference::Off, &tracks, &device),
-            None
+            preferred_among(&users_own_like(&english), &tracks, &device),
+            Some(2)
+        );
+        assert_eq!(preferred_among(&like(&english), &tracks, &device), Some(1));
+        assert_eq!(
+            preferred_among(&users_own_like(&english_sdh), &tracks, &device),
+            Some(0)
+        );
+        assert_eq!(
+            preferred_among(&users_own_like(&english), &tracks[3..], &device),
+            None,
+            "a full Preference never takes a forced-only Track"
         );
     }
 

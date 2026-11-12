@@ -34,6 +34,50 @@ service PlaybackService {
   rpc ReportTrackPick(ReportTrackPickRequest) returns (ReportTrackPickResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Returns the caller's own Track Preferences, the ones they set in Settings.
+  rpc GetTrackPreferences(GetTrackPreferencesRequest) returns (GetTrackPreferencesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Sets the caller's own Subtitle Preference, which a plan starts with when the Show or Movie
+  // has none of its own, an Unmatched Item's Version included (ADR 0035). Refused with
+  // `REFUSAL_REASON_UNKNOWN_LANGUAGE` if the language isn't an ISO 639 code.
+  rpc SetSubtitlePreference(SetSubtitlePreferenceRequest) returns (SetSubtitlePreferenceResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+message GetTrackPreferencesRequest {}
+
+message GetTrackPreferencesResponse {
+  // The caller's own Subtitle Preference: off when they never set one.
+  UsersSubtitlePreference subtitle = 1;
+}
+
+message SetSubtitlePreferenceRequest {
+  // The caller's own Subtitle Preference from now on.
+  UsersSubtitlePreference subtitle = 1;
+}
+
+message SetSubtitlePreferenceResponse {}
+
+// What a User wants subtitles to start as in everything they play, unless the Show or Movie has a
+// Subtitle Preference of its own.
+message UsersSubtitlePreference {
+  // The language, an ISO 639 code such as `en` or `eng`. Unset for subtitles off.
+  optional string language = 1;
+  // Which subtitle in that language. Ignored when `language` is unset.
+  SubtitleKind kind = 2;
+}
+
+// Which of a language's subtitle Tracks a User's own Subtitle Preference wants.
+enum SubtitleKind {
+  SUBTITLE_KIND_UNSPECIFIED = 0;
+  // All dialogue, neither forced-only nor SDH. Never a forced-only Track.
+  SUBTITLE_KIND_FULL = 1;
+  // All dialogue, preferring SDH, which also describes sounds.
+  SUBTITLE_KIND_SDH = 2;
+  // Forced-only: signs and dialogue in another language.
+  SUBTITLE_KIND_FORCED = 3;
 }
 
 message ReportTrackPickRequest {
