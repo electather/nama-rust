@@ -57,7 +57,7 @@ use crate::{
     playback::running::RunningPlans,
     plugins::ExtensionPoints,
     probing::Probing,
-    requests::{self, Requests},
+    requests::{self, RequestTitle, Requests},
 };
 
 /// Extensions, in lowercase, of the files the scanner treats as video.
@@ -359,13 +359,21 @@ impl Scanner {
                 probing.clean_subtitles().await;
             }
             scanner.inner.events.publish(events);
-            if let Some(requests) = &scanner.inner.requests {
-                let titles = doomed.request_titles(&deleted.versions);
-                requests.cancel_deleted(titles, by).await?;
-            }
+            (scanner.cancel_requests(doomed.request_titles(&deleted.versions), by)).await;
             Ok(deleted)
         })
         .await
+    }
+
+    /// Cancels the Requests still waiting on `titles`, whose media `by` deleted. A failure is
+    /// logged, not returned: the media is gone by then, and an error would hide what went.
+    async fn cancel_requests(&self, titles: Vec<RequestTitle>, by: String) {
+        let Some(requests) = &self.inner.requests else {
+            return;
+        };
+        if let Err(error) = requests.cancel_deleted(titles, by).await {
+            tracing::warn!(%error, "couldn't cancel the Requests waiting on deleted media");
+        }
     }
 
     /// Asks each enabled Movies Fulfiller to stop monitoring `doomed`'s Movie. Returns the name of
