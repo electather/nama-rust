@@ -7,6 +7,7 @@ pub mod codes;
 pub mod config;
 mod connections;
 mod contents;
+mod custom_images;
 pub mod db;
 mod device_names;
 mod events;
@@ -111,16 +112,17 @@ pub fn serve(
         probing.clone(),
         events.clone(),
     );
+    let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
     let artwork = Artwork::new(&config.data_dir, points.clone());
     let scanner = Scanner::new(
         Arc::clone(&db),
-        points.clone(),
+        points,
         artwork.clone(),
         events.clone(),
         Some(probing.clone()),
         Some(running.clone()),
+        Some(requests.clone()),
     );
-    let requests = Requests::new(Arc::clone(&db), events.clone(), points);
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
     let load_settings = load_settings(settings.clone());
     let app = api::router(

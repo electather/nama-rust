@@ -251,7 +251,8 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             "the most Transcodes at once must be at least 1",
         )
-        .field("settings.max_transcodes"),
+        .field("settings.max_transcodes")
+        .param("minTranscodes", &1),
         Refused(Invalid::NothingKeptBehind) => refuse(
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
             "the time kept for skipping back must be at least 1 minute",

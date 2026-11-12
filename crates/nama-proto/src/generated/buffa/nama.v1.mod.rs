@@ -253,6 +253,7 @@ pub mod __buffa {
         reg.register_json_any(super::__SCAN_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PREVIEW_DELETE_MEDIA_REQUEST_JSON_ANY);
         reg.register_json_any(super::__PREVIEW_DELETE_MEDIA_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REQUEST_TO_CANCEL_JSON_ANY);
         reg.register_json_any(super::__DELETE_MEDIA_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_MEDIA_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__MEDIA_TO_DELETE_JSON_ANY);
@@ -1075,6 +1076,10 @@ pub use self::__buffa::view::PreviewDeleteMediaRequestOwnedView;
 pub use self::__buffa::view::PreviewDeleteMediaResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::PreviewDeleteMediaResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestToCancelView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestToCancelOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::DeleteMediaRequestView;
 #[doc(inline)]

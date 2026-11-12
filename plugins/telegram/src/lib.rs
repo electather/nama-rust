@@ -310,7 +310,10 @@ fn what_happened(notification: &Notification) -> Option<String> {
             let quality = approved_at(request);
             format!("{title} is now {}{quality}.{reason}", state(request)?)
         }
-        Event::RequestCancelled(_) => format!("The Request for {title} was cancelled."),
+        Event::RequestCancelled(cancelled) => match &cancelled.deleted_by {
+            Some(by) => format!("{by} deleted {title}, so its Request was cancelled."),
+            None => format!("The Request for {title} was cancelled."),
+        },
         Event::RequesterRemoved(removed) => format!(
             "{} withdrew from the Request for {title}.",
             name(removed.user_id)
@@ -574,5 +577,20 @@ mod tests {
             Some("The Request for Dune (2021) was cancelled.")
         );
         assert_eq!(progress, None);
+    }
+
+    #[test]
+    fn a_request_deleting_cancelled_names_who_deleted_it() {
+        let deleted = RequestCancelled {
+            deleted_by: Some("Grace".to_owned()),
+            ..Default::default()
+        };
+
+        let posted = notify(deleted, dune(RequestState::REQUEST_STATE_PROCESSING));
+
+        assert_eq!(
+            posted.as_deref(),
+            Some("Grace deleted Dune (2021), so its Request was cancelled.")
+        );
     }
 }

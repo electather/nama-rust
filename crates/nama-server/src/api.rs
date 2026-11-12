@@ -21,6 +21,7 @@ use crate::{
     config::Config,
     connections::Connections,
     contents::Contents,
+    custom_images::{self, CustomImages},
     db::{Database, now},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
@@ -99,6 +100,7 @@ pub(crate) fn router(
         subtitles,
     )
     .merge(crate::playback::running::router(running.clone()));
+    let custom_images = CustomImages::new(Arc::clone(&db), &config.data_dir);
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let playback = settings.playback();
@@ -121,6 +123,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(BrowseServiceHandler {
             browse: browse.clone(),
+            custom_images: custom_images.clone(),
         }))
         .add_service(Arc::new(WatchStateServiceHandler {
             browse: browse.clone(),
@@ -132,7 +135,11 @@ pub(crate) fn router(
             settings: playback,
             preferences: TrackPreferences::new(Arc::clone(&db)),
         }))
-        .add_service(Arc::new(RequestServiceHandler { requests, artwork }))
+        .add_service(Arc::new(RequestServiceHandler {
+            requests,
+            artwork,
+            custom_images: custom_images.clone(),
+        }))
         .add_service(Arc::new(PluginServiceHandler { plugin_settings }))
         .add_service(Arc::new(LibraryServiceHandler {
             libraries: Libraries::new(db),
@@ -149,6 +156,7 @@ pub(crate) fn router(
         }))
         .into_axum_router()
         .merge(artwork_router)
+        .merge(custom_images::router(custom_images))
         .merge(media)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
@@ -192,7 +200,7 @@ const REQUEST_TV: Access = Access::Needs(Permission::RequestTv);
 const DELETE_MEDIA: Access = Access::Needs(Permission::DeleteMedia);
 
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
-/// RPCs start closed"). Media has its own entry, [`MEDIA`].
+/// RPCs start closed"). Media and uploads have their own entries, in [`PREFIXES`].
 // One row per RPC reads as a table; rustfmt would split most rows over four lines.
 #[rustfmt::skip]
 const ACCESS: &[(&str, Access)] = &[
@@ -285,16 +293,20 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC.procedure,      MANAGE_SETTINGS),
 ];
 
-/// Who may fetch media: every path under this prefix, which the media routes share.
-const MEDIA: (&str, Access) = ("/media/", Access::SignedIn);
+/// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media
+/// routes share, and uploading or removing a title's Custom Image.
+const PREFIXES: [(&str, Access); 2] = [
+    ("/media/", Access::SignedIn),
+    ("/custom-images/", MANAGE_LIBRARIES),
+];
 
 impl Access {
-    /// Who may request `path`: an RPC's `/<service>/<method>` as [`ACCESS`] lists it, or media
-    /// as [`MEDIA`] does. `None` if nobody may.
+    /// Who may request `path`: an RPC's `/<service>/<method>` as [`ACCESS`] lists it, or a path
+    /// under one of [`PREFIXES`]. `None` if nobody may.
     fn of(path: &str) -> Option<Self> {
-        let (media, media_access) = MEDIA;
-        if path.starts_with(media) {
-            return Some(media_access);
+        let prefixed = PREFIXES.iter().find(|(prefix, _)| path.starts_with(prefix));
+        if let Some(&(_, access)) = prefixed {
+            return Some(access);
         }
         ACCESS
             .iter()
@@ -621,6 +633,13 @@ fn unknown_enum_value(field: &str, message: &str) -> ConnectError {
 fn database_failed(err: sqlx::Error) -> ConnectError {
     tracing::error!("a request failed: {err}");
     ConnectError::internal("the Server's database failed")
+}
+
+/// Where clients fetch each Custom Image, which a response shows in place of the downloaded one.
+async fn custom_image_urls(
+    custom_images: &CustomImages,
+) -> Result<custom_images::Urls, ConnectError> {
+    custom_images.urls().await.map_err(database_failed)
 }
 
 /// The client IP address `ctx` came from, which rate limits count by.

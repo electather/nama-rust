@@ -9028,7 +9028,7 @@ pub struct MovieHit {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub year: ::core::option::Option<i32>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `poster_url`
     #[serde(
@@ -9344,7 +9344,7 @@ pub struct FoundMovie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub runtime_minutes: ::core::option::Option<u32>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `poster_url`
     #[serde(
@@ -9353,7 +9353,7 @@ pub struct FoundMovie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 7: `backdrop_url`
     #[serde(
@@ -10269,7 +10269,7 @@ pub struct ShowHit {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub year: ::core::option::Option<i32>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 5: `poster_url`
     #[serde(
@@ -10505,7 +10505,7 @@ pub struct FoundShow {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub overview: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The poster's URL, under `/media/artwork/` on this Server.
+    /// The poster's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 5: `poster_url`
     #[serde(
@@ -10514,7 +10514,7 @@ pub struct FoundShow {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The backdrop's URL, under `/media/artwork/` on this Server.
+    /// The backdrop's URL on this Server: its Custom Image, if it has one.
     ///
     /// Field 6: `backdrop_url`
     #[serde(

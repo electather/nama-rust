@@ -2,6 +2,7 @@ import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 
 import { DeleteEpisode, DeleteFromShow } from "@/components/delete-from-show";
+import { EditImages, showImages } from "@/components/edit-images";
 import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { MarkPlayedMenu } from "@/components/mark-played-menu";
@@ -21,6 +22,7 @@ import {
   versionLine,
   versionToPlay,
 } from "@/lib/browse";
+// oxlint-disable-next-line import/max-dependencies -- the page puts together a Show's Seasons, Episodes, Watch State and what an admin may change
 import { useSetPlayed } from "@/lib/watch-state";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showId/")({
@@ -74,6 +76,14 @@ function Show() {
       <SeasonShown seasons={data.seasons} current={seasonNumber} />
       {/* Out of the way below the Episodes, and pulled out by the buttons' own padding. */}
       <div className="mt-6 -ms-4 flex max-w-3xl flex-wrap gap-2 empty:hidden">
+        <EditImages
+          title={data.show.title}
+          images={showImages(
+            show.showId,
+            data.show,
+            data.seasons.find(({ number }) => number === seasonNumber),
+          )}
+        />
         <DeleteFromShow
           {...show}
           title={data.show.title}
