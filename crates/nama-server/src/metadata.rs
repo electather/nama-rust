@@ -275,7 +275,7 @@ mod tests {
             plugins.enable(Arc::new(FailingPlugin(failure))).unwrap();
         }
         let source = MetadataSource::new(plugins.extension_points());
-        let show = source.show(&ExternalId::Tmdb(1399)).await.unwrap_err();
+        let show = source.show(&ExternalId::tmdb(1399)).await.unwrap_err();
         let image = source
             .image(&PluginId::from_static("failing"), "/poster.jpg")
             .await
@@ -330,7 +330,7 @@ mod tests {
 
         let answer = plugins
             .ask_first(|metadata: Arc<dyn MetadataProvider>| async move {
-                metadata.show(&ExternalId::Tmdb(1399)).await
+                metadata.show(&ExternalId::tmdb(1399)).await
             })
             .await
             .unwrap();

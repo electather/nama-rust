@@ -46,7 +46,7 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, Show, TitleKind},
+    metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, Show, TMDB, TitleKind},
 };
 use nama_proto::nama::v1::{Event, ItemMatched};
 use tokio_util::sync::CancellationToken;
@@ -522,7 +522,7 @@ impl Matcher {
     async fn fetch_show(&self, id: &ExternalId) -> Result<FoundShow, metadata::Error> {
         let (plugin, show) = self.metadata.show(id).await?;
         // Seasons are fetched by the Show's TMDB id, which an ID Hint from TVDB or IMDb isn't.
-        let id = show.ids.tmdb.map_or_else(|| id.clone(), ExternalId::Tmdb);
+        let id = show.ids.get(TMDB).unwrap_or_else(|| id.clone());
         Ok(FoundShow { plugin, id, show })
     }
 
@@ -550,7 +550,11 @@ impl Matcher {
                 };
                 (pending.item, found)
             }));
-            if let (Ok(season), Some(show_tmdb_id)) = (season, show.ids.tmdb) {
+            let show_tmdb_id = show
+                .ids
+                .get(TMDB)
+                .and_then(|tmdb| tmdb.value().parse::<i64>().ok());
+            if let (Ok(season), Some(show_tmdb_id)) = (season, show_tmdb_id) {
                 outcomes.seasons.push((show_tmdb_id, season));
             }
         }
@@ -724,7 +728,7 @@ mod tests {
     use futures_util::{FutureExt, StreamExt};
     use nama_plugin_api::{
         PluginId,
-        metadata::{ExternalId, ExternalIds},
+        metadata::{ExternalId, ExternalIds, IMDB, TMDB},
         settings::{SettingValue, Settings},
     };
     use nama_plugin_tmdb::{
@@ -974,9 +978,10 @@ mod tests {
     impl Outcome {
         fn of(recorded: Option<&Recorded>) -> Self {
             match recorded {
-                Some(recorded) if recorded.matched => {
-                    Self::Matched(recorded.ids.tmdb.unwrap(), recorded.title.clone().unwrap())
-                }
+                Some(recorded) if recorded.matched => Self::Matched(
+                    recorded.ids.get(TMDB).unwrap().value().parse().unwrap(),
+                    recorded.title.clone().unwrap(),
+                ),
                 Some(_) => Self::Unmatched,
                 None => Self::Undecided,
             }
@@ -1045,11 +1050,10 @@ mod tests {
         assert_eq!(alien.plugin.as_deref(), Some("tmdb"));
         assert_eq!(
             alien.ids,
-            ExternalIds {
-                tmdb: Some(348),
-                imdb: Some("tt0078748".to_owned()),
-                tvdb: None,
-            }
+            ExternalIds::from_iter([
+                ExternalId::tmdb(348),
+                ExternalId::new(IMDB, "tt0078748").unwrap(),
+            ])
         );
         assert_eq!(
             alien.poster.as_deref(),
@@ -1216,11 +1220,11 @@ mod tests {
         assert_eq!(secrets.show_title.as_deref(), Some("Dark"));
         assert_eq!(
             secrets.show_ids,
-            ExternalIds {
-                tmdb: Some(70523),
-                imdb: Some("tt5753856".to_owned()),
-                tvdb: Some(334_824),
-            }
+            ExternalIds::from_iter([
+                ExternalId::tmdb(70523),
+                ExternalId::new(IMDB, "tt5753856").unwrap(),
+                ExternalId::tvdb(334_824),
+            ])
         );
         // The Show and its Season were each fetched once.
         let requests = media.tmdb.requests();
@@ -1316,7 +1320,7 @@ mod tests {
         let item = media.item(shows, pilot).await;
         media
             .matcher
-            .set_match(item, &ExternalId::Tmdb(2996))
+            .set_match(item, &ExternalId::tmdb(2996))
             .await
             .unwrap();
         let searches = media.searches();
@@ -1450,7 +1454,7 @@ mod tests {
         let item = media.item(shows, SECRETS).await;
         media
             .matcher
-            .set_match(item, &ExternalId::Tmdb(70523))
+            .set_match(item, &ExternalId::tmdb(70523))
             .await
             .unwrap();
         media.contents.stored_by_older_metadata(shows.id).await;
@@ -1598,7 +1602,7 @@ mod tests {
         let item = media.item(movies, home_movies).await;
         media
             .matcher
-            .set_match(item, &ExternalId::Tmdb(949))
+            .set_match(item, &ExternalId::tmdb(949))
             .await
             .unwrap();
         let looked_up = media.lookups();
@@ -1646,7 +1650,7 @@ mod tests {
 
         media
             .matcher
-            .set_match(item, &ExternalId::Tmdb(949))
+            .set_match(item, &ExternalId::tmdb(949))
             .await
             .unwrap();
         let searches = media.searches();
@@ -1670,7 +1674,7 @@ mod tests {
 
         let summary = media
             .matcher
-            .set_match(item, &ExternalId::Tmdb(949))
+            .set_match(item, &ExternalId::tmdb(949))
             .await
             .unwrap();
 
@@ -1695,13 +1699,13 @@ mod tests {
 
         media
             .matcher
-            .set_match(pilot, &ExternalId::Tmdb(2316))
+            .set_match(pilot, &ExternalId::tmdb(2316))
             .await
             .unwrap();
         let us = media.outcomes(shows).await;
         media
             .matcher
-            .set_match(pilot, &ExternalId::Tmdb(2996))
+            .set_match(pilot, &ExternalId::tmdb(2996))
             .await
             .unwrap();
 
@@ -1732,7 +1736,7 @@ mod tests {
             .await;
         media
             .matcher
-            .set_match(pilot, &ExternalId::Tmdb(2316))
+            .set_match(pilot, &ExternalId::tmdb(2316))
             .await
             .unwrap();
 
@@ -1800,7 +1804,7 @@ mod tests {
         media.scan(movies).await;
         let item = media.item(movies, "Alien (1979)/Alien (1979).mkv").await;
 
-        let result = media.matcher.set_match(item, &ExternalId::Tmdb(1)).await;
+        let result = media.matcher.set_match(item, &ExternalId::tmdb(1)).await;
 
         assert!(
             matches!(result, Err(ManualError::NoSuchTitle(ref id)) if *id == ExternalId::tmdb(1)),
@@ -1813,7 +1817,7 @@ mod tests {
     async fn a_match_for_an_item_that_does_not_exist_is_refused() {
         let media = Fixture::new().await;
 
-        let result = media.matcher.set_match(42, &ExternalId::Tmdb(949)).await;
+        let result = media.matcher.set_match(42, &ExternalId::tmdb(949)).await;
 
         assert!(
             matches!(result, Err(ManualError::NoSuchItem(42))),
@@ -1830,7 +1834,7 @@ mod tests {
             .item(&media.movies, "Alien (1979)/Alien (1979).mkv")
             .await;
 
-        let result = media.matcher.set_match(item, &ExternalId::Tmdb(348)).await;
+        let result = media.matcher.set_match(item, &ExternalId::tmdb(348)).await;
 
         assert!(
             matches!(result, Err(ManualError::Unavailable)),

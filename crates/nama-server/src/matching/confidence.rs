@@ -169,7 +169,7 @@ mod tests {
 
     fn candidate(id: i64, title: &str, year: Option<i32>) -> Candidate {
         Candidate {
-            id: ExternalId::Tmdb(id),
+            id: ExternalId::tmdb(id),
             title: title.to_owned(),
             original_title: None,
             year,
@@ -196,7 +196,7 @@ mod tests {
 
         assert_eq!(
             decide("Alien", Some(1979), &found),
-            Decision::Match(ExternalId::Tmdb(348))
+            Decision::Match(ExternalId::tmdb(348))
         );
     }
 
@@ -209,11 +209,11 @@ mod tests {
 
         assert_eq!(
             decide("Dune", Some(2021), &found),
-            Decision::Match(ExternalId::Tmdb(438_631))
+            Decision::Match(ExternalId::tmdb(438_631))
         );
         assert_eq!(
             decide("Dune", Some(1984), &found),
-            Decision::Match(ExternalId::Tmdb(841))
+            Decision::Match(ExternalId::tmdb(841))
         );
     }
 
@@ -223,7 +223,7 @@ mod tests {
 
         assert_eq!(
             decide("Dune", Some(2020), &found),
-            Decision::Match(ExternalId::Tmdb(438_631))
+            Decision::Match(ExternalId::tmdb(438_631))
         );
     }
 
@@ -233,7 +233,7 @@ mod tests {
 
         assert_eq!(
             decide("alien romulus", Some(2024), &found),
-            Decision::Match(ExternalId::Tmdb(945_961))
+            Decision::Match(ExternalId::tmdb(945_961))
         );
     }
 
@@ -246,7 +246,7 @@ mod tests {
 
         assert_eq!(
             decide("Das Boot", Some(1981), &found),
-            Decision::Match(ExternalId::Tmdb(387))
+            Decision::Match(ExternalId::tmdb(387))
         );
     }
 
@@ -263,7 +263,7 @@ mod tests {
 
         assert_eq!(
             decide("Amelie", Some(2001), &found),
-            Decision::Match(ExternalId::Tmdb(194))
+            Decision::Match(ExternalId::tmdb(194))
         );
         assert_eq!(
             decide(
@@ -271,7 +271,7 @@ mod tests {
                 Some(2001),
                 &found
             ),
-            Decision::Match(ExternalId::Tmdb(120))
+            Decision::Match(ExternalId::tmdb(120))
         );
     }
 
@@ -292,15 +292,15 @@ mod tests {
 
         assert_eq!(
             decide("Arrival", Some(2016), &arrival),
-            Decision::Match(ExternalId::Tmdb(329_865))
+            Decision::Match(ExternalId::tmdb(329_865))
         );
         assert_eq!(
             decide("Oblivion", Some(2013), &oblivion),
-            Decision::Match(ExternalId::Tmdb(75_612))
+            Decision::Match(ExternalId::tmdb(75_612))
         );
         assert_eq!(
             decide("Band of Brothers", None, &band_of_brothers),
-            Decision::Match(ExternalId::Tmdb(4613))
+            Decision::Match(ExternalId::tmdb(4613))
         );
     }
 
@@ -370,7 +370,7 @@ mod tests {
 
         assert_eq!(
             decide(typo, Some(2001), &fellowship(2_500)),
-            Decision::Match(ExternalId::Tmdb(120))
+            Decision::Match(ExternalId::tmdb(120))
         );
         assert_eq!(
             decide(typo, Some(2001), &fellowship(2_501)),
