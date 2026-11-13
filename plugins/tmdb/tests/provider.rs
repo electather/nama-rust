@@ -12,7 +12,7 @@ use nama_plugin_api::{
     Plugin, Registrar,
     metadata::{
         Candidate, ExternalId, ExternalIds, IMDB, MetadataError, MetadataProvider, SearchQuery,
-        TitleKind,
+        TMDB, TVDB, TitleKind,
     },
     settings::{SettingKind, SettingValue, Settings},
 };
@@ -81,7 +81,7 @@ async fn searching_movies_finds_candidates_with_their_years() {
         .unwrap();
 
     let dune = |id, year, poster: &str, vote_count| Candidate {
-        id: ExternalId::Tmdb(id),
+        id: ExternalId::tmdb(id),
         title: "Dune".to_owned(),
         original_title: Some("Dune".to_owned()),
         year: Some(year),
@@ -121,7 +121,7 @@ async fn searching_shows_uses_their_first_air_year_and_has_their_countries() {
     assert_eq!(
         found,
         [Candidate {
-            id: ExternalId::Tmdb(70523),
+            id: ExternalId::tmdb(70523),
             title: "Dark".to_owned(),
             original_title: Some("Dark".to_owned()),
             year: Some(2017),
@@ -150,15 +150,11 @@ async fn a_movie_has_its_details_imdb_id_and_artwork() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
 
-    let movie = tmdb.movie(&ExternalId::Tmdb(348)).await.unwrap();
+    let movie = tmdb.movie(&ExternalId::tmdb(348)).await.unwrap();
 
     assert_eq!(
         movie.ids,
-        ExternalIds {
-            tmdb: Some(348),
-            imdb: Some("tt0078748".to_owned()),
-            tvdb: None,
-        }
+        ExternalIds::from_iter([ExternalId::tmdb(348), imdb("tt0078748")])
     );
     assert_eq!(movie.title, "Alien");
     assert_eq!(movie.release_date.as_deref(), Some("1979-05-25"));
@@ -179,15 +175,15 @@ async fn a_show_has_its_tvdb_and_imdb_ids_and_seasons() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
 
-    let show = tmdb.show(&ExternalId::Tmdb(70523)).await.unwrap();
+    let show = tmdb.show(&ExternalId::tmdb(70523)).await.unwrap();
 
     assert_eq!(
         show.ids,
-        ExternalIds {
-            tmdb: Some(70523),
-            imdb: Some("tt5753856".to_owned()),
-            tvdb: Some(334_824),
-        }
+        ExternalIds::from_iter([
+            ExternalId::tmdb(70523),
+            imdb("tt5753856"),
+            ExternalId::tvdb(334_824)
+        ])
     );
     assert_eq!(show.title, "Dark");
     assert_eq!(show.first_air_date.as_deref(), Some("2017-12-01"));
@@ -199,22 +195,22 @@ async fn a_season_has_its_episodes() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
 
-    let season = tmdb.season(&ExternalId::Tmdb(70523), 1).await.unwrap();
+    let season = tmdb.season(&ExternalId::tmdb(70523), 1).await.unwrap();
 
     assert_eq!(season.number, 1);
     assert_eq!(season.title, "Season 1");
-    assert_eq!(season.ids.tvdb, Some(727_934));
-    let episodes: Vec<(u32, u32, &str, Option<i64>)> = season
+    assert_eq!(season.ids.get(TVDB), Some(ExternalId::tvdb(727_934)));
+    let episodes: Vec<(u32, u32, &str, Option<ExternalId>)> = season
         .episodes
         .iter()
-        .map(|e| (e.season, e.number, e.title.as_str(), e.ids.tmdb))
+        .map(|e| (e.season, e.number, e.title.as_str(), e.ids.get(TMDB)))
         .collect();
     assert_eq!(
         episodes,
         [
-            (1, 1, "Secrets", Some(1_388_538)),
-            (1, 2, "Lies", Some(1_388_539)),
-            (1, 3, "Past and Present", Some(1_388_540)),
+            (1, 1, "Secrets", Some(ExternalId::tmdb(1_388_538))),
+            (1, 2, "Lies", Some(ExternalId::tmdb(1_388_539))),
+            (1, 3, "Past and Present", Some(ExternalId::tmdb(1_388_540))),
         ]
     );
     assert_eq!(season.episodes[0].runtime_minutes, Some(52));
@@ -225,15 +221,15 @@ async fn an_episode_has_its_own_ids() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
 
-    let episode = tmdb.episode(&ExternalId::Tmdb(70523), 1, 1).await.unwrap();
+    let episode = tmdb.episode(&ExternalId::tmdb(70523), 1, 1).await.unwrap();
 
     assert_eq!(
         episode.ids,
-        ExternalIds {
-            tmdb: Some(1_388_538),
-            imdb: Some("tt5753730".to_owned()),
-            tvdb: Some(6_288_618),
-        }
+        ExternalIds::from_iter([
+            ExternalId::tmdb(1_388_538),
+            imdb("tt5753730"),
+            ExternalId::tvdb(6_288_618)
+        ])
     );
     assert_eq!(episode.title, "Secrets");
     assert_eq!(
@@ -247,7 +243,7 @@ async fn an_unknown_title_is_not_found() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
 
-    let missing = tmdb.movie(&ExternalId::Tmdb(1)).await;
+    let missing = tmdb.movie(&ExternalId::tmdb(1)).await;
 
     assert!(
         matches!(missing, Err(MetadataError::NotFound)),
@@ -261,10 +257,16 @@ async fn a_movie_is_found_by_its_imdb_id_and_a_show_by_its_tvdb_id() {
     let tmdb = provider(&fake, API_KEY);
 
     let movie = tmdb.movie(&imdb("tt0078748")).await.unwrap();
-    let show = tmdb.show(&ExternalId::Tvdb(334_824)).await.unwrap();
+    let show = tmdb.show(&ExternalId::tvdb(334_824)).await.unwrap();
 
-    assert_eq!((movie.ids.tmdb, movie.title.as_str()), (Some(348), "Alien"));
-    assert_eq!((show.ids.tmdb, show.title.as_str()), (Some(70523), "Dark"));
+    assert_eq!(
+        (movie.ids.get(TMDB), movie.title.as_str()),
+        (Some(ExternalId::tmdb(348)), "Alien")
+    );
+    assert_eq!(
+        (show.ids.get(TMDB), show.title.as_str()),
+        (Some(ExternalId::tmdb(70523)), "Dark")
+    );
 }
 
 #[tokio::test]
@@ -272,7 +274,7 @@ async fn an_id_with_no_title_of_the_asked_kind_on_tmdb_is_not_found() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
 
-    let nothing = tmdb.movie(&ExternalId::Tvdb(1)).await;
+    let nothing = tmdb.movie(&ExternalId::tvdb(1)).await;
     // Alien is a Movie, not a Show.
     let a_movie = tmdb.show(&imdb("tt0078748")).await;
     // Not an IMDb id, so it isn't sent.
@@ -298,7 +300,7 @@ async fn an_id_with_no_title_of_the_asked_kind_on_tmdb_is_not_found() {
 async fn seasons_are_looked_up_by_tmdb_ids_only() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
-    let dark = ExternalId::Tvdb(334_824);
+    let dark = ExternalId::tvdb(334_824);
 
     let result = tmdb.season(&dark, 1).await;
 
@@ -333,7 +335,7 @@ async fn a_rejected_api_key_is_a_failure_not_a_missing_title() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, "wrong");
 
-    let result = tmdb.movie(&ExternalId::Tmdb(348)).await;
+    let result = tmdb.movie(&ExternalId::tmdb(348)).await;
 
     let Err(MetadataError::Failed(error)) = result else {
         panic!("expected a failure, got {result:?}");

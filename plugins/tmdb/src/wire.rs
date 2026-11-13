@@ -1,6 +1,6 @@
 //! TMDB's v3 JSON, as far as the Plugin reads it, and how it maps onto the plugin API's types.
 
-use nama_plugin_api::metadata::{Candidate, Episode, ExternalId, ExternalIds, Movie, Season, Show};
+use nama_plugin_api::metadata::{Candidate, Episode, ExternalId, IMDB, Movie, Season, Show};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -22,7 +22,7 @@ pub(crate) struct MovieResult {
 impl From<MovieResult> for Candidate {
     fn from(movie: MovieResult) -> Self {
         Self {
-            id: ExternalId::Tmdb(movie.id),
+            id: ExternalId::tmdb(movie.id),
             year: year(movie.release_date.as_deref()),
             title: movie.title,
             original_title: present(movie.original_title),
@@ -49,7 +49,7 @@ pub(crate) struct ShowResult {
 impl From<ShowResult> for Candidate {
     fn from(show: ShowResult) -> Self {
         Self {
-            id: ExternalId::Tmdb(show.id),
+            id: ExternalId::tmdb(show.id),
             year: year(show.first_air_date.as_deref()),
             title: show.name,
             original_title: present(show.original_name),
@@ -82,12 +82,15 @@ pub(crate) struct WireIds {
 }
 
 impl WireIds {
-    fn with_tmdb(self, tmdb: i64) -> ExternalIds {
-        ExternalIds {
-            tmdb: Some(tmdb),
-            imdb: present(self.imdb_id),
-            tvdb: self.tvdb_id,
-        }
+    fn with_tmdb(self, tmdb: i64) -> impl Iterator<Item = ExternalId> {
+        let imdb = present(self.imdb_id).and_then(|imdb| ExternalId::new(IMDB, imdb).ok());
+        [
+            Some(ExternalId::tmdb(tmdb)),
+            imdb,
+            self.tvdb_id.map(ExternalId::tvdb),
+        ]
+        .into_iter()
+        .flatten()
     }
 }
 
@@ -109,10 +112,10 @@ pub(crate) struct MovieDetails {
 
 impl From<MovieDetails> for Movie {
     fn from(movie: MovieDetails) -> Self {
-        let mut ids = movie.external_ids;
-        ids.imdb_id = present(ids.imdb_id).or(movie.imdb_id);
+        let mut wire = movie.external_ids;
+        wire.imdb_id = present(wire.imdb_id).or(movie.imdb_id);
         Self {
-            ids: ids.with_tmdb(movie.id),
+            ids: wire.with_tmdb(movie.id).collect(),
             title: movie.title,
             original_title: present(movie.original_title),
             overview: present(movie.overview),
@@ -148,7 +151,7 @@ struct SeasonSummary {
 impl From<ShowDetails> for Show {
     fn from(show: ShowDetails) -> Self {
         Self {
-            ids: show.external_ids.with_tmdb(show.id),
+            ids: show.external_ids.with_tmdb(show.id).collect(),
             title: show.name,
             original_title: present(show.original_name),
             overview: present(show.overview),
@@ -178,7 +181,7 @@ pub(crate) struct SeasonDetails {
 impl From<SeasonDetails> for Season {
     fn from(season: SeasonDetails) -> Self {
         Self {
-            ids: season.external_ids.with_tmdb(season.id),
+            ids: season.external_ids.with_tmdb(season.id).collect(),
             number: season.season_number,
             title: present(season.name)
                 .unwrap_or_else(|| format!("Season {}", season.season_number)),
@@ -208,7 +211,7 @@ pub(crate) struct EpisodeDetails {
 impl From<EpisodeDetails> for Episode {
     fn from(episode: EpisodeDetails) -> Self {
         Self {
-            ids: episode.external_ids.with_tmdb(episode.id),
+            ids: episode.external_ids.with_tmdb(episode.id).collect(),
             season: episode.season_number,
             number: episode.episode_number,
             title: present(episode.name)
