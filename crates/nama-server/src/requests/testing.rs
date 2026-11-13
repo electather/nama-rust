@@ -592,9 +592,14 @@ pub(super) async fn match_episodes(
 /// Tells Requests a scan fetched each of the Seasons `numbers` of Dark, as [`dark_season`]
 /// gives them, as a Library's write does. Returns the events for what it changed.
 pub(super) async fn scan_dark(db: &Database, numbers: &[u32]) -> Vec<Event> {
+    scan(db, ExternalId::tmdb(DARK), numbers).await
+}
+
+/// [`scan_dark`], for the Show `show` in place of Dark.
+pub(super) async fn scan(db: &Database, show: ExternalId, numbers: &[u32]) -> Vec<Event> {
     let seasons = numbers
         .iter()
-        .map(|&number| (ExternalId::tmdb(DARK), dark_season(number)))
+        .map(|&number| (show.clone(), dark_season(number)))
         .collect();
     db.write(move |tx| Box::pin(make_seasons_available(tx, seasons)))
         .await

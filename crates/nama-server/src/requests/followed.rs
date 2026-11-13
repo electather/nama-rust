@@ -3,10 +3,7 @@
 
 use std::iter;
 
-use nama_plugin_api::{
-    fulfiller::Shows,
-    metadata::{ExternalId, TMDB},
-};
+use nama_plugin_api::{fulfiller::Shows, metadata::ExternalId};
 use nama_proto::nama::v1::{
     FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
     FollowedShowRequesterRemoved, FollowedShowStateChanged, FollowedShowWithdrawn, Permission,
@@ -16,36 +13,36 @@ use sqlx::SqliteConnection;
 
 use super::apply::Applied;
 use super::asked::{self, Asked, may_see};
-use super::asking::{SeasonsToAsk, WantedSeasons, Way, opening_state};
+use super::asking::{SeasonsToAsk, WantedSeasons, Way, kept_under, opening_state};
 use super::deciding::{decide, given_reason};
-use super::listing::{load_one, title_id, visible_to};
+use super::listing::{load_one, read_title_id, visible_to};
 use super::lookup::looking_up;
 use super::quality::{NewQuality, change_followed_quality, quality_columns, stored_quality};
-use super::state::{read_state, state_changed, stored, tmdb_number_of};
+use super::state::{read_state, state_changed, stored};
 use super::{Error, Requests};
 use crate::{db::now, events::event, users::User};
 
 impl Requests {
-    /// Asks for the whole Show with the TMDB id `tmdb_id` for `asker`: each current Season not in
-    /// a Library as [`Self::create_seasons`] asks for it, at the Quality it picks, and later ones
-    /// through the Show's open Followed Show, which `asker` joins or opens at that Quality, in the
-    /// state their Season Requests open in. Returns the Followed Show and the Season Requests in
-    /// Season order.
+    /// Asks for the whole Show `show_id` for `asker`, kept under its id as a Request is
+    /// ([`kept_under`]): each current Season not in a Library as [`Self::create_seasons`] asks
+    /// for it, at the Quality it picks, and later ones through the Show's open Followed Show,
+    /// which `asker` joins or opens at that Quality, in the state their Season Requests open in.
+    /// Returns the Followed Show and the Season Requests in Season order.
     ///
     /// Refuses a `chosen` Quality as [`Self::create_seasons`] does.
     pub(crate) async fn follow(
         &self,
         asker: &User,
-        tmdb_id: i64,
+        show_id: &ExternalId,
         chosen: Option<i64>,
     ) -> Result<(FollowedShow, Vec<Request>), Error> {
         let quality = self.quality::<Shows>(asker, chosen).await?;
-        let id = ExternalId::tmdb(tmdb_id);
         let (_, show) = self
             .metadata
-            .show(&id)
+            .show(show_id)
             .await
-            .map_err(|err| looking_up(err, Error::NoSuchShow(id.clone())))?;
+            .map_err(|err| looking_up(err, Error::NoSuchShow(show_id.clone())))?;
+        let id = kept_under(show_id, &show.ids);
         let wanted = WantedSeasons {
             seasons: self.seasons(&id, &show).await?,
             show_id: id,
@@ -125,13 +122,15 @@ impl Requests {
     }
 }
 
+/// The Approved Followed Show of the Show `show`.
 pub(super) async fn approved_followed_show(
     conn: &mut SqliteConnection,
-    tmdb_id: i64,
+    show: &ExternalId,
 ) -> Result<Option<FollowedShow>, sqlx::Error> {
+    let show_id = show.to_string();
     let id = sqlx::query_scalar!(
-        "SELECT id FROM followed_shows WHERE tmdb_id = ? AND state = 'approved'",
-        tmdb_id
+        "SELECT id FROM followed_shows WHERE show_id = ? AND state = 'approved'",
+        show_id
     )
     .fetch_optional(&mut *conn)
     .await?;
@@ -171,8 +170,7 @@ pub(super) async fn follow(
 ) -> Result<Applied<(FollowedShow, Vec<Request>)>, Error> {
     let now = now();
     let asking = SeasonsToAsk::read(conn, show).await?;
-    let already_open =
-        open_followed_show(conn, tmdb_number_of(&asking.show_id).unwrap_or_default()).await?;
+    let already_open = open_followed_show(conn, &asking.show_id).await?;
     let id = if let Some(id) = already_open {
         id
     } else {
@@ -217,13 +215,13 @@ async fn open_followed(
     now: i64,
 ) -> Result<i64, sqlx::Error> {
     let (quality_id, quality_name, quality_profile_id) = quality_columns(show.quality.taken());
-    let show_tmdb_id = tmdb_number_of(&show.show_id).unwrap_or_default();
+    let show_id = show.show_id.to_string();
     sqlx::query_scalar!(
-        "INSERT INTO followed_shows (tmdb_id, title, state, latest_season, created_at, quality_id,
+        "INSERT INTO followed_shows (show_id, title, state, latest_season, created_at, quality_id,
                                      quality_name, quality_profile_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING id",
-        show_tmdb_id,
+        show_id,
         show.show_title,
         stored(state),
         show.seasons.iter().map(|season| season.number).max(),
@@ -236,16 +234,17 @@ async fn open_followed(
     .await
 }
 
-/// The open Followed Show of the Show `tmdb_id`.
+/// The open Followed Show of the Show `show`.
 pub(super) async fn open_followed_show(
     conn: &mut SqliteConnection,
-    tmdb_id: i64,
+    show: &ExternalId,
 ) -> Result<Option<i64>, sqlx::Error> {
+    let show_id = show.to_string();
     macro_rules! find {
         ($open:literal) => {
             sqlx::query_scalar!(
-                "SELECT id FROM followed_shows WHERE tmdb_id = ? AND " + $open,
-                tmdb_id
+                "SELECT id FROM followed_shows WHERE show_id = ? AND " + $open,
+                show_id
             )
         };
     }
@@ -413,7 +412,7 @@ pub(super) async fn load_followed(
     requester: Option<i64>,
 ) -> Result<Vec<FollowedShow>, sqlx::Error> {
     let rows = sqlx::query!(
-        r#"SELECT id AS "id!", tmdb_id, title, state, created_at, decline_reason, quality_id,
+        r#"SELECT id AS "id!", show_id, title, state, created_at, decline_reason, quality_id,
                   quality_name, quality_profile_id
            FROM followed_shows
            WHERE ?1 IS NULL OR id = ?1
@@ -423,11 +422,11 @@ pub(super) async fn load_followed(
     .fetch_all(&mut *conn)
     .await?;
     let mut requesters = asked::requesters(conn, Asked::FollowedShow, id).await?;
-    Ok(rows
-        .into_iter()
-        .map(|row| FollowedShow {
+    let mut followed = Vec::with_capacity(rows.len());
+    for row in rows {
+        followed.push(FollowedShow {
             id: row.id,
-            show_id: title_id(TMDB, &row.tmdb_id).into(),
+            show_id: read_title_id(&row.show_id)?.into(),
             show_title: row.title,
             state: read_state(&row.state).into(),
             requesters: requesters.remove(&row.id).unwrap_or_default(),
@@ -436,9 +435,10 @@ pub(super) async fn load_followed(
             quality: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
                 .into(),
             ..Default::default()
-        })
-        .filter(|followed| may_see(requester, &followed.requesters))
-        .collect())
+        });
+    }
+    followed.retain(|followed| may_see(requester, &followed.requesters));
+    Ok(followed)
 }
 
 #[cfg(test)]

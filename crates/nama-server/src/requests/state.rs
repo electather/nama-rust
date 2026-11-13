@@ -1,10 +1,7 @@
 //! The states a Request is stored in, which of them are open, and the two moves no User decides:
 //! a Library making a Request Available and a Fulfiller settling its Hand-off.
 
-use nama_plugin_api::{
-    fulfiller::Fulfilled,
-    metadata::{ExternalId, TMDB},
-};
+use nama_plugin_api::{fulfiller::Fulfilled, metadata::ExternalId};
 use nama_proto::nama::v1::{Event, Request, RequestState, RequestStateChanged, RequestedQuality};
 use sqlx::SqliteConnection;
 
@@ -66,12 +63,6 @@ pub(super) use open_followed_show_sql;
 /// Withdrawn ones are gone.
 pub(super) fn is_open(state: RequestState) -> bool {
     !matches!(state, RequestState::Declined | RequestState::Available)
-}
-
-/// The TMDB number of `id`, if it is a `tmdb` id, which Followed Shows still key on.
-// The task `followed-shows-key-on-ids` deletes this.
-pub(super) fn tmdb_number_of(id: &ExternalId) -> Option<i64> {
-    (id.namespace() == TMDB).then(|| id.value().parse().ok())?
 }
 
 /// The open Request for the Movie `id`, or for its Season `season` if `id` is a Show's.

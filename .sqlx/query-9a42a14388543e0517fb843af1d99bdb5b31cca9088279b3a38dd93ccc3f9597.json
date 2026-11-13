@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", tmdb_id, title, state, created_at, decline_reason, quality_id,\n                  quality_name, quality_profile_id\n           FROM followed_shows\n           WHERE ?1 IS NULL OR id = ?1\n           ORDER BY id DESC",
+  "query": "SELECT id AS \"id!\", show_id, title, state, created_at, decline_reason, quality_id,\n                  quality_name, quality_profile_id\n           FROM followed_shows\n           WHERE ?1 IS NULL OR id = ?1\n           ORDER BY id DESC",
   "describe": {
     "columns": [
       {
@@ -15,13 +15,13 @@
         }
       },
       {
-        "name": "tmdb_id",
+        "name": "show_id",
         "ordinal": 1,
-        "type_info": "Integer",
+        "type_info": "Text",
         "origin": {
           "Table": {
             "table": "followed_shows",
-            "name": "tmdb_id"
+            "name": "show_id"
           }
         }
       },
@@ -118,5 +118,5 @@
       true
     ]
   },
-  "hash": "16384382445c113e78425307c19f830b1a61a07967ae5b040420fb6fd5538f94"
+  "hash": "9a42a14388543e0517fb843af1d99bdb5b31cca9088279b3a38dd93ccc3f9597"
 }

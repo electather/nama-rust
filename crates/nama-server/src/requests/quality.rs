@@ -14,7 +14,6 @@ use sqlx::SqliteConnection;
 use super::asked::Asked;
 use super::listing::load_one;
 use super::state::read_state;
-use super::state::tmdb_number_of;
 use super::{Error, Requests, qualities};
 use crate::{db::now, users::User};
 
@@ -173,11 +172,14 @@ pub(super) async fn change_followed_quality(
     let Some(new_quality) = new_quality else {
         return Ok(());
     };
-    let show = sqlx::query_scalar!("SELECT tmdb_id FROM followed_shows WHERE id = ?", id)
+    let show = sqlx::query_scalar!("SELECT show_id FROM followed_shows WHERE id = ?", id)
         .fetch_optional(&mut *conn)
         .await?
         .ok_or(Error::NoSuch(Asked::FollowedShow, id))?;
-    requality(conn, None, Some(ExternalId::tmdb(show)), new_quality).await
+    let show = show
+        .parse::<ExternalId>()
+        .map_err(|err| sqlx::Error::Decode(err.into()))?;
+    requality(conn, None, Some(show), new_quality).await
 }
 
 /// Changes the Quality of the Request `id`, if given, and of the Show `show`, if given, to
@@ -219,13 +221,13 @@ async fn requality(
         .await?;
     }
     if followed {
-        let show = show.as_ref().and_then(tmdb_number_of);
+        let show = show.as_ref().map(ToString::to_string);
         macro_rules! change {
             ($open:literal) => {
                 sqlx::query!(
                     "UPDATE followed_shows
                      SET quality_id = ?, quality_name = ?, quality_profile_id = ?
-                     WHERE tmdb_id = ? AND "
+                     WHERE show_id = ? AND "
                         + $open,
                     quality.id,
                     quality.name,
@@ -248,8 +250,6 @@ pub(super) async fn show_requests(
     show: &ExternalId,
 ) -> Result<qualities::ShowRequests, sqlx::Error> {
     let title_id = show.to_string();
-    // A Show known by an id other than a TMDB one has no Followed Show yet.
-    let show_tmdb_id = tmdb_number_of(show);
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", state, fulfiller_reference IS NOT NULL AS "handed_off!: bool",
                   quality_id, quality_name, quality_profile_id,
@@ -278,9 +278,9 @@ pub(super) async fn show_requests(
         ($open:literal) => {
             sqlx::query!(
                 "SELECT quality_id, quality_name, quality_profile_id FROM followed_shows
-                 WHERE tmdb_id = ? AND "
+                 WHERE show_id = ? AND "
                     + $open,
-                show_tmdb_id
+                title_id
             )
         };
     }

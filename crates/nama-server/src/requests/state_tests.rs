@@ -44,9 +44,9 @@ async fn only_a_declined_followed_show_is_closed() {
     db.write(|tx| {
         Box::pin(
             sqlx::query(
-                "INSERT INTO followed_shows (id, tmdb_id, title, state, created_at)
-                 VALUES (1, 1, 'Show', 'pending', 0), (2, 2, 'Show', 'approved', 0),
-                        (3, 3, 'Show', 'declined', 0)",
+                "INSERT INTO followed_shows (id, show_id, title, state, created_at)
+                 VALUES (1, 'tmdb-1', 'Show', 'pending', 0), (2, 'tmdb-2', 'Show', 'approved', 0),
+                        (3, 'tmdb-3', 'Show', 'declined', 0)",
             )
             .execute(&mut **tx),
         )

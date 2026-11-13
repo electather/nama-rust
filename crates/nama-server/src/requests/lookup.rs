@@ -12,7 +12,6 @@ use super::availability::{availability, today};
 use super::followed::{load_followed, open_followed_show};
 use super::listing::visible_to;
 use super::quality::show_requests;
-use super::state::tmdb_number_of;
 use super::{Error, Requests};
 use crate::{
     library::contents::{self, Metadata},
@@ -129,12 +128,7 @@ impl Requests {
         let seasons = self
             .look_around_seasons(&mut conn, viewer, &id, seasons)
             .await?;
-        // Followed Shows still key on a TMDB number.
-        let open = match tmdb_number_of(&id) {
-            Some(tmdb_id) => open_followed_show(&mut conn, tmdb_id).await?,
-            None => None,
-        };
-        let followed_show = match open {
+        let followed_show = match open_followed_show(&mut conn, &id).await? {
             Some(followed) => load_followed(&mut conn, Some(followed), visible_to(viewer))
                 .await?
                 .pop(),

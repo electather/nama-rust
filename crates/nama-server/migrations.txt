@@ -56,3 +56,4 @@
 0058_item_match_id_columns.sql
 0059_match_pin_id.sql
 0060_request_title_ids.sql
+0061_followed_show_id.sql

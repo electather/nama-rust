@@ -15,7 +15,7 @@ use super::apply::Applied;
 use super::asked::{self, Asked};
 use super::availability::{availability, today};
 use super::deciding::approve;
-use super::listing::{load_one, tmdb_number};
+use super::listing::load_one;
 use super::lookup::looking_up;
 use super::quality::{NewQuality, quality_columns, show_requests};
 use super::state::{open_request, stored};
@@ -358,19 +358,18 @@ impl SeasonsToAsk {
         })
     }
 
-    /// The Season `season` of the Show `followed_show` follows, at the Show's Quality, as a scan
-    /// asks for it. A scan names no Quality, so unlike [`Self::read`] it refuses none.
+    /// The Season `season` of the Show `show_id`, which `followed_show` follows, at the Show's
+    /// Quality, as a scan asks for it. A scan names no Quality, so unlike [`Self::read`] it refuses
+    /// none.
     pub(super) async fn for_scan(
         conn: &mut SqliteConnection,
+        show_id: &ExternalId,
         followed_show: &FollowedShow,
         season: Season,
     ) -> Result<Self, sqlx::Error> {
-        // A Followed Show is loaded with its TMDB id, so it always has one.
-        let show_id =
-            ExternalId::tmdb(tmdb_number(followed_show.show_id.as_option()).unwrap_or_default());
-        let quality = show_requests(conn, &show_id).await?.for_scan();
+        let quality = show_requests(conn, show_id).await?.for_scan();
         Ok(Self {
-            show_id,
+            show_id: show_id.clone(),
             show_ids: None,
             show_title: followed_show.show_title.clone(),
             seasons: vec![season],

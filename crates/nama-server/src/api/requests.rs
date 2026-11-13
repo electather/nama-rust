@@ -6,7 +6,7 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_plugin_api::{
     PluginId,
     fulfiller::{Movies, Shows},
-    metadata::{Candidate, ExternalId, TMDB},
+    metadata::{Candidate, ExternalId},
 };
 use nama_proto::nama::v1::{
     self as proto, ApproveFollowedShowRequest, ApproveFollowedShowResponse, ApproveRequestRequest,
@@ -382,7 +382,7 @@ impl RequestService for RequestServiceHandler {
             .requests
             .follow(
                 asker,
-                tmdb_number(request.show_id.into_option(), "show_id", "Show")?,
+                &required_id(request.show_id.into_option(), "show_id", "Show")?,
                 request.quality,
             )
             .await?;
@@ -633,35 +633,6 @@ impl From<qualities::Refused> for ConnectError {
             }
         };
         refused.into()
-    }
-}
-
-/// The TMDB number of the `what`'s id in `field`, which the Kernel's Followed Shows still key on.
-/// An id in another namespace, or a `tmdb` one that isn't a number, is a title no source knows.
-// The task `followed-shows-key-on-ids` deletes this.
-fn tmdb_number(
-    id: Option<proto::ExternalId>,
-    field: &str,
-    what: &str,
-) -> Result<i64, ConnectError> {
-    let id = required_id(id, field, what)?;
-    tmdb_of(&id).ok_or_else(|| {
-        refuse(
-            RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
-            format!("no {what} has the id {id}"),
-        )
-        .field(field)
-        .param("titleId", &id)
-        .into()
-    })
-}
-
-/// The TMDB number `id` names, if it is a `tmdb` id whose value is a number.
-// The task `followed-shows-key-on-ids` deletes this.
-fn tmdb_of(id: &ExternalId) -> Option<i64> {
-    match id.namespace() {
-        TMDB => id.value().parse().ok(),
-        _ => None,
     }
 }
 

@@ -1,16 +1,16 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT tmdb_id FROM followed_shows WHERE id = ?",
+  "query": "SELECT id FROM followed_shows WHERE show_id = ? AND state = 'approved'",
   "describe": {
     "columns": [
       {
-        "name": "tmdb_id",
+        "name": "id",
         "ordinal": 0,
         "type_info": "Integer",
         "origin": {
           "Table": {
             "table": "followed_shows",
-            "name": "tmdb_id"
+            "name": "id"
           }
         }
       }
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "d0b0e40482457fc671da6b571c262631d32e37ac8d85ccbf75eab77956ceaa5f"
+  "hash": "31ec61e36638a24ca7515ed6bce788b849756345b74233ab0f3a1d75198231fc"
 }

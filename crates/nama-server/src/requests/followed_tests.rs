@@ -1,10 +1,14 @@
+use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::RequestState;
 
-use super::{cancel_followed, decide_followed, withdraw_followed};
+use super::{cancel_followed, decide_followed, open_followed_show, withdraw_followed};
 use crate::requests::Error;
 use crate::requests::apply::Applied;
+use crate::requests::asking::WantedSeasons;
+use crate::requests::listing::load;
 use crate::requests::testing::{
-    ADA, BOB, NOTHING, ada_and_bob, breaking_bad, dark, follow_as, handed_off, happened, season_ids,
+    ADA, BOB, NOTHING, ada_and_bob, asked_season, breaking_bad, dark, follow_as, handed_off,
+    happened, match_episodes, said, scan, season_ids,
 };
 
 /// The id of the Season Request whose Show `applied` stops following, if any.
@@ -193,4 +197,78 @@ async fn the_last_requester_withdrawing_from_an_approved_followed_show_unfollows
         unfollowed(&ada_left),
         season_ids(&followed).first().copied()
     );
+}
+
+#[tokio::test]
+async fn a_show_known_only_by_a_made_up_id_is_followed_under_it_and_only_once() {
+    let (_data, db) = ada_and_bob().await;
+    let mal: ExternalId = "mal-1".parse().unwrap();
+    let show = || WantedSeasons {
+        show_id: mal.clone(),
+        ..dark()
+    };
+
+    let followed = follow_as(&db, ADA, show(), RequestState::Approved).await;
+    let joined = follow_as(&db, BOB, show(), RequestState::Approved).await;
+    let second = db
+        .write(|tx| {
+            Box::pin(
+                sqlx::query(
+                    "INSERT INTO followed_shows (show_id, title, state, created_at)
+                     VALUES ('mal-1', 'Dark', 'pending', 0)",
+                )
+                .execute(&mut **tx),
+            )
+        })
+        .await;
+    let open = db
+        .write(move |tx| Box::pin(async move { open_followed_show(tx, &mal).await }))
+        .await
+        .unwrap();
+
+    let followed = followed.value.0;
+    let show_id = followed.show_id.as_option().unwrap();
+    assert_eq!(
+        (show_id.namespace.as_str(), show_id.value.as_str()),
+        ("mal", "1")
+    );
+    assert_eq!(open, Some(followed.id));
+    assert_eq!(joined.value.0.id, followed.id);
+    let second = second.unwrap_err();
+    assert!(
+        second.to_string().contains("UNIQUE constraint failed"),
+        "{second}"
+    );
+}
+
+#[tokio::test]
+async fn a_scan_opens_a_new_season_of_a_show_followed_under_an_id_other_than_tmdb() {
+    // ponytail: `tvdb` until `ExternalIds` holds any namespace (task `id-set-type`); then `mal-1`.
+    let (_data, db) = ada_and_bob().await;
+    let tvdb = ExternalId::tvdb(81189);
+    let show = || WantedSeasons {
+        show_id: tvdb.clone(),
+        ..dark()
+    };
+    follow_as(&db, BOB, show(), RequestState::Approved).await;
+    follow_as(&db, ADA, show(), RequestState::Approved).await;
+    match_episodes(&db, tvdb.clone(), 3, &[1, 2]).await;
+
+    let scanned = scan(&db, tvdb.clone(), &[3]).await;
+
+    assert_eq!(said(&scanned), [("created", RequestState::Available)]);
+    let newest_first = db.write(|tx| Box::pin(load(tx, None, None))).await.unwrap();
+    let season = &newest_first[0];
+    let asked = asked_season(season);
+    let show_id = asked.show_id.as_option().unwrap();
+    assert_eq!(
+        (
+            show_id.namespace.as_str(),
+            show_id.value.as_str(),
+            asked.season_number
+        ),
+        ("tvdb", "81189", 3)
+    );
+    let requesters: Vec<_> = season.requesters.iter().map(|one| one.user_id).collect();
+    assert_eq!(requesters, [BOB, ADA]);
 }

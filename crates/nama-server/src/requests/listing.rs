@@ -3,7 +3,7 @@
 use std::{cmp::Reverse, collections::BTreeMap};
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use nama_plugin_api::metadata::{self, TMDB};
+use nama_plugin_api::metadata;
 use nama_proto::nama::v1::{
     ExternalId, FollowedShow, ListRequestsResponse, Permission, QualityChange, Request,
     RequestState, RequestedMovie, RequestedSeason,
@@ -27,11 +27,12 @@ pub(super) fn title_id(namespace: &str, value: &impl ToString) -> ExternalId {
     }
 }
 
-/// The TMDB number of `id`, which the Server still keys Followed Shows on.
-// The task `followed-shows-key-on-ids` deletes this.
-pub(super) fn tmdb_number(id: Option<&ExternalId>) -> Option<i64> {
-    let id = id.filter(|id| id.namespace == TMDB)?;
-    id.value.parse().ok()
+/// The client API's id stored as the text form `text`, such as `tmdb-603`.
+pub(super) fn read_title_id(text: &str) -> Result<ExternalId, sqlx::Error> {
+    let id = text
+        .parse::<metadata::ExternalId>()
+        .map_err(|err| sqlx::Error::Decode(err.into()))?;
+    Ok(title_id(id.namespace(), &id.value()))
 }
 
 /// Whose Requests `viewer` may see: everyone's (`None`), or only those they are a Requester of.
@@ -215,14 +216,12 @@ fn read_page_token(token: &str, state: Option<RequestState>) -> Result<Option<Pl
 /// The id a Request is kept under, from its `title_id`, and every id of its title, in namespace
 /// order, from the JSON object of its `request_title_ids`.
 fn read_ids(key: &str, ids: &str) -> Result<(ExternalId, Vec<ExternalId>), sqlx::Error> {
-    let key = key
-        .parse::<metadata::ExternalId>()
-        .map_err(|err| sqlx::Error::Decode(err.into()))?;
+    let key = read_title_id(key)?;
     // `json_group_object` keeps the rows' order, which isn't namespace order.
     let ids: BTreeMap<String, String> =
         serde_json::from_str(ids).map_err(|err| sqlx::Error::Decode(err.into()))?;
     Ok((
-        title_id(key.namespace(), &key.value()),
+        key,
         ids.iter()
             .map(|(namespace, value)| title_id(namespace, value))
             .collect(),

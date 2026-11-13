@@ -10,7 +10,7 @@ use sqlx::SqliteConnection;
 use super::apply::Applied;
 use super::asking::{Asker, SeasonsToAsk, Wanted, ask_as};
 use super::followed::{approved_followed_show, covers};
-use super::state::{change_state, open_request, tmdb_number_of};
+use super::state::{change_state, open_request};
 use crate::{db::now, library::contents};
 
 /// Today as `YYYY-MM-DD`, by SQLite's calendar, since `std` has none.
@@ -144,15 +144,11 @@ async fn scan_season(
     show: &ExternalId,
     season: Season,
 ) -> Result<Vec<Event>, sqlx::Error> {
-    // Followed Shows still key on a TMDB number, so a Show without one has none.
-    let Some(show_tmdb_id) = tmdb_number_of(show) else {
-        return Ok(Vec::new());
-    };
     // A Show with no Approved Followed Show has no one a scan could ask for.
-    let Some(followed_show) = approved_followed_show(conn, show_tmdb_id).await? else {
+    let Some(followed_show) = approved_followed_show(conn, show).await? else {
         return Ok(Vec::new());
     };
-    let asking = SeasonsToAsk::for_scan(conn, &followed_show, season).await?;
+    let asking = SeasonsToAsk::for_scan(conn, show, &followed_show, season).await?;
     let scanned = asking.ask(conn, Scanning { followed_show }).await?;
     Ok(scanned.events)
 }
