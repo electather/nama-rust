@@ -7,9 +7,10 @@ use nama_plugin_api::{
 use nama_proto::nama::v1::{FollowedShow, FoundSeason, Request, RequestState, RequestedQuality};
 use sqlx::SqliteConnection;
 
+use super::availability::{availability, today};
 use super::listing::visible_to;
 use super::quality::show_requests;
-use super::{Error, Requests, availability, load_followed, open_followed_show, today};
+use super::{Error, Requests, load_followed, open_followed_show};
 use crate::{
     library::contents::{self, Metadata},
     metadata,
