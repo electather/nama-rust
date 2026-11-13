@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use nama_plugin_api::metadata::{Episode, Season};
+use nama_plugin_api::metadata::{Episode, ExternalId, Season};
 use nama_proto::nama::v1::{Event, FollowedShow, Request, RequestState};
 use sqlx::SqliteConnection;
 
@@ -105,7 +105,10 @@ pub(crate) async fn make_available(
         };
         // Not every Matched id is a Movie in a Library: the Match isn't stored if its Item went
         // since it was decided about, and an Episode's TMDB id can equal an unrelated Movie's.
-        if contents::library_with_movie(conn, tmdb_id).await?.is_none() {
+        if contents::library_with_movie(conn, &ExternalId::tmdb(tmdb_id))
+            .await?
+            .is_none()
+        {
             continue;
         }
         happened.extend(change_state(conn, id, RequestState::Available).await?);
@@ -125,7 +128,9 @@ pub(crate) async fn make_seasons_available(
     let today = today(conn).await?;
     let mut happened = Vec::new();
     for (show_tmdb_id, season) in seasons {
-        let matched = contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
+        let matched =
+            contents::matched_episodes(conn, &ExternalId::tmdb(show_tmdb_id), season.number.into())
+                .await?;
         let Some(state) = availability(&season.episodes, &matched, &today) else {
             continue;
         };

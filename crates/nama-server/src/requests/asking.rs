@@ -69,7 +69,12 @@ impl Requests {
     ) -> Result<Request, Error> {
         // Refuses before asking TMDB, which may be down or slow; `ask` checks again for a scan
         // that Matched the Movie meanwhile.
-        if self.contents.library_with_movie(tmdb_id).await?.is_some() {
+        if self
+            .contents
+            .library_with_movie(&ExternalId::tmdb(tmdb_id))
+            .await?
+            .is_some()
+        {
             return Err(Error::InLibrary(tmdb_id));
         }
         let quality = self.quality::<Movies>(asker, chosen).await?;
@@ -158,7 +163,7 @@ pub(super) async fn ask_movie(
     wanted: Wanted,
     state: RequestState,
 ) -> Result<Applied<Request>, Error> {
-    if contents::library_with_movie(conn, wanted.tmdb_id)
+    if contents::library_with_movie(conn, &ExternalId::tmdb(wanted.tmdb_id))
         .await?
         .is_some()
     {
@@ -364,7 +369,9 @@ impl SeasonsToAsk {
         let today = today(conn).await?;
         let mut asked = Applied::quiet(Vec::with_capacity(self.seasons.len()));
         for season in &self.seasons {
-            let matched = contents::matched_episodes(conn, show, season.number.into()).await?;
+            let matched =
+                contents::matched_episodes(conn, &ExternalId::tmdb(show), season.number.into())
+                    .await?;
             let has = availability(&season.episodes, &matched, &today);
             let Some(opens_in) = asking.opens_in(conn, show, season.number, has).await? else {
                 continue;

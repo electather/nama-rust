@@ -280,7 +280,7 @@ pub(super) async fn insert_decisions(
             tmdb_ids.extend(metadata.ids.tmdb);
         }
         let row = MatchRow::from(&decision);
-        sqlx::query!(
+        let written = sqlx::query!(
             "INSERT OR REPLACE INTO item_matches (
                  item_id, state, plugin, tmdb_id, imdb_id, tvdb_id,
                  show_tmdb_id, show_imdb_id, show_tvdb_id, title, original_title, show_title,
@@ -314,6 +314,27 @@ pub(super) async fn insert_decisions(
         )
         .execute(&mut *conn)
         .await?;
+        if written.rows_affected() == 0 {
+            continue;
+        }
+        // Deleted explicitly rather than trusting SQLite to cascade the delete REPLACE makes.
+        sqlx::query!("DELETE FROM item_match_ids WHERE item_id = ?", item)
+            .execute(&mut *conn)
+            .await?;
+        let ids = (row.ids.iter().map(|id| ("title", id)))
+            .chain(row.show_ids.iter().map(|id| ("show", id)));
+        for (scope, id) in ids {
+            let (namespace, value) = (id.namespace(), id.value());
+            sqlx::query!(
+                "INSERT INTO item_match_ids (item_id, scope, namespace, value) VALUES (?, ?, ?, ?)",
+                item,
+                scope,
+                namespace,
+                value
+            )
+            .execute(&mut *conn)
+            .await?;
+        }
     }
     let mut happened = requests::make_available(conn, tmdb_ids).await?;
     happened.extend(requests::make_seasons_available(conn, decided.seasons).await?);

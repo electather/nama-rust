@@ -199,7 +199,7 @@ impl Requests {
         plugin: PluginId,
         movie: M,
     ) -> Result<Found<M>, sqlx::Error> {
-        let library = contents::library_with_movie(conn, tmdb_id).await?;
+        let library = contents::library_with_movie(conn, &ExternalId::tmdb(tmdb_id)).await?;
         let request = self
             .visible_open_request(conn, viewer, tmdb_id, None)
             .await?;
@@ -225,8 +225,12 @@ impl Requests {
         let mut found = Vec::with_capacity(seasons.len());
         // ponytail: two or three queries per Season, and a Show has a few dozen at most.
         for season in seasons {
-            let matched =
-                contents::matched_episodes(conn, show_tmdb_id, season.number.into()).await?;
+            let matched = contents::matched_episodes(
+                conn,
+                &ExternalId::tmdb(show_tmdb_id),
+                season.number.into(),
+            )
+            .await?;
             let request = self
                 .visible_open_request(conn, viewer, show_tmdb_id, Some(season.number))
                 .await?;

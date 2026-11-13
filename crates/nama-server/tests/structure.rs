@@ -158,6 +158,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
             "library_files",
             "library_items",
             "item_matches",
+            "item_match_ids",
             "match_pins",
             "title_search",
         ],
