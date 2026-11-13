@@ -4,7 +4,7 @@
 use nama_plugin_api::{
     PluginId,
     fulfiller::{Fulfiller, Movies, Shows},
-    metadata::TitleKind,
+    metadata::{ExternalId, TMDB, TitleKind},
 };
 use nama_proto::nama::v1::{
     DefaultQuality, Quality, Request, RequestedQuality, request::MovieOrSeason,
@@ -188,7 +188,9 @@ async fn requality(
 ) -> Result<(), Error> {
     let (seasons, followed) = match show {
         Some(show) => {
-            let moves = show_requests(conn, show).await?.change(&quality)?;
+            let moves = show_requests(conn, &ExternalId::tmdb(show))
+                .await?
+                .change(&quality)?;
             (moves.seasons, moves.followed)
         }
         None => (Vec::new(), false),
@@ -237,18 +239,23 @@ async fn requality(
 }
 
 /// The Season Requests, in the order they were made, and the open Followed Show of the Show
-/// `show_tmdb_id`, for its Quality rules.
+/// `show`, for its Quality rules.
 pub(super) async fn show_requests(
     conn: &mut SqliteConnection,
-    show_tmdb_id: i64,
+    show: &ExternalId,
 ) -> Result<qualities::ShowRequests, sqlx::Error> {
+    let title_id = show.to_string();
+    // Followed Shows still key on a TMDB number: a Show known by another id has none.
+    let show_tmdb_id: Option<i64> = (show.namespace() == TMDB)
+        .then(|| show.value().parse().ok())
+        .flatten();
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", state, fulfiller_reference IS NOT NULL AS "handed_off!: bool",
                   quality_id, quality_name, quality_profile_id,
                   quality_used_id, quality_used_name, quality_used_profile_id
-           FROM requests WHERE tmdb_id = ? AND season IS NOT NULL
+           FROM requests WHERE title_id = ? AND season IS NOT NULL
            ORDER BY created_at, id"#,
-        show_tmdb_id
+        title_id
     )
     .fetch_all(&mut *conn)
     .await?;

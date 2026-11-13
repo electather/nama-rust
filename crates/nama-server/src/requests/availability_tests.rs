@@ -82,11 +82,11 @@ async fn an_available_season_request_stays_available_when_a_later_episode_airs()
     contents.apply(library, vec![store]).await.unwrap();
     let item = contents.files(library).await.unwrap()[0].items[0].id;
     let wanted = Wanted {
-        tmdb_id: DARK,
+        id: ExternalId::tmdb(DARK),
         season: Some(1),
         title: "Dark".to_owned(),
         release_date: None,
-        show_ids: ExternalIds::default(),
+        ids: ExternalIds::default(),
         followed_show: None,
         quality: qualities::Ask::default(),
     };
@@ -135,11 +135,11 @@ async fn upgrading_makes_a_season_a_scan_moved_before_hand_off_pending_and_leave
     .execute(&mut before)
     .await
     .unwrap();
-    sqlx::Connection::close(before).await.unwrap();
 
-    let db = Database::open(data_dir.path()).await.unwrap();
+    // Only up to 0039: a later migration drops every stored Request (ADR 0042).
+    sqlx::migrate!().run_to(39, &mut before).await.unwrap();
     let states: Vec<(i64, String)> = sqlx::query_as("SELECT id, state FROM requests ORDER BY id")
-        .fetch_all(db.reader())
+        .fetch_all(&mut before)
         .await
         .unwrap();
 

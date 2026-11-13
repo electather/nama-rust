@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id FROM requests WHERE tmdb_id = ? AND season IS ?\n         AND state IN ('pending', 'approved', 'processing', 'partially_available')",
+  "query": "SELECT id FROM requests WHERE title_id = ? AND season IS ? AND state NOT IN ('declined', 'available')",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "c1468c2653be8e3e8e515a864eca89b487e5e26f4f1b1eb78509ca7bd0bfc0cf"
+  "hash": "314475bf03a6ebd9442ce6b2f769d51485ba18d6b3689db85b819857511a58a5"
 }

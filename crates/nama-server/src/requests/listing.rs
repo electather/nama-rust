@@ -1,9 +1,9 @@
 //! Reading Requests back from the database, and listing them for a viewer.
 
-use std::{cmp::Reverse, iter};
+use std::{cmp::Reverse, collections::BTreeMap};
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use nama_plugin_api::metadata::{IMDB, TMDB, TVDB};
+use nama_plugin_api::metadata::{self, TMDB};
 use nama_proto::nama::v1::{
     ExternalId, FollowedShow, ListRequestsResponse, Permission, QualityChange, Request,
     RequestState, RequestedMovie, RequestedSeason,
@@ -116,16 +116,16 @@ impl Requests {
             .ok_or(Error::NoSuch(Asked::Request, id))
     }
 
-    /// The open Request for the Movie `tmdb_id`, or for its Season `season` if `tmdb_id` is a Show's,
+    /// The open Request for the Movie `title`, or for its Season `season` if `title` is a Show's,
     /// if `viewer` may see it.
     pub(super) async fn visible_open_request(
         &self,
         conn: &mut SqliteConnection,
         viewer: &User,
-        tmdb_id: i64,
+        title: &metadata::ExternalId,
         season: Option<u32>,
     ) -> Result<Option<Request>, sqlx::Error> {
-        let Some(id) = open_request(conn, tmdb_id, season).await? else {
+        let Some(id) = open_request(conn, title, season).await? else {
             return Ok(None);
         };
         let visible = self.visible(conn, Some(id), viewer).await?;
@@ -213,6 +213,23 @@ fn read_page_token(token: &str, state: Option<RequestState>) -> Result<Option<Pl
     }
 }
 
+/// The id a Request is kept under, from its `title_id`, and every id of its title, in namespace
+/// order, from the JSON object of its `request_title_ids`.
+fn read_ids(key: &str, ids: &str) -> Result<(ExternalId, Vec<ExternalId>), sqlx::Error> {
+    let key = key
+        .parse::<metadata::ExternalId>()
+        .map_err(|err| sqlx::Error::Decode(err.into()))?;
+    // `json_group_object` keeps the rows' order, which isn't namespace order.
+    let ids: BTreeMap<String, String> =
+        serde_json::from_str(ids).map_err(|err| sqlx::Error::Decode(err.into()))?;
+    Ok((
+        title_id(key.namespace(), &key.value()),
+        ids.iter()
+            .map(|(namespace, value)| title_id(namespace, value))
+            .collect(),
+    ))
+}
+
 pub(super) async fn load_one(
     conn: &mut SqliteConnection,
     id: i64,
@@ -228,8 +245,10 @@ pub(super) async fn load(
     requester: Option<i64>,
 ) -> Result<Vec<Request>, sqlx::Error> {
     let rows = sqlx::query!(
-        r#"SELECT id AS "id!", tmdb_id, season AS "season: u32", title, release_date, show_imdb_id,
-                  show_tvdb_id, state, created_at, decline_reason, failure_reason, followed_show_id,
+        r#"SELECT id AS "id!", title_id, season AS "season: u32", title, release_date,
+                  (SELECT json_group_object(namespace, value) FROM request_title_ids
+                   WHERE request_id = requests.id) AS "title_ids!: String",
+                  state, created_at, decline_reason, failure_reason, followed_show_id,
                   fulfiller_plugin_id,
                   quality_id, quality_name, quality_profile_id, quality_changed_from,
                   quality_changed_at, quality_used_id, quality_used_name,
@@ -244,17 +263,15 @@ pub(super) async fn load(
     .fetch_all(&mut *conn)
     .await?;
     let mut requesters = asked::requesters(conn, Asked::Request, id).await?;
-    Ok(rows
-        .into_iter()
-        .map(|row| Request {
+    let mut requests = Vec::with_capacity(rows.len());
+    for row in rows {
+        let (key, ids) = read_ids(&row.title_id, &row.title_ids)?;
+        requests.push(Request {
             id: row.id,
             movie_or_season: match row.season {
                 Some(season_number) => RequestedSeason {
-                    show_id: title_id(TMDB, &row.tmdb_id).into(),
-                    show_ids: iter::once(title_id(TMDB, &row.tmdb_id))
-                        .chain(row.show_imdb_id.map(|imdb| title_id(IMDB, &imdb)))
-                        .chain(row.show_tvdb_id.map(|tvdb| title_id(TVDB, &tvdb)))
-                        .collect(),
+                    show_id: key.into(),
+                    show_ids: ids,
                     season_number,
                     show_title: row.title,
                     air_date: row.release_date,
@@ -262,8 +279,8 @@ pub(super) async fn load(
                 }
                 .into(),
                 None => RequestedMovie {
-                    id: title_id(TMDB, &row.tmdb_id).into(),
-                    ids: vec![title_id(TMDB, &row.tmdb_id)],
+                    id: key.into(),
+                    ids,
                     title: row.title,
                     release_date: row.release_date,
                     ..Default::default()
@@ -295,9 +312,10 @@ pub(super) async fn load(
             )
             .into(),
             ..Default::default()
-        })
-        .filter(|request| may_see(requester, &request.requesters))
-        .collect())
+        });
+    }
+    requests.retain(|request| may_see(requester, &request.requesters));
+    Ok(requests)
 }
 
 #[cfg(test)]

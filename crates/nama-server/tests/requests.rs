@@ -1419,7 +1419,7 @@ async fn a_season_request_whose_show_has_no_tvdb_id_is_still_handed_to_the_shows
 async fn forget_show_tvdb_ids(db: &Database) {
     db.write(|tx| {
         Box::pin(async move {
-            sqlx::query("UPDATE requests SET show_tvdb_id = NULL")
+            sqlx::query("DELETE FROM request_title_ids WHERE namespace = 'tvdb'")
                 .execute(&mut **tx)
                 .await
         })

@@ -137,7 +137,7 @@ impl Fixture {
             .db()
             .write(|tx| {
                 Box::pin(async move {
-                    sqlx::query("UPDATE requests SET show_tvdb_id = NULL")
+                    sqlx::query("DELETE FROM request_title_ids WHERE namespace = 'tvdb'")
                         .execute(&mut **tx)
                         .await
                 })

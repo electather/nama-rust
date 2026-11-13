@@ -100,15 +100,13 @@ pub(crate) async fn make_available(
 ) -> Result<Vec<Event>, sqlx::Error> {
     let mut happened = Vec::new();
     for tmdb_id in tmdb_ids {
-        let Some(id) = open_request(conn, tmdb_id, None).await? else {
+        let movie = ExternalId::tmdb(tmdb_id);
+        let Some(id) = open_request(conn, &movie, None).await? else {
             continue;
         };
         // Not every Matched id is a Movie in a Library: the Match isn't stored if its Item went
         // since it was decided about, and an Episode's TMDB id can equal an unrelated Movie's.
-        if contents::library_with_movie(conn, &ExternalId::tmdb(tmdb_id))
-            .await?
-            .is_none()
-        {
+        if contents::library_with_movie(conn, &movie).await?.is_none() {
             continue;
         }
         happened.extend(change_state(conn, id, RequestState::Available).await?);
@@ -128,13 +126,12 @@ pub(crate) async fn make_seasons_available(
     let today = today(conn).await?;
     let mut happened = Vec::new();
     for (show_tmdb_id, season) in seasons {
-        let matched =
-            contents::matched_episodes(conn, &ExternalId::tmdb(show_tmdb_id), season.number.into())
-                .await?;
+        let show = ExternalId::tmdb(show_tmdb_id);
+        let matched = contents::matched_episodes(conn, &show, season.number.into()).await?;
         let Some(state) = availability(&season.episodes, &matched, &today) else {
             continue;
         };
-        match open_request(conn, show_tmdb_id, Some(season.number)).await? {
+        match open_request(conn, &show, Some(season.number)).await? {
             Some(id) => happened.extend(change_state(conn, id, state).await?),
             None => happened.extend(scan_season(conn, show_tmdb_id, season).await?),
         }
@@ -165,10 +162,11 @@ async fn was_available(
     show_tmdb_id: i64,
     season: u32,
 ) -> Result<bool, sqlx::Error> {
+    let title_id = ExternalId::tmdb(show_tmdb_id).to_string();
     sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM requests
-                          WHERE tmdb_id = ? AND season = ? AND state = 'available') AS "is!: bool""#,
-        show_tmdb_id,
+                          WHERE title_id = ? AND season = ? AND state = 'available') AS "is!: bool""#,
+        title_id,
         season
     )
     .fetch_one(&mut *conn)

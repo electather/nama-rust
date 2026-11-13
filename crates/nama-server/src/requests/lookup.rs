@@ -138,7 +138,10 @@ impl Requests {
                 .pop(),
             None => None,
         };
-        let quality = show_requests(&mut conn, tmdb_id).await?.quality().cloned();
+        let quality = show_requests(&mut conn, &ExternalId::tmdb(tmdb_id))
+            .await?
+            .quality()
+            .cloned();
         Ok(FoundShow {
             tmdb_id,
             plugin,
@@ -201,7 +204,7 @@ impl Requests {
     ) -> Result<Found<M>, sqlx::Error> {
         let library = contents::library_with_movie(conn, &ExternalId::tmdb(tmdb_id)).await?;
         let request = self
-            .visible_open_request(conn, viewer, tmdb_id, None)
+            .visible_open_request(conn, viewer, &ExternalId::tmdb(tmdb_id), None)
             .await?;
         Ok(Found {
             tmdb_id,
@@ -232,7 +235,12 @@ impl Requests {
             )
             .await?;
             let request = self
-                .visible_open_request(conn, viewer, show_tmdb_id, Some(season.number))
+                .visible_open_request(
+                    conn,
+                    viewer,
+                    &ExternalId::tmdb(show_tmdb_id),
+                    Some(season.number),
+                )
                 .await?;
             found.push(FoundSeason {
                 season_number: season.number,

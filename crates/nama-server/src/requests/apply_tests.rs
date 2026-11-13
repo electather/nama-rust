@@ -21,7 +21,7 @@ use tokio::sync::Notify;
 
 use crate::requests::Requests;
 use crate::requests::testing::{
-    ADA, Asked, FulfillerPlugin, ada, approved_for, approved_on, ask_as, asked_season, dark,
+    ADA, Asked, DARK, FulfillerPlugin, ada, approved_for, approved_on, ask_as, asked_season, dark,
     follow_as, fulfilled, next_happened,
 };
 use crate::{
@@ -296,7 +296,7 @@ async fn a_followed_show_cancelled_by_a_caller_who_left_is_published_and_unfollo
         matches!(cancelled, Happened::FollowedShowCancelled(_)),
         "{cancelled:?}"
     );
-    assert_eq!(unfollowed_shows(&unfollowing).await, [dark().show_tmdb_id]);
+    assert_eq!(unfollowed_shows(&unfollowing).await, [DARK]);
 }
 
 #[tokio::test]
@@ -318,5 +318,5 @@ async fn a_followed_show_withdrawn_from_by_its_last_requester_who_left_is_publis
         matches!(withdrawn, Happened::FollowedShowWithdrawn(_)),
         "{withdrawn:?}"
     );
-    assert_eq!(unfollowed_shows(&unfollowing).await, [dark().show_tmdb_id]);
+    assert_eq!(unfollowed_shows(&unfollowing).await, [DARK]);
 }

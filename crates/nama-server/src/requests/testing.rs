@@ -232,11 +232,11 @@ pub(super) fn season_1(episode_2_airs: &str) -> Season {
 /// The Movie with the TMDB id `tmdb_id`, as the metadata source gives it.
 pub(super) fn movie(tmdb_id: i64) -> Wanted {
     Wanted {
-        tmdb_id,
+        id: ExternalId::tmdb(tmdb_id),
         season: None,
         title: format!("Movie {tmdb_id}"),
         release_date: None,
-        show_ids: ExternalIds::default(),
+        ids: ExternalIds::default(),
         followed_show: None,
         quality: qualities::Ask::default(),
     }
@@ -311,12 +311,12 @@ pub(super) async fn insert_in_each_state(
     for (tmdb_id, &(state, stored)) in (1..).zip(&STATES) {
         for reference in [None, Some(format!("movie-{tmdb_id}"))] {
             let id = sqlx::query_scalar(
-                "INSERT INTO requests (tmdb_id, title, state, created_at, fulfiller_reference)
+                "INSERT INTO requests (title_id, title, state, created_at, fulfiller_reference)
                  VALUES (?, 'Movie', ?, 0, ?)
                  RETURNING id",
             )
             // A Movie of its own each, as only one open Request per Movie may be stored.
-            .bind(tmdb_id * 2 + i64::from(reference.is_some()))
+            .bind(ExternalId::tmdb(tmdb_id * 2 + i64::from(reference.is_some())).to_string())
             .bind(stored)
             .bind(&reference)
             .fetch_one(&mut *conn)
@@ -486,7 +486,7 @@ pub(super) const DARK: i64 = 70523;
 /// Seasons 1 and 2 of Dark, as the metadata source gives them.
 pub(super) fn dark() -> WantedSeasons {
     WantedSeasons {
-        show_tmdb_id: DARK,
+        show_id: ExternalId::tmdb(DARK),
         show_ids: ExternalIds::default(),
         show_title: "Dark".to_owned(),
         seasons: vec![
@@ -583,7 +583,7 @@ pub(super) fn season_ids(followed: &Applied<(FollowedShow, Vec<Request>)>) -> Ve
 /// Breaking Bad, as [`dark`] gives Dark.
 pub(super) fn breaking_bad() -> WantedSeasons {
     WantedSeasons {
-        show_tmdb_id: 1396,
+        show_id: ExternalId::tmdb(1396),
         show_title: "Breaking Bad".to_owned(),
         ..dark()
     }

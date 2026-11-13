@@ -21,7 +21,7 @@ use super::deciding::{decide, given_reason};
 use super::listing::{load_one, title_id, visible_to};
 use super::lookup::looking_up;
 use super::quality::{NewQuality, change_followed_quality, quality_columns, stored_quality};
-use super::state::{read_state, state_changed, stored};
+use super::state::{read_state, state_changed, stored, tmdb_value};
 use super::{Error, Requests};
 use crate::{db::now, events::event, users::User};
 
@@ -47,8 +47,8 @@ impl Requests {
             .await
             .map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?;
         let wanted = WantedSeasons {
-            show_tmdb_id: tmdb_id,
             seasons: self.seasons(tmdb_id, &show).await?,
+            show_id: id,
             show_ids: show.ids,
             show_title: show.title,
             quality,
@@ -171,7 +171,7 @@ pub(super) async fn follow(
 ) -> Result<Applied<(FollowedShow, Vec<Request>)>, Error> {
     let now = now();
     let asking = SeasonsToAsk::read(conn, show).await?;
-    let already_open = open_followed_show(conn, asking.show_tmdb_id).await?;
+    let already_open = open_followed_show(conn, tmdb_value(&asking.show_id)).await?;
     let id = if let Some(id) = already_open {
         id
     } else {
@@ -216,12 +216,13 @@ async fn open_followed(
     now: i64,
 ) -> Result<i64, sqlx::Error> {
     let (quality_id, quality_name, quality_profile_id) = quality_columns(show.quality.taken());
+    let show_tmdb_id = tmdb_value(&show.show_id);
     sqlx::query_scalar!(
         "INSERT INTO followed_shows (tmdb_id, title, state, latest_season, created_at, quality_id,
                                      quality_name, quality_profile_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING id",
-        show.show_tmdb_id,
+        show_tmdb_id,
         show.show_title,
         stored(state),
         show.seasons.iter().map(|season| season.number).max(),

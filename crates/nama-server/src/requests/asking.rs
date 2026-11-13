@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use nama_plugin_api::{
     fulfiller::{Movies, Shows},
-    metadata::{ExternalId, ExternalIds, IMDB, Season, TVDB},
+    metadata::{ExternalId, ExternalIds, Season},
 };
 use nama_proto::nama::v1::{
     FollowedShow, Permission, Request, RequestCreated, RequestState, Requester, RequesterAdded,
@@ -18,6 +18,7 @@ use super::deciding::approve;
 use super::listing::{load_one, tmdb_number};
 use super::lookup::looking_up;
 use super::quality::{NewQuality, quality_columns, show_requests};
+use super::state::tmdb_value;
 use super::state::{open_request, stored};
 use super::{Error, Requests, qualities};
 use crate::{db::now, events::event, library::contents, users::User};
@@ -25,16 +26,17 @@ use crate::{db::now, events::event, library::contents, users::User};
 /// What a new Request asks for, as the metadata source gave it.
 #[derive(Debug)]
 pub(super) struct Wanted {
-    /// The Movie's TMDB id, or for a Season its Show's.
-    pub(super) tmdb_id: i64,
+    /// The Movie's id, or for a Season its Show's: the one the Request is kept under.
+    pub(super) id: ExternalId,
     /// The Season's number, or `None` for a Movie.
     pub(super) season: Option<u32>,
     /// The Movie's title, or for a Season its Show's.
     pub(super) title: String,
     /// The Movie's `YYYY-MM-DD` release date, or the Season's first air date.
     pub(super) release_date: Option<String>,
-    /// For a Season, its Show's ids if its asker knows them; none for a Movie.
-    pub(super) show_ids: ExternalIds,
+    /// Every id the metadata source gave for the Movie, or for a Season its Show, if its asker
+    /// knows them. The Request stores these and [`Self::id`].
+    pub(super) ids: ExternalIds,
     /// The Followed Show a new Request for it is opened for, if any.
     pub(super) followed_show: Option<i64>,
     /// What its asker's ask says about Quality.
@@ -44,7 +46,7 @@ pub(super) struct Wanted {
 /// Seasons of a Show to ask for, as the metadata source gave them.
 #[derive(Debug)]
 pub(super) struct WantedSeasons {
-    pub(super) show_tmdb_id: i64,
+    pub(super) show_id: ExternalId,
     pub(super) show_ids: ExternalIds,
     pub(super) show_title: String,
     pub(super) seasons: Vec<Season>,
@@ -82,11 +84,11 @@ impl Requests {
         // closes meanwhile. Look up only when opening one if TMDB's rate limit starts to bite.
         let movie = self.fetch(tmdb_id).await?;
         let wanted = Wanted {
-            tmdb_id,
+            id: ExternalId::tmdb(tmdb_id),
             season: None,
             title: movie.title,
             release_date: movie.release_date,
-            show_ids: ExternalIds::default(),
+            ids: movie.ids,
             followed_show: None,
             quality,
         };
@@ -133,7 +135,7 @@ impl Requests {
             seasons.push(season);
         }
         let wanted = WantedSeasons {
-            show_tmdb_id: tmdb_id,
+            show_id: id,
             show_ids: show.ids,
             show_title: show.title,
             seasons,
@@ -163,11 +165,11 @@ pub(super) async fn ask_movie(
     wanted: Wanted,
     state: RequestState,
 ) -> Result<Applied<Request>, Error> {
-    if contents::library_with_movie(conn, &ExternalId::tmdb(wanted.tmdb_id))
+    if contents::library_with_movie(conn, &wanted.id)
         .await?
         .is_some()
     {
-        return Err(Error::InLibrary(wanted.tmdb_id));
+        return Err(Error::InLibrary(tmdb_value(&wanted.id)));
     }
     ask_approving(conn, user, wanted, state).await
 }
@@ -310,7 +312,7 @@ impl Asker for Way<'_> {
 /// Seasons of a Show to ask for, at the Quality the Show's Quality rules give their new Requests.
 #[derive(Debug)]
 pub(super) struct SeasonsToAsk {
-    pub(super) show_tmdb_id: i64,
+    pub(super) show_id: ExternalId,
     /// The Show's ids, or `None` for a scan.
     // ponytail: a Followed Show stores no Show ids, and a Season a scan asks for opens already in a
     // Library.
@@ -328,11 +330,11 @@ impl SeasonsToAsk {
     ) -> Result<Self, Error> {
         // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities
         // (ADR 0025).
-        let quality = show_requests(conn, show.show_tmdb_id)
+        let quality = show_requests(conn, &show.show_id)
             .await?
             .for_seasons(show.quality)?;
         Ok(Self {
-            show_tmdb_id: show.show_tmdb_id,
+            show_id: show.show_id,
             show_ids: Some(show.show_ids),
             show_title: show.show_title,
             seasons: show.seasons,
@@ -348,10 +350,11 @@ impl SeasonsToAsk {
         season: Season,
     ) -> Result<Self, sqlx::Error> {
         // A Followed Show is loaded with its TMDB id, so it always has one.
-        let show_tmdb_id = tmdb_number(followed_show.show_id.as_option()).unwrap_or_default();
-        let quality = show_requests(conn, show_tmdb_id).await?.for_scan();
+        let show_id =
+            ExternalId::tmdb(tmdb_number(followed_show.show_id.as_option()).unwrap_or_default());
+        let quality = show_requests(conn, &show_id).await?.for_scan();
         Ok(Self {
-            show_tmdb_id,
+            show_id,
             show_ids: None,
             show_title: followed_show.show_title.clone(),
             seasons: vec![season],
@@ -366,13 +369,12 @@ impl SeasonsToAsk {
         conn: &mut SqliteConnection,
         asking: A,
     ) -> Result<Applied<Vec<Request>>, A::Error> {
-        let show = self.show_tmdb_id;
+        let show = tmdb_value(&self.show_id);
         let today = today(conn).await?;
         let mut asked = Applied::quiet(Vec::with_capacity(self.seasons.len()));
         for season in &self.seasons {
             let matched =
-                contents::matched_episodes(conn, &ExternalId::tmdb(show), season.number.into())
-                    .await?;
+                contents::matched_episodes(conn, &self.show_id, season.number.into()).await?;
             let has = availability(&season.episodes, &matched, &today);
             let Some(opens_in) = asking.opens_in(conn, show, season.number, has).await? else {
                 continue;
@@ -390,11 +392,11 @@ impl SeasonsToAsk {
     /// What a new Request for `season` stores, opened for `followed_show` if given.
     fn wanted(&self, season: &Season, followed_show: Option<i64>) -> Wanted {
         Wanted {
-            tmdb_id: self.show_tmdb_id,
+            id: self.show_id.clone(),
             season: Some(season.number),
             title: self.show_title.clone(),
             release_date: season.air_date.clone(),
-            show_ids: self.show_ids.clone().unwrap_or_default(),
+            ids: self.show_ids.clone().unwrap_or_default(),
             followed_show,
             quality: self.quality.clone(),
         }
@@ -425,7 +427,8 @@ async fn ask_approving(
     })
 }
 
-/// Opens a Request for `wanted` in `state`, as stored, with no Requesters yet. Returns its ID.
+/// Opens a Request for `wanted` in `state`, as stored, with no Requesters yet, and stores its ids.
+/// Returns its ID.
 async fn insert_request(
     conn: &mut SqliteConnection,
     wanted: &Wanted,
@@ -433,21 +436,16 @@ async fn insert_request(
     now: i64,
 ) -> Result<i64, sqlx::Error> {
     let (quality_id, quality_name, quality_profile_id) = quality_columns(wanted.quality.taken());
-    sqlx::query_scalar!(
-        "INSERT INTO requests (tmdb_id, season, title, release_date, show_imdb_id, show_tvdb_id,
-                               state, created_at, followed_show_id, quality_id, quality_name,
-                               quality_profile_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    let title_id = wanted.id.to_string();
+    let id = sqlx::query_scalar!(
+        "INSERT INTO requests (title_id, season, title, release_date, state, created_at,
+                               followed_show_id, quality_id, quality_name, quality_profile_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          RETURNING id",
-        wanted.tmdb_id,
+        title_id,
         wanted.season,
         wanted.title,
         wanted.release_date,
-        wanted.show_ids.get(IMDB).map(|id| id.value().to_owned()),
-        wanted
-            .show_ids
-            .get(TVDB)
-            .and_then(|id| id.value().parse::<i64>().ok()),
         state,
         now,
         wanted.followed_show,
@@ -456,7 +454,20 @@ async fn insert_request(
         quality_profile_id
     )
     .fetch_one(&mut *conn)
-    .await
+    .await?;
+    let mut ids = wanted.ids.clone();
+    ids.insert(wanted.id.clone());
+    for title in ids.iter() {
+        sqlx::query!(
+            "INSERT INTO request_title_ids (request_id, namespace, value) VALUES (?, ?, ?)",
+            id,
+            title.namespace(),
+            title.value()
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(id)
 }
 
 /// [`ask_as`] for `user`, asking now.
@@ -485,7 +496,7 @@ pub(super) async fn ask_as(
     state: RequestState,
     now: i64,
 ) -> Result<Applied<Request>, sqlx::Error> {
-    let open = open_request(conn, wanted.tmdb_id, wanted.season).await?;
+    let open = open_request(conn, &wanted.id, wanted.season).await?;
     let opened = open.is_none();
     let id = match open {
         Some(id) => id,

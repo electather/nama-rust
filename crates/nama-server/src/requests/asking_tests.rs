@@ -1,14 +1,15 @@
 use std::collections::HashSet;
 
-use nama_plugin_api::metadata::ExternalIds;
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::RequestState;
 
 use super::{Wanted, ask_movie, ask_seasons};
 use crate::db::Database;
 use crate::requests::deciding::{cancel, decline};
+use crate::requests::listing::load_one;
 use crate::requests::testing::{
-    ADA, BOB, NOTHING, ada_and_bob, ask_each, ask_for, dark, fulfilled, handed_off, happened,
-    match_in_a_library, movie, settled,
+    ADA, BOB, DARK, NOTHING, ada_and_bob, ask_each, ask_for, asked_season, dark, fulfilled,
+    handed_off, happened, match_in_a_library, movie, settled,
 };
 use crate::requests::{Error, qualities};
 
@@ -17,11 +18,11 @@ async fn a_movie_and_a_show_with_the_same_tmdb_id_have_requests_of_their_own() {
     let data = tempfile::tempdir().unwrap();
     let db = Database::open(data.path()).await.unwrap();
     let wanted = [None, Some(0), Some(1), None].map(|season| Wanted {
-        tmdb_id: 1,
+        id: ExternalId::tmdb(1),
         season,
         title: "Shared".to_owned(),
         release_date: None,
-        show_ids: ExternalIds::default(),
+        ids: ExternalIds::default(),
         followed_show: None,
         quality: qualities::Ask::default(),
     });
@@ -156,4 +157,70 @@ async fn asking_for_seasons_opens_a_request_for_each_and_hands_off_the_approved_
     );
     let ids: Vec<i64> = approved.value.iter().map(|request| request.id).collect();
     assert_eq!(handed_off(&approved), ids);
+}
+
+#[tokio::test]
+async fn a_season_request_lists_every_id_its_show_was_asked_with_and_is_kept_under_tmdb() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Database::open(data.path()).await.unwrap();
+    let show_ids = ExternalIds::from_iter([
+        ExternalId::tmdb(DARK),
+        "imdb-tt5753856".parse().unwrap(),
+        ExternalId::tvdb(334_824),
+    ]);
+    let wanted = Wanted {
+        id: ExternalId::tmdb(DARK),
+        season: Some(1),
+        title: "Dark".to_owned(),
+        release_date: None,
+        ids: show_ids,
+        followed_show: None,
+        quality: qualities::Ask::default(),
+    };
+
+    let id = db
+        .write(move |tx| Box::pin(ask_each(tx, vec![wanted], RequestState::Pending)))
+        .await
+        .unwrap()[0];
+
+    let request = db
+        .write(move |tx| Box::pin(load_one(tx, id)))
+        .await
+        .unwrap()
+        .unwrap();
+    let season = asked_season(&request);
+    let text =
+        |pair: &nama_proto::nama::v1::ExternalId| format!("{}-{}", pair.namespace, pair.value);
+    assert_eq!(
+        season.show_id.as_option().map(text).as_deref(),
+        Some("tmdb-70523")
+    );
+    assert_eq!(
+        season.show_ids.iter().map(text).collect::<Vec<_>>(),
+        ["imdb-tt5753856", "tmdb-70523", "tvdb-334824"]
+    );
+}
+
+#[tokio::test]
+async fn the_database_refuses_a_second_open_request_for_a_title_and_season() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Database::open(data.path()).await.unwrap();
+    let insert = |state: &'static str| {
+        db.write(move |tx| {
+            Box::pin(
+                sqlx::query(
+                    "INSERT INTO requests (title_id, season, title, state, created_at)
+                     VALUES ('tmdb-70523', 1, 'Dark', ?, 0)",
+                )
+                .bind(state)
+                .execute(&mut **tx),
+            )
+        })
+    };
+
+    insert("declined").await.unwrap();
+    insert("pending").await.unwrap();
+    let second = insert("approved").await;
+
+    assert!(second.is_err(), "{second:?}");
 }

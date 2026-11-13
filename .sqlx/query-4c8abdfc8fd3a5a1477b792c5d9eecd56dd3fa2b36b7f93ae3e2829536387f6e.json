@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT EXISTS (SELECT 1 FROM requests\n                          WHERE tmdb_id = ? AND season = ? AND state = 'available') AS \"is!: bool\"",
+  "query": "SELECT EXISTS (SELECT 1 FROM requests\n                          WHERE title_id = ? AND season = ? AND state = 'available') AS \"is!: bool\"",
   "describe": {
     "columns": [
       {
@@ -17,5 +17,5 @@
       false
     ]
   },
-  "hash": "794475299efd2d5cac8844ec28f628c57f388bc8941dee3a9d808ce6bece41eb"
+  "hash": "4c8abdfc8fd3a5a1477b792c5d9eecd56dd3fa2b36b7f93ae3e2829536387f6e"
 }

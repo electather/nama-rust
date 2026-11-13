@@ -1,7 +1,7 @@
 //! The states a Request is stored in, which of them are open, and the two moves no User decides:
 //! a Library making a Request Available and a Fulfiller settling its Hand-off.
 
-use nama_plugin_api::fulfiller::Fulfilled;
+use nama_plugin_api::{fulfiller::Fulfilled, metadata::ExternalId};
 use nama_proto::nama::v1::{Event, Request, RequestState, RequestStateChanged, RequestedQuality};
 use sqlx::SqliteConnection;
 
@@ -65,17 +65,24 @@ pub(super) fn is_open(state: RequestState) -> bool {
     !matches!(state, RequestState::Declined | RequestState::Available)
 }
 
-/// The open Request for the Movie `tmdb_id`, or for its Season `season` if `tmdb_id` is a Show's.
+/// The TMDB number of `id`, which Requests' errors and look-ups still name.
+// ponytail: every Request is kept under a TMDB id until Requests' signatures take an ExternalId.
+pub(super) fn tmdb_value(id: &ExternalId) -> i64 {
+    id.value().parse().unwrap_or_default()
+}
+
+/// The open Request for the Movie `id`, or for its Season `season` if `id` is a Show's.
 pub(super) async fn open_request(
     conn: &mut SqliteConnection,
-    tmdb_id: i64,
+    id: &ExternalId,
     season: Option<u32>,
 ) -> Result<Option<i64>, sqlx::Error> {
+    let title_id = id.to_string();
     macro_rules! find {
         ($open:literal) => {
             sqlx::query_scalar!(
-                "SELECT id FROM requests WHERE tmdb_id = ? AND season IS ? AND " + $open,
-                tmdb_id,
+                "SELECT id FROM requests WHERE title_id = ? AND season IS ? AND " + $open,
+                title_id,
                 season
             )
         };

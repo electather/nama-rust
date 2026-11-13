@@ -1,6 +1,7 @@
 //! What a Request manager or a Requester decides about a Request, and cancelling the Requests
 //! that deleted media leaves waiting.
 
+use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{
     Event, Request, RequestCancelled, RequestState, RequestWithdrawn, RequesterRemoved,
 };
@@ -220,10 +221,11 @@ async fn waiting_on(
     conn: &mut SqliteConnection,
     RequestTitle { tmdb_id, season }: RequestTitle,
 ) -> Result<Option<i64>, sqlx::Error> {
+    let title_id = ExternalId::tmdb(tmdb_id).to_string();
     sqlx::query_scalar!(
-        "SELECT id FROM requests WHERE tmdb_id = ? AND season IS ?
+        "SELECT id FROM requests WHERE title_id = ? AND season IS ?
          AND state IN ('pending', 'approved', 'processing', 'partially_available')",
-        tmdb_id,
+        title_id,
         season
     )
     .fetch_optional(&mut *conn)
