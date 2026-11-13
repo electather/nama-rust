@@ -186,8 +186,16 @@ _Avoid_: identification, lookup
 A Match an admin set or cleared by hand. Automatic Matching follows it instead of searching, so it isn't overwritten.
 _Avoid_: locked match, override, manual lock
 
+**External ID**:
+A title's id at a metadata source: a Namespace and a value that Namespace's owner defines, written `tmdb-603`. A title may have several, at most one per Namespace, and any one of them identifies it.
+_Avoid_: title id (for an id the Server makes up), TMDB id (as the general word)
+
+**Namespace**:
+Who owns an External ID's values, such as `tmdb`, `imdb` or `tvdb`: lowercase letters and digits.
+_Avoid_: source id, id type
+
 **ID Hint**:
-A title's id at a metadata source, written in a file or folder name, such as `{tmdb-78}` or `[tvdbid-433631]`. An Item with one is Matched by that id without a search.
+An External ID written in a file or folder name, such as `{tmdb-78}` or `[tvdbid-433631]`. An Item with one is Matched by that id without a search.
 _Avoid_: id tag, provider id
 
 **Scan**:
