@@ -11,9 +11,10 @@ use std::{
 
 use nama_plugin_api::{
     fulfiller::{
-        EpisodeNumber, EpisodeNumbers, ShowDeleted, show_deleted::Deleted, stop_monitoring::Title,
+        EpisodeNumber, EpisodeNumbers, MovieDeleted, ShowDeleted, TitleId, show_deleted::Deleted,
+        stop_monitoring::Title,
     },
-    metadata::{ExternalId, TMDB, TVDB},
+    metadata::{ExternalId, ExternalIds, TMDB},
 };
 
 use crate::{
@@ -271,12 +272,11 @@ impl Browse {
         let titles = self.titles(&library).await?;
         if let Target::Movie(id) = title {
             let movie = titles.movie(&id)?;
-            let tmdb_id = tmdb_id_of(&movie.id);
             return Ok(Doomed {
                 library,
-                to_unmonitor: tmdb_id.map(Title::MovieTmdbId),
+                to_unmonitor: movie_to_unmonitor(&movie.ids),
                 title: movie.title,
-                requested: movie_requested(tmdb_id, &movie.versions),
+                requested: movie_requested(tmdb_id_of(&movie.id), &movie.versions),
                 versions: movie.versions,
                 taken_along: Vec::new(),
             });
@@ -291,16 +291,17 @@ impl Browse {
         let Titles::Movies(movies) = self.titles(&library).await? else {
             return Err(Error::NoSuchVersion);
         };
-        let (title, tmdb_id, version) = (movies.into_iter())
+        let (title, tmdb_id, to_unmonitor, version) = (movies.into_iter())
             .find_map(|movie| {
                 let version = movie.versions.into_iter().find(|v| v.file.id == version)?;
-                Some((movie.title, tmdb_id_of(&movie.id), version))
+                let to_unmonitor = movie_to_unmonitor(&movie.ids);
+                Some((movie.title, tmdb_id_of(&movie.id), to_unmonitor, version))
             })
             .ok_or(Error::NoSuchVersion)?;
         let versions = vec![version];
         Ok(Doomed {
             library,
-            to_unmonitor: tmdb_id.map(Title::MovieTmdbId),
+            to_unmonitor,
             title,
             requested: movie_requested(tmdb_id, &versions),
             versions,
@@ -463,6 +464,28 @@ fn doomed_episodes(
     })
 }
 
+/// What a delete of a Movie with `ids` asks Fulfillers to stop monitoring. `None` without ids.
+fn movie_to_unmonitor(ids: &ExternalIds) -> Option<Title> {
+    let ids = title_ids(ids);
+    (!ids.is_empty()).then(|| {
+        Title::from(MovieDeleted {
+            ids,
+            ..Default::default()
+        })
+    })
+}
+
+/// `ids` as the Plugin contract carries a title's ids.
+fn title_ids(ids: &ExternalIds) -> Vec<TitleId> {
+    (ids.iter())
+        .map(|id| TitleId {
+            namespace: id.namespace().to_owned(),
+            value: id.value().to_owned(),
+            ..Default::default()
+        })
+        .collect()
+}
+
 /// Each of `versions` with the Movie `tmdb_id` it is of, as a Request names it. None without one.
 fn movie_requested(
     tmdb_id: Option<i64>,
@@ -503,16 +526,14 @@ fn seasons_requested(shows: &[contents::Show], files: &HashSet<i64>) -> Vec<(i64
 }
 
 /// What a delete of `target`, Episodes of `show`, asks Fulfillers to stop monitoring: the
-/// Episodes `episodes`, a whole Season or every current Season. `None` if the Show has neither id
-/// they know it by.
+/// Episodes `episodes`, a whole Season or every current Season. `None` if the Show has no ids.
 fn to_unmonitor_of<'a>(
     show: &contents::Show,
     target: &Target,
     episodes: impl Iterator<Item = &'a contents::Episode>,
 ) -> Option<Title> {
-    let show_tmdb_id = tmdb_id_of(&show.id);
-    let tvdb = (show.ids.get(TVDB)).and_then(|id| id.value().parse::<i64>().ok());
-    if show_tmdb_id.is_none() && tvdb.is_none() {
+    let show_ids = title_ids(&show.ids);
+    if show_ids.is_empty() {
         return None;
     }
     // A scan parses season and episode numbers from digits, so they are never negative.
@@ -536,8 +557,7 @@ fn to_unmonitor_of<'a>(
         }
     };
     Some(Title::from(ShowDeleted {
-        show_tmdb_id,
-        show_tvdb_id: tvdb,
+        show_ids,
         deleted: Some(deleted),
         ..Default::default()
     }))

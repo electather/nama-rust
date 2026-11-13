@@ -173,7 +173,10 @@ mod exports {
                 Some("panic") => panic!("the test Plugin's Fulfiller was set to panic"),
                 _ => match request.movie_or_season {
                     Some(MovieOrSeason::Movie(movie)) => Ok(Fulfilled {
-                        reference: format!("test-{}", movie.tmdb_id),
+                        reference: format!(
+                            "test-{}",
+                            nama_pdk::title_id(&movie.ids, "tmdb").unwrap_or_default()
+                        ),
                         ..Fulfilled::default()
                     }),
                     _ => Err(Error::msg("the test Plugin takes only Movie Requests")),

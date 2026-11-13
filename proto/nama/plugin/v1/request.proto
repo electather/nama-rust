@@ -52,28 +52,35 @@ enum RequestState {
 
 // A Movie a Request asks for, as the metadata source gave it when the Request was opened.
 message RequestedMovie {
-  // The Movie's TMDB id.
-  int64 tmdb_id = 1;
+  reserved 1;
+  reserved "tmdb_id";
   // The title, in the metadata Provider's language.
   string title = 2;
   // When it was released, as `YYYY-MM-DD`.
   optional string release_date = 3;
+  // Every id the Kernel knows the Movie by, at most one per namespace. Any one identifies it.
+  repeated TitleId ids = 4;
 }
 
 // A Season a Request asks for, as the metadata source gave it when the Request was opened.
 message RequestedSeason {
-  // The Show's TMDB id.
-  int64 show_tmdb_id = 1;
+  reserved 1, 5, 6;
+  reserved "show_tmdb_id", "show_imdb_id", "show_tvdb_id";
   // The Season's number within the Show. Season 0 holds specials.
   uint32 season_number = 2;
   // The Show's title, in the metadata Provider's language.
   string show_title = 3;
   // When the Season first aired, as `YYYY-MM-DD`.
   optional string air_date = 4;
-  // The Show's IMDb id, such as `tt5753856`, if the metadata source has one.
-  optional string show_imdb_id = 5;
-  // The Show's TVDB id, if the metadata source has one.
-  optional int64 show_tvdb_id = 6;
+  // Every id the Kernel knows the Show by, at most one per namespace. Any one identifies it.
+  repeated TitleId show_ids = 7;
+}
+
+// One id of a title in a metadata source. A namespace is lowercase ASCII letters and digits,
+// such as `tmdb`, `imdb` or `tvdb`; its owner defines the value, which is never empty.
+message TitleId {
+  string namespace = 1;
+  string value = 2;
 }
 
 // A User who asked for what a Request covers.

@@ -53,12 +53,20 @@ pub use nama_plugin_proto::{
     self,
     nama::plugin::v1::{
         CheckedSettings, ConnectionStarted, Download, Fulfilled, Manifest, Notification, Request,
-        StopMonitoring, delivery::Recipient,
+        StopMonitoring, TitleId, delivery::Recipient,
     },
 };
 
 use extism_pdk::{Error, FromBytesOwned, HttpRequest, HttpResponse, ToBytes, ToMemory};
 use nama_plugin_proto::nama::plugin::v1::{Choice, SettingChoices};
+
+/// The value of the id in `namespace` among a title's `ids`, such as its `tmdb` id, if it has one.
+#[must_use]
+pub fn title_id<'a>(ids: &'a [TitleId], namespace: &str) -> Option<&'a str> {
+    ids.iter()
+        .find(|id| id.namespace == namespace)
+        .map(|id| id.value.as_str())
+}
 
 /// Wraps a protobuf message so it crosses an Extism call encoded as protobuf, as an export's
 /// input or output.
@@ -101,7 +109,7 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
 ///
 /// use nama_pdk::{
 ///     Download, Fulfilled, Fulfiller, Request, extism_pdk::Error,
-///     nama_plugin_proto::nama::plugin::v1::request::MovieOrSeason,
+///     nama_plugin_proto::nama::plugin::v1::request::MovieOrSeason, title_id,
 /// };
 ///
 /// struct Radarr;
@@ -111,8 +119,11 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
 ///         let Some(MovieOrSeason::Movie(movie)) = request.movie_or_season else {
 ///             return Err(Error::msg("Radarr takes only Movie Requests"));
 ///         };
+///         let Some(tmdb) = title_id(&movie.ids, "tmdb") else {
+///             return Err(Error::msg("Radarr needs the Movie's TMDB id"));
+///         };
 ///         Ok(Fulfilled {
-///             reference: format!("radarr-{}", movie.tmdb_id),
+///             reference: format!("radarr-{tmdb}"),
 ///             ..Fulfilled::default()
 ///         })
 ///     }

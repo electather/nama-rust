@@ -6,10 +6,14 @@ pub mod stop_monitoring {
     use super::*;
     #[derive(Clone, Debug)]
     pub enum Title<'a> {
-        MovieTmdbId(i64),
         Show(
             ::buffa::alloc::boxed::Box<
                 super::super::super::super::__buffa::view::ShowDeletedView<'a>,
+            >,
+        ),
+        Movie(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::MovieDeletedView<'a>,
             >,
         ),
     }

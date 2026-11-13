@@ -35,7 +35,9 @@ use fake_radarr::{Changed, FakeRadarr};
 use fake_sonarr::FakeSonarr;
 use http::fetch;
 use log::Log;
-use nama_plugin_api::fulfiller::{EpisodeNumber, EpisodeNumbers, ShowDeleted, show_deleted};
+use nama_plugin_api::fulfiller::{
+    EpisodeNumber, EpisodeNumbers, ShowDeleted, TitleId, show_deleted,
+};
 use nama_proto::nama::v1::{
     ApproveFollowedShowRequest, AudioCodec, BrowseServiceClient, CancelRequestRequest, Container,
     DeleteMediaRequest, DeleteMediaResponse, DeviceDecoding, Episode, EpisodeToDelete, EventType,
@@ -860,8 +862,17 @@ async fn deleting_a_show_deletes_every_season_and_a_subscriber_is_told_of_each_i
 /// What of Dark a Shows Fulfiller is told to stop monitoring: `deleted`.
 fn dark_deleted(deleted: impl Into<show_deleted::Deleted>) -> ShowDeleted {
     ShowDeleted {
-        show_tmdb_id: Some(DARK),
-        show_tvdb_id: Some(DARK_TVDB),
+        show_ids: [
+            ("imdb", "tt5753856".to_owned()),
+            ("tmdb", DARK.to_string()),
+            ("tvdb", DARK_TVDB.to_string()),
+        ]
+        .map(|(namespace, value)| TitleId {
+            namespace: namespace.to_owned(),
+            value,
+            ..Default::default()
+        })
+        .into(),
         deleted: Some(deleted.into()),
         ..Default::default()
     }

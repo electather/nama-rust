@@ -6,8 +6,8 @@ pub mod stop_monitoring {
     use super::*;
     #[derive(Clone, PartialEq, Debug)]
     pub enum Title {
-        MovieTmdbId(i64),
         Show(::buffa::alloc::boxed::Box<super::super::super::ShowDeleted>),
+        Movie(::buffa::alloc::boxed::Box<super::super::super::MovieDeleted>),
     }
     impl ::buffa::Oneof for Title {}
     impl From<super::super::super::ShowDeleted> for Title {
@@ -20,6 +20,16 @@ pub mod stop_monitoring {
             Self::Some(Title::from(v))
         }
     }
+    impl From<super::super::super::MovieDeleted> for Title {
+        fn from(v: super::super::super::MovieDeleted) -> Self {
+            Self::Movie(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::MovieDeleted> for ::core::option::Option<Title> {
+        fn from(v: super::super::super::MovieDeleted) -> Self {
+            Self::Some(Title::from(v))
+        }
+    }
     impl ::serde::Serialize for Title {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -28,14 +38,11 @@ pub mod stop_monitoring {
             use ::serde::ser::SerializeMap;
             let mut map = s.serialize_map(Some(1))?;
             match self {
-                Self::MovieTmdbId(v) => {
-                    map.serialize_entry(
-                        "movieTmdbId",
-                        &::buffa::json_helpers::ProtoJson(v),
-                    )?;
-                }
                 Self::Show(v) => {
                     map.serialize_entry("show", &**v)?;
+                }
+                Self::Movie(v) => {
+                    map.serialize_entry("movie", &**v)?;
                 }
             }
             map.end()

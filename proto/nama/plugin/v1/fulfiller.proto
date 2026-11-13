@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nama.plugin.v1;
 
+import "nama/plugin/v1/request.proto";
+
 // What an Installed Plugin's `fulfill` export returns once its Fulfiller took the `Request` it was
 // handed. If the service didn't take it, the export fails instead, and its error is the reason the
 // Request shows as Failed.
@@ -68,20 +70,28 @@ enum DownloadStatus {
 // The service keeps the title, and one it doesn't have means nothing to do. An Installed Plugin's
 // `stop_monitoring` export takes it and returns nothing.
 message StopMonitoring {
+  reserved 1;
+  reserved "movie_tmdb_id";
   oneof title {
-    // A Movie, by its TMDB id.
-    int64 movie_tmdb_id = 1;
     // Some or all of a Show.
     ShowDeleted show = 2;
+    // A Movie.
+    MovieDeleted movie = 3;
   }
+}
+
+// A Movie a delete takes.
+message MovieDeleted {
+  // Every id the Kernel knows the Movie by, at most one per namespace. Any one identifies it.
+  repeated TitleId ids = 1;
 }
 
 // What a delete takes of a Show, which keeps its new Seasons coming.
 message ShowDeleted {
-  // The Show's TMDB id, if the metadata source has one.
-  optional int64 show_tmdb_id = 1;
-  // The Show's TVDB id, if the metadata source has one.
-  optional int64 show_tvdb_id = 2;
+  reserved 1, 2;
+  reserved "show_tmdb_id", "show_tvdb_id";
+  // Every id the Kernel knows the Show by, at most one per namespace. Any one identifies it.
+  repeated TitleId show_ids = 6;
   oneof deleted {
     // Every Season the service has of the Show now, and their Episodes. Always true when set.
     bool every_current_season = 3;

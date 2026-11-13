@@ -57,6 +57,7 @@ pub mod __buffa {
         reg.register_json_any(super::__REQUEST_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_MOVIE_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_SEASON_JSON_ANY);
+        reg.register_json_any(super::__TITLE_ID_JSON_ANY);
         reg.register_json_any(super::__REQUESTER_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_QUALITY_JSON_ANY);
         reg.register_json_any(super::__QUALITY_CHANGE_JSON_ANY);
@@ -82,6 +83,7 @@ pub mod __buffa {
         reg.register_json_any(super::__DOWNLOADS_JSON_ANY);
         reg.register_json_any(super::__DOWNLOAD_JSON_ANY);
         reg.register_json_any(super::__STOP_MONITORING_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_DELETED_JSON_ANY);
         reg.register_json_any(super::__SHOW_DELETED_JSON_ANY);
         reg.register_json_any(super::__EPISODE_NUMBERS_JSON_ANY);
         reg.register_json_any(super::__EPISODE_NUMBER_JSON_ANY);
@@ -125,6 +127,10 @@ pub use self::__buffa::view::RequestedMovieOwnedView;
 pub use self::__buffa::view::RequestedSeasonView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestedSeasonOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleIdView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleIdOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RequesterView;
 #[doc(inline)]
@@ -225,6 +231,10 @@ pub use self::__buffa::view::DownloadOwnedView;
 pub use self::__buffa::view::StopMonitoringView;
 #[doc(inline)]
 pub use self::__buffa::view::StopMonitoringOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieDeletedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieDeletedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ShowDeletedView;
 #[doc(inline)]

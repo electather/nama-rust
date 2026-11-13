@@ -124,13 +124,21 @@ fn id(namespace: &str, value: &str) -> api::ExternalId {
     }
 }
 
+fn title_id(namespace: &str, value: &str) -> wire::TitleId {
+    wire::TitleId {
+        namespace: namespace.to_owned(),
+        value: value.to_owned(),
+        ..Default::default()
+    }
+}
+
 #[test]
 fn a_movie_request_keeps_what_a_fulfiller_reads() {
     let asked = api::Request {
         id: 7,
         movie_or_season: Some(MovieOrSeason::Movie(Box::new(api::RequestedMovie {
             id: id("tmdb", "438631").into(),
-            ids: vec![id("tmdb", "438631")],
+            ids: vec![id("tmdb", "438631"), id("anidb", "a/b 1")],
             title: "Dune".to_owned(),
             release_date: Some("2021-09-15".to_owned()),
             ..Default::default()
@@ -170,9 +178,9 @@ fn a_movie_request_keeps_what_a_fulfiller_reads() {
             id: 7,
             movie_or_season: Some(wire::request::MovieOrSeason::Movie(Box::new(
                 wire::RequestedMovie {
-                    tmdb_id: 438_631,
                     title: "Dune".to_owned(),
                     release_date: Some("2021-09-15".to_owned()),
+                    ids: vec![title_id("tmdb", "438631"), title_id("anidb", "a/b 1")],
                     ..Default::default()
                 }
             ))),
@@ -231,12 +239,14 @@ fn a_season_request_keeps_its_show_and_followed_show() {
             id: 8,
             movie_or_season: Some(wire::request::MovieOrSeason::Season(Box::new(
                 wire::RequestedSeason {
-                    show_tmdb_id: 1_399,
                     season_number: 2,
                     show_title: "Severance".to_owned(),
                     air_date: Some("2025-01-17".to_owned()),
-                    show_imdb_id: Some("tt11280740".to_owned()),
-                    show_tvdb_id: Some(371_980),
+                    show_ids: vec![
+                        title_id("tmdb", "1399"),
+                        title_id("imdb", "tt11280740"),
+                        title_id("tvdb", "371980"),
+                    ],
                     ..Default::default()
                 }
             ))),

@@ -13,12 +13,12 @@ mod exports {
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
-        StopMonitoring,
+        StopMonitoring, TitleId,
         extism_pdk::{self, Error},
         nama_plugin_proto::nama::plugin::v1::{
             ProvidePoint, RequestedMovie, request::MovieOrSeason, stop_monitoring::Title,
         },
-        plugin_fn,
+        plugin_fn, title_id,
     };
     use nama_servarr::{Queued, Servarr};
     use serde::{Deserialize, Serialize};
@@ -51,12 +51,12 @@ mod exports {
         fn fulfill(request: Request) -> Result<Fulfilled, Error> {
             let radarr = radarr()?;
             let movie = asked_movie(&request)?;
-            let tmdb_id = movie.tmdb_id;
+            let tmdb_id = tmdb_id(&movie.ids)?;
             let asked = nama_servarr::quality_profile(&request)?;
             // Checked first, as Radarr may add a Movie with a profile it no longer has.
             let profiles = radarr.quality_profiles()?;
             let used_id = if profiles.iter().any(|profile| profile.id == asked) {
-                add_movie(&radarr, movie, asked)?
+                add_movie(&radarr, movie, tmdb_id, asked)?
             } else {
                 // A Movie Radarr already has keeps its own profile, so the asked one needn't exist.
                 let kept = profile_of(&radarr, tmdb_id)?;
@@ -71,9 +71,10 @@ mod exports {
 
         /// Unmonitors the Movie, which Radarr keeps, so it doesn't download it again.
         fn stop_monitoring(title: StopMonitoring) -> Result<(), Error> {
-            let Some(Title::MovieTmdbId(tmdb_id)) = title.title else {
+            let Some(Title::Movie(deleted)) = title.title else {
                 return Err(Error::msg("Radarr stops monitoring only Movies"));
             };
+            let tmdb_id = tmdb_id(&deleted.ids)?;
             let radarr = radarr()?;
             let movies: Vec<AddedMovie> = radarr.get(&format!("movie?tmdbId={tmdb_id}"))?;
             if movies.is_empty() {
@@ -109,15 +110,23 @@ mod exports {
         }
     }
 
-    /// Adds `movie` at the quality profile `profile`, starting a search, and returns the id of the
-    /// profile Radarr has it at: its own if it already had it.
+    /// The TMDB id among a Movie's `ids`, as the number Radarr's API takes.
+    fn tmdb_id(ids: &[TitleId]) -> Result<i64, Error> {
+        title_id(ids, "tmdb")
+            .and_then(|tmdb| tmdb.parse().ok())
+            .ok_or_else(|| Error::msg("Radarr needs the Movie's TMDB id, and none is known for it"))
+    }
+
+    /// Adds `movie`, whose TMDB id is `tmdb_id`, at the quality profile `profile`, starting a
+    /// search, and returns the id of the profile Radarr has it at: its own if it already had it.
     fn add_movie(
         radarr: &Servarr,
         movie: &RequestedMovie,
+        tmdb_id: i64,
         profile: i64,
     ) -> Result<Option<i64>, Error> {
         let new_movie = NewMovie {
-            tmdb_id: movie.tmdb_id,
+            tmdb_id,
             title: movie.title.clone(),
             quality_profile_id: profile,
             root_folder_path: nama_servarr::root_folder()?,
@@ -130,7 +139,7 @@ mod exports {
         if radarr.add("movie", new_movie, MOVIE_EXISTS)? {
             Ok(Some(profile))
         } else {
-            profile_of(radarr, movie.tmdb_id)
+            profile_of(radarr, tmdb_id)
         }
     }
 

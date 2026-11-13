@@ -4,7 +4,7 @@ use buffa::Message;
 
 use nama_plugin_api::{
     Plugin, PluginId, PointKey, Registrar,
-    fulfiller::{Fulfiller, Movies, StopMonitoring, stop_monitoring::Title},
+    fulfiller::{Fulfiller, MovieDeleted, Movies, StopMonitoring, TitleId, stop_monitoring::Title},
     notifier::Notifier,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
@@ -513,7 +513,14 @@ async fn a_fulfiller_without_the_stop_monitoring_export_isnt_asked() {
         stops_monitoring,
     };
     let alien = StopMonitoring {
-        title: Some(Title::MovieTmdbId(348)),
+        title: Some(Title::from(MovieDeleted {
+            ids: vec![TitleId {
+                namespace: "tmdb".to_owned(),
+                value: "348".to_owned(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        })),
         ..Default::default()
     };
     let stop = async |running: Running| {

@@ -281,8 +281,12 @@ impl Fulfiller<Movies> for FakeFulfiller {
         &'a self,
         title: &'a StopMonitoring,
     ) -> BoxFuture<'a, Result<(), PluginError>> {
-        let Some(stop_monitoring::Title::MovieTmdbId(tmdb_id)) = title.title else {
+        let Some(stop_monitoring::Title::Movie(movie)) = &title.title else {
             panic!("a Movies Fulfiller was told to stop monitoring {title:?}");
+        };
+        let tmdb = movie.ids.iter().find(|id| id.namespace == "tmdb");
+        let Some(tmdb_id) = tmdb.and_then(|id| id.value.parse::<i64>().ok()) else {
+            panic!("a Movies Fulfiller was told to stop monitoring {title:?}, with no TMDB id");
         };
         assert!(
             !self.panics_stopping_monitoring.load(Ordering::Relaxed),

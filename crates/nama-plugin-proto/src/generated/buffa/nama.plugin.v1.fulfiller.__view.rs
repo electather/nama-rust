@@ -1636,17 +1636,6 @@ impl<'a> ::buffa::MessageView<'a> for StopMonitoringView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                view.title = Some(
-                    super::super::__buffa::view::oneof::stop_monitoring::Title::MovieTmdbId(
-                        ::buffa::types::decode_int64(&mut cur)?,
-                    ),
-                );
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -1670,6 +1659,37 @@ impl<'a> ::buffa::MessageView<'a> for StopMonitoringView<'a> {
                         super::super::__buffa::view::oneof::stop_monitoring::Title::Show(
                             ::buffa::alloc::boxed::Box::new(
                                 <super::super::__buffa::view::ShowDeletedView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::stop_monitoring::Title::Movie(
+                        ref mut existing,
+                    ),
+                ) = view.title
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.title = Some(
+                        super::super::__buffa::view::oneof::stop_monitoring::Title::Movie(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::MovieDeletedView as ::buffa::MessageView>::decode_view_ctx(
                                     sub,
                                     __sub_ctx,
                                 )?,
@@ -1704,17 +1724,19 @@ impl<'a> ::buffa::MessageView<'a> for StopMonitoringView<'a> {
                 ::core::option::Option::Some(v) => {
                     ::core::option::Option::Some(
                         match v {
-                            super::super::__buffa::view::oneof::stop_monitoring::Title::MovieTmdbId(
-                                v,
-                            ) => {
-                                super::super::__buffa::oneof::stop_monitoring::Title::MovieTmdbId(
-                                    *v,
-                                )
-                            }
                             super::super::__buffa::view::oneof::stop_monitoring::Title::Show(
                                 v,
                             ) => {
                                 super::super::__buffa::oneof::stop_monitoring::Title::Show(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::stop_monitoring::Title::Movie(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::stop_monitoring::Title::Movie(
                                     ::buffa::alloc::boxed::Box::new(
                                         v.to_owned_from_source(__buffa_src)?,
                                     ),
@@ -1738,12 +1760,15 @@ impl<'a> ::buffa::ViewEncode<'a> for StopMonitoringView<'a> {
         let mut size = 0u64;
         if let ::core::option::Option::Some(ref v) = self.title {
             match v {
-                super::super::__buffa::view::oneof::stop_monitoring::Title::MovieTmdbId(
-                    v,
-                ) => {
-                    size += 1u64 + ::buffa::types::int64_encoded_len(*v) as u64;
-                }
                 super::super::__buffa::view::oneof::stop_monitoring::Title::Show(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
+                super::super::__buffa::view::oneof::stop_monitoring::Title::Movie(x) => {
                     let __slot = __cache.reserve();
                     let inner = x.compute_size(__cache);
                     __cache.set(__slot, inner);
@@ -1766,14 +1791,17 @@ impl<'a> ::buffa::ViewEncode<'a> for StopMonitoringView<'a> {
         use ::buffa::Enumeration as _;
         if let ::core::option::Option::Some(ref v) = self.title {
             match v {
-                super::super::__buffa::view::oneof::stop_monitoring::Title::MovieTmdbId(
-                    x,
-                ) => {
-                    ::buffa::types::put_int64_field(1u32, *x, buf);
-                }
                 super::super::__buffa::view::oneof::stop_monitoring::Title::Show(x) => {
                     ::buffa::types::put_len_delimited_header(
                         2u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
+                }
+                super::super::__buffa::view::oneof::stop_monitoring::Title::Movie(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        3u32,
                         u64::from(__cache.consume_next()),
                         buf,
                     );
@@ -1804,17 +1832,11 @@ impl<'__a> ::serde::Serialize for StopMonitoringView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if let ::core::option::Option::Some(ref __ov) = self.title {
             match __ov {
-                super::super::__buffa::view::oneof::stop_monitoring::Title::MovieTmdbId(
-                    v,
-                ) => {
-                    __map
-                        .serialize_entry(
-                            "movieTmdbId",
-                            &::buffa::json_helpers::ProtoJson(v),
-                        )?;
-                }
                 super::super::__buffa::view::oneof::stop_monitoring::Title::Show(v) => {
                     __map.serialize_entry("show", v)?;
+                }
+                super::super::__buffa::view::oneof::stop_monitoring::Title::Movie(v) => {
+                    __map.serialize_entry("movie", v)?;
                 }
             }
         }
@@ -1951,17 +1973,293 @@ impl ::serde::Serialize for StopMonitoringOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
+/// A Movie a delete takes.
+#[derive(Clone, Debug, Default)]
+pub struct MovieDeletedView<'a> {
+    /// Every id the Kernel knows the Movie by, at most one per namespace. Any one identifies it.
+    ///
+    /// Field 1: `ids`
+    pub ids: ::buffa::RepeatedView<'a, super::super::__buffa::view::TitleIdView<'a>>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for MovieDeletedView<'a> {
+    type Owned = super::super::MovieDeleted;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
+                )?;
+                view.ids
+                    .push(
+                        <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::MovieDeleted, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::MovieDeleted, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::MovieDeleted {
+            ids: self
+                .ids
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for MovieDeletedView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.ids {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for MovieDeletedView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !self.ids.is_empty() {
+            __map.serialize_entry("ids", &*self.ids)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for MovieDeletedView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "MovieDeleted";
+    const FULL_NAME: &'static str = "nama.plugin.v1.MovieDeleted";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.MovieDeleted";
+}
+::buffa::impl_default_view_instance!(MovieDeletedView);
+::buffa::impl_view_reborrow!(MovieDeletedView);
+/** Self-contained, `'static` owned view of a `MovieDeleted` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`MovieDeletedView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`MovieDeletedView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct MovieDeletedOwnedView(::buffa::OwnedView<MovieDeletedView<'static>>);
+impl MovieDeletedOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            MovieDeletedOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            MovieDeletedOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::MovieDeleted,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            MovieDeletedOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`MovieDeletedView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &MovieDeletedView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::MovieDeleted {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Every id the Kernel knows the Movie by, at most one per namespace. Any one identifies it.
+    ///
+    /// Field 1: `ids`
+    #[must_use]
+    pub fn ids(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().ids
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<MovieDeletedView<'static>>>
+for MovieDeletedOwnedView {
+    fn from(inner: ::buffa::OwnedView<MovieDeletedView<'static>>) -> Self {
+        MovieDeletedOwnedView(inner)
+    }
+}
+impl ::core::convert::From<MovieDeletedOwnedView>
+for ::buffa::OwnedView<MovieDeletedView<'static>> {
+    fn from(wrapper: MovieDeletedOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<MovieDeletedView<'static>>>
+for MovieDeletedOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<MovieDeletedView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::MovieDeleted {
+    type View<'a> = MovieDeletedView<'a>;
+    type ViewHandle = MovieDeletedOwnedView;
+}
+impl ::serde::Serialize for MovieDeletedOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
 /// What a delete takes of a Show, which keeps its new Seasons coming.
 #[derive(Clone, Debug, Default)]
 pub struct ShowDeletedView<'a> {
-    /// The Show's TMDB id, if the metadata source has one.
+    /// Every id the Kernel knows the Show by, at most one per namespace. Any one identifies it.
     ///
-    /// Field 1: `show_tmdb_id`
-    pub show_tmdb_id: ::core::option::Option<i64>,
-    /// The Show's TVDB id, if the metadata source has one.
-    ///
-    /// Field 2: `show_tvdb_id`
-    pub show_tvdb_id: ::core::option::Option<i64>,
+    /// Field 6: `show_ids`
+    pub show_ids: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TitleIdView<'a>,
+    >,
     pub deleted: ::core::option::Option<
         super::super::__buffa::view::oneof::show_deleted::Deleted<'a>,
     >,
@@ -1997,19 +2295,23 @@ impl<'a> ::buffa::MessageView<'a> for ShowDeletedView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
-            1u32 => {
+            6u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
-                    ::buffa::encoding::WireType::Varint,
+                    ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                view.show_tmdb_id = Some(::buffa::types::decode_int64(&mut cur)?);
-            }
-            2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
                 )?;
-                view.show_tvdb_id = Some(::buffa::types::decode_int64(&mut cur)?);
+                view.show_ids
+                    .push(
+                        <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -2086,8 +2388,11 @@ impl<'a> ::buffa::MessageView<'a> for ShowDeletedView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ShowDeleted {
-            show_tmdb_id: self.show_tmdb_id,
-            show_tvdb_id: self.show_tvdb_id,
+            show_ids: self
+                .show_ids
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             deleted: match self.deleted.as_ref() {
                 ::core::option::Option::Some(v) => {
                     ::core::option::Option::Some(
@@ -2131,12 +2436,6 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowDeletedView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if let Some(v) = self.show_tmdb_id {
-            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
-        }
-        if let Some(v) = self.show_tvdb_id {
-            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
-        }
         if let ::core::option::Option::Some(ref v) = self.deleted {
             match v {
                 super::super::__buffa::view::oneof::show_deleted::Deleted::EveryCurrentSeason(
@@ -2161,6 +2460,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowDeletedView<'a> {
                 }
             }
         }
+        for v in &self.show_ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2172,12 +2479,6 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowDeletedView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if let Some(v) = self.show_tmdb_id {
-            ::buffa::types::put_int64_field(1u32, v, buf);
-        }
-        if let Some(v) = self.show_tvdb_id {
-            ::buffa::types::put_int64_field(2u32, v, buf);
-        }
         if let ::core::option::Option::Some(ref v) = self.deleted {
             match v {
                 super::super::__buffa::view::oneof::show_deleted::Deleted::EveryCurrentSeason(
@@ -2202,6 +2503,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowDeletedView<'a> {
                 }
             }
         }
+        for v in &self.show_ids {
+            ::buffa::types::put_len_delimited_header(
+                6u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -2223,13 +2532,8 @@ impl<'__a> ::serde::Serialize for ShowDeletedView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
-        if let ::core::option::Option::Some(__v) = self.show_tmdb_id {
-            __map
-                .serialize_entry("showTmdbId", &::buffa::json_helpers::ProtoJson(&__v))?;
-        }
-        if let ::core::option::Option::Some(__v) = self.show_tvdb_id {
-            __map
-                .serialize_entry("showTvdbId", &::buffa::json_helpers::ProtoJson(&__v))?;
+        if !self.show_ids.is_empty() {
+            __map.serialize_entry("showIds", &*self.show_ids)?;
         }
         if let ::core::option::Option::Some(ref __ov) = self.deleted {
             match __ov {
@@ -2345,19 +2649,14 @@ impl ShowDeletedOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The Show's TMDB id, if the metadata source has one.
+    /// Every id the Kernel knows the Show by, at most one per namespace. Any one identifies it.
     ///
-    /// Field 1: `show_tmdb_id`
+    /// Field 6: `show_ids`
     #[must_use]
-    pub fn show_tmdb_id(&self) -> ::core::option::Option<i64> {
-        self.0.reborrow().show_tmdb_id
-    }
-    /// The Show's TVDB id, if the metadata source has one.
-    ///
-    /// Field 2: `show_tvdb_id`
-    #[must_use]
-    pub fn show_tvdb_id(&self) -> ::core::option::Option<i64> {
-        self.0.reborrow().show_tvdb_id
+    pub fn show_ids(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().show_ids
     }
     /// Oneof `deleted`.
     #[must_use]

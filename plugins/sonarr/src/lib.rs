@@ -13,13 +13,13 @@ mod exports {
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
-        StopMonitoring,
+        StopMonitoring, TitleId,
         extism_pdk::{self, Error},
         nama_plugin_proto::nama::plugin::v1::{
             EpisodeNumbers, ProvidePoint, RequestedSeason, request::MovieOrSeason,
             show_deleted::Deleted, stop_monitoring::Title,
         },
-        plugin_fn,
+        plugin_fn, title_id,
     };
     use nama_servarr::{QualityProfile, Queued, Servarr};
     use serde::{Deserialize, Serialize};
@@ -95,7 +95,7 @@ mod exports {
                 return Err(Error::msg("Sonarr stops monitoring only Shows"));
             };
             // Sonarr finds a Show only by its TVDB id, so one without it was never handed over.
-            let Some(tvdb_id) = show_deleted.show_tvdb_id else {
+            let Some(tvdb_id) = tvdb_id(&show_deleted.show_ids) else {
                 return Ok(());
             };
             let sonarr = Sonarr::from_config()?;
@@ -347,9 +347,13 @@ mod exports {
     }
 
     fn show_tvdb_id(request: &Request) -> Result<i64, Error> {
-        asked_season(request)?
-            .show_tvdb_id
+        tvdb_id(&asked_season(request)?.show_ids)
             .ok_or_else(|| Error::msg("Sonarr needs the Show's TVDB id, and none is known for it"))
+    }
+
+    /// The TVDB id among a Show's `ids`, as the number Sonarr's API takes.
+    fn tvdb_id(ids: &[TitleId]) -> Option<i64> {
+        title_id(ids, "tvdb")?.parse().ok()
     }
 
     /// Sonarr's `monitorNewItems` for a Show whose new Seasons it monitors if `monitored`.
