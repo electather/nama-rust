@@ -52,10 +52,10 @@ pub use nama_proto::{
     self,
     nama::{
         plugin::v1::{
-            CheckedSettings, ConnectionStarted, Fulfilled, Manifest, Notification, StopMonitoring,
-            delivery::Recipient,
+            CheckedSettings, ConnectionStarted, Download, Fulfilled, Manifest, Notification,
+            StopMonitoring, delivery::Recipient,
         },
-        v1::{Download, Request},
+        v1::Request,
     },
 };
 

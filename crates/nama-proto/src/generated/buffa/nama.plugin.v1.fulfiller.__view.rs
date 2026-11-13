@@ -2,7 +2,7 @@
 // source: nama/plugin/v1/fulfiller.proto
 
 /// What an Installed Plugin's `fulfill` export returns once its Fulfiller took the Request it was
-/// handed as a `nama.v1.Request`. If the service didn't take it, the export fails instead, and its
+/// handed. If the service didn't take it, the export fails instead, and its
 /// error is the reason the Request shows as Failed.
 #[derive(Clone, Debug, Default)]
 pub struct FulfilledView<'a> {
@@ -10,8 +10,8 @@ pub struct FulfilledView<'a> {
     ///
     /// Field 1: `reference`
     pub reference: &'a str,
-    /// The service's quality profile the title is downloaded at, as `nama.v1.Quality.profile_id`:
-    /// the one asked for, or the service's own when it already had the title and kept it. Empty if
+    /// The service's quality profile the title is downloaded at, as the Quality a Request asks for
+    /// names it: the one asked for, or the service's own when it already had the title and kept it. Empty if
     /// the Fulfiller doesn't say.
     ///
     /// Field 2: `profile_id`
@@ -266,8 +266,8 @@ impl FulfilledOwnedView {
     pub fn reference(&self) -> &'_ str {
         self.0.reborrow().reference
     }
-    /// The service's quality profile the title is downloaded at, as `nama.v1.Quality.profile_id`:
-    /// the one asked for, or the service's own when it already had the title and kept it. Empty if
+    /// The service's quality profile the title is downloaded at, as the Quality a Request asks for
+    /// names it: the one asked for, or the service's own when it already had the title and kept it. Empty if
     /// the Fulfiller doesn't say.
     ///
     /// Field 2: `profile_id`
@@ -923,7 +923,7 @@ pub struct DownloadsView<'a> {
     /// Field 1: `downloads`
     pub downloads: ::buffa::RepeatedView<
         'a,
-        super::super::super::super::v1::__buffa::view::DownloadView<'a>,
+        super::super::__buffa::view::DownloadView<'a>,
     >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
@@ -965,13 +965,11 @@ impl<'a> ::buffa::MessageView<'a> for DownloadsView<'a> {
                 let __sub_ctx = ctx.descend()?;
                 let sub = ::buffa::types::borrow_bytes(&mut cur)?;
                 ctx.register_element_memory(
-                    ::core::mem::size_of::<
-                        super::super::super::super::v1::__buffa::view::DownloadView,
-                    >(),
+                    ::core::mem::size_of::<super::super::__buffa::view::DownloadView>(),
                 )?;
                 view.downloads
                     .push(
-                        <super::super::super::super::v1::__buffa::view::DownloadView as ::buffa::MessageView>::decode_view_ctx(
+                        <super::super::__buffa::view::DownloadView as ::buffa::MessageView>::decode_view_ctx(
                             sub,
                             __sub_ctx,
                         )?,
@@ -1161,10 +1159,7 @@ impl DownloadsOwnedView {
     #[must_use]
     pub fn downloads(
         &self,
-    ) -> &::buffa::RepeatedView<
-        '_,
-        super::super::super::super::v1::__buffa::view::DownloadView<'_>,
-    > {
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::DownloadView<'_>> {
         &self.0.reborrow().downloads
     }
 }
@@ -1191,6 +1186,409 @@ impl ::buffa::HasMessageView for super::super::Downloads {
     type ViewHandle = DownloadsOwnedView;
 }
 impl ::serde::Serialize for DownloadsOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// One thing the service is downloading for a Request, as the Kernel shows it on that Request.
+#[derive(Clone, Debug, Default)]
+pub struct DownloadView<'a> {
+    /// What is downloading, as the service names it.
+    ///
+    /// Field 1: `title`
+    pub title: &'a str,
+    /// How much is done, from 0 to 100.
+    ///
+    /// Field 2: `percent`
+    pub percent: f32,
+    /// How big it is, in bytes, if the service knows.
+    ///
+    /// Field 3: `size_bytes`
+    pub size_bytes: ::core::option::Option<u64>,
+    /// How long until it is done, in seconds, if the service knows.
+    ///
+    /// Field 4: `eta_seconds`
+    pub eta_seconds: ::core::option::Option<u64>,
+    /// Where the download stands.
+    ///
+    /// Field 5: `status`
+    pub status: ::buffa::EnumValue<super::super::DownloadStatus>,
+    /// Why it needs attention, in the service's own words, if it says. Set it only on a download
+    /// whose status is `DOWNLOAD_STATUS_NEEDS_ATTENTION`.
+    ///
+    /// Field 6: `attention_reason`
+    pub attention_reason: ::core::option::Option<&'a str>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for DownloadView<'a> {
+    type Owned = super::super::Download;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed32,
+                )?;
+                view.percent = ::buffa::types::decode_float(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.size_bytes = Some(::buffa::types::decode_uint64(&mut cur)?);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.eta_seconds = Some(::buffa::types::decode_uint64(&mut cur)?);
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.status = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.attention_reason = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::Download, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::Download, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::Download {
+            title: self.title.to_string(),
+            percent: self.percent,
+            size_bytes: self.size_bytes,
+            eta_seconds: self.eta_seconds,
+            status: self.status,
+            attention_reason: self.attention_reason.map(|s| s.to_string()),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for DownloadView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.title.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
+        }
+        if self.percent.to_bits() != 0u32 {
+            size += 1u64 + ::buffa::types::FIXED32_ENCODED_LEN as u64;
+        }
+        if let Some(v) = self.size_bytes {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.eta_seconds {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(v) as u64;
+        }
+        {
+            let val = self.status.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if let Some(ref v) = self.attention_reason {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.title.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.title, buf);
+        }
+        if self.percent.to_bits() != 0u32 {
+            ::buffa::types::put_float_field(2u32, self.percent, buf);
+        }
+        if let Some(v) = self.size_bytes {
+            ::buffa::types::put_uint64_field(3u32, v, buf);
+        }
+        if let Some(v) = self.eta_seconds {
+            ::buffa::types::put_uint64_field(4u32, v, buf);
+        }
+        {
+            let val = self.status.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(5u32, val, buf);
+            }
+        }
+        if let Some(ref v) = self.attention_reason {
+            ::buffa::types::put_string_field(6u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for DownloadView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.title) {
+            __map.serialize_entry("title", self.title)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_f32(&self.percent) {
+            __map
+                .serialize_entry(
+                    "percent",
+                    &::buffa::json_helpers::ProtoJson(&self.percent),
+                )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.size_bytes {
+            __map.serialize_entry("sizeBytes", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.eta_seconds {
+            __map
+                .serialize_entry("etaSeconds", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.status) {
+            __map.serialize_entry("status", &self.status)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.attention_reason {
+            __map.serialize_entry("attentionReason", __v)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for DownloadView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Download";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Download";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Download";
+}
+::buffa::impl_default_view_instance!(DownloadView);
+::buffa::impl_view_reborrow!(DownloadView);
+/** Self-contained, `'static` owned view of a `Download` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`DownloadView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`DownloadView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct DownloadOwnedView(::buffa::OwnedView<DownloadView<'static>>);
+impl DownloadOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(DownloadOwnedView(::buffa::OwnedView::decode(bytes)?))
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            DownloadOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::Download,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            DownloadOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`DownloadView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &DownloadView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::Download {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// What is downloading, as the service names it.
+    ///
+    /// Field 1: `title`
+    #[must_use]
+    pub fn title(&self) -> &'_ str {
+        self.0.reborrow().title
+    }
+    /// How much is done, from 0 to 100.
+    ///
+    /// Field 2: `percent`
+    #[must_use]
+    pub fn percent(&self) -> f32 {
+        self.0.reborrow().percent
+    }
+    /// How big it is, in bytes, if the service knows.
+    ///
+    /// Field 3: `size_bytes`
+    #[must_use]
+    pub fn size_bytes(&self) -> ::core::option::Option<u64> {
+        self.0.reborrow().size_bytes
+    }
+    /// How long until it is done, in seconds, if the service knows.
+    ///
+    /// Field 4: `eta_seconds`
+    #[must_use]
+    pub fn eta_seconds(&self) -> ::core::option::Option<u64> {
+        self.0.reborrow().eta_seconds
+    }
+    /// Where the download stands.
+    ///
+    /// Field 5: `status`
+    #[must_use]
+    pub fn status(&self) -> ::buffa::EnumValue<super::super::DownloadStatus> {
+        self.0.reborrow().status
+    }
+    /// Why it needs attention, in the service's own words, if it says. Set it only on a download
+    /// whose status is `DOWNLOAD_STATUS_NEEDS_ATTENTION`.
+    ///
+    /// Field 6: `attention_reason`
+    #[must_use]
+    pub fn attention_reason(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().attention_reason
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<DownloadView<'static>>>
+for DownloadOwnedView {
+    fn from(inner: ::buffa::OwnedView<DownloadView<'static>>) -> Self {
+        DownloadOwnedView(inner)
+    }
+}
+impl ::core::convert::From<DownloadOwnedView>
+for ::buffa::OwnedView<DownloadView<'static>> {
+    fn from(wrapper: DownloadOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<DownloadView<'static>>>
+for DownloadOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<DownloadView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::Download {
+    type View<'a> = DownloadView<'a>;
+    type ViewHandle = DownloadOwnedView;
+}
+impl ::serde::Serialize for DownloadOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

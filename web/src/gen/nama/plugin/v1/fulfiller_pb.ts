@@ -2,21 +2,19 @@
 // @generated from file nama/plugin/v1/fulfiller.proto (package nama.plugin.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Download } from "../../v1/request_pb";
-import { file_nama_v1_request } from "../../v1/request_pb";
-import type { Message } from "@bufbuild/protobuf";
+import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/plugin/v1/fulfiller.proto.
  */
 export const file_nama_plugin_v1_fulfiller: GenFile = /*@__PURE__*/
-  fileDesc("Ch5uYW1hL3BsdWdpbi92MS9mdWxmaWxsZXIucHJvdG8SDm5hbWEucGx1Z2luLnYxIkgKCUZ1bGZpbGxlZBIRCglyZWZlcmVuY2UYASABKAkSEgoKcHJvZmlsZV9pZBgCIAEoCRIUCgxwcm9maWxlX25hbWUYAyABKAkiIwoNUHJvZ3Jlc3NBc2tlZBISCgpyZWZlcmVuY2VzGAEgAygJIpMBCghQcm9ncmVzcxI6Cglkb3dubG9hZHMYASADKAsyJy5uYW1hLnBsdWdpbi52MS5Qcm9ncmVzcy5Eb3dubG9hZHNFbnRyeRpLCg5Eb3dubG9hZHNFbnRyeRILCgNrZXkYASABKAkSKAoFdmFsdWUYAiABKAsyGS5uYW1hLnBsdWdpbi52MS5Eb3dubG9hZHM6AjgBIjEKCURvd25sb2FkcxIkCglkb3dubG9hZHMYASADKAsyES5uYW1hLnYxLkRvd25sb2FkIl8KDlN0b3BNb25pdG9yaW5nEhcKDW1vdmllX3RtZGJfaWQYASABKANIABIrCgRzaG93GAIgASgLMhsubmFtYS5wbHVnaW4udjEuU2hvd0RlbGV0ZWRIAEIHCgV0aXRsZSLdAQoLU2hvd0RlbGV0ZWQSGQoMc2hvd190bWRiX2lkGAEgASgDSAGIAQESGQoMc2hvd190dmRiX2lkGAIgASgDSAKIAQESHgoUZXZlcnlfY3VycmVudF9zZWFzb24YAyABKAhIABIXCg1zZWFzb25fbnVtYmVyGAQgASgNSAASMgoIZXBpc29kZXMYBSABKAsyHi5uYW1hLnBsdWdpbi52MS5FcGlzb2RlTnVtYmVyc0gAQgkKB2RlbGV0ZWRCDwoNX3Nob3dfdG1kYl9pZEIPCg1fc2hvd190dmRiX2lkIkEKDkVwaXNvZGVOdW1iZXJzEi8KCGVwaXNvZGVzGAEgAygLMh0ubmFtYS5wbHVnaW4udjEuRXBpc29kZU51bWJlciI+Cg1FcGlzb2RlTnVtYmVyEhUKDXNlYXNvbl9udW1iZXIYASABKA0SFgoOZXBpc29kZV9udW1iZXIYAiABKA1iBnByb3RvMw", [file_nama_v1_request]);
+  fileDesc("Ch5uYW1hL3BsdWdpbi92MS9mdWxmaWxsZXIucHJvdG8SDm5hbWEucGx1Z2luLnYxIkgKCUZ1bGZpbGxlZBIRCglyZWZlcmVuY2UYASABKAkSEgoKcHJvZmlsZV9pZBgCIAEoCRIUCgxwcm9maWxlX25hbWUYAyABKAkiIwoNUHJvZ3Jlc3NBc2tlZBISCgpyZWZlcmVuY2VzGAEgAygJIpMBCghQcm9ncmVzcxI6Cglkb3dubG9hZHMYASADKAsyJy5uYW1hLnBsdWdpbi52MS5Qcm9ncmVzcy5Eb3dubG9hZHNFbnRyeRpLCg5Eb3dubG9hZHNFbnRyeRILCgNrZXkYASABKAkSKAoFdmFsdWUYAiABKAsyGS5uYW1hLnBsdWdpbi52MS5Eb3dubG9hZHM6AjgBIjgKCURvd25sb2FkcxIrCglkb3dubG9hZHMYASADKAsyGC5uYW1hLnBsdWdpbi52MS5Eb3dubG9hZCLgAQoIRG93bmxvYWQSDQoFdGl0bGUYASABKAkSDwoHcGVyY2VudBgCIAEoAhIXCgpzaXplX2J5dGVzGAMgASgESACIAQESGAoLZXRhX3NlY29uZHMYBCABKARIAYgBARIuCgZzdGF0dXMYBSABKA4yHi5uYW1hLnBsdWdpbi52MS5Eb3dubG9hZFN0YXR1cxIdChBhdHRlbnRpb25fcmVhc29uGAYgASgJSAKIAQFCDQoLX3NpemVfYnl0ZXNCDgoMX2V0YV9zZWNvbmRzQhMKEV9hdHRlbnRpb25fcmVhc29uIl8KDlN0b3BNb25pdG9yaW5nEhcKDW1vdmllX3RtZGJfaWQYASABKANIABIrCgRzaG93GAIgASgLMhsubmFtYS5wbHVnaW4udjEuU2hvd0RlbGV0ZWRIAEIHCgV0aXRsZSLdAQoLU2hvd0RlbGV0ZWQSGQoMc2hvd190bWRiX2lkGAEgASgDSAGIAQESGQoMc2hvd190dmRiX2lkGAIgASgDSAKIAQESHgoUZXZlcnlfY3VycmVudF9zZWFzb24YAyABKAhIABIXCg1zZWFzb25fbnVtYmVyGAQgASgNSAASMgoIZXBpc29kZXMYBSABKAsyHi5uYW1hLnBsdWdpbi52MS5FcGlzb2RlTnVtYmVyc0gAQgkKB2RlbGV0ZWRCDwoNX3Nob3dfdG1kYl9pZEIPCg1fc2hvd190dmRiX2lkIkEKDkVwaXNvZGVOdW1iZXJzEi8KCGVwaXNvZGVzGAEgAygLMh0ubmFtYS5wbHVnaW4udjEuRXBpc29kZU51bWJlciI+Cg1FcGlzb2RlTnVtYmVyEhUKDXNlYXNvbl9udW1iZXIYASABKA0SFgoOZXBpc29kZV9udW1iZXIYAiABKA0qsgEKDkRvd25sb2FkU3RhdHVzEh8KG0RPV05MT0FEX1NUQVRVU19VTlNQRUNJRklFRBAAEhoKFkRPV05MT0FEX1NUQVRVU19RVUVVRUQQARIfChtET1dOTE9BRF9TVEFUVVNfRE9XTkxPQURJTkcQAhIdChlET1dOTE9BRF9TVEFUVVNfSU1QT1JUSU5HEAMSIwofRE9XTkxPQURfU1RBVFVTX05FRURTX0FUVEVOVElPThAEYgZwcm90bzM");
 
 /**
  * What an Installed Plugin's `fulfill` export returns once its Fulfiller took the Request it was
- * handed as a `nama.v1.Request`. If the service didn't take it, the export fails instead, and its
+ * handed. If the service didn't take it, the export fails instead, and its
  * error is the reason the Request shows as Failed.
  *
  * @generated from message nama.plugin.v1.Fulfilled
@@ -30,8 +28,8 @@ export type Fulfilled = Message<"nama.plugin.v1.Fulfilled"> & {
   reference: string;
 
   /**
-   * The service's quality profile the title is downloaded at, as `nama.v1.Quality.profile_id`:
-   * the one asked for, or the service's own when it already had the title and kept it. Empty if
+   * The service's quality profile the title is downloaded at, as the Quality a Request asks for
+   * names it: the one asked for, or the service's own when it already had the title and kept it. Empty if
    * the Fulfiller doesn't say.
    *
    * @generated from field: string profile_id = 2;
@@ -100,7 +98,7 @@ export const ProgressSchema: GenMessage<Progress> = /*@__PURE__*/
  */
 export type Downloads = Message<"nama.plugin.v1.Downloads"> & {
   /**
-   * @generated from field: repeated nama.v1.Download downloads = 1;
+   * @generated from field: repeated nama.plugin.v1.Download downloads = 1;
    */
   downloads: Download[];
 };
@@ -111,6 +109,63 @@ export type Downloads = Message<"nama.plugin.v1.Downloads"> & {
  */
 export const DownloadsSchema: GenMessage<Downloads> = /*@__PURE__*/
   messageDesc(file_nama_plugin_v1_fulfiller, 3);
+
+/**
+ * One thing the service is downloading for a Request, as the Kernel shows it on that Request.
+ *
+ * @generated from message nama.plugin.v1.Download
+ */
+export type Download = Message<"nama.plugin.v1.Download"> & {
+  /**
+   * What is downloading, as the service names it.
+   *
+   * @generated from field: string title = 1;
+   */
+  title: string;
+
+  /**
+   * How much is done, from 0 to 100.
+   *
+   * @generated from field: float percent = 2;
+   */
+  percent: number;
+
+  /**
+   * How big it is, in bytes, if the service knows.
+   *
+   * @generated from field: optional uint64 size_bytes = 3;
+   */
+  sizeBytes?: bigint | undefined;
+
+  /**
+   * How long until it is done, in seconds, if the service knows.
+   *
+   * @generated from field: optional uint64 eta_seconds = 4;
+   */
+  etaSeconds?: bigint | undefined;
+
+  /**
+   * Where the download stands.
+   *
+   * @generated from field: nama.plugin.v1.DownloadStatus status = 5;
+   */
+  status: DownloadStatus;
+
+  /**
+   * Why it needs attention, in the service's own words, if it says. Set it only on a download
+   * whose status is `DOWNLOAD_STATUS_NEEDS_ATTENTION`.
+   *
+   * @generated from field: optional string attention_reason = 6;
+   */
+  attentionReason?: string | undefined;
+};
+
+/**
+ * Describes the message nama.plugin.v1.Download.
+ * Use `create(DownloadSchema)` to create a new message.
+ */
+export const DownloadSchema: GenMessage<Download> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_fulfiller, 4);
 
 /**
  * What a delete asks a Fulfiller to stop monitoring, so its service doesn't download it again.
@@ -147,7 +202,7 @@ export type StopMonitoring = Message<"nama.plugin.v1.StopMonitoring"> & {
  * Use `create(StopMonitoringSchema)` to create a new message.
  */
 export const StopMonitoringSchema: GenMessage<StopMonitoring> = /*@__PURE__*/
-  messageDesc(file_nama_plugin_v1_fulfiller, 4);
+  messageDesc(file_nama_plugin_v1_fulfiller, 5);
 
 /**
  * What a delete takes of a Show, which keeps its new Seasons coming.
@@ -204,7 +259,7 @@ export type ShowDeleted = Message<"nama.plugin.v1.ShowDeleted"> & {
  * Use `create(ShowDeletedSchema)` to create a new message.
  */
 export const ShowDeletedSchema: GenMessage<ShowDeleted> = /*@__PURE__*/
-  messageDesc(file_nama_plugin_v1_fulfiller, 5);
+  messageDesc(file_nama_plugin_v1_fulfiller, 6);
 
 /**
  * Episodes of one Show, by their numbers.
@@ -223,7 +278,7 @@ export type EpisodeNumbers = Message<"nama.plugin.v1.EpisodeNumbers"> & {
  * Use `create(EpisodeNumbersSchema)` to create a new message.
  */
 export const EpisodeNumbersSchema: GenMessage<EpisodeNumbers> = /*@__PURE__*/
-  messageDesc(file_nama_plugin_v1_fulfiller, 6);
+  messageDesc(file_nama_plugin_v1_fulfiller, 7);
 
 /**
  * An Episode of a Show, by its numbers.
@@ -249,5 +304,59 @@ export type EpisodeNumber = Message<"nama.plugin.v1.EpisodeNumber"> & {
  * Use `create(EpisodeNumberSchema)` to create a new message.
  */
 export const EpisodeNumberSchema: GenMessage<EpisodeNumber> = /*@__PURE__*/
-  messageDesc(file_nama_plugin_v1_fulfiller, 7);
+  messageDesc(file_nama_plugin_v1_fulfiller, 8);
+
+/**
+ * Where a download stands. A Kernel that doesn't know a status shows it as unspecified.
+ *
+ * @generated from enum nama.plugin.v1.DownloadStatus
+ */
+export const DownloadStatus = {
+  /**
+   * @generated from enum value: DOWNLOAD_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * Waiting for its turn to download.
+   *
+   * @generated from enum value: DOWNLOAD_STATUS_QUEUED = 1;
+   */
+  QUEUED: 1,
+
+  /**
+   * Downloading now.
+   *
+   * @generated from enum value: DOWNLOAD_STATUS_DOWNLOADING = 2;
+   */
+  DOWNLOADING: 2,
+
+  /**
+   * Downloaded, and being moved into the Library's folder.
+   *
+   * @generated from enum value: DOWNLOAD_STATUS_IMPORTING = 3;
+   */
+  IMPORTING: 3,
+
+  /**
+   * Stopped until someone looks at it in the service, such as when it stalled, failed or can't be
+   * imported.
+   *
+   * @generated from enum value: DOWNLOAD_STATUS_NEEDS_ATTENTION = 4;
+   */
+  NEEDS_ATTENTION: 4,
+} as const;
+
+/**
+ * Where a download stands. A Kernel that doesn't know a status shows it as unspecified.
+ *
+ * @generated from enum nama.plugin.v1.DownloadStatus
+ */
+export type DownloadStatus = (typeof DownloadStatus)[keyof typeof DownloadStatus] | UnknownEnum;
+
+/**
+ * Describes the enum nama.plugin.v1.DownloadStatus.
+ */
+export const DownloadStatusSchema: GenEnum<DownloadStatus> = /*@__PURE__*/
+  enumDesc(file_nama_plugin_v1_fulfiller, 0);
 

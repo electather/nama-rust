@@ -53,6 +53,7 @@ pub mod __buffa {
         reg.register_json_any(super::__PROGRESS_ASKED_JSON_ANY);
         reg.register_json_any(super::__PROGRESS_JSON_ANY);
         reg.register_json_any(super::__DOWNLOADS_JSON_ANY);
+        reg.register_json_any(super::__DOWNLOAD_JSON_ANY);
         reg.register_json_any(super::__STOP_MONITORING_JSON_ANY);
         reg.register_json_any(super::__SHOW_DELETED_JSON_ANY);
         reg.register_json_any(super::__EPISODE_NUMBERS_JSON_ANY);
@@ -105,6 +106,10 @@ pub use self::__buffa::view::ProgressOwnedView;
 pub use self::__buffa::view::DownloadsView;
 #[doc(inline)]
 pub use self::__buffa::view::DownloadsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadView;
+#[doc(inline)]
+pub use self::__buffa::view::DownloadOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::StopMonitoringView;
 #[doc(inline)]

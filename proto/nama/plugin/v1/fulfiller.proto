@@ -2,16 +2,14 @@ syntax = "proto3";
 
 package nama.plugin.v1;
 
-import "nama/v1/request.proto";
-
 // What an Installed Plugin's `fulfill` export returns once its Fulfiller took the Request it was
-// handed as a `nama.v1.Request`. If the service didn't take it, the export fails instead, and its
+// handed. If the service didn't take it, the export fails instead, and its
 // error is the reason the Request shows as Failed.
 message Fulfilled {
   // An opaque reference the Kernel keeps with the Request and passes back to `progress`.
   string reference = 1;
-  // The service's quality profile the title is downloaded at, as `nama.v1.Quality.profile_id`:
-  // the one asked for, or the service's own when it already had the title and kept it. Empty if
+  // The service's quality profile the title is downloaded at, as the Quality a Request asks for
+  // names it: the one asked for, or the service's own when it already had the title and kept it. Empty if
   // the Fulfiller doesn't say.
   string profile_id = 2;
   // The service's name for that profile, such as Radarr's `HD-1080p`.
@@ -32,7 +30,38 @@ message Progress {
 
 // What the service is downloading for one reference.
 message Downloads {
-  repeated nama.v1.Download downloads = 1;
+  repeated Download downloads = 1;
+}
+
+// One thing the service is downloading for a Request, as the Kernel shows it on that Request.
+message Download {
+  // What is downloading, as the service names it.
+  string title = 1;
+  // How much is done, from 0 to 100.
+  float percent = 2;
+  // How big it is, in bytes, if the service knows.
+  optional uint64 size_bytes = 3;
+  // How long until it is done, in seconds, if the service knows.
+  optional uint64 eta_seconds = 4;
+  // Where the download stands.
+  DownloadStatus status = 5;
+  // Why it needs attention, in the service's own words, if it says. Set it only on a download
+  // whose status is `DOWNLOAD_STATUS_NEEDS_ATTENTION`.
+  optional string attention_reason = 6;
+}
+
+// Where a download stands. A Kernel that doesn't know a status shows it as unspecified.
+enum DownloadStatus {
+  DOWNLOAD_STATUS_UNSPECIFIED = 0;
+  // Waiting for its turn to download.
+  DOWNLOAD_STATUS_QUEUED = 1;
+  // Downloading now.
+  DOWNLOAD_STATUS_DOWNLOADING = 2;
+  // Downloaded, and being moved into the Library's folder.
+  DOWNLOAD_STATUS_IMPORTING = 3;
+  // Stopped until someone looks at it in the service, such as when it stalled, failed or can't be
+  // imported.
+  DOWNLOAD_STATUS_NEEDS_ATTENTION = 4;
 }
 
 // What a delete asks a Fulfiller to stop monitoring, so its service doesn't download it again.

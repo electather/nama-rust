@@ -475,7 +475,10 @@ impl<Kind: 'static> Fulfiller<Kind> for Running {
             let downloads = Progress::decode_from_slice(&output)?.downloads;
             Ok(downloads
                 .into_iter()
-                .map(|(reference, downloads)| (reference, downloads.downloads))
+                .map(|(reference, downloads)| {
+                    let downloads = downloads.downloads.into_iter().map(contract::download);
+                    (reference, downloads.collect())
+                })
                 .collect())
         })
     }

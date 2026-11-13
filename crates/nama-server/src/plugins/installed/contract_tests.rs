@@ -1,7 +1,11 @@
-use nama_plugin_api::settings::{SettingKind, SettingValue};
+use buffa::EnumValue;
+use nama_plugin_api::{
+    fulfiller::{Download, DownloadStatus},
+    settings::{SettingKind, SettingValue},
+};
 use nama_proto::nama::plugin::v1::{self as wire, setting_value::Value};
 
-use super::{setting_kind, setting_value};
+use super::{download, setting_kind, setting_value};
 
 #[test]
 fn each_kind_becomes_its_twin_and_unspecified_none() {
@@ -54,4 +58,56 @@ fn each_value_comes_back_as_it_went_and_an_empty_one_as_none() {
             None,
         ]
     );
+}
+
+#[test]
+fn a_download_keeps_its_fields_and_an_unknown_status_becomes_unspecified() {
+    let reported = |status| wire::Download {
+        title: "Dune".to_owned(),
+        percent: 42.5,
+        size_bytes: Some(1_000),
+        eta_seconds: Some(90),
+        status,
+        attention_reason: Some("stalled".to_owned()),
+        ..Default::default()
+    };
+    let kept = |status: DownloadStatus| Download {
+        title: "Dune".to_owned(),
+        percent: 42.5,
+        size_bytes: Some(1_000),
+        eta_seconds: Some(90),
+        status: status.into(),
+        attention_reason: Some("stalled".to_owned()),
+        ..Default::default()
+    };
+    let statuses = [
+        (
+            EnumValue::Unknown(99),
+            DownloadStatus::DOWNLOAD_STATUS_UNSPECIFIED,
+        ),
+        (
+            wire::DownloadStatus::DOWNLOAD_STATUS_UNSPECIFIED.into(),
+            DownloadStatus::DOWNLOAD_STATUS_UNSPECIFIED,
+        ),
+        (
+            wire::DownloadStatus::DOWNLOAD_STATUS_QUEUED.into(),
+            DownloadStatus::DOWNLOAD_STATUS_QUEUED,
+        ),
+        (
+            wire::DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING.into(),
+            DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING,
+        ),
+        (
+            wire::DownloadStatus::DOWNLOAD_STATUS_IMPORTING.into(),
+            DownloadStatus::DOWNLOAD_STATUS_IMPORTING,
+        ),
+        (
+            wire::DownloadStatus::DOWNLOAD_STATUS_NEEDS_ATTENTION.into(),
+            DownloadStatus::DOWNLOAD_STATUS_NEEDS_ATTENTION,
+        ),
+    ];
+
+    for (status, expected) in statuses {
+        assert_eq!(download(reported(status)), kept(expected));
+    }
 }

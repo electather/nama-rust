@@ -6,10 +6,7 @@ use std::collections::{HashMap, HashSet};
 use nama_pdk::{
     CheckedSettings, Download, Fulfilled, Request,
     extism_pdk::{Error, HttpRequest, HttpResponse, Json, config, json},
-    nama_proto::nama::{
-        plugin::v1::{SettingField, SettingKind},
-        v1::DownloadStatus,
-    },
+    nama_proto::nama::plugin::v1::{DownloadStatus, SettingField, SettingKind},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
