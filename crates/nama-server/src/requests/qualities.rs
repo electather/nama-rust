@@ -2,7 +2,7 @@
 //! under friendly names, with one the default a new Request takes, and every rule about which
 //! Quality a Request, Show or Followed Show takes.
 //!
-//! It owns them and their tables (see the crate's `AGENTS.md`, "One owner for Quality rules").
+//! It owns them and their tables (see "One owner for Quality rules" in `src/requests/AGENTS.md`).
 
 use std::collections::HashSet;
 

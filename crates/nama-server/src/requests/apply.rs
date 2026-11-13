@@ -100,7 +100,7 @@ impl Requests {
     /// value with those Requests as they are after the Hand-off. A failure to stop following is
     /// only logged: the Followed Show ended either way.
     ///
-    /// The one path for Request changes (`AGENTS.md`, "Data").
+    /// The one path for Request changes (`src/requests/AGENTS.md`).
     ///
     /// Runs in a task of its own, since the write commits even if the caller stops waiting, so
     /// what follows it must too (ADR 0029).

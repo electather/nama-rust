@@ -1,5 +1,5 @@
 //! What a Request and a Followed Show share, as things Users ask for together and a Request
-//! manager decides: written once for both, by "Requester rules once" in `nama-server/AGENTS.md`.
+//! manager decides: written once for both, by "Requester rules once" in `src/requests/AGENTS.md`.
 
 use std::{collections::HashMap, fmt};
 

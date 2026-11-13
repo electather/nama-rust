@@ -4,7 +4,7 @@
 //! Followed Shows sit beside them: Users asking for a whole Show, whose later Seasons get Season
 //! Requests as a Library scan Matches their Episodes, never by asking a metadata source.
 //!
-//! This module is the only code that reads or writes `requests`, `requesters`, `followed_shows`
+//! This area is the only code that reads or writes `requests`, `requesters`, `followed_shows`
 //! and `followed_show_requesters`. It hands Requests out as their proto messages, since those are
 //! also what its events carry.
 
