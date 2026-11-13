@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use nama_pdk::{
     CheckedSettings, Download, Fulfilled, Request,
     extism_pdk::{Error, HttpRequest, HttpResponse, Json, config, json},
-    nama_proto::nama::plugin::v1::{DownloadStatus, SettingField, SettingKind},
+    nama_plugin_proto::nama::plugin::v1::{DownloadStatus, SettingField, SettingKind},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -476,7 +476,7 @@ struct ValidationFailure {
 
 #[cfg(test)]
 mod tests {
-    use nama_pdk::nama_proto::nama::plugin::v1::RequestedQuality;
+    use nama_pdk::nama_plugin_proto::nama::plugin::v1::RequestedQuality;
 
     use super::*;
 

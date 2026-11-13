@@ -15,7 +15,7 @@ mod exports {
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
         StopMonitoring,
         extism_pdk::{self, Error},
-        nama_proto::nama::plugin::v1::{
+        nama_plugin_proto::nama::plugin::v1::{
             ProvidePoint, RequestedMovie, request::MovieOrSeason, stop_monitoring::Title,
         },
         plugin_fn,

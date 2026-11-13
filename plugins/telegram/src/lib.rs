@@ -5,7 +5,9 @@
 
 use nama_pdk::{
     Notification,
-    nama_proto::nama::plugin::v1::{Request, RequestState, event::Event, request::MovieOrSeason},
+    nama_plugin_proto::nama::plugin::v1::{
+        Request, RequestState, event::Event, request::MovieOrSeason,
+    },
 };
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
@@ -21,7 +23,7 @@ mod exports {
         Buffa, ConnectionStarted, Connector, FnResult, Manifest, Notification, Notifier, Recipient,
         RecipientGone,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
-        nama_proto::nama::plugin::v1::{
+        nama_plugin_proto::nama::plugin::v1::{
             ProvidePoint, SettingField, SettingKind, SettingValue, setting_value,
         },
         plugin_fn,
@@ -386,7 +388,7 @@ fn state(request: &Request) -> Option<&'static str> {
 mod tests {
     use nama_pdk::{
         Notification,
-        nama_proto::nama::plugin::v1::{
+        nama_plugin_proto::nama::plugin::v1::{
             Event, QualityChange, Request, RequestCancelled, RequestState, RequestStateChanged,
             RequestedMovie, RequestedQuality, RequestedSeason, Requester, RequesterAdded, event,
         },

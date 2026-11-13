@@ -18,7 +18,7 @@
 //! [`http_request`] to the hosts its Manifest's `allowed_hosts` and its URL settings name, and
 //! reads the time with [`now`]. A call may use up to 128 MiB of memory, and fails past it.
 //!
-//! A Plugin with [`SETTING_KIND_CHOICE`](nama_proto::nama::plugin::v1::SettingKind) settings exports `check_settings()`, which
+//! A Plugin with [`SETTING_KIND_CHOICE`](nama_plugin_proto::nama::plugin::v1::SettingKind) settings exports `check_settings()`, which
 //! checks its settings against the outside service and offers the choices for each, built with
 //! [`checked_settings`]. It runs only when an admin tests settings, which may be unsaved, and may
 //! reach the hosts of the URL settings tested:
@@ -48,7 +48,7 @@
 use std::{collections::HashMap, fmt};
 
 pub use extism_pdk::{self, FnResult, plugin_fn};
-pub use nama_proto::{
+pub use nama_plugin_proto::{
     self,
     nama::plugin::v1::{
         CheckedSettings, ConnectionStarted, Download, Fulfilled, Manifest, Notification, Request,
@@ -57,7 +57,7 @@ pub use nama_proto::{
 };
 
 use extism_pdk::{Error, FromBytesOwned, HttpRequest, HttpResponse, ToBytes, ToMemory};
-use nama_proto::nama::plugin::v1::{Choice, SettingChoices};
+use nama_plugin_proto::nama::plugin::v1::{Choice, SettingChoices};
 
 /// Wraps a protobuf message so it crosses an Extism call encoded as protobuf, as an export's
 /// input or output.
@@ -78,7 +78,7 @@ impl<T: buffa::Message> FromBytesOwned for Buffa<T> {
     }
 }
 
-/// A Manifest for the Plugin `id` at `version`, which works with the Nama API versions this
+/// A Manifest for the Plugin `id` at `version`, which works with the Plugin contract versions this
 /// `nama-pdk` was built against. Fill in its other fields, such as `name`, `description`,
 /// `settings` and `logo_svg` (`include_str!("../logo.svg")`), with struct update syntax.
 #[must_use]
@@ -86,7 +86,7 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
     Manifest {
         id: id.to_owned(),
         version: version.to_owned(),
-        nama_api: format!("^{}", nama_proto::NAMA_API_VERSION),
+        nama_api: format!("^{}", nama_plugin_proto::CONTRACT_VERSION),
         ..Manifest::default()
     }
 }
@@ -100,7 +100,7 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
 ///
 /// use nama_pdk::{
 ///     Download, Fulfilled, Fulfiller, Request, extism_pdk::Error,
-///     nama_proto::nama::plugin::v1::request::MovieOrSeason,
+///     nama_plugin_proto::nama::plugin::v1::request::MovieOrSeason,
 /// };
 ///
 /// struct Radarr;
@@ -179,7 +179,9 @@ macro_rules! fulfiller {
             // `plugin_fn` expands to paths starting with `extism_pdk`.
             use $crate::{
                 Buffa, FnResult, Fulfiller, Request, StopMonitoring, extism_pdk,
-                nama_proto::nama::plugin::v1::{Downloads, Fulfilled, Progress, ProgressAsked},
+                nama_plugin_proto::nama::plugin::v1::{
+                    Downloads, Fulfilled, Progress, ProgressAsked,
+                },
                 plugin_fn,
             };
 
@@ -276,7 +278,7 @@ macro_rules! notifier {
             use $crate::{
                 Buffa, FnResult, Notifier, RecipientGone,
                 extism_pdk::{self, Error},
-                nama_proto::nama::plugin::v1::{Delivered, Delivery},
+                nama_plugin_proto::nama::plugin::v1::{Delivered, Delivery},
                 plugin_fn,
             };
 
@@ -356,7 +358,9 @@ macro_rules! connector {
             // `plugin_fn` expands to paths starting with `extism_pdk`.
             use $crate::{
                 Buffa, ConnectionStarted, Connector, FnResult, extism_pdk,
-                nama_proto::nama::plugin::v1::{ConnectionPoll, ConnectionPolled, ConnectionStart},
+                nama_plugin_proto::nama::plugin::v1::{
+                    ConnectionPoll, ConnectionPolled, ConnectionStart,
+                },
                 plugin_fn,
             };
 

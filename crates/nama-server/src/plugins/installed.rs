@@ -30,17 +30,15 @@ use nama_plugin_api::{
         SettingsSchema,
     },
 };
-use nama_proto::{
-    NAMA_API_VERSION,
-    nama::{
-        plugin::v1::{
-            self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled,
-            ConnectionStart, Delivered, Delivery, Fulfilled, ObservePoint, Progress, ProgressAsked,
-            ProvidePoint, StopMonitoring,
-        },
-        v1::{Event, PluginKind, Request},
+use nama_plugin_proto::{
+    CONTRACT_VERSION,
+    nama::plugin::v1::{
+        self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled, ConnectionStart,
+        Delivered, Delivery, Fulfilled, ObservePoint, Progress, ProgressAsked, ProvidePoint,
+        StopMonitoring,
     },
 };
+use nama_proto::nama::v1::{Event, PluginKind, Request};
 use semver::{Version, VersionReq};
 use thiserror::Error;
 use tokio::task;
@@ -177,7 +175,7 @@ enum Refused {
     Decode(DecodeError),
     #[error("its nama-api requirement {wants:?} isn't a semver requirement: {error}")]
     BadRequirement { wants: String, error: semver::Error },
-    #[error("it wants nama-api {wants}, and this Server has {}", NAMA_API_VERSION)]
+    #[error("it wants nama-api {wants}, and this Server has {}", CONTRACT_VERSION)]
     OutOfRange { wants: String },
     #[error("its setting {key} is of a kind this Server doesn't know")]
     UnknownSettingKind { key: String },
@@ -987,7 +985,7 @@ fn check_nama_api(wants: &str) -> Result<(), Refused> {
         error,
     })?;
     // every_bundled_plugin_has_the_exports_its_manifests_points_need fails if this stops parsing.
-    if Version::parse(NAMA_API_VERSION).is_ok_and(|server| requirement.matches(&server)) {
+    if Version::parse(CONTRACT_VERSION).is_ok_and(|server| requirement.matches(&server)) {
         Ok(())
     } else {
         Err(Refused::OutOfRange {

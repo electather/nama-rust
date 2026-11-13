@@ -6,10 +6,8 @@ use nama_plugin_api::{
     notifier::Notification,
     settings::{SettingKind, SettingValue},
 };
-use nama_proto::nama::{
-    plugin::v1::{self as wire, setting_value},
-    v1::{self as api, request::MovieOrSeason},
-};
+use nama_plugin_proto::nama::plugin::v1::{self as wire, setting_value};
+use nama_proto::nama::v1::{self as api, request::MovieOrSeason};
 
 /// The kind `kind` names, or `None` for `SETTING_KIND_UNSPECIFIED`.
 pub(super) const fn setting_kind(kind: wire::SettingKind) -> Option<SettingKind> {

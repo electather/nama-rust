@@ -36,22 +36,20 @@ use nama_plugin_api::{
     settings::SettingValue,
 };
 use nama_plugin_local_auth::LocalAuth;
+use nama_plugin_proto::nama::plugin::v1 as wire;
 use nama_plugin_test_choices as test_choices;
-use nama_proto::nama::{
-    plugin::v1 as wire,
-    v1::{
-        ApproveFollowedShowRequest, ApproveRequestRequest, CancelFollowedShowRequest,
-        CancelRequestRequest, CountPendingRequestsRequest, CreateFollowedShowRequest,
-        CreateRequestRequest, CreateSeasonRequestsRequest, DeclineFollowedShowRequest,
-        DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow,
-        FoundShow, GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest,
-        ListMovieQualitiesRequest, ListOfferedQualitiesRequest, ListPluginsRequest,
-        ListQualitiesRequest, ListRequestsRequest, ListRequestsResponse, LookUpMovieRequest,
-        LookUpShowRequest, MovieHit, Permission, PluginServiceClient, Quality, RefusalReason,
-        Request, RequestServiceClient, RequestState, RetryRequestRequest, SearchMoviesRequest,
-        SearchShowsRequest, SetDefaultQualityRequest, TitleKind, UpdatePluginSettingsRequest,
-        WithdrawFollowedShowRequest, event, request::MovieOrSeason, setting_value,
-    },
+use nama_proto::nama::v1::{
+    ApproveFollowedShowRequest, ApproveRequestRequest, CancelFollowedShowRequest,
+    CancelRequestRequest, CountPendingRequestsRequest, CreateFollowedShowRequest,
+    CreateRequestRequest, CreateSeasonRequestsRequest, DeclineFollowedShowRequest,
+    DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundShow,
+    GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest, ListMovieQualitiesRequest,
+    ListOfferedQualitiesRequest, ListPluginsRequest, ListQualitiesRequest, ListRequestsRequest,
+    ListRequestsResponse, LookUpMovieRequest, LookUpShowRequest, MovieHit, Permission,
+    PluginServiceClient, Quality, RefusalReason, Request, RequestServiceClient, RequestState,
+    RetryRequestRequest, SearchMoviesRequest, SearchShowsRequest, SetDefaultQualityRequest,
+    TitleKind, UpdatePluginSettingsRequest, WithdrawFollowedShowRequest, event,
+    request::MovieOrSeason, setting_value,
 };
 use nama_server::{
     config::{Config, PluginConfig},

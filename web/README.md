@@ -44,7 +44,7 @@ How strict they are:
 
 ## Generated client
 
-`src/gen/` holds the TypeScript messages and service descriptors that `protoc-gen-es` generates from `proto/` (ADR 0007). Like the Rust code in `crates/nama-proto`, it's checked in, and CI's `lint` job fails if it's stale. After changing the schema, run `vp install` here (that installs the plugin), then `buf generate` in `proto/`. Calls go through `@connectrpc/connect-query` with the generated descriptors, so there's no `protoc-gen-connect-query`.
+`src/gen/` holds the TypeScript messages and service descriptors that `protoc-gen-es` generates from `proto/` (ADR 0007). It holds the client API only, not the Plugin contract. Like the Rust code in `crates/nama-proto`, it's checked in, and CI's `lint` job fails if it's stale. After changing the schema, run `vp install` here (that installs the plugin), then `buf generate` in `proto/`. Calls go through `@connectrpc/connect-query` with the generated descriptors, so there's no `protoc-gen-connect-query`.
 
 ## Running against a Server
 

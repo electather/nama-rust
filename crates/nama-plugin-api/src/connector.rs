@@ -8,7 +8,7 @@
 //! registrar.provide::<dyn Connector>(Priority::DEFAULT, Arc::new(my_connector));
 //! ```
 
-pub use nama_proto::nama::plugin::v1::ConnectionStarted;
+pub use nama_plugin_proto::nama::plugin::v1::ConnectionStarted;
 
 use crate::{BoxFuture, PluginError};
 

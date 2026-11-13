@@ -22,15 +22,13 @@ use std::{
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use log::Log;
 use nama_plugin_api::PluginId;
-use nama_proto::{
-    NAMA_API_VERSION,
-    nama::v1::{
-        CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
-        GetPluginRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest, Plugin,
-        PluginKind, PluginServiceClient, PluginSummary, RefusalReason, ScanLibraryRequest,
-        SettingValue, TestPluginSettingsRequest, TestPluginSettingsResponse,
-        UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, setting_value::Value,
-    },
+use nama_plugin_proto::CONTRACT_VERSION;
+use nama_proto::nama::v1::{
+    CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
+    GetPluginRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind,
+    PluginServiceClient, PluginSummary, RefusalReason, ScanLibraryRequest, SettingValue,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
+    UpdatePluginSettingsResponse, setting_value::Value,
 };
 use nama_server::{
     config::Config,
@@ -407,7 +405,7 @@ async fn a_plugin_built_for_nama_api_0_1_is_refused_naming_the_version() {
     let listed = started.listed("old.wasm").await.unwrap();
     assert_eq!(
         listed.refused_reason,
-        format!("it wants nama-api ^0.1.0, and this Server has {NAMA_API_VERSION}")
+        format!("it wants nama-api ^0.1.0, and this Server has {CONTRACT_VERSION}")
     );
 }
 

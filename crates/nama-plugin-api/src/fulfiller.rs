@@ -14,7 +14,7 @@
 
 use std::collections::HashMap;
 
-pub use nama_proto::nama::plugin::v1::{
+pub use nama_plugin_proto::nama::plugin::v1::{
     EpisodeNumber, EpisodeNumbers, Fulfilled, ShowDeleted, StopMonitoring, show_deleted,
     stop_monitoring,
 };

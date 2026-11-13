@@ -4,10 +4,8 @@ use nama_plugin_api::{
     notifier::Notification,
     settings::{SettingKind, SettingValue},
 };
-use nama_proto::nama::{
-    plugin::v1::{self as wire, setting_value::Value},
-    v1::{self as api, request::MovieOrSeason},
-};
+use nama_plugin_proto::nama::plugin::v1::{self as wire, setting_value::Value};
+use nama_proto::nama::v1::{self as api, request::MovieOrSeason};
 
 use super::{
     download, event, notification, observed, request, request_state, setting_kind, setting_value,

@@ -10,7 +10,8 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-hub`](crates/nama-hub) | The Hub: Accounts and Server discovery |
 | [`crates/nama-plugin-api`](crates/nama-plugin-api) | Extension Point traits through which Plugins take part in a Server |
 | [`crates/nama-pdk`](crates/nama-pdk) | Plugin development kit for Installed Plugins |
-| [`crates/nama-proto`](crates/nama-proto) | Rust types and ConnectRPC stubs generated from `proto/` |
+| [`crates/nama-proto`](crates/nama-proto) | Rust types and ConnectRPC stubs generated from the client API in `proto/nama/v1/` |
+| [`crates/nama-plugin-proto`](crates/nama-plugin-proto) | Rust types generated from the Plugin contract in `proto/nama/plugin/`, and its version |
 | [`crates/nama-test-plugin`](crates/nama-test-plugin) | An Installed Plugin used only in the Server's tests |
 | [`crates/nama-test-report`](crates/nama-test-report) | CI tooling: records test results and reports flaky and slow tests |
 | [`plugins/`](plugins) | Built-in Plugins, the Installed Plugins the Server bundles, and the libraries they share |
@@ -73,7 +74,7 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the following, 
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo clippy --workspace --locked -- -D warnings
-cargo clippy --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --package nama-servarr --target wasm32-unknown-unknown --locked -- -D warnings
+cargo clippy --package nama-plugin-proto --package nama-test-plugin --package nama-plugin-radarr --package nama-plugin-sonarr --package nama-plugin-telegram --package nama-servarr --target wasm32-unknown-unknown --locked -- -D warnings
 cargo nextest run --workspace --locked
 cargo test --workspace --doc --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
@@ -102,7 +103,7 @@ git show origin/test-history:2026-11.jsonl | jq -c 'select(.outcome != "pass")'
 
 ## License
 
-The Server, Hub, `nama-plugin-api` and Built-in Plugins are AGPL-3.0-only ([`LICENSE`](LICENSE)). The contracts that others build against, `nama-proto`, `nama-pdk` and `proto/`, are MIT OR Apache-2.0 (ADR 0009). Each crate's `Cargo.toml` states its license.
+The Server, Hub, `nama-plugin-api` and Built-in Plugins are AGPL-3.0-only ([`LICENSE`](LICENSE)). The contracts that others build against, `nama-proto`, `nama-plugin-proto`, `nama-pdk` and `proto/`, are MIT OR Apache-2.0 (ADR 0009). Each crate's `Cargo.toml` states its license.
 
 ## Attribution
 

@@ -2070,13 +2070,14 @@ version = "0.1.0"
 dependencies = [
  "buffa",
  "extism-pdk",
- "nama-proto",
+ "nama-plugin-proto",
 ]
 
 [[package]]
 name = "nama-plugin-api"
 version = "0.1.0"
 dependencies = [
+ "nama-plugin-proto",
  "nama-proto",
  "serde",
  "url",
@@ -2099,6 +2100,14 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "nama-plugin-proto"
+version = "0.1.0"
+dependencies = [
+ "buffa",
+ "serde",
 ]
 
 [[package]]
@@ -2196,6 +2205,7 @@ dependencies = [
  "nama-plugin-api",
  "nama-plugin-local-auth",
  "nama-plugin-log-events",
+ "nama-plugin-proto",
  "nama-plugin-test-choices",
  "nama-plugin-tmdb",
  "nama-proto",

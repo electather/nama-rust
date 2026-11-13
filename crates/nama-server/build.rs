@@ -72,7 +72,7 @@ fn build_bundled() -> Result<(), Box<dyn Error>> {
     let workspace = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("../..");
     let sources = [
         "crates/nama-pdk",
-        "crates/nama-proto",
+        "crates/nama-plugin-proto",
         "plugins/servarr",
         "Cargo.toml",
         "Cargo.lock",

@@ -8,8 +8,8 @@ use nama_plugin_api::{
     notifier::Notifier,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
-use nama_proto::{
-    NAMA_API_VERSION,
+use nama_plugin_proto::{
+    CONTRACT_VERSION,
     nama::plugin::v1::{self as wire, Manifest, ObservePoint, ProvidePoint, setting_value},
 };
 
@@ -211,7 +211,7 @@ fn notifier() -> Manifest {
         name: "Test Plugin".to_owned(),
         description: "Stands in for an Installed Plugin.".to_owned(),
         version: "0.1.0".to_owned(),
-        nama_api: format!("^{NAMA_API_VERSION}"),
+        nama_api: format!("^{CONTRACT_VERSION}"),
         providers: vec![ProvidePoint::PROVIDE_POINT_NOTIFIER.into()],
         logo_svg: r#"<svg xmlns="http://www.w3.org/2000/svg"/>"#.to_owned(),
         ..Default::default()
@@ -303,7 +303,7 @@ fn a_manifest_for_another_nama_api_is_refused_for_that_before_the_rest_is_decode
     assert_eq!(
         refusals,
         [
-            format!("it wants nama-api ^0.1.0, and this Server has {NAMA_API_VERSION}"),
+            format!("it wants nama-api ^0.1.0, and this Server has {CONTRACT_VERSION}"),
             r#"its nama-api requirement "one" isn't a semver requirement: unexpected character 'o' while parsing major version number"#.to_owned(),
         ]
         .map(Some)
