@@ -3,8 +3,9 @@
 //! `nama.plugin.v1.Manifest` is [`nama::plugin::v1::Manifest`]. The contract imports nothing from
 //! the client API, which lives in `nama-proto`.
 //!
-//! Beyond its messages, the Kernel gives an Installed Plugin the `now` function in the `nama`
-//! namespace, which returns the time, and up to 128 MiB of memory per call; a call past that fails.
+//! [`CONTRACT_VERSION`] also covers what the Kernel gives an Installed Plugin beyond its messages:
+//! the `now` function in the Wasm import namespace `nama`, the limits on one call's memory and time,
+//! its settings and HTTP. The README's "What the Kernel gives a Plugin" section lists them.
 //!
 //! The code under `src/generated/` is checked in and comes from `buf generate`; see the README.
 
