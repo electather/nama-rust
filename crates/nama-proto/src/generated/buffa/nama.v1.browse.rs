@@ -409,8 +409,8 @@ pub struct Movie {
     )]
     pub watch_state: ::buffa::MessageField<WatchState, ::buffa::Inline<WatchState>>,
     /// Whether `poster_url` is a Custom Image, which `DELETE /custom-images/movie/<id>/poster`
-    /// removes, `<id>` being `id` as `tmdb-348`, `imdb-tt0078748` or `tvdb-81189`. `PUT` there
-    /// uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
+    /// removes, `<id>` being `id` as `<namespace>-<value>`, the value percent-encoded, such as
+    /// `tmdb-348`. `PUT` there uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
     ///
     /// Field 11: `custom_poster`
     #[serde(

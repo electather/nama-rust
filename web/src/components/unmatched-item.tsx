@@ -180,7 +180,7 @@ function Candidates({
       <ul aria-label="Titles found" className="-mx-3 flex flex-col">
         {candidates.map((candidate) => (
           <CandidateRow
-            key={`${candidate.id?.id.case}:${candidate.id?.id.value}`}
+            key={`${candidate.id?.namespace}:${candidate.id?.value}`}
             candidate={candidate}
             pending={setMatch.isPending}
             onMatch={() => {

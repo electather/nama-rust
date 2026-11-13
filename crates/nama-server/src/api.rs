@@ -11,8 +11,8 @@ use axum::{
 use buffa::MessageName;
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, ErrorCode, ErrorDetail, RequestContext, Response};
-use nama_plugin_api::metadata::{ExternalId, IMDB, TMDB, TVDB, TitleKind};
-use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason, external_id};
+use nama_plugin_api::metadata::{ExternalId, TitleKind};
+use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason};
 
 use crate::{
     artwork::{self, Artwork},
@@ -463,13 +463,17 @@ fn title_kind_from_proto(kind: EnumValue<proto::TitleKind>) -> Result<TitleKind,
     }
 }
 
-/// The id `id` names. `None` for an empty IMDb id, which names nothing.
-fn external_id_from_proto(id: external_id::Id) -> Option<ExternalId> {
-    match id {
-        external_id::Id::Tmdb(id) => Some(ExternalId::tmdb(id)),
-        external_id::Id::Imdb(id) => ExternalId::new(IMDB, id).ok(),
-        external_id::Id::Tvdb(id) => Some(ExternalId::tvdb(id)),
-    }
+/// The Kernel's id for `id`, which a request names in `field`: refused when its namespace isn't
+/// lowercase ASCII letters and digits or its value is empty.
+fn external_id_from_proto(id: proto::ExternalId, field: &str) -> Result<ExternalId, ConnectError> {
+    ExternalId::new(&id.namespace, id.value).map_err(|error| {
+        refuse(
+            RefusalReason::REFUSAL_REASON_TITLE_ID_MALFORMED,
+            format!("the title's id is malformed: {error}"),
+        )
+        .field(field)
+        .into()
+    })
 }
 
 /// A season or episode number as a proto `uint32`. A scan parses them from digits, so they are
@@ -484,29 +488,22 @@ fn required_id(
     field: &str,
     what: &str,
 ) -> Result<ExternalId, ConnectError> {
-    id.and_then(|id| id.id)
-        .and_then(external_id_from_proto)
-        .ok_or_else(|| {
-            refuse(
-                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                format!("the {what}'s id is missing"),
-            )
-            .field(field)
-            .into()
-        })
+    // An id with neither part set is one the client left out.
+    match id.filter(|id| !id.namespace.is_empty() || !id.value.is_empty()) {
+        Some(id) => external_id_from_proto(id, field),
+        None => Err(refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            format!("the {what}'s id is missing"),
+        )
+        .field(field)
+        .into()),
+    }
 }
 
 fn external_id_to_proto(id: &ExternalId) -> proto::ExternalId {
-    // The proto still has a field per well-known namespace: an id it can't hold goes as none.
-    let number = id.value().parse();
-    let id = match (id.namespace(), number) {
-        (TMDB, Ok(number)) => Some(external_id::Id::Tmdb(number)),
-        (TVDB, Ok(number)) => Some(external_id::Id::Tvdb(number)),
-        (IMDB, _) => Some(external_id::Id::Imdb(id.value().to_owned())),
-        _ => None,
-    };
     proto::ExternalId {
-        id,
+        namespace: id.namespace().to_owned(),
+        value: id.value().to_owned(),
         ..Default::default()
     }
 }
@@ -558,7 +555,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_PAGE_TOKEN_INVALID
         | R::REFUSAL_REASON_SHOW_HAS_QUALITY
         | R::REFUSAL_REASON_GPU_NOT_OFFERED
-        | R::REFUSAL_REASON_UNKNOWN_LANGUAGE => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_UNKNOWN_LANGUAGE
+        | R::REFUSAL_REASON_TITLE_ID_MALFORMED => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD

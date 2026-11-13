@@ -48,16 +48,15 @@ enum TitleKind {
   TITLE_KIND_SHOW = 2;
 }
 
-// An id of a title in a metadata source. Movies and Shows have separate id spaces.
+// An id of a title in a metadata source: a namespace and a value, such as `tmdb` and `603`.
+// Movies and Shows have separate id spaces.
 message ExternalId {
-  oneof id {
-    // A TMDB id.
-    int64 tmdb = 1;
-    // An IMDb id, such as `tt0078748`.
-    string imdb = 2;
-    // A TVDB id.
-    int64 tvdb = 3;
-  }
+  reserved 1, 2, 3;
+  reserved "tmdb", "imdb", "tvdb";
+  // Who defines the value: lowercase ASCII letters and digits, such as `tmdb`, `imdb` or `tvdb`.
+  string namespace = 4;
+  // The id there. Never empty; the Server passes it on without reading it.
+  string value = 5;
 }
 
 // A title a search found.

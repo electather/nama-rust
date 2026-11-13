@@ -16,7 +16,7 @@ use nama_proto::nama::v1::{
     ExternalId, GetRequestRequest, LibraryKind, ListEpisodesRequest, ListMoviesRequest,
     ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, MatchServiceClient, RefusalReason,
     RequestServiceClient, RequestState, SearchMetadataRequest, SetMatchRequest, SetMatchResponse,
-    TitleCandidate, TitleKind, UnmatchedItem, UnmatchedReason, external_id,
+    TitleCandidate, TitleKind, UnmatchedItem, UnmatchedReason,
 };
 use refused::assert_refused;
 use server::{Builder, Library, TestServer};
@@ -119,11 +119,19 @@ impl Fixture {
     }
 
     async fn set_match(&self, item: i64, tmdb: i64) -> Result<SetMatchResponse, ConnectError> {
+        self.set_match_to(item, tmdb_id(tmdb)).await
+    }
+
+    async fn set_match_to(
+        &self,
+        item: i64,
+        title: ExternalId,
+    ) -> Result<SetMatchResponse, ConnectError> {
         Ok(self
             .matches
             .set_match(SetMatchRequest {
                 item_id: item,
-                title_id: tmdb_id(tmdb).into(),
+                title_id: title.into(),
                 ..Default::default()
             })
             .await?
@@ -159,8 +167,13 @@ impl Fixture {
 }
 
 fn tmdb_id(id: i64) -> ExternalId {
+    title_id("tmdb", &id.to_string())
+}
+
+fn title_id(namespace: &str, value: &str) -> ExternalId {
     ExternalId {
-        id: Some(external_id::Id::Tmdb(id)),
+        namespace: namespace.to_owned(),
+        value: value.to_owned(),
         ..Default::default()
     }
 }
@@ -224,8 +237,12 @@ async fn search_metadata_passes_the_search_to_the_metadata_provider() {
 
     let best = &response.candidates[0];
     assert_eq!(
-        (best.id.id.clone(), best.title.as_str(), best.year),
-        (Some(external_id::Id::Tmdb(348)), "Alien", Some(1979))
+        (
+            best.id.clone().into_option(),
+            best.title.as_str(),
+            best.year
+        ),
+        (Some(tmdb_id(348)), "Alien", Some(1979))
     );
 }
 
@@ -374,6 +391,56 @@ async fn set_match_to_a_title_tmdb_does_not_have_is_invalid() {
     assert_eq!(refusal.field, "title_id");
     let title_id = refusal.params.get("titleId").map(String::as_str);
     assert_eq!(title_id, Some("tmdb-1"));
+}
+
+#[tokio::test]
+async fn set_match_to_an_id_of_a_namespace_tmdb_does_not_know_is_an_unknown_title() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_MOVIES, VIDEO);
+    let item = fx.scan_and_match().await[HOME_MOVIES];
+
+    let refused = fx.set_match_to(item, title_id("anidb", "123")).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+    );
+    assert_eq!(refusal.field, "title_id");
+}
+
+#[tokio::test]
+async fn set_match_to_a_malformed_id_is_invalid() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_MOVIES, VIDEO);
+    let item = fx.scan_and_match().await[HOME_MOVIES];
+
+    for (namespace, value) in [("Tmdb", "603"), ("", "603"), ("tmdb", "")] {
+        let refused = fx.set_match_to(item, title_id(namespace, value)).await;
+
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_TITLE_ID_MALFORMED,
+        );
+        assert_eq!(refusal.field, "title_id", "{namespace:?} {value:?}");
+    }
+}
+
+#[tokio::test]
+async fn set_match_to_an_id_with_neither_part_is_missing_a_title() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_MOVIES, VIDEO);
+    let item = fx.scan_and_match().await[HOME_MOVIES];
+
+    let refused = fx.set_match_to(item, title_id("", "")).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "title_id");
 }
 
 #[tokio::test]

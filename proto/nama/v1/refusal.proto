@@ -220,4 +220,7 @@ enum RefusalReason {
   // key its service turned down, so it stays disabled. The message says why in the Plugin's words.
   // `field` is `id`. Params: `pluginId`, `reason`.
   REFUSAL_REASON_PLUGIN_REFUSED_TO_START = 65;
+  // `invalid_argument`: a title's id has a namespace that isn't lowercase ASCII letters and
+  // digits, or an empty value. `field` names the id.
+  REFUSAL_REASON_TITLE_ID_MALFORMED = 70;
 }

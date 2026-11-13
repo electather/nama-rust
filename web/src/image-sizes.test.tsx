@@ -12,8 +12,8 @@ afterEach(cleanup);
 const poster = "/media/artwork/tmdb/%2Fposter.jpg";
 const backdrop = "/media/artwork/tmdb/%2Fbackdrop.jpg";
 const heatPoster = "/media/artwork/tmdb/%2Fheat.jpg";
-const alien = { id: { case: "tmdb" as const, value: 348n } };
-const heat = { id: { case: "tmdb" as const, value: 949n } };
+const alien = { namespace: "tmdb", value: "348" };
+const heat = { namespace: "tmdb", value: "949" };
 /** A grey 2 by 3 image's thumbhash. */
 const thumbhash = rgbaToThumbHash(2, 3, new Uint8Array(2 * 3 * 4).fill(128));
 

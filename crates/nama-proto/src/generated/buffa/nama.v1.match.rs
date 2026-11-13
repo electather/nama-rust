@@ -314,20 +314,40 @@ impl ::buffa::Enumeration for UnmatchedReason {
         ]
     }
 }
-/// An id of a title in a metadata source. Movies and Shows have separate id spaces.
+/// An id of a title in a metadata source: a namespace and a value, such as `tmdb` and `603`.
+/// Movies and Shows have separate id spaces.
 #[derive(Clone, PartialEq, Default)]
-#[derive(::serde::Serialize)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ExternalId {
-    #[serde(flatten)]
-    pub id: ::core::option::Option<__buffa::oneof::external_id::Id>,
+    /// Who defines the value: lowercase ASCII letters and digits, such as `tmdb`, `imdb` or `tvdb`.
+    ///
+    /// Field 4: `namespace`
+    #[serde(
+        rename = "namespace",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub namespace: ::buffa::alloc::string::String,
+    /// The id there. Never empty; the Server passes it on without reading it.
+    ///
+    /// Field 5: `value`
+    #[serde(
+        rename = "value",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub value: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ExternalId {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ExternalId").field("id", &self.id).finish()
+        f.debug_struct("ExternalId")
+            .field("namespace", &self.namespace)
+            .field("value", &self.value)
+            .finish()
     }
 }
 impl ExternalId {
@@ -357,18 +377,11 @@ impl ::buffa::Message for ExternalId {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if let ::core::option::Option::Some(ref v) = self.id {
-            match v {
-                __buffa::oneof::external_id::Id::Tmdb(v) => {
-                    size += 1u64 + ::buffa::types::int64_encoded_len(*v) as u64;
-                }
-                __buffa::oneof::external_id::Id::Imdb(x) => {
-                    size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
-                }
-                __buffa::oneof::external_id::Id::Tvdb(v) => {
-                    size += 1u64 + ::buffa::types::int64_encoded_len(*v) as u64;
-                }
-            }
+        if !self.namespace.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.namespace) as u64;
+        }
+        if !self.value.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.value) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -380,18 +393,11 @@ impl ::buffa::Message for ExternalId {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if let ::core::option::Option::Some(ref v) = self.id {
-            match v {
-                __buffa::oneof::external_id::Id::Tmdb(x) => {
-                    ::buffa::types::put_int64_field(1u32, *x, buf);
-                }
-                __buffa::oneof::external_id::Id::Imdb(x) => {
-                    ::buffa::types::put_string_field(2u32, x, buf);
-                }
-                __buffa::oneof::external_id::Id::Tvdb(x) => {
-                    ::buffa::types::put_int64_field(3u32, *x, buf);
-                }
-            }
+        if !self.namespace.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.namespace, buf);
+        }
+        if !self.value.is_empty() {
+            ::buffa::types::put_string_field(5u32, &self.value, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -406,38 +412,19 @@ impl ::buffa::Message for ExternalId {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.id = ::core::option::Option::Some(
-                    __buffa::oneof::external_id::Id::Tmdb(
-                        ::buffa::types::decode_int64(buf)?,
-                    ),
-                );
-            }
-            2u32 => {
+            4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                self.id = ::core::option::Option::Some(
-                    __buffa::oneof::external_id::Id::Imdb(
-                        ::buffa::types::decode_string(buf)?,
-                    ),
-                );
+                ::buffa::types::merge_string(&mut self.namespace, buf)?;
             }
-            3u32 => {
+            5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
-                    ::buffa::encoding::WireType::Varint,
+                    ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                self.id = ::core::option::Option::Some(
-                    __buffa::oneof::external_id::Id::Tvdb(
-                        ::buffa::types::decode_int64(buf)?,
-                    ),
-                );
+                ::buffa::types::merge_string(&mut self.value, buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -447,7 +434,8 @@ impl ::buffa::Message for ExternalId {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id = ::core::option::Option::None;
+        self.namespace.clear();
+        self.value.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -458,116 +446,6 @@ impl ::buffa::ExtensionSet for ExternalId {
     }
     fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
         &mut self.__buffa_unknown_fields
-    }
-}
-impl<'de> ::serde::Deserialize<'de> for ExternalId {
-    fn deserialize<D: ::serde::Deserializer<'de>>(
-        d: D,
-    ) -> ::core::result::Result<Self, D::Error> {
-        struct _V;
-        impl<'de> ::serde::de::Visitor<'de> for _V {
-            type Value = ExternalId;
-            fn expecting(
-                &self,
-                f: &mut ::core::fmt::Formatter<'_>,
-            ) -> ::core::fmt::Result {
-                f.write_str("struct ExternalId")
-            }
-            #[allow(clippy::field_reassign_with_default)]
-            fn visit_map<A: ::serde::de::MapAccess<'de>>(
-                self,
-                mut map: A,
-            ) -> ::core::result::Result<ExternalId, A::Error> {
-                let mut __oneof_id: ::core::option::Option<
-                    __buffa::oneof::external_id::Id,
-                > = None;
-                while let Some(key) = map.next_key::<::buffa::alloc::string::String>()? {
-                    match key.as_str() {
-                        "tmdb" => {
-                            struct _DeserSeed;
-                            impl<'de> ::serde::de::DeserializeSeed<'de> for _DeserSeed {
-                                type Value = i64;
-                                fn deserialize<D: ::serde::Deserializer<'de>>(
-                                    self,
-                                    d: D,
-                                ) -> ::core::result::Result<i64, D::Error> {
-                                    ::buffa::json_helpers::int64::deserialize(d)
-                                }
-                            }
-                            let v: ::core::option::Option<i64> = map
-                                .next_value_seed(
-                                    ::buffa::json_helpers::NullableDeserializeSeed(_DeserSeed),
-                                )?;
-                            if let Some(v) = v {
-                                if __oneof_id.is_some() {
-                                    return Err(
-                                        ::serde::de::Error::custom(
-                                            "multiple oneof fields set for 'id'",
-                                        ),
-                                    );
-                                }
-                                __oneof_id = Some(__buffa::oneof::external_id::Id::Tmdb(v));
-                            }
-                        }
-                        "imdb" => {
-                            let v: ::core::option::Option<
-                                ::buffa::alloc::string::String,
-                            > = map
-                                .next_value_seed(
-                                    ::buffa::json_helpers::NullableDeserializeSeed(
-                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
-                                            ::buffa::alloc::string::String,
-                                        >::new(),
-                                    ),
-                                )?;
-                            if let Some(v) = v {
-                                if __oneof_id.is_some() {
-                                    return Err(
-                                        ::serde::de::Error::custom(
-                                            "multiple oneof fields set for 'id'",
-                                        ),
-                                    );
-                                }
-                                __oneof_id = Some(__buffa::oneof::external_id::Id::Imdb(v));
-                            }
-                        }
-                        "tvdb" => {
-                            struct _DeserSeed;
-                            impl<'de> ::serde::de::DeserializeSeed<'de> for _DeserSeed {
-                                type Value = i64;
-                                fn deserialize<D: ::serde::Deserializer<'de>>(
-                                    self,
-                                    d: D,
-                                ) -> ::core::result::Result<i64, D::Error> {
-                                    ::buffa::json_helpers::int64::deserialize(d)
-                                }
-                            }
-                            let v: ::core::option::Option<i64> = map
-                                .next_value_seed(
-                                    ::buffa::json_helpers::NullableDeserializeSeed(_DeserSeed),
-                                )?;
-                            if let Some(v) = v {
-                                if __oneof_id.is_some() {
-                                    return Err(
-                                        ::serde::de::Error::custom(
-                                            "multiple oneof fields set for 'id'",
-                                        ),
-                                    );
-                                }
-                                __oneof_id = Some(__buffa::oneof::external_id::Id::Tvdb(v));
-                            }
-                        }
-                        _ => {
-                            map.next_value::<::serde::de::IgnoredAny>()?;
-                        }
-                    }
-                }
-                let mut __r = <ExternalId as ::core::default::Default>::default();
-                __r.id = __oneof_id;
-                Ok(__r)
-            }
-        }
-        d.deserialize_map(_V)
     }
 }
 impl ::buffa::json_helpers::ProtoElemJson for ExternalId {
@@ -590,14 +468,6 @@ pub const __EXTERNAL_ID_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
     from_json: ::buffa::type_registry::any_from_json::<ExternalId>,
     is_wkt: false,
 };
-pub mod external_id {
-    #[allow(unused_imports)]
-    use super::*;
-    #[doc(inline)]
-    pub use super::__buffa::oneof::external_id::Id;
-    #[doc(inline)]
-    pub use super::__buffa::view::oneof::external_id::Id as IdView;
-}
 /// A title a search found.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]

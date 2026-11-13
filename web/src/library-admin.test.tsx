@@ -65,7 +65,7 @@ test("setting a Match takes the Item off Needs a Match", async () => {
       router.service(MatchService, {
         listUnmatchedItems: () => ({ items }),
         searchMetadata: () => ({
-          candidates: [{ id: { id: { case: "tmdb", value: 348n } }, title: "Alien", year: 1979 }],
+          candidates: [{ id: { namespace: "tmdb", value: "348" }, title: "Alien", year: 1979 }],
         }),
         setMatch: ({ itemId }) => {
           items = [];

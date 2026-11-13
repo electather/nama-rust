@@ -15,7 +15,7 @@ import { fakeServer, newUser, openApp } from "./test-app";
 
 afterEach(cleanup);
 
-const alien = { case: "tmdb", value: 348n } as const;
+const alien = { namespace: "tmdb", value: "348" } as const;
 
 /** A fake Server with a Movies Library (1) and a Shows Library (2). */
 function server(
@@ -59,7 +59,7 @@ test("a Movie's Continue Watching card resumes it, with how much is left", async
     movieOrEpisode: {
       case: "movie",
       value: {
-        id: { id: alien },
+        id: alien,
         title: "Alien",
         backdropUrl: "/media/artwork/tmdb/%2Falien-backdrop.jpg",
         watchState: { positionMs: 1_800_000n, durationMs: 6_120_000n },
@@ -78,7 +78,7 @@ test("a Movie's Continue Watching card resumes it, with how much is left", async
 
 test("a Season 2 Episode's card shows its Show's Backdrop, not a Season's Poster", async () => {
   const dark = {
-    id: { id: { case: "tmdb", value: 70523n } },
+    id: { namespace: "tmdb", value: "70523" },
     title: "Dark",
     posterUrl: "/media/artwork/tmdb/%2Fdark-season-1.jpg",
     backdropUrl: "/media/artwork/tmdb/%2Fdark-backdrop.jpg",
@@ -95,7 +95,7 @@ test("a Season 2 Episode's card shows its Show's Backdrop, not a Season's Poster
 });
 
 test("a Special without a Backdrop shows the placeholder with its Show's title", async () => {
-  const severance = { id: { id: { case: "tmdb", value: 95396n } }, title: "Severance" } as const;
+  const severance = { id: { namespace: "tmdb", value: "95396" }, title: "Severance" } as const;
   openHome(episodeEntry(severance, 0, 1, { positionMs: 1n, durationMs: 60_000n }));
 
   const card = await screen.findByRole("link", { name: /Severance/u });
@@ -118,7 +118,7 @@ test("marking a Season played marks each of its Episodes played", async () => {
       getShow: () => ({ show: { title: "Severance" }, seasons: [{ number: 1 }] }),
       listEpisodes: () => ({
         episodes: [1, 2].map((episodeNumber) => ({
-          id: { id: { case: "tmdb", value: BigInt(episodeNumber) } },
+          id: { namespace: "tmdb", value: String(episodeNumber) },
           seasonNumber: 1,
           episodeNumber,
           title: `Episode ${episodeNumber}`,

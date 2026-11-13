@@ -10,6 +10,7 @@ import {
   SubscribeResponseSchema,
 } from "@/gen/nama/v1/event_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
+import { externalIdFromParam, titleParam } from "@/lib/browse";
 
 import { fakeServer, newUser, openApp } from "./test-app";
 
@@ -29,6 +30,23 @@ function serverToBrowse(
     if (events) router.service(EventService, { subscribe: () => events });
   });
 }
+
+test("a title's id round-trips through its URL form, the value percent-encoded", () => {
+  for (const [param, namespace, value] of [
+    ["tmdb-603", "tmdb", "603"],
+    ["anidb-a%2Fb", "anidb", "a/b"],
+  ] as const) {
+    const id = externalIdFromParam(param);
+    expect([id.namespace, id.value]).toStrictEqual([namespace, value]);
+    expect(titleParam(id)).toBe(param);
+  }
+});
+
+test("a malformed title id in the URL is not found", () => {
+  for (const param of ["TMDB-1", "tmdb-", "tmdb-%"]) {
+    expect(() => externalIdFromParam(param)).toThrow(expect.objectContaining({ isNotFound: true }));
+  }
+});
 
 test("an empty Library says so", async () => {
   openApp("/libraries/1", serverToBrowse({ listMovies: () => ({ movies: [] }) }));
@@ -90,7 +108,7 @@ test("a Library's page shows a Movie as soon as it's Matched", async () => {
   openApp("/libraries/1", serverToBrowse({ listMovies: () => ({ movies: listed }) }, events()));
   await screen.findByText("Nothing in this Library yet");
 
-  listed.push({ id: { id: { case: "tmdb", value: 348n } }, title: "Alien" });
+  listed.push({ id: { namespace: "tmdb", value: "348" }, title: "Alien" });
   match?.();
 
   expect(await screen.findByText("Alien")).toBeDefined();

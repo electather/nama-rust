@@ -188,6 +188,9 @@ pub enum RefusalReason {
     /// key its service turned down, so it stays disabled. The message says why in the Plugin's words.
     /// `field` is `id`. Params: `pluginId`, `reason`.
     REFUSAL_REASON_PLUGIN_REFUSED_TO_START = 65i32,
+    /// `invalid_argument`: a title's id has a namespace that isn't lowercase ASCII letters and
+    /// digits, or an empty value. `field` names the id.
+    REFUSAL_REASON_TITLE_ID_MALFORMED = 70i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -388,6 +391,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const PluginRefusedToStart: Self = Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_TITLE_ID_MALFORMED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const TitleIdMalformed: Self = Self::REFUSAL_REASON_TITLE_ID_MALFORMED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -621,6 +627,9 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
                 )
             }
+            70i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_ID_MALFORMED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -750,6 +759,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_UNKNOWN_LANGUAGE => "REFUSAL_REASON_UNKNOWN_LANGUAGE",
             Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START => {
                 "REFUSAL_REASON_PLUGIN_REFUSED_TO_START"
+            }
+            Self::REFUSAL_REASON_TITLE_ID_MALFORMED => {
+                "REFUSAL_REASON_TITLE_ID_MALFORMED"
             }
         }
     }
@@ -969,6 +981,9 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
                 )
             }
+            "REFUSAL_REASON_TITLE_ID_MALFORMED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_ID_MALFORMED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1040,6 +1055,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_FOLDER_READ_ONLY,
             Self::REFUSAL_REASON_UNKNOWN_LANGUAGE,
             Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
+            Self::REFUSAL_REASON_TITLE_ID_MALFORMED,
         ]
     }
 }

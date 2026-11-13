@@ -29,15 +29,15 @@ const searchLibraries: ServiceImpl<typeof BrowseService>["searchLibraries"] = ({
         shows: [
           {
             libraryId: 2n,
-            id: { id: { case: "tmdb", value: theOffice.tmdb } },
+            id: { namespace: "tmdb", value: String(theOffice.tmdb) },
             title: "The Office",
           },
         ],
         episodes: [
           {
             libraryId: 2n,
-            id: { id: { case: "tmdb", value: 9001n } },
-            showId: { id: { case: "tmdb", value: theOffice.tmdb } },
+            id: { namespace: "tmdb", value: "9001" },
+            showId: { namespace: "tmdb", value: String(theOffice.tmdb) },
             showTitle: "The Office",
             seasonNumber: 2,
             episodeNumber: 1,

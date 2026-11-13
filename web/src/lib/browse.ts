@@ -2,7 +2,7 @@ import {
   type DescMessage,
   type DescMethodUnary,
   type MessageInitShape,
-  fromJson,
+  create,
 } from "@bufbuild/protobuf";
 import { Code } from "@connectrpc/connect";
 import { createConnectQueryKey, createQueryOptions } from "@connectrpc/connect-query";
@@ -67,17 +67,17 @@ export async function loadMovie(
   return input;
 }
 
-/** How a Movie's or Show's external id is written in a URL, such as `tmdb-603`. */
+/** How a Movie's or Show's id is written in a URL, such as `tmdb-603`: the value is encoded. */
 export function titleParam(id: ExternalId | undefined) {
-  return `${id?.id.case}-${id?.id.value}`;
+  return `${id?.namespace}-${encodeURIComponent(id?.value ?? "")}`;
 }
 
-/** The external id a `titleParam` in the URL names, or the router's not-found if it names none. */
+/** The id a `titleParam` names, after the router decodes it once; else the router's not-found. */
 export function externalIdFromParam(param: string) {
-  const [, source = "", value] = /^([a-z]+)-(.+)$/u.exec(param) ?? [];
+  const [, namespace, value] = /^([a-z0-9]+)-(.+)$/u.exec(param) ?? [];
   try {
-    // The JSON form, such as `{ "tmdb": "603" }`, refuses an unknown source or a malformed id.
-    return fromJson(ExternalIdSchema, { [source]: value ?? "" });
+    if (namespace === undefined || value === undefined) throw notFound();
+    return create(ExternalIdSchema, { namespace, value: decodeURIComponent(value) });
   } catch {
     throw notFound();
   }

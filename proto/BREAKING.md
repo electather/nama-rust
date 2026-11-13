@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-13, #0
+
+- `ONEOF_NO_DELETE`, `nama/v1/match.proto`: `ExternalId.id`.
+- A title's `ExternalId` is now a `namespace` (4) and a `value` (5), such as `tmdb` and `603`, in place of the oneof of `tmdb` (1), `imdb` (2) and `tvdb` (3), whose numbers and names are reserved (ADR 0042). The Server refuses an id with a malformed namespace or an empty value with `REFUSAL_REASON_TITLE_ID_MALFORMED`.
+- A client built before reads no id from a title and sends none the Server takes; it must regenerate and read and send an id as `namespace` and `value`. The web app is the only client.
+
 ## 2026-11-12, #727
 
 - None that `buf breaking` reports: `nama/v1/plugin.proto`'s `PluginSummary.logo_svg` (10) is deleted with its number and name reserved.

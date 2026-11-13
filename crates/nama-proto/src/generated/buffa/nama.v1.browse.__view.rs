@@ -48,8 +48,8 @@ pub struct MovieView<'a> {
         super::super::__buffa::view::WatchStateView<'a>,
     >,
     /// Whether `poster_url` is a Custom Image, which `DELETE /custom-images/movie/<id>/poster`
-    /// removes, `<id>` being `id` as `tmdb-348`, `imdb-tt0078748` or `tvdb-81189`. `PUT` there
-    /// uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
+    /// removes, `<id>` being `id` as `<namespace>-<value>`, the value percent-encoded, such as
+    /// `tmdb-348`. `PUT` there uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
     ///
     /// Field 11: `custom_poster`
     pub custom_poster: bool,
@@ -668,8 +668,8 @@ impl MovieOwnedView {
         &self.0.reborrow().watch_state
     }
     /// Whether `poster_url` is a Custom Image, which `DELETE /custom-images/movie/<id>/poster`
-    /// removes, `<id>` being `id` as `tmdb-348`, `imdb-tt0078748` or `tvdb-81189`. `PUT` there
-    /// uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
+    /// removes, `<id>` being `id` as `<namespace>-<value>`, the value percent-encoded, such as
+    /// `tmdb-348`. `PUT` there uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
     ///
     /// Field 11: `custom_poster`
     #[must_use]

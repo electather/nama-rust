@@ -15,9 +15,7 @@ use crate::{
     metadata::{self, MetadataSource},
 };
 
-use super::{
-    database_failed, external_id_from_proto, external_id_to_proto, refuse, title_kind_from_proto,
-};
+use super::{database_failed, external_id_to_proto, refuse, required_id, title_kind_from_proto};
 
 /// `nama.v1.MatchService`: fixing Matches by hand. Needs `PERMISSION_MANAGE_LIBRARIES`, which
 /// [`require_access`](super::require_access) enforces.
@@ -73,18 +71,7 @@ impl MatchService for MatchServiceHandler {
         request: ServiceRequest<'_, SetMatchRequest>,
     ) -> ServiceResult<SetMatchResponse> {
         let request = request.to_owned_message();
-        let title = request
-            .title_id
-            .into_option()
-            .and_then(|id| id.id)
-            .and_then(external_id_from_proto)
-            .ok_or_else(|| {
-                refuse(
-                    RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                    "the title to Match to is missing",
-                )
-                .field("title_id")
-            })?;
+        let title = required_id(request.title_id.into_option(), "title_id", "title")?;
         let summary = self.matcher.set_match(request.item_id, &title).await?;
         Response::ok(SetMatchResponse {
             matched: summary.matched,

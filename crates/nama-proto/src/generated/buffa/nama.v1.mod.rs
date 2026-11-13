@@ -44,7 +44,6 @@ pub mod __buffa {
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
-            include!("nama.v1.match.__view_oneof.rs");
             include!("nama.v1.watch_state.__view_oneof.rs");
             include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.plugin.__view_oneof.rs");
@@ -57,7 +56,6 @@ pub mod __buffa {
     pub mod oneof {
         #[allow(unused_imports)]
         use super::*;
-        include!("nama.v1.match.__oneof.rs");
         include!("nama.v1.watch_state.__oneof.rs");
         include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.plugin.__oneof.rs");
