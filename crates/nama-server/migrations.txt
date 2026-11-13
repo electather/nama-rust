@@ -57,3 +57,4 @@
 0059_match_pin_id.sql
 0060_request_title_ids.sql
 0061_followed_show_id.sql
+0062_request_failure_needs.sql

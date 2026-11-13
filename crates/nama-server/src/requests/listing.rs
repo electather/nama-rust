@@ -5,8 +5,8 @@ use std::{cmp::Reverse, collections::BTreeMap};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use nama_plugin_api::metadata;
 use nama_proto::nama::v1::{
-    ExternalId, FollowedShow, ListRequestsResponse, Permission, QualityChange, Request,
-    RequestState, RequestedMovie, RequestedSeason,
+    ExternalId, FollowedShow, ListRequestsResponse, Permission, QualityChange, Refusal,
+    RefusalReason, Request, RequestState, RequestedMovie, RequestedSeason,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
@@ -151,6 +151,10 @@ impl Requests {
 }
 
 /// A row of [`Requests::list`].
+#[expect(
+    clippy::large_enum_variant,
+    reason = "short-lived rows of one page, built and taken apart in one pass"
+)]
 enum Listed {
     Request(Request),
     Followed(FollowedShow),
@@ -246,7 +250,8 @@ pub(super) async fn load(
         r#"SELECT id AS "id!", title_id, season AS "season: u32", title, release_date,
                   (SELECT json_group_object(namespace, value) FROM request_title_ids
                    WHERE request_id = requests.id) AS "title_ids!: String",
-                  state, created_at, decline_reason, failure_reason, followed_show_id,
+                  state, created_at, decline_reason, failure_reason, failure_needs,
+                  followed_show_id,
                   fulfiller_plugin_id,
                   quality_id, quality_name, quality_profile_id, quality_changed_from,
                   quality_changed_at, quality_used_id, quality_used_name,
@@ -290,6 +295,10 @@ pub(super) async fn load(
             created_at: row.created_at,
             decline_reason: row.decline_reason,
             failure_reason: row.failure_reason,
+            failure: row
+                .failure_needs
+                .map(|needs| title_id_missing(row.fulfiller_plugin_id.as_deref(), needs))
+                .into(),
             followed_show_id: row.followed_show_id,
             fulfiller_plugin_id: row.fulfiller_plugin_id,
             quality: stored_quality(row.quality_id, row.quality_name, row.quality_profile_id)
@@ -314,6 +323,21 @@ pub(super) async fn load(
     }
     requests.retain(|request| may_see(requester, &request.requesters));
     Ok(requests)
+}
+
+/// Why the Kernel failed a Request without handing it to the Plugin `plugin`'s Fulfiller, which
+/// needs an id in one of the comma-separated `namespaces`.
+fn title_id_missing(plugin: Option<&str>, namespaces: String) -> Refusal {
+    Refusal {
+        reason: RefusalReason::REFUSAL_REASON_TITLE_ID_MISSING.into(),
+        params: [
+            ("pluginId".to_owned(), plugin.unwrap_or_default().to_owned()),
+            ("namespaces".to_owned(), namespaces),
+        ]
+        .into_iter()
+        .collect(),
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]

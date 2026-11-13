@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE requests SET state = ?1, failure_reason = NULL, failure_needs = NULL\n                 WHERE id = ?2 AND state != ?1 AND (?1 = 'available' OR state IN ('processing', 'partially_available'))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "adc3bd222fd0760808bba9e7392aebb31ed7e10808028026809810b6265c45be"
+}

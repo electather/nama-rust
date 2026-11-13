@@ -5,10 +5,10 @@ include!("nama.v1.watch_state.rs");
 include!("nama.v1.browse.rs");
 include!("nama.v1.playback.rs");
 include!("nama.v1.plugin.rs");
+include!("nama.v1.refusal.rs");
 include!("nama.v1.request.rs");
 include!("nama.v1.event.rs");
 include!("nama.v1.library.rs");
-include!("nama.v1.refusal.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
 include!("nama.v1.user.rs");
@@ -34,10 +34,10 @@ pub mod __buffa {
         include!("nama.v1.browse.__view.rs");
         include!("nama.v1.playback.__view.rs");
         include!("nama.v1.plugin.__view.rs");
+        include!("nama.v1.refusal.__view.rs");
         include!("nama.v1.request.__view.rs");
         include!("nama.v1.event.__view.rs");
         include!("nama.v1.library.__view.rs");
-        include!("nama.v1.refusal.__view.rs");
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
         include!("nama.v1.user.__view.rs");
@@ -153,6 +153,7 @@ pub mod __buffa {
         reg.register_json_any(super::__PLUGIN_JSON_ANY);
         reg.register_json_any(super::__SETTING_JSON_ANY);
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
+        reg.register_json_any(super::__REFUSAL_JSON_ANY);
         reg.register_json_any(super::__REQUEST_JSON_ANY);
         reg.register_json_any(super::__QUALITY_CHANGE_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_QUALITY_JSON_ANY);
@@ -270,7 +271,6 @@ pub mod __buffa {
         reg.register_json_any(super::__EPISODE_TAKEN_ALONG_JSON_ANY);
         reg.register_json_any(super::__MEDIA_FILE_JSON_ANY);
         reg.register_json_any(super::__FILE_NOT_DELETED_JSON_ANY);
-        reg.register_json_any(super::__REFUSAL_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_SETTINGS_REQUEST_JSON_ANY);
@@ -690,6 +690,10 @@ pub use self::__buffa::view::SettingOwnedView;
 pub use self::__buffa::view::SettingValueView;
 #[doc(inline)]
 pub use self::__buffa::view::SettingValueOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RefusalView;
+#[doc(inline)]
+pub use self::__buffa::view::RefusalOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestView;
 #[doc(inline)]
@@ -1158,10 +1162,6 @@ pub use self::__buffa::view::MediaFileOwnedView;
 pub use self::__buffa::view::FileNotDeletedView;
 #[doc(inline)]
 pub use self::__buffa::view::FileNotDeletedOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::RefusalView;
-#[doc(inline)]
-pub use self::__buffa::view::RefusalOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetServerInfoRequestView;
 #[doc(inline)]

@@ -292,7 +292,7 @@ async fn with_sonarr_down_a_request_fails_in_plain_words_and_retrying_once_it_is
 }
 
 #[tokio::test]
-async fn a_season_of_a_show_with_no_tvdb_id_fails_in_plain_words() {
+async fn a_season_of_a_show_with_no_tvdb_id_fails_in_plain_words_without_asking_sonarr() {
     let fixture = Fixture::with_sonarr_enabled().await;
     let ada = fixture.server.user_with_default_permissions("Ada").await;
     let pending = fixture.ask_pending(&ada, DARK, 1).await;
@@ -301,11 +301,20 @@ async fn a_season_of_a_show_with_no_tvdb_id_fails_in_plain_words() {
     let failed = fixture.server.approve(pending.id).await;
 
     assert_eq!(failed.state, RequestState::Failed);
+    // The Kernel's words, not Sonarr's own: the Kernel answers before handing it off.
     assert_eq!(
         failed.failure_reason.as_deref(),
-        Some("Sonarr needs the Show's TVDB id, and none is known for it")
+        Some("sonarr needs the Show's tvdb id, and none is known for it")
     );
+    let failure = failed.failure.as_option().expect("no typed failure");
+    assert_eq!(
+        failure.reason.as_known(),
+        Some(RefusalReason::REFUSAL_REASON_TITLE_ID_MISSING)
+    );
+    assert_eq!(failure.params["namespaces"], "tvdb");
+    assert_eq!(failure.params["pluginId"], "sonarr");
     assert_eq!(fixture.sonarr.shows(), Vec::<serde_json::Value>::new());
+    assert_eq!(fixture.sonarr.searches(), []);
 }
 
 #[tokio::test]

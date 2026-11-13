@@ -485,10 +485,13 @@ pub(super) async fn settled(
 pub(super) fn answered(
     plugin: &'static str,
     fulfilled: Result<Fulfilled, String>,
-) -> Answer<Fulfilled> {
+) -> Answer<Fulfilled, Vec<String>> {
     Answer {
         plugin: PluginId::from_static(plugin),
-        result: fulfilled.map_err(|message| Failure { kind: (), message }),
+        result: fulfilled.map_err(|message| Failure {
+            kind: Vec::new(),
+            message,
+        }),
     }
 }
 

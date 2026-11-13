@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", title_id, season AS \"season: u32\", title, release_date,\n                  (SELECT json_group_object(namespace, value) FROM request_title_ids\n                   WHERE request_id = requests.id) AS \"title_ids!: String\",\n                  state, created_at, decline_reason, failure_reason, followed_show_id,\n                  fulfiller_plugin_id,\n                  quality_id, quality_name, quality_profile_id, quality_changed_from,\n                  quality_changed_at, quality_used_id, quality_used_name,\n                  quality_used_profile_id,\n                  (SELECT display_username FROM users WHERE id = quality_changed_by)\n                      AS quality_changed_by\n           FROM requests\n           WHERE ?1 IS NULL OR id = ?1\n           ORDER BY id DESC",
+  "query": "SELECT id AS \"id!\", title_id, season AS \"season: u32\", title, release_date,\n                  (SELECT json_group_object(namespace, value) FROM request_title_ids\n                   WHERE request_id = requests.id) AS \"title_ids!: String\",\n                  state, created_at, decline_reason, failure_reason, failure_needs,\n                  followed_show_id,\n                  fulfiller_plugin_id,\n                  quality_id, quality_name, quality_profile_id, quality_changed_from,\n                  quality_changed_at, quality_used_id, quality_used_name,\n                  quality_used_profile_id,\n                  (SELECT display_username FROM users WHERE id = quality_changed_by)\n                      AS quality_changed_by\n           FROM requests\n           WHERE ?1 IS NULL OR id = ?1\n           ORDER BY id DESC",
   "describe": {
     "columns": [
       {
@@ -109,8 +109,19 @@
         }
       },
       {
-        "name": "followed_show_id",
+        "name": "failure_needs",
         "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "failure_needs"
+          }
+        }
+      },
+      {
+        "name": "followed_show_id",
+        "ordinal": 11,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -121,7 +132,7 @@
       },
       {
         "name": "fulfiller_plugin_id",
-        "ordinal": 11,
+        "ordinal": 12,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -132,7 +143,7 @@
       },
       {
         "name": "quality_id",
-        "ordinal": 12,
+        "ordinal": 13,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -143,7 +154,7 @@
       },
       {
         "name": "quality_name",
-        "ordinal": 13,
+        "ordinal": 14,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -154,7 +165,7 @@
       },
       {
         "name": "quality_profile_id",
-        "ordinal": 14,
+        "ordinal": 15,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -165,7 +176,7 @@
       },
       {
         "name": "quality_changed_from",
-        "ordinal": 15,
+        "ordinal": 16,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -176,7 +187,7 @@
       },
       {
         "name": "quality_changed_at",
-        "ordinal": 16,
+        "ordinal": 17,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -187,7 +198,7 @@
       },
       {
         "name": "quality_used_id",
-        "ordinal": 17,
+        "ordinal": 18,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -198,7 +209,7 @@
       },
       {
         "name": "quality_used_name",
-        "ordinal": 18,
+        "ordinal": 19,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -209,7 +220,7 @@
       },
       {
         "name": "quality_used_profile_id",
-        "ordinal": 19,
+        "ordinal": 20,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -220,7 +231,7 @@
       },
       {
         "name": "quality_changed_by",
-        "ordinal": 20,
+        "ordinal": 21,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -254,8 +265,9 @@
       true,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "6e5e3c961adadbf42e4d3c051a951db2dd438ec1d8dc1620ac9dbe482ff5a810"
+  "hash": "689020ed286f1b5751b2eaeeab640bc6571308468bf1f053edaa4cb2dec49386"
 }

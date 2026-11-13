@@ -10,6 +10,7 @@ import {
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { dayOf, metadataLine, seasonName, yearOf } from "@/lib/browse";
 import { may } from "@/lib/permissions";
@@ -118,9 +119,38 @@ function releasedOf({ movieOrSeason }: Request) {
     : movieOrSeason.value?.releaseDate;
 }
 
-/** Why it was Declined, or why a Request Failed, in the decliner's or the Fulfiller's words. */
+/**
+ * Why it was Declined, or why a Request Failed: in the decliner's or the Fulfiller's words, or in
+ * the app's when the Server didn't hand it to the Fulfiller for lack of an id.
+ */
 function reasonOf(request: Request | FollowedShow) {
-  return request.declineReason ?? ("failureReason" in request ? request.failureReason : undefined);
+  if (request.$typeName === "nama.v1.FollowedShow") return request.declineReason;
+  return request.declineReason ?? missingIdText(request) ?? request.failureReason;
+}
+
+// "en-GB" for "TVDB or IMDb", without the serial comma, as the rest of the app writes lists.
+const idList = new Intl.ListFormat("en-GB", { type: "disjunction" });
+
+/**
+ * "Sonarr can’t fetch it: no TVDB id is known for this Show.", when the Server failed `request`
+ * because its Fulfiller needs an id of the title that it lacks.
+ */
+function missingIdText({ failure, movieOrSeason }: Request) {
+  const kind = movieOrSeason.case === "season" ? "Show" : "Movie";
+  return failure?.reason === RefusalReason.TITLE_ID_MISSING
+    ? missingIdSentence(failure.params, kind)
+    : undefined;
+}
+
+function missingIdSentence(
+  { pluginId = "", namespaces = "" }: Record<string, string>,
+  kind: "Movie" | "Show",
+) {
+  // ponytail: the Plugin's id capitalised stands in for its name, which the Request doesn't carry.
+  const plugin =
+    pluginId === "" ? "Its Fulfiller" : pluginId.charAt(0).toUpperCase() + pluginId.slice(1);
+  const ids = idList.format(namespaces.split(",").map((namespace) => namespace.toUpperCase()));
+  return `${plugin} can’t fetch it: no ${ids} id is known for this ${kind}.`;
 }
 
 function Reason({ reason }: { reason: string | undefined }) {

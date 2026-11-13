@@ -14,7 +14,7 @@ use nama_plugin_api::{
     PluginId,
     fulfiller::{Fulfilled, Fulfiller, Movies, Shows},
 };
-use nama_proto::nama::v1::{Request, RequestState, request::MovieOrSeason};
+use nama_proto::nama::v1::{ExternalId, Request, RequestState, request::MovieOrSeason};
 use tokio::sync::{Notify, mpsc::UnboundedReceiver};
 use tracing::{error, warn};
 
@@ -23,7 +23,7 @@ use super::listing::{load, load_one};
 use super::{Error, Requests, lock};
 use crate::{
     db::{BoxFuture, Database, detached},
-    plugins::{Answer, ExtensionPoints},
+    plugins::{Answer, ExtensionPoints, Failure},
 };
 
 /// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled.
@@ -65,7 +65,8 @@ impl HandOff {
 
     /// Hands the Approved `request`, which `claim` holds, to the Fulfiller for its kind, Movies or
     /// Shows, publishing that its state changed: to Processing once it takes the Request, or to
-    /// Failed, with its reason, if it doesn't. Returns the Request as it is now. Without a
+    /// Failed, with its reason, if it doesn't or if the title lacks every id it needs, when it
+    /// isn't asked. Returns the Request as it is now. Without a
     /// Fulfiller for its kind the Request waits in Approved. Settles through `requests`' path.
     ///
     /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
@@ -166,11 +167,19 @@ impl HandOff {
     }
 
     /// What the Fulfiller for `request`'s kind says to it, if one is enabled: what it reports once
-    /// it takes it, or why it doesn't.
-    async fn fulfill(&self, request: &Request) -> Option<Answer<Fulfilled>> {
+    /// it takes it, or why it doesn't. A failure's `kind` names the id namespaces the Fulfiller
+    /// needs when the Kernel didn't hand it `request` for lack of an id in any of them, and is
+    /// empty when the Fulfiller itself refused.
+    async fn fulfill(&self, request: &Request) -> Option<Answer<Fulfilled, Vec<String>>> {
         let fulfilled = match request.movie_or_season.as_ref()? {
-            MovieOrSeason::Movie(_) => self.fulfill_as::<Movies>(request).await,
-            MovieOrSeason::Season(_) => self.fulfill_as::<Shows>(request).await,
+            MovieOrSeason::Movie(movie) => {
+                self.fulfill_as::<Movies>(request, "Movie", &movie.ids)
+                    .await
+            }
+            MovieOrSeason::Season(season) => {
+                self.fulfill_as::<Shows>(request, "Show", &season.show_ids)
+                    .await
+            }
         }?;
         if let Err(failure) = &fulfilled.result {
             warn!(
@@ -182,13 +191,38 @@ impl HandOff {
         Some(fulfilled)
     }
 
-    /// [`Self::fulfill`] by the Fulfiller of `Kind`.
-    async fn fulfill_as<Kind: 'static>(&self, request: &Request) -> Option<Answer<Fulfilled>> {
-        self.plugins
+    /// [`Self::fulfill`] by the Fulfiller of `Kind`, for a `title`, `Movie` or `Show`, with the ids
+    /// `ids`.
+    async fn fulfill_as<Kind: 'static>(
+        &self,
+        request: &Request,
+        title: &str,
+        ids: &[ExternalId],
+    ) -> Option<Answer<Fulfilled, Vec<String>>> {
+        // Asked inside the Plugin's containment, so the failure names the Plugin that would have
+        // been handed the Request.
+        let Answer { plugin, result } = self
+            .plugins
             .ask_first(|fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
-                fulfiller.fulfill(request).await
+                let needs = fulfiller.needs();
+                if !needs.is_empty() && !ids.iter().any(|id| needs.contains(&id.namespace)) {
+                    return Ok(Err(needs));
+                }
+                fulfiller.fulfill(request).await.map(Ok)
             })
-            .await
+            .await?;
+        let result = match result {
+            Ok(Ok(fulfilled)) => Ok(fulfilled),
+            Ok(Err(needs)) => Err(Failure {
+                message: missing(&plugin, title, &needs),
+                kind: needs,
+            }),
+            Err(Failure { message, .. }) => Err(Failure {
+                kind: Vec::new(),
+                message,
+            }),
+        };
+        Some(Answer { plugin, result })
     }
 
     /// Tells the Shows Fulfiller, if one is enabled, to stop following the Show of `season`, the
@@ -217,6 +251,17 @@ impl HandOff {
             );
         }
     }
+}
+
+/// Why the Plugin `plugin`'s Fulfiller wasn't handed a Request for a `title`, `Movie` or `Show`,
+/// which has no id in any of the namespaces it `needs`.
+fn missing(plugin: &PluginId, title: &str, needs: &[String]) -> String {
+    let ids = match needs {
+        [one] => format!("the {title}'s {one} id"),
+        [first @ .., last] => format!("one of the {title}'s {} or {last} ids", first.join(", ")),
+        [] => format!("the {title}'s id"),
+    };
+    format!("{plugin} needs {ids}, and none is known for it")
 }
 
 /// A hand-off's hold on one Request in [`HandOff::handing`], let go however the hand-off ends, a

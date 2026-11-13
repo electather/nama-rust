@@ -154,7 +154,7 @@ async fn retry(
     // Undone with the rest if the Request isn't Failed.
     change_quality(conn, id, new_quality).await?;
     let retried = sqlx::query!(
-        "UPDATE requests SET state = 'approved', failure_reason = NULL
+        "UPDATE requests SET state = 'approved', failure_reason = NULL, failure_needs = NULL
          WHERE id = ? AND state = 'failed'",
         id
     )

@@ -226,4 +226,8 @@ enum RefusalReason {
   // `not_found`: no metadata source has a title with the id, or none can look titles up by it.
   // Params: `titleId`.
   REFUSAL_REASON_TITLE_NOT_FOUND = 71;
+  // `failed_precondition`: the Fulfiller needs an id of the title in one of the namespaces named
+  // and the title has none, so the Request wasn't handed to it. Params: `pluginId`, `namespaces`
+  // (comma-separated).
+  REFUSAL_REASON_TITLE_ID_MISSING = 72;
 }

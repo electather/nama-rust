@@ -73,6 +73,11 @@ pub struct RequestView<'a> {
     ///
     /// Field 14: `fulfiller_plugin_id`
     pub fulfiller_plugin_id: ::core::option::Option<&'a str>,
+    /// Why the Server failed it without handing it to its Fulfiller, as `failure_reason` says in
+    /// English. Only a Failed Request the Server didn't hand off has one.
+    ///
+    /// Field 15: `failure`
+    pub failure: ::buffa::MessageFieldView<super::super::__buffa::view::RefusalView<'a>>,
     pub movie_or_season: ::core::option::Option<
         super::super::__buffa::view::oneof::request::MovieOrSeason<'a>,
     >,
@@ -221,6 +226,27 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.fulfiller_plugin_id = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.failure.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.failure = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::RefusalView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
             }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -386,6 +412,15 @@ impl<'a> ::buffa::MessageView<'a> for RequestView<'a> {
                 None => ::buffa::MessageField::none(),
             },
             fulfiller_plugin_id: self.fulfiller_plugin_id.map(|s| s.to_string()),
+            failure: match self.failure.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::Refusal,
+                        ::buffa::Inline<super::super::Refusal>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             movie_or_season: match self.movie_or_season.as_ref() {
                 ::core::option::Option::Some(v) => {
                     ::core::option::Option::Some(
@@ -510,6 +545,14 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestView<'a> {
         if let Some(ref v) = self.fulfiller_plugin_id {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.failure.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.failure.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -607,6 +650,14 @@ impl<'a> ::buffa::ViewEncode<'a> for RequestView<'a> {
         if let Some(ref v) = self.fulfiller_plugin_id {
             ::buffa::types::put_string_field(14u32, v, buf);
         }
+        if self.failure.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                15u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.failure.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -677,6 +728,11 @@ impl<'__a> ::serde::Serialize for RequestView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.fulfiller_plugin_id {
             __map.serialize_entry("fulfillerPluginId", __v)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.failure.as_option() {
+                __map.serialize_entry("failure", __v)?;
+            }
         }
         if let ::core::option::Option::Some(ref __ov) = self.movie_or_season {
             match __ov {
@@ -884,6 +940,16 @@ impl RequestOwnedView {
     #[must_use]
     pub fn fulfiller_plugin_id(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().fulfiller_plugin_id
+    }
+    /// Why the Server failed it without handing it to its Fulfiller, as `failure_reason` says in
+    /// English. Only a Failed Request the Server didn't hand off has one.
+    ///
+    /// Field 15: `failure`
+    #[must_use]
+    pub fn failure(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::RefusalView<'_>> {
+        &self.0.reborrow().failure
     }
     /// Oneof `movie_or_season`.
     #[must_use]

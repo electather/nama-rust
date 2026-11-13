@@ -4,6 +4,7 @@ package nama.v1;
 
 import "nama/v1/match.proto";
 import "nama/v1/plugin.proto";
+import "nama/v1/refusal.proto";
 
 // Users asking for Movies, and Seasons of Shows, that aren't on the Server to be added to it
 // (ADR 0012). Without `PERMISSION_VIEW_REQUESTS`, a User sees only the Requests they are a
@@ -225,6 +226,9 @@ message Request {
   // The ID of the Plugin whose Fulfiller it was handed to at its latest Hand-off, whether or not
   // it took it. Unset until it is handed off.
   optional string fulfiller_plugin_id = 14;
+  // Why the Server failed it without handing it to its Fulfiller, as `failure_reason` says in
+  // English. Only a Failed Request the Server didn't hand off has one.
+  Refusal failure = 15;
 }
 
 // A Request manager changing a Request's Quality, as `Request.quality` now has it.

@@ -194,6 +194,10 @@ pub enum RefusalReason {
     /// `not_found`: no metadata source has a title with the id, or none can look titles up by it.
     /// Params: `titleId`.
     REFUSAL_REASON_TITLE_NOT_FOUND = 71i32,
+    /// `failed_precondition`: the Fulfiller needs an id of the title in one of the namespaces named
+    /// and the title has none, so the Request wasn't handed to it. Params: `pluginId`, `namespaces`
+    /// (comma-separated).
+    REFUSAL_REASON_TITLE_ID_MISSING = 72i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -400,6 +404,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_TITLE_NOT_FOUND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const TitleNotFound: Self = Self::REFUSAL_REASON_TITLE_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_TITLE_ID_MISSING`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const TitleIdMissing: Self = Self::REFUSAL_REASON_TITLE_ID_MISSING;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -637,6 +644,7 @@ impl ::buffa::Enumeration for RefusalReason {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_ID_MALFORMED)
             }
             71i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_NOT_FOUND),
+            72i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_ID_MISSING),
             _ => ::core::option::Option::None,
         }
     }
@@ -771,6 +779,7 @@ impl ::buffa::Enumeration for RefusalReason {
                 "REFUSAL_REASON_TITLE_ID_MALFORMED"
             }
             Self::REFUSAL_REASON_TITLE_NOT_FOUND => "REFUSAL_REASON_TITLE_NOT_FOUND",
+            Self::REFUSAL_REASON_TITLE_ID_MISSING => "REFUSAL_REASON_TITLE_ID_MISSING",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -995,6 +1004,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_TITLE_NOT_FOUND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_NOT_FOUND)
             }
+            "REFUSAL_REASON_TITLE_ID_MISSING" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_ID_MISSING)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1068,6 +1080,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
             Self::REFUSAL_REASON_TITLE_ID_MALFORMED,
             Self::REFUSAL_REASON_TITLE_NOT_FOUND,
+            Self::REFUSAL_REASON_TITLE_ID_MISSING,
         ]
     }
 }

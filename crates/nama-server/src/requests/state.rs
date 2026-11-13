@@ -30,7 +30,7 @@ impl Requests {
     pub(super) async fn settle_hand_off(
         &self,
         id: i64,
-        fulfilled: Answer<Fulfilled>,
+        fulfilled: Answer<Fulfilled, Vec<String>>,
         asked: Option<RequestedQuality>,
     ) -> Result<Option<Request>, Error> {
         // Not detached again: the Hand-off already is.
@@ -97,7 +97,7 @@ pub(super) async fn change_state(
     macro_rules! change {
         ($fulfilling:literal) => {
             sqlx::query!(
-                "UPDATE requests SET state = ?1, failure_reason = NULL
+                "UPDATE requests SET state = ?1, failure_reason = NULL, failure_needs = NULL
                  WHERE id = ?2 AND state != ?1 AND (?1 = 'available' OR "
                     + $fulfilling
                     + ")",
@@ -122,18 +122,19 @@ pub(super) async fn change_state(
 }
 
 /// Moves the Approved Request `id`, asked at the Quality `asked`, on as its Fulfiller said: to
-/// Processing, keeping its reference and the Quality used, or to Failed, keeping why. Either way
-/// it keeps the Plugin that answered. Returns it as it is now, or `None` if it isn't Approved any
+/// Processing, keeping its reference and the Quality used, or to Failed, keeping why, with the id
+/// namespaces the failure's `kind` names when the Kernel didn't hand it off for lack of an id.
+/// Either way it keeps the Plugin that answered. Returns it as it is now, or `None` if it isn't Approved any
 /// more.
 pub(super) async fn settle(
     conn: &mut SqliteConnection,
     id: i64,
-    answered: Answer<Fulfilled>,
+    answered: Answer<Fulfilled, Vec<String>>,
     asked: Option<RequestedQuality>,
 ) -> Result<Applied<Option<Request>>, Error> {
     let Answer { plugin, result } = answered;
     // In the same write as the reference, so a failed read can't lose a Request the Fulfiller took.
-    let (state, reference, used, reason) = match result {
+    let (state, reference, used, reason, needs) = match result {
         Ok(fulfilled) => {
             let listed = qualities::list(conn, &plugin).await?;
             let used = qualities::used(asked.as_ref(), &listed, &fulfilled);
@@ -142,21 +143,29 @@ pub(super) async fn settle(
                 Some(fulfilled.reference),
                 used,
                 None,
+                None,
             )
         }
-        Err(failure) => (RequestState::Failed, None, None, Some(failure.message)),
+        Err(failure) => (
+            RequestState::Failed,
+            None,
+            None,
+            Some(failure.message),
+            (!failure.kind.is_empty()).then(|| failure.kind.join(",")),
+        ),
     };
     let state = stored(state);
     let (used_id, used_name, used_profile_id) = quality_columns(used.as_ref());
     let plugin = plugin.as_str();
     let settled = sqlx::query!(
         "UPDATE requests SET state = ?, fulfiller_reference = ?, failure_reason = ?,
-                             fulfiller_plugin_id = ?,
+                             failure_needs = ?, fulfiller_plugin_id = ?,
                              quality_used_id = ?, quality_used_name = ?, quality_used_profile_id = ?
          WHERE id = ? AND state = 'approved'",
         state,
         reference,
         reason,
+        needs,
         plugin,
         used_id,
         used_name,
