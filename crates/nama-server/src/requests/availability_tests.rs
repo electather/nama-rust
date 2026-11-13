@@ -1,22 +1,26 @@
 use std::{collections::HashSet, sync::Arc};
 
-use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB};
 use nama_proto::nama::v1::{RequestState, event::Event as Happened};
 
 use super::availability;
-use crate::requests::asking::{Wanted, WantedSeasons, ask_seasons};
+use crate::requests::asking::{Wanted, WantedSeasons, ask, ask_movie, ask_seasons};
 use crate::requests::deciding::{cancel, decline};
 use crate::requests::followed::decide_followed;
 use crate::requests::listing::{load, load_one};
 use crate::requests::qualities;
 use crate::requests::testing::{
     ADA, BOB, DARK, ada_and_bob, ask_each, asked_season, dark, dark_season, episode, follow_as,
-    match_dark_episodes, matched, said, scan_dark, season_1, season_ids, tmdb,
+    fulfilled, match_dark_episodes, match_episodes, matched, movie, said, scan_dark, season_1,
+    season_ids, settled, tmdb,
 };
 use crate::{
     db::Database,
     libraries::{Kind, Libraries},
-    library::contents::{Change, Contents, Decisions, Item},
+    library::contents::{
+        Change, Contents, Decisions, Item, Metadata,
+        fixture::{MatchedMovie, tmdb_movie},
+    },
 };
 
 const TODAY: &str = "2026-11-08";
@@ -96,7 +100,7 @@ async fn an_available_season_request_stays_available_when_a_later_episode_airs()
         .unwrap()[0];
     let scan = |episode_2_airs| Decisions {
         items: vec![(item, matched(ExternalIds::default(), tmdb(DARK)))],
-        seasons: vec![(DARK, season_1(episode_2_airs))],
+        seasons: vec![(ExternalId::tmdb(DARK), season_1(episode_2_airs))],
     };
     contents.record(scan("2099-12-01")).await.unwrap();
 
@@ -385,4 +389,61 @@ async fn asking_for_a_season_on_its_own_leaves_which_seasons_the_followed_show_c
         dark_seasons(&db).await.last(),
         Some(&(3, RequestState::Available, vec![ADA]))
     );
+}
+
+#[tokio::test]
+async fn a_request_kept_under_an_imdb_id_becomes_available_when_a_library_matches_that_movie() {
+    let (_data, db) = ada_and_bob().await;
+    let imdb = ExternalId::new(IMDB, "tt0078748").unwrap();
+    let wanted = Wanted {
+        id: imdb.clone(),
+        ..movie(348)
+    };
+    let id = db
+        .write(move |tx| Box::pin(ask_movie(tx, ADA, wanted, RequestState::Pending)))
+        .await
+        .unwrap()
+        .value
+        .id;
+
+    let folder = tempfile::tempdir().unwrap();
+    let alien = Metadata {
+        ids: ExternalIds::from_iter([imdb]),
+        ..tmdb_movie(348, "Alien")
+    };
+    MatchedMovie::new(&db, folder.path(), alien).await;
+
+    let mut conn = db.reader().acquire().await.unwrap();
+    let request = load_one(&mut conn, id).await.unwrap().unwrap();
+    assert_eq!(request.state, RequestState::Available);
+}
+
+#[tokio::test]
+async fn a_season_request_kept_under_a_tvdb_id_follows_how_much_of_it_a_library_has() {
+    let (_data, db) = ada_and_bob().await;
+    let show = ExternalId::tvdb(81189);
+    let wanted = Wanted {
+        id: show.clone(),
+        season: Some(1),
+        ..movie(81189)
+    };
+    let id = db
+        .write(move |tx| Box::pin(ask(tx, ADA, wanted, RequestState::Approved)))
+        .await
+        .unwrap()
+        .value
+        .id;
+    settled(&db, id, Ok(fulfilled())).await;
+    let scan = || {
+        let seasons = vec![(show.clone(), season_1("2017-12-08"))];
+        db.write(move |tx| Box::pin(super::make_seasons_available(tx, seasons)))
+    };
+
+    match_episodes(&db, show.clone(), 1, &[1]).await;
+    let partly = scan().await.unwrap();
+    match_episodes(&db, show.clone(), 1, &[2]).await;
+    let fully = scan().await.unwrap();
+
+    assert_eq!(said(&partly), [("moved", RequestState::PartiallyAvailable)]);
+    assert_eq!(said(&fully), [("moved", RequestState::Available)]);
 }

@@ -15,10 +15,10 @@ use super::{Error, Requests};
 use crate::{events::event, users::User};
 
 /// A Movie, or a Season of a Show, as a Request names it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct RequestTitle {
-    /// The Movie's TMDB id, or the Show's.
-    pub(crate) tmdb_id: i64,
+    /// The Movie's preferred id, or the Show's.
+    pub(crate) id: ExternalId,
     /// The Season's number, `None` for a Movie.
     pub(crate) season: Option<u32>,
 }
@@ -69,7 +69,7 @@ impl Requests {
     pub(crate) async fn waiting_on(&self, titles: &[RequestTitle]) -> Result<Vec<Request>, Error> {
         let mut conn = self.db.reader().acquire().await?;
         let mut waiting = Vec::new();
-        for &title in titles {
+        for title in titles {
             if let Some(id) = waiting_on(&mut conn, title).await? {
                 waiting.extend(load_one(&mut conn, id).await?);
             }
@@ -185,7 +185,7 @@ async fn cancel_deleted(
 ) -> Result<Applied<()>, Error> {
     let mut events = Vec::new();
     for title in titles {
-        if let Some(id) = waiting_on(conn, title).await? {
+        if let Some(id) = waiting_on(conn, &title).await? {
             events.push(remove(conn, id, Some(by.clone())).await?);
         }
     }
@@ -219,9 +219,9 @@ async fn remove(
 /// unless Failed, which waits on a Request manager retrying it rather than on the media.
 async fn waiting_on(
     conn: &mut SqliteConnection,
-    RequestTitle { tmdb_id, season }: RequestTitle,
+    RequestTitle { id, season }: &RequestTitle,
 ) -> Result<Option<i64>, sqlx::Error> {
-    let title_id = ExternalId::tmdb(tmdb_id).to_string();
+    let title_id = id.to_string();
     sqlx::query_scalar!(
         "SELECT id FROM requests WHERE title_id = ? AND season IS ?
          AND state IN ('pending', 'approved', 'processing', 'partially_available')",

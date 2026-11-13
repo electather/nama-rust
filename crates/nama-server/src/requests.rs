@@ -13,7 +13,7 @@ use std::{
     time::Duration,
 };
 
-use nama_plugin_api::PluginId;
+use nama_plugin_api::{PluginId, metadata::ExternalId};
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 use crate::{
@@ -58,16 +58,16 @@ pub(crate) enum Error {
     NotFailed(i64),
     #[error("you aren't a Requester of the {0} {1}")]
     NotARequester(Asked, i64),
-    #[error("a Library already has the Movie tmdb-{0}")]
-    InLibrary(i64),
-    #[error("every aired Episode of Season {season} of the Show tmdb-{show} is in a Library")]
-    SeasonInLibrary { show: i64, season: u32 },
-    #[error("the metadata source has no Movie tmdb-{0}")]
-    NoSuchMovie(i64),
-    #[error("the metadata source has no Show tmdb-{0}")]
-    NoSuchShow(i64),
-    #[error("the metadata source has no Season {season} of the Show tmdb-{show}")]
-    NoSuchSeason { show: i64, season: u32 },
+    #[error("a Library already has the Movie {0}")]
+    InLibrary(ExternalId),
+    #[error("every aired Episode of Season {season} of the Show {show} is in a Library")]
+    SeasonInLibrary { show: ExternalId, season: u32 },
+    #[error("the metadata source has no Movie {0}")]
+    NoSuchMovie(ExternalId),
+    #[error("the metadata source has no Show {0}")]
+    NoSuchShow(ExternalId),
+    #[error("the metadata source has no Season {season} of the Show {show}")]
+    NoSuchSeason { show: ExternalId, season: u32 },
     /// No metadata Provider is enabled, or it failed.
     #[error("no metadata Provider could answer")]
     Unavailable,

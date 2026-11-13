@@ -1,12 +1,21 @@
 //! Helpers the unit tests of Requests share.
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+    time::Duration,
+};
 
 use futures_util::{Stream, StreamExt};
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
     metadata::{Episode, ExternalId, ExternalIds, Season},
+    settings::{SettingValue, Settings},
+};
+use nama_plugin_tmdb::{
+    Tmdb,
+    testing::{API_KEY, FakeTmdb},
 };
 use nama_proto::nama::v1::{
     Event, FollowedShow, Permission, Request, RequestState, RequestedMovie, RequestedSeason,
@@ -187,6 +196,17 @@ impl<Kind: 'static> Plugin for FulfillerPlugin<Kind> {
         registrar.provide::<dyn Fulfiller<Kind>>(Priority::DEFAULT, Arc::clone(&self.1));
         Ok(())
     }
+}
+
+/// Enables `tmdb` as the metadata Provider in `plugins`.
+pub(super) fn enable_tmdb(plugins: &Registry, tmdb: &FakeTmdb) {
+    let settings = Settings::new(BTreeMap::from([(
+        "api_key".to_owned(),
+        SettingValue::Text(API_KEY.to_owned()),
+    )]));
+    plugins
+        .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
+        .unwrap();
 }
 
 /// The ids of a title with the TMDB id `tmdb_id`.
@@ -512,6 +532,16 @@ pub(super) fn dark_season(number: u32) -> Season {
 /// A new Library Matches a file to each of `episodes` of Season `season` of Dark, as a scan
 /// does, without Requests hearing of the Season yet: [`scan_dark`] tells them.
 pub(super) async fn match_dark_episodes(db: &Arc<Database>, season: i64, episodes: &[i64]) {
+    match_episodes(db, ExternalId::tmdb(DARK), season, episodes).await;
+}
+
+/// [`match_dark_episodes`], for the Show `show` in place of Dark.
+pub(super) async fn match_episodes(
+    db: &Arc<Database>,
+    show: ExternalId,
+    season: i64,
+    episodes: &[i64],
+) {
     let folder = tempfile::tempdir().unwrap();
     let root = folder.path().canonicalize().unwrap();
     let contents = Contents::new(Arc::clone(db));
@@ -533,7 +563,7 @@ pub(super) async fn match_dark_episodes(db: &Arc<Database>, season: i64, episode
             items: vec![Item::Episode {
                 show: "Dark".to_owned(),
                 year: None,
-                hint: Some(ExternalId::tmdb(DARK)),
+                hint: Some(show.clone()),
                 season,
                 episode,
             }],
@@ -546,7 +576,15 @@ pub(super) async fn match_dark_episodes(db: &Arc<Database>, season: i64, episode
         .unwrap()
         .into_iter()
         .flat_map(|file| file.items)
-        .map(|stored| (stored.id, matched(ExternalIds::default(), tmdb(DARK))))
+        .map(|stored| {
+            (
+                stored.id,
+                matched(
+                    ExternalIds::default(),
+                    ExternalIds::from_iter([show.clone()]),
+                ),
+            )
+        })
         .collect();
     contents.record(Decisions::from(decided)).await.unwrap();
 }
@@ -556,7 +594,7 @@ pub(super) async fn match_dark_episodes(db: &Arc<Database>, season: i64, episode
 pub(super) async fn scan_dark(db: &Database, numbers: &[u32]) -> Vec<Event> {
     let seasons = numbers
         .iter()
-        .map(|&number| (DARK, dark_season(number)))
+        .map(|&number| (ExternalId::tmdb(DARK), dark_season(number)))
         .collect();
     db.write(move |tx| Box::pin(make_seasons_available(tx, seasons)))
         .await

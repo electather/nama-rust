@@ -18,10 +18,14 @@ use super::deciding::approve;
 use super::listing::{load_one, tmdb_number};
 use super::lookup::looking_up;
 use super::quality::{NewQuality, quality_columns, show_requests};
-use super::state::tmdb_value;
 use super::state::{open_request, stored};
 use super::{Error, Requests, qualities};
-use crate::{db::now, events::event, library::contents, users::User};
+use crate::{
+    db::now,
+    events::event,
+    library::contents::{self, Metadata},
+    users::User,
+};
 
 /// What a new Request asks for, as the metadata source gave it.
 #[derive(Debug)]
@@ -55,7 +59,7 @@ pub(super) struct WantedSeasons {
 }
 
 impl Requests {
-    /// Asks for the Movie with the TMDB id `tmdb_id` for `asker`, who joins its open Request, or
+    /// Asks for the Movie `id` for `asker`, who joins its open Request, or
     /// opens one at the Quality `chosen`, else as [`Self::quality`] picks: Approved, and handed
     /// to the Fulfiller for Movies, if `asker` may have Movies approved as they ask, else Pending.
     /// Such an `asker` joining a Pending Request approves it and hands it off the same way.
@@ -66,62 +70,49 @@ impl Requests {
     pub(crate) async fn create(
         &self,
         asker: &User,
-        tmdb_id: i64,
+        id: &ExternalId,
         chosen: Option<i64>,
     ) -> Result<Request, Error> {
         // Refuses before asking TMDB, which may be down or slow; `ask` checks again for a scan
         // that Matched the Movie meanwhile.
-        if self
-            .contents
-            .library_with_movie(&ExternalId::tmdb(tmdb_id))
-            .await?
-            .is_some()
-        {
-            return Err(Error::InLibrary(tmdb_id));
+        if self.contents.library_with_movie(id).await?.is_some() {
+            return Err(Error::InLibrary(id.clone()));
         }
         let quality = self.quality::<Movies>(asker, chosen).await?;
         // ponytail: looked up even to join an open Request, so the write has it if that Request
         // closes meanwhile. Look up only when opening one if TMDB's rate limit starts to bite.
-        let movie = self.fetch(tmdb_id).await?;
-        let wanted = Wanted {
-            id: ExternalId::tmdb(tmdb_id),
-            season: None,
-            title: movie.title,
-            release_date: movie.release_date,
-            ids: movie.ids,
-            followed_show: None,
-            quality,
-        };
+        let movie = self.fetch(id).await?;
+        let wanted = Wanted::movie(id, movie, quality);
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
         self.apply(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
             .await
     }
 
-    /// Asks for the Seasons `numbers` of the Show with the TMDB id `tmdb_id` for `asker`, one
-    /// Request per Season in Season order, each as [`Self::create`] asks for a Movie but with
+    /// Asks for the Seasons `numbers` of the Show `show_id` for `asker`, one Request per Season in
+    /// Season order, each as [`Self::create`] asks for a Movie but with
     /// `AUTO_APPROVE_TV` and the Fulfiller for Shows. Asks for none if a Library has any of them:
     /// every aired Episode Matched. New Requests take the Show's Quality if it has one, refusing
     /// another `chosen` one, else as [`Self::create`] picks one.
     pub(crate) async fn create_seasons(
         &self,
         asker: &User,
-        tmdb_id: i64,
+        show_id: &ExternalId,
         numbers: &BTreeSet<u32>,
         chosen: Option<i64>,
     ) -> Result<Vec<Request>, Error> {
         let quality = self.quality::<Shows>(asker, chosen).await?;
-        let id = ExternalId::tmdb(tmdb_id);
         let (_, show) = self
             .metadata
-            .show(&id)
+            .show(show_id)
             .await
-            .map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?;
+            .map_err(|err| looking_up(err, Error::NoSuchShow(show_id.clone())))?;
+        let id = kept_under(show_id, &show.ids);
         let mut seasons = Vec::with_capacity(numbers.len());
         // ponytail: one metadata lookup per Season, one after another.
         for &number in numbers {
             let no_such_season = || Error::NoSuchSeason {
-                show: tmdb_id,
+                show: show_id.clone(),
                 season: number,
             };
             if !show.seasons.contains(&number) {
@@ -148,6 +139,28 @@ impl Requests {
     }
 }
 
+/// The id a Request for the title asked for by `asked` is kept under, and found by: its preferred
+/// one among `ids`, which the metadata source gave for it, or `asked` if it gave none. So asking by
+/// any of a title's ids joins the one Request.
+pub(super) fn kept_under(asked: &ExternalId, ids: &ExternalIds) -> ExternalId {
+    contents::primary_id(ids).unwrap_or_else(|| asked.clone())
+}
+
+impl Wanted {
+    /// The Movie asked for by `asked`, as the metadata source gave it, at `quality`.
+    pub(super) fn movie(asked: &ExternalId, movie: Metadata, quality: qualities::Ask) -> Self {
+        Self {
+            id: kept_under(asked, &movie.ids),
+            season: None,
+            title: movie.title,
+            release_date: movie.release_date,
+            ids: movie.ids,
+            followed_show: None,
+            quality,
+        }
+    }
+}
+
 /// The state `asker`'s new Request opens in: Approved if they pass a check for `auto_approve`,
 /// else Pending.
 pub(super) fn opening_state(asker: &User, auto_approve: Permission) -> RequestState {
@@ -169,7 +182,7 @@ pub(super) async fn ask_movie(
         .await?
         .is_some()
     {
-        return Err(Error::InLibrary(tmdb_value(&wanted.id)));
+        return Err(Error::InLibrary(wanted.id));
     }
     ask_approving(conn, user, wanted, state).await
 }
@@ -208,7 +221,7 @@ pub(super) trait Asker {
     async fn opens_in(
         &self,
         conn: &mut SqliteConnection,
-        show: i64,
+        show: &ExternalId,
         season: u32,
         has: Option<RequestState>,
     ) -> Result<Option<RequestState>, Self::Error>;
@@ -273,13 +286,16 @@ impl Asker for Way<'_> {
     async fn opens_in(
         &self,
         _: &mut SqliteConnection,
-        show: i64,
+        show: &ExternalId,
         season: u32,
         has: Option<RequestState>,
     ) -> Result<Option<RequestState>, Error> {
         let in_full = has == Some(RequestState::Available);
         match *self {
-            Self::Asking { .. } if in_full => Err(Error::SeasonInLibrary { show, season }),
+            Self::Asking { .. } if in_full => Err(Error::SeasonInLibrary {
+                show: show.clone(),
+                season,
+            }),
             Self::Asking { state, .. } => Ok(Some(state)),
             Self::Following { .. } if in_full => Ok(None),
             // An Approved Followed Show was approved once for every Season, so needs no approving
@@ -369,14 +385,16 @@ impl SeasonsToAsk {
         conn: &mut SqliteConnection,
         asking: A,
     ) -> Result<Applied<Vec<Request>>, A::Error> {
-        let show = tmdb_value(&self.show_id);
         let today = today(conn).await?;
         let mut asked = Applied::quiet(Vec::with_capacity(self.seasons.len()));
         for season in &self.seasons {
             let matched =
                 contents::matched_episodes(conn, &self.show_id, season.number.into()).await?;
             let has = availability(&season.episodes, &matched, &today);
-            let Some(opens_in) = asking.opens_in(conn, show, season.number, has).await? else {
+            let Some(opens_in) = asking
+                .opens_in(conn, &self.show_id, season.number, has)
+                .await?
+            else {
                 continue;
             };
             let wanted = self.wanted(season, asking.followed_show().map(|followed| followed.id));

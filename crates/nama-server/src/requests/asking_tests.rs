@@ -1,17 +1,25 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
-use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_plugin_api::{
+    fulfiller::Movies,
+    metadata::{ExternalId, ExternalIds, IMDB},
+};
+use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::RequestState;
 
 use super::{Wanted, ask_movie, ask_seasons};
 use crate::db::Database;
+use crate::library::contents::{Metadata, fixture::tmdb_movie};
+use crate::plugins::Registry;
 use crate::requests::deciding::{cancel, decline};
 use crate::requests::listing::load_one;
 use crate::requests::testing::{
-    ADA, BOB, DARK, NOTHING, ada_and_bob, ask_each, ask_for, asked_season, dark, fulfilled,
-    handed_off, happened, match_in_a_library, movie, settled,
+    ADA, Asked, BOB, DARK, NOTHING, ada, ada_and_bob, approved_on, ask_each, ask_for, asked_movie,
+    asked_season, dark, enable_tmdb, fulfilled, handed_off, happened, match_in_a_library, movie,
+    settled,
 };
 use crate::requests::{Error, qualities};
+use crate::users::Permissions;
 
 #[tokio::test]
 async fn a_movie_and_a_show_with_the_same_tmdb_id_have_requests_of_their_own() {
@@ -117,7 +125,7 @@ async fn asking_for_a_declined_movie_opens_a_new_request_but_one_in_a_library_is
     assert_eq!(happened(&asked_again), [("created", RequestState::Pending)]);
     assert_ne!(asked_again.value.id, declined);
     assert!(
-        matches!(in_a_library, Err(Error::InLibrary(603))),
+        matches!(&in_a_library, Err(Error::InLibrary(id)) if *id == ExternalId::tmdb(603)),
         "{in_a_library:?}"
     );
 }
@@ -223,4 +231,40 @@ async fn the_database_refuses_a_second_open_request_for_a_title_and_season() {
     let second = insert("approved").await;
 
     assert!(second.is_err(), "{second:?}");
+}
+
+#[tokio::test]
+async fn asking_for_a_movie_by_its_imdb_id_joins_the_request_kept_under_its_tmdb_id() {
+    let tmdb = FakeTmdb::start().await;
+    let plugins = Registry::new();
+    enable_tmdb(&plugins, &tmdb);
+    let (_data, requests) = approved_on::<Movies>(&plugins, &[], Arc::new(Asked::default())).await;
+    let asker = ada(Permissions::ADMIN);
+    let imdb = ExternalId::new(IMDB, "tt0078748").unwrap();
+
+    let opened = requests
+        .create(&asker, &ExternalId::tmdb(348), None)
+        .await
+        .unwrap();
+    let joined = requests.create(&asker, &imdb, None).await.unwrap();
+
+    let kept_under = &asked_movie(&opened).id;
+    assert_eq!(
+        (kept_under.namespace.as_str(), kept_under.value.as_str()),
+        ("tmdb", "348")
+    );
+    assert_eq!(joined.id, opened.id);
+}
+
+#[test]
+fn a_movie_the_source_gives_no_ids_for_is_kept_under_the_id_it_was_asked_by() {
+    let anidb = ExternalId::new("anidb", "1").unwrap();
+    let movie = Metadata {
+        ids: ExternalIds::default(),
+        ..tmdb_movie(1, "Made Up")
+    };
+
+    let wanted = Wanted::movie(&anidb, movie, qualities::Ask::default());
+
+    assert_eq!(wanted.id, anidb);
 }

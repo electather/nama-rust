@@ -57,6 +57,7 @@ use crate::{
     events::{EventBus, event},
     library::contents::{
         Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin, TiedTitle, UnmatchedReason,
+        primary_id,
     },
     metadata::{self, MetadataSource},
     plugins::ExtensionPoints,
@@ -156,11 +157,11 @@ struct Outdated {
 }
 
 /// What looking items up found for each, with the Seasons fetched to find Episodes in, by their
-/// Show's TMDB id, which Season Requests follow.
+/// Show's preferred id, which Season Requests follow.
 #[derive(Debug, Default)]
 struct Outcomes {
     items: Vec<(i64, Result<Metadata, Miss>)>,
-    seasons: Vec<(i64, Season)>,
+    seasons: Vec<(ExternalId, Season)>,
 }
 
 impl Outcomes {
@@ -550,12 +551,9 @@ impl Matcher {
                 };
                 (pending.item, found)
             }));
-            let show_tmdb_id = show
-                .ids
-                .get(TMDB)
-                .and_then(|tmdb| tmdb.value().parse::<i64>().ok());
-            if let (Ok(season), Some(show_tmdb_id)) = (season, show_tmdb_id) {
-                outcomes.seasons.push((show_tmdb_id, season));
+            if let Ok(season) = season {
+                let show_id = primary_id(&show.ids).unwrap_or_else(|| id.clone());
+                outcomes.seasons.push((show_id, season));
             }
         }
         outcomes

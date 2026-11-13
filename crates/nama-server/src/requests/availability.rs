@@ -10,7 +10,7 @@ use sqlx::SqliteConnection;
 use super::apply::Applied;
 use super::asking::{Asker, SeasonsToAsk, Wanted, ask_as};
 use super::followed::{approved_followed_show, covers};
-use super::state::{change_state, open_request};
+use super::state::{change_state, open_request, tmdb_number_of};
 use crate::{db::now, library::contents};
 
 /// Today as `YYYY-MM-DD`, by SQLite's calendar, since `std` has none.
@@ -38,7 +38,7 @@ impl Asker for Scanning {
     async fn opens_in(
         &self,
         conn: &mut SqliteConnection,
-        show: i64,
+        show: &ExternalId,
         season: u32,
         has: Option<RequestState>,
     ) -> Result<Option<RequestState>, sqlx::Error> {
@@ -91,21 +91,20 @@ pub(super) fn availability(
     }
 }
 
-/// Makes Available the open Request for each of the Movies `tmdb_ids` that a Library now has,
-/// and returns an event for each (ADR 0012). Declined Requests are closed, so they stay as they
-/// are.
+/// Makes Available the open Request for each of the Movies `ids`, each its preferred id, that a
+/// Library now has, and returns an event for each (ADR 0012). Declined Requests are closed, so
+/// they stay as they are.
 pub(crate) async fn make_available(
     conn: &mut SqliteConnection,
-    tmdb_ids: Vec<i64>,
+    ids: Vec<ExternalId>,
 ) -> Result<Vec<Event>, sqlx::Error> {
     let mut happened = Vec::new();
-    for tmdb_id in tmdb_ids {
-        let movie = ExternalId::tmdb(tmdb_id);
+    for movie in ids {
         let Some(id) = open_request(conn, &movie, None).await? else {
             continue;
         };
         // Not every Matched id is a Movie in a Library: the Match isn't stored if its Item went
-        // since it was decided about, and an Episode's TMDB id can equal an unrelated Movie's.
+        // since it was decided about, and an Episode's id can equal an unrelated Movie's.
         if contents::library_with_movie(conn, &movie).await?.is_none() {
             continue;
         }
@@ -115,37 +114,40 @@ pub(crate) async fn make_available(
 }
 
 /// Makes the open Request for each of `seasons`, as the metadata source gave them just now with
-/// their Show's TMDB id, Partially Available (if Processing) or Available by how many of its
+/// their Show's preferred id, Partially Available (if Processing) or Available by how many of its
 /// aired Episodes a Library has, and returns an event for each Request that changed (ADR 0012).
 /// Declined and Available Requests are closed, so Episodes that air later don't reopen them. A
 /// Season with no open Request is asked for by a scan, as [`Scanning`] says.
 pub(crate) async fn make_seasons_available(
     conn: &mut SqliteConnection,
-    seasons: Vec<(i64, Season)>,
+    seasons: Vec<(ExternalId, Season)>,
 ) -> Result<Vec<Event>, sqlx::Error> {
     let today = today(conn).await?;
     let mut happened = Vec::new();
-    for (show_tmdb_id, season) in seasons {
-        let show = ExternalId::tmdb(show_tmdb_id);
+    for (show, season) in seasons {
         let matched = contents::matched_episodes(conn, &show, season.number.into()).await?;
         let Some(state) = availability(&season.episodes, &matched, &today) else {
             continue;
         };
         match open_request(conn, &show, Some(season.number)).await? {
             Some(id) => happened.extend(change_state(conn, id, state).await?),
-            None => happened.extend(scan_season(conn, show_tmdb_id, season).await?),
+            None => happened.extend(scan_season(conn, &show, season).await?),
         }
     }
     Ok(happened)
 }
 
-/// Asks for `season` of the Show `show_tmdb_id`, which a Library's write found no open Request
-/// for, by a scan. Returns the events for it.
+/// Asks for `season` of the Show `show`, which a Library's write found no open Request for, by a
+/// scan. Returns the events for it.
 async fn scan_season(
     conn: &mut SqliteConnection,
-    show_tmdb_id: i64,
+    show: &ExternalId,
     season: Season,
 ) -> Result<Vec<Event>, sqlx::Error> {
+    // Followed Shows still key on a TMDB number, so a Show without one has none.
+    let Some(show_tmdb_id) = tmdb_number_of(show) else {
+        return Ok(Vec::new());
+    };
     // A Show with no Approved Followed Show has no one a scan could ask for.
     let Some(followed_show) = approved_followed_show(conn, show_tmdb_id).await? else {
         return Ok(Vec::new());
@@ -155,14 +157,14 @@ async fn scan_season(
     Ok(scanned.events)
 }
 
-/// Whether the Season `season` of the Show `show_tmdb_id` ever had an Available Request, so its
-/// Followed Show doesn't ask for it again.
+/// Whether the Season `season` of the Show `show` ever had an Available Request, so its Followed
+/// Show doesn't ask for it again.
 async fn was_available(
     conn: &mut SqliteConnection,
-    show_tmdb_id: i64,
+    show: &ExternalId,
     season: u32,
 ) -> Result<bool, sqlx::Error> {
-    let title_id = ExternalId::tmdb(show_tmdb_id).to_string();
+    let title_id = show.to_string();
     sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM requests
                           WHERE title_id = ? AND season = ? AND state = 'available') AS "is!: bool""#,

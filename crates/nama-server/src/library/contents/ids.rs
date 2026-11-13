@@ -22,11 +22,13 @@ impl Pin {
 }
 
 /// The one of `ids` that identifies a title: its TMDB id if it has one, or else its IMDb or TVDB
-/// id. `None` if it has none.
-pub(super) fn primary_id(ids: &ExternalIds) -> Option<ExternalId> {
+/// id, or else the first of any others in namespace order. `None` if it has none.
+// ponytail: a fixed order until a Library has its own order of title sources.
+pub(crate) fn primary_id(ids: &ExternalIds) -> Option<ExternalId> {
     [TMDB, IMDB, TVDB]
         .into_iter()
         .find_map(|namespace| ids.get(namespace))
+        .or_else(|| ids.iter().next())
 }
 
 /// Hands `$query!` the start of a subquery giving an Item's ids in one scope of `item_match_ids`

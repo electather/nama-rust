@@ -18,8 +18,7 @@ use super::state::{open_request, read_state, stored};
 use super::{Error, Requests};
 use crate::users::User;
 
-/// The client API's id in `namespace` of the title a Request is kept under.
-// ponytail: Requests key on a TMDB id inside the Server until `requests-key-on-ids`.
+/// The client API's id `value` in `namespace`.
 pub(super) fn title_id(namespace: &str, value: &impl ToString) -> ExternalId {
     ExternalId {
         namespace: namespace.to_owned(),
@@ -28,8 +27,8 @@ pub(super) fn title_id(namespace: &str, value: &impl ToString) -> ExternalId {
     }
 }
 
-/// The TMDB number of `id`, which the Server still keys Requests and Followed Shows on.
-// `requests-key-on-ids` and `followed-shows-key-on-ids` delete this.
+/// The TMDB number of `id`, which the Server still keys Followed Shows on.
+// The task `followed-shows-key-on-ids` deletes this.
 pub(super) fn tmdb_number(id: Option<&ExternalId>) -> Option<i64> {
     let id = id.filter(|id| id.namespace == TMDB)?;
     id.value.parse().ok()

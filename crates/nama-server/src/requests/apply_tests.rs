@@ -1,28 +1,19 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    pin::Pin,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
 
 use futures_util::Stream;
 use nama_plugin_api::{
     BoxFuture, PluginError,
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
     metadata::ExternalId,
-    settings::{SettingValue, Settings},
 };
-use nama_plugin_tmdb::{
-    Tmdb,
-    testing::{API_KEY, FakeTmdb},
-};
+use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::{Request, RequestState, SubscribeResponse, event::Event as Happened};
 use tokio::sync::Notify;
 
 use crate::requests::Requests;
 use crate::requests::testing::{
     ADA, Asked, DARK, FulfillerPlugin, ada, approved_for, approved_on, ask_as, asked_season, dark,
-    follow_as, fulfilled, next_happened,
+    enable_tmdb, follow_as, fulfilled, next_happened,
 };
 use crate::{
     artwork::Artwork,
@@ -67,17 +58,6 @@ async fn leave_once_queued<T: Send + 'static>(
     holding.await.unwrap().unwrap();
 }
 
-/// Enables `tmdb` as the metadata Provider in `plugins`.
-fn enable_tmdb(plugins: &Registry, tmdb: &FakeTmdb) {
-    let settings = Settings::new(BTreeMap::from([(
-        "api_key".to_owned(),
-        SettingValue::Text(API_KEY.to_owned()),
-    )]));
-    plugins
-        .enable_with_settings(Arc::new(Tmdb::with_endpoints(tmdb.endpoints())), settings)
-        .unwrap();
-}
-
 /// A write that tells `writing` it runs, then holds the writer until `released`.
 async fn hold_writer(writing: Arc<Notify>, released: Arc<Notify>) -> Result<(), sqlx::Error> {
     writing.notify_one();
@@ -100,7 +80,9 @@ async fn an_auto_approved_movie_asked_for_by_a_caller_who_left_is_published_and_
     let asking = requests.clone();
 
     leave_once_queued(&requests, async move {
-        asking.create(&ada(Permissions::ADMIN), 348, None).await
+        asking
+            .create(&ada(Permissions::ADMIN), &ExternalId::tmdb(348), None)
+            .await
     })
     .await;
 

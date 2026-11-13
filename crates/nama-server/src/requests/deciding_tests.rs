@@ -1,10 +1,11 @@
+use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::RequestState;
 
-use super::{approve, cancel, decline, retry, withdraw};
-use crate::requests::asking::ask_seasons;
+use super::{RequestTitle, approve, cancel, cancel_deleted, decline, retry, withdraw};
+use crate::requests::asking::{Wanted, ask, ask_seasons};
 use crate::requests::testing::{
     ADA, NOTHING, ada_and_bob, ask_for, dark, fulfilled, handed_off, happened, match_dark_episodes,
-    match_in_a_library, scan_dark, settled,
+    match_in_a_library, movie, scan_dark, settled,
 };
 use crate::requests::{Error, asked};
 
@@ -139,4 +140,28 @@ async fn withdrawing_from_a_request_that_is_not_pending_is_refused() {
         matches!(refused, Err(Error::NotPending(asked::Asked::Request, refused_id)) if refused_id == id),
         "{refused:?}"
     );
+}
+
+#[tokio::test]
+async fn deleting_media_of_a_title_known_by_a_made_up_id_cancels_its_request() {
+    let (_data, db) = ada_and_bob().await;
+    let anidb = ExternalId::new("anidb", "1").unwrap();
+    let wanted = Wanted {
+        id: anidb.clone(),
+        ..movie(1)
+    };
+    db.write(move |tx| Box::pin(ask(tx, ADA, wanted, RequestState::Pending)))
+        .await
+        .unwrap();
+    let titles = vec![RequestTitle {
+        id: anidb,
+        season: None,
+    }];
+
+    let deleted = db
+        .write(move |tx| Box::pin(cancel_deleted(tx, titles, "bob".to_owned())))
+        .await
+        .unwrap();
+
+    assert_eq!(happened(&deleted), [("cancelled", RequestState::Pending)]);
 }

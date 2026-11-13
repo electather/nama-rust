@@ -32,7 +32,7 @@ pub(crate) struct Doomed {
     /// The Episodes the title isn't, that a file of `versions` holds too.
     pub(crate) taken_along: Vec<Episode>,
     /// What each Version is of, by its id, as a Request names it: its Movie, or the Season of each
-    /// Episode it holds. One with no TMDB id, which no Request names, isn't here.
+    /// Episode it holds.
     pub(crate) requested: Vec<(i64, RequestTitle)>,
 }
 
@@ -47,7 +47,7 @@ impl Doomed {
     /// What the Versions `gone` are of, as Requests name it, each once.
     pub(crate) fn request_titles(&self, gone: &[i64]) -> Vec<RequestTitle> {
         let titles = (self.requested.iter()).filter(|(version, _)| gone.contains(version));
-        let titles: BTreeSet<RequestTitle> = titles.map(|&(_, title)| title).collect();
+        let titles: BTreeSet<RequestTitle> = titles.map(|(_, title)| title.clone()).collect();
         titles.into_iter().collect()
     }
 }
@@ -239,6 +239,7 @@ fn remove_empty_folders(folder: &Path, root: &Path, kept: &[&Path]) {
 mod tests {
     use std::{fs, io, path::Path};
 
+    use nama_plugin_api::metadata::ExternalId;
     use tempfile::TempDir;
 
     use super::{Doomed, delete, each_file, preview};
@@ -449,7 +450,7 @@ mod tests {
         let fx = Fixture::new();
         let mut doomed = fx.doomed(&["S01E01-E02.mkv", "S01E01.mkv", "S02E01.mkv"]);
         let season = |number| RequestTitle {
-            tmdb_id: 1,
+            id: ExternalId::tmdb(1),
             season: Some(number),
         };
         doomed.requested = vec![(1, season(1)), (2, season(1)), (3, season(2))];

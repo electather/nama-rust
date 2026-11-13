@@ -14,7 +14,7 @@ use nama_plugin_api::{
         EpisodeNumber, EpisodeNumbers, MovieDeleted, ShowDeleted, TitleId, show_deleted::Deleted,
         stop_monitoring::Title,
     },
-    metadata::{ExternalId, ExternalIds, TMDB},
+    metadata::{ExternalId, ExternalIds},
 };
 
 use crate::{
@@ -276,7 +276,7 @@ impl Browse {
                 library,
                 to_unmonitor: movie_to_unmonitor(&movie.ids),
                 title: movie.title,
-                requested: movie_requested(tmdb_id_of(&movie.id), &movie.versions),
+                requested: movie_requested(&movie.id, &movie.versions),
                 versions: movie.versions,
                 taken_along: Vec::new(),
             });
@@ -291,11 +291,11 @@ impl Browse {
         let Titles::Movies(movies) = self.titles(&library).await? else {
             return Err(Error::NoSuchVersion);
         };
-        let (title, tmdb_id, to_unmonitor, version) = (movies.into_iter())
+        let (title, id, to_unmonitor, version) = (movies.into_iter())
             .find_map(|movie| {
                 let version = movie.versions.into_iter().find(|v| v.file.id == version)?;
                 let to_unmonitor = movie_to_unmonitor(&movie.ids);
-                Some((movie.title, tmdb_id_of(&movie.id), to_unmonitor, version))
+                Some((movie.title, movie.id, to_unmonitor, version))
             })
             .ok_or(Error::NoSuchVersion)?;
         let versions = vec![version];
@@ -303,7 +303,7 @@ impl Browse {
             library,
             to_unmonitor,
             title,
-            requested: movie_requested(tmdb_id, &versions),
+            requested: movie_requested(&id, &versions),
             versions,
             taken_along: Vec::new(),
         })
@@ -486,20 +486,14 @@ fn title_ids(ids: &ExternalIds) -> Vec<TitleId> {
         .collect()
 }
 
-/// Each of `versions` with the Movie `tmdb_id` it is of, as a Request names it. None without one.
-fn movie_requested(
-    tmdb_id: Option<i64>,
-    versions: &[contents::Version],
-) -> Vec<(i64, RequestTitle)> {
-    let Some(tmdb_id) = tmdb_id else {
-        return Vec::new();
-    };
+/// Each of `versions` with the Movie `id` it is of, as a Request names it.
+fn movie_requested(id: &ExternalId, versions: &[contents::Version]) -> Vec<(i64, RequestTitle)> {
     let title = RequestTitle {
-        tmdb_id,
+        id: id.clone(),
         season: None,
     };
     (versions.iter())
-        .map(|version| (version.file.id, title))
+        .map(|version| (version.file.id, title.clone()))
         .collect()
 }
 
@@ -507,19 +501,16 @@ fn movie_requested(
 fn seasons_requested(shows: &[contents::Show], files: &HashSet<i64>) -> Vec<(i64, RequestTitle)> {
     let mut requested = Vec::new();
     for show in shows {
-        let Some(tmdb_id) = tmdb_id_of(&show.id) else {
-            continue;
-        };
         for episode in show.episodes() {
             let Ok(season) = u32::try_from(episode.season) else {
                 continue;
             };
             let title = RequestTitle {
-                tmdb_id,
+                id: show.id.clone(),
                 season: Some(season),
             };
             let held = (episode.versions.iter()).filter(|version| files.contains(&version.file.id));
-            requested.extend(held.map(|version| (version.file.id, title)));
+            requested.extend(held.map(|version| (version.file.id, title.clone())));
         }
     }
     requested
@@ -663,13 +654,6 @@ fn started_episodes(
         }
     }
     started
-}
-
-fn tmdb_id_of(id: &ExternalId) -> Option<i64> {
-    if id.namespace() != TMDB {
-        return None;
-    }
-    id.value().parse().ok()
 }
 
 /// What [`Libraries::get`] or [`Libraries::list`] failing means to Browse.

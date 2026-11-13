@@ -64,7 +64,7 @@ impl RequestService for RequestServiceHandler {
             .requests
             .create(
                 asker,
-                tmdb_number(request.movie_id.into_option(), "movie_id", "Movie")?,
+                &required_id(request.movie_id.into_option(), "movie_id", "Movie")?,
                 request.quality,
             )
             .await?;
@@ -94,7 +94,7 @@ impl RequestService for RequestServiceHandler {
             .requests
             .create_seasons(
                 asker,
-                tmdb_number(request.show_id.into_option(), "show_id", "Show")?,
+                &required_id(request.show_id.into_option(), "show_id", "Show")?,
                 &seasons,
                 request.quality,
             )
@@ -249,8 +249,7 @@ impl RequestService for RequestServiceHandler {
             "Movie",
         )?;
         let not_found = || title_not_found(&id, "movie_id", "Movie");
-        let tmdb_id = tmdb_of(&id).ok_or_else(not_found)?;
-        let found = self.requests.look_up(viewer, tmdb_id).await;
+        let found = self.requests.look_up(viewer, &id).await;
         let found = found.map_err(|err| {
             if matches!(err, requests::Error::NoSuchMovie(_)) {
                 not_found()
@@ -294,8 +293,7 @@ impl RequestService for RequestServiceHandler {
             "Show",
         )?;
         let not_found = || title_not_found(&id, "show_id", "Show");
-        let tmdb_id = tmdb_of(&id).ok_or_else(not_found)?;
-        let found = self.requests.look_up_show(viewer, tmdb_id).await;
+        let found = self.requests.look_up_show(viewer, &id).await;
         let found = found.map_err(|err| {
             if matches!(err, requests::Error::NoSuchShow(_)) {
                 not_found()
@@ -480,7 +478,7 @@ impl RequestServiceHandler {
     /// A Movie a search found, as clients see it, with its poster offered to them.
     fn searched_to_proto(&self, found: Found<Candidate>, images: &ShownImages) -> proto::MovieHit {
         let Found {
-            tmdb_id,
+            id,
             plugin,
             movie,
             library,
@@ -488,12 +486,12 @@ impl RequestServiceHandler {
         } = found;
         let (poster_url, poster_thumbhash) = self.image(
             images,
-            &movie_slot(tmdb_id, Role::Poster),
+            &movie_slot(&id, Role::Poster),
             &plugin,
             movie.poster,
         );
         proto::MovieHit {
-            id: tmdb_to_proto(tmdb_id).into(),
+            id: external_id_to_proto(&id).into(),
             title: movie.title,
             year: movie.year,
             poster_url,
@@ -511,17 +509,17 @@ impl RequestServiceHandler {
         images: &ShownImages,
     ) -> proto::FoundMovie {
         let Found {
-            tmdb_id,
+            id,
             plugin,
             movie,
             library,
             request,
         } = found;
-        let image = |role, path| self.image(images, &movie_slot(tmdb_id, role), &plugin, path);
+        let image = |role, path| self.image(images, &movie_slot(&id, role), &plugin, path);
         let (poster_url, poster_thumbhash) = image(Role::Poster, movie.poster);
         let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, movie.backdrop);
         proto::FoundMovie {
-            id: tmdb_to_proto(tmdb_id).into(),
+            id: external_id_to_proto(&id).into(),
             title: movie.title,
             year: movie.release_date.as_deref().and_then(year_of),
             overview: movie.overview,
@@ -539,18 +537,14 @@ impl RequestServiceHandler {
     /// A Show a search found, as clients see it, with its poster offered to them.
     fn searched_show_to_proto(&self, hit: Hit, images: &ShownImages) -> proto::ShowHit {
         let Hit {
-            tmdb_id,
+            id,
             plugin,
             candidate: show,
         } = hit;
-        let (poster_url, poster_thumbhash) = self.image(
-            images,
-            &show_slot(tmdb_id, Role::Poster),
-            &plugin,
-            show.poster,
-        );
+        let (poster_url, poster_thumbhash) =
+            self.image(images, &show_slot(&id, Role::Poster), &plugin, show.poster);
         proto::ShowHit {
-            id: tmdb_to_proto(tmdb_id).into(),
+            id: external_id_to_proto(&id).into(),
             title: show.title,
             year: show.year,
             poster_url,
@@ -562,18 +556,18 @@ impl RequestServiceHandler {
     /// A Show looked up, as clients see it, with its images offered to them.
     fn looked_up_show_to_proto(&self, found: FoundShow, images: &ShownImages) -> proto::FoundShow {
         let FoundShow {
-            tmdb_id,
+            id,
             plugin,
             show,
             seasons,
             followed_show,
             quality,
         } = found;
-        let image = |role, path| self.image(images, &show_slot(tmdb_id, role), &plugin, path);
+        let image = |role, path| self.image(images, &show_slot(&id, role), &plugin, path);
         let (poster_url, poster_thumbhash) = image(Role::Poster, show.poster);
         let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, show.backdrop);
         proto::FoundShow {
-            id: tmdb_to_proto(tmdb_id).into(),
+            id: external_id_to_proto(&id).into(),
             title: show.title,
             year: show.first_air_date.as_deref().and_then(year_of),
             overview: show.overview,
@@ -589,14 +583,14 @@ impl RequestServiceHandler {
     }
 }
 
-/// The slot of the Movie whose TMDB id is `tmdb_id`, as browsing identifies it.
-fn movie_slot(tmdb_id: i64, role: Role) -> Slot {
-    Slot::movie(&ExternalId::tmdb(tmdb_id), role)
+/// The slot of the Movie `id`, as browsing identifies it.
+fn movie_slot(id: &ExternalId, role: Role) -> Slot {
+    Slot::movie(id, role)
 }
 
-/// The slot of the Show whose TMDB id is `tmdb_id`, as browsing identifies it.
-fn show_slot(tmdb_id: i64, role: Role) -> Slot {
-    Slot::show(&ExternalId::tmdb(tmdb_id), role)
+/// The slot of the Show `id`, as browsing identifies it.
+fn show_slot(id: &ExternalId, role: Role) -> Slot {
+    Slot::show(id, role)
 }
 
 /// `title`, unless it is blank, which a search for titles refuses.
@@ -642,9 +636,9 @@ impl From<qualities::Refused> for ConnectError {
     }
 }
 
-/// The TMDB number of the `what`'s id in `field`, which the Kernel's Requests still key on. An id
-/// in another namespace, or a `tmdb` one that isn't a number, is a title no source knows.
-// The tasks `requests-key-on-ids` and `followed-shows-key-on-ids` delete this.
+/// The TMDB number of the `what`'s id in `field`, which the Kernel's Followed Shows still key on.
+/// An id in another namespace, or a `tmdb` one that isn't a number, is a title no source knows.
+// The task `followed-shows-key-on-ids` deletes this.
 fn tmdb_number(
     id: Option<proto::ExternalId>,
     field: &str,
@@ -663,17 +657,12 @@ fn tmdb_number(
 }
 
 /// The TMDB number `id` names, if it is a `tmdb` id whose value is a number.
-// The tasks `requests-key-on-ids` and `followed-shows-key-on-ids` delete this.
+// The task `followed-shows-key-on-ids` deletes this.
 fn tmdb_of(id: &ExternalId) -> Option<i64> {
     match id.namespace() {
         TMDB => id.value().parse().ok(),
         _ => None,
     }
-}
-
-/// The id of the title the Kernel found by its TMDB number `tmdb_id`, as clients see it.
-fn tmdb_to_proto(tmdb_id: i64) -> proto::ExternalId {
-    external_id_to_proto(&ExternalId::tmdb(tmdb_id))
 }
 
 /// The refusal of a look-up of the `what` `id`, named in `field`, which no metadata source has or
@@ -748,23 +737,23 @@ impl From<requests::Error> for ConnectError {
             }
             requests::Error::InLibrary(id) => refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
                 .field("movie_id")
-                .param("titleId", &ExternalId::tmdb(id)),
+                .param("titleId", &id),
             requests::Error::SeasonInLibrary { show, season } => {
                 refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
                     .field("season_numbers")
-                    .param("titleId", &ExternalId::tmdb(show))
+                    .param("titleId", &show)
                     .param("seasonNumber", &season)
             }
             requests::Error::NoSuchMovie(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
                 .field("movie_id")
-                .param("titleId", &ExternalId::tmdb(id)),
+                .param("titleId", &id),
             requests::Error::NoSuchShow(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
                 .field("show_id")
-                .param("titleId", &ExternalId::tmdb(id)),
+                .param("titleId", &id),
             requests::Error::NoSuchSeason { show, season } => {
                 refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
                     .field("season_numbers")
-                    .param("titleId", &ExternalId::tmdb(show))
+                    .param("titleId", &show)
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),

@@ -4,7 +4,7 @@
 use nama_plugin_api::{
     PluginId,
     fulfiller::{Fulfiller, Movies, Shows},
-    metadata::{ExternalId, TMDB, TitleKind},
+    metadata::{ExternalId, TitleKind},
 };
 use nama_proto::nama::v1::{
     DefaultQuality, Quality, Request, RequestedQuality, request::MovieOrSeason,
@@ -12,8 +12,9 @@ use nama_proto::nama::v1::{
 use sqlx::SqliteConnection;
 
 use super::asked::Asked;
-use super::listing::{load_one, tmdb_number};
+use super::listing::load_one;
 use super::state::read_state;
+use super::state::tmdb_number_of;
 use super::{Error, Requests, qualities};
 use crate::{db::now, users::User};
 
@@ -153,7 +154,10 @@ pub(super) async fn change_quality(
         .await?
         .ok_or(Error::NoSuch(Asked::Request, id))?;
     let show = match &request.movie_or_season {
-        Some(MovieOrSeason::Season(season)) => tmdb_number(season.show_id.as_option()),
+        Some(MovieOrSeason::Season(season)) => season
+            .show_id
+            .as_option()
+            .and_then(|show| ExternalId::new(&show.namespace, show.value.clone()).ok()),
         _ => None,
     };
     requality(conn, Some(id), show, new_quality).await
@@ -173,7 +177,7 @@ pub(super) async fn change_followed_quality(
         .fetch_optional(&mut *conn)
         .await?
         .ok_or(Error::NoSuch(Asked::FollowedShow, id))?;
-    requality(conn, None, Some(show), new_quality).await
+    requality(conn, None, Some(ExternalId::tmdb(show)), new_quality).await
 }
 
 /// Changes the Quality of the Request `id`, if given, and of the Show `show`, if given, to
@@ -183,14 +187,12 @@ pub(super) async fn change_followed_quality(
 async fn requality(
     conn: &mut SqliteConnection,
     id: Option<i64>,
-    show: Option<i64>,
+    show: Option<ExternalId>,
     NewQuality { quality, by }: NewQuality,
 ) -> Result<(), Error> {
-    let (seasons, followed) = match show {
+    let (seasons, followed) = match &show {
         Some(show) => {
-            let moves = show_requests(conn, &ExternalId::tmdb(show))
-                .await?
-                .change(&quality)?;
+            let moves = show_requests(conn, show).await?.change(&quality)?;
             (moves.seasons, moves.followed)
         }
         None => (Vec::new(), false),
@@ -217,6 +219,7 @@ async fn requality(
         .await?;
     }
     if followed {
+        let show = show.as_ref().and_then(tmdb_number_of);
         macro_rules! change {
             ($open:literal) => {
                 sqlx::query!(
@@ -245,10 +248,8 @@ pub(super) async fn show_requests(
     show: &ExternalId,
 ) -> Result<qualities::ShowRequests, sqlx::Error> {
     let title_id = show.to_string();
-    // Followed Shows still key on a TMDB number: a Show known by another id has none.
-    let show_tmdb_id: Option<i64> = (show.namespace() == TMDB)
-        .then(|| show.value().parse().ok())
-        .flatten();
+    // A Show known by an id other than a TMDB one has no Followed Show yet.
+    let show_tmdb_id = tmdb_number_of(show);
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", state, fulfiller_reference IS NOT NULL AS "handed_off!: bool",
                   quality_id, quality_name, quality_profile_id,

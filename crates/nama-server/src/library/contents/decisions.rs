@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{self, ExternalId, ExternalIds, TMDB},
+    metadata::{self, ExternalId, ExternalIds},
 };
 use nama_proto::nama::v1::Event;
 use sqlx::SqliteConnection;
@@ -66,8 +66,8 @@ pub(crate) struct Decisions {
     /// Each Item, with what was decided about it.
     pub(crate) items: Vec<(i64, Decided)>,
     /// The Seasons fetched to decide about Episodes, as the metadata source gave them, with their
-    /// Show's TMDB id. Their Requests follow how much of them a Library has.
-    pub(crate) seasons: Vec<(i64, metadata::Season)>,
+    /// Show's preferred id. Their Requests follow how much of them a Library has.
+    pub(crate) seasons: Vec<(ExternalId, metadata::Season)>,
 }
 
 impl From<Vec<(i64, Decided)>> for Decisions {
@@ -268,11 +268,10 @@ pub(super) async fn insert_decisions(
     decided: Decisions,
     now: i64,
 ) -> Result<Vec<Event>, sqlx::Error> {
-    let mut tmdb_ids = Vec::new();
+    let mut movies = Vec::new();
     for (item, decision) in decided.items {
         if let Decided::Matched(metadata) = &decision {
-            let tmdb = metadata.ids.get(TMDB);
-            tmdb_ids.extend(tmdb.and_then(|id| id.value().parse::<i64>().ok()));
+            movies.extend(primary_id(&metadata.ids));
         }
         let row = MatchRow::from(&decision);
         let written = sqlx::query!(
@@ -324,7 +323,7 @@ pub(super) async fn insert_decisions(
             .await?;
         }
     }
-    let mut happened = requests::make_available(conn, tmdb_ids).await?;
+    let mut happened = requests::make_available(conn, movies).await?;
     happened.extend(requests::make_seasons_available(conn, decided.seasons).await?);
     Ok(happened)
 }
