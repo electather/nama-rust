@@ -27,11 +27,11 @@ use nama_proto::nama::v1::{
     RequestCreated, RequestState, RequestWithdrawn, RequestedQuality, Requester, RequesterAdded,
     RequesterRemoved, request::MovieOrSeason,
 };
-use sqlx::{Sqlite, SqliteConnection, Transaction};
+use sqlx::SqliteConnection;
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 use crate::{
-    db::{BoxFuture, Database, detached, now},
+    db::{Database, now},
     events::{EventBus, event},
     library::contents::{self, Contents, Metadata},
     metadata::{self, MetadataSource},
@@ -39,6 +39,7 @@ use crate::{
     users::User,
 };
 
+mod apply;
 mod asked;
 mod hand_off;
 mod listing;
@@ -47,6 +48,7 @@ mod state;
 // Neighbours address it as `requests::qualities`: its names (`list`, `Refused`) read only with it.
 pub(crate) mod qualities;
 
+use apply::Applied;
 pub(crate) use asked::{Asked, may_see};
 use hand_off::HandOff;
 pub(crate) use listing::visible_to;
@@ -193,92 +195,6 @@ struct WantedSeasons {
     quality: qualities::Ask,
 }
 
-/// What a write to Requests did: its `value`, the events it built for what happened, the Requests
-/// it approved, which [`Requests::apply`] hands off, and the Season Request of a Followed Show it
-/// ended, whose Show the Shows Fulfiller stops following.
-#[derive(Debug)]
-struct Applied<T> {
-    value: T,
-    events: Vec<Event>,
-    hand_off: Vec<Request>,
-    unfollow: Option<Request>,
-}
-
-impl<T> Applied<T> {
-    /// `value`, from a write that changed nothing worth an event.
-    fn quiet(value: T) -> Self {
-        Self {
-            value,
-            events: Vec::new(),
-            hand_off: Vec::new(),
-            unfollow: None,
-        }
-    }
-
-    /// `value`, from a write that `happened` says what it did.
-    fn saying(value: T, happened: Event) -> Self {
-        Self {
-            events: vec![happened],
-            ..Self::quiet(value)
-        }
-    }
-}
-
-impl Applied<Request> {
-    /// `request`, which the write moved to the state it is in now.
-    fn moved(request: Request) -> Self {
-        Self::saying(request.clone(), state_changed(request))
-    }
-
-    /// `request`, which the write approved, so it is handed off.
-    fn approved(request: Request) -> Self {
-        Self {
-            hand_off: vec![request.clone()],
-            ..Self::moved(request)
-        }
-    }
-}
-
-/// A write's value that may hold Requests the write hands off, which [`Requests::apply`] swaps
-/// for those Requests as the Hand-off left them.
-trait HandedBack: Sized {
-    /// `self` with any of `handed` in place of the Request with its id.
-    fn handed_back(self, _handed: &[Request]) -> Self {
-        self
-    }
-}
-
-impl HandedBack for () {}
-
-impl HandedBack for FollowedShow {}
-
-impl<A: HandedBack, B: HandedBack> HandedBack for (A, B) {
-    fn handed_back(self, handed: &[Request]) -> Self {
-        (self.0.handed_back(handed), self.1.handed_back(handed))
-    }
-}
-
-impl HandedBack for Request {
-    fn handed_back(self, handed: &[Request]) -> Self {
-        let now = handed.iter().find(|request| request.id == self.id);
-        now.cloned().unwrap_or(self)
-    }
-}
-
-impl HandedBack for Option<Request> {
-    fn handed_back(self, handed: &[Request]) -> Self {
-        self.map(|request| request.handed_back(handed))
-    }
-}
-
-impl HandedBack for Vec<Request> {
-    fn handed_back(self, handed: &[Request]) -> Self {
-        self.into_iter()
-            .map(|request| request.handed_back(handed))
-            .collect()
-    }
-}
-
 impl Requests {
     /// The Requests in `db`, looking titles up through the metadata Provider and handing Approved
     /// ones to the Fulfillers in `plugins`, publishing on `events`.
@@ -371,86 +287,6 @@ impl Requests {
         let user = asker.id;
         self.apply(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
             .await
-    }
-
-    /// Runs `write`, publishes the events it built, has the Shows Fulfiller stop following the
-    /// Show of a Followed Show it ended, then hands off the Requests it approved, and returns its
-    /// value with those Requests as they are after the Hand-off. A failure to stop following is
-    /// only logged: the Followed Show ended either way.
-    ///
-    /// The one path for Request changes (`AGENTS.md`, "Data").
-    ///
-    /// Runs in a task of its own, since the write commits even if the caller stops waiting, so
-    /// what follows it must too (ADR 0029).
-    async fn apply<T, W>(&self, write: W) -> Result<T, Error>
-    where
-        T: HandedBack + Send + 'static,
-        W: for<'t> FnOnce(
-                &'t mut Transaction<'_, Sqlite>,
-            ) -> BoxFuture<'t, Result<Applied<T>, Error>>
-            + Send
-            + 'static,
-    {
-        let requests = self.clone();
-        detached(async move { requests.applied(write).await }).await
-    }
-
-    /// [`Self::apply`], in the task the caller runs it in.
-    async fn applied<T, W>(&self, write: W) -> Result<T, Error>
-    where
-        T: HandedBack + Send + 'static,
-        W: for<'t> FnOnce(
-                &'t mut Transaction<'_, Sqlite>,
-            ) -> BoxFuture<'t, Result<Applied<T>, Error>>
-            + Send
-            + 'static,
-    {
-        let claiming = self.hand_off.clone();
-        let (applied, claims) = self
-            .db
-            .write(move |tx| {
-                Box::pin(async move {
-                    let applied = write(tx).await?;
-                    // The came-up sweep reads only committed Requests, so claiming them before the
-                    // commit keeps it off this write's. A failed commit drops the claims.
-                    let claims: Vec<_> = applied
-                        .hand_off
-                        .iter()
-                        .map(|request| claiming.claim(request.id))
-                        .collect();
-                    Ok::<_, Error>((applied, claims))
-                })
-            })
-            .await?;
-        let Applied {
-            value,
-            events,
-            hand_off,
-            unfollow,
-        } = applied;
-        self.events.publish(events);
-        if let Some(season) = unfollow {
-            self.hand_off.unfollow(&season).await;
-        }
-        let mut handed = Vec::with_capacity(hand_off.len());
-        let mut failed = None;
-        // ponytail: one Hand-off at a time, so a slow Fulfiller takes as long for each Season.
-        for (request, claim) in hand_off.into_iter().zip(claims) {
-            let Some(claim) = claim else {
-                // Another hand-off has it, and looks at it again once it is done.
-                handed.push(request);
-                continue;
-            };
-            // On past a failure: a came-up sweep that found the rest claimed left them to this.
-            match self.hand_off.request(self, request, claim).await {
-                Ok(request) => handed.push(request),
-                Err(err) => _ = failed.get_or_insert(err),
-            }
-        }
-        if let Some(err) = failed {
-            return Err(err);
-        }
-        Ok(value.handed_back(&handed))
     }
 
     /// The enabled Plugin providing the Fulfiller of `Kind`, if any.

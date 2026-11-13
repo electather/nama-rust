@@ -5,9 +5,10 @@ use nama_plugin_api::fulfiller::Fulfilled;
 use nama_proto::nama::v1::{Event, Request, RequestState, RequestStateChanged, RequestedQuality};
 use sqlx::SqliteConnection;
 
+use super::apply::Applied;
 use super::asked::Asked;
 use super::listing::load_one;
-use super::{Applied, Error, Requests, progress, qualities, quality_columns};
+use super::{Error, Requests, progress, qualities, quality_columns};
 use crate::{events::event, plugins::Answer};
 
 /// Each Request state as `requests.state` stores it.
