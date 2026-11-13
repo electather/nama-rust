@@ -973,7 +973,7 @@ async fn deleting_a_show_unmonitors_every_season_in_sonarr_and_keeps_it_followin
         .list_in(RequestState::Unspecified)
         .await;
     assert_eq!(followed.len(), 1, "{followed:?}");
-    assert_eq!(followed[0].show_tmdb_id, DARK);
+    assert_eq!(followed[0].show_id, tmdb_id(DARK).into());
 }
 
 #[tokio::test]

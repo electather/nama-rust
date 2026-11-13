@@ -12,6 +12,12 @@ CI counts those headings, so a break passes only with one more than main has: ed
 
 ## 2026-11-13, #0
 
+- None that `buf breaking` reports: in `nama/v1/request.proto`, `RequestedMovie.tmdb_id` (1), `RequestedSeason.show_tmdb_id` (1), `show_imdb_id` (5) and `show_tvdb_id` (6), `FollowedShow.show_tmdb_id` (2), `CreateRequestRequest.movie_tmdb_id` (1), `CreateSeasonRequestsRequest.show_tmdb_id` (1) and `CreateFollowedShowRequest.show_tmdb_id` (1) are deleted with their numbers and names reserved.
+- A Request's title is an `ExternalId`: `RequestedMovie.id` (4) with every id the metadata source gave in `ids` (5), `RequestedSeason.show_id` (7) with `show_ids` (8), and `FollowedShow.show_id` (9). `CreateRequest` takes `movie_id` (3), `CreateSeasonRequests` and `CreateFollowedShow` take `show_id` (4 and 3); an id the Server can't look up is refused with `REFUSAL_REASON_UNKNOWN_TITLE` (ADR 0042). `REFUSAL_REASON_ALREADY_IN_LIBRARY`'s `tmdbId` param is now `titleId`, the id's text form (`tmdb-949`).
+- A client built before reads no title id from a Request or Followed Show, and every create it sends is refused for a missing id; it must regenerate and send and read `ExternalId`s. The web app is the only client.
+
+## 2026-11-13, #0
+
 - `ONEOF_NO_DELETE`, `nama/v1/match.proto`: `ExternalId.id`.
 - A title's `ExternalId` is now a `namespace` (4) and a `value` (5), such as `tmdb` and `603`, in place of the oneof of `tmdb` (1), `imdb` (2) and `tvdb` (3), whose numbers and names are reserved (ADR 0042). The Server refuses an id with a malformed namespace or an empty value with `REFUSAL_REASON_TITLE_ID_MALFORMED`.
 - A client built before reads no id from a title and sends none the Server takes; it must regenerate and read and send an id as `namespace` and `value`. The web app is the only client.

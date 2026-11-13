@@ -15,7 +15,7 @@ use super::apply::Applied;
 use super::asked::{self, Asked};
 use super::availability::{availability, today};
 use super::deciding::approve;
-use super::listing::load_one;
+use super::listing::{load_one, tmdb_number};
 use super::lookup::looking_up;
 use super::quality::{NewQuality, quality_columns, show_requests};
 use super::state::{open_request, stored};
@@ -347,7 +347,8 @@ impl SeasonsToAsk {
         followed_show: &FollowedShow,
         season: Season,
     ) -> Result<Self, sqlx::Error> {
-        let show_tmdb_id = followed_show.show_tmdb_id;
+        // A Followed Show is loaded with its TMDB id, so it always has one.
+        let show_tmdb_id = tmdb_number(followed_show.show_id.as_option()).unwrap_or_default();
         let quality = show_requests(conn, show_tmdb_id).await?.for_scan();
         Ok(Self {
             show_tmdb_id,

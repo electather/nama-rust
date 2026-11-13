@@ -12,7 +12,7 @@ use nama_proto::nama::v1::{
 use sqlx::SqliteConnection;
 
 use super::asked::Asked;
-use super::listing::load_one;
+use super::listing::{load_one, tmdb_number};
 use super::state::read_state;
 use super::{Error, Requests, qualities};
 use crate::{db::now, users::User};
@@ -153,7 +153,7 @@ pub(super) async fn change_quality(
         .await?
         .ok_or(Error::NoSuch(Asked::Request, id))?;
     let show = match &request.movie_or_season {
-        Some(MovieOrSeason::Season(season)) => Some(season.show_tmdb_id),
+        Some(MovieOrSeason::Season(season)) => tmdb_number(season.show_id.as_option()),
         _ => None,
     };
     requality(conn, Some(id), show, new_quality).await

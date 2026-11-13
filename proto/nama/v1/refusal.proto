@@ -122,8 +122,8 @@ enum RefusalReason {
   // `not_found`: there is no Request with the ID, or none the caller may see. Params: `requestId`.
   REFUSAL_REASON_REQUEST_NOT_FOUND = 38;
   // `failed_precondition`: the Movie, or every aired Episode of the Season, is already Matched in a
-  // Library, so it can't be Requested. Params: `tmdbId` (a Season's Show's), and for a Season
-  // `seasonNumber`.
+  // Library, so it can't be Requested. Params: `titleId`, as the message shows it (`tmdb-949`; a
+  // Season's Show's), and for a Season `seasonNumber`.
   REFUSAL_REASON_ALREADY_IN_LIBRARY = 39;
   // `failed_precondition`: the Request isn't Pending, so it can't be approved, declined or withdrawn
   // from. Params: `requestId`.

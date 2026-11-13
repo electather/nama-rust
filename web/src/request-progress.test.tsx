@@ -20,7 +20,10 @@ type Download = MessageInitShape<typeof DownloadSchema>;
 function duneDownloading(downloads: Download[]) {
   return {
     id: 1n,
-    movieOrSeason: { case: "movie" as const, value: { tmdbId: 438_631n, title: "Dune" } },
+    movieOrSeason: {
+      case: "movie" as const,
+      value: { id: { namespace: "tmdb", value: "438631" }, title: "Dune" },
+    },
     state: RequestState.PROCESSING,
     requesters: [{ userId: 3n, name: "Grace" }],
     downloads,

@@ -3,6 +3,7 @@
 use buffa::EnumValue;
 use nama_plugin_api::{
     fulfiller::{Download, DownloadStatus},
+    metadata::{IMDB, TMDB, TVDB},
     notifier::Notification,
     settings::{SettingKind, SettingValue},
 };
@@ -60,13 +61,24 @@ pub(super) fn download(download: wire::Download) -> Download {
     }
 }
 
+// `contract-title-ids` replaces these, once the contract's Request carries ids as pairs.
+fn id_value<'a>(ids: &'a [api::ExternalId], namespace: &str) -> Option<&'a str> {
+    ids.iter()
+        .find(|id| id.namespace == namespace)
+        .map(|id| id.value.as_str())
+}
+
+fn id_number(ids: &[api::ExternalId], namespace: &str) -> Option<i64> {
+    id_value(ids, namespace)?.parse().ok()
+}
+
 /// The Request `request` as an Installed Plugin reads it, whether a Fulfiller, an Observer or a
 /// Notifier, leaving out what only a client reads.
 pub(super) fn request(request: &api::Request) -> wire::Request {
     let movie_or_season = request.movie_or_season.as_ref().map(|asked| match asked {
         MovieOrSeason::Movie(movie) => {
             wire::request::MovieOrSeason::Movie(Box::new(wire::RequestedMovie {
-                tmdb_id: movie.tmdb_id,
+                tmdb_id: id_number(&movie.ids, TMDB).unwrap_or_default(),
                 title: movie.title.clone(),
                 release_date: movie.release_date.clone(),
                 ..Default::default()
@@ -74,12 +86,12 @@ pub(super) fn request(request: &api::Request) -> wire::Request {
         }
         MovieOrSeason::Season(season) => {
             wire::request::MovieOrSeason::Season(Box::new(wire::RequestedSeason {
-                show_tmdb_id: season.show_tmdb_id,
+                show_tmdb_id: id_number(&season.show_ids, TMDB).unwrap_or_default(),
                 season_number: season.season_number,
                 show_title: season.show_title.clone(),
                 air_date: season.air_date.clone(),
-                show_imdb_id: season.show_imdb_id.clone(),
-                show_tvdb_id: season.show_tvdb_id,
+                show_imdb_id: id_value(&season.show_ids, IMDB).map(str::to_owned),
+                show_tvdb_id: id_number(&season.show_ids, TVDB),
                 ..Default::default()
             }))
         }

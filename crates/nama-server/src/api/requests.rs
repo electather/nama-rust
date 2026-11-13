@@ -6,7 +6,7 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_plugin_api::{
     PluginId,
     fulfiller::{Movies, Shows},
-    metadata::{Candidate, ExternalId},
+    metadata::{Candidate, ExternalId, TMDB},
 };
 use nama_proto::nama::v1::{
     self as proto, ApproveFollowedShowRequest, ApproveFollowedShowResponse, ApproveRequestRequest,
@@ -31,7 +31,8 @@ use crate::{
 };
 
 use super::{
-    ImageSources, Refused, ShownImages, caller, database_failed, refuse, title_kind_from_proto,
+    ImageSources, Refused, ShownImages, caller, database_failed, refuse, required_id,
+    title_kind_from_proto,
 };
 
 /// `nama.v1.RequestService`: Users asking for Movies and Seasons of Shows. Asking needs
@@ -58,9 +59,14 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, CreateRequestRequest>,
     ) -> ServiceResult<CreateRequestResponse> {
         let asker = &caller(&ctx)?.user;
+        let request = request.to_owned_message();
         let request = self
             .requests
-            .create(asker, request.movie_tmdb_id, request.quality)
+            .create(
+                asker,
+                tmdb_number(request.movie_id.into_option(), "movie_id", "Movie")?,
+                request.quality,
+            )
             .await?;
         Response::ok(CreateRequestResponse {
             request: request.into(),
@@ -74,6 +80,7 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, CreateSeasonRequestsRequest>,
     ) -> ServiceResult<CreateSeasonRequestsResponse> {
         let asker = &caller(&ctx)?.user;
+        let request = request.to_owned_message();
         let seasons: BTreeSet<u32> = request.season_numbers.iter().copied().collect();
         if seasons.is_empty() {
             return Err(refuse(
@@ -85,7 +92,12 @@ impl RequestService for RequestServiceHandler {
         }
         let requests = self
             .requests
-            .create_seasons(asker, request.show_tmdb_id, &seasons, request.quality)
+            .create_seasons(
+                asker,
+                tmdb_number(request.show_id.into_option(), "show_id", "Show")?,
+                &seasons,
+                request.quality,
+            )
             .await?;
         Response::ok(CreateSeasonRequestsResponse {
             requests,
@@ -342,9 +354,14 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, CreateFollowedShowRequest>,
     ) -> ServiceResult<CreateFollowedShowResponse> {
         let asker = &caller(&ctx)?.user;
+        let request = request.to_owned_message();
         let (followed_show, requests) = self
             .requests
-            .follow(asker, request.show_tmdb_id, request.quality)
+            .follow(
+                asker,
+                tmdb_number(request.show_id.into_option(), "show_id", "Show")?,
+                request.quality,
+            )
             .await?;
         Response::ok(CreateFollowedShowResponse {
             followed_show: followed_show.into(),
@@ -600,6 +617,30 @@ impl From<qualities::Refused> for ConnectError {
     }
 }
 
+/// The TMDB number of the `what`'s id in `field`, which the Kernel's Requests still key on. An id
+/// in another namespace, or a `tmdb` one that isn't a number, is a title no source knows.
+// The tasks `requests-key-on-ids` and `followed-shows-key-on-ids` delete this.
+fn tmdb_number(
+    id: Option<proto::ExternalId>,
+    field: &str,
+    what: &str,
+) -> Result<i64, ConnectError> {
+    let id = required_id(id, field, what)?;
+    match id.namespace() {
+        TMDB => id.value().parse().ok(),
+        _ => None,
+    }
+    .ok_or_else(|| {
+        refuse(
+            RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+            format!("no {what} has the id {id}"),
+        )
+        .field(field)
+        .param("titleId", &id)
+        .into()
+    })
+}
+
 /// The refusal of the Quality `named` in `field`, as it isn't the Show's, `shows`.
 fn show_has_quality(
     message: String,
@@ -621,10 +662,9 @@ impl From<requests::Error> for ConnectError {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            // Every RPC naming a Request or Followed Show names it in `id`, only `CreateRequest`
-            // and `LookUpMovie` name a Movie, both in `movie_tmdb_id`, and only
-            // `CreateSeasonRequests`, `CreateFollowedShow` and `LookUpShow` a Show, all in
-            // `show_tmdb_id`.
+            // Every RPC naming a Request or Followed Show names it in `id`. The create RPCs name
+            // a Movie in `movie_id` and a Show in `show_id`, which the refusals below name;
+            // `LookUpMovie` and `LookUpShow` still name them in `movie_tmdb_id` and `show_tmdb_id`.
             requests::Error::NoSuch(Asked::Request, id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
                     .field("id")
@@ -659,19 +699,19 @@ impl From<requests::Error> for ConnectError {
                     .param("followedShowId", &id)
             }
             requests::Error::InLibrary(id) => refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
-                .field("movie_tmdb_id")
-                .param("tmdbId", &id),
+                .field("movie_id")
+                .param("titleId", &ExternalId::tmdb(id)),
             requests::Error::SeasonInLibrary { show, season } => {
                 refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
                     .field("season_numbers")
-                    .param("tmdbId", &show)
+                    .param("titleId", &ExternalId::tmdb(show))
                     .param("seasonNumber", &season)
             }
             requests::Error::NoSuchMovie(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
-                .field("movie_tmdb_id")
+                .field("movie_id")
                 .param("titleId", &ExternalId::tmdb(id)),
             requests::Error::NoSuchShow(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
-                .field("show_tmdb_id")
+                .field("show_id")
                 .param("titleId", &ExternalId::tmdb(id)),
             requests::Error::NoSuchSeason { show, season } => {
                 refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)

@@ -98,7 +98,7 @@ impl Fulfiller<Movies> for Asked {
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        took(asked_movie(request).tmdb_id.to_string())
+        took(asked_movie(request).id.value.clone())
     }
 
     fn progress<'a>(

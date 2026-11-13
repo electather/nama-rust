@@ -13,7 +13,10 @@ const you = { userId: 1n, name: "Sam" };
 
 const heat = {
   id: 2n,
-  movieOrSeason: { case: "movie" as const, value: { tmdbId: 949n, title: "Heat" } },
+  movieOrSeason: {
+    case: "movie" as const,
+    value: { id: { namespace: "tmdb", value: "949" }, title: "Heat" },
+  },
   state: RequestState.PENDING,
   requesters: [you, ada],
 };

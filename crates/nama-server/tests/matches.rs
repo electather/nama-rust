@@ -294,7 +294,7 @@ async fn matching_a_file_by_hand_to_a_requested_movie_makes_its_request_availabl
     let requests = RequestServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
     let heat = requests
         .create_request(CreateRequestRequest {
-            movie_tmdb_id: 949,
+            movie_id: tmdb_id(949).into(),
             ..Default::default()
         })
         .await
@@ -335,7 +335,7 @@ async fn matching_one_of_two_aired_episodes_by_hand_makes_its_processing_season_
     let requests = RequestServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
     let season_1 = requests
         .create_season_requests(CreateSeasonRequestsRequest {
-            show_tmdb_id: 2316,
+            show_id: tmdb_id(2316).into(),
             season_numbers: vec![1],
             ..Default::default()
         })
@@ -424,6 +424,33 @@ async fn set_match_to_a_malformed_id_is_invalid() {
             RefusalReason::REFUSAL_REASON_TITLE_ID_MALFORMED,
         );
         assert_eq!(refusal.field, "title_id", "{namespace:?} {value:?}");
+    }
+}
+
+#[tokio::test]
+async fn requesting_a_movie_by_an_id_no_source_knows_or_a_malformed_one_is_refused() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    let requests = RequestServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+
+    for (id, reason) in [
+        (
+            title_id("anidb", "1"),
+            RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+        ),
+        (
+            title_id("AniDB", "1"),
+            RefusalReason::REFUSAL_REASON_TITLE_ID_MALFORMED,
+        ),
+    ] {
+        let refused = requests
+            .create_request(CreateRequestRequest {
+                movie_id: id.into(),
+                ..Default::default()
+            })
+            .await;
+
+        let refusal = assert_refused(refused, ErrorCode::InvalidArgument, reason);
+        assert_eq!(refusal.field, "movie_id");
     }
 }
 

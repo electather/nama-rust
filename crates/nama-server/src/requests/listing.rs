@@ -1,11 +1,12 @@
 //! Reading Requests back from the database, and listing them for a viewer.
 
-use std::cmp::Reverse;
+use std::{cmp::Reverse, iter};
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use nama_plugin_api::metadata::{IMDB, TMDB, TVDB};
 use nama_proto::nama::v1::{
-    FollowedShow, ListRequestsResponse, Permission, QualityChange, Request, RequestState,
-    RequestedMovie, RequestedSeason,
+    ExternalId, FollowedShow, ListRequestsResponse, Permission, QualityChange, Request,
+    RequestState, RequestedMovie, RequestedSeason,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
@@ -16,6 +17,23 @@ use super::quality::stored_quality;
 use super::state::{open_request, read_state, stored};
 use super::{Error, Requests};
 use crate::users::User;
+
+/// The client API's id in `namespace` of the title a Request is kept under.
+// ponytail: Requests key on a TMDB id inside the Server until `requests-key-on-ids`.
+pub(super) fn title_id(namespace: &str, value: &impl ToString) -> ExternalId {
+    ExternalId {
+        namespace: namespace.to_owned(),
+        value: value.to_string(),
+        ..Default::default()
+    }
+}
+
+/// The TMDB number of `id`, which the Server still keys Requests and Followed Shows on.
+// `requests-key-on-ids` and `followed-shows-key-on-ids` delete this.
+pub(super) fn tmdb_number(id: Option<&ExternalId>) -> Option<i64> {
+    let id = id.filter(|id| id.namespace == TMDB)?;
+    id.value.parse().ok()
+}
 
 /// Whose Requests `viewer` may see: everyone's (`None`), or only those they are a Requester of.
 pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
@@ -133,10 +151,6 @@ impl Requests {
 }
 
 /// A row of [`Requests::list`].
-#[expect(
-    clippy::large_enum_variant,
-    reason = "most rows are Requests, so boxing them would save nothing"
-)]
 enum Listed {
     Request(Request),
     Followed(FollowedShow),
@@ -236,17 +250,20 @@ pub(super) async fn load(
             id: row.id,
             movie_or_season: match row.season {
                 Some(season_number) => RequestedSeason {
-                    show_tmdb_id: row.tmdb_id,
+                    show_id: title_id(TMDB, &row.tmdb_id).into(),
+                    show_ids: iter::once(title_id(TMDB, &row.tmdb_id))
+                        .chain(row.show_imdb_id.map(|imdb| title_id(IMDB, &imdb)))
+                        .chain(row.show_tvdb_id.map(|tvdb| title_id(TVDB, &tvdb)))
+                        .collect(),
                     season_number,
                     show_title: row.title,
                     air_date: row.release_date,
-                    show_imdb_id: row.show_imdb_id,
-                    show_tvdb_id: row.show_tvdb_id,
                     ..Default::default()
                 }
                 .into(),
                 None => RequestedMovie {
-                    tmdb_id: row.tmdb_id,
+                    id: title_id(TMDB, &row.tmdb_id).into(),
+                    ids: vec![title_id(TMDB, &row.tmdb_id)],
                     title: row.title,
                     release_date: row.release_date,
                     ..Default::default()

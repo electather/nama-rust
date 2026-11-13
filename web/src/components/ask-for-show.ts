@@ -22,10 +22,11 @@ export function useAskForShow(show: FoundShow) {
     seasonNumbers: [] as number[],
     onSuccess: () => {},
   });
-  const showTmdbId = show.tmdbId;
+  // A look-up result still gives a bare TMDB number.
+  const showId = { namespace: "tmdb", value: String(show.tmdbId) };
   const askWithoutPicking = (seasonNumbers: number[], onSuccess: () => void) => {
-    if (whole) follow.mutate({ showTmdbId }, { onSuccess });
-    else ask.mutate({ showTmdbId, seasonNumbers }, { onSuccess });
+    if (whole) follow.mutate({ showId }, { onSuccess });
+    else ask.mutate({ showId, seasonNumbers }, { onSuccess });
   };
   const submit = onSubmitted((picked, form) => {
     const onSuccess = () => {
@@ -41,8 +42,8 @@ export function useAskForShow(show: FoundShow) {
   const onPick = (quality: bigint) => {
     const { seasonNumbers, onSuccess } = awaitingQuality;
     const asked = whole
-      ? follow.mutateAsync({ showTmdbId, quality })
-      : ask.mutateAsync({ showTmdbId, seasonNumbers, quality });
+      ? follow.mutateAsync({ showId, quality })
+      : ask.mutateAsync({ showId, seasonNumbers, quality });
     return asked.then(onSuccess);
   };
   const asking = whole ? follow : ask;

@@ -3,7 +3,10 @@
 
 use std::iter;
 
-use nama_plugin_api::{fulfiller::Shows, metadata::ExternalId};
+use nama_plugin_api::{
+    fulfiller::Shows,
+    metadata::{ExternalId, TMDB},
+};
 use nama_proto::nama::v1::{
     FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
     FollowedShowRequesterRemoved, FollowedShowStateChanged, FollowedShowWithdrawn, Permission,
@@ -15,7 +18,7 @@ use super::apply::Applied;
 use super::asked::{self, Asked, may_see};
 use super::asking::{SeasonsToAsk, WantedSeasons, Way, opening_state};
 use super::deciding::{decide, given_reason};
-use super::listing::{load_one, visible_to};
+use super::listing::{load_one, title_id, visible_to};
 use super::lookup::looking_up;
 use super::quality::{NewQuality, change_followed_quality, quality_columns, stored_quality};
 use super::state::{read_state, state_changed, stored};
@@ -422,7 +425,7 @@ pub(super) async fn load_followed(
         .into_iter()
         .map(|row| FollowedShow {
             id: row.id,
-            show_tmdb_id: row.tmdb_id,
+            show_id: title_id(TMDB, &row.tmdb_id).into(),
             show_title: row.title,
             state: read_state(&row.state).into(),
             requesters: requesters.remove(&row.id).unwrap_or_default(),

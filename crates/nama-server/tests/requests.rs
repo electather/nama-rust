@@ -62,7 +62,7 @@ use refused::assert_refused;
 use server::{
     Builder, Library, Subscription, TestServer, WAIT,
     fulfiller::{FakeFulfiller, Fulfills, MOVIE_FULFILLER, SHOWS_FULFILLER, quality},
-    requests::Requester,
+    requests::{Requester, tmdb_id},
     subscribe,
     tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, HEAT, THE_OFFICE},
 };
@@ -310,7 +310,7 @@ fn requests(config: ClientConfig) -> RequestServiceClient<HttpClient> {
 /// Asks for the Seasons `seasons` of the Show `show`.
 fn season_request(show: i64, seasons: &[u32]) -> CreateSeasonRequestsRequest {
     CreateSeasonRequestsRequest {
-        show_tmdb_id: show,
+        show_id: tmdb_id(show).into(),
         season_numbers: seasons.to_vec(),
         ..Default::default()
     }
@@ -441,7 +441,7 @@ async fn a_user_without_request_movie_is_refused_naming_the_permission() {
 
     let refused = requests(as_viewer)
         .create_request(CreateRequestRequest {
-            movie_tmdb_id: HEAT,
+            movie_id: tmdb_id(HEAT).into(),
             ..Default::default()
         })
         .await;
@@ -467,7 +467,7 @@ async fn requesting_a_movie_matched_in_a_library_is_refused() {
 
     let refused = requests(as_grace)
         .create_request(CreateRequestRequest {
-            movie_tmdb_id: ALIEN,
+            movie_id: tmdb_id(ALIEN).into(),
             ..Default::default()
         })
         .await;
@@ -477,7 +477,7 @@ async fn requesting_a_movie_matched_in_a_library_is_refused() {
         ErrorCode::FailedPrecondition,
         RefusalReason::REFUSAL_REASON_ALREADY_IN_LIBRARY,
     );
-    assert_eq!(refusal.field, "movie_tmdb_id");
+    assert_eq!(refusal.field, "movie_id");
 }
 
 #[tokio::test]
@@ -491,7 +491,7 @@ async fn requesting_a_movie_the_metadata_source_doesnt_have_is_refused() {
 
     let refused = requests(as_grace)
         .create_request(CreateRequestRequest {
-            movie_tmdb_id: 1,
+            movie_id: tmdb_id(1).into(),
             ..Default::default()
         })
         .await;
@@ -2315,7 +2315,7 @@ async fn requesting_a_season_of_a_show_the_metadata_source_doesnt_have_is_refuse
         ErrorCode::InvalidArgument,
         RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
     );
-    assert_eq!(refusal.field, "show_tmdb_id");
+    assert_eq!(refusal.field, "show_id");
     let title = refusal.params.get("titleId").map(String::as_str);
     assert_eq!(title, Some("tmdb-1"));
 }
@@ -2685,7 +2685,7 @@ async fn looking_up_a_show_the_metadata_source_doesnt_have_is_refused() {
         ErrorCode::InvalidArgument,
         RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
     );
-    assert_eq!(refusal.field, "show_tmdb_id");
+    assert_eq!(refusal.field, "show_id");
 }
 
 #[tokio::test]
@@ -3036,7 +3036,7 @@ async fn a_user_without_request_tv_is_refused_a_whole_show_naming_the_permission
 
     let refused = requests(as_movie_asker)
         .create_followed_show(CreateFollowedShowRequest {
-            show_tmdb_id: DARK,
+            show_id: tmdb_id(DARK).into(),
             ..Default::default()
         })
         .await;

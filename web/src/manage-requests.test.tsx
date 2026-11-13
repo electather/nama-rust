@@ -19,23 +19,26 @@ import { refused } from "./test-refusal";
 
 afterEach(cleanup);
 
+/** The id of the title with the TMDB id `value`. */
+const tmdb = (value: string) => ({ namespace: "tmdb", value });
+
 const heat: MessageInitShape<typeof RequestSchema> = {
   id: 2n,
-  movieOrSeason: { case: "movie", value: { tmdbId: 949n, title: "Heat" } },
+  movieOrSeason: { case: "movie", value: { id: tmdb("949"), title: "Heat" } },
   state: RequestState.PENDING,
   requesters: [{ userId: 2n, name: "Ada" }],
 };
 
 const dune: MessageInitShape<typeof RequestSchema> = {
   id: 1n,
-  movieOrSeason: { case: "movie", value: { tmdbId: 438_631n, title: "Dune" } },
+  movieOrSeason: { case: "movie", value: { id: tmdb("438631"), title: "Dune" } },
   state: RequestState.APPROVED,
   requesters: [{ userId: 3n, name: "Grace" }],
 };
 
 const alien: MessageInitShape<typeof RequestSchema> = {
   id: 4n,
-  movieOrSeason: { case: "movie", value: { tmdbId: 348n, title: "Alien" } },
+  movieOrSeason: { case: "movie", value: { id: tmdb("348"), title: "Alien" } },
   state: RequestState.FAILED,
   failureReason: "Radarr is unreachable",
   fulfillerPluginId: "radarr",
@@ -163,7 +166,7 @@ test("a Season Request's actions name its Show and Season, and approve it at ano
     id: 3n,
     movieOrSeason: {
       case: "season",
-      value: { showTmdbId: 70_523n, seasonNumber: 0, showTitle: "Dark" },
+      value: { showId: tmdb("70523"), seasonNumber: 0, showTitle: "Dark" },
     },
     state: RequestState.PENDING,
   });
@@ -263,7 +266,7 @@ test("approving a Season at another Quality than its Show's says each Season tak
     id: 5n,
     movieOrSeason: {
       case: "season",
-      value: { showTmdbId: 70_523n, seasonNumber: 2, showTitle: "Dark" },
+      value: { showId: tmdb("70523"), seasonNumber: 2, showTitle: "Dark" },
     },
     state: RequestState.PENDING,
     quality: requested("4K", 2n),

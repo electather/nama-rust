@@ -38,8 +38,8 @@ function searchableServer(movies: Found[], permissions = newUser) {
       searchMovies: () => ({ movies: [...found.values()].map((movie) => hitOf(movie)) }),
       searchShows: () => ({}),
       lookUpMovie: ({ movieTmdbId }) => ({ movie: found.get(movieTmdbId) }),
-      createRequest: ({ movieTmdbId }) => {
-        const movie = found.get(movieTmdbId) ?? create(FoundMovieSchema);
+      createRequest: ({ movieId }) => {
+        const movie = found.get(BigInt(movieId?.value ?? 0)) ?? create(FoundMovieSchema);
         movie.request = create(RequestSchema, {
           state: movie.request?.state ?? RequestState.PENDING,
           requesters: [...(movie.request?.requesters ?? []), { userId: 1n, name: "Sam" }],

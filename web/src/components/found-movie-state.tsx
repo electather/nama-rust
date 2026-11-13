@@ -79,6 +79,8 @@ function RequestStateAndQuality({ request }: { request: Request }) {
  * dialog which Quality to download it at, when the signed-in User may choose and there's a choice.
  */
 function RequestButton({ movie, primary }: { movie: MovieHit | FoundMovie; primary: boolean }) {
+  // A look-up result still gives a bare TMDB number.
+  const movieId = { namespace: "tmdb", value: String(movie.tmdbId) };
   const ask = useMutation(RequestService.method.createRequest, useReadBackAsked());
   const picker = useQualityPicker(movie.request === undefined, "movie");
   const whyRefused = (error: unknown) =>
@@ -99,7 +101,7 @@ function RequestButton({ movie, primary }: { movie: MovieHit | FoundMovie; prima
           aria-haspopup={picker.hasPopup}
           disabled={ask.isPending || picker.loading}
           onClick={() => {
-            if (!picker.open()) ask.mutate({ movieTmdbId: movie.tmdbId });
+            if (!picker.open()) ask.mutate({ movieId });
           }}
         >
           <Plus aria-hidden className="size-4" />
@@ -109,7 +111,7 @@ function RequestButton({ movie, primary }: { movie: MovieHit | FoundMovie; prima
       <QualityPicker
         {...picker.dialog}
         title={movie.title}
-        onPick={(quality) => ask.mutateAsync({ movieTmdbId: movie.tmdbId, quality })}
+        onPick={(quality) => ask.mutateAsync({ movieId, quality })}
         refusal={whyRefused}
       />
       {ask.isError && (

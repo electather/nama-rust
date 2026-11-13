@@ -18,7 +18,7 @@ use nama_plugin_api::{
     settings::{Choice, Choices, Settings, SettingsCheck},
 };
 use nama_proto::nama::v1::{
-    Quality, Request, RequestedMovie, RequestedSeason, request::MovieOrSeason,
+    ExternalId, Quality, Request, RequestedMovie, RequestedSeason, request::MovieOrSeason,
 };
 use nama_server::plugins::Registry;
 
@@ -228,6 +228,21 @@ fn asked_movie(request: &Request) -> &RequestedMovie {
     }
 }
 
+/// The number in `namespace` among `ids`, if they have one.
+fn id_number(ids: &[ExternalId], namespace: &str) -> Option<i64> {
+    let id = ids.iter().find(|id| id.namespace == namespace)?;
+    id.value.parse().ok()
+}
+
+/// The TMDB id among `ids`, which a Request's title always has for now.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn tmdb_number(ids: &[ExternalId]) -> i64 {
+    id_number(ids, "tmdb").unwrap()
+}
+
 /// The Season `request` asks for, as the Server hands only those to a Shows Fulfiller.
 #[expect(clippy::panic, reason = "a test helper fails its test by panicking")]
 fn asked_season(request: &Request) -> &RequestedSeason {
@@ -242,7 +257,7 @@ impl Fulfiller<Movies> for FakeFulfiller {
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        let tmdb_id = asked_movie(request).tmdb_id;
+        let tmdb_id = tmdb_number(&asked_movie(request).ids);
         self.handed
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -311,12 +326,17 @@ impl Fulfiller<Shows> for FakeFulfiller {
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let season = asked_season(request);
-        let (show, season_number) = (season.show_tmdb_id, season.season_number);
+        let (show, season_number) = (tmdb_number(&season.show_ids), season.season_number);
         let follow = request.followed_show_id.is_some();
         self.handed_seasons
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .push((show, season.show_tvdb_id, season_number, follow));
+            .push((
+                show,
+                id_number(&season.show_ids, "tvdb"),
+                season_number,
+                follow,
+            ));
         let refuses = self.refuses.load(Ordering::Relaxed);
         let refuses_to_follow = follow && self.refuses_following.load(Ordering::Relaxed);
         let fulfilled = self.fulfilled(format!("show-{show}-season-{season_number}"));
@@ -335,7 +355,7 @@ impl Fulfiller<Shows> for FakeFulfiller {
         self.unfollowed
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .push(asked_season(request).show_tmdb_id);
+            .push(tmdb_number(&asked_season(request).show_ids));
         Box::pin(async { Ok(()) })
     }
 

@@ -5,12 +5,21 @@
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_proto::nama::v1::{
     ApproveRequestRequest, CreateFollowedShowRequest, CreateRequestRequest,
-    CreateSeasonRequestsRequest, DeclineRequestRequest, FollowedShow, GetRequestRequest,
-    ListRequestsRequest, Request, RequestServiceClient, RequestState, RetryRequestRequest,
-    WithdrawRequestRequest,
+    CreateSeasonRequestsRequest, DeclineRequestRequest, ExternalId, FollowedShow,
+    GetRequestRequest, ListRequestsRequest, Request, RequestServiceClient, RequestState,
+    RetryRequestRequest, WithdrawRequestRequest,
 };
 
 use super::{SignedIn, TestServer};
+
+/// The client API's id of the title with the TMDB id `id`.
+pub(crate) fn tmdb_id(id: i64) -> ExternalId {
+    ExternalId {
+        namespace: "tmdb".to_owned(),
+        value: id.to_string(),
+        ..Default::default()
+    }
+}
 
 /// What a Requester does, called on the Request service as them.
 #[expect(
@@ -237,12 +246,12 @@ impl TestServer {
 )]
 async fn create_request(
     service: &RequestServiceClient<HttpClient>,
-    tmdb_id: i64,
+    id: i64,
     quality: Option<i64>,
 ) -> Result<Request, ConnectError> {
     let asked = service
         .create_request(CreateRequestRequest {
-            movie_tmdb_id: tmdb_id,
+            movie_id: tmdb_id(id).into(),
             quality,
             ..Default::default()
         })
@@ -258,7 +267,7 @@ async fn create_season_requests(
 ) -> Result<Vec<Request>, ConnectError> {
     let asked = service
         .create_season_requests(CreateSeasonRequestsRequest {
-            show_tmdb_id: show,
+            show_id: tmdb_id(show).into(),
             season_numbers: seasons.to_vec(),
             quality,
             ..Default::default()
@@ -278,7 +287,7 @@ async fn create_followed_show(
 ) -> Result<(FollowedShow, Vec<Request>), ConnectError> {
     let followed = service
         .create_followed_show(CreateFollowedShowRequest {
-            show_tmdb_id: show,
+            show_id: tmdb_id(show).into(),
             quality,
             ..Default::default()
         })

@@ -238,7 +238,7 @@ impl Fulfiller<Shows> for Unfollowing {
         self.0
             .lock()
             .unwrap()
-            .push(asked_season(season).show_tmdb_id);
+            .push(asked_season(season).show_id.value.parse().unwrap());
         Box::pin(async { Ok(()) })
     }
 

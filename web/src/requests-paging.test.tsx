@@ -21,14 +21,17 @@ const sam = [{ userId: 1n, name: "Sam" }];
 function movie(id: bigint, title: string) {
   return {
     id,
-    movieOrSeason: { case: "movie" as const, value: { tmdbId: id, title } },
+    movieOrSeason: {
+      case: "movie" as const,
+      value: { id: { namespace: "tmdb", value: String(id) }, title },
+    },
     state: RequestState.PENDING,
     requesters: sam,
   };
 }
 
 function darkSeason(id: bigint, seasonNumber: number) {
-  const season = { showTmdbId: 70_523n, seasonNumber, showTitle: "Dark" };
+  const season = { showId: { namespace: "tmdb", value: "70523" }, seasonNumber, showTitle: "Dark" };
   return {
     id,
     movieOrSeason: { case: "season" as const, value: season },

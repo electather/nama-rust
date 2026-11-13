@@ -279,9 +279,11 @@ enum DownloadStatus {
 // Users asking for a whole Show: its Seasons now and any that come out later, approved once. A
 // Show has at most one open Followed Show: one that isn't Declined.
 message FollowedShow {
+  reserved 2;
+  reserved "show_tmdb_id";
   int64 id = 1;
-  // The Show's TMDB id.
-  int64 show_tmdb_id = 2;
+  // The id the Followed Show is kept under.
+  ExternalId show_id = 9;
   // The Show's title, in the metadata Provider's language, as it was when the Followed Show was
   // opened.
   string show_title = 3;
@@ -304,8 +306,13 @@ message FollowedShow {
 // A Movie a Request asks for, with its metadata as the metadata source gave it when the Request
 // was opened.
 message RequestedMovie {
-  // The Movie's TMDB id.
-  int64 tmdb_id = 1;
+  reserved 1;
+  reserved "tmdb_id";
+  // The id the Request is kept under.
+  ExternalId id = 4;
+  // Every id the metadata source gave for the Movie when the Request was opened, at most one per
+  // namespace, `id` among them.
+  repeated ExternalId ids = 5;
   // The title, in the metadata Provider's language.
   string title = 2;
   // When it was released, as `YYYY-MM-DD`.
@@ -315,18 +322,19 @@ message RequestedMovie {
 // A Season a Request asks for, with its metadata as the metadata source gave it when the Request
 // was opened.
 message RequestedSeason {
-  // The Show's TMDB id.
-  int64 show_tmdb_id = 1;
+  reserved 1, 5, 6;
+  reserved "show_tmdb_id", "show_imdb_id", "show_tvdb_id";
+  // The Show's id the Request is kept under.
+  ExternalId show_id = 7;
+  // Every id the metadata source gave for the Show when the Request was opened, at most one per
+  // namespace, `show_id` among them.
+  repeated ExternalId show_ids = 8;
   // The Season's number within the Show. Season 0 holds specials.
   uint32 season_number = 2;
   // The Show's title, in the metadata Provider's language.
   string show_title = 3;
   // When the Season first aired, as `YYYY-MM-DD`.
   optional string air_date = 4;
-  // The Show's IMDb id, such as `tt5753856`, if the metadata source has one.
-  optional string show_imdb_id = 5;
-  // The Show's TVDB id, if the metadata source has one.
-  optional int64 show_tvdb_id = 6;
 }
 
 // A User who asked for what a Request covers.
@@ -339,8 +347,11 @@ message Requester {
 }
 
 message CreateRequestRequest {
-  // The TMDB id of the Movie to ask for.
-  int64 movie_tmdb_id = 1;
+  reserved 1;
+  reserved "movie_tmdb_id";
+  // The id of the Movie to ask for. Only a `tmdb` id is known for now; another is refused with
+  // `REFUSAL_REASON_UNKNOWN_TITLE`.
+  ExternalId movie_id = 3;
   // The id of the Quality to download it at, from `ListMovieQualities`. Unset for the default.
   optional int64 quality = 2;
 }
@@ -351,8 +362,11 @@ message CreateRequestResponse {
 }
 
 message CreateSeasonRequestsRequest {
-  // The TMDB id of the Show.
-  int64 show_tmdb_id = 1;
+  reserved 1;
+  reserved "show_tmdb_id";
+  // The id of the Show. Only a `tmdb` id is known for now; another is refused with
+  // `REFUSAL_REASON_UNKNOWN_TITLE`.
+  ExternalId show_id = 4;
   // The numbers of the Seasons to ask for: at least one. A number given twice counts once.
   repeated uint32 season_numbers = 2;
   // The id of the Quality to download them at, from `ListShowQualities`. Unset for the Show's, or
@@ -378,8 +392,11 @@ message ListRequestsRequest {
 }
 
 message CreateFollowedShowRequest {
-  // The TMDB id of the Show.
-  int64 show_tmdb_id = 1;
+  reserved 1;
+  reserved "show_tmdb_id";
+  // The id of the Show. Only a `tmdb` id is known for now; another is refused with
+  // `REFUSAL_REASON_UNKNOWN_TITLE`.
+  ExternalId show_id = 3;
   // The id of the Quality to download its Seasons at, from `ListShowQualities`. Unset for the
   // Show's, or else the default.
   optional int64 quality = 2;

@@ -9,20 +9,21 @@ import {
   type RequestedQuality,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
+import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { dayOf, metadataLine, seasonName, yearOf } from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
 /** A Show's Followed Shows and Season Requests, listed together under it. */
 export interface ShowGroup {
-  showTmdbId: bigint;
+  showId?: ExternalId | undefined;
   showTitle: string;
   followed: FollowedShow[];
   seasons: Request[];
 }
 
 /** A Show's title, with its Followed Shows and Season Requests listed under it. */
-export function ShowRequests({ showTitle, followed, seasons }: Omit<ShowGroup, "showTmdbId">) {
+export function ShowRequests({ showTitle, followed, seasons }: Omit<ShowGroup, "showId">) {
   return (
     <li className="border-b pt-3 last:border-b-0">
       <p className="truncate font-medium">{showTitle}</p>

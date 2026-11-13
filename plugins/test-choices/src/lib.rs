@@ -109,7 +109,7 @@ impl Fulfiller<Movies> for TestChoices {
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let fulfilled = match &request.movie_or_season {
             Some(MovieOrSeason::Movie(movie)) => Ok(Fulfilled {
-                reference: format!("movie-{}", movie.tmdb_id),
+                reference: format!("movie-{}", movie.id.value),
                 ..Fulfilled::default()
             }),
             _ => Err("not a Movie Request".into()),
@@ -135,7 +135,7 @@ impl Fulfiller<Shows> for TestChoices {
             Some(MovieOrSeason::Season(season)) => Ok(Fulfilled {
                 reference: format!(
                     "show-{}-season-{}",
-                    season.show_tmdb_id, season.season_number
+                    season.show_id.value, season.season_number
                 ),
                 ..Fulfilled::default()
             }),

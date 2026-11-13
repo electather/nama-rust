@@ -208,7 +208,10 @@ impl HandOff {
             && let Some(MovieOrSeason::Season(asked)) = &season.movie_or_season
         {
             warn!(
-                show = asked.show_tmdb_id,
+                show = asked
+                    .show_id
+                    .as_option()
+                    .map(|id| format!("{}-{}", id.namespace, id.value)),
                 reason = failure.message,
                 "the Shows Fulfiller didn't stop following the Show"
             );

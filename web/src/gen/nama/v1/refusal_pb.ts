@@ -347,8 +347,8 @@ export const RefusalReason = {
 
   /**
    * `failed_precondition`: the Movie, or every aired Episode of the Season, is already Matched in a
-   * Library, so it can't be Requested. Params: `tmdbId` (a Season's Show's), and for a Season
-   * `seasonNumber`.
+   * Library, so it can't be Requested. Params: `titleId`, as the message shows it (`tmdb-949`; a
+   * Season's Show's), and for a Season `seasonNumber`.
    *
    * @generated from enum value: REFUSAL_REASON_ALREADY_IN_LIBRARY = 39;
    */

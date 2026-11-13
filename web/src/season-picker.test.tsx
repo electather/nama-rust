@@ -34,7 +34,7 @@ function showServer(
 ) {
   const show = create(FoundShowSchema, init);
   const asked: number[][] = [];
-  const followed: bigint[] = [];
+  const followed: string[] = [];
   const state =
     events === undefined ? { signedIn: permissions } : { signedIn: permissions, events };
   const transport = fakeServer(state, {}, {}, (router) => {
@@ -65,8 +65,8 @@ function showServer(
         }
         return { requests: seasons.map(({ request }) => request).filter((r) => r !== undefined) };
       },
-      createFollowedShow: ({ showTmdbId }) => {
-        followed.push(showTmdbId);
+      createFollowedShow: ({ showId }) => {
+        followed.push(`${showId?.namespace}-${showId?.value}`);
         show.followedShow = create(FollowedShowSchema, {
           state: RequestState.PENDING,
           requesters: [{ userId: 1n, name: "Sam" }],
@@ -273,7 +273,7 @@ test("picking Whole Show leaves out the Seasons, and Requesting it shows it Pend
 
   expect(await within(seasonRow("Whole Show")).findByText("Pending")).toBeDefined();
   expect(seasonsWhilePicked).toEqual([true, true]);
-  expect(followed).toEqual([70_523n]);
+  expect(followed).toEqual(["tmdb-70523"]);
   expect(asked).toEqual([]);
   expect(checkbox("Whole Show").disabled).toBe(true);
 });
@@ -293,5 +293,5 @@ test("a Show someone else follows shows its state, and Requesting the Whole Show
   await waitFor(() => {
     expect(checkbox("Whole Show").disabled).toBe(true);
   });
-  expect(followed).toEqual([70_523n]);
+  expect(followed).toEqual(["tmdb-70523"]);
 });
