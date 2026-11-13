@@ -4,8 +4,6 @@ syntax = "proto3";
 // `.wasm` file whose exports take and return these, encoded as protobuf.
 package nama.plugin.v1;
 
-import "nama/v1/plugin.proto";
-
 // What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
 // `manifest()` export, which takes no input.
 //
@@ -20,7 +18,7 @@ message Manifest {
   // The Plugin's own version, such as "1.2.0".
   string version = 2;
   // The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
-  // such as "^0.2.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
+  // such as "^0.3.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
   // reads this field before the rest of the Manifest, so it keeps field number 3 in every version.
   string nama_api = 3;
   // The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
@@ -57,17 +55,62 @@ message SettingField {
   // What the setting does, for a form's help text.
   string description = 3;
   // What kind of value it takes.
-  nama.v1.SettingKind kind = 4;
+  SettingKind kind = 4;
   // Whether the Plugin can't be enabled without it.
   bool required = 5;
   // The value used when none is given. Unset if there is none.
-  nama.v1.SettingValue default_value = 6;
+  SettingValue default_value = 6;
 }
 
 // What an Installed Plugin's `check_settings()` returns when its settings work.
 message CheckedSettings {
   // The choices for each `SETTING_KIND_CHOICE` setting, by key.
-  map<string, nama.v1.SettingChoices> choices = 1;
+  map<string, SettingChoices> choices = 1;
+}
+
+// What kind of value a setting takes.
+enum SettingKind {
+  SETTING_KIND_UNSPECIFIED = 0;
+  // Text.
+  SETTING_KIND_TEXT = 1;
+  // Text that admins never see again once saved and the Server never logs, such as an API key.
+  SETTING_KIND_SECRET = 2;
+  // On or off.
+  SETTING_KIND_BOOL = 3;
+  // A whole number.
+  SETTING_KIND_INTEGER = 4;
+  // Text picked from the choices the Plugin's `check_settings()` export offers in
+  // `CheckedSettings`.
+  SETTING_KIND_CHOICE = 5;
+  // An http or https URL, such as a Sonarr address. The Plugin may send HTTP requests to its host,
+  // as if `Manifest.allowed_hosts` named it.
+  SETTING_KIND_URL = 6;
+}
+
+// A setting's value, of the setting's kind.
+message SettingValue {
+  oneof value {
+    // Text, for SETTING_KIND_TEXT, SETTING_KIND_SECRET, SETTING_KIND_CHOICE and SETTING_KIND_URL.
+    string text_value = 1;
+    // On or off, for SETTING_KIND_BOOL.
+    bool bool_value = 2;
+    // A whole number, for SETTING_KIND_INTEGER.
+    int64 integer_value = 3;
+  }
+}
+
+// The values a SETTING_KIND_CHOICE setting may take, in the order a form offers them.
+message SettingChoices {
+  repeated Choice choices = 1;
+}
+
+// One value a SETTING_KIND_CHOICE setting may take.
+message Choice {
+  // What the setting's value holds as its `text_value` when an admin picks it, such as a quality
+  // profile's id.
+  string value = 1;
+  // What an admin picks it by, such as the profile's name.
+  string label = 2;
 }
 
 // An Observe Extension Point an Installed Plugin can register an Observer at.

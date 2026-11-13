@@ -103,22 +103,6 @@ impl fmt::Debug for SettingValue {
     }
 }
 
-impl SettingKind {
-    /// The kind `kind` names in the schema, or `None` for `SETTING_KIND_UNSPECIFIED`.
-    #[must_use]
-    pub const fn from_proto(kind: proto::SettingKind) -> Option<Self> {
-        Some(match kind {
-            proto::SettingKind::SETTING_KIND_UNSPECIFIED => return None,
-            proto::SettingKind::SETTING_KIND_TEXT => Self::Text,
-            proto::SettingKind::SETTING_KIND_SECRET => Self::Secret,
-            proto::SettingKind::SETTING_KIND_BOOL => Self::Bool,
-            proto::SettingKind::SETTING_KIND_INTEGER => Self::Integer,
-            proto::SettingKind::SETTING_KIND_CHOICE => Self::Choice,
-            proto::SettingKind::SETTING_KIND_URL => Self::Url,
-        })
-    }
-}
-
 impl From<SettingKind> for proto::SettingKind {
     fn from(kind: SettingKind) -> Self {
         match kind {
@@ -347,32 +331,18 @@ mod tests {
     }
 
     #[test]
-    fn each_kind_and_value_comes_back_from_the_schema_as_it_went() {
-        let kinds = [
-            SettingKind::Text,
-            SettingKind::Secret,
-            SettingKind::Bool,
-            SettingKind::Integer,
-            SettingKind::Choice,
-            SettingKind::Url,
-        ];
+    fn each_value_comes_back_from_the_schema_as_it_went() {
         let values = [
             text("en"),
             SettingValue::Bool(true),
             SettingValue::Integer(-3),
         ];
 
-        let kinds_back = kinds.map(|kind| SettingKind::from_proto(kind.into()));
         let values_back = values
             .each_ref()
             .map(|value| SettingValue::from_proto(&value.into()));
 
-        assert_eq!(kinds_back, kinds.map(Some));
         assert_eq!(values_back, values.map(Some));
-        assert_eq!(
-            SettingKind::from_proto(proto::SettingKind::SETTING_KIND_UNSPECIFIED),
-            None
-        );
         assert_eq!(
             SettingValue::from_proto(&proto::SettingValue::default()),
             None

@@ -389,8 +389,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
         ]
     }
 }
-/// What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
-/// with it too (`nama.plugin.v1.SettingField`).
+/// What kind of value a setting takes.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]

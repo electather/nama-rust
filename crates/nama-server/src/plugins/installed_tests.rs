@@ -10,10 +10,7 @@ use nama_plugin_api::{
 };
 use nama_proto::{
     NAMA_API_VERSION,
-    nama::{
-        plugin::v1::{self as wire, Manifest, ObservePoint, ProvidePoint},
-        v1::{self as proto, setting_value},
-    },
+    nama::plugin::v1::{self as wire, Manifest, ObservePoint, ProvidePoint, setting_value},
 };
 
 use super::{
@@ -152,14 +149,14 @@ fn a_plugin_reads_each_setting_as_text() {
     assert_eq!(config, expected);
 }
 
-fn manifest(kind: proto::SettingKind) -> Manifest {
+fn manifest(kind: wire::SettingKind) -> Manifest {
     let field = wire::SettingField {
         key: "api_key".to_owned(),
         label: "API key".to_owned(),
         description: "The key.".to_owned(),
         kind: kind.into(),
         required: true,
-        default_value: proto::SettingValue {
+        default_value: wire::SettingValue {
             value: Some(setting_value::Value::TextValue("none".to_owned())),
             ..Default::default()
         }
@@ -174,7 +171,7 @@ fn manifest(kind: proto::SettingKind) -> Manifest {
 
 #[test]
 fn a_manifests_settings_become_its_settings_schema() {
-    let schema = settings_schema(&manifest(proto::SettingKind::SETTING_KIND_SECRET)).ok();
+    let schema = settings_schema(&manifest(wire::SettingKind::SETTING_KIND_SECRET)).ok();
 
     let expected = SettingField {
         key: "api_key".to_owned(),
@@ -189,7 +186,7 @@ fn a_manifests_settings_become_its_settings_schema() {
 
 #[test]
 fn a_default_of_another_kind_refuses_the_plugin() {
-    let refused = settings_schema(&manifest(proto::SettingKind::SETTING_KIND_BOOL));
+    let refused = settings_schema(&manifest(wire::SettingKind::SETTING_KIND_BOOL));
 
     assert_eq!(
         refused.err().map(|refused| refused.to_string()),
@@ -199,7 +196,7 @@ fn a_default_of_another_kind_refuses_the_plugin() {
 
 #[test]
 fn a_setting_of_no_known_kind_refuses_the_plugin() {
-    let refused = settings_schema(&manifest(proto::SettingKind::SETTING_KIND_UNSPECIFIED));
+    let refused = settings_schema(&manifest(wire::SettingKind::SETTING_KIND_UNSPECIFIED));
 
     assert_eq!(
         refused.err().map(|refused| refused.to_string()),
@@ -315,7 +312,7 @@ fn a_manifest_for_another_nama_api_is_refused_for_that_before_the_rest_is_decode
 
 #[test]
 fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
-    let text = |text: &str| proto::SettingValue {
+    let text = |text: &str| wire::SettingValue {
         value: Some(setting_value::Value::TextValue(text.to_owned())),
         ..Default::default()
     };
@@ -342,7 +339,7 @@ fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
         Manifest {
             settings: vec![wire::SettingField {
                 key: "count".to_owned(),
-                kind: proto::SettingKind::SETTING_KIND_INTEGER.into(),
+                kind: wire::SettingKind::SETTING_KIND_INTEGER.into(),
                 default_value: text("three").into(),
                 ..Default::default()
             }],

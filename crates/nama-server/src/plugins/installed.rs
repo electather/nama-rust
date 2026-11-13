@@ -51,6 +51,8 @@ use super::{
     without_secrets,
 };
 
+mod contract;
+
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
 /// the start, its Observer's task or a settings check.
 const CALL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -1005,14 +1007,14 @@ fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema, Refused> 
             let kind = field
                 .kind
                 .as_known()
-                .and_then(SettingKind::from_proto)
+                .and_then(contract::setting_kind)
                 .ok_or_else(|| Refused::UnknownSettingKind {
                     key: field.key.clone(),
                 })?;
             let default = field
                 .default_value
                 .as_option()
-                .and_then(SettingValue::from_proto);
+                .and_then(contract::setting_value);
             if default.as_ref().is_some_and(|default| !default.is(kind)) {
                 return Err(Refused::DefaultWrongKind {
                     key: field.key.clone(),

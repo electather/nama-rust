@@ -7,15 +7,13 @@
 
 import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import type { SettingChoices, SettingKind, SettingValue } from "../../v1/plugin_pb";
-import { file_nama_v1_plugin } from "../../v1/plugin_pb";
 import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/plugin/v1/manifest.proto.
  */
 export const file_nama_plugin_v1_manifest: GenFile = /*@__PURE__*/
-  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9tYW5pZmVzdC5wcm90bxIObmFtYS5wbHVnaW4udjEilwIKCE1hbmlmZXN0EgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEAoIbmFtYV9hcGkYAyABKAkSLgoIc2V0dGluZ3MYBCADKAsyHC5uYW1hLnBsdWdpbi52MS5TZXR0aW5nRmllbGQSFQoNYWxsb3dlZF9ob3N0cxgFIAMoCRIvCglvYnNlcnZlcnMYBiADKA4yHC5uYW1hLnBsdWdpbi52MS5PYnNlcnZlUG9pbnQSLwoJcHJvdmlkZXJzGAcgAygOMhwubmFtYS5wbHVnaW4udjEuUHJvdmlkZVBvaW50EgwKBG5hbWUYCCABKAkSEwoLZGVzY3JpcHRpb24YCSABKAkSEAoIbG9nb19zdmcYCiABKAkiowEKDFNldHRpbmdGaWVsZBILCgNrZXkYASABKAkSDQoFbGFiZWwYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSIgoEa2luZBgEIAEoDjIULm5hbWEudjEuU2V0dGluZ0tpbmQSEAoIcmVxdWlyZWQYBSABKAgSLAoNZGVmYXVsdF92YWx1ZRgGIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlIpkBCg9DaGVja2VkU2V0dGluZ3MSPQoHY2hvaWNlcxgBIAMoCzIsLm5hbWEucGx1Z2luLnYxLkNoZWNrZWRTZXR0aW5ncy5DaG9pY2VzRW50cnkaRwoMQ2hvaWNlc0VudHJ5EgsKA2tleRgBIAEoCRImCgV2YWx1ZRgCIAEoCzIXLm5hbWEudjEuU2V0dGluZ0Nob2ljZXM6AjgBKkcKDE9ic2VydmVQb2ludBIdChlPQlNFUlZFX1BPSU5UX1VOU1BFQ0lGSUVEEAASGAoUT0JTRVJWRV9QT0lOVF9FVkVOVFMQASqrAQoMUHJvdmlkZVBvaW50Eh0KGVBST1ZJREVfUE9JTlRfVU5TUEVDSUZJRUQQABIhCh1QUk9WSURFX1BPSU5UX01PVklFX0ZVTEZJTExFUhABEiAKHFBST1ZJREVfUE9JTlRfU0hPV19GVUxGSUxMRVIQAhIaChZQUk9WSURFX1BPSU5UX05PVElGSUVSEAMSGwoXUFJPVklERV9QT0lOVF9DT05ORUNUT1IQBGIGcHJvdG8z", [file_nama_v1_plugin]);
+  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9tYW5pZmVzdC5wcm90bxIObmFtYS5wbHVnaW4udjEilwIKCE1hbmlmZXN0EgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSEAoIbmFtYV9hcGkYAyABKAkSLgoIc2V0dGluZ3MYBCADKAsyHC5uYW1hLnBsdWdpbi52MS5TZXR0aW5nRmllbGQSFQoNYWxsb3dlZF9ob3N0cxgFIAMoCRIvCglvYnNlcnZlcnMYBiADKA4yHC5uYW1hLnBsdWdpbi52MS5PYnNlcnZlUG9pbnQSLwoJcHJvdmlkZXJzGAcgAygOMhwubmFtYS5wbHVnaW4udjEuUHJvdmlkZVBvaW50EgwKBG5hbWUYCCABKAkSEwoLZGVzY3JpcHRpb24YCSABKAkSEAoIbG9nb19zdmcYCiABKAkisQEKDFNldHRpbmdGaWVsZBILCgNrZXkYASABKAkSDQoFbGFiZWwYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSKQoEa2luZBgEIAEoDjIbLm5hbWEucGx1Z2luLnYxLlNldHRpbmdLaW5kEhAKCHJlcXVpcmVkGAUgASgIEjMKDWRlZmF1bHRfdmFsdWUYBiABKAsyHC5uYW1hLnBsdWdpbi52MS5TZXR0aW5nVmFsdWUioAEKD0NoZWNrZWRTZXR0aW5ncxI9CgdjaG9pY2VzGAEgAygLMiwubmFtYS5wbHVnaW4udjEuQ2hlY2tlZFNldHRpbmdzLkNob2ljZXNFbnRyeRpOCgxDaG9pY2VzRW50cnkSCwoDa2V5GAEgASgJEi0KBXZhbHVlGAIgASgLMh4ubmFtYS5wbHVnaW4udjEuU2V0dGluZ0Nob2ljZXM6AjgBIlwKDFNldHRpbmdWYWx1ZRIUCgp0ZXh0X3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhcKDWludGVnZXJfdmFsdWUYAyABKANIAEIHCgV2YWx1ZSI5Cg5TZXR0aW5nQ2hvaWNlcxInCgdjaG9pY2VzGAEgAygLMhYubmFtYS5wbHVnaW4udjEuQ2hvaWNlIiYKBkNob2ljZRINCgV2YWx1ZRgBIAEoCRINCgVsYWJlbBgCIAEoCSq7AQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEEhcKE1NFVFRJTkdfS0lORF9DSE9JQ0UQBRIUChBTRVRUSU5HX0tJTkRfVVJMEAYqRwoMT2JzZXJ2ZVBvaW50Eh0KGU9CU0VSVkVfUE9JTlRfVU5TUEVDSUZJRUQQABIYChRPQlNFUlZFX1BPSU5UX0VWRU5UUxABKqsBCgxQcm92aWRlUG9pbnQSHQoZUFJPVklERV9QT0lOVF9VTlNQRUNJRklFRBAAEiEKHVBST1ZJREVfUE9JTlRfTU9WSUVfRlVMRklMTEVSEAESIAocUFJPVklERV9QT0lOVF9TSE9XX0ZVTEZJTExFUhACEhoKFlBST1ZJREVfUE9JTlRfTk9USUZJRVIQAxIbChdQUk9WSURFX1BPSU5UX0NPTk5FQ1RPUhAEYgZwcm90bzM");
 
 /**
  * What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
@@ -46,7 +44,7 @@ export type Manifest = Message<"nama.plugin.v1.Manifest"> & {
 
   /**
    * The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
-   * such as "^0.2.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
+   * such as "^0.3.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
    * reads this field before the rest of the Manifest, so it keeps field number 3 in every version.
    *
    * @generated from field: string nama_api = 3;
@@ -149,7 +147,7 @@ export type SettingField = Message<"nama.plugin.v1.SettingField"> & {
   /**
    * What kind of value it takes.
    *
-   * @generated from field: nama.v1.SettingKind kind = 4;
+   * @generated from field: nama.plugin.v1.SettingKind kind = 4;
    */
   kind: SettingKind;
 
@@ -163,7 +161,7 @@ export type SettingField = Message<"nama.plugin.v1.SettingField"> & {
   /**
    * The value used when none is given. Unset if there is none.
    *
-   * @generated from field: nama.v1.SettingValue default_value = 6;
+   * @generated from field: nama.plugin.v1.SettingValue default_value = 6;
    */
   defaultValue?: SettingValue | undefined;
 };
@@ -184,7 +182,7 @@ export type CheckedSettings = Message<"nama.plugin.v1.CheckedSettings"> & {
   /**
    * The choices for each `SETTING_KIND_CHOICE` setting, by key.
    *
-   * @generated from field: map<string, nama.v1.SettingChoices> choices = 1;
+   * @generated from field: map<string, nama.plugin.v1.SettingChoices> choices = 1;
    */
   choices: { [key: string]: SettingChoices };
 };
@@ -195,6 +193,166 @@ export type CheckedSettings = Message<"nama.plugin.v1.CheckedSettings"> & {
  */
 export const CheckedSettingsSchema: GenMessage<CheckedSettings> = /*@__PURE__*/
   messageDesc(file_nama_plugin_v1_manifest, 2);
+
+/**
+ * A setting's value, of the setting's kind.
+ *
+ * @generated from message nama.plugin.v1.SettingValue
+ */
+export type SettingValue = Message<"nama.plugin.v1.SettingValue"> & {
+  /**
+   * @generated from oneof nama.plugin.v1.SettingValue.value
+   */
+  value: {
+    /**
+     * Text, for SETTING_KIND_TEXT, SETTING_KIND_SECRET, SETTING_KIND_CHOICE and SETTING_KIND_URL.
+     *
+     * @generated from field: string text_value = 1;
+     */
+    value: string;
+    case: "textValue";
+  } | {
+    /**
+     * On or off, for SETTING_KIND_BOOL.
+     *
+     * @generated from field: bool bool_value = 2;
+     */
+    value: boolean;
+    case: "boolValue";
+  } | {
+    /**
+     * A whole number, for SETTING_KIND_INTEGER.
+     *
+     * @generated from field: int64 integer_value = 3;
+     */
+    value: bigint;
+    case: "integerValue";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message nama.plugin.v1.SettingValue.
+ * Use `create(SettingValueSchema)` to create a new message.
+ */
+export const SettingValueSchema: GenMessage<SettingValue> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_manifest, 3);
+
+/**
+ * The values a SETTING_KIND_CHOICE setting may take, in the order a form offers them.
+ *
+ * @generated from message nama.plugin.v1.SettingChoices
+ */
+export type SettingChoices = Message<"nama.plugin.v1.SettingChoices"> & {
+  /**
+   * @generated from field: repeated nama.plugin.v1.Choice choices = 1;
+   */
+  choices: Choice[];
+};
+
+/**
+ * Describes the message nama.plugin.v1.SettingChoices.
+ * Use `create(SettingChoicesSchema)` to create a new message.
+ */
+export const SettingChoicesSchema: GenMessage<SettingChoices> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_manifest, 4);
+
+/**
+ * One value a SETTING_KIND_CHOICE setting may take.
+ *
+ * @generated from message nama.plugin.v1.Choice
+ */
+export type Choice = Message<"nama.plugin.v1.Choice"> & {
+  /**
+   * What the setting's value holds as its `text_value` when an admin picks it, such as a quality
+   * profile's id.
+   *
+   * @generated from field: string value = 1;
+   */
+  value: string;
+
+  /**
+   * What an admin picks it by, such as the profile's name.
+   *
+   * @generated from field: string label = 2;
+   */
+  label: string;
+};
+
+/**
+ * Describes the message nama.plugin.v1.Choice.
+ * Use `create(ChoiceSchema)` to create a new message.
+ */
+export const ChoiceSchema: GenMessage<Choice> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_manifest, 5);
+
+/**
+ * What kind of value a setting takes.
+ *
+ * @generated from enum nama.plugin.v1.SettingKind
+ */
+export const SettingKind = {
+  /**
+   * @generated from enum value: SETTING_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * Text.
+   *
+   * @generated from enum value: SETTING_KIND_TEXT = 1;
+   */
+  TEXT: 1,
+
+  /**
+   * Text that admins never see again once saved and the Server never logs, such as an API key.
+   *
+   * @generated from enum value: SETTING_KIND_SECRET = 2;
+   */
+  SECRET: 2,
+
+  /**
+   * On or off.
+   *
+   * @generated from enum value: SETTING_KIND_BOOL = 3;
+   */
+  BOOL: 3,
+
+  /**
+   * A whole number.
+   *
+   * @generated from enum value: SETTING_KIND_INTEGER = 4;
+   */
+  INTEGER: 4,
+
+  /**
+   * Text picked from the choices the Plugin's `check_settings()` export offers in
+   * `CheckedSettings`.
+   *
+   * @generated from enum value: SETTING_KIND_CHOICE = 5;
+   */
+  CHOICE: 5,
+
+  /**
+   * An http or https URL, such as a Sonarr address. The Plugin may send HTTP requests to its host,
+   * as if `Manifest.allowed_hosts` named it.
+   *
+   * @generated from enum value: SETTING_KIND_URL = 6;
+   */
+  URL: 6,
+} as const;
+
+/**
+ * What kind of value a setting takes.
+ *
+ * @generated from enum nama.plugin.v1.SettingKind
+ */
+export type SettingKind = (typeof SettingKind)[keyof typeof SettingKind] | UnknownEnum;
+
+/**
+ * Describes the enum nama.plugin.v1.SettingKind.
+ */
+export const SettingKindSchema: GenEnum<SettingKind> = /*@__PURE__*/
+  enumDesc(file_nama_plugin_v1_manifest, 0);
 
 /**
  * An Observe Extension Point an Installed Plugin can register an Observer at.
@@ -227,7 +385,7 @@ export type ObservePoint = (typeof ObservePoint)[keyof typeof ObservePoint] | Un
  * Describes the enum nama.plugin.v1.ObservePoint.
  */
 export const ObservePointSchema: GenEnum<ObservePoint> = /*@__PURE__*/
-  enumDesc(file_nama_plugin_v1_manifest, 0);
+  enumDesc(file_nama_plugin_v1_manifest, 1);
 
 /**
  * A capability an Installed Plugin can register a Provider for.
@@ -289,5 +447,5 @@ export type ProvidePoint = (typeof ProvidePoint)[keyof typeof ProvidePoint] | Un
  * Describes the enum nama.plugin.v1.ProvidePoint.
  */
 export const ProvidePointSchema: GenEnum<ProvidePoint> = /*@__PURE__*/
-  enumDesc(file_nama_plugin_v1_manifest, 1);
+  enumDesc(file_nama_plugin_v1_manifest, 2);
 

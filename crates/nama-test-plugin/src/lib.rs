@@ -15,8 +15,11 @@ mod exports {
         Notifier, Recipient, Request,
         extism_pdk::{self, Error, HttpRequest, config, http},
         nama_proto::nama::{
-            plugin::v1::{ObservePoint, ObservedEvents, ProvidePoint, SettingField},
-            v1::{SettingKind, SettingValue, request::MovieOrSeason, setting_value},
+            plugin::v1::{
+                ObservePoint, ObservedEvents, ProvidePoint, SettingField, SettingKind,
+                SettingValue, setting_value,
+            },
+            v1::request::MovieOrSeason,
         },
         plugin_fn,
     };

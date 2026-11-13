@@ -261,8 +261,7 @@ enum ExtensionPoint {
   EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8;
 }
 
-// What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
-// with it too (`nama.plugin.v1.SettingField`).
+// What kind of value a setting takes.
 enum SettingKind {
   SETTING_KIND_UNSPECIFIED = 0;
   // Text.

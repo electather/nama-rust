@@ -782,8 +782,7 @@ export const ExtensionPointSchema: GenEnum<ExtensionPoint> = /*@__PURE__*/
   enumDesc(file_nama_v1_plugin, 1);
 
 /**
- * What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
- * with it too (`nama.plugin.v1.SettingField`).
+ * What kind of value a setting takes.
  *
  * @generated from enum nama.v1.SettingKind
  */
@@ -839,8 +838,7 @@ export const SettingKind = {
 } as const;
 
 /**
- * What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
- * with it too (`nama.plugin.v1.SettingField`).
+ * What kind of value a setting takes.
  *
  * @generated from enum nama.v1.SettingKind
  */

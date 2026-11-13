@@ -18,7 +18,7 @@
 //! [`http_request`] to the hosts its Manifest's `allowed_hosts` and its URL settings name, and
 //! reads the time with [`now`]. A call may use up to 128 MiB of memory, and fails past it.
 //!
-//! A Plugin with [`SETTING_KIND_CHOICE`](nama_proto::nama::v1::SettingKind) settings exports `check_settings()`, which
+//! A Plugin with [`SETTING_KIND_CHOICE`](nama_proto::nama::plugin::v1::SettingKind) settings exports `check_settings()`, which
 //! checks its settings against the outside service and offers the choices for each, built with
 //! [`checked_settings`]. It runs only when an admin tests settings, which may be unsaved, and may
 //! reach the hosts of the URL settings tested:
@@ -60,7 +60,7 @@ pub use nama_proto::{
 };
 
 use extism_pdk::{Error, FromBytesOwned, HttpRequest, HttpResponse, ToBytes, ToMemory};
-use nama_proto::nama::v1::{Choice, SettingChoices};
+use nama_proto::nama::plugin::v1::{Choice, SettingChoices};
 
 /// Wraps a protobuf message so it crosses an Extism call encoded as protobuf, as an export's
 /// input or output.
