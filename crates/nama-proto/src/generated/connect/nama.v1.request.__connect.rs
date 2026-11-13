@@ -1503,8 +1503,9 @@ pub trait RequestService: Send + Sync + 'static {
         >,
     > + Send;
     /// Returns one Movie from the metadata source, for its page when no Library has it. Needs
-    /// `PERMISSION_REQUEST_MOVIE`. Fails with `invalid_argument` if the metadata source has no Movie
-    /// with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+    /// `PERMISSION_REQUEST_MOVIE`. Fails with `not_found` if no metadata source has a Movie with the
+    /// id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if no
+    /// metadata Provider is enabled, or it failed.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1552,8 +1553,9 @@ pub trait RequestService: Send + Sync + 'static {
         >,
     > + Send;
     /// Returns one Show from the metadata source with each of its Seasons, for picking which to ask
-    /// for. Needs `PERMISSION_REQUEST_TV`. Fails with `invalid_argument` if the metadata source has no
-    /// Show with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+    /// for. Needs `PERMISSION_REQUEST_TV`. Fails with `not_found` if no metadata source has a Show
+    /// with the id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if
+    /// no metadata Provider is enabled, or it failed.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

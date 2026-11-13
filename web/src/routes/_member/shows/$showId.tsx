@@ -16,9 +16,7 @@ export const Route = createFileRoute("/_member/shows/$showId")({
     if (!may(context.signedIn.user, Permission.REQUEST_TV)) throw notFound();
   },
   loader: async ({ context, params }) => {
-    // Requests name Shows by TMDB id, a number.
-    if (!/^tmdb-\d+$/u.test(params.showId)) throw notFound();
-    const input = { showTmdbId: BigInt(externalIdFromParam(params.showId).value) };
+    const input = { showId: externalIdFromParam(params.showId) };
     await queryOrNotFound(context, RequestService.method.lookUpShow, input);
     return input;
   },

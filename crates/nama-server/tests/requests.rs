@@ -45,11 +45,10 @@ use nama_proto::nama::v1::{
     DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundShow,
     GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest, ListMovieQualitiesRequest,
     ListOfferedQualitiesRequest, ListPluginsRequest, ListQualitiesRequest, ListRequestsRequest,
-    ListRequestsResponse, LookUpMovieRequest, LookUpShowRequest, MovieHit, Permission,
-    PluginServiceClient, Quality, RefusalReason, Request, RequestServiceClient, RequestState,
-    RetryRequestRequest, SearchMoviesRequest, SearchShowsRequest, SetDefaultQualityRequest,
-    TitleKind, UpdatePluginSettingsRequest, WithdrawFollowedShowRequest, event,
-    request::MovieOrSeason, setting_value,
+    ListRequestsResponse, MovieHit, Permission, PluginServiceClient, Quality, RefusalReason,
+    Request, RequestServiceClient, RequestState, RetryRequestRequest, SearchMoviesRequest,
+    SearchShowsRequest, SetDefaultQualityRequest, TitleKind, UpdatePluginSettingsRequest,
+    WithdrawFollowedShowRequest, event, request::MovieOrSeason, setting_value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -62,7 +61,7 @@ use refused::assert_refused;
 use server::{
     Builder, Library, Subscription, TestServer, WAIT,
     fulfiller::{FakeFulfiller, Fulfills, MOVIE_FULFILLER, SHOWS_FULFILLER, quality},
-    requests::{Requester, tmdb_id},
+    requests::{Requester, title_id, tmdb_id},
     subscribe,
     tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, HEAT, THE_OFFICE},
 };
@@ -1985,7 +1984,7 @@ async fn a_search_finds_movies_with_their_year_and_poster_and_no_library_or_requ
     let titles: Vec<_> = found.iter().map(|movie| movie.title.as_str()).collect();
     assert_eq!(titles, ["Alien", "Alien: Romulus", "Aliens"]);
     let alien = &found[0];
-    assert_eq!(alien.tmdb_id, ALIEN);
+    assert_eq!(alien.id, tmdb_id(ALIEN).into());
     assert_eq!(alien.year, Some(1979));
     assert_eq!(
         alien.poster_url.as_deref(),
@@ -2023,15 +2022,8 @@ async fn a_movie_someone_else_requested_shows_their_request_and_asking_joins_it(
     let found = search_alien(as_grace.clone()).await;
     let joined = requests(as_grace.clone()).ask(ALIEN).await;
     let looked_up = requests(as_grace)
-        .look_up_movie(LookUpMovieRequest {
-            movie_tmdb_id: ALIEN,
-            ..Default::default()
-        })
+        .try_look_up_movie(tmdb_id(ALIEN))
         .await
-        .unwrap()
-        .into_owned()
-        .movie
-        .into_option()
         .unwrap();
 
     assert_eq!(found[0].request.as_option(), Some(&adas));
@@ -2090,26 +2082,38 @@ async fn searching_for_a_blank_title_is_refused() {
 }
 
 #[tokio::test]
-async fn looking_up_a_movie_the_metadata_source_doesnt_have_is_refused() {
+async fn looking_up_a_movie_no_metadata_source_has_is_not_found() {
     let fixture = Fixture::start().await;
-    let as_grace = fixture
-        .server
-        .user("Grace", &NEW_USER)
-        .await
-        .client_config();
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let as_grace = fixture.server.requests(&grace);
 
-    let refused = requests(as_grace)
-        .look_up_movie(LookUpMovieRequest {
-            movie_tmdb_id: 1,
-            ..Default::default()
-        })
-        .await;
+    for id in [tmdb_id(1), title_id("anidb", "1")] {
+        let refused = as_grace.try_look_up_movie(id.clone()).await;
 
-    assert_refused(
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_TITLE_NOT_FOUND,
+        );
+        let title_id = format!("{}-{}", id.namespace, id.value);
+        assert_eq!(refusal.params.get("titleId"), Some(&title_id));
+    }
+}
+
+#[tokio::test]
+async fn looking_up_a_movie_by_a_malformed_id_is_refused() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let as_grace = fixture.server.requests(&grace);
+
+    let refused = as_grace.try_look_up_movie(title_id("Ani-DB", "1")).await;
+
+    let refusal = assert_refused(
         refused,
         ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+        RefusalReason::REFUSAL_REASON_TITLE_ID_MALFORMED,
     );
+    assert_eq!(refusal.field, "movie_id");
 }
 
 /// Artwork is served for paths a search handed out, and still for no others: Alien's backdrop
@@ -2562,15 +2566,8 @@ async fn a_scan_makes_an_approved_season_request_available_and_leaves_a_declined
 )]
 async fn look_up_dark(config: ClientConfig) -> FoundShow {
     requests(config)
-        .look_up_show(LookUpShowRequest {
-            show_tmdb_id: DARK,
-            ..Default::default()
-        })
+        .try_look_up_show(tmdb_id(DARK))
         .await
-        .unwrap()
-        .into_owned()
-        .show
-        .into_option()
         .unwrap()
 }
 
@@ -2653,19 +2650,19 @@ async fn a_show_search_finds_shows_with_their_year_and_poster() {
     );
     let found: Vec<_> = found
         .iter()
-        .map(|show| (show.tmdb_id, show.title.as_str(), show.year))
+        .map(|show| (&*show.id, show.title.as_str(), show.year))
         .collect();
     assert_eq!(
         found,
         [
-            (THE_OFFICE, "The Office", Some(2005)),
-            (2996, "The Office", Some(2001))
+            (&tmdb_id(THE_OFFICE), "The Office", Some(2005)),
+            (&tmdb_id(2996), "The Office", Some(2001))
         ]
     );
 }
 
 #[tokio::test]
-async fn looking_up_a_show_the_metadata_source_doesnt_have_is_refused() {
+async fn looking_up_a_show_no_metadata_source_has_is_not_found() {
     let fixture = Fixture::start().await;
     let as_grace = fixture
         .server
@@ -2673,17 +2670,12 @@ async fn looking_up_a_show_the_metadata_source_doesnt_have_is_refused() {
         .await
         .client_config();
 
-    let refused = requests(as_grace)
-        .look_up_show(LookUpShowRequest {
-            show_tmdb_id: 1,
-            ..Default::default()
-        })
-        .await;
+    let refused = requests(as_grace).try_look_up_show(tmdb_id(1)).await;
 
     let refusal = assert_refused(
         refused,
-        ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_TITLE_NOT_FOUND,
     );
     assert_eq!(refusal.field, "show_id");
 }
@@ -2697,12 +2689,7 @@ async fn a_user_without_request_tv_is_refused_looking_up_a_show() {
         .await
         .client_config();
 
-    let refused = requests(as_grace)
-        .look_up_show(LookUpShowRequest {
-            show_tmdb_id: DARK,
-            ..Default::default()
-        })
-        .await;
+    let refused = requests(as_grace).try_look_up_show(tmdb_id(DARK)).await;
 
     let refusal = assert_refused(
         refused,

@@ -7,6 +7,7 @@ import { Poster, PosterGrid, posterLink } from "@/components/poster";
 import { FoundMovieState } from "@/components/found-movie-state";
 import { Button } from "@/components/ui/button";
 import { type MovieHit, RequestService, type ShowHit } from "@/gen/nama/v1/request_pb";
+import { titleParam } from "@/lib/browse";
 import { formText, onSubmitted } from "@/lib/forms";
 
 /** Which kinds of title the signed-in User may Request, and so search for. */
@@ -71,7 +72,7 @@ function MoviesFound({ title, you }: { title: string; you: bigint | undefined })
   return (
     <Found kind="Movies" title={title} search={search}>
       {search.data?.movies.map((movie) => (
-        <MovieCard key={String(movie.tmdbId)} movie={movie} you={you} />
+        <MovieCard key={titleParam(movie.id)} movie={movie} you={you} />
       ))}
     </Found>
   );
@@ -83,7 +84,7 @@ function ShowsFound({ title }: { title: string }) {
   return (
     <Found kind="Shows" title={title} search={search}>
       {search.data?.shows.map((show) => (
-        <ShowCard key={String(show.tmdbId)} show={show} />
+        <ShowCard key={titleParam(show.id)} show={show} />
       ))}
     </Found>
   );
@@ -123,7 +124,7 @@ function Found({
 function ShowCard({ show }: { show: ShowHit }) {
   return (
     <li>
-      <Link to="/shows/$showId" params={{ showId: `tmdb-${show.tmdbId}` }} className={posterLink}>
+      <Link to="/shows/$showId" params={{ showId: titleParam(show.id) }} className={posterLink}>
         <Poster
           url={show.posterUrl}
           thumbhash={show.posterThumbhash}
@@ -137,7 +138,7 @@ function ShowCard({ show }: { show: ShowHit }) {
 
 /** A Movie found: its poster opens its page, in its Library if one has it. */
 function MovieCard({ movie, you }: { movie: MovieHit; you: bigint | undefined }) {
-  const movieId = `tmdb-${movie.tmdbId}`;
+  const movieId = titleParam(movie.id);
   const poster = (
     <Poster
       url={movie.posterUrl}

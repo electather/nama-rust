@@ -22,8 +22,7 @@ export function useAskForShow(show: FoundShow) {
     seasonNumbers: [] as number[],
     onSuccess: () => {},
   });
-  // A look-up result still gives a bare TMDB number.
-  const showId = { namespace: "tmdb", value: String(show.tmdbId) };
+  const showId = show.id;
   const askWithoutPicking = (seasonNumbers: number[], onSuccess: () => void) => {
     if (whole) follow.mutate({ showId }, { onSuccess });
     else ask.mutate({ showId, seasonNumbers }, { onSuccess });

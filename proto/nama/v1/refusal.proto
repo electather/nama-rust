@@ -223,4 +223,7 @@ enum RefusalReason {
   // `invalid_argument`: a title's id has a namespace that isn't lowercase ASCII letters and
   // digits, or an empty value. `field` names the id.
   REFUSAL_REASON_TITLE_ID_MALFORMED = 70;
+  // `not_found`: no metadata source has a title with the id, or none can look titles up by it.
+  // Params: `titleId`.
+  REFUSAL_REASON_TITLE_NOT_FOUND = 71;
 }

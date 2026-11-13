@@ -12,6 +12,12 @@ CI counts those headings, so a break passes only with one more than main has: ed
 
 ## 2026-11-13, #0
 
+- None that `buf breaking` reports: in `nama/v1/request.proto`, `MovieHit.tmdb_id`, `FoundMovie.tmdb_id`, `ShowHit.tmdb_id` and `FoundShow.tmdb_id` (each 1), `LookUpMovieRequest.movie_tmdb_id` (1) and `LookUpShowRequest.show_tmdb_id` (1) are deleted with their numbers and names reserved.
+- A search hit and a looked-up title carry their `ExternalId` in `id` (12 in each), and `LookUpMovie` and `LookUpShow` take `movie_id` and `show_id` (2) (ADR 0042). A look-up of an id no metadata source has, or can look titles up by, is answered `not_found` with the new `REFUSAL_REASON_TITLE_NOT_FOUND` (71) and its `titleId`, in place of `invalid_argument` with `REFUSAL_REASON_UNKNOWN_TITLE`.
+- A client built before reads no id from a hit or a looked-up title, and every look-up it sends is refused for a missing id; it must regenerate and send and read `ExternalId`s. The web app is the only client.
+
+## 2026-11-13, #0
+
 - None that `buf breaking` reports: in `nama/v1/request.proto`, `RequestedMovie.tmdb_id` (1), `RequestedSeason.show_tmdb_id` (1), `show_imdb_id` (5) and `show_tvdb_id` (6), `FollowedShow.show_tmdb_id` (2), `CreateRequestRequest.movie_tmdb_id` (1), `CreateSeasonRequestsRequest.show_tmdb_id` (1) and `CreateFollowedShowRequest.show_tmdb_id` (1) are deleted with their numbers and names reserved.
 - A Request's title is an `ExternalId`: `RequestedMovie.id` (4) with every id the metadata source gave in `ids` (5), `RequestedSeason.show_id` (7) with `show_ids` (8), and `FollowedShow.show_id` (9). `CreateRequest` takes `movie_id` (3), `CreateSeasonRequests` and `CreateFollowedShow` take `show_id` (4 and 3); an id the Server can't look up is refused with `REFUSAL_REASON_UNKNOWN_TITLE` (ADR 0042). `REFUSAL_REASON_ALREADY_IN_LIBRARY`'s `tmdbId` param is now `titleId`, the id's text form (`tmdb-949`).
 - A client built before reads no title id from a Request or Followed Show, and every create it sends is refused for a missing id; it must regenerate and send and read `ExternalId`s. The web app is the only client.

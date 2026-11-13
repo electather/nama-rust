@@ -24,7 +24,7 @@ const mayChoose = [...newUser, Permission.CHOOSE_QUALITY];
 const hd = { id: 1n, profileId: "4", name: "HD", isDefault: true };
 const fourK = { id: 2n, profileId: "5", name: "4K", description: "About 50 GB per film" };
 
-const dune = { tmdbId: 438_631n, title: "Dune", year: 2021 };
+const dune = { id: { namespace: "tmdb", value: "438631" }, title: "Dune", year: 2021 };
 
 /**
  * A fake Server for Dune's page, where `dune` is as given, the Movie Fulfiller offers `qualities`,
@@ -129,7 +129,7 @@ test("a Movie's page shows its open Request's Quality, and joining it shows no p
 });
 
 const dark = {
-  tmdbId: 70_523n,
+  id: { namespace: "tmdb", value: "70523" },
   title: "Dark",
   seasons: [{ seasonNumber: 1 }, { seasonNumber: 2 }],
 };

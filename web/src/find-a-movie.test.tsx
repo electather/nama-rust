@@ -13,6 +13,7 @@ import {
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { titleParam } from "@/lib/browse";
 
 import { fakeServer, fill, newUser, openApp } from "./test-app";
 import { refused } from "./test-refusal";
@@ -29,7 +30,7 @@ function searchableServer(movies: Found[], permissions = newUser) {
   const found = new Map(
     movies.map((init) => {
       const movie = create(FoundMovieSchema, init);
-      return [movie.tmdbId, movie];
+      return [titleParam(movie.id), movie];
     }),
   );
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
@@ -37,9 +38,15 @@ function searchableServer(movies: Found[], permissions = newUser) {
       listRequests: () => ({}),
       searchMovies: () => ({ movies: [...found.values()].map((movie) => hitOf(movie)) }),
       searchShows: () => ({}),
-      lookUpMovie: ({ movieTmdbId }) => ({ movie: found.get(movieTmdbId) }),
+      lookUpMovie: ({ movieId }) => {
+        const movie = found.get(titleParam(movieId));
+        if (!movie) {
+          throw refused(Code.NotFound, "no such Movie", { reason: RefusalReason.TITLE_NOT_FOUND });
+        }
+        return { movie };
+      },
       createRequest: ({ movieId }) => {
-        const movie = found.get(BigInt(movieId?.value ?? 0)) ?? create(FoundMovieSchema);
+        const movie = found.get(titleParam(movieId)) ?? create(FoundMovieSchema);
         movie.request = create(RequestSchema, {
           state: movie.request?.state ?? RequestState.PENDING,
           requesters: [...(movie.request?.requesters ?? []), { userId: 1n, name: "Sam" }],
@@ -50,15 +57,19 @@ function searchableServer(movies: Found[], permissions = newUser) {
   });
 }
 
-function hitOf({ tmdbId, title, year, posterUrl, libraryId, request }: FoundMovie) {
-  return { tmdbId, title, year, posterUrl, libraryId, request };
+function hitOf({ id, title, year, posterUrl, libraryId, request }: FoundMovie) {
+  return { id, title, year, posterUrl, libraryId, request };
+}
+
+function tmdb(value: string) {
+  return { namespace: "tmdb", value };
 }
 
 // Untyped, as each serves as a hit as well as a looked-up Movie, holding only what both have.
-const notOnTheServer = { tmdbId: 438_631n, title: "Dune", year: 2021 };
-const inALibrary = { tmdbId: 348n, title: "Alien", year: 1979, libraryId: 4n };
+const notOnTheServer = { id: tmdb("438631"), title: "Dune", year: 2021 };
+const inALibrary = { id: tmdb("348"), title: "Alien", year: 1979, libraryId: 4n };
 const askedForByAda = {
-  tmdbId: 949n,
+  id: tmdb("949"),
   title: "Heat",
   year: 1995,
   request: { id: 2n, state: RequestState.APPROVED, requesters: [{ userId: 2n, name: "Ada" }] },
@@ -160,6 +171,21 @@ test("a Movie's page for one in a Library opens it there", async () => {
 
 test("a Movie's page is not found for a User who may not Request Movies", async () => {
   openApp("/movies/tmdb-438631", searchableServer([notOnTheServer], [Permission.VIEW_REQUESTS]));
+
+  expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
+});
+
+test("a Movie's page looks up an id of any namespace", async () => {
+  openApp(
+    "/movies/anidb-1",
+    searchableServer([{ ...notOnTheServer, id: { namespace: "anidb", value: "1" } }]),
+  );
+
+  expect(await screen.findByRole("heading", { name: "Dune" })).toBeDefined();
+});
+
+test("a Movie's page is not found when no metadata source has its id", async () => {
+  openApp("/movies/anidb-1", searchableServer([notOnTheServer]));
 
   expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();
 });

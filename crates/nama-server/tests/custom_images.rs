@@ -296,7 +296,7 @@ async fn a_shows_custom_poster_shows_in_continue_watching_and_on_a_request_for_i
     let looked_up = fx
         .requests()
         .look_up_show(LookUpShowRequest {
-            show_tmdb_id: DARK,
+            show_id: tmdb_id(DARK).into(),
             ..Default::default()
         })
         .await
@@ -341,7 +341,7 @@ async fn a_movies_custom_backdrop_shows_on_a_request_for_it() {
     let looked_up = fx
         .requests()
         .look_up_movie(LookUpMovieRequest {
-            movie_tmdb_id: ALIEN,
+            movie_id: tmdb_id(ALIEN).into(),
             ..Default::default()
         })
         .await

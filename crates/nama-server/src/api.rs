@@ -597,7 +597,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_ITEM_NOT_FOUND
         | R::REFUSAL_REASON_REQUEST_NOT_FOUND
         | R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND
-        | R::REFUSAL_REASON_PLUGIN_NOT_FOUND => ErrorCode::NotFound,
+        | R::REFUSAL_REASON_PLUGIN_NOT_FOUND
+        | R::REFUSAL_REASON_TITLE_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_USER_NAME_TAKEN | R::REFUSAL_REASON_FOLDER_TAKEN => {
             ErrorCode::AlreadyExists
         }

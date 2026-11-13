@@ -42,8 +42,8 @@ function showServer(
       listRequests: () => ({}),
       searchMovies: () => ({}),
       searchShows: () => {
-        const { tmdbId, title, year, posterUrl } = show;
-        return { shows: [{ tmdbId, title, year, posterUrl }] };
+        const { id, title, year, posterUrl } = show;
+        return { shows: [{ id, title, year, posterUrl }] };
       },
       lookUpShow: () => ({ show }),
       createSeasonRequests: ({ seasonNumbers }) => {
@@ -79,7 +79,7 @@ function showServer(
 }
 
 const dark = {
-  tmdbId: 70_523n,
+  id: { namespace: "tmdb", value: "70523" },
   title: "Dark",
   year: 2017,
   seasons: [

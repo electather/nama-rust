@@ -18,6 +18,8 @@ import {
   type Request,
   RequestService,
 } from "@/gen/nama/v1/request_pb";
+import { titleParam } from "@/lib/browse";
+// oxlint-disable-next-line import/max-dependencies -- the state puts together a Movie's Library link, its Request, the Quality picker and its download
 import { askRefusal } from "@/lib/forms";
 
 /**
@@ -53,7 +55,7 @@ function InYourLibrary({ movie, libraryId }: { movie: MovieHit | FoundMovie; lib
   return (
     <Link
       to="/libraries/$libraryId/movies/$movieId"
-      params={{ libraryId: String(libraryId), movieId: `tmdb-${movie.tmdbId}` }}
+      params={{ libraryId: String(libraryId), movieId: titleParam(movie.id) }}
       aria-label={`${movie.title} in your Library`}
       className="rounded-full outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
     >
@@ -79,8 +81,7 @@ function RequestStateAndQuality({ request }: { request: Request }) {
  * dialog which Quality to download it at, when the signed-in User may choose and there's a choice.
  */
 function RequestButton({ movie, primary }: { movie: MovieHit | FoundMovie; primary: boolean }) {
-  // A look-up result still gives a bare TMDB number.
-  const movieId = { namespace: "tmdb", value: String(movie.tmdbId) };
+  const movieId = movie.id;
   const ask = useMutation(RequestService.method.createRequest, useReadBackAsked());
   const picker = useQualityPicker(movie.request === undefined, "movie");
   const whyRefused = (error: unknown) =>

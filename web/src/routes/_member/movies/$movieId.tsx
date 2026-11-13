@@ -16,9 +16,7 @@ export const Route = createFileRoute("/_member/movies/$movieId")({
     if (!may(context.signedIn.user, Permission.REQUEST_MOVIE)) throw notFound();
   },
   loader: async ({ context, params }) => {
-    // Requests name Movies by TMDB id, a number.
-    if (!/^tmdb-\d+$/u.test(params.movieId)) throw notFound();
-    const input = { movieTmdbId: BigInt(externalIdFromParam(params.movieId).value) };
+    const input = { movieId: externalIdFromParam(params.movieId) };
     const { movie } = await queryOrNotFound(context, RequestService.method.lookUpMovie, input);
     if (movie?.libraryId !== undefined) {
       throw redirect({

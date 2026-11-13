@@ -5,18 +5,23 @@
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_proto::nama::v1::{
     ApproveRequestRequest, CreateFollowedShowRequest, CreateRequestRequest,
-    CreateSeasonRequestsRequest, DeclineRequestRequest, ExternalId, FollowedShow,
-    GetRequestRequest, ListRequestsRequest, Request, RequestServiceClient, RequestState,
-    RetryRequestRequest, WithdrawRequestRequest,
+    CreateSeasonRequestsRequest, DeclineRequestRequest, ExternalId, FollowedShow, FoundMovie,
+    FoundShow, GetRequestRequest, ListRequestsRequest, LookUpMovieRequest, LookUpShowRequest,
+    Request, RequestServiceClient, RequestState, RetryRequestRequest, WithdrawRequestRequest,
 };
 
 use super::{SignedIn, TestServer};
 
 /// The client API's id of the title with the TMDB id `id`.
 pub(crate) fn tmdb_id(id: i64) -> ExternalId {
+    title_id("tmdb", &id.to_string())
+}
+
+/// The client API's id `namespace`-`value`, well-formed or not.
+pub(crate) fn title_id(namespace: &str, value: &str) -> ExternalId {
     ExternalId {
-        namespace: "tmdb".to_owned(),
-        value: id.to_string(),
+        namespace: namespace.to_owned(),
+        value: value.to_owned(),
         ..Default::default()
     }
 }
@@ -29,6 +34,26 @@ pub(crate) fn tmdb_id(id: i64) -> ExternalId {
 pub(crate) trait Requester {
     /// The Request service this Requester calls.
     fn service(&self) -> &RequestServiceClient<HttpClient>;
+
+    /// Looks up the Movie `id`, returning its error, such as a Refusal.
+    async fn try_look_up_movie(&self, id: ExternalId) -> Result<FoundMovie, ConnectError> {
+        let request = LookUpMovieRequest {
+            movie_id: id.into(),
+            ..Default::default()
+        };
+        let found = self.service().look_up_movie(request).await?.into_owned();
+        Ok(found.movie.into_option().unwrap())
+    }
+
+    /// Looks up the Show `id`, returning its error, such as a Refusal.
+    async fn try_look_up_show(&self, id: ExternalId) -> Result<FoundShow, ConnectError> {
+        let request = LookUpShowRequest {
+            show_id: id.into(),
+            ..Default::default()
+        };
+        let found = self.service().look_up_show(request).await?.into_owned();
+        Ok(found.show.into_option().unwrap())
+    }
 
     /// Asks for the Movie `tmdb_id`, and returns the Request as asking left it.
     async fn ask(&self, tmdb_id: i64) -> Request {

@@ -31,8 +31,8 @@ use crate::{
 };
 
 use super::{
-    ImageSources, Refused, ShownImages, caller, database_failed, refuse, required_id,
-    title_kind_from_proto,
+    ImageSources, Refused, ShownImages, caller, database_failed, external_id_to_proto, refuse,
+    required_id, title_kind_from_proto,
 };
 
 /// `nama.v1.RequestService`: Users asking for Movies and Seasons of Shows. Asking needs
@@ -243,7 +243,21 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, LookUpMovieRequest>,
     ) -> ServiceResult<LookUpMovieResponse> {
         let viewer = &caller(&ctx)?.user;
-        let found = self.requests.look_up(viewer, request.movie_tmdb_id).await?;
+        let id = required_id(
+            request.to_owned_message().movie_id.into_option(),
+            "movie_id",
+            "Movie",
+        )?;
+        let not_found = || title_not_found(&id, "movie_id", "Movie");
+        let tmdb_id = tmdb_of(&id).ok_or_else(not_found)?;
+        let found = self.requests.look_up(viewer, tmdb_id).await;
+        let found = found.map_err(|err| {
+            if matches!(err, requests::Error::NoSuchMovie(_)) {
+                not_found()
+            } else {
+                err.into()
+            }
+        })?;
         let images = self.images.shown().await?;
         Response::ok(LookUpMovieResponse {
             movie: self.looked_up_to_proto(found, &images).into(),
@@ -274,10 +288,21 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, LookUpShowRequest>,
     ) -> ServiceResult<LookUpShowResponse> {
         let viewer = &caller(&ctx)?.user;
-        let found = self
-            .requests
-            .look_up_show(viewer, request.show_tmdb_id)
-            .await?;
+        let id = required_id(
+            request.to_owned_message().show_id.into_option(),
+            "show_id",
+            "Show",
+        )?;
+        let not_found = || title_not_found(&id, "show_id", "Show");
+        let tmdb_id = tmdb_of(&id).ok_or_else(not_found)?;
+        let found = self.requests.look_up_show(viewer, tmdb_id).await;
+        let found = found.map_err(|err| {
+            if matches!(err, requests::Error::NoSuchShow(_)) {
+                not_found()
+            } else {
+                err.into()
+            }
+        })?;
         let images = self.images.shown().await?;
         Response::ok(LookUpShowResponse {
             show: self.looked_up_show_to_proto(found, &images).into(),
@@ -468,7 +493,7 @@ impl RequestServiceHandler {
             movie.poster,
         );
         proto::MovieHit {
-            tmdb_id,
+            id: tmdb_to_proto(tmdb_id).into(),
             title: movie.title,
             year: movie.year,
             poster_url,
@@ -496,7 +521,7 @@ impl RequestServiceHandler {
         let (poster_url, poster_thumbhash) = image(Role::Poster, movie.poster);
         let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, movie.backdrop);
         proto::FoundMovie {
-            tmdb_id,
+            id: tmdb_to_proto(tmdb_id).into(),
             title: movie.title,
             year: movie.release_date.as_deref().and_then(year_of),
             overview: movie.overview,
@@ -525,7 +550,7 @@ impl RequestServiceHandler {
             show.poster,
         );
         proto::ShowHit {
-            tmdb_id,
+            id: tmdb_to_proto(tmdb_id).into(),
             title: show.title,
             year: show.year,
             poster_url,
@@ -548,7 +573,7 @@ impl RequestServiceHandler {
         let (poster_url, poster_thumbhash) = image(Role::Poster, show.poster);
         let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, show.backdrop);
         proto::FoundShow {
-            tmdb_id,
+            id: tmdb_to_proto(tmdb_id).into(),
             title: show.title,
             year: show.first_air_date.as_deref().and_then(year_of),
             overview: show.overview,
@@ -626,11 +651,7 @@ fn tmdb_number(
     what: &str,
 ) -> Result<i64, ConnectError> {
     let id = required_id(id, field, what)?;
-    match id.namespace() {
-        TMDB => id.value().parse().ok(),
-        _ => None,
-    }
-    .ok_or_else(|| {
+    tmdb_of(&id).ok_or_else(|| {
         refuse(
             RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
             format!("no {what} has the id {id}"),
@@ -639,6 +660,33 @@ fn tmdb_number(
         .param("titleId", &id)
         .into()
     })
+}
+
+/// The TMDB number `id` names, if it is a `tmdb` id whose value is a number.
+// The tasks `requests-key-on-ids` and `followed-shows-key-on-ids` delete this.
+fn tmdb_of(id: &ExternalId) -> Option<i64> {
+    match id.namespace() {
+        TMDB => id.value().parse().ok(),
+        _ => None,
+    }
+}
+
+/// The id of the title the Kernel found by its TMDB number `tmdb_id`, as clients see it.
+fn tmdb_to_proto(tmdb_id: i64) -> proto::ExternalId {
+    external_id_to_proto(&ExternalId::tmdb(tmdb_id))
+}
+
+/// The refusal of a look-up of the `what` `id`, named in `field`, which no metadata source has or
+/// can look up. Unlike the create calls' `REFUSAL_REASON_UNKNOWN_TITLE`, a look-up names no title
+/// to act on, so it is `not_found`.
+fn title_not_found(id: &ExternalId, field: &str, what: &str) -> ConnectError {
+    refuse(
+        RefusalReason::REFUSAL_REASON_TITLE_NOT_FOUND,
+        format!("no metadata source has a {what} with the id {id}"),
+    )
+    .field(field)
+    .param("titleId", id)
+    .into()
 }
 
 /// The refusal of the Quality `named` in `field`, as it isn't the Show's, `shows`.
@@ -664,7 +712,7 @@ impl From<requests::Error> for ConnectError {
         let refused = match err {
             // Every RPC naming a Request or Followed Show names it in `id`. The create RPCs name
             // a Movie in `movie_id` and a Show in `show_id`, which the refusals below name;
-            // `LookUpMovie` and `LookUpShow` still name them in `movie_tmdb_id` and `show_tmdb_id`.
+            // `LookUpMovie` and `LookUpShow` answer a title no source has themselves.
             requests::Error::NoSuch(Asked::Request, id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
                     .field("id")

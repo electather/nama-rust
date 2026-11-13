@@ -92,8 +92,9 @@ service RequestService {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Returns one Movie from the metadata source, for its page when no Library has it. Needs
-  // `PERMISSION_REQUEST_MOVIE`. Fails with `invalid_argument` if the metadata source has no Movie
-  // with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+  // `PERMISSION_REQUEST_MOVIE`. Fails with `not_found` if no metadata source has a Movie with the
+  // id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if no
+  // metadata Provider is enabled, or it failed.
   rpc LookUpMovie(LookUpMovieRequest) returns (LookUpMovieResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -103,8 +104,9 @@ service RequestService {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Returns one Show from the metadata source with each of its Seasons, for picking which to ask
-  // for. Needs `PERMISSION_REQUEST_TV`. Fails with `invalid_argument` if the metadata source has no
-  // Show with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+  // for. Needs `PERMISSION_REQUEST_TV`. Fails with `not_found` if no metadata source has a Show
+  // with the id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if
+  // no metadata Provider is enabled, or it failed.
   rpc LookUpShow(LookUpShowRequest) returns (LookUpShowResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -587,8 +589,10 @@ message ListOfferedQualitiesResponse {
 // a Request, or neither, in which case `CreateRequest` asks for it. Numbered as `FoundMovie`, so a
 // client built when searches gave `FoundMovie`s still decodes it.
 message MovieHit {
-  // The Movie's TMDB id.
-  int64 tmdb_id = 1;
+  reserved 1;
+  reserved "tmdb_id";
+  // The Movie's id in the metadata source.
+  ExternalId id = 12;
   // The title, in the metadata Provider's language.
   string title = 2;
   // The year it was released, if known.
@@ -596,7 +600,7 @@ message MovieHit {
   // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 6;
   // The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
-  // by `tmdb_id`.
+  // by `id`.
   optional int64 library_id = 8;
   // The Movie's open Request, if it has one the caller may see.
   Request request = 9;
@@ -606,8 +610,10 @@ message MovieHit {
 
 // A Movie looked up in the metadata source: all a `MovieHit` has, and what only a look-up fetches.
 message FoundMovie {
-  // The Movie's TMDB id.
-  int64 tmdb_id = 1;
+  reserved 1;
+  reserved "tmdb_id";
+  // The Movie's id in the metadata source.
+  ExternalId id = 12;
   // The title, in the metadata Provider's language.
   string title = 2;
   // The year it was released, if known.
@@ -620,7 +626,7 @@ message FoundMovie {
   // The backdrop's URL on this Server: its Custom Image, if it has one.
   optional string backdrop_url = 7;
   // The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
-  // by `tmdb_id`.
+  // by `id`.
   optional int64 library_id = 8;
   // The Movie's open Request, if it has one the caller may see.
   Request request = 9;
@@ -640,8 +646,10 @@ message SearchMoviesResponse {
 }
 
 message LookUpMovieRequest {
-  // The Movie's TMDB id.
-  int64 movie_tmdb_id = 1;
+  reserved 1;
+  reserved "movie_tmdb_id";
+  // The Movie's id.
+  ExternalId movie_id = 2;
 }
 
 message LookUpMovieResponse {
@@ -651,8 +659,10 @@ message LookUpMovieResponse {
 // A Show a search found. Numbered as `FoundShow`, so a client built when searches gave
 // `FoundShow`s still decodes it.
 message ShowHit {
-  // The Show's TMDB id.
-  int64 tmdb_id = 1;
+  reserved 1;
+  reserved "tmdb_id";
+  // The Show's id in the metadata source.
+  ExternalId id = 12;
   // The title, in the metadata Provider's language.
   string title = 2;
   // The year it first aired, if known.
@@ -665,8 +675,10 @@ message ShowHit {
 
 // A Show looked up in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
 message FoundShow {
-  // The Show's TMDB id.
-  int64 tmdb_id = 1;
+  reserved 1;
+  reserved "tmdb_id";
+  // The Show's id in the metadata source.
+  ExternalId id = 12;
   // The title, in the metadata Provider's language.
   string title = 2;
   // The year it first aired, if known.
@@ -716,8 +728,10 @@ message SearchShowsResponse {
 }
 
 message LookUpShowRequest {
-  // The Show's TMDB id.
-  int64 show_tmdb_id = 1;
+  reserved 1;
+  reserved "show_tmdb_id";
+  // The Show's id.
+  ExternalId show_id = 2;
 }
 
 message LookUpShowResponse {
