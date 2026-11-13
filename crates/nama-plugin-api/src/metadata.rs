@@ -12,7 +12,9 @@ use std::fmt;
 pub use crate::ids::{ExternalId, ExternalIds, IMDB, InvalidId, TMDB, TVDB};
 use crate::{BoxFuture, PluginError};
 
-/// A Provider of metadata about Movies and Shows.
+/// A Provider of metadata about Movies and Shows. Titles carry ids as open namespace and value
+/// pairs, of which `tmdb`, `imdb` and `tvdb` are well known; a Provider refuses an id in a
+/// namespace it doesn't know with [`MetadataError::UnsupportedId`].
 pub trait MetadataProvider: Send + Sync + 'static {
     /// The titles of `query.kind` that best fit `query`, best first.
     fn search<'a>(

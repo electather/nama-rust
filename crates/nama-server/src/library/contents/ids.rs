@@ -21,9 +21,9 @@ impl Pin {
     }
 }
 
-/// The one of `ids` that identifies a title: its TMDB id if it has one, or else its IMDb or TVDB
-/// id, or else the first of any others in namespace order. `None` if it has none.
-// ponytail: a fixed order until a Library has its own order of title sources.
+/// The one of `ids` that identifies a title: its TMDB id if it has one, or else its IMDb, then
+/// its TVDB id, or else the first of any other in namespace order. `None` if it has none. This
+/// order stands until per-Library source order exists.
 pub(crate) fn primary_id(ids: &ExternalIds) -> Option<ExternalId> {
     [TMDB, IMDB, TVDB]
         .into_iter()
@@ -54,16 +54,9 @@ pub(super) fn ids_from_json(json: Option<&str>) -> ExternalIds {
         .collect()
 }
 
-/// The ID Hint stored as `text`, which is how [`ExternalId`] displays.
+/// The ID Hint stored as `text`, which is how [`ExternalId`] displays: any well-formed id.
 pub(crate) fn parse_hint(text: &str) -> Option<ExternalId> {
-    let id: ExternalId = text.parse().ok()?;
-    // A number is rebuilt from its value, so `tmdb-0348` reads as `tmdb-348`.
-    match id.namespace() {
-        TMDB => id.value().parse().ok().map(ExternalId::tmdb),
-        TVDB => id.value().parse().ok().map(ExternalId::tvdb),
-        IMDB => Some(id),
-        _ => None,
-    }
+    text.parse().ok()
 }
 
 #[cfg(test)]

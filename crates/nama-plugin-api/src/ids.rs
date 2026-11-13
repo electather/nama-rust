@@ -1,6 +1,6 @@
 //! A title's ids as namespace and value pairs (ADR 0042).
 
-use std::{cmp::Ordering, fmt, str::FromStr};
+use std::{cmp::Ordering, collections::BTreeMap, fmt, str::FromStr};
 
 /// The namespace of TMDB ids, whose values are numbers.
 pub const TMDB: &str = "tmdb";
@@ -9,8 +9,9 @@ pub const IMDB: &str = "imdb";
 /// The namespace of TVDB ids, whose values are numbers.
 pub const TVDB: &str = "tvdb";
 
-/// An id of a title in a metadata source: a namespace such as `tmdb` and a value its owner
-/// defines. Movies and Shows have separate id spaces, so a kind travels beside it.
+/// An id of a title in a metadata source: an open namespace, of which `tmdb`, `imdb` and `tvdb`
+/// are well known, and a value its owner defines. Movies and Shows have separate id spaces, so a
+/// kind travels beside it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ExternalId {
     namespace: String,
@@ -86,28 +87,6 @@ impl ExternalId {
         }
     }
 
-    /// Transitional: the task `id-set-type` deletes this once callers use [`Self::tmdb`].
-    #[doc(hidden)]
-    #[expect(
-        non_snake_case,
-        reason = "stands in for the old enum variant until its callers move"
-    )]
-    #[must_use]
-    pub fn Tmdb(id: i64) -> Self {
-        Self::tmdb(id)
-    }
-
-    /// Transitional: the task `id-set-type` deletes this once callers use [`Self::tvdb`].
-    #[doc(hidden)]
-    #[expect(
-        non_snake_case,
-        reason = "stands in for the old enum variant until its callers move"
-    )]
-    #[must_use]
-    pub fn Tvdb(id: i64) -> Self {
-        Self::tvdb(id)
-    }
-
     /// Its namespace, such as `tmdb`.
     #[must_use]
     pub fn namespace(&self) -> &str {
@@ -153,64 +132,40 @@ impl PartialOrd for ExternalId {
     }
 }
 
-/// Every id a title has, in the metadata sources a Provider knows about, at most one per
-/// namespace. Watch State syncs by these (ADR 0008).
+/// Every id a title has, at most one per namespace: open pairs, of which `tmdb`, `imdb` and
+/// `tvdb` are well known. Watch State syncs by these (ADR 0008).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub struct ExternalIds {
-    /// The TMDB id.
-    pub tmdb: Option<i64>,
-    /// The IMDb id, such as `tt0078748`.
-    pub imdb: Option<String>,
-    /// The TVDB id.
-    pub tvdb: Option<i64>,
-}
+pub struct ExternalIds(BTreeMap<String, String>);
 
 impl ExternalIds {
     /// Its id in `namespace`, if it has one.
     #[must_use]
     pub fn get(&self, namespace: &str) -> Option<ExternalId> {
-        match namespace {
-            TMDB => self.tmdb.map(ExternalId::tmdb),
-            TVDB => self.tvdb.map(ExternalId::tvdb),
-            IMDB => self.imdb.as_ref().map(|imdb| ExternalId {
-                namespace: IMDB.to_owned(),
-                value: imdb.clone(),
-            }),
-            _ => None,
-        }
+        self.0
+            .get_key_value(namespace)
+            .map(|(namespace, value)| ExternalId {
+                namespace: namespace.clone(),
+                value: value.clone(),
+            })
     }
 
     /// Adds `id`, in place of any id it has in the same namespace.
     pub fn insert(&mut self, id: ExternalId) {
-        // While the three fields last, an id they can't hold (another namespace, or a TMDB or
-        // TVDB value that isn't a number) is dropped; the task `id-set-type` keeps every one.
-        match id.namespace() {
-            TMDB => {
-                if let Ok(tmdb) = id.value.parse() {
-                    self.tmdb = Some(tmdb);
-                }
-            }
-            TVDB => {
-                if let Ok(tvdb) = id.value.parse() {
-                    self.tvdb = Some(tvdb);
-                }
-            }
-            IMDB => self.imdb = Some(id.value),
-            _ => {}
-        }
+        self.0.insert(id.namespace, id.value);
     }
 
     /// Its ids, in namespace order.
     pub fn iter(&self) -> impl Iterator<Item = ExternalId> + '_ {
-        [IMDB, TMDB, TVDB]
-            .into_iter()
-            .filter_map(|namespace| self.get(namespace))
+        self.0.iter().map(|(namespace, value)| ExternalId {
+            namespace: namespace.clone(),
+            value: value.clone(),
+        })
     }
 
     /// Whether it has no ids.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.iter().next().is_none()
+        self.0.is_empty()
     }
 }
 

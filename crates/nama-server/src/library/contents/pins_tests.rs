@@ -19,7 +19,7 @@ async fn a_pin_still_applies_after_its_items_are_replaced() {
         .await
         .unwrap()
         .unwrap();
-    let pin = Pin::Title(ExternalId::Tmdb(949));
+    let pin = Pin::Title(ExternalId::tmdb(949));
     fx.contents
         .pin(named.library, named.name, pin.clone(), vec![])
         .await
@@ -56,9 +56,9 @@ async fn a_pin_still_applies_after_a_reparse_gives_its_items_a_new_name() {
     let (alien_item, heat_item) = (fx.item(ALIEN).await, fx.item(heat).await);
     let knight_item = fx.item(knight).await;
     let pins = [
-        (alien_item, Pin::Title(ExternalId::Tmdb(348))),
+        (alien_item, Pin::Title(ExternalId::tmdb(348))),
         (heat_item, Pin::Unmatched),
-        (knight_item, Pin::Title(ExternalId::Tmdb(224_372))),
+        (knight_item, Pin::Title(ExternalId::tmdb(224_372))),
     ];
     for (item, pin) in pins.clone() {
         let named = fx.contents.named_like(item).await.unwrap().unwrap();
@@ -86,8 +86,8 @@ async fn a_pin_still_applies_after_a_reparse_gives_its_items_a_new_name() {
             ALIEN,
             hinted("Alien", 1979, ExternalId::new(IMDB, "tt0078748").unwrap()),
         ),
-        reparse(heat, hinted("Heat", 1995, ExternalId::Tmdb(949))),
-        reparse(knight, knight_pilot(Some(ExternalId::Tvdb(433_631)))),
+        reparse(heat, hinted("Heat", 1995, ExternalId::tmdb(949))),
+        reparse(knight, knight_pilot(Some(ExternalId::tvdb(433_631)))),
     ];
     fx.contents.apply(fx.library, changes).await.unwrap();
 
@@ -103,10 +103,10 @@ async fn a_pin_still_applies_after_a_reparse_gives_its_items_a_new_name() {
                 Some(ExternalId::new(IMDB, "tt0078748").unwrap()),
                 Some(pins[0].1.clone())
             ),
-            (heat_item, Some(ExternalId::Tmdb(949)), Some(Pin::Unmatched)),
+            (heat_item, Some(ExternalId::tmdb(949)), Some(Pin::Unmatched)),
             (
                 knight_item,
-                Some(ExternalId::Tvdb(433_631)),
+                Some(ExternalId::tvdb(433_631)),
                 Some(pins[2].1.clone())
             ),
         ]

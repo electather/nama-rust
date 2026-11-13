@@ -359,7 +359,7 @@ async fn a_path_naming_no_slot_is_not_found() {
 
     for path in [
         "/custom-images/movie/tmdb-348/logo",
-        "/custom-images/movie/tmdb-0348/poster",
+        "/custom-images/movie/Tmdb-348/poster",
         "/custom-images/show/tmdb-70523/season/1/backdrop",
         "/custom-images/episode/tmdb-1/poster",
     ] {

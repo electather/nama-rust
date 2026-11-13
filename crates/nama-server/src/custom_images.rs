@@ -452,7 +452,7 @@ mod tests {
             assert_eq!(Slot::parse(path), Some(Slot(path.to_owned())), "{path}");
         }
         for path in [
-            "movie/tmdb-0348/poster",
+            "movie/Tmdb-348/poster",
             "movie/tmdb-348/logo",
             "movie/tmdb-348",
             "episode/tmdb-1/poster",

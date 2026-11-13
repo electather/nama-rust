@@ -52,3 +52,22 @@ fn a_set_holds_one_id_per_well_known_namespace() {
     assert!(!ids.is_empty());
     assert!(ExternalIds::default().is_empty());
 }
+
+#[test]
+fn a_set_holds_an_id_of_any_namespace_one_per_namespace() {
+    let id = |namespace, value| ExternalId::new(namespace, value).unwrap();
+    let mut ids: ExternalIds = [id("mal", "5"), ExternalId::tmdb(603), id("anidb", "1")]
+        .into_iter()
+        .collect();
+    assert_eq!(ids.get("anidb"), Some(id("anidb", "1")));
+    assert_eq!(ids.get("mal"), Some(id("mal", "5")));
+    assert_eq!(ids.get(TMDB), Some(ExternalId::tmdb(603)));
+    assert_eq!(
+        ids.iter().collect::<Vec<_>>(),
+        [id("anidb", "1"), id("mal", "5"), ExternalId::tmdb(603)]
+    );
+
+    ids.insert(id("anidb", "2"));
+    assert_eq!(ids.get("anidb"), Some(id("anidb", "2")));
+    assert_eq!(ids.iter().count(), 3);
+}

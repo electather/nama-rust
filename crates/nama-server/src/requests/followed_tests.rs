@@ -243,18 +243,17 @@ async fn a_show_known_only_by_a_made_up_id_is_followed_under_it_and_only_once() 
 
 #[tokio::test]
 async fn a_scan_opens_a_new_season_of_a_show_followed_under_an_id_other_than_tmdb() {
-    // ponytail: `tvdb` until `ExternalIds` holds any namespace (task `id-set-type`); then `mal-1`.
     let (_data, db) = ada_and_bob().await;
-    let tvdb = ExternalId::tvdb(81189);
+    let mal = ExternalId::new("mal", "1").unwrap();
     let show = || WantedSeasons {
-        show_id: tvdb.clone(),
+        show_id: mal.clone(),
         ..dark()
     };
     follow_as(&db, BOB, show(), RequestState::Approved).await;
     follow_as(&db, ADA, show(), RequestState::Approved).await;
-    match_episodes(&db, tvdb.clone(), 3, &[1, 2]).await;
+    match_episodes(&db, mal.clone(), 3, &[1, 2]).await;
 
-    let scanned = scan(&db, tvdb.clone(), &[3]).await;
+    let scanned = scan(&db, mal.clone(), &[3]).await;
 
     assert_eq!(said(&scanned), [("created", RequestState::Available)]);
     let newest_first = db.write(|tx| Box::pin(load(tx, None, None))).await.unwrap();
@@ -267,7 +266,7 @@ async fn a_scan_opens_a_new_season_of_a_show_followed_under_an_id_other_than_tmd
             show_id.value.as_str(),
             asked.season_number
         ),
-        ("tvdb", "81189", 3)
+        ("mal", "1", 3)
     );
     let requesters: Vec<_> = season.requesters.iter().map(|one| one.user_id).collect();
     assert_eq!(requesters, [BOB, ADA]);

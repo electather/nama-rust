@@ -160,7 +160,7 @@ async fn a_search_finds_a_show_once_by_its_title_and_episodes_by_their_own() {
         .collect();
     assert_eq!(
         found_episodes,
-        [(&ExternalId::Tmdb(THE_OFFICE), 1, 2, "Office Olympics")]
+        [(&ExternalId::tmdb(THE_OFFICE), 1, 2, "Office Olympics")]
     );
     assert!(found.movies.is_empty(), "{:?}", found.movies);
 }
