@@ -13,7 +13,7 @@ use nama_plugin_api::{
     fulfiller::{
         EpisodeNumber, EpisodeNumbers, ShowDeleted, show_deleted::Deleted, stop_monitoring::Title,
     },
-    metadata::ExternalId,
+    metadata::{ExternalId, TMDB},
 };
 
 use crate::{
@@ -645,11 +645,11 @@ fn started_episodes(
     started
 }
 
-const fn tmdb_id_of(id: &ExternalId) -> Option<i64> {
-    match id {
-        ExternalId::Tmdb(tmdb) => Some(*tmdb),
-        ExternalId::Imdb(_) | ExternalId::Tvdb(_) => None,
+fn tmdb_id_of(id: &ExternalId) -> Option<i64> {
+    if id.namespace() != TMDB {
+        return None;
     }
+    id.value().parse().ok()
 }
 
 /// What [`Libraries::get`] or [`Libraries::list`] failing means to Browse.

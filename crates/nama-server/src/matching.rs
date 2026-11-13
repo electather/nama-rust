@@ -1803,7 +1803,7 @@ mod tests {
         let result = media.matcher.set_match(item, &ExternalId::Tmdb(1)).await;
 
         assert!(
-            matches!(result, Err(ManualError::NoSuchTitle(ExternalId::Tmdb(1)))),
+            matches!(result, Err(ManualError::NoSuchTitle(ref id)) if *id == ExternalId::tmdb(1)),
             "{result:?}"
         );
         assert_eq!(media.outcomes(movies).await, [matched(348, "Alien")]);

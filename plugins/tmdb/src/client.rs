@@ -13,8 +13,8 @@ use hyper_util::{
 use nama_plugin_api::{
     BoxFuture,
     metadata::{
-        Candidate, Episode, ExternalId, Image, MetadataError, MetadataProvider, Movie, SearchQuery,
-        Season, Show, TitleKind,
+        Candidate, Episode, ExternalId, IMDB, Image, MetadataError, MetadataProvider, Movie,
+        SearchQuery, Season, Show, TMDB, TVDB, TitleKind,
     },
 };
 use serde::de::DeserializeOwned;
@@ -78,15 +78,19 @@ impl Client {
 
     /// The TMDB id of the `kind` of title `id` names, found with `/find` if it's another source's.
     async fn find(&self, kind: TitleKind, id: &ExternalId) -> Result<i64, MetadataError> {
-        let (source, id) = match id {
-            ExternalId::Tmdb(id) => return Ok(*id),
-            ExternalId::Tvdb(id) => ("tvdb_id", id.to_string()),
-            // The id goes in the path, so only an IMDb id's own shape is sent.
-            ExternalId::Imdb(id) if is_imdb_id(id) => ("imdb_id", id.clone()),
-            ExternalId::Imdb(_) => return Err(MetadataError::NotFound),
+        let source = match id.namespace() {
+            TMDB => return tmdb_id(id),
+            // The id goes in the path, so only a number or an IMDb id's own shape is sent.
+            TVDB if is_number(id.value()) => "tvdb_id",
+            IMDB if is_imdb_id(id.value()) => "imdb_id",
+            TVDB | IMDB => return Err(MetadataError::NotFound),
+            _ => return Err(MetadataError::UnsupportedId(id.clone())),
         };
         let found: Found = self
-            .api(&format!("/find/{id}"), &[("external_source", source)])
+            .api(
+                &format!("/find/{}", id.value()),
+                &[("external_source", source)],
+            )
             .await?;
         let results = match kind {
             TitleKind::Movie => found.movie_results,
@@ -145,16 +149,21 @@ impl Client {
 
 /// `tt` and digits, as IMDb's title ids are.
 fn is_imdb_id(id: &str) -> bool {
-    id.strip_prefix("tt")
-        .is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+    id.strip_prefix("tt").is_some_and(is_number)
+}
+
+fn is_number(text: &str) -> bool {
+    !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit())
 }
 
 /// The TMDB id in `id`, the only kind TMDB looks Seasons and Episodes up by.
 fn tmdb_id(id: &ExternalId) -> Result<i64, MetadataError> {
-    match *id {
-        ExternalId::Tmdb(id) => Ok(id),
-        ExternalId::Imdb(_) | ExternalId::Tvdb(_) => Err(MetadataError::UnsupportedId(id.clone())),
+    if id.namespace() != TMDB {
+        return Err(MetadataError::UnsupportedId(id.clone()));
     }
+    id.value()
+        .parse()
+        .map_err(|_not_a_number| MetadataError::NotFound)
 }
 
 /// A failure worth trying again later, such as TMDB being unreachable.

@@ -16,7 +16,7 @@
 
 use std::{path::Path, sync::LazyLock};
 
-use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB, TMDB, TVDB};
 use regex::Regex;
 
 use crate::{libraries::Kind, library::contents::Item};
@@ -266,12 +266,9 @@ impl Named {
     /// The ID Hint Matching goes by: TMDB's, which the metadata source is, or else TVDB's, which
     /// Sonarr writes, or else IMDb's.
     fn hint(&self) -> Option<ExternalId> {
-        let hints = &self.hints;
-        hints
-            .tmdb
-            .map(ExternalId::Tmdb)
-            .or_else(|| hints.tvdb.map(ExternalId::Tvdb))
-            .or_else(|| hints.imdb.clone().map(ExternalId::Imdb))
+        [TMDB, TVDB, IMDB]
+            .into_iter()
+            .find_map(|namespace| self.hints.get(namespace))
     }
 }
 
@@ -352,21 +349,21 @@ fn clean_title(title: &str) -> String {
 mod tests {
     use std::path::Path;
 
-    use nama_plugin_api::metadata::ExternalId;
+    use nama_plugin_api::metadata::{ExternalId, IMDB};
 
     use super::{is_extra, parse};
     use crate::{libraries::Kind, library::contents::Item};
 
-    const fn tmdb(id: i64) -> ExternalId {
-        ExternalId::Tmdb(id)
+    fn tmdb(id: i64) -> ExternalId {
+        ExternalId::tmdb(id)
     }
 
-    const fn tvdb(id: i64) -> ExternalId {
-        ExternalId::Tvdb(id)
+    fn tvdb(id: i64) -> ExternalId {
+        ExternalId::tvdb(id)
     }
 
     fn imdb(id: &str) -> ExternalId {
-        ExternalId::Imdb(id.to_owned())
+        ExternalId::new(IMDB, id).unwrap()
     }
 
     #[expect(

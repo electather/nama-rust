@@ -210,12 +210,12 @@ impl Contents {
         let holds_episodes = first.kind == Some(ItemKind::Episode);
         let ids: Vec<_> = (rows.into_iter())
             .map(|row| {
-                let id = primary_id(ExternalIds {
+                let id = primary_id(&ExternalIds {
                     tmdb: row.tmdb_id,
                     imdb: row.imdb_id,
                     tvdb: row.tvdb_id,
                 });
-                let show = primary_id(ExternalIds {
+                let show = primary_id(&ExternalIds {
                     tmdb: row.show_tmdb_id,
                     imdb: row.show_imdb_id,
                     tvdb: row.show_tvdb_id,
@@ -342,7 +342,7 @@ impl Contents {
                     tvdb: row.tvdb_id,
                 };
                 let backdrop = NewestBackdrop {
-                    title: primary_id(ids)?,
+                    title: primary_id(&ids)?,
                     plugin: row.plugin,
                     path: row.backdrop,
                 };
@@ -393,7 +393,7 @@ impl Contents {
                 imdb: row.imdb_id,
                 tvdb: row.tvdb_id,
             };
-            let Some(id) = primary_id(ids) else {
+            let Some(id) = primary_id(&ids) else {
                 continue;
             };
             let version = version(
@@ -462,7 +462,7 @@ impl Contents {
                 imdb: row.imdb_id,
                 tvdb: row.tvdb_id,
             };
-            let (Some(show_id), Some(id)) = (primary_id(show_ids), primary_id(ids)) else {
+            let (Some(show_id), Some(id)) = (primary_id(&show_ids), primary_id(&ids)) else {
                 continue;
             };
             let show = shows.entry(show_id.clone()).or_insert_with(|| Show {

@@ -11,7 +11,7 @@ use axum::{
 use buffa::MessageName;
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, ErrorCode, ErrorDetail, RequestContext, Response};
-use nama_plugin_api::metadata::{ExternalId, TitleKind};
+use nama_plugin_api::metadata::{ExternalId, IMDB, TMDB, TVDB, TitleKind};
 use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason, external_id};
 
 use crate::{
@@ -463,11 +463,12 @@ fn title_kind_from_proto(kind: EnumValue<proto::TitleKind>) -> Result<TitleKind,
     }
 }
 
-fn external_id_from_proto(id: external_id::Id) -> ExternalId {
+/// The id `id` names. `None` for an empty IMDb id, which names nothing.
+fn external_id_from_proto(id: external_id::Id) -> Option<ExternalId> {
     match id {
-        external_id::Id::Tmdb(id) => ExternalId::Tmdb(id),
-        external_id::Id::Imdb(id) => ExternalId::Imdb(id),
-        external_id::Id::Tvdb(id) => ExternalId::Tvdb(id),
+        external_id::Id::Tmdb(id) => Some(ExternalId::tmdb(id)),
+        external_id::Id::Imdb(id) => ExternalId::new(IMDB, id).ok(),
+        external_id::Id::Tvdb(id) => Some(ExternalId::tvdb(id)),
     }
 }
 
@@ -484,7 +485,7 @@ fn required_id(
     what: &str,
 ) -> Result<ExternalId, ConnectError> {
     id.and_then(|id| id.id)
-        .map(external_id_from_proto)
+        .and_then(external_id_from_proto)
         .ok_or_else(|| {
             refuse(
                 RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
@@ -495,14 +496,17 @@ fn required_id(
         })
 }
 
-fn external_id_to_proto(id: ExternalId) -> proto::ExternalId {
-    let id = match id {
-        ExternalId::Tmdb(id) => external_id::Id::Tmdb(id),
-        ExternalId::Imdb(id) => external_id::Id::Imdb(id),
-        ExternalId::Tvdb(id) => external_id::Id::Tvdb(id),
+fn external_id_to_proto(id: &ExternalId) -> proto::ExternalId {
+    // The proto still has a field per well-known namespace: an id it can't hold goes as none.
+    let number = id.value().parse();
+    let id = match (id.namespace(), number) {
+        (TMDB, Ok(number)) => Some(external_id::Id::Tmdb(number)),
+        (TVDB, Ok(number)) => Some(external_id::Id::Tvdb(number)),
+        (IMDB, _) => Some(external_id::Id::Imdb(id.value().to_owned())),
+        _ => None,
     };
     proto::ExternalId {
-        id: Some(id),
+        id,
         ..Default::default()
     }
 }

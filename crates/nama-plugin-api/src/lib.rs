@@ -16,6 +16,7 @@
 pub mod auth;
 pub mod connector;
 pub mod fulfiller;
+mod ids;
 pub mod metadata;
 pub mod notifier;
 pub mod points;

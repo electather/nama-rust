@@ -68,14 +68,14 @@ impl Contents {
             return Ok(found);
         };
         for row in self.search_rows(&words.in_column("title")).await? {
-            let Some(id) = primary_id(row.ids()) else {
+            let Some(id) = primary_id(&row.ids()) else {
                 continue;
             };
             match (
                 row.kind,
                 row.season,
                 row.episode,
-                primary_id(row.show_ids()),
+                primary_id(&row.show_ids()),
             ) {
                 (ItemKind::Episode, Some(season), Some(number), Some(show)) => {
                     found.episodes.push(FoundEpisode {
@@ -180,7 +180,7 @@ impl SearchRow {
 /// its first row.
 fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
     let rows: Vec<(ExternalId, SearchRow)> = (rows.into_iter())
-        .filter_map(|row| Some((primary_id(row.show_ids())?, row)))
+        .filter_map(|row| Some((primary_id(&row.show_ids())?, row)))
         .collect();
     let mut seen = HashSet::new();
     let mut shows = Vec::new();

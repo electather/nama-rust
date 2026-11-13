@@ -208,7 +208,7 @@ fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::Movie
         library_id: movie.library,
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
         poster_url,
-        id: external_id_to_proto(movie.id).into(),
+        id: external_id_to_proto(&movie.id).into(),
         title: movie.title,
         release_date: movie.release_date,
         ..Default::default()
@@ -224,7 +224,7 @@ fn found_show_to_proto(show: FoundShow, images: &ShownImages) -> proto::ShowInLi
         library_id: show.library,
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
         poster_url,
-        id: external_id_to_proto(show.id).into(),
+        id: external_id_to_proto(&show.id).into(),
         title: show.title,
         ..Default::default()
     }
@@ -233,8 +233,8 @@ fn found_show_to_proto(show: FoundShow, images: &ShownImages) -> proto::ShowInLi
 fn found_episode_to_proto(episode: FoundEpisode) -> proto::EpisodeInLibrary {
     proto::EpisodeInLibrary {
         library_id: episode.library,
-        id: external_id_to_proto(episode.id).into(),
-        show_id: external_id_to_proto(episode.show).into(),
+        id: external_id_to_proto(&episode.id).into(),
+        show_id: external_id_to_proto(&episode.show).into(),
         show_title: episode.show_title,
         season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),
@@ -266,7 +266,7 @@ fn movie_to_proto(
         backdrop_thumbhash: images.thumbhash(backdrop_url.as_deref()),
         poster_url,
         backdrop_url,
-        id: external_id_to_proto(movie.id).into(),
+        id: external_id_to_proto(&movie.id).into(),
         title: movie.title,
         original_title: movie.original_title,
         overview: movie.overview,
@@ -340,7 +340,7 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
     });
     let backdrop_url = custom_backdrop.or(downloaded_backdrop);
     proto::Show {
-        id: external_id_to_proto(show.id.clone()).into(),
+        id: external_id_to_proto(&show.id).into(),
         title: show.title.clone(),
         custom_poster: poster_is_custom,
         custom_backdrop: backdrop_is_custom,
@@ -376,7 +376,7 @@ fn episode_to_proto(
     proto::Episode {
         still_thumbhash: images.thumbhash(still_url.as_deref()),
         still_url,
-        id: external_id_to_proto(episode.id).into(),
+        id: external_id_to_proto(&episode.id).into(),
         season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),
         title: episode.title,

@@ -2,7 +2,7 @@
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{Candidate, ExternalId, SearchQuery, Season, Show, TitleKind},
+    metadata::{Candidate, ExternalId, SearchQuery, Season, Show, TMDB, TitleKind},
 };
 use nama_proto::nama::v1::{FollowedShow, FoundSeason, Request, RequestState, RequestedQuality};
 use sqlx::SqliteConnection;
@@ -101,13 +101,16 @@ impl Requests {
         // Requests name titles by TMDB id, so a title without one can't be asked for.
         Ok(candidates
             .into_iter()
-            .filter_map(|candidate| match candidate.id {
-                ExternalId::Tmdb(tmdb_id) => Some(Hit {
+            .filter_map(|candidate| {
+                if candidate.id.namespace() != TMDB {
+                    return None;
+                }
+                let tmdb_id = candidate.id.value().parse().ok()?;
+                Some(Hit {
                     tmdb_id,
                     plugin: plugin.clone(),
                     candidate,
-                }),
-                ExternalId::Imdb(_) | ExternalId::Tvdb(_) => None,
+                })
             })
             .collect())
     }

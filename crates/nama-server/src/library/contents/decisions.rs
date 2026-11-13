@@ -142,7 +142,7 @@ impl Contents {
                     episode: row.episode,
                 }
                 .into_item()?;
-                Some((row.id, item, Pin::from_row(row.pinned, pinned)))
+                Some((row.id, item, Pin::from_row(row.pinned, &pinned)))
             })
             .collect())
     }
@@ -180,7 +180,7 @@ impl Contents {
         Ok(rows
             .into_iter()
             .filter_map(|row| {
-                let title = primary_id(ExternalIds {
+                let title = primary_id(&ExternalIds {
                     tmdb: row.tmdb_id,
                     imdb: row.imdb_id,
                     tvdb: row.tvdb_id,

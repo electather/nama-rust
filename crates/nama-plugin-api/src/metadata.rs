@@ -9,6 +9,7 @@
 
 use std::fmt;
 
+pub use crate::ids::{ExternalId, ExternalIds, IMDB, InvalidId, TMDB, TVDB};
 use crate::{BoxFuture, PluginError};
 
 /// A Provider of metadata about Movies and Shows.
@@ -65,39 +66,6 @@ pub struct SearchQuery {
     pub title: String,
     /// The year a Movie was released or a Show first aired, if known.
     pub year: Option<i32>,
-}
-
-/// An id of a title in a metadata source.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ExternalId {
-    /// A TMDB id. Movies and Shows have separate id spaces.
-    Tmdb(i64),
-    /// An IMDb id, such as `tt0078748`.
-    Imdb(String),
-    /// A TVDB id.
-    Tvdb(i64),
-}
-
-impl fmt::Display for ExternalId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Tmdb(id) => write!(f, "tmdb-{id}"),
-            Self::Imdb(id) => write!(f, "imdb-{id}"),
-            Self::Tvdb(id) => write!(f, "tvdb-{id}"),
-        }
-    }
-}
-
-/// Every id a title has, in the metadata sources a Provider knows about. Watch State syncs by
-/// these (ADR 0008).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub struct ExternalIds {
-    /// The TMDB id.
-    pub tmdb: Option<i64>,
-    /// The IMDb id, such as `tt0078748`.
-    pub imdb: Option<String>,
-    /// The TVDB id.
-    pub tvdb: Option<i64>,
 }
 
 /// A title a search found.

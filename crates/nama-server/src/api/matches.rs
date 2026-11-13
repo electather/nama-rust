@@ -77,7 +77,7 @@ impl MatchService for MatchServiceHandler {
             .title_id
             .into_option()
             .and_then(|id| id.id)
-            .map(external_id_from_proto)
+            .and_then(external_id_from_proto)
             .ok_or_else(|| {
                 refuse(
                     RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
@@ -131,7 +131,7 @@ impl MatchService for MatchServiceHandler {
 
 fn title_to_proto(title: TiedTitle) -> proto::TitleCandidate {
     proto::TitleCandidate {
-        id: external_id_to_proto(title.id).into(),
+        id: external_id_to_proto(&title.id).into(),
         title: title.title,
         original_title: title.original_title,
         year: title.year,

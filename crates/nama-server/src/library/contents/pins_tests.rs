@@ -1,4 +1,4 @@
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::metadata::{ExternalId, IMDB};
 
 use super::{
     super::{
@@ -84,7 +84,7 @@ async fn a_pin_still_applies_after_a_reparse_gives_its_items_a_new_name() {
     let changes = vec![
         reparse(
             ALIEN,
-            hinted("Alien", 1979, ExternalId::Imdb("tt0078748".to_owned())),
+            hinted("Alien", 1979, ExternalId::new(IMDB, "tt0078748").unwrap()),
         ),
         reparse(heat, hinted("Heat", 1995, ExternalId::Tmdb(949))),
         reparse(knight, knight_pilot(Some(ExternalId::Tvdb(433_631)))),
@@ -100,7 +100,7 @@ async fn a_pin_still_applies_after_a_reparse_gives_its_items_a_new_name() {
         [
             (
                 alien_item,
-                Some(ExternalId::Imdb("tt0078748".to_owned())),
+                Some(ExternalId::new(IMDB, "tt0078748").unwrap()),
                 Some(pins[0].1.clone())
             ),
             (heat_item, Some(ExternalId::Tmdb(949)), Some(Pin::Unmatched)),

@@ -11,7 +11,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use nama_plugin_api::{
     Plugin, Registrar,
     metadata::{
-        Candidate, ExternalId, ExternalIds, MetadataError, MetadataProvider, SearchQuery, TitleKind,
+        Candidate, ExternalId, ExternalIds, IMDB, MetadataError, MetadataProvider, SearchQuery,
+        TitleKind,
     },
     settings::{SettingKind, SettingValue, Settings},
 };
@@ -259,10 +260,7 @@ async fn a_movie_is_found_by_its_imdb_id_and_a_show_by_its_tvdb_id() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
 
-    let movie = tmdb
-        .movie(&ExternalId::Imdb("tt0078748".to_owned()))
-        .await
-        .unwrap();
+    let movie = tmdb.movie(&imdb("tt0078748")).await.unwrap();
     let show = tmdb.show(&ExternalId::Tvdb(334_824)).await.unwrap();
 
     assert_eq!((movie.ids.tmdb, movie.title.as_str()), (Some(348), "Alien"));
@@ -276,11 +274,9 @@ async fn an_id_with_no_title_of_the_asked_kind_on_tmdb_is_not_found() {
 
     let nothing = tmdb.movie(&ExternalId::Tvdb(1)).await;
     // Alien is a Movie, not a Show.
-    let a_movie = tmdb.show(&ExternalId::Imdb("tt0078748".to_owned())).await;
+    let a_movie = tmdb.show(&imdb("tt0078748")).await;
     // Not an IMDb id, so it isn't sent.
-    let not_imdb = tmdb
-        .movie(&ExternalId::Imdb("../movie/348".to_owned()))
-        .await;
+    let not_imdb = tmdb.movie(&imdb("../movie/348")).await;
 
     for result in [
         &nothing.map(|_| ()),
@@ -311,6 +307,25 @@ async fn seasons_are_looked_up_by_tmdb_ids_only() {
         "{result:?}"
     );
     assert_eq!(fake.requests(), Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn an_id_in_a_namespace_tmdb_does_not_know_is_unsupported() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+    let id = ExternalId::new("example", "348").unwrap();
+
+    let result = tmdb.movie(&id).await;
+
+    assert!(
+        matches!(result, Err(MetadataError::UnsupportedId(ref unsupported)) if *unsupported == id),
+        "{result:?}"
+    );
+    assert_eq!(fake.requests(), Vec::<String>::new());
+}
+
+fn imdb(id: &str) -> ExternalId {
+    ExternalId::new(IMDB, id).unwrap()
 }
 
 #[tokio::test]

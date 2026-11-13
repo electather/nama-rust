@@ -187,7 +187,7 @@ mod tests {
     use nama_plugin_api::{
         BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
         metadata::{
-            Candidate, Episode, ExternalId, Image, MetadataError, MetadataProvider, Movie,
+            Candidate, Episode, ExternalId, IMDB, Image, MetadataError, MetadataProvider, Movie,
             SearchQuery, Season, Show,
         },
         settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
@@ -300,7 +300,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_id_the_provider_cannot_look_up_is_not_found() {
-        let failure = || MetadataError::UnsupportedId(ExternalId::Imdb("tt0944947".to_owned()));
+        let failure = || MetadataError::UnsupportedId(ExternalId::new(IMDB, "tt0944947").unwrap());
 
         assert_eq!(
             asking(Some(failure)).await,
