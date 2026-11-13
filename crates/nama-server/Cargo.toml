@@ -7,7 +7,7 @@ edition.workspace = true
 repository.workspace = true
 
 [features]
-# `contents::Contents::files`: what a Library holds, as integration tests read it back;
+# `library::contents::Contents::files`: what a Library holds, as integration tests read it back;
 # `ffmpeg::fake`, the fake programs tests run; and the Built-in Plugin `nama-plugin-test-choices`,
 # whose settings check offers choices.
 testing = ["dep:nama-plugin-test-choices"]

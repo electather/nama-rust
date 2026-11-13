@@ -86,11 +86,13 @@ fn read(root: &Path, path: &Path) -> SourceFile {
     }
 }
 
-/// What is wrong with one file's size, given its line count (`None` when it's gone) and its ceiling in `CEILINGS`.
+/// What is wrong with one file's size, given its line count (`None` when it's gone) and its
+/// ceiling in `CEILINGS`.
 fn problem(path: &str, lines: Option<usize>, ceiling: Option<usize>) -> Option<String> {
     match (lines, ceiling) {
         (Some(lines), None) if lines > MAX_LINES => Some(format!(
-            "{path} is {lines} lines, over {MAX_LINES}: split it, or list it in CEILINGS if a move-only change made it out of a listed file"
+            "{path} is {lines} lines, over {MAX_LINES}: split it, or list it in CEILINGS if a \
+             move-only change made it out of a listed file"
         )),
         (_, None) => None,
         (None, Some(_)) => Some(format!("{path} is gone: remove its CEILINGS entry")),

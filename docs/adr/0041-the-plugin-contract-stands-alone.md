@@ -5,7 +5,7 @@ What an Installed Plugin is built against is the Plugin contract: the `nama.plug
 ## Considered Options
 
 - **Keep importing `nama.v1`**: rejected. Every client API change stays a Plugin change, and the contract's version can't say what a Plugin depends on.
-- **One crate with a feature for the contract**: rejected. The contract's code would share the client API's crate version and licence boundary, and a feature left on would bring the client API back to Plugins.
+- **One crate with a feature for the contract**: rejected. The contract's code would share the client API's crate version, and a feature left on would bring the client API back to Plugins.
 - **A copy of every client message in the contract**: rejected. Copies follow the client's shape, so a Plugin would still change whenever the web app's needs do, and it would carry fields it never reads.
 
 ## Consequences
@@ -13,4 +13,4 @@ What an Installed Plugin is built against is the Plugin contract: the `nama.plug
 - One idea has two messages, kept apart on purpose, with the conversion code in the Server.
 - Built-in Plugins still see client API messages through `nama-plugin-api` until Extension Points become proto services.
 - A check keeps `proto/nama/plugin/` from importing `nama.v1`.
-- The Kernel hands Request progress to every Notifier today; an Installed Notifier is no longer called for it. Telegram, the only one, posted nothing for it.
+- The Kernel hands Request progress to Built-in Notifiers only; an Installed Notifier is not called for it. Telegram, the only one, posted nothing for it.

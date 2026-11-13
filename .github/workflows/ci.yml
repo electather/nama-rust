@@ -70,8 +70,8 @@ jobs:
 
   # The checks that build nothing: formatting, the schema in proto/ (ADR 0007: lint, no breaking
   # changes to the client API against main but those declared in proto/BREAKING.md, generated
-  # code in crates/nama-proto, crates/nama-plugin-proto and web/src/gen is current), unused deps and cargo-deny. Runs on
-  # drafts too, as do `web` and `rust-check`.
+  # code in crates/nama-proto, crates/nama-plugin-proto and web/src/gen is current), unused deps
+  # and cargo-deny. Runs on drafts too, as do `web` and `rust-check`.
   lint:
     needs: changes
     if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.web == 'true'
@@ -103,8 +103,9 @@ jobs:
       - name: buf breaking against main
         run: .github/scripts/buf-breaking.sh "$(git rev-parse HEAD^1)"
       # The generated code must compile against the connectrpc and buffa versions in
-      # crates/nama-proto/Cargo.toml and crates/nama-plugin-proto/Cargo.toml, so keep each plugin on the same minor version as its
-      # runtime crate when bumping either (and update the README's install line).
+      # crates/nama-proto/Cargo.toml and crates/nama-plugin-proto/Cargo.toml, so keep each plugin
+      # on the same minor version as its runtime crate when bumping either (and update the README's
+      # install line).
       # Cached by version, since building them from source takes minutes. Bump the cache key with
       # any version here.
       - id: codegen-cache
