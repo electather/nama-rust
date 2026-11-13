@@ -327,6 +327,204 @@ fn a_request_event_carries_the_contracts_request() {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one row for each kind the contract converts"
+)]
+fn every_event_kind_that_converts_keeps_each_field_in_its_place() {
+    // Every field holds a value no other field holds, so a swap in any arm fails.
+    let asked = |id| api::Request {
+        id,
+        ..Default::default()
+    };
+    let told = |id| Some(request(&asked(id))).into();
+    let kinds = [
+        (
+            api_event(api::ScanStarted {
+                library_id: 1,
+                ..Default::default()
+            }),
+            wire_event(wire::ScanStarted {
+                library_id: 1,
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::ScanProgress {
+                library_id: 2,
+                files_done: 3,
+                files_total: 4,
+                ..Default::default()
+            }),
+            wire_event(wire::ScanProgress {
+                library_id: 2,
+                files_done: 3,
+                files_total: 4,
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::ScanFinished {
+                library_id: 5,
+                added: 6,
+                updated: 7,
+                removed: 8,
+                unchanged: 9,
+                ..Default::default()
+            }),
+            wire_event(wire::ScanFinished {
+                library_id: 5,
+                added: 6,
+                updated: 7,
+                removed: 8,
+                unchanged: 9,
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::LibraryItemAdded {
+                library_id: 10,
+                item_id: 11,
+                path: "/movies/Heat (1995).mkv".to_owned(),
+                ..Default::default()
+            }),
+            wire_event(wire::LibraryItemAdded {
+                library_id: 10,
+                item_id: 11,
+                path: "/movies/Heat (1995).mkv".to_owned(),
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::LibraryItemRemoved {
+                library_id: 12,
+                item_id: 13,
+                ..Default::default()
+            }),
+            wire_event(wire::LibraryItemRemoved {
+                library_id: 12,
+                item_id: 13,
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::ItemMatched {
+                library_id: 14,
+                item_id: 15,
+                title: "Heat".to_owned(),
+                ..Default::default()
+            }),
+            wire_event(wire::ItemMatched {
+                library_id: 14,
+                item_id: 15,
+                title: "Heat".to_owned(),
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::MatchingFinished {
+                library_id: 16,
+                matched: 17,
+                unmatched: 18,
+                undecided: 19,
+                ..Default::default()
+            }),
+            wire_event(wire::MatchingFinished {
+                library_id: 16,
+                matched: 17,
+                unmatched: 18,
+                undecided: 19,
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::ProbingFinished {
+                library_id: 20,
+                probed: 21,
+                failed: 22,
+                ..Default::default()
+            }),
+            wire_event(wire::ProbingFinished {
+                library_id: 20,
+                probed: 21,
+                failed: 22,
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::RequestCreated {
+                request: Some(asked(23)).into(),
+                ..Default::default()
+            }),
+            wire_event(wire::RequestCreated {
+                request: told(23),
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::RequesterAdded {
+                request: Some(asked(24)).into(),
+                user_id: 25,
+                ..Default::default()
+            }),
+            wire_event(wire::RequesterAdded {
+                request: told(24),
+                user_id: 25,
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::RequestStateChanged {
+                request: Some(asked(26)).into(),
+                ..Default::default()
+            }),
+            wire_event(wire::RequestStateChanged {
+                request: told(26),
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::RequestCancelled {
+                request: Some(asked(27)).into(),
+                deleted_by: Some("ada".to_owned()),
+                ..Default::default()
+            }),
+            wire_event(wire::RequestCancelled {
+                request: told(27),
+                deleted_by: Some("ada".to_owned()),
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::RequesterRemoved {
+                request: Some(asked(28)).into(),
+                user_id: 29,
+                ..Default::default()
+            }),
+            wire_event(wire::RequesterRemoved {
+                request: told(28),
+                user_id: 29,
+                ..Default::default()
+            }),
+        ),
+        (
+            api_event(api::RequestWithdrawn {
+                request: Some(asked(30)).into(),
+                ..Default::default()
+            }),
+            wire_event(wire::RequestWithdrawn {
+                request: told(30),
+                ..Default::default()
+            }),
+        ),
+    ];
+
+    for (sent, expected) in kinds {
+        assert_eq!(event(&sent), Some(expected));
+    }
+}
+
+#[test]
 fn request_progress_and_playback_events_are_left_out() {
     let progress = api_event(api::RequestProgress::default());
     let playback = api_event(api::PlaybackStarted::default());

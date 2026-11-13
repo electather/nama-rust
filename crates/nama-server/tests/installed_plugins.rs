@@ -21,10 +21,13 @@ use std::{
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use log::Log;
-use nama_plugin_api::PluginId;
+use nama_plugin_api::{
+    PluginId,
+    notifier::{Notification, Notifier, Recipient},
+};
 use nama_plugin_proto::CONTRACT_VERSION;
 use nama_proto::nama::v1::{
-    CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
+    self as api, CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
     GetPluginRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind,
     PluginServiceClient, PluginSummary, RefusalReason, ScanLibraryRequest, SettingValue,
     TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
@@ -720,4 +723,58 @@ async fn a_check_that_fails_is_refused_with_the_plugins_error() {
         failed.unwrap_err().message.as_deref(),
         Some("the service refused the API key")
     );
+}
+
+#[tokio::test]
+async fn an_installed_notifier_isnt_handed_request_progress() {
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    started.listed("test-plugin").await.unwrap();
+    // It fails every notification for its channel, so only one it isn't handed succeeds.
+    started
+        .save_settings(&[("notifier", "error")])
+        .await
+        .unwrap();
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    let asked = api::Request {
+        id: 7,
+        ..Default::default()
+    };
+    let told = |event: api::event::Event| Notification {
+        event: api::Event {
+            event: Some(event),
+            ..Default::default()
+        },
+        request: asked.clone(),
+        request_url: None,
+    };
+    let withdrawn = told(
+        api::RequestWithdrawn {
+            request: Some(asked.clone()).into(),
+            ..Default::default()
+        }
+        .into(),
+    );
+    let progress = told(api::RequestProgress::default().into());
+
+    let (sender, mut delivered) = tokio::sync::mpsc::unbounded_channel();
+    started
+        .plugins
+        .extension_points()
+        .tell_each(move |_, notifier: Arc<dyn Notifier>| {
+            let (sender, withdrawn, progress) =
+                (sender.clone(), withdrawn.clone(), progress.clone());
+            async move {
+                let withdrawn = notifier.deliver(&withdrawn, &Recipient::Channel).await;
+                let progress = notifier.deliver(&progress, &Recipient::Channel).await;
+                sender.send((withdrawn.is_ok(), progress.is_ok())).unwrap();
+                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
+            }
+        });
+
+    assert_eq!(delivered.recv().await, Some((false, true)));
 }
