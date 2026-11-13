@@ -39,7 +39,7 @@ pub(crate) struct FoundShow {
     /// The Plugin whose metadata Provider made the Match, which the poster's path is for.
     pub(crate) plugin: String,
     pub(crate) title: String,
-    /// As [`Show::poster`] picks it, from the Seasons of the Show's Episodes the search found.
+    /// As [`show_poster`] picks it, from the Seasons of the Show's Episodes the search found.
     pub(crate) poster: Option<String>,
 }
 

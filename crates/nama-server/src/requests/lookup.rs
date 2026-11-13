@@ -173,6 +173,8 @@ impl Requests {
             .map_err(Error::from)
     }
 
+    /// The Movie `tmdb_id` from the metadata source, failing with [`Error::NoSuchMovie`] or
+    /// [`Error::Unavailable`] as [`looking_up`] maps it.
     pub(super) async fn fetch(&self, tmdb_id: i64) -> Result<Metadata, Error> {
         self.metadata
             .movie(&ExternalId::Tmdb(tmdb_id))

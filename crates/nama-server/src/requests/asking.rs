@@ -54,7 +54,7 @@ pub(super) struct WantedSeasons {
 
 impl Requests {
     /// Asks for the Movie with the TMDB id `tmdb_id` for `asker`, who joins its open Request, or
-    /// opens one at the Quality `chosen`, else as [`Self::movie_quality`] picks: Approved, and handed
+    /// opens one at the Quality `chosen`, else as [`Self::quality`] picks: Approved, and handed
     /// to the Fulfiller for Movies, if `asker` may have Movies approved as they ask, else Pending.
     /// Such an `asker` joining a Pending Request approves it and hands it off the same way.
     /// Publishes what changed, if anything did.
@@ -187,7 +187,7 @@ pub(super) async fn ask_seasons(
 /// | some of it | open as asked | open as asked | open as Partially Available |
 /// | none of it | open as asked | open as asked | skip |
 ///
-/// A User asks a [`Way`]; a Library's write asks [`Scanning`](super::availability::Scanning).
+/// A User asks a [`Way`]; a Library's write asks `availability::Scanning`.
 pub(super) trait Asker {
     /// How asking this way can fail.
     type Error: From<sqlx::Error>;

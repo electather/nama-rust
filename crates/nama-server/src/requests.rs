@@ -33,6 +33,8 @@ mod lookup;
 mod progress;
 mod quality;
 mod state;
+#[cfg(test)]
+mod testing;
 // Neighbours address it as `requests::qualities`: its names (`list`, `Refused`) read only with it.
 pub(crate) mod qualities;
 
@@ -173,6 +175,3 @@ async fn stop(task: &Mutex<Option<JoinHandle<()>>>, doing: &str) {
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
-
-#[cfg(test)]
-mod testing;
