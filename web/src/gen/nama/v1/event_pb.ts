@@ -1114,7 +1114,8 @@ export const EventTypeSchema: GenEnum<EventType> = /*@__PURE__*/
   enumDesc(file_nama_v1_event, 0);
 
 /**
- * Live updates: what happens on the Server as it happens. Observers receive the same `Event`s.
+ * Live updates: what happens on the Server as it happens. Built-in Observers receive the same
+ * `Event`s; an Installed Observer gets the Plugin contract's own (`nama.plugin.v1`).
  *
  * @generated from service nama.v1.EventService
  */

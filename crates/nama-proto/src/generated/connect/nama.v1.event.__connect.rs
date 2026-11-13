@@ -48,7 +48,8 @@ pub const EVENT_SERVICE_SUBSCRIBE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec:
         ::connectrpc::StreamType::ServerStream,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
-/// Live updates: what happens on the Server as it happens. Observers receive the same `Event`s.
+/// Live updates: what happens on the Server as it happens. Built-in Observers receive the same
+/// `Event`s; an Installed Observer gets the Plugin contract's own (`nama.plugin.v1`).
 ///
 /// # Implementing handlers
 ///

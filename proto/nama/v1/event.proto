@@ -6,7 +6,8 @@ import "nama/v1/browse.proto";
 import "nama/v1/playback.proto";
 import "nama/v1/request.proto";
 
-// Live updates: what happens on the Server as it happens. Observers receive the same `Event`s.
+// Live updates: what happens on the Server as it happens. Built-in Observers receive the same
+// `Event`s; an Installed Observer gets the Plugin contract's own (`nama.plugin.v1`).
 service EventService {
   // Streams the events that happen from now on, as filtered by the request, until the client
   // hangs up. Events about Libraries' files arrive in batches, each once the database has stored

@@ -759,6 +759,28 @@ async fn enabling_a_plugin_that_refuses_to_start_is_refused_with_its_reason() {
 }
 
 #[tokio::test]
+async fn settings_a_plugin_refuses_to_start_with_are_saved_and_it_comes_back_not_running() {
+    let started = Started::with(&test_choices_with_profile()).await;
+
+    let updated = started
+        .update(
+            test_choices::ID,
+            [
+                ("profile", text("1")),
+                ("fail_with", text(test_choices::REFUSE)),
+            ],
+        )
+        .await;
+
+    assert!(!updated.unwrap().plugin.unwrap().summary.enabled);
+    let config = started.stored().await.remove(test_choices::ID).unwrap();
+    assert_eq!(
+        config.settings.get("fail_with"),
+        Some(&SettingValue::Text(test_choices::REFUSE.to_owned()))
+    );
+}
+
+#[tokio::test]
 async fn enabling_or_disabling_an_unknown_plugin_is_refused() {
     let started = Started::with(&BTreeMap::new()).await;
 

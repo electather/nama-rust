@@ -889,7 +889,7 @@ export const PluginService: GenService<{
    * refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or `REFUSAL_REASON_CHOICE_NOT_OFFERED`
    * naming the setting, and nothing changes. A Plugin that then refuses to start with them
    * doesn't fail the call: the settings are saved and it comes back not running
-   * (`summary.enabled` false); `EnablePlugin` says why with
+   * (`plugin.summary.enabled` false); `EnablePlugin` says why with
    * `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. Fails with `not_found` for an unknown Plugin.
    *
    * @generated from rpc nama.v1.PluginService.UpdatePluginSettings

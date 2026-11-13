@@ -26,7 +26,7 @@ pub const PANIC: &str = "panic";
 pub const HANG: &str = "hang";
 
 /// What `fail_with` is set to for `register` to refuse to start, after registering its Fulfillers,
-/// with an error that quotes its `api_key` setting. The check doesn't know this word.
+/// with an error that quotes its `api_key` setting. The check passes it, so it saves.
 pub const REFUSE: &str = "refuse";
 
 /// The test Plugin. It registers its Fulfillers.
@@ -162,8 +162,8 @@ impl SettingsCheck for TestChoices {
             match settings.text("fail_with") {
                 Some(PANIC) => panic!("the test Plugin was told to panic"),
                 Some(HANG) => future::pending().await,
+                Some(REFUSE) | None => {}
                 Some(error) => return Err(error.into()),
-                None => {}
             }
             if settings.text("api_key") != Some(API_KEY) {
                 return Err("the service refused the API key".into());
