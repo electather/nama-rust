@@ -6,16 +6,14 @@
 //! Partially Available (ADR 0012).
 
 use std::{
-    borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
-use nama_proto::nama::v1::Event;
 use sqlx::SqliteConnection;
 
-use crate::db::{Database, now};
+use crate::db::Database;
 
 mod decisions;
 mod files;
@@ -23,6 +21,7 @@ mod files;
 pub(crate) mod fixture;
 mod ids;
 mod items;
+mod pins;
 #[cfg(test)]
 mod testing;
 #[cfg(test)]
@@ -35,28 +34,12 @@ pub(crate) use ids::parse_hint;
 use ids::primary_id;
 pub(crate) use items::{Item, Name};
 use items::{ItemKind, ItemRow};
+pub(crate) use pins::{Named, Pin};
 
 /// Reads and writes the contents of Libraries.
 #[derive(Debug, Clone)]
 pub(crate) struct Contents {
     db: Arc<Database>,
-}
-
-/// A Match an admin set or cleared by hand, which Matching follows instead of searching.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Pin {
-    /// Match the Movie, or for Episodes the Show, with this id.
-    Title(ExternalId),
-    /// Leave the Items Unmatched.
-    Unmatched,
-}
-
-/// The Items of a Library that share one Item's name.
-#[derive(Debug)]
-pub(crate) struct Named {
-    pub(crate) library: i64,
-    pub(crate) name: Name,
-    pub(crate) items: Vec<(i64, Item)>,
 }
 
 /// A Library's downloaded Backdrop: see [`Contents::newest_backdrops`].
@@ -470,54 +453,6 @@ impl Contents {
         library_with_movie(&mut conn, tmdb_id).await
     }
 
-    /// The Items of the Item `item`'s Library named like it, itself among them, or `None` if
-    /// there is no such Item.
-    pub(crate) async fn named_like(&self, item: i64) -> Result<Option<Named>, sqlx::Error> {
-        let rows = sqlx::query!(
-            r#"SELECT files.library_id, named.id AS "id!", named.kind AS "kind: ItemKind",
-                      named.title, named.year, named.hint, named.season, named.episode
-               FROM library_items AS this
-               JOIN library_files AS this_file ON this_file.id = this.file_id
-               JOIN library_files AS files ON files.library_id = this_file.library_id
-               JOIN library_items AS named ON named.file_id = files.id
-               WHERE this.id = ?
-                 AND named.kind = this.kind
-                 AND named.title = this.title
-                 AND named.year IS this.year
-                 AND named.hint IS this.hint
-               ORDER BY named.id"#,
-            item
-        )
-        .fetch_all(self.db.reader())
-        .await?;
-        let Some(library) = rows.first().map(|row| row.library_id) else {
-            return Ok(None);
-        };
-        let items: Vec<(i64, Item)> = rows
-            .into_iter()
-            .filter_map(|row| {
-                let alike = ItemRow {
-                    kind: row.kind,
-                    title: Cow::Owned(row.title),
-                    year: row.year,
-                    hint: row.hint,
-                    season: row.season,
-                    episode: row.episode,
-                }
-                .into_item()?;
-                Some((row.id, alike))
-            })
-            .collect();
-        let Some(name) = items.first().map(|(_, first)| first.name()) else {
-            return Ok(None);
-        };
-        Ok(Some(Named {
-            library,
-            name,
-            items,
-        }))
-    }
-
     /// By title, grouped by [`primary_id`].
     pub(crate) async fn movies(&self, library: i64) -> Result<Vec<Movie>, sqlx::Error> {
         let rows = sqlx::query!(
@@ -739,22 +674,6 @@ impl Contents {
         .fetch_all(self.db.reader())
         .await
     }
-
-    /// Replaces any pin the Items called `name` had, in one write with `decided`. Returns the
-    /// events for the Requests the Matches make Available or Partially Available, or `None`,
-    /// having stored nothing, if the Library is gone.
-    pub(crate) async fn pin(
-        &self,
-        library: i64,
-        name: Name,
-        pin: Pin,
-        decided: impl Into<Decisions>,
-    ) -> Result<Option<Vec<Event>>, sqlx::Error> {
-        let decided = decided.into();
-        self.db
-            .write(move |tx| Box::pin(store_pin(tx, library, name, pin, decided)))
-            .await
-    }
 }
 
 /// The oldest Library with an Item Matched to the Movie with the TMDB id `tmdb_id`, if any, read
@@ -928,52 +847,6 @@ impl<'a> SearchWords<'a> {
     }
 }
 
-async fn store_pin(
-    conn: &mut SqliteConnection,
-    library: i64,
-    name: Name,
-    pin: Pin,
-    decided: Decisions,
-) -> Result<Option<Vec<Event>>, sqlx::Error> {
-    let now = now();
-    if !insert_pin(conn, library, &name, &pin, now).await? {
-        return Ok(None);
-    }
-    insert_decisions(conn, decided, now).await.map(Some)
-}
-
-/// Returns whether it was stored: it isn't if the Library is gone.
-async fn insert_pin(
-    conn: &mut SqliteConnection,
-    library: i64,
-    name: &Name,
-    pin: &Pin,
-    now: i64,
-) -> Result<bool, sqlx::Error> {
-    let pinned = pin.columns();
-    let hint = name.hint.as_ref().map(ExternalId::to_string);
-    let inserted = sqlx::query!(
-        "INSERT OR REPLACE INTO match_pins (
-             library_id, kind, title, year, hint,
-             pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)
-         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
-         WHERE EXISTS (SELECT 1 FROM libraries WHERE id = ?)",
-        library,
-        name.kind,
-        name.title,
-        name.year,
-        hint,
-        pinned.tmdb,
-        pinned.imdb,
-        pinned.tvdb,
-        now,
-        library,
-    )
-    .execute(conn)
-    .await?;
-    Ok(inserted.rows_affected() > 0)
-}
-
 #[cfg(test)]
 mod tests {
     use nama_plugin_api::{
@@ -983,171 +856,12 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{
-        Change, Decided, Item, Metadata, Pin,
+        Change, Decided, Item, Metadata,
         fixture::{MatchedMovie, decide, tmdb_movie},
         show_poster,
-        testing::{ALIEN, Fixture, movie},
+        testing::Fixture,
     };
     use crate::libraries::Kind;
-
-    #[tokio::test]
-    async fn a_pin_still_applies_after_its_items_are_replaced() {
-        let fx = Fixture::new().await;
-        fx.store(ALIEN, 10, movie("Alien", 1979)).await;
-        let named = fx
-            .contents
-            .named_like(fx.item(ALIEN).await)
-            .await
-            .unwrap()
-            .unwrap();
-        let pin = Pin::Title(ExternalId::Tmdb(949));
-        fx.contents
-            .pin(named.library, named.name, pin.clone(), vec![])
-            .await
-            .unwrap();
-
-        fx.store(ALIEN, 20, movie("Alien", 1979)).await;
-
-        let undecided = fx.contents.undecided(fx.library).await.unwrap();
-        assert_eq!(
-            undecided
-                .into_iter()
-                .map(|(_, _, pinned)| pinned)
-                .collect::<Vec<_>>(),
-            [Some(pin)]
-        );
-    }
-
-    #[tokio::test]
-    async fn a_pin_still_applies_after_a_reparse_gives_its_items_a_new_name() {
-        let fx = Fixture::new().await;
-        let heat = "/media/Heat (1995) {tmdb-949}/Heat (1995).mkv";
-        let knight = "/media/A Knight of the Seven Kingdoms (2026) [tvdbid-433631]/Season 01/\
-                      A Knight of the Seven Kingdoms - S01E01.mkv";
-        let knight_pilot = |hint| Item::Episode {
-            show: "A Knight of the Seven Kingdoms".to_owned(),
-            year: Some(2026),
-            hint,
-            season: 1,
-            episode: 1,
-        };
-        fx.store(ALIEN, 10, movie("Alien", 1979)).await;
-        fx.store(heat, 10, movie("Heat", 1995)).await;
-        fx.store(knight, 10, knight_pilot(None)).await;
-        let (alien_item, heat_item) = (fx.item(ALIEN).await, fx.item(heat).await);
-        let knight_item = fx.item(knight).await;
-        let pins = [
-            (alien_item, Pin::Title(ExternalId::Tmdb(348))),
-            (heat_item, Pin::Unmatched),
-            (knight_item, Pin::Title(ExternalId::Tmdb(224_372))),
-        ];
-        for (item, pin) in pins.clone() {
-            let named = fx.contents.named_like(item).await.unwrap().unwrap();
-            let decided = vec![(item, Decided::Unmatched(None))];
-            fx.contents
-                .pin(named.library, named.name, pin, decided)
-                .await
-                .unwrap();
-        }
-
-        // A newer parser reads ID Hints the old one missed.
-        let hinted = |title: &str, year, hint| Item::Movie {
-            title: title.to_owned(),
-            year: Some(year),
-            hint: Some(hint),
-        };
-        let stored = fx.contents.stored(fx.library).await.unwrap();
-        let reparse = |path: &str, item| Change::Reparse {
-            file: stored[path].id,
-            path: path.to_owned(),
-            items: vec![item],
-        };
-        let changes = vec![
-            reparse(
-                ALIEN,
-                hinted("Alien", 1979, ExternalId::Imdb("tt0078748".to_owned())),
-            ),
-            reparse(heat, hinted("Heat", 1995, ExternalId::Tmdb(949))),
-            reparse(knight, knight_pilot(Some(ExternalId::Tvdb(433_631)))),
-        ];
-        fx.contents.apply(fx.library, changes).await.unwrap();
-
-        let undecided = fx.contents.undecided(fx.library).await.unwrap();
-        assert_eq!(
-            undecided
-                .into_iter()
-                .map(|(id, item, pin)| (id, item.name().hint, pin))
-                .collect::<Vec<_>>(),
-            [
-                (
-                    alien_item,
-                    Some(ExternalId::Imdb("tt0078748".to_owned())),
-                    Some(pins[0].1.clone())
-                ),
-                (heat_item, Some(ExternalId::Tmdb(949)), Some(Pin::Unmatched)),
-                (
-                    knight_item,
-                    Some(ExternalId::Tvdb(433_631)),
-                    Some(pins[2].1.clone())
-                ),
-            ]
-        );
-    }
-
-    #[tokio::test]
-    async fn pin_refuses_and_stores_no_decisions_when_the_library_is_gone() {
-        let fx = Fixture::new().await;
-        fx.store(ALIEN, 10, movie("Alien", 1979)).await;
-        let item = fx.item(ALIEN).await;
-        let named = fx.contents.named_like(item).await.unwrap().unwrap();
-        // An Item of another Library, which outlives the deleted one, so a decision stored
-        // despite the refusal would show.
-        let elsewhere = tempfile::tempdir().unwrap();
-        let root = elsewhere.path().canonicalize().unwrap();
-        let other = fx
-            .libraries
-            .create(
-                "Other Movies",
-                Kind::Movies,
-                vec![root.to_str().unwrap().to_owned()],
-            )
-            .await
-            .unwrap()
-            .id;
-        let store_heat = Change::Store {
-            path: root.join("Heat (1995).mkv").to_str().unwrap().to_owned(),
-            size: 10,
-            modified_ns: 0,
-            items: vec![movie("Heat", 1995)],
-        };
-        fx.contents.apply(other, vec![store_heat]).await.unwrap();
-        let heat = fx.contents.files(other).await.unwrap()[0].items[0].id;
-        fx.libraries.delete(fx.library).await.unwrap();
-
-        let pinned = fx
-            .contents
-            .pin(
-                named.library,
-                named.name,
-                Pin::Unmatched,
-                vec![
-                    (item, Decided::Unmatched(None)),
-                    (heat, Decided::Unmatched(None)),
-                ],
-            )
-            .await;
-
-        assert!(matches!(pinned, Ok(None)), "{pinned:?}");
-        let undecided: Vec<i64> = fx
-            .contents
-            .undecided(other)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|(id, _, _)| id)
-            .collect();
-        assert_eq!(undecided, [heat]);
-    }
 
     /// What TMDB says of the Movie `tmdb`, called `title` and released on `release_date`.
     fn released_movie(tmdb: i64, title: &str, release_date: &str) -> Metadata {

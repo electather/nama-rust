@@ -2,7 +2,7 @@
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use super::Pin;
+use super::pins::Pin;
 
 impl Pin {
     /// The pin stored in a `match_pins` row, if there is one, holding the id in `ids`.
