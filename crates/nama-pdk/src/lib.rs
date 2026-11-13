@@ -102,7 +102,8 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
 
 /// A Fulfiller: hands Approved Movie or Season Requests to an outside service, such as Radarr
 /// (ADR 0003). Its Manifest lists `PROVIDE_POINT_MOVIE_FULFILLER`, `PROVIDE_POINT_SHOW_FULFILLER` or
-/// both in `providers`, and [`fulfiller!`] exports it:
+/// both in `providers`, names the id namespaces it can find a title by in `movie_id_namespaces`
+/// and `show_id_namespaces`, such as `tmdb`, and [`fulfiller!`] exports it:
 ///
 /// ```
 /// use std::collections::HashMap;

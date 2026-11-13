@@ -2,7 +2,7 @@
 
 use buffa::EnumValue;
 use nama_plugin_api::{
-    fulfiller::{Download, DownloadStatus},
+    fulfiller::{Download, DownloadStatus, Movies, Shows},
     notifier::Notification,
     settings::{SettingKind, SettingValue},
 };
@@ -29,6 +29,25 @@ pub(super) fn setting_value(value: &wire::SettingValue) -> Option<SettingValue> 
         setting_value::Value::BoolValue(on) => SettingValue::Bool(*on),
         setting_value::Value::IntegerValue(number) => SettingValue::Integer(*number),
     })
+}
+
+/// A kind of title a Fulfiller is registered under, with where a Manifest names its needs.
+pub(super) trait FulfillerKind {
+    /// The id namespaces `manifest` says its Fulfiller of this kind needs, as written: one that
+    /// isn't well formed never matches a title.
+    fn needs(manifest: &wire::Manifest) -> Vec<String>;
+}
+
+impl FulfillerKind for Movies {
+    fn needs(manifest: &wire::Manifest) -> Vec<String> {
+        manifest.movie_id_namespaces.clone()
+    }
+}
+
+impl FulfillerKind for Shows {
+    fn needs(manifest: &wire::Manifest) -> Vec<String> {
+        manifest.show_id_namespaces.clone()
+    }
 }
 
 /// The download `download` reports, as the Kernel keeps it on a Request.

@@ -4,7 +4,9 @@ use buffa::Message;
 
 use nama_plugin_api::{
     Plugin, PluginId, PointKey, Registrar,
-    fulfiller::{Fulfiller, MovieDeleted, Movies, StopMonitoring, TitleId, stop_monitoring::Title},
+    fulfiller::{
+        Fulfiller, MovieDeleted, Movies, Shows, StopMonitoring, TitleId, stop_monitoring::Title,
+    },
     notifier::Notifier,
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
@@ -532,6 +534,48 @@ async fn a_fulfiller_without_the_stop_monitoring_export_isnt_asked() {
     assert!(radarr.stops_monitoring);
     assert!(!stop(running_with(true)).await);
     assert!(stop(running_with(false)).await);
+}
+
+#[test]
+fn a_fulfiller_needs_the_id_namespaces_its_manifest_names() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let cache_config = write_cache_config(data_dir.path()).unwrap();
+    let (_, wasm) = BUNDLED
+        .iter()
+        .find(|(file, _)| *file == "radarr.wasm")
+        .unwrap();
+    let compiled = Arc::new(compile(wasm, &cache_config, Vec::new(), Vec::new()).unwrap());
+    let running = |package| Running {
+        package: Arc::new(package),
+        compiled: Arc::clone(&compiled),
+        secrets: Arc::default(),
+        crashes: Arc::default(),
+        stops_monitoring: false,
+    };
+    let naming = running(Manifest {
+        movie_id_namespaces: vec!["tmdb".to_owned(), "imdb".to_owned()],
+        ..Default::default()
+    });
+
+    assert_eq!(Fulfiller::<Movies>::needs(&naming), ["tmdb", "imdb"]);
+    assert_eq!(Fulfiller::<Shows>::needs(&naming), [""; 0]);
+    assert_eq!(
+        Fulfiller::<Movies>::needs(&running(Manifest::default())),
+        [""; 0]
+    );
+}
+
+#[test]
+fn radarr_needs_a_tmdb_id_and_sonarr_a_tvdb_id() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let cache_config = write_cache_config(data_dir.path()).unwrap();
+    let package = |name: &str| {
+        let (_, wasm) = BUNDLED.iter().find(|(file, _)| *file == name).unwrap();
+        load(wasm.to_vec(), &cache_config).unwrap().package
+    };
+
+    assert_eq!(package("radarr.wasm").movie_id_namespaces, ["tmdb"]);
+    assert_eq!(package("sonarr.wasm").show_id_namespaces, ["tvdb"]);
 }
 
 #[test]

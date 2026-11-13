@@ -637,6 +637,31 @@ pub struct Manifest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub logo_svg: ::buffa::alloc::string::String,
+    /// The id namespaces the Plugin's Movie Fulfiller can find a title by, such as "tmdb". The
+    /// Kernel hands it a Request only when the title has an id in at least one of them, and otherwise
+    /// fails the Request saying which id is missing. Empty means any title. Ignored unless the Plugin
+    /// provides PROVIDE_POINT_MOVIE_FULFILLER.
+    ///
+    /// Field 11: `movie_id_namespaces`
+    #[serde(
+        rename = "movieIdNamespaces",
+        alias = "movie_id_namespaces",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub movie_id_namespaces: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The id namespaces the Plugin's Show Fulfiller can find a title by, such as "tvdb", as
+    /// `movie_id_namespaces` is for Movies. Ignored unless the Plugin provides
+    /// PROVIDE_POINT_SHOW_FULFILLER.
+    ///
+    /// Field 12: `show_id_namespaces`
+    #[serde(
+        rename = "showIdNamespaces",
+        alias = "show_id_namespaces",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub show_id_namespaces: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -654,6 +679,8 @@ impl ::core::fmt::Debug for Manifest {
             .field("name", &self.name)
             .field("description", &self.description)
             .field("logo_svg", &self.logo_svg)
+            .field("movie_id_namespaces", &self.movie_id_namespaces)
+            .field("show_id_namespaces", &self.show_id_namespaces)
             .finish()
     }
 }
@@ -729,6 +756,12 @@ impl ::buffa::Message for Manifest {
         if !self.logo_svg.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
         }
+        for v in &self.movie_id_namespaces {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.show_id_namespaces {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -789,6 +822,12 @@ impl ::buffa::Message for Manifest {
         }
         if !self.logo_svg.is_empty() {
             ::buffa::types::put_string_field(10u32, &self.logo_svg, buf);
+        }
+        for v in &self.movie_id_namespaces {
+            ::buffa::types::put_string_field(11u32, v, buf);
+        }
+        for v in &self.show_id_namespaces {
+            ::buffa::types::put_string_field(12u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -944,6 +983,28 @@ impl ::buffa::Message for Manifest {
                 )?;
                 ::buffa::types::merge_string(&mut self.logo_svg, buf)?;
             }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.movie_id_namespaces.push(__elem);
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.show_id_namespaces.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -962,6 +1023,8 @@ impl ::buffa::Message for Manifest {
         self.name.clear();
         self.description.clear();
         self.logo_svg.clear();
+        self.movie_id_namespaces.clear();
+        self.show_id_namespaces.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

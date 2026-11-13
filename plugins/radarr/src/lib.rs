@@ -31,6 +31,7 @@ mod exports {
         Ok(Buffa(Manifest {
             logo_svg: include_str!("../logo.svg").to_owned(),
             providers: vec![ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into()],
+            movie_id_namespaces: vec!["tmdb".to_owned()],
             settings: nama_servarr::settings("Radarr", "Movie", 7878),
             name: "Radarr".to_owned(),
             description: "Sends Approved Movie Requests to Radarr to download.".to_owned(),

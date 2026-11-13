@@ -36,6 +36,7 @@ mod exports {
         Ok(Buffa(Manifest {
             logo_svg: include_str!("../logo.svg").to_owned(),
             providers: vec![ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER.into()],
+            show_id_namespaces: vec!["tvdb".to_owned()],
             settings: nama_servarr::settings("Sonarr", "Show", 8989),
             name: "Sonarr".to_owned(),
             description: "Sends Approved Season Requests to Sonarr to download.".to_owned(),

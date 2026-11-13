@@ -72,6 +72,19 @@ pub struct ManifestView<'a> {
     ///
     /// Field 10: `logo_svg`
     pub logo_svg: &'a str,
+    /// The id namespaces the Plugin's Movie Fulfiller can find a title by, such as "tmdb". The
+    /// Kernel hands it a Request only when the title has an id in at least one of them, and otherwise
+    /// fails the Request saying which id is missing. Empty means any title. Ignored unless the Plugin
+    /// provides PROVIDE_POINT_MOVIE_FULFILLER.
+    ///
+    /// Field 11: `movie_id_namespaces`
+    pub movie_id_namespaces: ::buffa::RepeatedView<'a, &'a str>,
+    /// The id namespaces the Plugin's Show Fulfiller can find a title by, such as "tvdb", as
+    /// `movie_id_namespaces` is for Movies. Ignored unless the Plugin provides
+    /// PROVIDE_POINT_SHOW_FULFILLER.
+    ///
+    /// Field 12: `show_id_namespaces`
+    pub show_id_namespaces: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
@@ -235,6 +248,28 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                     );
                 }
             }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.movie_id_namespaces.push(__elem);
+            }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.show_id_namespaces.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -271,6 +306,16 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
             name: self.name.to_string(),
             description: self.description.to_string(),
             logo_svg: self.logo_svg.to_string(),
+            movie_id_namespaces: self
+                .movie_id_namespaces
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            show_id_namespaces: self
+                .show_id_namespaces
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -326,6 +371,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         }
         if !self.logo_svg.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_svg) as u64;
+        }
+        for v in &self.movie_id_namespaces {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.show_id_namespaces {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -389,6 +440,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         if !self.logo_svg.is_empty() {
             ::buffa::types::put_string_field(10u32, &self.logo_svg, buf);
         }
+        for v in &self.movie_id_namespaces {
+            ::buffa::types::put_string_field(11u32, v, buf);
+        }
+        for v in &self.show_id_namespaces {
+            ::buffa::types::put_string_field(12u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -447,6 +504,12 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.logo_svg) {
             __map.serialize_entry("logoSvg", self.logo_svg)?;
+        }
+        if !self.movie_id_namespaces.is_empty() {
+            __map.serialize_entry("movieIdNamespaces", &*self.movie_id_namespaces)?;
+        }
+        if !self.show_id_namespaces.is_empty() {
+            __map.serialize_entry("showIdNamespaces", &*self.show_id_namespaces)?;
         }
         __map.end()
     }
@@ -624,6 +687,25 @@ impl ManifestOwnedView {
     #[must_use]
     pub fn logo_svg(&self) -> &'_ str {
         self.0.reborrow().logo_svg
+    }
+    /// The id namespaces the Plugin's Movie Fulfiller can find a title by, such as "tmdb". The
+    /// Kernel hands it a Request only when the title has an id in at least one of them, and otherwise
+    /// fails the Request saying which id is missing. Empty means any title. Ignored unless the Plugin
+    /// provides PROVIDE_POINT_MOVIE_FULFILLER.
+    ///
+    /// Field 11: `movie_id_namespaces`
+    #[must_use]
+    pub fn movie_id_namespaces(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().movie_id_namespaces
+    }
+    /// The id namespaces the Plugin's Show Fulfiller can find a title by, such as "tvdb", as
+    /// `movie_id_namespaces` is for Movies. Ignored unless the Plugin provides
+    /// PROVIDE_POINT_SHOW_FULFILLER.
+    ///
+    /// Field 12: `show_id_namespaces`
+    #[must_use]
+    pub fn show_id_namespaces(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().show_id_namespaces
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ManifestView<'static>>>

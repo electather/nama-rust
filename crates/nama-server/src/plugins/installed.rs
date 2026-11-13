@@ -434,7 +434,11 @@ fn check_exports(points: &[&Point], has_export: impl Fn(&str) -> bool) -> Result
 }
 
 // One impl for both kinds: the Plugin tells a Movie Request from a Season one by which it holds.
-impl<Kind: 'static> Fulfiller<Kind> for Running {
+impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
+    fn needs(&self) -> Vec<String> {
+        Kind::needs(&self.package)
+    }
+
     fn fulfill<'a>(
         &'a self,
         request: &'a Request,

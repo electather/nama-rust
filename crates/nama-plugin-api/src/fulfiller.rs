@@ -34,6 +34,13 @@ pub enum Shows {}
 /// A Provider that hands Requests for one kind of title, [`Movies`] or [`Shows`], to an outside
 /// service and reports how they're progressing.
 pub trait Fulfiller<Kind>: Send + Sync + 'static {
+    /// The id namespaces this Fulfiller can find a title by, such as `tmdb`, any one of which is
+    /// enough. The Kernel hands it a Request only when the title has an id in at least one of
+    /// them, and otherwise fails the Request saying which id is missing. Empty means any title.
+    fn needs(&self) -> Vec<String> {
+        Vec::new()
+    }
+
     /// Hands `request` to the service and returns at once, without waiting for it to be
     /// fulfilled, with a reference the Kernel keeps with the Request and passes back to
     /// [`Fulfiller::progress`], and the quality profile the service used. Only this Fulfiller
