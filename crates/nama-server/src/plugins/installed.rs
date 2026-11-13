@@ -496,13 +496,18 @@ impl Notifier for Running {
                 wire::delivery::Recipient::Connection(connection.clone())
             }
         };
-        let input = Delivery {
-            notification: notification.clone().into(),
-            recipient: Some(recipient),
-            ..Default::default()
-        }
-        .encode_to_vec();
+        let input = contract::notification(notification).map(|notification| {
+            Delivery {
+                notification: notification.into(),
+                recipient: Some(recipient),
+                ..Default::default()
+            }
+            .encode_to_vec()
+        });
         Box::pin(async move {
+            let Some(input) = input else {
+                return Ok(());
+            };
             let output = self.provide(DELIVER, input).await?;
             if Delivered::decode_from_slice(&output)?.recipient_gone {
                 return Err(RecipientGone.into());

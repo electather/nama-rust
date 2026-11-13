@@ -1,6 +1,7 @@
 use buffa::EnumValue;
 use nama_plugin_api::{
     fulfiller::{Download, DownloadStatus},
+    notifier::Notification,
     settings::{SettingKind, SettingValue},
 };
 use nama_proto::nama::{
@@ -8,7 +9,9 @@ use nama_proto::nama::{
     v1::{self as api, request::MovieOrSeason},
 };
 
-use super::{download, event, observed, request, request_state, setting_kind, setting_value};
+use super::{
+    download, event, notification, observed, request, request_state, setting_kind, setting_value,
+};
 
 #[test]
 fn each_kind_becomes_its_twin_and_unspecified_none() {
@@ -385,4 +388,44 @@ fn wire_event(event: impl Into<Option<wire::event::Event>>) -> wire::Event {
         event: event.into(),
         ..Default::default()
     }
+}
+
+#[test]
+fn a_request_created_notification_keeps_its_request_and_link() {
+    let asked = api::Request {
+        id: 7,
+        ..Default::default()
+    };
+    let created = api::Event {
+        event: Some(api::event::Event::from(api::RequestCreated {
+            request: asked.clone().into(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    };
+    let told = Notification {
+        event: created.clone(),
+        request: asked.clone(),
+        request_url: Some("https://nama.example/requests/7".to_owned()),
+    };
+
+    let sent = notification(&told).unwrap();
+
+    assert_eq!(sent.event.as_option(), event(&created).as_ref());
+    assert_eq!(sent.request.as_option(), Some(&request(&asked)));
+    assert_eq!(sent.request_url, told.request_url);
+}
+
+#[test]
+fn a_request_progress_notification_gives_none() {
+    let told = Notification {
+        event: api::Event {
+            event: Some(api::event::Event::from(api::RequestProgress::default())),
+            ..Default::default()
+        },
+        request: api::Request::default(),
+        request_url: None,
+    };
+
+    assert_eq!(notification(&told), None);
 }

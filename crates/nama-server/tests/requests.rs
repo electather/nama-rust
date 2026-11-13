@@ -37,18 +37,21 @@ use nama_plugin_api::{
 };
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_test_choices as test_choices;
-use nama_proto::nama::v1::{
-    ApproveFollowedShowRequest, ApproveRequestRequest, CancelFollowedShowRequest,
-    CancelRequestRequest, CountPendingRequestsRequest, CreateFollowedShowRequest,
-    CreateRequestRequest, CreateSeasonRequestsRequest, DeclineFollowedShowRequest,
-    DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundShow,
-    GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest, ListMovieQualitiesRequest,
-    ListOfferedQualitiesRequest, ListPluginsRequest, ListQualitiesRequest, ListRequestsRequest,
-    ListRequestsResponse, LookUpMovieRequest, LookUpShowRequest, MovieHit, Permission,
-    PluginServiceClient, Quality, RefusalReason, Request, RequestServiceClient, RequestState,
-    RetryRequestRequest, SearchMoviesRequest, SearchShowsRequest, SetDefaultQualityRequest,
-    TitleKind, UpdatePluginSettingsRequest, WithdrawFollowedShowRequest, event,
-    request::MovieOrSeason, setting_value,
+use nama_proto::nama::{
+    plugin::v1 as wire,
+    v1::{
+        ApproveFollowedShowRequest, ApproveRequestRequest, CancelFollowedShowRequest,
+        CancelRequestRequest, CountPendingRequestsRequest, CreateFollowedShowRequest,
+        CreateRequestRequest, CreateSeasonRequestsRequest, DeclineFollowedShowRequest,
+        DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow,
+        FoundShow, GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest,
+        ListMovieQualitiesRequest, ListOfferedQualitiesRequest, ListPluginsRequest,
+        ListQualitiesRequest, ListRequestsRequest, ListRequestsResponse, LookUpMovieRequest,
+        LookUpShowRequest, MovieHit, Permission, PluginServiceClient, Quality, RefusalReason,
+        Request, RequestServiceClient, RequestState, RetryRequestRequest, SearchMoviesRequest,
+        SearchShowsRequest, SetDefaultQualityRequest, TitleKind, UpdatePluginSettingsRequest,
+        WithdrawFollowedShowRequest, event, request::MovieOrSeason, setting_value,
+    },
 };
 use nama_server::{
     config::{Config, PluginConfig},
@@ -4107,7 +4110,7 @@ async fn creating_a_movie_request_delivers_it_to_each_enabled_notifiers_channel(
         assert_eq!(delivered.len(), 1, "{delivered:?}");
         let (notification, recipient) = &delivered[0];
         assert_eq!(*recipient, Recipient::Channel);
-        assert_eq!(notification.request.as_option(), Some(&request));
+        assert_eq!(notification.request, request);
         let Some(event::Event::RequestCreated(created)) = &notification.event.event else {
             panic!("not the new Request: {notification:?}");
         };
@@ -4180,12 +4183,40 @@ async fn creating_a_movie_request_has_an_installed_notifier_post_it_to_the_url_i
     let request = requests(as_ada).ask(HEAT).await;
     let body = tokio::time::timeout(WAIT, posted.recv()).await.unwrap();
 
-    let notification = Notification::decode_from_slice(&body.unwrap()).unwrap();
-    assert_eq!(notification.request.as_option(), Some(&request));
-    let Some(event::Event::RequestCreated(created)) = &notification.event.event else {
+    let notification = wire::Notification::decode_from_slice(&body.unwrap()).unwrap();
+    let Some(wire::event::Event::RequestCreated(created)) = &notification.event.event else {
         panic!("not the new Request: {notification:?}");
     };
-    assert_eq!(created.request.as_option(), Some(&request));
+    // What a Notifier reads, as the client read it.
+    let Some(MovieOrSeason::Movie(asked)) = &request.movie_or_season else {
+        panic!("not a Movie: {request:?}");
+    };
+    assert_eq!(request.state, RequestState::Pending);
+    let asked_by: Vec<_> = request
+        .requesters
+        .iter()
+        .map(|requester| (requester.user_id, requester.name.as_str()))
+        .collect();
+    for sent in [&notification.request, &created.request] {
+        let sent = sent.as_option().unwrap();
+        let Some(wire::request::MovieOrSeason::Movie(movie)) = &sent.movie_or_season else {
+            panic!("not a Movie: {sent:?}");
+        };
+        let sent_by: Vec<_> = sent
+            .requesters
+            .iter()
+            .map(|requester| (requester.user_id, requester.name.as_str()))
+            .collect();
+        assert_eq!(
+            (sent.id, movie.title.as_str(), sent.state, sent_by),
+            (
+                request.id,
+                asked.title.as_str(),
+                wire::RequestState::REQUEST_STATE_PENDING.into(),
+                asked_by.clone()
+            )
+        );
+    }
 }
 
 #[tokio::test]

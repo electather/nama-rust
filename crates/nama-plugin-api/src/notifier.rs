@@ -10,12 +10,24 @@
 
 use std::{error::Error, fmt, time::Duration};
 
-pub use nama_proto::nama::plugin::v1::Notification;
+use nama_proto::nama::v1::{Event, Request};
 
 use crate::{BoxFuture, PluginError};
 
 /// How long one [`Notifier::deliver`] may take before the Kernel gives up on it as failed.
 pub const DELIVER_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// What the Kernel hands a [`Notifier`] to deliver: something that happened to a Request.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Notification {
+    /// What happened: a Request event, as `EventService.Subscribe` streams it.
+    pub event: Event,
+    /// The Request it happened to, as the event holds it.
+    pub request: Request,
+    /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`)
+    /// and the Request wasn't removed.
+    pub request_url: Option<String>,
+}
 
 /// Whom a [`Notification`] is for.
 #[derive(Debug, Clone, PartialEq, Eq)]

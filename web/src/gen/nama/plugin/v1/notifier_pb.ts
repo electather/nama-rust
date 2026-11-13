@@ -4,17 +4,17 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Event } from "../../v1/event_pb";
-import { file_nama_v1_event } from "../../v1/event_pb";
-import type { Request } from "../../v1/request_pb";
-import { file_nama_v1_request } from "../../v1/request_pb";
+import type { Event } from "./events_pb";
+import { file_nama_plugin_v1_events } from "./events_pb";
+import type { Request } from "./request_pb";
+import { file_nama_plugin_v1_request } from "./request_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/plugin/v1/notifier.proto.
  */
 export const file_nama_plugin_v1_notifier: GenFile = /*@__PURE__*/
-  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9ub3RpZmllci5wcm90bxIObmFtYS5wbHVnaW4udjEiegoMTm90aWZpY2F0aW9uEh0KBWV2ZW50GAEgASgLMg4ubmFtYS52MS5FdmVudBIhCgdyZXF1ZXN0GAIgASgLMhAubmFtYS52MS5SZXF1ZXN0EhgKC3JlcXVlc3RfdXJsGAMgASgJSACIAQFCDgoMX3JlcXVlc3RfdXJsIo0BCghEZWxpdmVyeRIyCgxub3RpZmljYXRpb24YASABKAsyHC5uYW1hLnBsdWdpbi52MS5Ob3RpZmljYXRpb24SKgoHY2hhbm5lbBgCIAEoCzIXLm5hbWEucGx1Z2luLnYxLkNoYW5uZWxIABIUCgpjb25uZWN0aW9uGAMgASgJSABCCwoJcmVjaXBpZW50IgkKB0NoYW5uZWwiIwoJRGVsaXZlcmVkEhYKDnJlY2lwaWVudF9nb25lGAEgASgIYgZwcm90bzM", [file_nama_v1_event, file_nama_v1_request]);
+  fileDesc("Ch1uYW1hL3BsdWdpbi92MS9ub3RpZmllci5wcm90bxIObmFtYS5wbHVnaW4udjEiiAEKDE5vdGlmaWNhdGlvbhIkCgVldmVudBgBIAEoCzIVLm5hbWEucGx1Z2luLnYxLkV2ZW50EigKB3JlcXVlc3QYAiABKAsyFy5uYW1hLnBsdWdpbi52MS5SZXF1ZXN0EhgKC3JlcXVlc3RfdXJsGAMgASgJSACIAQFCDgoMX3JlcXVlc3RfdXJsIo0BCghEZWxpdmVyeRIyCgxub3RpZmljYXRpb24YASABKAsyHC5uYW1hLnBsdWdpbi52MS5Ob3RpZmljYXRpb24SKgoHY2hhbm5lbBgCIAEoCzIXLm5hbWEucGx1Z2luLnYxLkNoYW5uZWxIABIUCgpjb25uZWN0aW9uGAMgASgJSABCCwoJcmVjaXBpZW50IgkKB0NoYW5uZWwiIwoJRGVsaXZlcmVkEhYKDnJlY2lwaWVudF9nb25lGAEgASgIYgZwcm90bzM", [file_nama_plugin_v1_events, file_nama_plugin_v1_request]);
 
 /**
  * What the Kernel hands a Notifier to deliver: something that happened to a Request. The Notifier
@@ -24,16 +24,16 @@ export const file_nama_plugin_v1_notifier: GenFile = /*@__PURE__*/
  */
 export type Notification = Message<"nama.plugin.v1.Notification"> & {
   /**
-   * What happened: a Request event, as `EventService.Subscribe` streams it.
+   * What happened: one of the Request kinds of `Event`.
    *
-   * @generated from field: nama.v1.Event event = 1;
+   * @generated from field: nama.plugin.v1.Event event = 1;
    */
   event?: Event | undefined;
 
   /**
    * The Request it happened to, as the event holds it.
    *
-   * @generated from field: nama.v1.Request request = 2;
+   * @generated from field: nama.plugin.v1.Request request = 2;
    */
   request?: Request | undefined;
 

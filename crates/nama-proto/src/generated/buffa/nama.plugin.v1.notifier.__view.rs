@@ -5,18 +5,14 @@
 /// formats it for its service.
 #[derive(Clone, Debug, Default)]
 pub struct NotificationView<'a> {
-    /// What happened: a Request event, as `EventService.Subscribe` streams it.
+    /// What happened: one of the Request kinds of `Event`.
     ///
     /// Field 1: `event`
-    pub event: ::buffa::MessageFieldView<
-        super::super::super::super::v1::__buffa::view::EventView<'a>,
-    >,
+    pub event: ::buffa::MessageFieldView<super::super::__buffa::view::EventView<'a>>,
     /// The Request it happened to, as the event holds it.
     ///
     /// Field 2: `request`
-    pub request: ::buffa::MessageFieldView<
-        super::super::super::super::v1::__buffa::view::RequestView<'a>,
-    >,
+    pub request: ::buffa::MessageFieldView<super::super::__buffa::view::RequestView<'a>>,
     /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and
     /// the Request wasn't removed.
     ///
@@ -67,7 +63,7 @@ impl<'a> ::buffa::MessageView<'a> for NotificationView<'a> {
                     }
                     None => {
                         view.event = ::buffa::MessageFieldView::set(
-                            <super::super::super::super::v1::__buffa::view::EventView as ::buffa::MessageView>::decode_view_ctx(
+                            <super::super::__buffa::view::EventView as ::buffa::MessageView>::decode_view_ctx(
                                 sub,
                                 __sub_ctx,
                             )?,
@@ -88,7 +84,7 @@ impl<'a> ::buffa::MessageView<'a> for NotificationView<'a> {
                     }
                     None => {
                         view.request = ::buffa::MessageFieldView::set(
-                            <super::super::super::super::v1::__buffa::view::RequestView as ::buffa::MessageView>::decode_view_ctx(
+                            <super::super::__buffa::view::RequestView as ::buffa::MessageView>::decode_view_ctx(
                                 sub,
                                 __sub_ctx,
                             )?,
@@ -128,8 +124,8 @@ impl<'a> ::buffa::MessageView<'a> for NotificationView<'a> {
             event: match self.event.as_option() {
                 Some(v) => {
                     ::buffa::MessageField::<
-                        super::super::super::super::v1::Event,
-                        ::buffa::Inline<super::super::super::super::v1::Event>,
+                        super::super::Event,
+                        ::buffa::Inline<super::super::Event>,
                     >::some(v.to_owned_from_source(__buffa_src)?)
                 }
                 None => ::buffa::MessageField::none(),
@@ -137,8 +133,8 @@ impl<'a> ::buffa::MessageView<'a> for NotificationView<'a> {
             request: match self.request.as_option() {
                 Some(v) => {
                     ::buffa::MessageField::<
-                        super::super::super::super::v1::Request,
-                        ::buffa::Inline<super::super::super::super::v1::Request>,
+                        super::super::Request,
+                        ::buffa::Inline<super::super::Request>,
                     >::some(v.to_owned_from_source(__buffa_src)?)
                 }
                 None => ::buffa::MessageField::none(),
@@ -329,15 +325,13 @@ impl NotificationOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// What happened: a Request event, as `EventService.Subscribe` streams it.
+    /// What happened: one of the Request kinds of `Event`.
     ///
     /// Field 1: `event`
     #[must_use]
     pub fn event(
         &self,
-    ) -> &::buffa::MessageFieldView<
-        super::super::super::super::v1::__buffa::view::EventView<'_>,
-    > {
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::EventView<'_>> {
         &self.0.reborrow().event
     }
     /// The Request it happened to, as the event holds it.
@@ -346,9 +340,7 @@ impl NotificationOwnedView {
     #[must_use]
     pub fn request(
         &self,
-    ) -> &::buffa::MessageFieldView<
-        super::super::super::super::v1::__buffa::view::RequestView<'_>,
-    > {
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::RequestView<'_>> {
         &self.0.reborrow().request
     }
     /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and

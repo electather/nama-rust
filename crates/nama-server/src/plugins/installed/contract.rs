@@ -3,6 +3,7 @@
 use buffa::EnumValue;
 use nama_plugin_api::{
     fulfiller::{Download, DownloadStatus},
+    notifier::Notification,
     settings::{SettingKind, SettingValue},
 };
 use nama_proto::nama::{
@@ -129,6 +130,17 @@ pub(super) fn observed(events: &[api::Event]) -> Option<wire::ObservedEvents> {
     let events: Vec<_> = events.iter().filter_map(event).collect();
     (!events.is_empty()).then(|| wire::ObservedEvents {
         events,
+        ..Default::default()
+    })
+}
+
+/// The contract's twin of `notification`, or `None` when its event is a kind the contract leaves
+/// out, such as Request progress, so a Notifier is never called for it.
+pub(super) fn notification(notification: &Notification) -> Option<wire::Notification> {
+    Some(wire::Notification {
+        event: event(&notification.event)?.into(),
+        request: request(&notification.request).into(),
+        request_url: notification.request_url.clone(),
         ..Default::default()
     })
 }

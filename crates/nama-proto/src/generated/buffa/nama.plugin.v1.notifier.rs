@@ -7,17 +7,14 @@
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct Notification {
-    /// What happened: a Request event, as `EventService.Subscribe` streams it.
+    /// What happened: one of the Request kinds of `Event`.
     ///
     /// Field 1: `event`
     #[serde(
         rename = "event",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub event: ::buffa::MessageField<
-        super::super::v1::Event,
-        ::buffa::Inline<super::super::v1::Event>,
-    >,
+    pub event: ::buffa::MessageField<Event, ::buffa::Inline<Event>>,
     /// The Request it happened to, as the event holds it.
     ///
     /// Field 2: `request`
@@ -25,10 +22,7 @@ pub struct Notification {
         rename = "request",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub request: ::buffa::MessageField<
-        super::super::v1::Request,
-        ::buffa::Inline<super::super::v1::Request>,
-    >,
+    pub request: ::buffa::MessageField<Request, ::buffa::Inline<Request>>,
     /// The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and
     /// the Request wasn't removed.
     ///

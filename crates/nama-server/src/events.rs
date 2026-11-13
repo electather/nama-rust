@@ -137,14 +137,13 @@ impl EventBus {
             EventType::EVENT_TYPE_REQUEST_CANCELLED | EventType::EVENT_TYPE_REQUEST_WITHDRAWN
         );
         let notification = Arc::new(Notification {
-            event: event.clone().into(),
-            request: request.clone().into(),
+            event: event.clone(),
+            request: request.clone(),
             // A removed Request is no longer in the web app to link to.
             request_url: self
                 .server_url
                 .request_link(request.id)
                 .filter(|_| !removed),
-            ..Default::default()
         });
         let db = Arc::clone(&self.db);
         self.plugins

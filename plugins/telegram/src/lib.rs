@@ -5,7 +5,7 @@
 
 use nama_pdk::{
     Notification,
-    nama_proto::nama::v1::{Request, RequestState, event::Event, request::MovieOrSeason},
+    nama_proto::nama::plugin::v1::{Request, RequestState, event::Event, request::MovieOrSeason},
 };
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
@@ -276,8 +276,8 @@ fn message(notification: &Notification) -> Option<String> {
     })
 }
 
-/// What happened, or `None` for what the channel isn't told: download progress, which changes
-/// every minute, and a state this Plugin doesn't know.
+/// What happened, or `None` for what the channel isn't told: an event that isn't about a Request,
+/// and a state this Plugin doesn't know.
 fn what_happened(notification: &Notification) -> Option<String> {
     let request = notification.request.as_option()?;
     let title = title(request);
@@ -318,24 +318,14 @@ fn what_happened(notification: &Notification) -> Option<String> {
             name(removed.user_id)
         ),
         Event::RequestWithdrawn(_) => format!("The Request for {title} was withdrawn."),
-        Event::RequestProgress(_)
-        | Event::ScanStarted(_)
+        Event::ScanStarted(_)
         | Event::ScanProgress(_)
         | Event::ScanFinished(_)
         | Event::LibraryItemAdded(_)
         | Event::LibraryItemRemoved(_)
         | Event::ItemMatched(_)
         | Event::MatchingFinished(_)
-        | Event::ProbingFinished(_)
-        | Event::FollowedShowCreated(_)
-        | Event::FollowedShowRequesterAdded(_)
-        | Event::FollowedShowStateChanged(_)
-        | Event::FollowedShowCancelled(_)
-        | Event::FollowedShowRequesterRemoved(_)
-        | Event::FollowedShowWithdrawn(_)
-        | Event::PlaybackStarted(_)
-        | Event::PlaybackEnded(_)
-        | Event::PlaybackChanged(_) => return None,
+        | Event::ProbingFinished(_) => return None,
     })
 }
 
@@ -396,10 +386,9 @@ fn state(request: &Request) -> Option<&'static str> {
 mod tests {
     use nama_pdk::{
         Notification,
-        nama_proto::nama::v1::{
-            Event, QualityChange, Request, RequestCancelled, RequestProgress, RequestState,
-            RequestStateChanged, RequestedMovie, RequestedQuality, RequestedSeason, Requester,
-            RequesterAdded, event,
+        nama_proto::nama::plugin::v1::{
+            Event, QualityChange, Request, RequestCancelled, RequestState, RequestStateChanged,
+            RequestedMovie, RequestedQuality, RequestedSeason, Requester, RequesterAdded, event,
         },
     };
 
@@ -565,17 +554,15 @@ mod tests {
     }
 
     #[test]
-    fn a_cancelled_request_is_posted_but_download_progress_is_not() {
+    fn a_cancelled_request_is_posted() {
         let request = dune(RequestState::REQUEST_STATE_PROCESSING);
 
-        let cancelled = notify(RequestCancelled::default(), request.clone());
-        let progress = notify(RequestProgress::default(), request);
+        let cancelled = notify(RequestCancelled::default(), request);
 
         assert_eq!(
             cancelled.as_deref(),
             Some("The Request for Dune (2021) was cancelled.")
         );
-        assert_eq!(progress, None);
     }
 
     #[test]
