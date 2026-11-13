@@ -8,7 +8,8 @@ use sqlx::SqliteConnection;
 use super::apply::Applied;
 use super::asked::Asked;
 use super::listing::load_one;
-use super::{Error, Requests, progress, qualities, quality_columns};
+use super::quality::quality_columns;
+use super::{Error, Requests, progress, qualities};
 use crate::{events::event, plugins::Answer};
 
 /// Each Request state as `requests.state` stores it.

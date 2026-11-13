@@ -10,15 +10,15 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::{
     Event, FollowedShow, Permission, Request, RequestState, RequestedMovie, RequestedSeason,
-    SubscribeResponse, event::Event as Happened, subscribe_response,
+    SubscribeResponse, event::Event as Happened, request::MovieOrSeason, subscribe_response,
 };
 use sqlx::SqliteConnection;
 
 use super::apply::Applied;
 use super::state::{STATES, settle};
 use super::{
-    MovieOrSeason, Requests, Wanted, WantedSeasons, ask, ask_movie, follow, make_seasons_available,
-    opening_state, qualities,
+    Requests, Wanted, WantedSeasons, ask, ask_movie, follow, make_seasons_available, opening_state,
+    qualities,
 };
 use crate::{
     db::Database,
