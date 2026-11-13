@@ -387,7 +387,8 @@ pub const PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC: ::connectrpc::Spec = ::connectr
 /// The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
 /// `permission_denied` without it. A secret setting's value never leaves the Server. Every call
 /// but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails with
-/// `REFUSAL_REASON_PLUGIN_REFUSED`.
+/// `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
+/// settings, which fails `EnablePlugin` with `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`.
 ///
 /// # Implementing handlers
 ///
@@ -490,7 +491,10 @@ pub trait PluginService: Send + Sync + 'static {
     /// `settings.<key>`, and nothing changes. If a choice setting has a value, the Plugin's settings
     /// check runs on the new settings first, and a check that fails, or doesn't offer that value, is
     /// refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or `REFUSAL_REASON_CHOICE_NOT_OFFERED`
-    /// naming the setting, and nothing changes. Fails with `not_found` for an unknown Plugin.
+    /// naming the setting, and nothing changes. A Plugin that then refuses to start with them
+    /// doesn't fail the call: the settings are saved and it comes back not running
+    /// (`summary.enabled` false); `EnablePlugin` says why with
+    /// `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. Fails with `not_found` for an unknown Plugin.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -517,7 +521,8 @@ pub trait PluginService: Send + Sync + 'static {
     /// Enabling one that is enabled already only saves that. If its stored settings don't fit its
     /// schema, fails with `REFUSAL_REASON_FIELD_REQUIRED` or `REFUSAL_REASON_SETTING_WRONG_KIND`,
     /// naming the setting in `field` as `settings.<key>` and in the `settingKey` param; the Plugin
-    /// stays disabled and nothing is saved.
+    /// stays disabled and nothing is saved. A Plugin that refuses to start with them fails with
+    /// `REFUSAL_REASON_PLUGIN_REFUSED_TO_START` and stays disabled.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

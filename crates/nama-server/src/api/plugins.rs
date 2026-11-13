@@ -313,7 +313,7 @@ impl From<EnableError> for ConnectError {
             .param("reason", &reason)
             .into(),
             EnableError::RefusedToStart { plugin, reason } => refuse(
-                RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
+                RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
                 format!("{plugin} refused to start: {reason}"),
             )
             .field("id")

@@ -140,8 +140,9 @@ pub enum RefusalReason {
     /// withdraw from it. Params: `followedShowId`.
     REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER = 51i32,
     /// `failed_precondition`: the Server refused the Plugin, such as an Installed Plugin built for
-    /// another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
-    /// `reason` (in plain words, as `PluginSummary.refused_reason`).
+    /// another Nama API version, so it can't be enabled. Not for a Plugin that refuses to start
+    /// itself, which is `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. The message says why. Params:
+    /// `pluginId`, `reason` (in plain words, as `PluginSummary.refused_reason`).
     REFUSAL_REASON_PLUGIN_REFUSED = 52i32,
     /// `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
     /// where links are added to its end.
@@ -183,6 +184,10 @@ pub enum RefusalReason {
     /// `invalid_argument`: the language named isn't an ISO 639 code. `field` is
     /// `subtitle.language` or `audio.language`. Params: `language`.
     REFUSAL_REASON_UNKNOWN_LANGUAGE = 64i32,
+    /// `failed_precondition`: the Plugin itself refused to start with its stored settings, such as a
+    /// key its service turned down, so it stays disabled. The message says why in the Plugin's words.
+    /// `field` is `id`. Params: `pluginId`, `reason`.
+    REFUSAL_REASON_PLUGIN_REFUSED_TO_START = 65i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -380,6 +385,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNKNOWN_LANGUAGE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const UnknownLanguage: Self = Self::REFUSAL_REASON_UNKNOWN_LANGUAGE;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PluginRefusedToStart: Self = Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -608,6 +616,11 @@ impl ::buffa::Enumeration for RefusalReason {
             62i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_TRACK_NOT_FOUND),
             63i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_READ_ONLY),
             64i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_LANGUAGE),
+            65i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -735,6 +748,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_TRACK_NOT_FOUND => "REFUSAL_REASON_TRACK_NOT_FOUND",
             Self::REFUSAL_REASON_FOLDER_READ_ONLY => "REFUSAL_REASON_FOLDER_READ_ONLY",
             Self::REFUSAL_REASON_UNKNOWN_LANGUAGE => "REFUSAL_REASON_UNKNOWN_LANGUAGE",
+            Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START => {
+                "REFUSAL_REASON_PLUGIN_REFUSED_TO_START"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -948,6 +964,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_UNKNOWN_LANGUAGE" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_LANGUAGE)
             }
+            "REFUSAL_REASON_PLUGIN_REFUSED_TO_START" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1018,6 +1039,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_TRACK_NOT_FOUND,
             Self::REFUSAL_REASON_FOLDER_READ_ONLY,
             Self::REFUSAL_REASON_UNKNOWN_LANGUAGE,
+            Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
         ]
     }
 }

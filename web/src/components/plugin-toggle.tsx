@@ -87,6 +87,7 @@ function refusedChange(error: unknown, doing: string, settings: Setting[] | unde
       [RefusalReason.SETTING_WRONG_KIND]: {
         form: `Its ${label} setting isn’t valid, so it can’t be enabled.`,
       },
+      [RefusalReason.PLUGIN_REFUSED_TO_START]: { form: `It refused to start: ${params["reason"]}` },
     },
   ).form;
 }

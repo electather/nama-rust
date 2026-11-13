@@ -245,6 +245,27 @@ test("enabling a second Movie Fulfiller names the Plugin that is the Fulfiller",
   expect(alert.getAttribute("role")).toBe("alert");
 });
 
+test("enabling a Plugin that refuses to start says why in its words", async () => {
+  openPlugins({
+    enablePlugin: () => {
+      throw refused(
+        Code.FailedPrecondition,
+        "test-plugin refused to start: the key was turned down",
+        {
+          reason: RefusalReason.PLUGIN_REFUSED_TO_START,
+          field: "id",
+          params: { pluginId: "test-plugin", reason: "the key was turned down" },
+        },
+      );
+    },
+  });
+  const testPlugin = await row("test-plugin");
+  fireEvent.click(testPlugin.getByRole("button", { name: "Enable test-plugin" }));
+
+  const alert = await testPlugin.findByText("It refused to start: the key was turned down");
+  expect(alert.getAttribute("role")).toBe("alert");
+});
+
 test("enabling a Plugin on its details page shows it enabled there and on the list", async () => {
   let enabled = false;
   const logEvents = () => ({ id: "log-events", version: "0.1.0", enabled });

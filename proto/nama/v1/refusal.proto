@@ -171,8 +171,9 @@ enum RefusalReason {
   REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER = 51;
 
   // `failed_precondition`: the Server refused the Plugin, such as an Installed Plugin built for
-  // another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
-  // `reason` (in plain words, as `PluginSummary.refused_reason`).
+  // another Nama API version, so it can't be enabled. Not for a Plugin that refuses to start
+  // itself, which is `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. The message says why. Params:
+  // `pluginId`, `reason` (in plain words, as `PluginSummary.refused_reason`).
   REFUSAL_REASON_PLUGIN_REFUSED = 52;
 
   // `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
@@ -215,4 +216,8 @@ enum RefusalReason {
   // `invalid_argument`: the language named isn't an ISO 639 code. `field` is
   // `subtitle.language` or `audio.language`. Params: `language`.
   REFUSAL_REASON_UNKNOWN_LANGUAGE = 64;
+  // `failed_precondition`: the Plugin itself refused to start with its stored settings, such as a
+  // key its service turned down, so it stays disabled. The message says why in the Plugin's words.
+  // `field` is `id`. Params: `pluginId`, `reason`.
+  REFUSAL_REASON_PLUGIN_REFUSED_TO_START = 65;
 }

@@ -750,7 +750,7 @@ async fn enabling_a_plugin_that_refuses_to_start_is_refused_with_its_reason() {
             .enable_plugin(enable(test_choices::ID))
             .await,
         ErrorCode::FailedPrecondition,
-        RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED,
+        RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
     );
 
     assert_eq!(refusal.field, "id");
