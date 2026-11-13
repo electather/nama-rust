@@ -208,3 +208,7 @@ pub(super) async fn join(
     }
     Ok(per_kind!(asked, join).rows_affected() > 0)
 }
+
+#[cfg(test)]
+#[path = "asked_tests.rs"]
+mod tests;

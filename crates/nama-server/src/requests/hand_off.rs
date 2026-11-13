@@ -270,30 +270,5 @@ impl Drop for Claim {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use super::Claim;
-
-    #[test]
-    fn a_claim_another_hand_off_skipped_is_kept_for_one_more_look() {
-        let handing = Arc::default();
-        let claim = Claim::take(&handing, 1).unwrap();
-        assert!(Claim::take(&handing, 1).is_none());
-
-        let kept = claim.release().expect("the skipped Request was let go");
-
-        assert!(kept.release().is_none());
-        assert!(Claim::take(&handing, 1).is_some());
-    }
-
-    #[test]
-    fn a_dropped_claim_lets_the_request_be_claimed_again() {
-        let handing = Arc::default();
-        let claim = Claim::take(&handing, 1).unwrap();
-
-        drop(claim);
-
-        assert!(Claim::take(&handing, 1).is_some());
-    }
-}
+#[path = "hand_off_tests.rs"]
+mod tests;

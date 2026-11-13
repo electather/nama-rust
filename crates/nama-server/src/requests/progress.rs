@@ -224,3 +224,7 @@ async fn fulfilling(conn: &mut SqliteConnection) -> Result<Vec<Fulfilling>, sqlx
     }
     fulfilling_sql!(read).fetch_all(&mut *conn).await
 }
+
+#[cfg(test)]
+#[path = "progress_tests.rs"]
+mod tests;

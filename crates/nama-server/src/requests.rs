@@ -176,6 +176,3 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 
 #[cfg(test)]
 mod testing;
-#[cfg(test)]
-#[path = "requests_tests.rs"]
-mod tests;
