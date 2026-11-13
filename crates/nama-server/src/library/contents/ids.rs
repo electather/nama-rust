@@ -1,5 +1,5 @@
-//! A title's ids as Contents stores and reads them: a Match's in `item_match_ids`, a Pin's still
-//! as fixed TMDB, IMDb and TVDB fields.
+//! A title's ids as Contents stores and reads them: a Match's in `item_match_ids`, a Pin's as its
+//! text form in `match_pins.pinned_id`.
 
 use std::collections::HashMap;
 
@@ -8,18 +8,15 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB, TMDB, TVDB};
 use super::pins::Pin;
 
 impl Pin {
-    /// The pin stored in a `match_pins` row, if there is one, holding the id in `ids`.
-    pub(super) fn from_row(pinned: bool, ids: &ExternalIds) -> Option<Self> {
+    /// The pin stored in a `match_pins` row, if there is one, holding the id `id` in its text
+    /// form. An id that doesn't parse is no pin, as a bad stored ID Hint is no hint.
+    pub(super) fn from_row(pinned: bool, id: Option<&str>) -> Option<Self> {
         if !pinned {
             return None;
         }
-        Some(primary_id(ids).map_or(Self::Unmatched, Self::Title))
-    }
-
-    pub(super) fn columns(&self) -> ExternalIds {
-        match self {
-            Self::Title(id) => ExternalIds::from_iter([id.clone()]),
-            Self::Unmatched => ExternalIds::default(),
+        match id {
+            None => Some(Self::Unmatched),
+            Some(id) => parse_hint(id).map(Self::Title),
         }
     }
 }

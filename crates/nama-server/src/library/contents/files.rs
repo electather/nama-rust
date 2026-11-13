@@ -269,9 +269,8 @@ async fn rename_item(
     sqlx::query!(
         "INSERT OR IGNORE INTO match_pins (
              library_id, kind, title, year, hint,
-             pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)
-         SELECT library_id, kind, ?, ?, ?,
-                pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at
+             pinned_id, pinned_at)
+         SELECT library_id, kind, ?, ?, ?, pinned_id, pinned_at
          FROM match_pins
          WHERE library_id = ? AND kind = ? AND title = ? AND year IS ? AND hint IS ?",
         new.title,

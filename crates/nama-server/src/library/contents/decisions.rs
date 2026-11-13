@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{self, ExternalId, ExternalIds, IMDB, TMDB},
+    metadata::{self, ExternalId, ExternalIds, TMDB},
 };
 use nama_proto::nama::v1::Event;
 use sqlx::SqliteConnection;
@@ -110,8 +110,7 @@ impl Contents {
                       library_items.title, library_items.year, library_items.hint,
                       library_items.season, library_items.episode,
                       match_pins.pinned_at IS NOT NULL AS "pinned!: bool",
-                      match_pins.pinned_tmdb_id, match_pins.pinned_imdb_id,
-                      match_pins.pinned_tvdb_id
+                      match_pins.pinned_id
                FROM library_items
                JOIN library_files ON library_files.id = library_items.file_id
                LEFT JOIN match_pins ON match_pins.library_id = library_files.library_id
@@ -130,12 +129,6 @@ impl Contents {
         Ok(rows
             .into_iter()
             .filter_map(|row| {
-                let pinned = [
-                    row.pinned_tmdb_id.map(ExternalId::tmdb),
-                    (row.pinned_imdb_id).and_then(|imdb| ExternalId::new(IMDB, imdb).ok()),
-                    row.pinned_tvdb_id.map(ExternalId::tvdb),
-                ];
-                let pinned: ExternalIds = pinned.into_iter().flatten().collect();
                 let item = ItemRow {
                     kind: row.kind,
                     title: Cow::Owned(row.title),
@@ -145,7 +138,11 @@ impl Contents {
                     episode: row.episode,
                 }
                 .into_item()?;
-                Some((row.id, item, Pin::from_row(row.pinned, &pinned)))
+                Some((
+                    row.id,
+                    item,
+                    Pin::from_row(row.pinned, row.pinned_id.as_deref()),
+                ))
             })
             .collect())
     }
@@ -232,9 +229,7 @@ impl Contents {
                                    AND match_pins.title = library_items.title
                                    AND match_pins.year IS library_items.year
                                    AND match_pins.hint IS library_items.hint
-                                   AND match_pins.pinned_tmdb_id IS NULL
-                                   AND match_pins.pinned_imdb_id IS NULL
-                                   AND match_pins.pinned_tvdb_id IS NULL)
+                                   AND match_pins.pinned_id IS NULL)
                ORDER BY library_files.path, library_items.id"#,
             library
         )

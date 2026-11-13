@@ -114,22 +114,23 @@ async fn insert_pin(
     pin: &Pin,
     now: i64,
 ) -> Result<bool, sqlx::Error> {
-    let pinned = pin.columns();
+    let pinned = match pin {
+        Pin::Title(id) => Some(id.to_string()),
+        Pin::Unmatched => None,
+    };
     let hint = name.hint.as_ref().map(ExternalId::to_string);
     let inserted = sqlx::query!(
         "INSERT OR REPLACE INTO match_pins (
              library_id, kind, title, year, hint,
-             pinned_tmdb_id, pinned_imdb_id, pinned_tvdb_id, pinned_at)
-         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+             pinned_id, pinned_at)
+         SELECT ?, ?, ?, ?, ?, ?, ?
          WHERE EXISTS (SELECT 1 FROM libraries WHERE id = ?)",
         library,
         name.kind,
         name.title,
         name.year,
         hint,
-        pinned.tmdb,
-        pinned.imdb,
-        pinned.tvdb,
+        pinned,
         now,
         library,
     )
