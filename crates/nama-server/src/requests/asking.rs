@@ -13,11 +13,12 @@ use sqlx::SqliteConnection;
 
 use super::apply::Applied;
 use super::asked::{self, Asked};
+use super::deciding::approve;
 use super::listing::load_one;
 use super::lookup::looking_up;
 use super::quality::{NewQuality, quality_columns, show_requests};
 use super::state::{open_request, stored};
-use super::{Error, Requests, approve, availability, qualities, today};
+use super::{Error, Requests, availability, qualities, today};
 use crate::{db::now, events::event, library::contents, users::User};
 
 /// What a new Request asks for, as the metadata source gave it.

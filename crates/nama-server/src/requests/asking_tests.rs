@@ -5,11 +5,12 @@ use nama_proto::nama::v1::RequestState;
 
 use super::{Wanted, ask_movie, ask_seasons};
 use crate::db::Database;
+use crate::requests::deciding::{cancel, decline};
 use crate::requests::testing::{
     ADA, BOB, NOTHING, ada_and_bob, ask_each, ask_for, dark, fulfilled, handed_off, happened,
     match_in_a_library, movie, settled,
 };
-use crate::requests::{Error, cancel, decline, qualities};
+use crate::requests::{Error, qualities};
 
 #[tokio::test]
 async fn a_movie_and_a_show_with_the_same_tmdb_id_have_requests_of_their_own() {

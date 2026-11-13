@@ -17,17 +17,18 @@ use tokio::sync::Notify;
 
 use super::apply::Applied;
 use super::asking::{Wanted, WantedSeasons, ask_seasons};
+use super::deciding::{cancel, decline};
 use super::listing::{load, load_one};
 use super::testing::{
     ADA, Asked, BOB, DARK, FulfillerPlugin, NOTHING, ada, ada_and_bob, approved_for, approved_on,
     ask_as, ask_each, ask_for, asked_season, breaking_bad, come_up, dark, dark_season, downloading,
-    episode, follow_as, fulfilled, handed_off, happened, insert_in_each_state, match_dark_episodes,
+    episode, follow_as, handed_off, happened, insert_in_each_state, match_dark_episodes,
     match_in_a_library, matched, next_happened, requests_on, said, scan_dark, season_1, season_ids,
-    settled, tmdb, user,
+    tmdb, user,
 };
 use super::{
-    Error, Requests, approve, asked, availability, cancel, cancel_followed, decide_followed,
-    decline, progress, qualities, retry, withdraw, withdraw_followed,
+    Error, Requests, asked, availability, cancel_followed, decide_followed, progress, qualities,
+    withdraw_followed,
 };
 use crate::{
     db::Database,
@@ -459,139 +460,6 @@ async fn an_available_season_request_stays_available_when_a_later_episode_airs()
 /// The id of the Season Request whose Show `applied` stops following, if any.
 fn unfollowed<T>(applied: &Applied<T>) -> Option<i64> {
     applied.unfollow.as_ref().map(|season| season.id)
-}
-
-#[tokio::test]
-async fn approving_a_pending_request_hands_it_off() {
-    let (_data, db) = ada_and_bob().await;
-    let id = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
-
-    let approved = db
-        .write(move |tx| Box::pin(approve(tx, id, None)))
-        .await
-        .unwrap();
-    let again = db.write(move |tx| Box::pin(approve(tx, id, None))).await;
-
-    assert_eq!(happened(&approved), [("moved", RequestState::Approved)]);
-    assert_eq!(handed_off(&approved), [id]);
-    assert!(matches!(again, Err(Error::NotPending(..))), "{again:?}");
-}
-
-#[tokio::test]
-async fn declining_a_pending_request_hands_nothing_off() {
-    let (_data, db) = ada_and_bob().await;
-    let id = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
-
-    let declined = db
-        .write(move |tx| Box::pin(decline(tx, id, Some("No.".to_owned()))))
-        .await
-        .unwrap();
-    let again = db.write(move |tx| Box::pin(decline(tx, id, None))).await;
-
-    assert_eq!(happened(&declined), [("moved", RequestState::Declined)]);
-    assert_eq!(handed_off(&declined), NOTHING);
-    assert_eq!(declined.value.decline_reason.as_deref(), Some("No."));
-    assert!(matches!(again, Err(Error::NotPending(..))), "{again:?}");
-}
-
-#[tokio::test]
-async fn retrying_a_failed_request_approves_and_hands_it_off() {
-    let (_data, db) = ada_and_bob().await;
-    let id = ask_for(&db, ADA, 949, RequestState::Approved)
-        .await
-        .value
-        .id;
-    let pending = ask_for(&db, ADA, 603, RequestState::Pending).await.value.id;
-    settled(&db, id, Err("no space".to_owned())).await;
-
-    let retried = db
-        .write(move |tx| Box::pin(retry(tx, id, None)))
-        .await
-        .unwrap();
-    let not_failed = db.write(move |tx| Box::pin(retry(tx, pending, None))).await;
-
-    assert_eq!(happened(&retried), [("moved", RequestState::Approved)]);
-    assert_eq!(handed_off(&retried), [id]);
-    assert_eq!(retried.value.failure_reason, None);
-    assert!(
-        matches!(not_failed, Err(Error::NotFailed(_))),
-        "{not_failed:?}"
-    );
-}
-
-#[tokio::test]
-async fn cancelling_a_request_says_so_whatever_its_state() {
-    let (_data, db) = ada_and_bob().await;
-    let pending = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
-    let processing = ask_for(&db, ADA, 603, RequestState::Approved)
-        .await
-        .value
-        .id;
-    settled(&db, processing, Ok(fulfilled())).await;
-    let declined = ask_for(&db, ADA, 348, RequestState::Pending).await.value.id;
-    db.write(move |tx| Box::pin(decline(tx, declined, None)))
-        .await
-        .unwrap();
-    let approved = ask_for(&db, ADA, 680, RequestState::Approved)
-        .await
-        .value
-        .id;
-    let failed = ask_for(&db, ADA, 155, RequestState::Approved)
-        .await
-        .value
-        .id;
-    settled(&db, failed, Err("no space".to_owned())).await;
-    let available = ask_for(&db, ADA, 157, RequestState::Pending).await.value.id;
-    match_in_a_library(&db, &[157]).await;
-    let partly = db
-        .write(|tx| Box::pin(ask_seasons(tx, ADA, dark(), RequestState::Approved)))
-        .await
-        .unwrap()
-        .value[0]
-        .id;
-    settled(&db, partly, Ok(fulfilled())).await;
-    match_dark_episodes(&db, 1, &[1]).await;
-    scan_dark(&db, &[1]).await;
-
-    let mut cancelled = Vec::new();
-    for id in [
-        pending, processing, declined, approved, failed, available, partly,
-    ] {
-        let applied = db.write(move |tx| Box::pin(cancel(tx, id))).await.unwrap();
-        assert_eq!(handed_off(&applied), NOTHING);
-        cancelled.extend(happened(&applied));
-    }
-
-    assert_eq!(
-        cancelled,
-        [
-            ("cancelled", RequestState::Pending),
-            ("cancelled", RequestState::Processing),
-            ("cancelled", RequestState::Declined),
-            ("cancelled", RequestState::Approved),
-            ("cancelled", RequestState::Failed),
-            ("cancelled", RequestState::Available),
-            ("cancelled", RequestState::PartiallyAvailable)
-        ]
-    );
-}
-
-#[tokio::test]
-async fn withdrawing_from_a_request_that_is_not_pending_is_refused() {
-    let (_data, db) = ada_and_bob().await;
-    let id = ask_for(&db, ADA, 603, RequestState::Approved)
-        .await
-        .value
-        .id;
-
-    let refused = db
-        .write(move |tx| Box::pin(withdraw(tx, ADA, None, id)))
-        .await;
-
-    assert!(
-        matches!(refused, Err(Error::NotPending(asked::Asked::Request, refused_id)) if refused_id == id),
-        "{refused:?}"
-    );
 }
 
 #[tokio::test]
