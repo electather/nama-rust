@@ -397,15 +397,15 @@ async fn a_plugin_naming_a_point_without_its_exports_is_refused_naming_the_expor
 }
 
 #[tokio::test]
-async fn a_plugin_built_for_nama_api_0_1_is_refused_naming_the_version() {
+async fn a_plugin_built_for_contract_0_1_is_refused_naming_the_version() {
     let started = Started::new().await;
 
-    started.drop_in("old.wasm", "nama-api-0-1");
+    started.drop_in("old.wasm", "contract-0-1");
 
     let listed = started.listed("old.wasm").await.unwrap();
     assert_eq!(
         listed.refused_reason,
-        format!("it wants nama-api ^0.1.0, and this Server has {CONTRACT_VERSION}")
+        format!("it wants Plugin contract ^0.1.0, and this Server has {CONTRACT_VERSION}")
     );
 }
 

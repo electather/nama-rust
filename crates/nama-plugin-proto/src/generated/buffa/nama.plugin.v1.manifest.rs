@@ -551,18 +551,18 @@ pub struct Manifest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub version: ::buffa::alloc::string::String,
-    /// The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
-    /// such as "^0.3.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
-    /// reads this field before the rest of the Manifest, so it keeps field number 3 in every version.
+    /// The versions of the Plugin contract the Plugin works with, as a Cargo-style semver
+    /// requirement such as "^0.3.0". A Server whose Plugin contract version doesn't match refuses the
+    /// Plugin. A Server reads this field before the rest of the Manifest, so it keeps field number 3
+    /// in every version.
     ///
-    /// Field 3: `nama_api`
+    /// Field 3: `contract`
     #[serde(
-        rename = "namaApi",
-        alias = "nama_api",
+        rename = "contract",
         with = "::buffa::json_helpers::proto_string",
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
-    pub nama_api: ::buffa::alloc::string::String,
+    pub contract: ::buffa::alloc::string::String,
     /// The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
     /// value from its Extism config under its key, as text: a bool as "true" or "false", a number in
     /// decimal.
@@ -646,7 +646,7 @@ impl ::core::fmt::Debug for Manifest {
         f.debug_struct("Manifest")
             .field("id", &self.id)
             .field("version", &self.version)
-            .field("nama_api", &self.nama_api)
+            .field("contract", &self.contract)
             .field("settings", &self.settings)
             .field("allowed_hosts", &self.allowed_hosts)
             .field("observers", &self.observers)
@@ -690,8 +690,8 @@ impl ::buffa::Message for Manifest {
         if !self.version.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.version) as u64;
         }
-        if !self.nama_api.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.nama_api) as u64;
+        if !self.contract.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.contract) as u64;
         }
         for v in &self.settings {
             let __slot = __cache.reserve();
@@ -745,8 +745,8 @@ impl ::buffa::Message for Manifest {
         if !self.version.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.version, buf);
         }
-        if !self.nama_api.is_empty() {
-            ::buffa::types::put_string_field(3u32, &self.nama_api, buf);
+        if !self.contract.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.contract, buf);
         }
         for v in &self.settings {
             ::buffa::types::put_len_delimited_header(
@@ -822,7 +822,7 @@ impl ::buffa::Message for Manifest {
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                ::buffa::types::merge_string(&mut self.nama_api, buf)?;
+                ::buffa::types::merge_string(&mut self.contract, buf)?;
             }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -954,7 +954,7 @@ impl ::buffa::Message for Manifest {
     fn clear(&mut self) {
         self.id.clear();
         self.version.clear();
-        self.nama_api.clear();
+        self.contract.clear();
         self.settings.clear();
         self.allowed_hosts.clear();
         self.observers.clear();

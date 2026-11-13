@@ -1,4 +1,4 @@
-# The Nama API schema (ADR 0007). Run `buf` commands from this directory.
+# The schema of the client API and the Plugin contract (ADR 0007). Run `buf` commands from this directory.
 version: v2
 lint:
   use:

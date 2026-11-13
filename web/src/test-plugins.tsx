@@ -127,7 +127,7 @@ const plugins = [
     version: "",
     kind: PluginKind.INSTALLED,
     enabled: false,
-    refusedReason: "it wants nama-api <0.1, and this Server has 0.1.0",
+    refusedReason: "it wants Plugin contract <0.1, and this Server has 0.1.0",
   },
 ];
 

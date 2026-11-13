@@ -38,8 +38,8 @@ mod exports {
     // Says who the Plugin is, that it observes Events, fulfills Movie Requests and notifies, and
     // its settings: a URL whose host it may reach, one it requests, how its Observer, Fulfiller
     // and Notifier behave, a profile its check offers, and how its check fails, and its logo. With
-    // the `unexported-connector` feature it names a Connector it doesn't export, with `nama-api-0-1`
-    // it wants Nama API 0.1, and with `panic` it panics instead.
+    // the `unexported-connector` feature it names a Connector it doesn't export, with `contract-0-1`
+    // it wants Plugin contract 0.1, and with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -87,9 +87,9 @@ mod exports {
             providers: vec![ProvidePoint::PROVIDE_POINT_CONNECTOR.into()],
             ..manifest
         };
-        #[cfg(feature = "nama-api-0-1")]
+        #[cfg(feature = "contract-0-1")]
         let manifest = Manifest {
-            nama_api: "^0.1.0".to_owned(),
+            contract: "^0.1.0".to_owned(),
             ..manifest
         };
         Ok(Buffa(manifest))

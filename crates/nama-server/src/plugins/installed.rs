@@ -173,9 +173,12 @@ enum Refused {
     Panicked(String),
     #[error("its manifest() returned something that isn't a Manifest: {0}")]
     Decode(DecodeError),
-    #[error("its nama-api requirement {wants:?} isn't a semver requirement: {error}")]
+    #[error("its Plugin contract requirement {wants:?} isn't a semver requirement: {error}")]
     BadRequirement { wants: String, error: semver::Error },
-    #[error("it wants nama-api {wants}, and this Server has {}", CONTRACT_VERSION)]
+    #[error(
+        "it wants Plugin contract {wants}, and this Server has {}",
+        CONTRACT_VERSION
+    )]
     OutOfRange { wants: String },
     #[error("its setting {key} is of a kind this Server doesn't know")]
     UnknownSettingKind { key: String },
@@ -854,17 +857,17 @@ fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
     })
 }
 
-/// `bytes` as a Manifest, once its Nama API requirement matches this Server's: a package built for
-/// another Nama API may encode the rest differently, so it is refused for that rather than found
-/// undecodable.
+/// `bytes` as a Manifest, once its Plugin contract requirement matches this Server's: a package
+/// built for another Plugin contract may encode the rest differently, so it is refused for that
+/// rather than found undecodable.
 fn decode(bytes: &[u8]) -> Result<wire::Manifest, Refused> {
-    check_nama_api(&nama_api(bytes).map_err(Refused::Decode)?)?;
+    check_contract(&contract_requirement(bytes).map_err(Refused::Decode)?)?;
     wire::Manifest::decode_from_slice(bytes).map_err(Refused::Decode)
 }
 
-/// The `nama_api` of the encoded Manifest `bytes`, its field 3, read alone. `manifest.proto`
-/// keeps that number in every Nama API version.
-fn nama_api(mut bytes: &[u8]) -> Result<String, DecodeError> {
+/// The `contract` of the encoded Manifest `bytes`, its field 3, read alone. `manifest.proto`
+/// keeps that number in every Plugin contract version.
+fn contract_requirement(mut bytes: &[u8]) -> Result<String, DecodeError> {
     let mut wants = String::new();
     while !bytes.is_empty() {
         let tag = Tag::decode(&mut bytes)?;
@@ -978,8 +981,8 @@ fn extism_config(schema: &SettingsSchema, settings: &Settings) -> Vec<(String, S
         .collect()
 }
 
-/// Checks that this Server's Nama API version meets `wants`, a Plugin's semver requirement.
-fn check_nama_api(wants: &str) -> Result<(), Refused> {
+/// Checks that this Server's Plugin contract version meets `wants`, a Plugin's semver requirement.
+fn check_contract(wants: &str) -> Result<(), Refused> {
     let requirement = VersionReq::parse(wants).map_err(|error| Refused::BadRequirement {
         wants: wants.to_owned(),
         error,

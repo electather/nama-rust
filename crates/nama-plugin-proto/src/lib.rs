@@ -29,7 +29,7 @@ pub mod nama {
 }
 
 /// The version of the Plugin contract, which an Installed Plugin's
-/// [`Manifest::nama_api`](nama::plugin::v1::Manifest::nama_api) requirement is matched against.
+/// [`Manifest::contract`](nama::plugin::v1::Manifest::contract) requirement is matched against.
 ///
 /// It covers the `nama.plugin.v1` messages, the exports the Kernel calls and the functions it
 /// gives a Plugin. It is not this crate's version; `AGENTS.md` says when it changes.

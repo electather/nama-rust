@@ -19,12 +19,13 @@ pub struct ManifestView<'a> {
     ///
     /// Field 2: `version`
     pub version: &'a str,
-    /// The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
-    /// such as "^0.3.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
-    /// reads this field before the rest of the Manifest, so it keeps field number 3 in every version.
+    /// The versions of the Plugin contract the Plugin works with, as a Cargo-style semver
+    /// requirement such as "^0.3.0". A Server whose Plugin contract version doesn't match refuses the
+    /// Plugin. A Server reads this field before the rest of the Manifest, so it keeps field number 3
+    /// in every version.
     ///
-    /// Field 3: `nama_api`
-    pub nama_api: &'a str,
+    /// Field 3: `contract`
+    pub contract: &'a str,
     /// The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
     /// value from its Extism config under its key, as text: a bool as "true" or "false", a number in
     /// decimal.
@@ -122,7 +123,7 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                view.nama_api = ::buffa::types::borrow_str(&mut cur)?;
+                view.contract = ::buffa::types::borrow_str(&mut cur)?;
             }
             8u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -258,7 +259,7 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
         ::core::result::Result::Ok(super::super::Manifest {
             id: self.id.to_string(),
             version: self.version.to_string(),
-            nama_api: self.nama_api.to_string(),
+            contract: self.contract.to_string(),
             settings: self
                 .settings
                 .iter()
@@ -287,8 +288,8 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         if !self.version.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.version) as u64;
         }
-        if !self.nama_api.is_empty() {
-            size += 1u64 + ::buffa::types::string_encoded_len(&self.nama_api) as u64;
+        if !self.contract.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.contract) as u64;
         }
         for v in &self.settings {
             let __slot = __cache.reserve();
@@ -343,8 +344,8 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         if !self.version.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.version, buf);
         }
-        if !self.nama_api.is_empty() {
-            ::buffa::types::put_string_field(3u32, &self.nama_api, buf);
+        if !self.contract.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.contract, buf);
         }
         for v in &self.settings {
             ::buffa::types::put_len_delimited_header(
@@ -415,8 +416,8 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
         if !::buffa::json_helpers::skip_if::is_empty_str(self.version) {
             __map.serialize_entry("version", self.version)?;
         }
-        if !::buffa::json_helpers::skip_if::is_empty_str(self.nama_api) {
-            __map.serialize_entry("namaApi", self.nama_api)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.contract) {
+            __map.serialize_entry("contract", self.contract)?;
         }
         if !self.settings.is_empty() {
             __map.serialize_entry("settings", &*self.settings)?;
@@ -550,14 +551,15 @@ impl ManifestOwnedView {
     pub fn version(&self) -> &'_ str {
         self.0.reborrow().version
     }
-    /// The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
-    /// such as "^0.3.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
-    /// reads this field before the rest of the Manifest, so it keeps field number 3 in every version.
+    /// The versions of the Plugin contract the Plugin works with, as a Cargo-style semver
+    /// requirement such as "^0.3.0". A Server whose Plugin contract version doesn't match refuses the
+    /// Plugin. A Server reads this field before the rest of the Manifest, so it keeps field number 3
+    /// in every version.
     ///
-    /// Field 3: `nama_api`
+    /// Field 3: `contract`
     #[must_use]
-    pub fn nama_api(&self) -> &'_ str {
-        self.0.reborrow().nama_api
+    pub fn contract(&self) -> &'_ str {
+        self.0.reborrow().contract
     }
     /// The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
     /// value from its Extism config under its key, as text: a bool as "true" or "false", a number in

@@ -87,7 +87,7 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
     Manifest {
         id: id.to_owned(),
         version: version.to_owned(),
-        nama_api: format!("^{}", nama_plugin_proto::CONTRACT_VERSION),
+        contract: format!("^{}", nama_plugin_proto::CONTRACT_VERSION),
         ..Manifest::default()
     }
 }

@@ -114,7 +114,9 @@ test("a refused Plugin's details page shows its file name and why, and no settin
   const page = await plugin("out-of-range.wasm");
   expect(page.getByText("Refused")).toBeDefined();
   expect(
-    page.getByText("The Server can’t run it: it wants nama-api <0.1, and this Server has 0.1.0."),
+    page.getByText(
+      "The Server can’t run it: it wants Plugin contract <0.1, and this Server has 0.1.0.",
+    ),
   ).toBeDefined();
   expect(page.queryByRole("heading", { name: "Settings" })).toBeNull();
   expect(page.queryByRole("button")).toBeNull();
