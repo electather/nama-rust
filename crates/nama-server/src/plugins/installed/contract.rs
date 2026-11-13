@@ -60,7 +60,8 @@ pub(super) fn download(download: wire::Download) -> Download {
     }
 }
 
-/// The Request `request` as a Fulfiller reads it, leaving out what only a client reads.
+/// The Request `request` as an Installed Plugin reads it, whether a Fulfiller, an Observer or a
+/// Notifier, leaving out what only a client reads.
 pub(super) fn request(request: &api::Request) -> wire::Request {
     let movie_or_season = request.movie_or_season.as_ref().map(|asked| match asked {
         MovieOrSeason::Movie(movie) => {

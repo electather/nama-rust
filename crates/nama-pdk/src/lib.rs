@@ -19,10 +19,10 @@
 //! reads the time with [`now`]. A call's limits on memory and time are in `nama-plugin-proto`'s
 //! README, under "What the Kernel gives a Plugin".
 //!
-//! A Plugin with [`SETTING_KIND_CHOICE`](nama_plugin_proto::nama::plugin::v1::SettingKind) settings exports `check_settings()`, which
-//! checks its settings against the outside service and offers the choices for each, built with
-//! [`checked_settings`]. It runs only when an admin tests settings, which may be unsaved, and may
-//! reach the hosts of the URL settings tested:
+//! A Plugin with [`SETTING_KIND_CHOICE`](nama_plugin_proto::nama::plugin::v1::SettingKind)
+//! settings exports `check_settings()`, which checks its settings against the outside service and
+//! offers the choices for each, built with [`checked_settings`]. It runs only when an admin tests
+//! settings, which may be unsaved, and may reach the hosts of the URL settings tested:
 //!
 //! ```
 //! use nama_pdk::{Buffa, CheckedSettings, FnResult, extism_pdk, plugin_fn};

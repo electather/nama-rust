@@ -8,17 +8,15 @@ The contract is more than the messages: `CONTRACT_VERSION` also covers what the 
 
 ## What the Kernel gives a Plugin
 
-The Server sets this up in [`crates/nama-server/src/plugins/installed.rs`](../nama-server/src/plugins/installed.rs), mostly in `compile`, for every call into an Installed Plugin.
+The Server sets this up in [`crates/nama-server/src/plugins/installed.rs`](../nama-server/src/plugins/installed.rs), mostly in `compile`. It calls an Installed Plugin in three ways: `manifest()` once, when it loads the Package; `check_settings()` when an admin tests settings; and the exports of the Extension Points its Manifest names, such as `fulfill`, while it is enabled.
 
-- **A clock.** The function `now` in the Wasm import namespace `nama` takes no arguments and returns an `i64`: the milliseconds since the Unix epoch by the Server's clock. A Plugin needs it because `SystemTime::now()` panics on `wasm32-unknown-unknown`.
-- **128 MiB of memory per call**, counting the Plugin's own memory and what Extism keeps for it. A call past it fails and counts as a crash.
-- **5 seconds per call.** A call that runs longer fails and counts as a crash. Three crashes in a row disable the Plugin.
-- **Settings as text.** Each setting the admin set is in the Extism config under its key, as text: a bool as `true` or `false`, a number in decimal.
-- **HTTP to named hosts only.** A Plugin may send HTTP requests only to the hosts its Manifest's `allowed_hosts` names and the host of each of its URL settings.
+- **A clock.** The function `now` in the Wasm import namespace `nama` takes no arguments and returns an `i64`: the milliseconds since the Unix epoch by the Server's clock. A Plugin needs it because `SystemTime::now()` panics on `wasm32-unknown-unknown`. Every call has it.
+- **128 MiB of memory and 5 seconds per call**, the memory counting the Plugin's own and what Extism keeps for it. A call past either limit fails. What that costs depends on the call: past one, `manifest()` gets the Plugin refused, and `check_settings()` fails that check.
+- **Three crashes in a row disable the Plugin.** Only an Extension Point's export crashes: when it runs past a limit or traps, not when it returns an error. Each Extension Point counts its own crashes, except that a Movie and a Show Fulfiller count as one.
+- **Settings as text.** `check_settings()` and the Extension Points' exports find each setting in the Extism config under its key, as text: a bool as `true` or `false`, a number in decimal. A setting holds what the admin set, or its Manifest default if the admin set nothing; one with neither is not in the config. `check_settings()` gets the settings being tested, which may be unsaved. `manifest()` gets no settings.
+- **HTTP to named hosts only.** A Plugin may send HTTP requests only to the hosts its Manifest's `allowed_hosts` names and the host of each of its URL settings: the saved settings for an Extension Point's exports, the settings being tested for `check_settings()`. `manifest()` may send none.
 - **No HTTP response headers.** The Kernel doesn't pass a response's headers to the Plugin: `compile` leaves Extism's `with_http_response_headers` off.
 
 ## Generated code is checked in
 
 The code under `src/generated/` is written by `buf generate` and committed, for the reasons in [`crates/nama-proto/README.md`](../nama-proto/README.md). Don't edit it by hand. To regenerate after a schema change, install the tools as that README says, then run `buf generate` in `proto/`; one run writes both crates and the web app's code.
-
-The contract imports nothing from the client API, `proto/nama/v1/`. `tests/stands_alone.rs` fails if it does.

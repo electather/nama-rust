@@ -213,8 +213,9 @@ impl ::buffa::Enumeration for RequestState {
         ]
     }
 }
-/// Users asking for one Movie, or one Season of a Show, as the Kernel hands it to a Fulfiller's
-/// `fulfill` and `unfollow` exports.
+/// Users asking for one Movie, or one Season of a Show, as the Kernel hands it to an Installed
+/// Plugin: to a Fulfiller's `fulfill` and `unfollow` exports, to an Observer inside a Request event,
+/// and to a Notifier inside a notification.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize)]
 #[serde(default)]

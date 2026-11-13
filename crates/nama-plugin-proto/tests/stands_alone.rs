@@ -1,4 +1,4 @@
-//! The Plugin contract imports nothing from the client API (ADR 0041).
+//! Enforces the import rule in this crate's `AGENTS.md`.
 
 use std::{
     fs, io,

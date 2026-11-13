@@ -278,7 +278,8 @@ impl ::serde::Serialize for ObservedEventsOwnedView {
     }
 }
 /// Something that happened in the Kernel. Left out on purpose: Request progress, Followed Show and
-/// Playback events, which the Kernel doesn't tell a Plugin. A kind joins when a Plugin needs it.
+/// Playback events, which the Kernel doesn't tell an Installed Plugin. A kind joins when a Plugin
+/// needs it.
 #[derive(Clone, Debug, Default)]
 pub struct EventView<'a> {
     pub event: ::core::option::Option<

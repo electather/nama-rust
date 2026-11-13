@@ -143,7 +143,8 @@ pub const __OBSERVED_EVENTS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
     is_wkt: false,
 };
 /// Something that happened in the Kernel. Left out on purpose: Request progress, Followed Show and
-/// Playback events, which the Kernel doesn't tell a Plugin. A kind joins when a Plugin needs it.
+/// Playback events, which the Kernel doesn't tell an Installed Plugin. A kind joins when a Plugin
+/// needs it.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize)]
 #[serde(default)]

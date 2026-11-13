@@ -11,7 +11,8 @@ message ObservedEvents {
 }
 
 // Something that happened in the Kernel. Left out on purpose: Request progress, Followed Show and
-// Playback events, which the Kernel doesn't tell a Plugin. A kind joins when a Plugin needs it.
+// Playback events, which the Kernel doesn't tell an Installed Plugin. A kind joins when a Plugin
+// needs it.
 message Event {
   oneof event {
     ScanStarted scan_started = 1;
