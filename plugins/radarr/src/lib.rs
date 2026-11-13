@@ -206,4 +206,36 @@ mod exports {
     struct AddOptions {
         search_for_movie: bool,
     }
+
+    #[cfg(test)]
+    mod tests {
+        use nama_pdk::TitleId;
+
+        use super::tmdb_id;
+
+        fn id(namespace: &str, value: &str) -> TitleId {
+            TitleId {
+                namespace: namespace.to_owned(),
+                value: value.to_owned(),
+                ..TitleId::default()
+            }
+        }
+
+        #[test]
+        fn a_movie_without_a_tmdb_id_is_refused() {
+            let error = tmdb_id(&[id("imdb", "tt0078748")]).unwrap_err();
+
+            assert_eq!(
+                error.to_string(),
+                "Radarr needs the Movie's TMDB id, and none is known for it"
+            );
+        }
+
+        #[test]
+        fn a_movie_s_tmdb_id_is_its_number() {
+            let ids = [id("imdb", "tt0078748"), id("tmdb", "348")];
+
+            assert_eq!(tmdb_id(&ids).unwrap(), 348);
+        }
+    }
 }
