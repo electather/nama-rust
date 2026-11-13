@@ -198,3 +198,18 @@ async fn a_search_skips_an_episode_whose_match_has_no_show_id() {
     assert!(found.movies.is_empty(), "{:?}", found.movies);
     assert!(found.episodes.is_empty(), "{:?}", found.episodes);
 }
+
+#[tokio::test]
+async fn a_search_hit_for_a_title_with_only_a_made_up_id_carries_that_id() {
+    let fx = Fixture::new().await;
+    let anidb = ExternalId::new("anidb", "m-1").unwrap();
+    let matched = Metadata {
+        ids: ExternalIds::from_iter([anidb.clone()]),
+        ..tmdb_movie(0, "Akira")
+    };
+    MatchedMovie::store(&fx.contents, fx.library, "/media/Akira.mkv", matched).await;
+
+    let found = fx.contents.search("akira").await.unwrap().movies;
+    let ids: Vec<_> = found.into_iter().map(|movie| movie.id).collect();
+    assert_eq!(ids, [anidb]);
+}

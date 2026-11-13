@@ -166,3 +166,94 @@ async fn removing_a_file_removes_its_items_ids() {
 
     assert_eq!(id_rows(&fx).await, 0);
 }
+
+fn made_up(namespace: &str, value: &str) -> ExternalId {
+    ExternalId::new(namespace, value).unwrap()
+}
+
+#[tokio::test]
+async fn a_movie_matched_only_to_a_made_up_id_is_listed_and_found_by_it() {
+    let fx = Fixture::new().await;
+    let anidb = made_up("anidb", "m-1");
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    match_movie(&fx, ALIEN, ExternalIds::from_iter([anidb.clone()])).await;
+
+    let movies = fx.contents.movies(fx.library).await.unwrap();
+    assert_eq!(movies.len(), 1);
+    assert_eq!(movies[0].id, anidb);
+    assert_eq!(movies[0].ids.get("anidb"), Some(anidb.clone()));
+    assert_eq!(library_of(&fx, &anidb).await, Some(fx.library));
+}
+
+#[tokio::test]
+async fn two_files_matched_to_one_made_up_id_are_one_movie_with_two_versions() {
+    let fx = Fixture::new().await;
+    let anidb = made_up("anidb", "m-1");
+    let other = "/media/Alien (1979)/Alien (1979) - Director's Cut.mkv";
+    for path in [ALIEN, other] {
+        fx.store(path, 10, movie("Alien", 1979)).await;
+        match_movie(&fx, path, ExternalIds::from_iter([anidb.clone()])).await;
+    }
+
+    let movies = fx.contents.movies(fx.library).await.unwrap();
+    assert_eq!(movies.len(), 1);
+    assert_eq!(movies[0].id, anidb);
+    assert_eq!(movies[0].versions.len(), 2);
+}
+
+#[tokio::test]
+async fn a_movie_with_a_made_up_and_a_tmdb_id_is_identified_by_tmdb_and_found_by_either() {
+    let fx = Fixture::new().await;
+    let mal = made_up("mal", "42");
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    match_movie(
+        &fx,
+        ALIEN,
+        ExternalIds::from_iter([mal.clone(), ExternalId::tmdb(348)]),
+    )
+    .await;
+
+    let movies = fx.contents.movies(fx.library).await.unwrap();
+    assert_eq!(movies.len(), 1);
+    assert_eq!(movies[0].id, ExternalId::tmdb(348));
+    assert_eq!(library_of(&fx, &mal).await, Some(fx.library));
+    assert_eq!(
+        library_of(&fx, &ExternalId::tmdb(348)).await,
+        Some(fx.library)
+    );
+}
+
+#[tokio::test]
+async fn an_episode_of_a_show_with_only_a_made_up_id_is_grouped_and_found_under_it() {
+    let fx = Fixture::new().await;
+    let mal = made_up("mal", "1");
+    let path = "/media/Cowboy Bebop/Season 01/Cowboy Bebop - S01E01.mkv";
+    let episode = Item::Episode {
+        show: "Cowboy Bebop".to_owned(),
+        year: None,
+        hint: None,
+        season: 1,
+        episode: 1,
+    };
+    fx.store(path, 10, episode).await;
+    let item = fx.item(path).await;
+    let metadata = super::super::Metadata {
+        ids: ExternalIds::from_iter([made_up("mal", "e-1")]),
+        show_ids: ExternalIds::from_iter([mal.clone()]),
+        show_title: Some("Cowboy Bebop".to_owned()),
+        ..tmdb_movie(0, "Asteroid Blues")
+    };
+    fx.contents
+        .record(vec![(item, Decided::Matched(Box::new(metadata)))])
+        .await
+        .unwrap();
+
+    let shows = fx.contents.shows(fx.library).await.unwrap();
+    assert_eq!(shows.len(), 1);
+    assert_eq!(shows[0].id, mal);
+    let numbers: Vec<_> = shows[0].episodes().map(|found| found.number).collect();
+    assert_eq!(numbers, [1]);
+    let mut conn = fx.contents.db.reader().acquire().await.unwrap();
+    let found = matched_episodes(&mut conn, &mal, 1).await.unwrap();
+    assert_eq!(found, [1].into());
+}

@@ -167,3 +167,24 @@ async fn pin_refuses_and_stores_no_decisions_when_the_library_is_gone() {
         .collect();
     assert_eq!(undecided, [heat]);
 }
+
+#[tokio::test]
+async fn a_pin_to_a_made_up_id_is_read_back_as_that_id() {
+    let fx = Fixture::new().await;
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    let named = fx
+        .contents
+        .named_like(fx.item(ALIEN).await)
+        .await
+        .unwrap()
+        .unwrap();
+    let pin = Pin::Title(ExternalId::new("anidb", "m-1").unwrap());
+    fx.contents
+        .pin(named.library, named.name, pin.clone(), vec![])
+        .await
+        .unwrap();
+
+    let undecided = fx.contents.undecided(fx.library).await.unwrap();
+    let pinned: Vec<_> = undecided.into_iter().map(|(_, _, pinned)| pinned).collect();
+    assert_eq!(pinned, [Some(pin)]);
+}

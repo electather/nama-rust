@@ -390,6 +390,22 @@ mod tests {
         assert_eq!(watch_states.of(user, &[alien()]).await.unwrap(), [None]);
     }
 
+    #[tokio::test]
+    async fn a_watch_state_kept_against_a_made_up_id_is_read_back() {
+        let data = tempfile::tempdir().unwrap();
+        let (watch_states, user) = watch_states(&data).await;
+        let akira = MovieOrEpisode::movie(&ExternalId::new("anidb", "m-1").unwrap());
+        let halfway = Progress::new(1_000, 2_000).unwrap();
+
+        watch_states
+            .report(user, vec![Some(akira.clone())], halfway)
+            .await
+            .unwrap();
+
+        let state = watch_states.of(user, &[akira]).await.unwrap()[0].unwrap();
+        assert_eq!((state.position_ms, state.played), (1_000, false));
+    }
+
     fn shares(position_ms: u64, duration_ms: u64, episodes: usize) -> Vec<Option<(i64, i64)>> {
         let progress = Progress::new(position_ms, duration_ms).unwrap();
         progress

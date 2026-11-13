@@ -18,8 +18,8 @@ use std::{collections::HashMap, io, iter, sync::Arc};
 use axum::{
     Router,
     body::Body,
-    extract::{Path as UrlPath, Query, Request, State},
-    http::StatusCode,
+    extract::{Query, Request, State},
+    http::{StatusCode, Uri},
     response::{IntoResponse, Response},
     routing::{get, put},
 };
@@ -52,7 +52,9 @@ pub(crate) enum Role {
 
 /// Which image of which title, Plugin or Library a Custom Image stands in for, as its paths name
 /// it: `movie/tmdb-348/poster`, `show/tmdb-1399/backdrop`, `show/tmdb-1399/season/2/poster`,
-/// `plugin/sonarr/logo` or `library/3/backdrop`.
+/// `plugin/sonarr/logo` or `library/3/backdrop`. A title's or Plugin's id is one segment encoded
+/// as `encodeURIComponent` does, since it may hold any character, `/` and `%` among them, and the
+/// web builds these paths with it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Slot(String);
 
@@ -88,21 +90,21 @@ impl Role {
 
 impl Slot {
     pub(crate) fn movie(id: &ExternalId, role: Role) -> Self {
-        Self(format!("movie/{id}/{}", role.name()))
+        Self(format!("movie/{}/{}", segment(id), role.name()))
     }
 
     pub(crate) fn show(id: &ExternalId, role: Role) -> Self {
-        Self(format!("show/{id}/{}", role.name()))
+        Self(format!("show/{}/{}", segment(id), role.name()))
     }
 
     /// A Season has only a Poster.
     pub(crate) fn season(show: &ExternalId, number: i64) -> Self {
-        Self(format!("show/{show}/season/{number}/poster"))
+        Self(format!("show/{}/season/{number}/poster", segment(show)))
     }
 
     /// A Plugin has only a logo.
     pub(crate) fn plugin(id: &PluginId) -> Self {
-        Self(format!("plugin/{id}/logo"))
+        Self(format!("plugin/{}/logo", encode(id.as_str())))
     }
 
     /// Only a Plugin's logo may be an SVG.
@@ -129,15 +131,16 @@ impl Slot {
             "backdrop" => Some(Role::Backdrop),
             _ => None,
         };
+        let title = |segment| parse_hint(&percent_decode(segment)?);
         let parts: Vec<&str> = path.split('/').collect();
         let slot = match parts[..] {
-            ["movie", id, name] => Self::movie(&parse_hint(id)?, role(name)?),
-            ["show", id, name] => Self::show(&parse_hint(id)?, role(name)?),
+            ["movie", id, name] => Self::movie(&title(id)?, role(name)?),
+            ["show", id, name] => Self::show(&title(id)?, role(name)?),
             ["show", id, "season", number, "poster"] => {
-                Self::season(&parse_hint(id)?, number.parse::<u32>().ok()?.into())
+                Self::season(&title(id)?, number.parse::<u32>().ok()?.into())
             }
             ["plugin", id, "logo"] if !id.is_empty() => {
-                Self::plugin(&PluginId::from(id.to_owned()))
+                Self::plugin(&PluginId::from(percent_decode(id)?))
             }
             ["library", id, "backdrop"] => Self::library(id.parse::<u32>().ok()?.into()),
             _ => return None,
@@ -149,6 +152,52 @@ impl Slot {
     fn key(&self) -> Vec<&str> {
         iter::once(DIR).chain(self.0.split('/')).collect()
     }
+}
+
+/// `id`'s text form as one path segment.
+fn segment(id: &ExternalId) -> String {
+    encode(&id.to_string())
+}
+
+/// `text` as `encodeURIComponent` writes it, so a path the web builds is the one [`Slot`] parses
+/// back. It keeps the letters, digits and `-` of today's ids, so their paths, which are stored
+/// keys, don't change; the store makes each key part a safe file name itself.
+fn encode(text: &str) -> String {
+    text.bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'_'
+            | b'.'
+            | b'!'
+            | b'~'
+            | b'*'
+            | b'\''
+            | b'('
+            | b')' => char::from(byte).to_string(),
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
+}
+
+/// `text` with each `%XX` made the byte it stands for, `None` if one is cut short, isn't hex or
+/// the result isn't UTF-8.
+fn percent_decode(text: &str) -> Option<String> {
+    let mut bytes = Vec::with_capacity(text.len());
+    let mut rest = text.as_bytes();
+    while let Some((&byte, tail)) = rest.split_first() {
+        rest = tail;
+        if byte == b'%' {
+            let hex = std::str::from_utf8(rest.get(..2)?).ok()?;
+            bytes.push(u8::from_str_radix(hex, 16).ok()?);
+            rest = rest.get(2..)?;
+        } else {
+            bytes.push(byte);
+        }
+    }
+    String::from_utf8(bytes).ok()
 }
 
 impl Urls {
@@ -354,17 +403,26 @@ fn url(slot: &str, version: &str) -> String {
 /// up to the layers the router is put behind.
 pub(crate) fn router(custom_images: CustomImages, images: ImageSettings) -> Router {
     Router::new()
-        .route("/custom-images/{*slot}", put(upload).delete(remove))
-        .route("/media/custom-images/{*path}", get(serve))
+        .route(&format!("{UPLOADS}{{*slot}}"), put(upload).delete(remove))
+        .route(&format!("{IMAGES}{{*path}}"), get(serve))
         .with_state((custom_images, images))
+}
+
+const UPLOADS: &str = "/custom-images/";
+const IMAGES: &str = "/media/custom-images/";
+
+/// The slot path `uri` names after `prefix`, still percent-encoded as [`Slot`] writes it. Axum's
+/// `Path` would decode it, which makes an id's encoded `/` a separator.
+fn raw_path<'a>(uri: &'a Uri, prefix: &str) -> &'a str {
+    uri.path().strip_prefix(prefix).unwrap_or_default()
 }
 
 async fn upload(
     State((custom_images, _)): State<(CustomImages, ImageSettings)>,
-    UrlPath(slot): UrlPath<String>,
+    uri: Uri,
     body: Body,
 ) -> Response {
-    let Some(slot) = Slot::parse(&slot) else {
+    let Some(slot) = Slot::parse(raw_path(&uri, UPLOADS)) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     // The write commits even if the client goes away, so deleting what it replaced must follow
@@ -394,9 +452,9 @@ async fn upload(
 
 async fn remove(
     State((custom_images, _)): State<(CustomImages, ImageSettings)>,
-    UrlPath(slot): UrlPath<String>,
+    uri: Uri,
 ) -> Response {
-    let Some(slot) = Slot::parse(&slot) else {
+    let Some(slot) = Slot::parse(raw_path(&uri, UPLOADS)) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     // As for an upload, deleting the file follows the committed write (ADR 0029).
@@ -409,11 +467,11 @@ async fn remove(
 
 async fn serve(
     State((custom_images, images)): State<(CustomImages, ImageSettings)>,
-    UrlPath(path): UrlPath<String>,
     Query(asked): Query<Asked>,
     request: Request,
 ) -> Response {
-    let Some((slot, version)) = path.rsplit_once('/') else {
+    let uri = request.uri().clone();
+    let Some((slot, version)) = raw_path(&uri, IMAGES).rsplit_once('/') else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let Some(slot) = Slot::parse(slot) else {
@@ -437,7 +495,90 @@ fn failed(what: &str, err: &Error) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::Slot;
+    use std::{io::Cursor, sync::Arc};
+
+    use http_body_util::{BodyExt, Full};
+    use hyper::{Method, body::Bytes, client::conn::http1};
+    use hyper_util::rt::TokioIo;
+    use image::{ImageFormat, RgbImage};
+    use nama_plugin_api::{PluginId, metadata::ExternalId};
+
+    use super::{CustomImages, Role, Slot, router};
+    use crate::{db::Database, images::ImageStore, server_settings::Settings};
+
+    #[test]
+    fn a_slot_for_an_id_holding_a_slash_or_percent_round_trips_through_its_path() {
+        let id = ExternalId::new("made", "a/b%c").unwrap();
+        let slot = Slot::movie(&id, Role::Poster);
+
+        assert_eq!(slot.0, "movie/made-a%2Fb%25c/poster");
+        assert_eq!(Slot::parse(&slot.0), Some(slot));
+        let tmdb = Slot::movie(&ExternalId::tmdb(348), Role::Poster);
+        assert_eq!(tmdb.0, "movie/tmdb-348/poster");
+        // Only the one encoding names it.
+        assert_eq!(Slot::parse("movie/made-a%2fb%25c/poster"), None);
+        assert_eq!(Slot::parse("movie/made-a%2Fb%c/poster"), None);
+        // As `encodeURIComponent("made-a~b(c)")` writes it.
+        let kept = Slot::movie(&ExternalId::new("made", "a~b(c)").unwrap(), Role::Poster);
+        assert_eq!(kept.0, "movie/made-a~b(c)/poster");
+        assert_eq!(Slot::parse(&kept.0), Some(kept));
+    }
+
+    #[test]
+    fn a_slot_for_a_plugin_id_holding_a_space_or_slash_round_trips_through_its_path() {
+        let slot = Slot::plugin(&PluginId::from("My Plugin/x".to_owned()));
+
+        assert_eq!(slot.0, "plugin/My%20Plugin%2Fx/logo");
+        assert_eq!(Slot::parse(&slot.0), Some(slot));
+        assert_eq!(Slot::parse("plugin/My Plugin%2Fx/logo"), None);
+    }
+
+    /// Sends `body` to `path` on the server at `addr` as `method`, and returns the status.
+    async fn send(addr: std::net::SocketAddr, method: Method, path: &str, body: Vec<u8>) -> u16 {
+        let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let (mut sender, connection) = http1::handshake(TokioIo::new(stream)).await.unwrap();
+        tokio::spawn(connection);
+        let request = hyper::Request::builder()
+            .method(method)
+            .uri(path)
+            .header("host", addr.to_string())
+            .body(Full::new(Bytes::from(body)))
+            .unwrap();
+        let response = sender.send_request(request).await.unwrap();
+        let status = response.status().as_u16();
+        response.into_body().collect().await.unwrap();
+        status
+    }
+
+    #[tokio::test]
+    async fn an_image_for_an_id_holding_a_slash_is_uploaded_and_served_at_its_path() {
+        let data = tempfile::tempdir().unwrap();
+        let db = Arc::new(Database::open(data.path()).await.unwrap());
+        let store = ImageStore::new(data.path(), Arc::clone(&db));
+        let custom_images = CustomImages::new(Arc::clone(&db), store);
+        let images = Settings::new(db, data.path().to_owned()).images();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let app = router(custom_images.clone(), images);
+        tokio::spawn(async move { axum::serve(listener, app).await });
+        let mut png = Cursor::new(Vec::new());
+        RgbImage::new(2, 3)
+            .write_to(&mut png, ImageFormat::Png)
+            .unwrap();
+        let slot = Slot::movie(&ExternalId::new("made", "a/b%c").unwrap(), Role::Poster);
+
+        let uploaded = send(
+            addr,
+            Method::PUT,
+            &format!("/custom-images/{}", slot.0),
+            png.into_inner(),
+        )
+        .await;
+
+        assert_eq!(uploaded, 204);
+        let url = custom_images.urls().await.unwrap().of(&slot).unwrap();
+        assert_eq!(send(addr, Method::GET, &url, Vec::new()).await, 200);
+    }
 
     #[test]
     fn a_slot_is_named_by_one_path_only() {
