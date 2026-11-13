@@ -5,7 +5,7 @@ use std::{borrow::Cow, sync::Arc};
 use nama_plugin_api::metadata::ExternalIds;
 use tempfile::TempDir;
 
-use super::{Change, Contents, Item, ItemKind, ItemRow, MatchState};
+use super::{Change, Contents, Item, ItemKind, ItemRow, decisions::MatchState};
 use crate::{
     db::Database,
     libraries::{Kind, Libraries},
