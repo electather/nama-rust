@@ -69,7 +69,7 @@ async fn an_available_season_request_stays_available_when_a_later_episode_airs()
     let pilot = Item::Episode {
         show: "Dark".to_owned(),
         year: None,
-        hint: Some(ExternalId::Tmdb(DARK)),
+        hint: Some(ExternalId::tmdb(DARK)),
         season: 1,
         episode: 1,
     };

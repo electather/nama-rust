@@ -353,7 +353,7 @@ mod tests {
     }
 
     fn alien() -> MovieOrEpisode {
-        MovieOrEpisode::movie(&ExternalId::Tmdb(ALIEN_TMDB_ID))
+        MovieOrEpisode::movie(&ExternalId::tmdb(ALIEN_TMDB_ID))
     }
 
     #[tokio::test]

@@ -124,7 +124,7 @@ impl Requests {
     ) -> Result<FoundShow, Error> {
         let (plugin, show) = self
             .metadata
-            .show(&ExternalId::Tmdb(tmdb_id))
+            .show(&ExternalId::tmdb(tmdb_id))
             .await
             .map_err(|err| looking_up(err, Error::NoSuchShow(tmdb_id)))?;
         let seasons = self.seasons(tmdb_id, &show).await?;
@@ -152,7 +152,7 @@ impl Requests {
     /// Each of the Seasons `show`, the Show `tmdb_id`, lists, fetched now. One it lists but can't
     /// give fails the lookup as an unknown Show.
     pub(super) async fn seasons(&self, tmdb_id: i64, show: &Show) -> Result<Vec<Season>, Error> {
-        let id = ExternalId::Tmdb(tmdb_id);
+        let id = ExternalId::tmdb(tmdb_id);
         let mut seasons = Vec::with_capacity(show.seasons.len());
         // ponytail: one metadata lookup per Season, one after another.
         for &number in &show.seasons {
@@ -180,7 +180,7 @@ impl Requests {
     /// [`Error::Unavailable`] as [`looking_up`] maps it.
     pub(super) async fn fetch(&self, tmdb_id: i64) -> Result<Metadata, Error> {
         self.metadata
-            .movie(&ExternalId::Tmdb(tmdb_id))
+            .movie(&ExternalId::tmdb(tmdb_id))
             .await
             .map_err(|err| looking_up(err, Error::NoSuchMovie(tmdb_id)))
     }

@@ -210,7 +210,7 @@ async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_mad
     let pinning = scanner.matcher().clone();
 
     leave_once_queued(&requests, async move {
-        pinning.set_match(item, &ExternalId::Tmdb(949)).await
+        pinning.set_match(item, &ExternalId::tmdb(949)).await
     })
     .await;
 

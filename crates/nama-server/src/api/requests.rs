@@ -549,12 +549,12 @@ impl RequestServiceHandler {
 
 /// The slot of the Movie whose TMDB id is `tmdb_id`, as browsing identifies it.
 fn movie_slot(tmdb_id: i64, role: Role) -> Slot {
-    Slot::movie(&ExternalId::Tmdb(tmdb_id), role)
+    Slot::movie(&ExternalId::tmdb(tmdb_id), role)
 }
 
 /// The slot of the Show whose TMDB id is `tmdb_id`, as browsing identifies it.
 fn show_slot(tmdb_id: i64, role: Role) -> Slot {
-    Slot::show(&ExternalId::Tmdb(tmdb_id), role)
+    Slot::show(&ExternalId::tmdb(tmdb_id), role)
 }
 
 /// `title`, unless it is blank, which a search for titles refuses.
@@ -669,14 +669,14 @@ impl From<requests::Error> for ConnectError {
             }
             requests::Error::NoSuchMovie(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
                 .field("movie_tmdb_id")
-                .param("titleId", &ExternalId::Tmdb(id)),
+                .param("titleId", &ExternalId::tmdb(id)),
             requests::Error::NoSuchShow(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
                 .field("show_tmdb_id")
-                .param("titleId", &ExternalId::Tmdb(id)),
+                .param("titleId", &ExternalId::tmdb(id)),
             requests::Error::NoSuchSeason { show, season } => {
                 refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
                     .field("season_numbers")
-                    .param("titleId", &ExternalId::Tmdb(show))
+                    .param("titleId", &ExternalId::tmdb(show))
                     .param("seasonNumber", &season)
             }
             requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),

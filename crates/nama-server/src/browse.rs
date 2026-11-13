@@ -784,10 +784,7 @@ mod tests {
     /// A Match of an Episode of A Knight of the Seven Kingdoms with the TMDB id `tmdb`.
     fn knight_match(tmdb: i64) -> Decided {
         Decided::Matched(Box::new(Metadata {
-            show_ids: ExternalIds {
-                tmdb: Some(KNIGHT_TMDB_ID),
-                ..ExternalIds::default()
-            },
+            show_ids: ExternalIds::from_iter([ExternalId::tmdb(KNIGHT_TMDB_ID)]),
             show_title: Some("A Knight of the Seven Kingdoms".to_owned()),
             ..tmdb_movie(tmdb, "An Episode")
         }))
@@ -825,7 +822,7 @@ mod tests {
         let mut states = Vec::new();
         for number in [1, 2] {
             let episodes = browse
-                .episodes(user, library, &ExternalId::Tmdb(KNIGHT_TMDB_ID), number)
+                .episodes(user, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), number)
                 .await
                 .unwrap();
             let season = episodes
@@ -877,10 +874,7 @@ mod tests {
             episode: 1,
         };
         let matched = Metadata {
-            show_ids: ExternalIds {
-                tmdb: Some(KNIGHT_TMDB_ID),
-                ..ExternalIds::default()
-            },
+            show_ids: ExternalIds::from_iter([ExternalId::tmdb(KNIGHT_TMDB_ID)]),
             show_title: Some("A Knight of the Seven Kingdoms".to_owned()),
             ..tmdb_movie(KNIGHT_PILOT_TMDB_ID, "The Hedge Knight")
         };
@@ -893,8 +887,8 @@ mod tests {
             .unwrap();
         let browse = Browse::new(db);
         let (show, pilot) = (
-            ExternalId::Tmdb(KNIGHT_TMDB_ID),
-            ExternalId::Tmdb(KNIGHT_PILOT_TMDB_ID),
+            ExternalId::tmdb(KNIGHT_TMDB_ID),
+            ExternalId::tmdb(KNIGHT_PILOT_TMDB_ID),
         );
 
         let (listed, _) = browse
@@ -940,7 +934,7 @@ mod tests {
                 Started::Episode { .. } => panic!("Alien is a Movie"),
             })
             .collect();
-        assert_eq!(listed, [(older.library, ExternalId::Tmdb(ALIEN_TMDB_ID))]);
+        assert_eq!(listed, [(older.library, ExternalId::tmdb(ALIEN_TMDB_ID))]);
     }
 
     #[tokio::test]
@@ -978,7 +972,7 @@ mod tests {
             .unwrap();
 
         let (movie, _, _) = Browse::new(db)
-            .movie(0, library, &ExternalId::Tmdb(ALIEN_TMDB_ID))
+            .movie(0, library, &ExternalId::tmdb(ALIEN_TMDB_ID))
             .await
             .unwrap();
 
@@ -1001,7 +995,7 @@ mod tests {
         browse.report(user, alien, halfway).await.unwrap();
 
         let (_, state, _) = browse
-            .movie(user, library, &ExternalId::Tmdb(ALIEN_TMDB_ID))
+            .movie(user, library, &ExternalId::tmdb(ALIEN_TMDB_ID))
             .await
             .unwrap();
         let state = state.unwrap();
@@ -1075,7 +1069,7 @@ mod tests {
         let library = library_with_alien(&db, &folder).await.library;
         let user = ada(&db).await;
         let browse = Browse::new(db);
-        let alien = ExternalId::Tmdb(ALIEN_TMDB_ID);
+        let alien = ExternalId::tmdb(ALIEN_TMDB_ID);
         let played = async || {
             let (_, state, _) = browse.movie(user, library, &alien).await.unwrap();
             state.map(|state| state.played)
@@ -1096,10 +1090,10 @@ mod tests {
         let (library, _) = library_with_knight(&db, &folder).await;
         let user = ada(&db).await;
         let browse = Browse::new(db);
-        let show = ExternalId::Tmdb(KNIGHT_TMDB_ID);
+        let show = ExternalId::tmdb(KNIGHT_TMDB_ID);
         let played = Some((0, true));
 
-        let pilot = Target::Episode(ExternalId::Tmdb(KNIGHT_PILOT_TMDB_ID));
+        let pilot = Target::Episode(ExternalId::tmdb(KNIGHT_PILOT_TMDB_ID));
         browse.mark(user, library, pilot, true).await.unwrap();
         assert_eq!(
             knight_states(&browse, user, library).await,
@@ -1145,13 +1139,13 @@ mod tests {
         let (library, _) = library_with_knight(&db, &folder).await;
         let user = ada(&db).await;
         let browse = Browse::new(db);
-        let (show, elsewhere) = (ExternalId::Tmdb(KNIGHT_TMDB_ID), ExternalId::Tmdb(1));
+        let (show, elsewhere) = (ExternalId::tmdb(KNIGHT_TMDB_ID), ExternalId::tmdb(1));
 
         let marks = [
             Target::Episode(elsewhere.clone()),
             Target::Show(elsewhere),
             Target::Season { show, number: 3 },
-            Target::Movie(ExternalId::Tmdb(ALIEN_TMDB_ID)),
+            Target::Movie(ExternalId::tmdb(ALIEN_TMDB_ID)),
         ];
         let mut refused = Vec::new();
         for target in marks {

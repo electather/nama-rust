@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use nama_plugin_api::{
     fulfiller::{Movies, Shows},
-    metadata::{ExternalId, ExternalIds, Season},
+    metadata::{ExternalId, ExternalIds, IMDB, Season, TVDB},
 };
 use nama_proto::nama::v1::{
     FollowedShow, Permission, Request, RequestCreated, RequestState, Requester, RequesterAdded,
@@ -104,7 +104,7 @@ impl Requests {
         chosen: Option<i64>,
     ) -> Result<Vec<Request>, Error> {
         let quality = self.quality::<Shows>(asker, chosen).await?;
-        let id = ExternalId::Tmdb(tmdb_id);
+        let id = ExternalId::tmdb(tmdb_id);
         let (_, show) = self
             .metadata
             .show(&id)
@@ -435,8 +435,11 @@ async fn insert_request(
         wanted.season,
         wanted.title,
         wanted.release_date,
-        wanted.show_ids.imdb,
-        wanted.show_ids.tvdb,
+        wanted.show_ids.get(IMDB).map(|id| id.value().to_owned()),
+        wanted
+            .show_ids
+            .get(TVDB)
+            .and_then(|id| id.value().parse::<i64>().ok()),
         state,
         now,
         wanted.followed_show,

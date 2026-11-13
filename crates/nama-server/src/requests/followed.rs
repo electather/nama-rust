@@ -37,7 +37,7 @@ impl Requests {
         chosen: Option<i64>,
     ) -> Result<(FollowedShow, Vec<Request>), Error> {
         let quality = self.quality::<Shows>(asker, chosen).await?;
-        let id = ExternalId::Tmdb(tmdb_id);
+        let id = ExternalId::tmdb(tmdb_id);
         let (_, show) = self
             .metadata
             .show(&id)

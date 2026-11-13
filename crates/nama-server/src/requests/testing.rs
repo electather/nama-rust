@@ -191,10 +191,7 @@ impl<Kind: 'static> Plugin for FulfillerPlugin<Kind> {
 
 /// The ids of a title with the TMDB id `tmdb_id`.
 pub(super) fn tmdb(tmdb_id: i64) -> ExternalIds {
-    ExternalIds {
-        tmdb: Some(tmdb_id),
-        ..ExternalIds::default()
-    }
+    ExternalIds::from_iter([ExternalId::tmdb(tmdb_id)])
 }
 
 /// A Match to the title with `ids`, or for an Episode to its Show's `show_ids`.
@@ -536,7 +533,7 @@ pub(super) async fn match_dark_episodes(db: &Arc<Database>, season: i64, episode
             items: vec![Item::Episode {
                 show: "Dark".to_owned(),
                 year: None,
-                hint: Some(ExternalId::Tmdb(DARK)),
+                hint: Some(ExternalId::tmdb(DARK)),
                 season,
                 episode,
             }],
