@@ -18,7 +18,8 @@ use nama_proto::nama::v1::{Request, RequestState, request::MovieOrSeason};
 use tokio::sync::{Notify, mpsc::UnboundedReceiver};
 use tracing::{error, warn};
 
-use super::{Error, Requests, as_handed_off, load, load_one, lock};
+use super::listing::{load, load_one};
+use super::{Error, Requests, as_handed_off, lock};
 use crate::{
     db::{BoxFuture, Database, detached},
     plugins::{Answer, ExtensionPoints},

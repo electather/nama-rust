@@ -6,7 +6,8 @@ use nama_proto::nama::v1::{Event, Request, RequestState, RequestStateChanged, Re
 use sqlx::SqliteConnection;
 
 use super::asked::Asked;
-use super::{Applied, Error, Requests, load_one, progress, qualities, quality_columns};
+use super::listing::load_one;
+use super::{Applied, Error, Requests, progress, qualities, quality_columns};
 use crate::{events::event, plugins::Answer};
 
 /// Each Request state as `requests.state` stores it.

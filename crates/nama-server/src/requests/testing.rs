@@ -9,15 +9,15 @@ use nama_plugin_api::{
     metadata::{Episode, ExternalId, ExternalIds, Season},
 };
 use nama_proto::nama::v1::{
-    Event, FollowedShow, Permission, Request, RequestState, SubscribeResponse,
-    event::Event as Happened, subscribe_response,
+    Event, FollowedShow, Permission, Request, RequestState, RequestedMovie, RequestedSeason,
+    SubscribeResponse, event::Event as Happened, subscribe_response,
 };
 use sqlx::SqliteConnection;
 
 use super::state::{STATES, settle};
 use super::{
-    Applied, MovieOrSeason, RequestedMovie, RequestedSeason, Requests, Wanted, WantedSeasons, ask,
-    ask_movie, follow, make_seasons_available, opening_state, qualities,
+    Applied, MovieOrSeason, Requests, Wanted, WantedSeasons, ask, ask_movie, follow,
+    make_seasons_available, opening_state, qualities,
 };
 use crate::{
     db::Database,

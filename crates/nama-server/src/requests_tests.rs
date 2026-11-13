@@ -22,6 +22,7 @@ use nama_proto::nama::v1::{
 };
 use tokio::sync::Notify;
 
+use super::listing::{load, load_one};
 use super::testing::{
     ADA, Asked, BOB, DARK, FulfillerPlugin, NOTHING, ada, ada_and_bob, approved_for, approved_on,
     ask_as, ask_each, ask_for, asked_season, breaking_bad, come_up, dark, dark_season, downloading,
@@ -31,8 +32,8 @@ use super::testing::{
 };
 use super::{
     Applied, Error, Requests, Wanted, WantedSeasons, approve, ask_movie, ask_seasons, asked,
-    availability, cancel, cancel_followed, decide_followed, decline, load, load_one, progress,
-    qualities, retry, withdraw, withdraw_followed,
+    availability, cancel, cancel_followed, decide_followed, decline, progress, qualities, retry,
+    withdraw, withdraw_followed,
 };
 use crate::{
     artwork::Artwork,
@@ -1410,36 +1411,6 @@ async fn only_its_requesters_and_those_who_may_view_requests_see_one() {
 
         assert_eq!(seen, [true, false, true], "{kind:?}");
     }
-}
-
-#[tokio::test]
-async fn the_pending_count_is_as_many_as_the_pending_list_shows() {
-    let (_data, db) = ada_and_bob().await;
-    let requests = requests_on(Arc::clone(&db), ExtensionPoints::default());
-    ask_for(&db, ADA, 949, RequestState::Pending).await;
-    ask_for(&db, ADA, 603, RequestState::Approved).await;
-    follow_as(&db, ADA, dark(), RequestState::Pending).await;
-    follow_as(&db, ADA, breaking_bad(), RequestState::Approved).await;
-    let nothing = Permissions::from_iter([]);
-    let viewers = [
-        user(BOB, Permissions::from_iter([Permission::ViewRequests])),
-        ada(nothing),
-        user(BOB, nothing),
-    ];
-
-    let mut counted_and_listed = Vec::new();
-    for viewer in &viewers {
-        let counted = requests.count_pending(viewer).await.unwrap();
-        let page = requests
-            .list(viewer, Some(RequestState::Pending), 100, "")
-            .await
-            .unwrap();
-        let listed = page.requests.len() + page.followed_shows.len();
-        counted_and_listed.push((counted, u32::try_from(listed).unwrap()));
-    }
-
-    // Ada's Pending Movie, Followed Show and its two Season Requests.
-    assert_eq!(counted_and_listed, [(4, 4), (4, 4), (0, 0)]);
 }
 
 /// A Shows Fulfiller that takes every Request, and keeps the TMDB id of each Show it is told
