@@ -1,8 +1,8 @@
 //! Browse: the Movies and Shows a Library holds, as a User sees them.
 //!
 //! [`Browse`] finds titles through [`Contents`], never in the content tables itself (see
-//! `AGENTS.md`), and attaches their Versions' Tracks and the User's [`WatchState`]s. It writes only
-//! Watch State, for what a reported Version or a marked title stands for (ADR 0013).
+//! `src/library/AGENTS.md`), and attaches their Versions' Tracks and the User's [`WatchState`]s.
+//! It writes only Watch State, for what a reported Version or a marked title stands for (ADR 0013).
 
 use std::{
     collections::{HashMap, HashSet},

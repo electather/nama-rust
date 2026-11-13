@@ -1,7 +1,7 @@
 //! What a Library holds: the video files a scan stored, the Items their names say they hold, what
 //! Matching decided about each Item, and the Matches an admin pinned.
 //!
-//! [`Contents`] owns the tables (see the crate's `AGENTS.md`); each method is one read or one write.
+//! [`Contents`] owns the tables (see `src/library/AGENTS.md`); each method is one read or one write.
 //! A write that stores Matches also makes the Matched Movies' and Seasons' Requests Available, or
 //! Partially Available (ADR 0012).
 

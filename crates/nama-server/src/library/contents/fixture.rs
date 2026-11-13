@@ -1,5 +1,5 @@
 //! A Library with a Matched Movie, which in-file tests across the Server build on. It writes
-//! through [`Contents`], as the crate's `AGENTS.md` asks of every test.
+//! through [`Contents`], as `src/library/AGENTS.md` asks of every test.
 
 use std::{path::Path, sync::Arc};
 
