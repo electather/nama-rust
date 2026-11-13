@@ -247,24 +247,27 @@ test("enabling a second Movie Fulfiller names the Plugin that is the Fulfiller",
   expect(alert.getAttribute("role")).toBe("alert");
 });
 
-test("enabling a Plugin that refuses to start says why in its words", async () => {
+test.each([
+  [
+    "says why in its words",
+    { reason: "the key was turned down" },
+    "It refused to start: the key was turned down.",
+  ],
+  ["without a reason says so plainly", {}, "It refused to start."],
+])("enabling a Plugin that refuses to start %s", async (_, params, text) => {
   openPlugins({
     enablePlugin: () => {
-      throw refused(
-        Code.FailedPrecondition,
-        "test-plugin refused to start: the key was turned down",
-        {
-          reason: RefusalReason.PLUGIN_REFUSED_TO_START,
-          field: "id",
-          params: { pluginId: "test-plugin", reason: "the key was turned down" },
-        },
-      );
+      throw refused(Code.FailedPrecondition, "test-plugin refused to start", {
+        reason: RefusalReason.PLUGIN_REFUSED_TO_START,
+        field: "id",
+        params: { pluginId: "test-plugin", ...params },
+      });
     },
   });
   const testPlugin = await row("test-plugin");
   fireEvent.click(testPlugin.getByRole("button", { name: "Enable test-plugin" }));
 
-  const alert = await testPlugin.findByText("It refused to start: the key was turned down");
+  const alert = await testPlugin.findByText(text);
   expect(alert.getAttribute("role")).toBe("alert");
 });
 

@@ -71,7 +71,7 @@ function refusedChange(error: unknown, doing: string, settings: Setting[] | unde
   // The Server names a setting as `settings.<key>`.
   const key = field.replace(/^settings\./u, "");
   const label = settings?.find((setting) => setting.key === key)?.label ?? key;
-  const { fulfillerPluginId, titleKind } = params;
+  const { fulfillerPluginId, titleKind, reason } = params;
   return refusal(
     error,
     doing,
@@ -87,7 +87,14 @@ function refusedChange(error: unknown, doing: string, settings: Setting[] | unde
       [RefusalReason.SETTING_WRONG_KIND]: {
         form: `Its ${label} setting isn’t valid, so it can’t be enabled.`,
       },
-      [RefusalReason.PLUGIN_REFUSED_TO_START]: { form: `It refused to start: ${params["reason"]}` },
+      [RefusalReason.PLUGIN_REFUSED_TO_START]: { form: refusedToStart(reason) },
     },
   ).form;
+}
+
+/** The refused-to-start sentence, with the Plugin's own reason when it gave one. */
+function refusedToStart(reason: string | undefined) {
+  return reason !== undefined && reason !== ""
+    ? `It refused to start: ${reason.replace(/\.$/u, "")}.`
+    : "It refused to start.";
 }
