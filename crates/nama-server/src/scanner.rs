@@ -1090,7 +1090,7 @@ mod tests {
                 ),
                 (
                     "Blade Runner (1982) {tmdb-78}/Blade Runner (1982).mkv".to_owned(),
-                    movie("Blade Runner", 1982, Some(ExternalId::Tmdb(78)))
+                    movie("Blade Runner", 1982, Some(ExternalId::tmdb(78)))
                 ),
                 (
                     "Heat (1995)/Heat (1995).mkv".to_owned(),

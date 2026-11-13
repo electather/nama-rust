@@ -183,11 +183,7 @@ fn parse_movie(folders: &[String], stem: &str) -> Option<Item> {
                 .map(|folder| folder.hints)
                 .unwrap_or_default();
             Named {
-                hints: ExternalIds {
-                    tmdb: file.hints.tmdb.or(folder_hints.tmdb),
-                    imdb: file.hints.imdb.clone().or(folder_hints.imdb),
-                    tvdb: file.hints.tvdb.or(folder_hints.tvdb),
-                },
+                hints: file_wins(&file.hints, folder_hints),
                 ..file
             }
         }
@@ -201,6 +197,15 @@ fn parse_movie(folders: &[String], stem: &str) -> Option<Item> {
         title: named.title,
         year: named.year,
     })
+}
+
+/// `folder`'s ID Hints, each replaced by `file`'s of the same namespace.
+fn file_wins(file: &ExternalIds, folder: ExternalIds) -> ExternalIds {
+    let mut hints = folder;
+    for id in file.iter() {
+        hints.insert(id);
+    }
+    hints
 }
 
 /// The Episodes in a file, in the Show named by the folder holding the file's Season folder, or
@@ -291,7 +296,7 @@ fn title_and_year(name: &str) -> Option<Named> {
         None => (&*untagged, None),
     };
     let title = clean_title(title);
-    if title.is_empty() || (year.is_none() && hints == ExternalIds::default()) {
+    if title.is_empty() || (year.is_none() && hints.is_empty()) {
         return None;
     }
     Some(Named { title, year, hints })
@@ -308,13 +313,15 @@ fn id_hints(name: &str) -> ExternalIds {
             continue;
         };
         let id = id.as_str().to_ascii_lowercase();
-        match source.as_deref() {
-            Some("tmdb") => hints.tmdb = hints.tmdb.or_else(|| id.parse().ok()),
-            Some("tvdb") => hints.tvdb = hints.tvdb.or_else(|| id.parse().ok()),
-            Some("imdb") | None if id.starts_with("tt") => {
-                hints.imdb.get_or_insert(id);
-            }
-            _ => {}
+        let hint = match source.as_deref() {
+            Some("tmdb") => id.parse().ok().map(ExternalId::tmdb),
+            Some("tvdb") => id.parse().ok().map(ExternalId::tvdb),
+            Some("imdb") | None if id.starts_with("tt") => ExternalId::new(IMDB, id).ok(),
+            _ => None,
+        };
+        // The first hint of a namespace in a name wins.
+        if let Some(hint) = hint.filter(|hint| hints.get(hint.namespace()).is_none()) {
+            hints.insert(hint);
         }
     }
     hints
