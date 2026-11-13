@@ -3,7 +3,10 @@
 
 use std::{path::Path, sync::Arc};
 
-use nama_plugin_api::{PluginId, metadata::ExternalIds};
+use nama_plugin_api::{
+    PluginId,
+    metadata::{ExternalId, ExternalIds},
+};
 
 use super::{Change, Contents, Decided, Item, Metadata};
 use crate::{
@@ -101,10 +104,7 @@ pub(crate) async fn decide(
 pub(crate) fn tmdb_movie(tmdb: i64, title: &str) -> Metadata {
     Metadata {
         plugin: PluginId::from_static("tmdb"),
-        ids: ExternalIds {
-            tmdb: Some(tmdb),
-            ..ExternalIds::default()
-        },
+        ids: ExternalIds::from_iter([ExternalId::tmdb(tmdb)]),
         show_ids: ExternalIds::default(),
         title: title.to_owned(),
         original_title: None,

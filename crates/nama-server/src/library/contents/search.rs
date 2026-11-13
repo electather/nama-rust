@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use super::{Contents, ItemKind, primary_id, show_poster};
+use super::{Contents, ItemKind, ids_from_json, ids_sql, primary_id, show_poster};
 
 /// What [`Contents::search`] found in every Library, each kind best fit first, and each Movie,
 /// Show or Episode once per Library that has it.
@@ -115,25 +115,30 @@ impl Contents {
 
     /// The Matched Items whose `title_search` row fits the FTS5 query `fts_query`, best fit first.
     async fn search_rows(&self, fts_query: &str) -> Result<Vec<SearchRow>, sqlx::Error> {
-        sqlx::query_as!(
-            SearchRow,
-            r#"SELECT library_files.library_id AS library,
-                      library_items.kind AS "kind: ItemKind", library_items.season,
-                      library_items.episode, item_matches.plugin AS "plugin!",
-                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,
-                      item_matches.show_tmdb_id, item_matches.show_imdb_id,
-                      item_matches.show_tvdb_id, item_matches.title AS "title!",
-                      item_matches.show_title, item_matches.release_date, item_matches.poster
-               FROM title_search
-               JOIN item_matches ON item_matches.item_id = title_search.rowid
-               JOIN library_items ON library_items.id = item_matches.item_id
-               JOIN library_files ON library_files.id = library_items.file_id
-               WHERE title_search MATCH ?
-               ORDER BY title_search.rank"#,
-            fts_query
-        )
-        .fetch_all(self.db.reader())
-        .await
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query_as!(
+                    SearchRow,
+                    r#"SELECT library_files.library_id AS library,
+                              library_items.kind AS "kind: ItemKind", library_items.season,
+                              library_items.episode, item_matches.plugin AS "plugin!", "#
+                        + $ids
+                        + r#"'title') AS "ids?: String", "#
+                        + $ids
+                        + r#"'show') AS "show_ids?: String", item_matches.title AS "title!",
+                              item_matches.show_title, item_matches.release_date,
+                              item_matches.poster
+                       FROM title_search
+                       JOIN item_matches ON item_matches.item_id = title_search.rowid
+                       JOIN library_items ON library_items.id = item_matches.item_id
+                       JOIN library_files ON library_files.id = library_items.file_id
+                       WHERE title_search MATCH ?
+                       ORDER BY title_search.rank"#,
+                    fts_query
+                )
+            };
+        }
+        ids_sql!(select).fetch_all(self.db.reader()).await
     }
 }
 
@@ -146,12 +151,10 @@ struct SearchRow {
     /// Set for an Episode.
     episode: Option<i64>,
     plugin: String,
-    tmdb_id: Option<i64>,
-    imdb_id: Option<String>,
-    tvdb_id: Option<i64>,
-    show_tmdb_id: Option<i64>,
-    show_imdb_id: Option<String>,
-    show_tvdb_id: Option<i64>,
+    /// As [`ids_sql`] gives them.
+    ids: Option<String>,
+    /// As [`ids_sql`] gives them.
+    show_ids: Option<String>,
     title: String,
     show_title: Option<String>,
     release_date: Option<String>,
@@ -160,19 +163,11 @@ struct SearchRow {
 
 impl SearchRow {
     fn ids(&self) -> ExternalIds {
-        ExternalIds {
-            tmdb: self.tmdb_id,
-            imdb: self.imdb_id.clone(),
-            tvdb: self.tvdb_id,
-        }
+        ids_from_json(self.ids.as_deref())
     }
 
     fn show_ids(&self) -> ExternalIds {
-        ExternalIds {
-            tmdb: self.show_tmdb_id,
-            imdb: self.show_imdb_id.clone(),
-            tvdb: self.show_tvdb_id,
-        }
+        ids_from_json(self.show_ids.as_deref())
     }
 }
 

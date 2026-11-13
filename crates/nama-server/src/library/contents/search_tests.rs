@@ -74,14 +74,8 @@ async fn a_year_after_the_words_narrows_a_search_to_that_year_or_titles_with_it(
 fn office_episode(tmdb: i64, title: &str) -> Decided {
     Decided::Matched(Box::new(Metadata {
         plugin: PluginId::from_static("tmdb"),
-        ids: ExternalIds {
-            tmdb: Some(tmdb),
-            ..ExternalIds::default()
-        },
-        show_ids: ExternalIds {
-            tmdb: Some(THE_OFFICE),
-            ..ExternalIds::default()
-        },
+        ids: ExternalIds::from_iter([ExternalId::tmdb(tmdb)]),
+        show_ids: ExternalIds::from_iter([ExternalId::tmdb(THE_OFFICE)]),
         title: title.to_owned(),
         original_title: None,
         show_title: Some("The Office".to_owned()),

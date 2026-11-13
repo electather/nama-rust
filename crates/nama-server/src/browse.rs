@@ -13,7 +13,7 @@ use nama_plugin_api::{
     fulfiller::{
         EpisodeNumber, EpisodeNumbers, ShowDeleted, show_deleted::Deleted, stop_monitoring::Title,
     },
-    metadata::{ExternalId, TMDB},
+    metadata::{ExternalId, TMDB, TVDB},
 };
 
 use crate::{
@@ -511,7 +511,8 @@ fn to_unmonitor_of<'a>(
     episodes: impl Iterator<Item = &'a contents::Episode>,
 ) -> Option<Title> {
     let show_tmdb_id = tmdb_id_of(&show.id);
-    if show_tmdb_id.is_none() && show.tvdb_id.is_none() {
+    let tvdb = (show.ids.get(TVDB)).and_then(|id| id.value().parse::<i64>().ok());
+    if show_tmdb_id.is_none() && tvdb.is_none() {
         return None;
     }
     // A scan parses season and episode numbers from digits, so they are never negative.
@@ -534,13 +535,12 @@ fn to_unmonitor_of<'a>(
             })
         }
     };
-    let show = ShowDeleted {
+    Some(Title::from(ShowDeleted {
         show_tmdb_id,
-        show_tvdb_id: show.tvdb_id,
+        show_tvdb_id: tvdb,
         deleted: Some(deleted),
         ..Default::default()
-    };
-    Some(Title::from(show))
+    }))
 }
 
 /// The Episodes of `shows` that `target` names, with its name for the log and their Show. A Movie

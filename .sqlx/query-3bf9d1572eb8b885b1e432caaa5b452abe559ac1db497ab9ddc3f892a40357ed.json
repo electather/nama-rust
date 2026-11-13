@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO item_matches (\n                 item_id, state, plugin, title, original_title, show_title,\n                 overview, release_date, runtime_minutes, poster, backdrop, still,\n                 unmatched_reason, tied_titles, metadata_version, decided_at)\n             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?\n             WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 17
+    },
+    "nullable": []
+  },
+  "hash": "3bf9d1572eb8b885b1e432caaa5b452abe559ac1db497ab9ddc3f892a40357ed"
+}

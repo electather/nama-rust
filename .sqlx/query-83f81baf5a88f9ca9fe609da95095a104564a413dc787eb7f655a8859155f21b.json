@@ -1,0 +1,57 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_id AS \"library!\", plugin AS \"plugin!\",\n                              backdrop AS \"backdrop!\", ids AS \"ids?: String\"\n                       FROM (SELECT library_files.library_id, item_matches.plugin,\n                                    item_matches.backdrop, (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = IIF(library_items.kind = 'movie', 'title', 'show')) AS ids,\n                                    ROW_NUMBER() OVER (PARTITION BY library_files.library_id\n                                                       ORDER BY library_items.id DESC) AS newest\n                             FROM item_matches\n                             JOIN library_items ON library_items.id = item_matches.item_id\n                             JOIN library_files ON library_files.id = library_items.file_id\n                             WHERE item_matches.state = 'matched'\n                               AND item_matches.backdrop IS NOT NULL)\n                       WHERE newest = 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "library!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "library_id"
+          }
+        }
+      },
+      {
+        "name": "plugin!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "backdrop!",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "backdrop"
+          }
+        }
+      },
+      {
+        "name": "ids?: String",
+        "ordinal": 3,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "83f81baf5a88f9ca9fe609da95095a104564a413dc787eb7f655a8859155f21b"
+}

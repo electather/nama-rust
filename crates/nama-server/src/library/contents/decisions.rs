@@ -4,12 +4,14 @@ use std::borrow::Cow;
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{self, ExternalId, ExternalIds},
+    metadata::{self, ExternalId, ExternalIds, IMDB, TMDB},
 };
 use nama_proto::nama::v1::Event;
 use sqlx::SqliteConnection;
 
-use super::{Contents, Item, ItemKind, ItemRow, Pin, parse_hint, primary_id};
+use super::{
+    Contents, Item, ItemKind, ItemRow, Pin, ids_from_json, ids_sql, parse_hint, primary_id,
+};
 use crate::{db::now, matching::METADATA_VERSION, requests};
 
 #[derive(Debug)]
@@ -128,11 +130,12 @@ impl Contents {
         Ok(rows
             .into_iter()
             .filter_map(|row| {
-                let pinned = ExternalIds {
-                    tmdb: row.pinned_tmdb_id,
-                    imdb: row.pinned_imdb_id,
-                    tvdb: row.pinned_tvdb_id,
-                };
+                let pinned = [
+                    row.pinned_tmdb_id.map(ExternalId::tmdb),
+                    (row.pinned_imdb_id).and_then(|imdb| ExternalId::new(IMDB, imdb).ok()),
+                    row.pinned_tvdb_id.map(ExternalId::tvdb),
+                ];
+                let pinned: ExternalIds = pinned.into_iter().flatten().collect();
                 let item = ItemRow {
                     kind: row.kind,
                     title: Cow::Owned(row.title),
@@ -154,37 +157,33 @@ impl Contents {
         &self,
         library: i64,
     ) -> Result<Vec<(i64, Item, PluginId, ExternalId)>, sqlx::Error> {
-        let rows = sqlx::query!(
-            r#"SELECT library_items.id AS "id!", library_items.kind AS "kind: ItemKind",
-                      library_items.title, library_items.year, library_items.hint,
-                      library_items.season, library_items.episode,
-                      item_matches.plugin AS "plugin!",
-                      IIF(library_items.kind = 'movie', item_matches.tmdb_id,
-                          item_matches.show_tmdb_id) AS "tmdb_id?: i64",
-                      IIF(library_items.kind = 'movie', item_matches.imdb_id,
-                          item_matches.show_imdb_id) AS "imdb_id?: String",
-                      IIF(library_items.kind = 'movie', item_matches.tvdb_id,
-                          item_matches.show_tvdb_id) AS "tvdb_id?: i64"
-               FROM item_matches
-               JOIN library_items ON library_items.id = item_matches.item_id
-               JOIN library_files ON library_files.id = library_items.file_id
-               WHERE library_files.library_id = ?
-                 AND item_matches.state = 'matched'
-                 AND item_matches.metadata_version < ?
-               ORDER BY library_items.id"#,
-            library,
-            METADATA_VERSION
-        )
-        .fetch_all(self.db.reader())
-        .await?;
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_items.id AS "id!", library_items.kind AS "kind: ItemKind",
+                              library_items.title, library_items.year, library_items.hint,
+                              library_items.season, library_items.episode,
+                              item_matches.plugin AS "plugin!", "#
+                        + $ids
+                        + r#"IIF(library_items.kind = 'movie', 'title', 'show'))
+                                AS "ids?: String"
+                       FROM item_matches
+                       JOIN library_items ON library_items.id = item_matches.item_id
+                       JOIN library_files ON library_files.id = library_items.file_id
+                       WHERE library_files.library_id = ?
+                         AND item_matches.state = 'matched'
+                         AND item_matches.metadata_version < ?
+                       ORDER BY library_items.id"#,
+                    library,
+                    METADATA_VERSION
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
         Ok(rows
             .into_iter()
             .filter_map(|row| {
-                let title = primary_id(&ExternalIds {
-                    tmdb: row.tmdb_id,
-                    imdb: row.imdb_id,
-                    tvdb: row.tvdb_id,
-                })?;
+                let title = primary_id(&ids_from_json(row.ids.as_deref()))?;
                 let item = ItemRow {
                     kind: row.kind,
                     title: Cow::Owned(row.title),
@@ -277,26 +276,20 @@ pub(super) async fn insert_decisions(
     let mut tmdb_ids = Vec::new();
     for (item, decision) in decided.items {
         if let Decided::Matched(metadata) = &decision {
-            tmdb_ids.extend(metadata.ids.tmdb);
+            let tmdb = metadata.ids.get(TMDB);
+            tmdb_ids.extend(tmdb.and_then(|id| id.value().parse::<i64>().ok()));
         }
         let row = MatchRow::from(&decision);
         let written = sqlx::query!(
             "INSERT OR REPLACE INTO item_matches (
-                 item_id, state, plugin, tmdb_id, imdb_id, tvdb_id,
-                 show_tmdb_id, show_imdb_id, show_tvdb_id, title, original_title, show_title,
+                 item_id, state, plugin, title, original_title, show_title,
                  overview, release_date, runtime_minutes, poster, backdrop, still,
                  unmatched_reason, tied_titles, metadata_version, decided_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
             row.plugin,
-            row.ids.tmdb,
-            row.ids.imdb,
-            row.ids.tvdb,
-            row.show_ids.tmdb,
-            row.show_ids.imdb,
-            row.show_ids.tvdb,
             row.metadata.title,
             row.metadata.original_title,
             row.metadata.show_title,

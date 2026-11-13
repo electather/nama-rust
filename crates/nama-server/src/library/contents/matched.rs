@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::SqliteConnection;
 
-use super::{Contents, ItemKind, Stored, primary_id};
+use super::{Contents, ItemKind, Stored, ids_from_json, ids_sql, primary_id};
 
 /// A Library's downloaded Backdrop: see [`Contents::newest_backdrops`].
 #[derive(Debug)]
@@ -23,6 +23,8 @@ pub(crate) struct NewestBackdrop {
 pub(crate) struct Movie<V = Version> {
     /// Which of the Match's ids identifies the Movie: see [`primary_id`].
     pub(crate) id: ExternalId,
+    /// Every id the Match of its first Version gives it.
+    pub(crate) ids: ExternalIds,
     /// The Plugin whose metadata Provider made the Match, which the image paths are for.
     pub(crate) plugin: String,
     pub(crate) title: String,
@@ -41,6 +43,7 @@ impl<V> Movie<V> {
     pub(crate) fn map_versions<W>(self, version: impl FnMut(V) -> W) -> Movie<W> {
         Movie {
             id: self.id,
+            ids: self.ids,
             plugin: self.plugin,
             title: self.title,
             original_title: self.original_title,
@@ -88,8 +91,8 @@ pub(crate) enum MatchedTo {
 pub(crate) struct Show<V = Version> {
     /// Which of its Episodes' Show ids identifies it: see [`primary_id`].
     pub(crate) id: ExternalId,
-    /// The Show's TVDB id, which Sonarr finds it by, if that Match has one.
-    pub(crate) tvdb_id: Option<i64>,
+    /// Every Show id that Match gives it.
+    pub(crate) ids: ExternalIds,
     /// The Plugin whose metadata Provider made the Match, which the image paths are for.
     pub(crate) plugin: String,
     pub(crate) title: String,
@@ -131,7 +134,7 @@ impl<V> Show<V> {
             .collect();
         Show {
             id: self.id,
-            tvdb_id: self.tvdb_id,
+            ids: self.ids,
             plugin: self.plugin,
             title: self.title,
             backdrop: self.backdrop,
@@ -190,36 +193,33 @@ impl<V> Episode<V> {
 
 impl Contents {
     pub(crate) async fn matched_to(&self, version: i64) -> Result<MatchedTo, sqlx::Error> {
-        let rows = sqlx::query!(
-            r#"SELECT library_items.kind AS "kind?: ItemKind", item_matches.tmdb_id, item_matches.imdb_id,
-                      item_matches.tvdb_id, item_matches.show_tmdb_id, item_matches.show_imdb_id,
-                      item_matches.show_tvdb_id
-               FROM library_files
-               LEFT JOIN library_items ON library_items.file_id = library_files.id
-               LEFT JOIN item_matches ON item_matches.item_id = library_items.id
-                                     AND item_matches.state = 'matched'
-               WHERE library_files.id = ?
-               ORDER BY library_items.season, library_items.episode"#,
-            version
-        )
-        .fetch_all(self.db.reader())
-        .await?;
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_items.kind AS "kind?: ItemKind", "#
+                        + $ids
+                        + r#"'title') AS "ids?: String", "#
+                        + $ids
+                        + r#"'show') AS "show_ids?: String"
+                       FROM library_files
+                       LEFT JOIN library_items ON library_items.file_id = library_files.id
+                       LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+                                             AND item_matches.state = 'matched'
+                       WHERE library_files.id = ?
+                       ORDER BY library_items.season, library_items.episode"#,
+                    version
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
         let Some(first) = rows.first() else {
             return Ok(MatchedTo::NoSuchVersion);
         };
         let holds_episodes = first.kind == Some(ItemKind::Episode);
         let ids: Vec<_> = (rows.into_iter())
             .map(|row| {
-                let id = primary_id(&ExternalIds {
-                    tmdb: row.tmdb_id,
-                    imdb: row.imdb_id,
-                    tvdb: row.tvdb_id,
-                });
-                let show = primary_id(&ExternalIds {
-                    tmdb: row.show_tmdb_id,
-                    imdb: row.show_imdb_id,
-                    tvdb: row.show_tvdb_id,
-                });
+                let id = primary_id(&ids_from_json(row.ids.as_deref()));
+                let show = primary_id(&ids_from_json(row.show_ids.as_deref()));
                 (id, show)
             })
             .collect();
@@ -312,37 +312,32 @@ impl Contents {
         &self,
     ) -> Result<HashMap<i64, NewestBackdrop>, sqlx::Error> {
         // Item ids are AUTOINCREMENT, so the highest is the Item added last.
-        let rows = sqlx::query!(
-            r#"SELECT library_id AS "library!", plugin AS "plugin!", backdrop AS "backdrop!",
-                      tmdb_id AS "tmdb_id?: i64", imdb_id AS "imdb_id?: String",
-                      tvdb_id AS "tvdb_id?: i64"
-               FROM (SELECT library_files.library_id, item_matches.plugin, item_matches.backdrop,
-                            IIF(library_items.kind = 'movie', item_matches.tmdb_id,
-                                item_matches.show_tmdb_id) AS tmdb_id,
-                            IIF(library_items.kind = 'movie', item_matches.imdb_id,
-                                item_matches.show_imdb_id) AS imdb_id,
-                            IIF(library_items.kind = 'movie', item_matches.tvdb_id,
-                                item_matches.show_tvdb_id) AS tvdb_id,
-                            ROW_NUMBER() OVER (PARTITION BY library_files.library_id
-                                               ORDER BY library_items.id DESC) AS newest
-                     FROM item_matches
-                     JOIN library_items ON library_items.id = item_matches.item_id
-                     JOIN library_files ON library_files.id = library_items.file_id
-                     WHERE item_matches.state = 'matched' AND item_matches.backdrop IS NOT NULL)
-               WHERE newest = 1"#
-        )
-        .fetch_all(self.db.reader())
-        .await?;
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_id AS "library!", plugin AS "plugin!",
+                              backdrop AS "backdrop!", ids AS "ids?: String"
+                       FROM (SELECT library_files.library_id, item_matches.plugin,
+                                    item_matches.backdrop, "#
+                        + $ids
+                        + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS ids,
+                                    ROW_NUMBER() OVER (PARTITION BY library_files.library_id
+                                                       ORDER BY library_items.id DESC) AS newest
+                             FROM item_matches
+                             JOIN library_items ON library_items.id = item_matches.item_id
+                             JOIN library_files ON library_files.id = library_items.file_id
+                             WHERE item_matches.state = 'matched'
+                               AND item_matches.backdrop IS NOT NULL)
+                       WHERE newest = 1"#
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
         Ok(rows
             .into_iter()
             .filter_map(|row| {
-                let ids = ExternalIds {
-                    tmdb: row.tmdb_id,
-                    imdb: row.imdb_id,
-                    tvdb: row.tvdb_id,
-                };
                 let backdrop = NewestBackdrop {
-                    title: primary_id(&ids)?,
+                    title: primary_id(&ids_from_json(row.ids.as_deref()))?,
                     plugin: row.plugin,
                     path: row.backdrop,
                 };
@@ -362,37 +357,34 @@ impl Contents {
 
     /// By title, grouped by [`primary_id`].
     pub(crate) async fn movies(&self, library: i64) -> Result<Vec<Movie>, sqlx::Error> {
-        let rows = sqlx::query!(
-            r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
-                      library_files.modified_ns, library_files.parser_version,
-                      item_matches.plugin AS "plugin!", item_matches.tmdb_id,
-                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.title AS "title!",
-                      item_matches.original_title, item_matches.overview,
-                      item_matches.release_date, item_matches.runtime_minutes,
-                      item_matches.poster, item_matches.backdrop
-               FROM item_matches
-               JOIN library_items ON library_items.id = item_matches.item_id
-               JOIN library_files ON library_files.id = library_items.file_id
-               WHERE library_files.library_id = ?
-                 AND library_items.kind = 'movie'
-                 AND item_matches.state = 'matched'
-               ORDER BY item_matches.tmdb_id,
-                        IIF(item_matches.tmdb_id IS NULL, item_matches.imdb_id, NULL),
-                        IIF(item_matches.tmdb_id IS NULL AND item_matches.imdb_id IS NULL,
-                            item_matches.tvdb_id, NULL),
-                        library_files.path"#,
-            library
-        )
-        .fetch_all(self.db.reader())
-        .await?;
-        // Ordered by primary id, then path, so the rows of one Movie are adjacent, by path.
-        let mut movies: Vec<Movie> = Vec::new();
-        for row in rows {
-            let ids = ExternalIds {
-                tmdb: row.tmdb_id,
-                imdb: row.imdb_id,
-                tvdb: row.tvdb_id,
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
+                              library_files.modified_ns, library_files.parser_version,
+                              item_matches.plugin AS "plugin!", "#
+                        + $ids
+                        + r#"'title') AS "ids?: String", item_matches.title AS "title!",
+                              item_matches.original_title, item_matches.overview,
+                              item_matches.release_date, item_matches.runtime_minutes,
+                              item_matches.poster, item_matches.backdrop
+                       FROM item_matches
+                       JOIN library_items ON library_items.id = item_matches.item_id
+                       JOIN library_files ON library_files.id = library_items.file_id
+                       WHERE library_files.library_id = ?
+                         AND library_items.kind = 'movie'
+                         AND item_matches.state = 'matched'
+                       ORDER BY library_files.path"#,
+                    library
+                )
             };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
+        // Ordered by path, so each Movie's Versions are by path and its first Version's row comes
+        // first.
+        let mut movies: BTreeMap<ExternalId, Movie> = BTreeMap::new();
+        for row in rows {
+            let ids = ids_from_json(row.ids.as_deref());
             let Some(id) = primary_id(&ids) else {
                 continue;
             };
@@ -403,10 +395,10 @@ impl Contents {
                 row.modified_ns,
                 row.parser_version,
             );
-            match movies.last_mut() {
-                Some(movie) if movie.id == id => movie.versions.push(version),
-                _ => movies.push(Movie {
+            (movies.entry(id.clone()))
+                .or_insert_with(|| Movie {
                     id,
+                    ids,
                     plugin: row.plugin,
                     title: row.title,
                     original_title: row.original_title,
@@ -415,10 +407,12 @@ impl Contents {
                     runtime_minutes: row.runtime_minutes,
                     poster: row.poster,
                     backdrop: row.backdrop,
-                    versions: vec![version],
-                }),
-            }
+                    versions: Vec::new(),
+                })
+                .versions
+                .push(version);
         }
+        let mut movies: Vec<Movie> = movies.into_values().collect();
         movies.sort_by(|a, b| a.title.cmp(&b.title));
         Ok(movies)
     }
@@ -426,48 +420,47 @@ impl Contents {
     /// By title, grouped by the Episodes' Show ids' [`primary_id`], each Season's Episodes by
     /// their own.
     pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, sqlx::Error> {
-        let rows = sqlx::query!(
-            r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
-                      library_files.modified_ns, library_files.parser_version,
-                      library_items.season AS "season!", library_items.episode AS "episode!",
-                      item_matches.plugin AS "plugin!", item_matches.tmdb_id,
-                      item_matches.imdb_id, item_matches.tvdb_id, item_matches.show_tmdb_id,
-                      item_matches.show_imdb_id, item_matches.show_tvdb_id,
-                      item_matches.title AS "title!", item_matches.show_title AS "show_title!",
-                      item_matches.overview, item_matches.release_date,
-                      item_matches.runtime_minutes, item_matches.poster, item_matches.backdrop,
-                      item_matches.still
-               FROM item_matches
-               JOIN library_items ON library_items.id = item_matches.item_id
-               JOIN library_files ON library_files.id = library_items.file_id
-               WHERE library_files.library_id = ?
-                 AND library_items.kind = 'episode'
-                 AND item_matches.state = 'matched'
-               ORDER BY library_items.season, library_items.episode, library_files.path"#,
-            library
-        )
-        .fetch_all(self.db.reader())
-        .await?;
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
+                              library_files.modified_ns, library_files.parser_version,
+                              library_items.season AS "season!",
+                              library_items.episode AS "episode!",
+                              item_matches.plugin AS "plugin!", "#
+                        + $ids
+                        + r#"'title') AS "ids?: String", "#
+                        + $ids
+                        + r#"'show') AS "show_ids?: String",
+                              item_matches.title AS "title!",
+                              item_matches.show_title AS "show_title!",
+                              item_matches.overview, item_matches.release_date,
+                              item_matches.runtime_minutes, item_matches.poster,
+                              item_matches.backdrop, item_matches.still
+                       FROM item_matches
+                       JOIN library_items ON library_items.id = item_matches.item_id
+                       JOIN library_files ON library_files.id = library_items.file_id
+                       WHERE library_files.library_id = ?
+                         AND library_items.kind = 'episode'
+                         AND item_matches.state = 'matched'
+                       ORDER BY library_items.season, library_items.episode, library_files.path"#,
+                    library
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
         // Ordered by season, episode, then path, so within a Season the rows of one Episode are
         // adjacent, by path.
         let mut shows: BTreeMap<ExternalId, Show> = BTreeMap::new();
         for row in rows {
-            let show_ids = ExternalIds {
-                tmdb: row.show_tmdb_id,
-                imdb: row.show_imdb_id,
-                tvdb: row.show_tvdb_id,
-            };
-            let ids = ExternalIds {
-                tmdb: row.tmdb_id,
-                imdb: row.imdb_id,
-                tvdb: row.tvdb_id,
-            };
+            let show_ids = ids_from_json(row.show_ids.as_deref());
+            let ids = ids_from_json(row.ids.as_deref());
             let (Some(show_id), Some(id)) = (primary_id(&show_ids), primary_id(&ids)) else {
                 continue;
             };
             let show = shows.entry(show_id.clone()).or_insert_with(|| Show {
                 id: show_id,
-                tvdb_id: row.show_tvdb_id,
+                ids: show_ids,
                 plugin: row.plugin.clone(),
                 title: row.show_title,
                 backdrop: row.backdrop,

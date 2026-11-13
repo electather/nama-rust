@@ -53,3 +53,4 @@
 0053_match_metadata_version.sql
 0054_subtitle_headers.sql
 0057_item_match_ids.sql
+0058_item_match_id_columns.sql

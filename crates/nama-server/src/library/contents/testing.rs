@@ -5,7 +5,9 @@ use std::{borrow::Cow, sync::Arc};
 use nama_plugin_api::metadata::ExternalIds;
 use tempfile::TempDir;
 
-use super::{Change, Contents, Item, ItemKind, ItemRow, decisions::MatchState};
+use super::{
+    Change, Contents, Item, ItemKind, ItemRow, decisions::MatchState, ids_from_json, ids_sql,
+};
 use crate::{
     db::Database,
     libraries::{Kind, Libraries},
@@ -62,26 +64,30 @@ impl Contents {
     ///
     /// If the database can't be read.
     pub(crate) async fn files(&self, library: i64) -> Result<Vec<File>, sqlx::Error> {
-        let rows = sqlx::query!(
-            r#"SELECT library_files.path, library_files.size,
-                      library_items.id AS "item?", library_items.kind AS "kind?: ItemKind",
-                      library_items.title AS "item_title?", library_items.year,
-                      library_items.hint, library_items.season,
-                      library_items.episode,
-                      item_matches.state AS "state?: MatchState", item_matches.plugin,
-                      item_matches.tmdb_id, item_matches.imdb_id, item_matches.tvdb_id,
-                      item_matches.show_tmdb_id, item_matches.show_imdb_id,
-                      item_matches.show_tvdb_id, item_matches.title, item_matches.show_title,
-                      item_matches.poster
-               FROM library_files
-               LEFT JOIN library_items ON library_items.file_id = library_files.id
-               LEFT JOIN item_matches ON item_matches.item_id = library_items.id
-               WHERE library_files.library_id = ?
-               ORDER BY library_files.path, library_items.id"#,
-            library
-        )
-        .fetch_all(self.db.reader())
-        .await?;
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_files.path, library_files.size,
+                              library_items.id AS "item?", library_items.kind AS "kind?: ItemKind",
+                              library_items.title AS "item_title?", library_items.year,
+                              library_items.hint, library_items.season,
+                              library_items.episode,
+                              item_matches.state AS "state?: MatchState", item_matches.plugin, "#
+                        + $ids
+                        + r#"'title') AS "ids?: String", "#
+                        + $ids
+                        + r#"'show') AS "show_ids?: String", item_matches.title,
+                              item_matches.show_title, item_matches.poster
+                       FROM library_files
+                       LEFT JOIN library_items ON library_items.file_id = library_files.id
+                       LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+                       WHERE library_files.library_id = ?
+                       ORDER BY library_files.path, library_items.id"#,
+                    library
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
         let mut files: Vec<File> = Vec::new();
         for row in rows {
             if files.last().is_none_or(|file| file.path != row.path) {
@@ -106,16 +112,8 @@ impl Contents {
             let recorded = row.state.map(|state| Recorded {
                 matched: state == MatchState::Matched,
                 plugin: row.plugin,
-                ids: ExternalIds {
-                    tmdb: row.tmdb_id,
-                    imdb: row.imdb_id,
-                    tvdb: row.tvdb_id,
-                },
-                show_ids: ExternalIds {
-                    tmdb: row.show_tmdb_id,
-                    imdb: row.show_imdb_id,
-                    tvdb: row.show_tvdb_id,
-                },
+                ids: ids_from_json(row.ids.as_deref()),
+                show_ids: ids_from_json(row.show_ids.as_deref()),
                 title: row.title,
                 show_title: row.show_title,
                 poster: row.poster,
