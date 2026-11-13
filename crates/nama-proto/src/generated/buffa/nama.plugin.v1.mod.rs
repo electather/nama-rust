@@ -5,6 +5,7 @@ include!("nama.plugin.v1.events.rs");
 include!("nama.plugin.v1.fulfiller.rs");
 include!("nama.plugin.v1.manifest.rs");
 include!("nama.plugin.v1.notifier.rs");
+include!("nama.plugin.v1.request.rs");
 #[allow(
     non_camel_case_types,
     dead_code,
@@ -27,12 +28,14 @@ pub mod __buffa {
         include!("nama.plugin.v1.fulfiller.__view.rs");
         include!("nama.plugin.v1.manifest.__view.rs");
         include!("nama.plugin.v1.notifier.__view.rs");
+        include!("nama.plugin.v1.request.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
             include!("nama.plugin.v1.fulfiller.__view_oneof.rs");
             include!("nama.plugin.v1.manifest.__view_oneof.rs");
             include!("nama.plugin.v1.notifier.__view_oneof.rs");
+            include!("nama.plugin.v1.request.__view_oneof.rs");
         }
     }
     pub mod oneof {
@@ -41,6 +44,7 @@ pub mod __buffa {
         include!("nama.plugin.v1.fulfiller.__oneof.rs");
         include!("nama.plugin.v1.manifest.__oneof.rs");
         include!("nama.plugin.v1.notifier.__oneof.rs");
+        include!("nama.plugin.v1.request.__oneof.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
     pub fn register_types(reg: &mut ::buffa::type_registry::TypeRegistry) {
@@ -68,6 +72,12 @@ pub mod __buffa {
         reg.register_json_any(super::__DELIVERY_JSON_ANY);
         reg.register_json_any(super::__CHANNEL_JSON_ANY);
         reg.register_json_any(super::__DELIVERED_JSON_ANY);
+        reg.register_json_any(super::__REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REQUESTED_MOVIE_JSON_ANY);
+        reg.register_json_any(super::__REQUESTED_SEASON_JSON_ANY);
+        reg.register_json_any(super::__REQUESTER_JSON_ANY);
+        reg.register_json_any(super::__REQUESTED_QUALITY_JSON_ANY);
+        reg.register_json_any(super::__QUALITY_CHANGE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -166,5 +176,29 @@ pub use self::__buffa::view::ChannelOwnedView;
 pub use self::__buffa::view::DeliveredView;
 #[doc(inline)]
 pub use self::__buffa::view::DeliveredOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestedMovieView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestedMovieOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestedSeasonView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestedSeasonOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequesterView;
+#[doc(inline)]
+pub use self::__buffa::view::RequesterOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestedQualityView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestedQualityOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::QualityChangeView;
+#[doc(inline)]
+pub use self::__buffa::view::QualityChangeOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

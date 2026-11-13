@@ -438,7 +438,7 @@ impl<Kind: 'static> Fulfiller<Kind> for Running {
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        let input = request.encode_to_vec();
+        let input = contract::request(request).encode_to_vec();
         Box::pin(async move {
             let output = self.provide(FULFILL, input).await?;
             Ok(Fulfilled::decode_from_slice(&output)?)
@@ -446,7 +446,7 @@ impl<Kind: 'static> Fulfiller<Kind> for Running {
     }
 
     fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
-        let input = request.encode_to_vec();
+        let input = contract::request(request).encode_to_vec();
         Box::pin(async move { self.provide(UNFOLLOW, input).await.map(drop) })
     }
 

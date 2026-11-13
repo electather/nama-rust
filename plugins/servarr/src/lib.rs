@@ -476,7 +476,7 @@ struct ValidationFailure {
 
 #[cfg(test)]
 mod tests {
-    use nama_pdk::nama_proto::nama::v1::RequestedQuality;
+    use nama_pdk::nama_proto::nama::plugin::v1::RequestedQuality;
 
     use super::*;
 

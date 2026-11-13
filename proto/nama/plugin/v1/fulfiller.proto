@@ -2,15 +2,15 @@ syntax = "proto3";
 
 package nama.plugin.v1;
 
-// What an Installed Plugin's `fulfill` export returns once its Fulfiller took the Request it was
-// handed. If the service didn't take it, the export fails instead, and its
-// error is the reason the Request shows as Failed.
+// What an Installed Plugin's `fulfill` export returns once its Fulfiller took the `Request` it was
+// handed. If the service didn't take it, the export fails instead, and its error is the reason the
+// Request shows as Failed.
 message Fulfilled {
   // An opaque reference the Kernel keeps with the Request and passes back to `progress`.
   string reference = 1;
-  // The service's quality profile the title is downloaded at, as the Quality a Request asks for
-  // names it: the one asked for, or the service's own when it already had the title and kept it. Empty if
-  // the Fulfiller doesn't say.
+  // The service's quality profile the title is downloaded at, as `RequestedQuality.profile_id`
+  // names it: the one asked for, or the service's own when it already had the title and kept it.
+  // Empty if the Fulfiller doesn't say.
   string profile_id = 2;
   // The service's name for that profile, such as Radarr's `HD-1080p`.
   string profile_name = 3;

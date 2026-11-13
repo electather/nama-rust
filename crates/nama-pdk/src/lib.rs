@@ -50,12 +50,9 @@ use std::{collections::HashMap, fmt};
 pub use extism_pdk::{self, FnResult, plugin_fn};
 pub use nama_proto::{
     self,
-    nama::{
-        plugin::v1::{
-            CheckedSettings, ConnectionStarted, Download, Fulfilled, Manifest, Notification,
-            StopMonitoring, delivery::Recipient,
-        },
-        v1::Request,
+    nama::plugin::v1::{
+        CheckedSettings, ConnectionStarted, Download, Fulfilled, Manifest, Notification, Request,
+        StopMonitoring, delivery::Recipient,
     },
 };
 
@@ -103,7 +100,7 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
 ///
 /// use nama_pdk::{
 ///     Download, Fulfilled, Fulfiller, Request, extism_pdk::Error,
-///     nama_proto::nama::v1::request::MovieOrSeason,
+///     nama_proto::nama::plugin::v1::request::MovieOrSeason,
 /// };
 ///
 /// struct Radarr;

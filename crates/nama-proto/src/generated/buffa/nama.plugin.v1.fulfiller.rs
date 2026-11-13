@@ -180,9 +180,9 @@ impl ::buffa::Enumeration for DownloadStatus {
         ]
     }
 }
-/// What an Installed Plugin's `fulfill` export returns once its Fulfiller took the Request it was
-/// handed. If the service didn't take it, the export fails instead, and its
-/// error is the reason the Request shows as Failed.
+/// What an Installed Plugin's `fulfill` export returns once its Fulfiller took the `Request` it was
+/// handed. If the service didn't take it, the export fails instead, and its error is the reason the
+/// Request shows as Failed.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -196,9 +196,9 @@ pub struct Fulfilled {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub reference: ::buffa::alloc::string::String,
-    /// The service's quality profile the title is downloaded at, as the Quality a Request asks for
-    /// names it: the one asked for, or the service's own when it already had the title and kept it. Empty if
-    /// the Fulfiller doesn't say.
+    /// The service's quality profile the title is downloaded at, as `RequestedQuality.profile_id`
+    /// names it: the one asked for, or the service's own when it already had the title and kept it.
+    /// Empty if the Fulfiller doesn't say.
     ///
     /// Field 2: `profile_id`
     #[serde(

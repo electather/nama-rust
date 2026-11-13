@@ -13,9 +13,9 @@ export const file_nama_plugin_v1_fulfiller: GenFile = /*@__PURE__*/
   fileDesc("Ch5uYW1hL3BsdWdpbi92MS9mdWxmaWxsZXIucHJvdG8SDm5hbWEucGx1Z2luLnYxIkgKCUZ1bGZpbGxlZBIRCglyZWZlcmVuY2UYASABKAkSEgoKcHJvZmlsZV9pZBgCIAEoCRIUCgxwcm9maWxlX25hbWUYAyABKAkiIwoNUHJvZ3Jlc3NBc2tlZBISCgpyZWZlcmVuY2VzGAEgAygJIpMBCghQcm9ncmVzcxI6Cglkb3dubG9hZHMYASADKAsyJy5uYW1hLnBsdWdpbi52MS5Qcm9ncmVzcy5Eb3dubG9hZHNFbnRyeRpLCg5Eb3dubG9hZHNFbnRyeRILCgNrZXkYASABKAkSKAoFdmFsdWUYAiABKAsyGS5uYW1hLnBsdWdpbi52MS5Eb3dubG9hZHM6AjgBIjgKCURvd25sb2FkcxIrCglkb3dubG9hZHMYASADKAsyGC5uYW1hLnBsdWdpbi52MS5Eb3dubG9hZCLgAQoIRG93bmxvYWQSDQoFdGl0bGUYASABKAkSDwoHcGVyY2VudBgCIAEoAhIXCgpzaXplX2J5dGVzGAMgASgESACIAQESGAoLZXRhX3NlY29uZHMYBCABKARIAYgBARIuCgZzdGF0dXMYBSABKA4yHi5uYW1hLnBsdWdpbi52MS5Eb3dubG9hZFN0YXR1cxIdChBhdHRlbnRpb25fcmVhc29uGAYgASgJSAKIAQFCDQoLX3NpemVfYnl0ZXNCDgoMX2V0YV9zZWNvbmRzQhMKEV9hdHRlbnRpb25fcmVhc29uIl8KDlN0b3BNb25pdG9yaW5nEhcKDW1vdmllX3RtZGJfaWQYASABKANIABIrCgRzaG93GAIgASgLMhsubmFtYS5wbHVnaW4udjEuU2hvd0RlbGV0ZWRIAEIHCgV0aXRsZSLdAQoLU2hvd0RlbGV0ZWQSGQoMc2hvd190bWRiX2lkGAEgASgDSAGIAQESGQoMc2hvd190dmRiX2lkGAIgASgDSAKIAQESHgoUZXZlcnlfY3VycmVudF9zZWFzb24YAyABKAhIABIXCg1zZWFzb25fbnVtYmVyGAQgASgNSAASMgoIZXBpc29kZXMYBSABKAsyHi5uYW1hLnBsdWdpbi52MS5FcGlzb2RlTnVtYmVyc0gAQgkKB2RlbGV0ZWRCDwoNX3Nob3dfdG1kYl9pZEIPCg1fc2hvd190dmRiX2lkIkEKDkVwaXNvZGVOdW1iZXJzEi8KCGVwaXNvZGVzGAEgAygLMh0ubmFtYS5wbHVnaW4udjEuRXBpc29kZU51bWJlciI+Cg1FcGlzb2RlTnVtYmVyEhUKDXNlYXNvbl9udW1iZXIYASABKA0SFgoOZXBpc29kZV9udW1iZXIYAiABKA0qsgEKDkRvd25sb2FkU3RhdHVzEh8KG0RPV05MT0FEX1NUQVRVU19VTlNQRUNJRklFRBAAEhoKFkRPV05MT0FEX1NUQVRVU19RVUVVRUQQARIfChtET1dOTE9BRF9TVEFUVVNfRE9XTkxPQURJTkcQAhIdChlET1dOTE9BRF9TVEFUVVNfSU1QT1JUSU5HEAMSIwofRE9XTkxPQURfU1RBVFVTX05FRURTX0FUVEVOVElPThAEYgZwcm90bzM");
 
 /**
- * What an Installed Plugin's `fulfill` export returns once its Fulfiller took the Request it was
- * handed. If the service didn't take it, the export fails instead, and its
- * error is the reason the Request shows as Failed.
+ * What an Installed Plugin's `fulfill` export returns once its Fulfiller took the `Request` it was
+ * handed. If the service didn't take it, the export fails instead, and its error is the reason the
+ * Request shows as Failed.
  *
  * @generated from message nama.plugin.v1.Fulfilled
  */
@@ -28,9 +28,9 @@ export type Fulfilled = Message<"nama.plugin.v1.Fulfilled"> & {
   reference: string;
 
   /**
-   * The service's quality profile the title is downloaded at, as the Quality a Request asks for
-   * names it: the one asked for, or the service's own when it already had the title and kept it. Empty if
-   * the Fulfiller doesn't say.
+   * The service's quality profile the title is downloaded at, as `RequestedQuality.profile_id`
+   * names it: the one asked for, or the service's own when it already had the title and kept it.
+   * Empty if the Fulfiller doesn't say.
    *
    * @generated from field: string profile_id = 2;
    */

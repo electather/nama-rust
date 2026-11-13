@@ -14,12 +14,9 @@ mod exports {
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Notification,
         Notifier, Recipient, Request,
         extism_pdk::{self, Error, HttpRequest, config, http},
-        nama_proto::nama::{
-            plugin::v1::{
-                ObservePoint, ObservedEvents, ProvidePoint, SettingField, SettingKind,
-                SettingValue, setting_value,
-            },
-            v1::request::MovieOrSeason,
+        nama_proto::nama::plugin::v1::{
+            ObservePoint, ObservedEvents, ProvidePoint, SettingField, SettingKind, SettingValue,
+            request::MovieOrSeason, setting_value,
         },
         plugin_fn,
     };

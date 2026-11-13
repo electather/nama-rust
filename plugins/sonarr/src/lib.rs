@@ -15,11 +15,9 @@ mod exports {
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
         StopMonitoring,
         extism_pdk::{self, Error},
-        nama_proto::nama::{
-            plugin::v1::{
-                EpisodeNumbers, ProvidePoint, show_deleted::Deleted, stop_monitoring::Title,
-            },
-            v1::{RequestedSeason, request::MovieOrSeason},
+        nama_proto::nama::plugin::v1::{
+            EpisodeNumbers, ProvidePoint, RequestedSeason, request::MovieOrSeason,
+            show_deleted::Deleted, stop_monitoring::Title,
         },
         plugin_fn,
     };
