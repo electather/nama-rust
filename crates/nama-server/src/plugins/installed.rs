@@ -35,8 +35,8 @@ use nama_proto::{
     nama::{
         plugin::v1::{
             self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled,
-            ConnectionStart, Delivered, Delivery, Fulfilled, ObservePoint, ObservedEvents,
-            Progress, ProgressAsked, ProvidePoint, StopMonitoring,
+            ConnectionStart, Delivered, Delivery, Fulfilled, ObservePoint, Progress, ProgressAsked,
+            ProvidePoint, StopMonitoring,
         },
         v1::{Event, PluginKind, Request},
     },
@@ -546,12 +546,9 @@ impl Connector for Running {
 
 impl Observer<Events> for Running {
     fn observe<'a>(&'a self, event: &'a Vec<Event>) -> BoxFuture<'a, ()> {
-        let input = ObservedEvents {
-            events: event.clone(),
-            ..Default::default()
-        }
-        .encode_to_vec();
+        let input = contract::observed(event).map(|batch| batch.encode_to_vec());
         Box::pin(async move {
+            let Some(input) = input else { return };
             match self.call_blocking(OBSERVE_EVENTS, input).await {
                 Ok(Ok(_)) => self.crashes.store(0, Ordering::Relaxed),
                 Ok(Err(err)) => self.observer_failed(&err),

@@ -8,7 +8,7 @@ use nama_proto::nama::{
     v1::{self as api, request::MovieOrSeason},
 };
 
-use super::{download, request, request_state, setting_kind, setting_value};
+use super::{download, event, observed, request, request_state, setting_kind, setting_value};
 
 #[test]
 fn each_kind_becomes_its_twin_and_unspecified_none() {
@@ -276,5 +276,113 @@ fn each_request_state_becomes_its_twin_and_an_unknown_one_unspecified() {
 
     for (state, expected) in states {
         assert_eq!(request_state(state), expected);
+    }
+}
+
+#[test]
+fn a_library_event_keeps_its_fields() {
+    let finished = api_event(api::ScanFinished {
+        library_id: 4,
+        added: 1,
+        updated: 2,
+        removed: 3,
+        unchanged: 5,
+        ..Default::default()
+    });
+
+    assert_eq!(
+        event(&finished),
+        Some(wire_event(wire::ScanFinished {
+            library_id: 4,
+            added: 1,
+            updated: 2,
+            removed: 3,
+            unchanged: 5,
+            ..Default::default()
+        }))
+    );
+}
+
+#[test]
+fn a_request_event_carries_the_contracts_request() {
+    let asked = api::Request {
+        id: 7,
+        ..Default::default()
+    };
+    let cancelled = api_event(api::RequestCancelled {
+        request: Some(asked.clone()).into(),
+        deleted_by: Some("ada".to_owned()),
+        ..Default::default()
+    });
+
+    assert_eq!(
+        event(&cancelled),
+        Some(wire_event(wire::RequestCancelled {
+            request: Some(request(&asked)).into(),
+            deleted_by: Some("ada".to_owned()),
+            ..Default::default()
+        }))
+    );
+}
+
+#[test]
+fn request_progress_and_playback_events_are_left_out() {
+    let progress = api_event(api::RequestProgress::default());
+    let playback = api_event(api::PlaybackStarted::default());
+
+    assert_eq!(event(&progress), None);
+    assert_eq!(event(&playback), None);
+}
+
+#[test]
+fn a_mixed_batch_keeps_the_events_that_convert_in_order() {
+    let batch = [
+        api_event(api::ScanStarted {
+            library_id: 1,
+            ..Default::default()
+        }),
+        api_event(api::PlaybackStarted::default()),
+        api_event(api::ScanFinished {
+            library_id: 1,
+            ..Default::default()
+        }),
+    ];
+
+    assert_eq!(
+        observed(&batch).map(|batch| batch.events),
+        Some(vec![
+            wire_event(wire::ScanStarted {
+                library_id: 1,
+                ..Default::default()
+            }),
+            wire_event(wire::ScanFinished {
+                library_id: 1,
+                ..Default::default()
+            }),
+        ])
+    );
+}
+
+#[test]
+fn a_batch_of_only_left_out_kinds_is_not_observed() {
+    let batch = [
+        api_event(api::RequestProgress::default()),
+        api_event(api::PlaybackStarted::default()),
+    ];
+
+    assert_eq!(observed(&batch), None);
+}
+
+fn api_event(event: impl Into<Option<api::event::Event>>) -> api::Event {
+    api::Event {
+        event: event.into(),
+        ..Default::default()
+    }
+}
+
+fn wire_event(event: impl Into<Option<wire::event::Event>>) -> wire::Event {
+    wire::Event {
+        event: event.into(),
+        ..Default::default()
     }
 }

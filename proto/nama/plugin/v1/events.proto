@@ -2,10 +2,149 @@ syntax = "proto3";
 
 package nama.plugin.v1;
 
-import "nama/v1/event.proto";
+import "nama/plugin/v1/request.proto";
 
 // What an Installed Plugin's Observer at `OBSERVE_POINT_EVENTS` is told: one batch of Events, in
 // the order they happened. Two batches may arrive in either order.
 message ObservedEvents {
-  repeated nama.v1.Event events = 1;
+  repeated Event events = 1;
+}
+
+// Something that happened in the Kernel. Left out on purpose: Request progress, Followed Show and
+// Playback events, which the Kernel doesn't tell a Plugin. A kind joins when a Plugin needs it.
+message Event {
+  oneof event {
+    ScanStarted scan_started = 1;
+    ScanProgress scan_progress = 2;
+    ScanFinished scan_finished = 3;
+    LibraryItemAdded library_item_added = 4;
+    LibraryItemRemoved library_item_removed = 5;
+    ItemMatched item_matched = 6;
+    MatchingFinished matching_finished = 7;
+    ProbingFinished probing_finished = 8;
+    RequestCreated request_created = 9;
+    RequesterAdded requester_added = 10;
+    RequestStateChanged request_state_changed = 11;
+    RequestCancelled request_cancelled = 12;
+    RequesterRemoved requester_removed = 13;
+    RequestWithdrawn request_withdrawn = 14;
+  }
+}
+
+// A scan of a Library's folders began.
+message ScanStarted {
+  int64 library_id = 1;
+}
+
+// A scan stored another batch of the changes it found. Files that haven't changed since the last
+// scan aren't counted.
+message ScanProgress {
+  int64 library_id = 1;
+  // How many new, changed or gone files have been stored or removed so far.
+  uint64 files_done = 2;
+  // How many new, changed or gone files the scan found.
+  uint64 files_total = 3;
+}
+
+// A scan stored every change it found. Matching the new Items follows, and `MatchingFinished` says
+// when it has. A scan that fails or is cancelled sends none.
+message ScanFinished {
+  int64 library_id = 1;
+  // Files found that weren't stored before.
+  uint64 added = 2;
+  // Stored files parsed again: those whose size or modified time changed, or that an older name
+  // parser read.
+  uint64 updated = 3;
+  // Stored files that are gone.
+  uint64 removed = 4;
+  // Stored files left as they were.
+  uint64 unchanged = 5;
+}
+
+// A scan's Matching decided what it could about the Library's Items. Sent even when no metadata
+// Provider could answer, which leaves Items undecided; a scan that fails or is cancelled sends
+// none.
+message MatchingFinished {
+  int64 library_id = 1;
+  // Items that now have a Match.
+  uint64 matched = 2;
+  // Items that are now Unmatched.
+  uint64 unmatched = 3;
+  // Items Matching couldn't decide. The next scan tries them again.
+  uint64 undecided = 4;
+}
+
+// Probing has caught up with a Library after a scan: every file without current Tracks that the
+// scan left was probed, or ffprobe couldn't be run. Sent after `MatchingFinished`.
+message ProbingFinished {
+  int64 library_id = 1;
+  // Files whose Tracks were stored.
+  uint64 probed = 2;
+  // Files ffprobe couldn't read.
+  uint64 failed = 3;
+}
+
+// A scan stored an Item, for a new file, one that changed or one a newer name parser read.
+message LibraryItemAdded {
+  int64 library_id = 1;
+  int64 item_id = 2;
+  // The absolute path, on the Server, of the file holding the Item.
+  string path = 3;
+}
+
+// An Item is gone, because its file is gone or changed, or a newer name parser read it.
+message LibraryItemRemoved {
+  int64 library_id = 1;
+  int64 item_id = 2;
+}
+
+// An Item was Matched, automatically or by hand.
+message ItemMatched {
+  int64 library_id = 1;
+  int64 item_id = 2;
+  // The title of the Movie or Episode it was Matched to.
+  string title = 3;
+}
+
+// A User asked for something that had no open Request, which opened this one.
+message RequestCreated {
+  Request request = 1;
+}
+
+// A User joined a Request as a Requester.
+message RequesterAdded {
+  // The Request as it is now, with them among its Requesters.
+  Request request = 1;
+  // The User who joined.
+  int64 user_id = 2;
+}
+
+// A Request moved to another state.
+message RequestStateChanged {
+  // The Request as it is now, in its new state.
+  Request request = 1;
+}
+
+// A Request was cancelled, which removed it: by a Request manager, or by deleting media it was
+// still waiting on.
+message RequestCancelled {
+  // The Request as it was before it was removed.
+  Request request = 1;
+  // The name of the User who deleted media the Request was still waiting on, when that cancelled
+  // it. Unset when a Request manager cancelled it.
+  optional string deleted_by = 2;
+}
+
+// A Requester withdrew from a Pending Request that others are still on.
+message RequesterRemoved {
+  // The Request as it was, with them still among its Requesters.
+  Request request = 1;
+  // The User who withdrew.
+  int64 user_id = 2;
+}
+
+// A Pending Request's last Requester withdrew, which removed it.
+message RequestWithdrawn {
+  // The Request as it was before it was removed.
+  Request request = 1;
 }

@@ -123,6 +123,117 @@ pub(super) fn request(request: &api::Request) -> wire::Request {
     }
 }
 
+/// The batch an Observer is told of `events`: those [`event`] converts, in order, or
+/// `None` when none does, so an Observer is never called for left-out kinds alone.
+pub(super) fn observed(events: &[api::Event]) -> Option<wire::ObservedEvents> {
+    let events: Vec<_> = events.iter().filter_map(event).collect();
+    (!events.is_empty()).then(|| wire::ObservedEvents {
+        events,
+        ..Default::default()
+    })
+}
+
+/// The contract's twin of `event`, or `None` for a kind the contract leaves out.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one exhaustive match, so a new client kind must be placed in or out"
+)]
+pub(super) fn event(event: &api::Event) -> Option<wire::Event> {
+    use api::event::Event as Api;
+    use wire::event::Event as Wire;
+    let event = match event.event.as_ref()? {
+        Api::ScanStarted(started) => Wire::from(wire::ScanStarted {
+            library_id: started.library_id,
+            ..Default::default()
+        }),
+        Api::ScanProgress(progress) => Wire::from(wire::ScanProgress {
+            library_id: progress.library_id,
+            files_done: progress.files_done,
+            files_total: progress.files_total,
+            ..Default::default()
+        }),
+        Api::ScanFinished(finished) => Wire::from(wire::ScanFinished {
+            library_id: finished.library_id,
+            added: finished.added,
+            updated: finished.updated,
+            removed: finished.removed,
+            unchanged: finished.unchanged,
+            ..Default::default()
+        }),
+        Api::LibraryItemAdded(added) => Wire::from(wire::LibraryItemAdded {
+            library_id: added.library_id,
+            item_id: added.item_id,
+            path: added.path.clone(),
+            ..Default::default()
+        }),
+        Api::LibraryItemRemoved(removed) => Wire::from(wire::LibraryItemRemoved {
+            library_id: removed.library_id,
+            item_id: removed.item_id,
+            ..Default::default()
+        }),
+        Api::ItemMatched(matched) => Wire::from(wire::ItemMatched {
+            library_id: matched.library_id,
+            item_id: matched.item_id,
+            title: matched.title.clone(),
+            ..Default::default()
+        }),
+        Api::MatchingFinished(finished) => Wire::from(wire::MatchingFinished {
+            library_id: finished.library_id,
+            matched: finished.matched,
+            unmatched: finished.unmatched,
+            undecided: finished.undecided,
+            ..Default::default()
+        }),
+        Api::ProbingFinished(finished) => Wire::from(wire::ProbingFinished {
+            library_id: finished.library_id,
+            probed: finished.probed,
+            failed: finished.failed,
+            ..Default::default()
+        }),
+        Api::RequestCreated(created) => Wire::from(wire::RequestCreated {
+            request: created.request.as_option().map(request).into(),
+            ..Default::default()
+        }),
+        Api::RequesterAdded(added) => Wire::from(wire::RequesterAdded {
+            request: added.request.as_option().map(request).into(),
+            user_id: added.user_id,
+            ..Default::default()
+        }),
+        Api::RequestStateChanged(changed) => Wire::from(wire::RequestStateChanged {
+            request: changed.request.as_option().map(request).into(),
+            ..Default::default()
+        }),
+        Api::RequestCancelled(cancelled) => Wire::from(wire::RequestCancelled {
+            request: cancelled.request.as_option().map(request).into(),
+            deleted_by: cancelled.deleted_by.clone(),
+            ..Default::default()
+        }),
+        Api::RequesterRemoved(removed) => Wire::from(wire::RequesterRemoved {
+            request: removed.request.as_option().map(request).into(),
+            user_id: removed.user_id,
+            ..Default::default()
+        }),
+        Api::RequestWithdrawn(withdrawn) => Wire::from(wire::RequestWithdrawn {
+            request: withdrawn.request.as_option().map(request).into(),
+            ..Default::default()
+        }),
+        Api::RequestProgress(_)
+        | Api::FollowedShowCreated(_)
+        | Api::FollowedShowRequesterAdded(_)
+        | Api::FollowedShowStateChanged(_)
+        | Api::FollowedShowCancelled(_)
+        | Api::FollowedShowRequesterRemoved(_)
+        | Api::FollowedShowWithdrawn(_)
+        | Api::PlaybackStarted(_)
+        | Api::PlaybackEnded(_)
+        | Api::PlaybackChanged(_) => return None,
+    };
+    Some(wire::Event {
+        event: Some(event),
+        ..Default::default()
+    })
+}
+
 /// The contract's twin of `state`, or unspecified for one this Kernel doesn't know.
 fn request_state(state: EnumValue<api::RequestState>) -> wire::RequestState {
     match state {

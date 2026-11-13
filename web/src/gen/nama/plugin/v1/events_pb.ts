@@ -4,15 +4,15 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Event } from "../../v1/event_pb";
-import { file_nama_v1_event } from "../../v1/event_pb";
+import type { Request } from "./request_pb";
+import { file_nama_plugin_v1_request } from "./request_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/plugin/v1/events.proto.
  */
 export const file_nama_plugin_v1_events: GenFile = /*@__PURE__*/
-  fileDesc("ChtuYW1hL3BsdWdpbi92MS9ldmVudHMucHJvdG8SDm5hbWEucGx1Z2luLnYxIjAKDk9ic2VydmVkRXZlbnRzEh4KBmV2ZW50cxgBIAMoCzIOLm5hbWEudjEuRXZlbnRiBnByb3RvMw", [file_nama_v1_event]);
+  fileDesc("ChtuYW1hL3BsdWdpbi92MS9ldmVudHMucHJvdG8SDm5hbWEucGx1Z2luLnYxIjcKDk9ic2VydmVkRXZlbnRzEiUKBmV2ZW50cxgBIAMoCzIVLm5hbWEucGx1Z2luLnYxLkV2ZW50IuEGCgVFdmVudBIzCgxzY2FuX3N0YXJ0ZWQYASABKAsyGy5uYW1hLnBsdWdpbi52MS5TY2FuU3RhcnRlZEgAEjUKDXNjYW5fcHJvZ3Jlc3MYAiABKAsyHC5uYW1hLnBsdWdpbi52MS5TY2FuUHJvZ3Jlc3NIABI1Cg1zY2FuX2ZpbmlzaGVkGAMgASgLMhwubmFtYS5wbHVnaW4udjEuU2NhbkZpbmlzaGVkSAASPgoSbGlicmFyeV9pdGVtX2FkZGVkGAQgASgLMiAubmFtYS5wbHVnaW4udjEuTGlicmFyeUl0ZW1BZGRlZEgAEkIKFGxpYnJhcnlfaXRlbV9yZW1vdmVkGAUgASgLMiIubmFtYS5wbHVnaW4udjEuTGlicmFyeUl0ZW1SZW1vdmVkSAASMwoMaXRlbV9tYXRjaGVkGAYgASgLMhsubmFtYS5wbHVnaW4udjEuSXRlbU1hdGNoZWRIABI9ChFtYXRjaGluZ19maW5pc2hlZBgHIAEoCzIgLm5hbWEucGx1Z2luLnYxLk1hdGNoaW5nRmluaXNoZWRIABI7ChBwcm9iaW5nX2ZpbmlzaGVkGAggASgLMh8ubmFtYS5wbHVnaW4udjEuUHJvYmluZ0ZpbmlzaGVkSAASOQoPcmVxdWVzdF9jcmVhdGVkGAkgASgLMh4ubmFtYS5wbHVnaW4udjEuUmVxdWVzdENyZWF0ZWRIABI5Cg9yZXF1ZXN0ZXJfYWRkZWQYCiABKAsyHi5uYW1hLnBsdWdpbi52MS5SZXF1ZXN0ZXJBZGRlZEgAEkQKFXJlcXVlc3Rfc3RhdGVfY2hhbmdlZBgLIAEoCzIjLm5hbWEucGx1Z2luLnYxLlJlcXVlc3RTdGF0ZUNoYW5nZWRIABI9ChFyZXF1ZXN0X2NhbmNlbGxlZBgMIAEoCzIgLm5hbWEucGx1Z2luLnYxLlJlcXVlc3RDYW5jZWxsZWRIABI9ChFyZXF1ZXN0ZXJfcmVtb3ZlZBgNIAEoCzIgLm5hbWEucGx1Z2luLnYxLlJlcXVlc3RlclJlbW92ZWRIABI9ChFyZXF1ZXN0X3dpdGhkcmF3bhgOIAEoCzIgLm5hbWEucGx1Z2luLnYxLlJlcXVlc3RXaXRoZHJhd25IAEIHCgVldmVudCIhCgtTY2FuU3RhcnRlZBISCgpsaWJyYXJ5X2lkGAEgASgDIksKDFNjYW5Qcm9ncmVzcxISCgpsaWJyYXJ5X2lkGAEgASgDEhIKCmZpbGVzX2RvbmUYAiABKAQSEwoLZmlsZXNfdG90YWwYAyABKAQiZgoMU2NhbkZpbmlzaGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDQoFYWRkZWQYAiABKAQSDwoHdXBkYXRlZBgDIAEoBBIPCgdyZW1vdmVkGAQgASgEEhEKCXVuY2hhbmdlZBgFIAEoBCJdChBNYXRjaGluZ0ZpbmlzaGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHbWF0Y2hlZBgCIAEoBBIRCgl1bm1hdGNoZWQYAyABKAQSEQoJdW5kZWNpZGVkGAQgASgEIkUKD1Byb2JpbmdGaW5pc2hlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg4KBnByb2JlZBgCIAEoBBIOCgZmYWlsZWQYAyABKAQiRQoQTGlicmFyeUl0ZW1BZGRlZBISCgpsaWJyYXJ5X2lkGAEgASgDEg8KB2l0ZW1faWQYAiABKAMSDAoEcGF0aBgDIAEoCSI5ChJMaWJyYXJ5SXRlbVJlbW92ZWQSEgoKbGlicmFyeV9pZBgBIAEoAxIPCgdpdGVtX2lkGAIgASgDIkEKC0l0ZW1NYXRjaGVkEhIKCmxpYnJhcnlfaWQYASABKAMSDwoHaXRlbV9pZBgCIAEoAxINCgV0aXRsZRgDIAEoCSI6Cg5SZXF1ZXN0Q3JlYXRlZBIoCgdyZXF1ZXN0GAEgASgLMhcubmFtYS5wbHVnaW4udjEuUmVxdWVzdCJLCg5SZXF1ZXN0ZXJBZGRlZBIoCgdyZXF1ZXN0GAEgASgLMhcubmFtYS5wbHVnaW4udjEuUmVxdWVzdBIPCgd1c2VyX2lkGAIgASgDIj8KE1JlcXVlc3RTdGF0ZUNoYW5nZWQSKAoHcmVxdWVzdBgBIAEoCzIXLm5hbWEucGx1Z2luLnYxLlJlcXVlc3QiZAoQUmVxdWVzdENhbmNlbGxlZBIoCgdyZXF1ZXN0GAEgASgLMhcubmFtYS5wbHVnaW4udjEuUmVxdWVzdBIXCgpkZWxldGVkX2J5GAIgASgJSACIAQFCDQoLX2RlbGV0ZWRfYnkiTQoQUmVxdWVzdGVyUmVtb3ZlZBIoCgdyZXF1ZXN0GAEgASgLMhcubmFtYS5wbHVnaW4udjEuUmVxdWVzdBIPCgd1c2VyX2lkGAIgASgDIjwKEFJlcXVlc3RXaXRoZHJhd24SKAoHcmVxdWVzdBgBIAEoCzIXLm5hbWEucGx1Z2luLnYxLlJlcXVlc3RiBnByb3RvMw", [file_nama_plugin_v1_request]);
 
 /**
  * What an Installed Plugin's Observer at `OBSERVE_POINT_EVENTS` is told: one batch of Events, in
@@ -22,7 +22,7 @@ export const file_nama_plugin_v1_events: GenFile = /*@__PURE__*/
  */
 export type ObservedEvents = Message<"nama.plugin.v1.ObservedEvents"> & {
   /**
-   * @generated from field: repeated nama.v1.Event events = 1;
+   * @generated from field: repeated nama.plugin.v1.Event events = 1;
    */
   events: Event[];
 };
@@ -33,4 +33,519 @@ export type ObservedEvents = Message<"nama.plugin.v1.ObservedEvents"> & {
  */
 export const ObservedEventsSchema: GenMessage<ObservedEvents> = /*@__PURE__*/
   messageDesc(file_nama_plugin_v1_events, 0);
+
+/**
+ * Something that happened in the Kernel. Left out on purpose: Request progress, Followed Show and
+ * Playback events, which the Kernel doesn't tell a Plugin. A kind joins when a Plugin needs it.
+ *
+ * @generated from message nama.plugin.v1.Event
+ */
+export type Event = Message<"nama.plugin.v1.Event"> & {
+  /**
+   * @generated from oneof nama.plugin.v1.Event.event
+   */
+  event: {
+    /**
+     * @generated from field: nama.plugin.v1.ScanStarted scan_started = 1;
+     */
+    value: ScanStarted;
+    case: "scanStarted";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.ScanProgress scan_progress = 2;
+     */
+    value: ScanProgress;
+    case: "scanProgress";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.ScanFinished scan_finished = 3;
+     */
+    value: ScanFinished;
+    case: "scanFinished";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.LibraryItemAdded library_item_added = 4;
+     */
+    value: LibraryItemAdded;
+    case: "libraryItemAdded";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.LibraryItemRemoved library_item_removed = 5;
+     */
+    value: LibraryItemRemoved;
+    case: "libraryItemRemoved";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.ItemMatched item_matched = 6;
+     */
+    value: ItemMatched;
+    case: "itemMatched";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.MatchingFinished matching_finished = 7;
+     */
+    value: MatchingFinished;
+    case: "matchingFinished";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.ProbingFinished probing_finished = 8;
+     */
+    value: ProbingFinished;
+    case: "probingFinished";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.RequestCreated request_created = 9;
+     */
+    value: RequestCreated;
+    case: "requestCreated";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.RequesterAdded requester_added = 10;
+     */
+    value: RequesterAdded;
+    case: "requesterAdded";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.RequestStateChanged request_state_changed = 11;
+     */
+    value: RequestStateChanged;
+    case: "requestStateChanged";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.RequestCancelled request_cancelled = 12;
+     */
+    value: RequestCancelled;
+    case: "requestCancelled";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.RequesterRemoved requester_removed = 13;
+     */
+    value: RequesterRemoved;
+    case: "requesterRemoved";
+  } | {
+    /**
+     * @generated from field: nama.plugin.v1.RequestWithdrawn request_withdrawn = 14;
+     */
+    value: RequestWithdrawn;
+    case: "requestWithdrawn";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message nama.plugin.v1.Event.
+ * Use `create(EventSchema)` to create a new message.
+ */
+export const EventSchema: GenMessage<Event> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 1);
+
+/**
+ * A scan of a Library's folders began.
+ *
+ * @generated from message nama.plugin.v1.ScanStarted
+ */
+export type ScanStarted = Message<"nama.plugin.v1.ScanStarted"> & {
+  /**
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+};
+
+/**
+ * Describes the message nama.plugin.v1.ScanStarted.
+ * Use `create(ScanStartedSchema)` to create a new message.
+ */
+export const ScanStartedSchema: GenMessage<ScanStarted> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 2);
+
+/**
+ * A scan stored another batch of the changes it found. Files that haven't changed since the last
+ * scan aren't counted.
+ *
+ * @generated from message nama.plugin.v1.ScanProgress
+ */
+export type ScanProgress = Message<"nama.plugin.v1.ScanProgress"> & {
+  /**
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * How many new, changed or gone files have been stored or removed so far.
+   *
+   * @generated from field: uint64 files_done = 2;
+   */
+  filesDone: bigint;
+
+  /**
+   * How many new, changed or gone files the scan found.
+   *
+   * @generated from field: uint64 files_total = 3;
+   */
+  filesTotal: bigint;
+};
+
+/**
+ * Describes the message nama.plugin.v1.ScanProgress.
+ * Use `create(ScanProgressSchema)` to create a new message.
+ */
+export const ScanProgressSchema: GenMessage<ScanProgress> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 3);
+
+/**
+ * A scan stored every change it found. Matching the new Items follows, and `MatchingFinished` says
+ * when it has. A scan that fails or is cancelled sends none.
+ *
+ * @generated from message nama.plugin.v1.ScanFinished
+ */
+export type ScanFinished = Message<"nama.plugin.v1.ScanFinished"> & {
+  /**
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * Files found that weren't stored before.
+   *
+   * @generated from field: uint64 added = 2;
+   */
+  added: bigint;
+
+  /**
+   * Stored files parsed again: those whose size or modified time changed, or that an older name
+   * parser read.
+   *
+   * @generated from field: uint64 updated = 3;
+   */
+  updated: bigint;
+
+  /**
+   * Stored files that are gone.
+   *
+   * @generated from field: uint64 removed = 4;
+   */
+  removed: bigint;
+
+  /**
+   * Stored files left as they were.
+   *
+   * @generated from field: uint64 unchanged = 5;
+   */
+  unchanged: bigint;
+};
+
+/**
+ * Describes the message nama.plugin.v1.ScanFinished.
+ * Use `create(ScanFinishedSchema)` to create a new message.
+ */
+export const ScanFinishedSchema: GenMessage<ScanFinished> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 4);
+
+/**
+ * A scan's Matching decided what it could about the Library's Items. Sent even when no metadata
+ * Provider could answer, which leaves Items undecided; a scan that fails or is cancelled sends
+ * none.
+ *
+ * @generated from message nama.plugin.v1.MatchingFinished
+ */
+export type MatchingFinished = Message<"nama.plugin.v1.MatchingFinished"> & {
+  /**
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * Items that now have a Match.
+   *
+   * @generated from field: uint64 matched = 2;
+   */
+  matched: bigint;
+
+  /**
+   * Items that are now Unmatched.
+   *
+   * @generated from field: uint64 unmatched = 3;
+   */
+  unmatched: bigint;
+
+  /**
+   * Items Matching couldn't decide. The next scan tries them again.
+   *
+   * @generated from field: uint64 undecided = 4;
+   */
+  undecided: bigint;
+};
+
+/**
+ * Describes the message nama.plugin.v1.MatchingFinished.
+ * Use `create(MatchingFinishedSchema)` to create a new message.
+ */
+export const MatchingFinishedSchema: GenMessage<MatchingFinished> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 5);
+
+/**
+ * Probing has caught up with a Library after a scan: every file without current Tracks that the
+ * scan left was probed, or ffprobe couldn't be run. Sent after `MatchingFinished`.
+ *
+ * @generated from message nama.plugin.v1.ProbingFinished
+ */
+export type ProbingFinished = Message<"nama.plugin.v1.ProbingFinished"> & {
+  /**
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * Files whose Tracks were stored.
+   *
+   * @generated from field: uint64 probed = 2;
+   */
+  probed: bigint;
+
+  /**
+   * Files ffprobe couldn't read.
+   *
+   * @generated from field: uint64 failed = 3;
+   */
+  failed: bigint;
+};
+
+/**
+ * Describes the message nama.plugin.v1.ProbingFinished.
+ * Use `create(ProbingFinishedSchema)` to create a new message.
+ */
+export const ProbingFinishedSchema: GenMessage<ProbingFinished> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 6);
+
+/**
+ * A scan stored an Item, for a new file, one that changed or one a newer name parser read.
+ *
+ * @generated from message nama.plugin.v1.LibraryItemAdded
+ */
+export type LibraryItemAdded = Message<"nama.plugin.v1.LibraryItemAdded"> & {
+  /**
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * @generated from field: int64 item_id = 2;
+   */
+  itemId: bigint;
+
+  /**
+   * The absolute path, on the Server, of the file holding the Item.
+   *
+   * @generated from field: string path = 3;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message nama.plugin.v1.LibraryItemAdded.
+ * Use `create(LibraryItemAddedSchema)` to create a new message.
+ */
+export const LibraryItemAddedSchema: GenMessage<LibraryItemAdded> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 7);
+
+/**
+ * An Item is gone, because its file is gone or changed, or a newer name parser read it.
+ *
+ * @generated from message nama.plugin.v1.LibraryItemRemoved
+ */
+export type LibraryItemRemoved = Message<"nama.plugin.v1.LibraryItemRemoved"> & {
+  /**
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * @generated from field: int64 item_id = 2;
+   */
+  itemId: bigint;
+};
+
+/**
+ * Describes the message nama.plugin.v1.LibraryItemRemoved.
+ * Use `create(LibraryItemRemovedSchema)` to create a new message.
+ */
+export const LibraryItemRemovedSchema: GenMessage<LibraryItemRemoved> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 8);
+
+/**
+ * An Item was Matched, automatically or by hand.
+ *
+ * @generated from message nama.plugin.v1.ItemMatched
+ */
+export type ItemMatched = Message<"nama.plugin.v1.ItemMatched"> & {
+  /**
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * @generated from field: int64 item_id = 2;
+   */
+  itemId: bigint;
+
+  /**
+   * The title of the Movie or Episode it was Matched to.
+   *
+   * @generated from field: string title = 3;
+   */
+  title: string;
+};
+
+/**
+ * Describes the message nama.plugin.v1.ItemMatched.
+ * Use `create(ItemMatchedSchema)` to create a new message.
+ */
+export const ItemMatchedSchema: GenMessage<ItemMatched> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 9);
+
+/**
+ * A User asked for something that had no open Request, which opened this one.
+ *
+ * @generated from message nama.plugin.v1.RequestCreated
+ */
+export type RequestCreated = Message<"nama.plugin.v1.RequestCreated"> & {
+  /**
+   * @generated from field: nama.plugin.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+};
+
+/**
+ * Describes the message nama.plugin.v1.RequestCreated.
+ * Use `create(RequestCreatedSchema)` to create a new message.
+ */
+export const RequestCreatedSchema: GenMessage<RequestCreated> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 10);
+
+/**
+ * A User joined a Request as a Requester.
+ *
+ * @generated from message nama.plugin.v1.RequesterAdded
+ */
+export type RequesterAdded = Message<"nama.plugin.v1.RequesterAdded"> & {
+  /**
+   * The Request as it is now, with them among its Requesters.
+   *
+   * @generated from field: nama.plugin.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+
+  /**
+   * The User who joined.
+   *
+   * @generated from field: int64 user_id = 2;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.plugin.v1.RequesterAdded.
+ * Use `create(RequesterAddedSchema)` to create a new message.
+ */
+export const RequesterAddedSchema: GenMessage<RequesterAdded> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 11);
+
+/**
+ * A Request moved to another state.
+ *
+ * @generated from message nama.plugin.v1.RequestStateChanged
+ */
+export type RequestStateChanged = Message<"nama.plugin.v1.RequestStateChanged"> & {
+  /**
+   * The Request as it is now, in its new state.
+   *
+   * @generated from field: nama.plugin.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+};
+
+/**
+ * Describes the message nama.plugin.v1.RequestStateChanged.
+ * Use `create(RequestStateChangedSchema)` to create a new message.
+ */
+export const RequestStateChangedSchema: GenMessage<RequestStateChanged> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 12);
+
+/**
+ * A Request was cancelled, which removed it: by a Request manager, or by deleting media it was
+ * still waiting on.
+ *
+ * @generated from message nama.plugin.v1.RequestCancelled
+ */
+export type RequestCancelled = Message<"nama.plugin.v1.RequestCancelled"> & {
+  /**
+   * The Request as it was before it was removed.
+   *
+   * @generated from field: nama.plugin.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+
+  /**
+   * The name of the User who deleted media the Request was still waiting on, when that cancelled
+   * it. Unset when a Request manager cancelled it.
+   *
+   * @generated from field: optional string deleted_by = 2;
+   */
+  deletedBy?: string | undefined;
+};
+
+/**
+ * Describes the message nama.plugin.v1.RequestCancelled.
+ * Use `create(RequestCancelledSchema)` to create a new message.
+ */
+export const RequestCancelledSchema: GenMessage<RequestCancelled> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 13);
+
+/**
+ * A Requester withdrew from a Pending Request that others are still on.
+ *
+ * @generated from message nama.plugin.v1.RequesterRemoved
+ */
+export type RequesterRemoved = Message<"nama.plugin.v1.RequesterRemoved"> & {
+  /**
+   * The Request as it was, with them still among its Requesters.
+   *
+   * @generated from field: nama.plugin.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+
+  /**
+   * The User who withdrew.
+   *
+   * @generated from field: int64 user_id = 2;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.plugin.v1.RequesterRemoved.
+ * Use `create(RequesterRemovedSchema)` to create a new message.
+ */
+export const RequesterRemovedSchema: GenMessage<RequesterRemoved> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 14);
+
+/**
+ * A Pending Request's last Requester withdrew, which removed it.
+ *
+ * @generated from message nama.plugin.v1.RequestWithdrawn
+ */
+export type RequestWithdrawn = Message<"nama.plugin.v1.RequestWithdrawn"> & {
+  /**
+   * The Request as it was before it was removed.
+   *
+   * @generated from field: nama.plugin.v1.Request request = 1;
+   */
+  request?: Request | undefined;
+};
+
+/**
+ * Describes the message nama.plugin.v1.RequestWithdrawn.
+ * Use `create(RequestWithdrawnSchema)` to create a new message.
+ */
+export const RequestWithdrawnSchema: GenMessage<RequestWithdrawn> = /*@__PURE__*/
+  messageDesc(file_nama_plugin_v1_events, 15);
 
