@@ -6,12 +6,13 @@ use nama_proto::nama::v1::{RequestState, event::Event as Happened};
 use super::availability;
 use crate::requests::asking::{Wanted, WantedSeasons, ask_seasons};
 use crate::requests::deciding::{cancel, decline};
+use crate::requests::followed::decide_followed;
 use crate::requests::listing::{load, load_one};
+use crate::requests::qualities;
 use crate::requests::testing::{
     ADA, BOB, DARK, ada_and_bob, ask_each, asked_season, dark, dark_season, episode, follow_as,
     match_dark_episodes, matched, said, scan_dark, season_1, season_ids, tmdb,
 };
-use crate::requests::{decide_followed, qualities};
 use crate::{
     db::Database,
     libraries::{Kind, Libraries},

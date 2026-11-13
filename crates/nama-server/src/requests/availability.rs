@@ -9,8 +9,8 @@ use sqlx::SqliteConnection;
 
 use super::apply::Applied;
 use super::asking::{Asker, SeasonsToAsk, Wanted, ask_as};
+use super::followed::{approved_followed_show, covers};
 use super::state::{change_state, open_request};
-use super::{approved_followed_show, covers};
 use crate::{db::now, library::contents};
 
 /// Today as `YYYY-MM-DD`, by SQLite's calendar, since `std` has none.

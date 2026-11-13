@@ -8,9 +8,10 @@ use nama_proto::nama::v1::{FollowedShow, FoundSeason, Request, RequestState, Req
 use sqlx::SqliteConnection;
 
 use super::availability::{availability, today};
+use super::followed::{load_followed, open_followed_show};
 use super::listing::visible_to;
 use super::quality::show_requests;
-use super::{Error, Requests, load_followed, open_followed_show};
+use super::{Error, Requests};
 use crate::{
     library::contents::{self, Metadata},
     metadata,

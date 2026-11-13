@@ -11,9 +11,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
 
 use super::asked::{self, Asked, may_see};
+use super::followed::load_followed;
 use super::quality::stored_quality;
 use super::state::{open_request, read_state, stored};
-use super::{Error, Requests, load_followed};
+use super::{Error, Requests};
 use crate::users::User;
 
 /// Whose Requests `viewer` may see: everyone's (`None`), or only those they are a Requester of.
