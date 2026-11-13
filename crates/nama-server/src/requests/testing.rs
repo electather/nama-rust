@@ -15,11 +15,9 @@ use nama_proto::nama::v1::{
 use sqlx::SqliteConnection;
 
 use super::apply::Applied;
+use super::asking::{Wanted, WantedSeasons, ask, ask_movie, opening_state};
 use super::state::{STATES, settle};
-use super::{
-    Requests, Wanted, WantedSeasons, ask, ask_movie, follow, make_seasons_available, opening_state,
-    qualities,
-};
+use super::{Requests, follow, make_seasons_available, qualities};
 use crate::{
     db::Database,
     events::EventBus,
