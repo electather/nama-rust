@@ -45,6 +45,11 @@
 //!
 //! A Plugin that connects Users to an outside service, such as their Telegram chat, implements
 //! [`Connector`] and exports it with [`connector!`].
+//!
+//! A Plugin that tells the Server about Movies and Shows, such as from TVDB, implements
+//! [`TitleSource`] and exports the methods it serves with [`title_source!`]. Its Manifest's
+//! `points` name [`services::TITLE_SOURCE`] and its `title_namespace` names the namespace it keeps
+//! titles under, such as `tvdb`. An answer with its title unset means the source has no such title.
 
 use std::{collections::HashMap, fmt};
 
@@ -52,8 +57,11 @@ pub use extism_pdk::{self, FnResult, plugin_fn};
 pub use nama_plugin_proto::{
     self,
     nama::plugin::v1::{
-        CheckedSettings, ConnectionStarted, Download, Fulfilled, Manifest, Notification, Point,
-        Request, StopMonitoring, TitleId, delivery::Recipient,
+        Candidate, CheckedSettings, ConnectionStarted, Download, Episode, EpisodeAnswer,
+        EpisodeAsked, Fulfilled, Image, ImageAnswer, ImageAsked, Manifest, Movie, MovieAnswer,
+        Notification, Point, Request, SearchQuery, SearchResults, Season, SeasonAnswer,
+        SeasonAsked, Show, ShowAnswer, StopMonitoring, TitleAsked, TitleId, TitleKind,
+        delivery::Recipient,
     },
     services,
 };
@@ -434,6 +442,205 @@ macro_rules! connector {
     };
 }
 
+/// A title source: tells the Server about Movies and Shows so it can Match the files in a Library
+/// to titles. Every method is optional, and only those [`title_source!`] lists are exported; the
+/// Server asks nothing of one that isn't:
+///
+/// ```
+/// use nama_pdk::{
+///     Candidate, SearchQuery, SearchResults, TitleId, TitleSource, extism_pdk::Error,
+/// };
+///
+/// struct Tvdb;
+///
+/// impl TitleSource for Tvdb {
+///     fn search(query: SearchQuery) -> Result<SearchResults, Error> {
+///         let id = TitleId {
+///             namespace: "tvdb".to_owned(),
+///             value: "81189".to_owned(),
+///             ..TitleId::default()
+///         };
+///         Ok(SearchResults {
+///             candidates: vec![Candidate {
+///                 ids: vec![id.clone()],
+///                 id: id.into(),
+///                 title: query.title,
+///                 ..Candidate::default()
+///             }],
+///             ..SearchResults::default()
+///         })
+///     }
+/// }
+///
+/// nama_pdk::title_source!(Tvdb, [search]);
+/// ```
+pub trait TitleSource {
+    /// The titles of `query.kind` that best fit `query`, best first; none if nothing fits.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked, which is worth trying again later.
+    fn search(_query: SearchQuery) -> Result<SearchResults, Error> {
+        Err(not_served("search"))
+    }
+
+    /// The Movie with the id `asked` names, unset if the source has none.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked or doesn't know the id's namespace.
+    fn movie(_asked: TitleAsked) -> Result<MovieAnswer, Error> {
+        Err(not_served("movie"))
+    }
+
+    /// The Show with the id `asked` names, unset if the source has none.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked or doesn't know the id's namespace.
+    fn show(_asked: TitleAsked) -> Result<ShowAnswer, Error> {
+        Err(not_served("show"))
+    }
+
+    /// The Season `asked` names, with its Episodes, unset if the source has none.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked or doesn't know the Show id's namespace.
+    fn season(_asked: SeasonAsked) -> Result<SeasonAnswer, Error> {
+        Err(not_served("season"))
+    }
+
+    /// The Episode `asked` names, unset if the source has none.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked or doesn't know the Show id's namespace.
+    fn episode(_asked: EpisodeAsked) -> Result<EpisodeAnswer, Error> {
+        Err(not_served("episode"))
+    }
+
+    /// The image at the path `asked` names, as the source gave it in a poster, backdrop or still,
+    /// unset if it has none there.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked.
+    fn image(_asked: ImageAsked) -> Result<ImageAnswer, Error> {
+        Err(not_served("image"))
+    }
+}
+
+/// What a [`TitleSource`] method the Plugin doesn't override returns, should [`title_source!`]
+/// list it anyway.
+fn not_served(method: &str) -> Error {
+    Error::msg(format!("this title source doesn't serve {method}"))
+}
+
+/// Exports the [`TitleSource`] methods a Plugin serves, each under its export name: `search` as
+/// `title_search`, and `movie`, `show`, `season`, `episode` and `image` likewise, taking and
+/// returning their `nama.plugin.v1` messages: `title_source!(Tvdb, [search, show, season, image])`.
+///
+/// The Server treats a missing export as a method the source doesn't serve, so only the methods
+/// listed are exported. A macro can't see which of the trait's defaults a type overrides, so the
+/// list is explicit.
+#[macro_export]
+macro_rules! title_source {
+    ($source:ty, [$($method:ident),+ $(,)?]) => {
+        $($crate::title_source!(@export $source, $method);)+
+    };
+    (@export $source:ty, search) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, SearchQuery, SearchResults, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_search(
+                Buffa(query): Buffa<SearchQuery>,
+            ) -> FnResult<Buffa<SearchResults>> {
+                Ok(Buffa(<$source as TitleSource>::search(query)?))
+            }
+        };
+    };
+    (@export $source:ty, movie) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, TitleAsked, MovieAnswer, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_movie(
+                Buffa(asked): Buffa<TitleAsked>,
+            ) -> FnResult<Buffa<MovieAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::movie(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, show) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, TitleAsked, ShowAnswer, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_show(
+                Buffa(asked): Buffa<TitleAsked>,
+            ) -> FnResult<Buffa<ShowAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::show(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, season) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, SeasonAsked, SeasonAnswer, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_season(
+                Buffa(asked): Buffa<SeasonAsked>,
+            ) -> FnResult<Buffa<SeasonAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::season(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, episode) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, EpisodeAsked, EpisodeAnswer, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_episode(
+                Buffa(asked): Buffa<EpisodeAsked>,
+            ) -> FnResult<Buffa<EpisodeAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::episode(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, image) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, ImageAsked, ImageAnswer, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_image(
+                Buffa(asked): Buffa<ImageAsked>,
+            ) -> FnResult<Buffa<ImageAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::image(asked)?))
+            }
+        };
+    };
+}
+
 /// What `check_settings()` returns: for each Choice setting's key, its choices as `(value, label)`
 /// pairs in the order a form shows them. The value is what is stored, such as a quality profile's
 /// id, and the label what an admin picks it by, such as its name.
@@ -548,4 +755,26 @@ fn clear_error() {
     unsafe {
         extism_pdk::extism::error_set(0);
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{SearchQuery, SearchResults, TitleSource, extism_pdk::Error};
+
+    struct Searcher;
+
+    impl TitleSource for Searcher {
+        fn search(_query: SearchQuery) -> Result<SearchResults, Error> {
+            Ok(SearchResults::default())
+        }
+    }
+
+    struct EverythingElse;
+
+    impl TitleSource for EverythingElse {}
+
+    // Each export is a `no_mangle` symbol, so these two link only if `title_source!` exports
+    // nothing but the methods it lists: an unlisted `title_search` would be defined twice.
+    crate::title_source!(Searcher, [search]);
+    crate::title_source!(EverythingElse, [movie, show, season, episode, image]);
 }
