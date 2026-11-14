@@ -1,6 +1,6 @@
 use std::{collections::HashSet, sync::Arc};
 
-use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB};
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{RequestState, event::Event as Happened};
 
 use super::availability;
@@ -392,11 +392,12 @@ async fn asking_for_a_season_on_its_own_leaves_which_seasons_the_followed_show_c
 }
 
 #[tokio::test]
-async fn a_request_kept_under_an_imdb_id_becomes_available_when_a_library_matches_that_movie() {
+async fn a_request_kept_under_a_made_up_namespace_becomes_available_when_a_library_matches_that_movie()
+ {
     let (_data, db) = ada_and_bob().await;
-    let imdb = ExternalId::new(IMDB, "tt0078748").unwrap();
+    let anidb = ExternalId::new("anidb", "5101").unwrap();
     let wanted = Wanted {
-        id: imdb.clone(),
+        id: anidb.clone(),
         ..movie(348)
     };
     let id = db
@@ -408,7 +409,7 @@ async fn a_request_kept_under_an_imdb_id_becomes_available_when_a_library_matche
 
     let folder = tempfile::tempdir().unwrap();
     let alien = Metadata {
-        ids: ExternalIds::from_iter([imdb]),
+        ids: ExternalIds::from_iter([anidb]),
         ..tmdb_movie(348, "Alien")
     };
     MatchedMovie::new(&db, folder.path(), alien).await;
@@ -419,13 +420,13 @@ async fn a_request_kept_under_an_imdb_id_becomes_available_when_a_library_matche
 }
 
 #[tokio::test]
-async fn a_season_request_kept_under_a_tvdb_id_follows_how_much_of_it_a_library_has() {
+async fn a_season_request_kept_under_a_made_up_namespace_follows_how_much_of_it_a_library_has() {
     let (_data, db) = ada_and_bob().await;
-    let show = ExternalId::tvdb(81189);
+    let show = ExternalId::new("anidb", "69").unwrap();
     let wanted = Wanted {
         id: show.clone(),
         season: Some(1),
-        ..movie(81189)
+        ..movie(69)
     };
     let id = db
         .write(move |tx| Box::pin(ask(tx, ADA, wanted, RequestState::Approved)))
