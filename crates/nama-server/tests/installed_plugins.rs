@@ -413,6 +413,20 @@ async fn a_plugin_built_for_contract_0_1_is_refused_naming_the_version() {
 }
 
 #[tokio::test]
+async fn a_plugin_naming_no_points_is_refused() {
+    let started = Started::new().await;
+
+    started.drop_in("empty.wasm", "empty-points");
+
+    let listed = started.listed("empty.wasm").await.unwrap();
+    assert_eq!(
+        listed.refused_reason,
+        "its Manifest names no Extension Points, so it would do nothing; a Plugin built before \
+         Extension Points became services must name them in points"
+    );
+}
+
+#[tokio::test]
 async fn a_second_file_with_a_plugins_id_is_refused() {
     let started = Started::new().await;
 

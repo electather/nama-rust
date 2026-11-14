@@ -39,7 +39,8 @@ mod exports {
     // its settings: a URL whose host it may reach, one it requests, how its Observer, Fulfiller
     // and Notifier behave, a profile its check offers, and how its check fails, and its logo. With
     // the `unexported-connector` feature it names a Connector it doesn't export, with `contract-0-1`
-    // it wants Plugin contract 0.1, and with `panic` it panics instead.
+    // it wants Plugin contract 0.1, with `empty-points` it names no Extension Points, and with
+    // `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -88,6 +89,11 @@ mod exports {
                 nama_pdk::point(services::CONNECTOR),
                 nama_pdk::point(services::EVENT_OBSERVER),
             ],
+            ..manifest
+        };
+        #[cfg(feature = "empty-points")]
+        let manifest = Manifest {
+            points: Vec::new(),
             ..manifest
         };
         #[cfg(feature = "contract-0-1")]

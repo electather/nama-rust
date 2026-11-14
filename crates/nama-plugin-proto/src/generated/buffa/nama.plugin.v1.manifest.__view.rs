@@ -69,8 +69,8 @@ pub struct ManifestView<'a> {
     ///
     /// Field 12: `show_id_namespaces`
     pub show_id_namespaces: ::buffa::RepeatedView<'a, &'a str>,
-    /// The Extension Points the Plugin serves. A Server refuses a Plugin naming one it doesn't
-    /// serve, at a version it doesn't serve, or lacking an export one needs.
+    /// The Extension Points the Plugin serves. A Server refuses a Plugin naming none, naming one it
+    /// doesn't serve, at a version it doesn't serve, or lacking an export one needs.
     ///
     /// Field 13: `points`
     pub points: ::buffa::RepeatedView<'a, super::super::__buffa::view::PointView<'a>>,
@@ -606,8 +606,8 @@ impl ManifestOwnedView {
     pub fn show_id_namespaces(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().show_id_namespaces
     }
-    /// The Extension Points the Plugin serves. A Server refuses a Plugin naming one it doesn't
-    /// serve, at a version it doesn't serve, or lacking an export one needs.
+    /// The Extension Points the Plugin serves. A Server refuses a Plugin naming none, naming one it
+    /// doesn't serve, at a version it doesn't serve, or lacking an export one needs.
     ///
     /// Field 13: `points`
     #[must_use]

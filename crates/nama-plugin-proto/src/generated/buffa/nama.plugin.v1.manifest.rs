@@ -316,8 +316,8 @@ pub struct Manifest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub show_id_namespaces: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
-    /// The Extension Points the Plugin serves. A Server refuses a Plugin naming one it doesn't
-    /// serve, at a version it doesn't serve, or lacking an export one needs.
+    /// The Extension Points the Plugin serves. A Server refuses a Plugin naming none, naming one it
+    /// doesn't serve, at a version it doesn't serve, or lacking an export one needs.
     ///
     /// Field 13: `points`
     #[serde(

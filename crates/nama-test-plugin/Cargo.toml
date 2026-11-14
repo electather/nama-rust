@@ -19,6 +19,9 @@ unexported-connector = []
 # Builds the Plugin for Plugin contract 0.1, which no Server matches any more, so the Server
 # refuses it.
 contract-0-1 = []
+# Builds the Plugin naming no Extension Points, as one built before they became services reads,
+# so the Server refuses it.
+empty-points = []
 
 [dependencies]
 nama-pdk = { version = "0.1.0", path = "../nama-pdk" }

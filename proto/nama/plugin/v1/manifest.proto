@@ -50,8 +50,8 @@ message Manifest {
   // The id namespaces the Plugin's `ShowFulfillerService` can find a title by, such as "tvdb", as
   // `movie_id_namespaces` is for Movies. Ignored unless `points` names `ShowFulfillerService`.
   repeated string show_id_namespaces = 12;
-  // The Extension Points the Plugin serves. A Server refuses a Plugin naming one it doesn't
-  // serve, at a version it doesn't serve, or lacking an export one needs.
+  // The Extension Points the Plugin serves. A Server refuses a Plugin naming none, naming one it
+  // doesn't serve, at a version it doesn't serve, or lacking an export one needs.
   repeated Point points = 13;
 }
 

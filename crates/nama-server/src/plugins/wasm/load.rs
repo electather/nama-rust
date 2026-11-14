@@ -175,6 +175,11 @@ pub(super) fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<M
     check_allowed_hosts(&package.allowed_hosts)?;
     check_namespaces(package)?;
     let points = points(package)?;
+    // A Manifest from before ADR 0043 named its points in fields since dropped, so it reads as
+    // naming none and would load serving nothing.
+    if points.is_empty() {
+        return Err(Refused::NoPoints);
+    }
     check_exports(&points, |export| exported.contains(&export))?;
     manifest(package, &points)
 }
@@ -353,3 +358,7 @@ pub(super) fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema
         .collect::<Result<_, _>>()?;
     Ok(SettingsSchema { fields })
 }
+
+#[cfg(test)]
+#[path = "load_tests.rs"]
+mod tests;
