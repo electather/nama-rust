@@ -273,11 +273,7 @@ impl Scanner {
             if !title_sources.is_empty() {
                 libraries::check_title_sources(&title_sources)?;
             }
-            let mut library = libraries.create(&name, kind, folders).await?;
-            if !title_sources.is_empty() {
-                (libraries.set_title_sources(library.id, title_sources.clone())).await?;
-                library.title_sources = title_sources;
-            }
+            let library = (libraries.create_in_order(&name, kind, folders, title_sources)).await?;
             scanner.rewatch().await;
             Ok(library)
         })
@@ -300,11 +296,7 @@ impl Scanner {
             if !title_sources.is_empty() {
                 libraries::check_title_sources(&title_sources)?;
             }
-            let mut library = libraries.update(id, &name, folders).await?;
-            if !title_sources.is_empty() {
-                (libraries.set_title_sources(id, title_sources.clone())).await?;
-                library.title_sources = title_sources;
-            }
+            let library = libraries.update(id, &name, folders, title_sources).await?;
             scanner.rewatch().await;
             Ok(library)
         })

@@ -94,16 +94,33 @@ impl Libraries {
         Self { db }
     }
 
+    /// Creates a Library searching TMDB alone.
+    #[cfg(test)]
     pub(crate) async fn create(
         &self,
         name: &str,
         kind: Kind,
         folders: Vec<String>,
     ) -> Result<Library, Error> {
+        self.create_in_order(name, kind, folders, Vec::new()).await
+    }
+
+    /// Creates a Library searching `title_sources` in order, or TMDB alone if it names none, in
+    /// one write.
+    pub(crate) async fn create_in_order(
+        &self,
+        name: &str,
+        kind: Kind,
+        folders: Vec<String>,
+        title_sources: Vec<String>,
+    ) -> Result<Library, Error> {
         let name = check_name(name)?;
         let folders = check_folders(folders).await?;
+        if !title_sources.is_empty() {
+            check_title_sources(&title_sources)?;
+        }
         self.db
-            .write(move |tx| Box::pin(create(tx, name, kind, folders)))
+            .write(move |tx| Box::pin(create(tx, name, kind, folders, title_sources)))
             .await
     }
 
@@ -187,6 +204,7 @@ impl Libraries {
 
     /// Sets the order of the Library `id`'s title sources, by namespace. Titles it already
     /// Matched stay as they are: nothing Matches them again.
+    #[cfg(test)]
     pub(crate) async fn set_title_sources(&self, id: i64, order: Vec<String>) -> Result<(), Error> {
         check_title_sources(&order)?;
         let order = order.join(",");
@@ -195,17 +213,22 @@ impl Libraries {
             .await
     }
 
-    /// Renames the Library and replaces its folders; its kind can't change.
+    /// Renames the Library, replaces its folders and, unless `title_sources` is empty, the order
+    /// of its title sources, in one write; its kind can't change.
     pub(crate) async fn update(
         &self,
         id: i64,
         name: &str,
         folders: Vec<String>,
+        title_sources: Vec<String>,
     ) -> Result<Library, Error> {
         let name = check_name(name)?;
         let folders = check_folders(folders).await?;
+        if !title_sources.is_empty() {
+            check_title_sources(&title_sources)?;
+        }
         self.db
-            .write(move |tx| Box::pin(update(tx, id, name, folders)))
+            .write(move |tx| Box::pin(update(tx, id, name, folders, title_sources)))
             .await
     }
 
@@ -215,12 +238,14 @@ impl Libraries {
     }
 }
 
-/// `name` and `folders` must already be checked.
+/// `name`, `folders` and `title_sources` must already be checked; an empty `title_sources` keeps
+/// the column's default.
 async fn create(
     conn: &mut SqliteConnection,
     name: String,
     kind: Kind,
     folders: Vec<String>,
+    mut title_sources: Vec<String>,
 ) -> Result<Library, Error> {
     ensure_folders_free(conn, &folders, None).await?;
     let id = sqlx::query_scalar!(
@@ -231,22 +256,29 @@ async fn create(
     .fetch_one(&mut *conn)
     .await?;
     insert_folders(conn, id, &folders).await?;
+    if title_sources.is_empty() {
+        title_sources = vec!["tmdb".to_owned()];
+    } else {
+        set_title_sources(conn, id, title_sources.join(",")).await?;
+    }
     Ok(Library {
         id,
         name,
         kind,
         folders,
         read_only: Vec::new(),
-        title_sources: vec!["tmdb".to_owned()],
+        title_sources,
     })
 }
 
-/// `name` and `folders` must already be checked.
+/// `name`, `folders` and `title_sources` must already be checked; an empty `title_sources` keeps
+/// the stored order.
 async fn update(
     conn: &mut SqliteConnection,
     id: i64,
     name: String,
     folders: Vec<String>,
+    title_sources: Vec<String>,
 ) -> Result<Library, Error> {
     let row = sqlx::query!(
         r#"UPDATE libraries SET name = ? WHERE id = ?
@@ -274,13 +306,19 @@ async fn update(
         .filter(|folder| folders.contains(folder))
         .collect();
     set_read_only(conn, id, read_only.clone()).await?;
+    let title_sources = if title_sources.is_empty() {
+        split_sources(&row.title_sources)
+    } else {
+        set_title_sources(conn, id, title_sources.join(",")).await?;
+        title_sources
+    };
     Ok(Library {
         id,
         name,
         kind: row.kind,
         folders,
         read_only,
-        title_sources: split_sources(&row.title_sources),
+        title_sources,
     })
 }
 
@@ -469,3 +507,7 @@ async fn insert_folders(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "libraries_tests.rs"]
+mod tests;
