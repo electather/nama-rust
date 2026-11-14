@@ -163,13 +163,14 @@ fn similarity(a: &str, b: &str) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use nama_plugin_api::metadata::{Candidate, ExternalId};
+    use nama_plugin_api::metadata::{Candidate, ExternalId, ExternalIds};
 
     use super::{Decision, decide};
 
     fn candidate(id: i64, title: &str, year: Option<i32>) -> Candidate {
         Candidate {
             id: ExternalId::tmdb(id),
+            ids: ExternalIds::from_iter([ExternalId::tmdb(id)]),
             title: title.to_owned(),
             original_title: None,
             year,

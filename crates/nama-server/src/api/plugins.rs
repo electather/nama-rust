@@ -9,7 +9,7 @@ use nama_plugin_api::{
     auth::Authenticator,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
-    metadata::MetadataProvider,
+    metadata::TitleSource,
     notifier::Notifier,
     points::{Events, ServerStarted},
     settings::{self, SettingField, Settings, SettingsError},
@@ -449,7 +449,7 @@ fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::Extens
             Public::EXTENSION_POINT_AUTHENTICATOR,
         ),
         (
-            PointKey::provide::<dyn MetadataProvider>(),
+            PointKey::provide::<dyn TitleSource>(),
             Public::EXTENSION_POINT_METADATA_PROVIDER,
         ),
         (

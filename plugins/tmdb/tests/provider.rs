@@ -1,4 +1,4 @@
-//! The TMDB Plugin's metadata Provider, against recorded TMDB responses served locally.
+//! The TMDB Plugin's title source, against recorded TMDB responses served locally.
 #![expect(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -11,8 +11,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use nama_plugin_api::{
     Plugin, Registrar,
     metadata::{
-        Candidate, ExternalId, ExternalIds, IMDB, MetadataError, MetadataProvider, SearchQuery,
-        TMDB, TVDB, TitleKind,
+        Candidate, ExternalId, ExternalIds, IMDB, MetadataError, SearchQuery, TMDB, TVDB,
+        TitleKind, TitleSource,
     },
     settings::{SettingKind, SettingValue, Settings},
 };
@@ -21,8 +21,8 @@ use nama_plugin_tmdb::{
     testing::{API_KEY, FakeTmdb},
 };
 
-/// The Provider the Plugin registers when enabled with `api_key`, talking to `fake`.
-fn provider(fake: &FakeTmdb, api_key: &str) -> Arc<dyn MetadataProvider> {
+/// The title source the Plugin registers when enabled with `api_key`, talking to `fake`.
+fn provider(fake: &FakeTmdb, api_key: &str) -> Arc<dyn TitleSource> {
     let plugin = Tmdb::with_endpoints(fake.endpoints());
     let settings = Settings::new(BTreeMap::from([(
         "api_key".to_owned(),
@@ -35,8 +35,8 @@ fn provider(fake: &FakeTmdb, api_key: &str) -> Arc<dyn MetadataProvider> {
     let registrations = registrar.into_registrations();
     assert_eq!(registrations.len(), 1);
     registrations[0]
-        .provider::<dyn MetadataProvider>()
-        .expect("a MetadataProvider")
+        .provider::<dyn TitleSource>()
+        .expect("a TitleSource")
 }
 
 fn query(kind: TitleKind, title: &str, year: Option<i32>) -> SearchQuery {
@@ -71,6 +71,13 @@ fn registering_without_an_api_key_fails_and_registers_nothing() {
 }
 
 #[tokio::test]
+async fn it_keeps_titles_under_the_tmdb_namespace() {
+    let fake = FakeTmdb::start().await;
+
+    assert_eq!(provider(&fake, API_KEY).namespace(), TMDB);
+}
+
+#[tokio::test]
 async fn searching_movies_finds_candidates_with_their_years() {
     let fake = FakeTmdb::start().await;
     let tmdb = provider(&fake, API_KEY);
@@ -82,6 +89,7 @@ async fn searching_movies_finds_candidates_with_their_years() {
 
     let dune = |id, year, poster: &str, vote_count| Candidate {
         id: ExternalId::tmdb(id),
+        ids: ExternalIds::from_iter([ExternalId::tmdb(id)]),
         title: "Dune".to_owned(),
         original_title: Some("Dune".to_owned()),
         year: Some(year),
@@ -122,6 +130,7 @@ async fn searching_shows_uses_their_first_air_year_and_has_their_countries() {
         found,
         [Candidate {
             id: ExternalId::tmdb(70523),
+            ids: ExternalIds::from_iter([ExternalId::tmdb(70523)]),
             title: "Dark".to_owned(),
             original_title: Some("Dark".to_owned()),
             year: Some(2017),

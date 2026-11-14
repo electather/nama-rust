@@ -5,8 +5,8 @@
 //!
 //! - **Observe** ([`ObservePoint`]): the Kernel tells [`Observer`]s that something happened. Delivery
 //!   is asynchronous and fire-and-forget, so an Observer can't change or delay what it observes.
-//! - **Provide**: a capability the Server needs, looked up by its trait (for example
-//!   [`dyn MetadataProvider`](metadata::MetadataProvider)). A Plugin registers a Provider as an
+//! - **Provide**: a capability the Server needs, looked up by its trait (for example a title
+//!   source, [`dyn TitleSource`](metadata::TitleSource)). A Plugin registers a Provider as an
 //!   `Arc` of that trait object. A Server won't start without at least one
 //!   [`dyn Authenticator`](auth::Authenticator).
 //!

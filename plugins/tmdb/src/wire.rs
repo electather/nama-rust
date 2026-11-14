@@ -1,6 +1,8 @@
 //! TMDB's v3 JSON, as far as the Plugin reads it, and how it maps onto the plugin API's types.
 
-use nama_plugin_api::metadata::{Candidate, Episode, ExternalId, IMDB, Movie, Season, Show};
+use nama_plugin_api::metadata::{
+    Candidate, Episode, ExternalId, ExternalIds, IMDB, Movie, Season, Show,
+};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -21,8 +23,10 @@ pub(crate) struct MovieResult {
 
 impl From<MovieResult> for Candidate {
     fn from(movie: MovieResult) -> Self {
+        let id = ExternalId::tmdb(movie.id);
         Self {
-            id: ExternalId::tmdb(movie.id),
+            ids: ExternalIds::from_iter([id.clone()]),
+            id,
             year: year(movie.release_date.as_deref()),
             title: movie.title,
             original_title: present(movie.original_title),
@@ -48,8 +52,10 @@ pub(crate) struct ShowResult {
 
 impl From<ShowResult> for Candidate {
     fn from(show: ShowResult) -> Self {
+        let id = ExternalId::tmdb(show.id);
         Self {
-            id: ExternalId::tmdb(show.id),
+            ids: ExternalIds::from_iter([id.clone()]),
+            id,
             year: year(show.first_air_date.as_deref()),
             title: show.name,
             original_title: present(show.original_name),

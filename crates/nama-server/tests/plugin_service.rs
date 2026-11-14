@@ -14,7 +14,7 @@ use buffa::Message;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use figment::{Figment, providers::Serialized};
 use nama_plugin_api::{
-    PluginId, auth::Authenticator, metadata::MetadataProvider, settings::SettingValue,
+    PluginId, auth::Authenticator, metadata::TitleSource, settings::SettingValue,
 };
 use nama_plugin_test_choices as test_choices;
 use nama_proto::nama::v1::{
@@ -164,9 +164,9 @@ impl Started {
         !self.plugins.providers::<T>().is_empty()
     }
 
-    /// Whether Matching has a metadata Provider to call.
+    /// Whether Matching has a title source to call.
     fn can_match(&self) -> bool {
-        self.provides::<dyn MetadataProvider>()
+        self.provides::<dyn TitleSource>()
     }
 }
 

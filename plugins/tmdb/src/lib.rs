@@ -1,8 +1,8 @@
 //! A Built-in Plugin that provides metadata from [TMDB](https://www.themoviedb.org), the only
 //! metadata source built into the Server.
 //!
-//! Enabled with an API key in its settings, it registers a
-//! [`nama_plugin_api::metadata::MetadataProvider`] that searches TMDB and fetches
+//! Enabled with an API key in its settings, it registers a title source,
+//! [`nama_plugin_api::metadata::TitleSource`], that searches TMDB and fetches
 //! Movie, Show, Season and Episode details and images by TMDB id, along with the IMDb and TVDB ids
 //! TMDB knows. Without an API key the Kernel doesn't enable it.
 //!
@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    metadata::MetadataProvider,
+    metadata::TitleSource,
     settings::{SettingField, SettingKind, SettingValue, SettingsSchema},
 };
 
@@ -29,7 +29,7 @@ const LANGUAGE: &str = "language";
 
 const DEFAULT_LANGUAGE: &str = "en-US";
 
-/// The TMDB Built-in Plugin, providing the [`MetadataProvider`] that Matching uses.
+/// The TMDB Built-in Plugin, providing the [`TitleSource`] that Matching uses.
 #[derive(Debug, Clone, Default)]
 pub struct Tmdb {
     endpoints: Endpoints,
@@ -103,7 +103,7 @@ impl Plugin for Tmdb {
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings,
-            extension_points: vec![PointKey::provide::<dyn MetadataProvider>()],
+            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
         }
     }
@@ -117,8 +117,8 @@ impl Plugin for Tmdb {
         let language = settings.text(LANGUAGE).unwrap_or(DEFAULT_LANGUAGE);
         let client = Client::new(self.endpoints.clone(), api_key, language)
             .map_err(|err| format!("could not set up HTTPS for TMDB: {err}"))?;
-        let provider: Arc<dyn MetadataProvider> = Arc::new(client);
-        registrar.provide::<dyn MetadataProvider>(Priority::DEFAULT, provider);
+        let source: Arc<dyn TitleSource> = Arc::new(client);
+        registrar.provide::<dyn TitleSource>(Priority::DEFAULT, source);
         Ok(())
     }
 }

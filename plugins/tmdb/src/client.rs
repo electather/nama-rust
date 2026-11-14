@@ -1,4 +1,4 @@
-//! Talking to TMDB over HTTPS, as a [`MetadataProvider`].
+//! Talking to TMDB over HTTPS, as a [`TitleSource`].
 
 use std::time::Duration;
 
@@ -13,8 +13,8 @@ use hyper_util::{
 use nama_plugin_api::{
     BoxFuture,
     metadata::{
-        Candidate, Episode, ExternalId, IMDB, Image, MetadataError, MetadataProvider, Movie,
-        SearchQuery, Season, Show, TMDB, TVDB, TitleKind,
+        Candidate, Episode, ExternalId, IMDB, Image, MetadataError, Movie, SearchQuery, Season,
+        Show, TMDB, TVDB, TitleKind, TitleSource,
     },
 };
 use serde::de::DeserializeOwned;
@@ -171,7 +171,11 @@ fn failed(error: impl Into<nama_plugin_api::PluginError>) -> MetadataError {
     MetadataError::Failed(error.into())
 }
 
-impl MetadataProvider for Client {
+impl TitleSource for Client {
+    fn namespace(&self) -> &'static str {
+        TMDB
+    }
+
     fn search<'a>(
         &'a self,
         query: &'a SearchQuery,

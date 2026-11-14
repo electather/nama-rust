@@ -1,15 +1,15 @@
-//! Asking the metadata Provider for titles and images, and what its failures mean: no Provider
-//! enabled, or one that failed, is [`Error::Unavailable`]; a title or image it doesn't have, or an
-//! id it can't look titles up by, is [`Error::NotFound`]. It alone asks (see the crate's
-//! `AGENTS.md`).
+//! Asking the title sources for titles and images, and what their failures mean: no title source
+//! enabled, or one that failed, is [`Error::Unavailable`]; a title or image it doesn't have, an id
+//! it can't look titles up by, or a method it doesn't serve, is [`Error::NotFound`]. It alone asks
+//! (see the crate's `AGENTS.md`).
 
 use std::{future::Future, sync::Arc};
 
 use nama_plugin_api::{
     PluginId,
     metadata::{
-        Candidate, ExternalId, ExternalIds, Image, MetadataError, MetadataProvider, Movie,
-        SearchQuery, Season, Show,
+        Candidate, ExternalId, ExternalIds, Image, MetadataError, Movie, SearchQuery, Season, Show,
+        TitleSource,
     },
 };
 
@@ -101,7 +101,7 @@ impl MetadataSource {
     pub(crate) async fn image(&self, plugin: &PluginId, path: &str) -> Result<Image, Error> {
         let answered = self
             .plugins
-            .ask(plugin, |metadata: Arc<dyn MetadataProvider>| {
+            .ask(plugin, |metadata: Arc<dyn TitleSource>| {
                 let path = path.to_owned();
                 async move { metadata.image(&path).await }
             })
@@ -111,7 +111,7 @@ impl MetadataSource {
 
     async fn ask<R, F>(
         &self,
-        call: impl Fn(Arc<dyn MetadataProvider>) -> F,
+        call: impl Fn(Arc<dyn TitleSource>) -> F,
     ) -> Result<(PluginId, R), Error>
     where
         F: Future<Output = Result<R, MetadataError>>,
@@ -127,7 +127,7 @@ impl MetadataSource {
 impl ProviderError<Error> for MetadataError {
     fn failure(self) -> Failure<Error> {
         let kind = match self {
-            Self::NotFound | Self::UnsupportedId(_) => Error::NotFound,
+            Self::NotFound | Self::Unsupported | Self::UnsupportedId(_) => Error::NotFound,
             Self::Failed(_) => Error::Unavailable,
         };
         Failure {
@@ -187,8 +187,8 @@ mod tests {
     use nama_plugin_api::{
         BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
         metadata::{
-            Candidate, Episode, ExternalId, IMDB, Image, MetadataError, MetadataProvider, Movie,
-            SearchQuery, Season, Show,
+            Candidate, Episode, ExternalId, IMDB, Image, MetadataError, Movie, SearchQuery, Season,
+            Show, TitleSource,
         },
         settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
     };
@@ -196,10 +196,14 @@ mod tests {
     use super::{Error, MetadataSource};
     use crate::plugins::{Failure, Registry};
 
-    /// A metadata Provider that answers every question with the error `.0` makes.
+    /// A title source that answers every question with the error `.0` makes.
     struct Failing(fn() -> MetadataError);
 
-    impl MetadataProvider for Failing {
+    impl TitleSource for Failing {
+        fn namespace(&self) -> &'static str {
+            "tmdb"
+        }
+
         fn search<'a>(
             &'a self,
             _query: &'a SearchQuery,
@@ -256,13 +260,13 @@ mod tests {
                         default: None,
                     }],
                 },
-                extension_points: vec![PointKey::provide::<dyn MetadataProvider>()],
+                extension_points: vec![PointKey::provide::<dyn TitleSource>()],
                 logo_svg: None,
             }
         }
 
         fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-            registrar.provide::<dyn MetadataProvider>(Priority::DEFAULT, Arc::new(Failing(self.0)));
+            registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(Failing(self.0)));
             Ok(())
         }
     }
@@ -309,6 +313,16 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_method_the_source_does_not_serve_is_not_found() {
+        let failure = || MetadataError::Unsupported;
+
+        assert_eq!(
+            asking(Some(failure)).await,
+            (Error::NotFound, Error::NotFound)
+        );
+    }
+
+    #[tokio::test]
     async fn a_provider_that_fails_is_unavailable() {
         let failure = || MetadataError::Failed("TMDB is unreachable".into());
 
@@ -329,7 +343,7 @@ mod tests {
             .unwrap();
 
         let answer = plugins
-            .ask_first(|metadata: Arc<dyn MetadataProvider>| async move {
+            .ask_first(|metadata: Arc<dyn TitleSource>| async move {
                 metadata.show(&ExternalId::tmdb(1399)).await
             })
             .await
