@@ -34,6 +34,9 @@ const SONARR: Servarr = Servarr {
     queue_include: "includeSeries",
 };
 
+/// Severance's TVDB id, as the fake TVDB gives it.
+const SEVERANCE_TVDB: i64 = 371_980;
+
 /// How long the refresh Sonarr starts as it adds a Show takes, as one fetching it from TVDB does.
 const REFRESH: Duration = Duration::from_millis(300);
 
@@ -187,13 +190,37 @@ fn find(fake: &Fake, tvdb_id: &str) -> Response {
 }
 
 /// As Sonarr answers a lookup by `term` such as `tvdb:334824`: the Show as TVDB knows it, or `[]`
-/// for one it can't find. It finds only Dark (`series-lookup.json`).
+/// for one it can't find. It finds only Dark (`series-lookup.json`) and Severance, which it makes
+/// from Dark's.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
 fn look_up(term: &str) -> Response {
     if term == format!("tvdb:{DARK_TVDB}") {
-        SONARR.fixture(StatusCode::OK, "series-lookup.json")
-    } else {
-        json(StatusCode::OK, &json!([]))
+        return SONARR.fixture(StatusCode::OK, "series-lookup.json");
     }
+    if term != format!("tvdb:{SEVERANCE_TVDB}") {
+        return json(StatusCode::OK, &json!([]));
+    }
+    let mut shows: Value =
+        serde_json::from_slice(&SONARR.read_fixture("series-lookup.json")).unwrap();
+    let Some(Value::Object(show)) = shows.get_mut(0) else {
+        return json(StatusCode::OK, &json!([]));
+    };
+    for (field, value) in [
+        ("title", json!("Severance")),
+        ("sortTitle", json!("severance")),
+        ("year", json!(2022)),
+        ("tvdbId", json!(SEVERANCE_TVDB)),
+        ("tmdbId", json!(95_396)),
+        ("imdbId", json!("tt11280740")),
+        ("titleSlug", json!("severance")),
+        ("folder", json!("Severance (2022)")),
+    ] {
+        show.insert(field.to_owned(), value);
+    }
+    json(StatusCode::OK, &shows)
 }
 
 fn add_show(fake: &Arc<Fake>, show: &Value) -> Response {
