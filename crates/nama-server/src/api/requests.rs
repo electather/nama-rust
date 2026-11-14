@@ -485,7 +485,7 @@ impl RequestServiceHandler {
         } = found;
         let (poster_url, poster_thumbhash) = self.image(
             images,
-            images.custom.of(&movie_slot(&id, Role::Poster)),
+            (images.custom).of_title(&id, &movie.ids, |id| movie_slot(id, Role::Poster)),
             &plugin,
             movie.poster,
         );
@@ -545,7 +545,7 @@ impl RequestServiceHandler {
         } = hit;
         let (poster_url, poster_thumbhash) = self.image(
             images,
-            images.custom.of(&show_slot(&id, Role::Poster)),
+            (images.custom).of_title(&id, &show.ids, |id| show_slot(id, Role::Poster)),
             &plugin,
             show.poster,
         );

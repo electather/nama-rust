@@ -24,9 +24,10 @@ use nama_proto::nama::v1::{
     BrowseServiceClient, ContinueWatchingEntry, LibraryKind, LibraryServiceClient,
     ListContinueWatchingRequest, ListEpisodesRequest, ListLibrariesRequest, LookUpMovieRequest,
     LookUpShowRequest, ReportProgressRequest, RequestServiceClient, SearchLibrariesRequest,
-    SetMatchRequest, Show, WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
+    SearchMoviesRequest, SearchShowsRequest, SetMatchRequest, Show, WatchStateServiceClient,
+    continue_watching_entry::MovieOrEpisode,
 };
-use server::tmdb::{ALIEN, DARK, DARK_TVDB, DUNE};
+use server::tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, THE_OFFICE};
 
 /// Where Alien's Poster is uploaded to and removed from.
 fn alien_poster() -> String {
@@ -544,4 +545,53 @@ async fn a_shows_and_seasons_custom_images_kept_under_its_tvdb_id_show_in_browse
     );
     assert_eq!(looked_up.poster_url, show.poster_url);
     assert_eq!(looked_up.backdrop_url, Some(backdrop));
+}
+
+/// The fake TMDB gives a search hit only its tmdb id, so this proves the hit's own id; a hit's
+/// other ids go through the same lookup as a looked-up title's.
+#[tokio::test]
+async fn a_custom_poster_kept_under_a_search_hits_id_shows_on_the_hit() {
+    let fx = Fixture::alien().await;
+    for path in [
+        format!("/custom-images/movie/tmdb-{ALIEN}/poster"),
+        format!("/custom-images/show/tmdb-{THE_OFFICE}/poster"),
+    ] {
+        let uploaded = fx.upload(&path, &image(ImageFormat::Png, 2, 3)).await;
+        assert_eq!(uploaded.status, 204, "{path}");
+    }
+
+    let movies = fx
+        .requests()
+        .search_movies(SearchMoviesRequest {
+            title: "Alien".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .movies;
+    let shows = fx
+        .requests()
+        .search_shows(SearchShowsRequest {
+            title: "The Office".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .shows;
+
+    let alien = movies.iter().find(|it| *it.id == tmdb_id(ALIEN)).unwrap();
+    let office = (shows.iter())
+        .find(|it| *it.id == tmdb_id(THE_OFFICE))
+        .unwrap();
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    assert_eq!(alien.poster_url, movie.poster_url);
+    let poster = office.poster_url.clone().unwrap();
+    assert!(
+        poster.starts_with(&format!(
+            "/media/custom-images/show/tmdb-{THE_OFFICE}/poster/"
+        )),
+        "{poster}"
+    );
 }
