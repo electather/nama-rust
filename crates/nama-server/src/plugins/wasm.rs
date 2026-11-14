@@ -42,6 +42,7 @@ mod contract;
 mod listing;
 mod load;
 mod services;
+mod title_source;
 
 pub(crate) use listing::read;
 use load::{CALL_TIMEOUT, MEMORY_MAX_PAGES, allowed_hosts, compile, extism_config};

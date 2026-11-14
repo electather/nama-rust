@@ -6,6 +6,7 @@ include!("nama.plugin.v1.events.rs");
 include!("nama.plugin.v1.fulfiller.rs");
 include!("nama.plugin.v1.manifest.rs");
 include!("nama.plugin.v1.notifier.rs");
+include!("nama.plugin.v1.title_source.rs");
 #[allow(
     non_camel_case_types,
     dead_code,
@@ -29,6 +30,7 @@ pub mod __buffa {
         include!("nama.plugin.v1.fulfiller.__view.rs");
         include!("nama.plugin.v1.manifest.__view.rs");
         include!("nama.plugin.v1.notifier.__view.rs");
+        include!("nama.plugin.v1.title_source.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -105,6 +107,23 @@ pub mod __buffa {
         reg.register_json_any(super::__DELIVERY_JSON_ANY);
         reg.register_json_any(super::__CHANNEL_JSON_ANY);
         reg.register_json_any(super::__DELIVERED_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_QUERY_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_RESULTS_JSON_ANY);
+        reg.register_json_any(super::__CANDIDATE_JSON_ANY);
+        reg.register_json_any(super::__TITLE_ASKED_JSON_ANY);
+        reg.register_json_any(super::__SEASON_ASKED_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_ASKED_JSON_ANY);
+        reg.register_json_any(super::__IMAGE_ASKED_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_ANSWER_JSON_ANY);
+        reg.register_json_any(super::__SHOW_ANSWER_JSON_ANY);
+        reg.register_json_any(super::__SEASON_ANSWER_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_ANSWER_JSON_ANY);
+        reg.register_json_any(super::__IMAGE_ANSWER_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_JSON_ANY);
+        reg.register_json_any(super::__SHOW_JSON_ANY);
+        reg.register_json_any(super::__SEASON_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_JSON_ANY);
+        reg.register_json_any(super::__IMAGE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -327,5 +346,73 @@ pub use self::__buffa::view::ChannelOwnedView;
 pub use self::__buffa::view::DeliveredView;
 #[doc(inline)]
 pub use self::__buffa::view::DeliveredOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchQueryView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchQueryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchResultsView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchResultsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CandidateView;
+#[doc(inline)]
+pub use self::__buffa::view::CandidateOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieAnswerView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieAnswerOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowAnswerView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowAnswerOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonAnswerView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonAnswerOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeAnswerView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeAnswerOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageAnswerView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageAnswerOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

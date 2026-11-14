@@ -53,6 +53,10 @@ message Manifest {
   // The Extension Points the Plugin serves. A Server refuses a Plugin naming none, naming one it
   // doesn't serve, at a version it doesn't serve, or lacking an export one needs.
   repeated Point points = 13;
+  // The namespace the Plugin's `TitleSourceService` keeps titles under, such as "tvdb": one or
+  // more of a-z and 0-9. A Server refuses a Plugin whose `points` name `TitleSourceService`
+  // without one. Ignored unless `points` names `TitleSourceService`.
+  string title_namespace = 14;
 }
 
 // An Extension Point an Installed Plugin serves: a service of this package, whose rpcs name the

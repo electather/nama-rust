@@ -74,6 +74,12 @@ pub struct ManifestView<'a> {
     ///
     /// Field 13: `points`
     pub points: ::buffa::RepeatedView<'a, super::super::__buffa::view::PointView<'a>>,
+    /// The namespace the Plugin's `TitleSourceService` keeps titles under, such as "tvdb": one or
+    /// more of a-z and 0-9. A Server refuses a Plugin whose `points` name `TitleSourceService`
+    /// without one. Ignored unless `points` names `TitleSourceService`.
+    ///
+    /// Field 14: `title_namespace`
+    pub title_namespace: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
@@ -147,6 +153,13 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.logo_svg = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title_namespace = ::buffa::types::borrow_str(&mut cur)?;
             }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -268,6 +281,7 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            title_namespace: self.title_namespace.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -321,6 +335,11 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
+        }
+        if !self.title_namespace.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.title_namespace) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -376,6 +395,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        if !self.title_namespace.is_empty() {
+            ::buffa::types::put_string_field(14u32, &self.title_namespace, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -429,6 +451,9 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
         }
         if !self.points.is_empty() {
             __map.serialize_entry("points", &*self.points)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.title_namespace) {
+            __map.serialize_entry("titleNamespace", self.title_namespace)?;
         }
         __map.end()
     }
@@ -615,6 +640,15 @@ impl ManifestOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::PointView<'_>> {
         &self.0.reborrow().points
+    }
+    /// The namespace the Plugin's `TitleSourceService` keeps titles under, such as "tvdb": one or
+    /// more of a-z and 0-9. A Server refuses a Plugin whose `points` name `TitleSourceService`
+    /// without one. Ignored unless `points` names `TitleSourceService`.
+    ///
+    /// Field 14: `title_namespace`
+    #[must_use]
+    pub fn title_namespace(&self) -> &'_ str {
+        self.0.reborrow().title_namespace
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ManifestView<'static>>>

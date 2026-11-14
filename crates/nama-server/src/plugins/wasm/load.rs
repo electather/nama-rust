@@ -18,7 +18,7 @@ use nama_plugin_api::{
     metadata::{ExternalId, InvalidId},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
-use nama_plugin_proto::{CONTRACT_VERSION, nama::plugin::v1 as wire};
+use nama_plugin_proto::{CONTRACT_VERSION, nama::plugin::v1 as wire, services};
 use semver::{Version, VersionReq};
 use tracing::error;
 
@@ -180,6 +180,7 @@ pub(super) fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<M
     if points.is_empty() {
         return Err(Refused::NoPoints);
     }
+    check_title_namespace(package, &points)?;
     check_exports(&points, |export| exported.contains(&export))?;
     manifest(package, &points)
 }
@@ -307,14 +308,7 @@ fn check_namespaces(package: &wire::Manifest) -> Result<(), Refused> {
         ("show_id_namespaces", &package.show_id_namespaces),
     ];
     for (field, namespaces) in fields {
-        // Any value will do: only the namespace is being checked.
-        let malformed = namespaces.iter().find(|namespace| {
-            matches!(
-                ExternalId::new(namespace, "_"),
-                Err(InvalidId::Namespace(_))
-            )
-        });
-        if let Some(namespace) = malformed {
+        if let Some(namespace) = namespaces.iter().find(|namespace| !is_namespace(namespace)) {
             return Err(Refused::BadNamespace {
                 field,
                 namespace: namespace.clone(),
@@ -322,6 +316,30 @@ fn check_namespaces(package: &wire::Manifest) -> Result<(), Refused> {
         }
     }
     Ok(())
+}
+
+/// Checks that a Manifest naming `TitleSourceService` among `points` names the namespace it keeps
+/// titles under.
+fn check_title_namespace(package: &wire::Manifest, points: &[&Point]) -> Result<(), Refused> {
+    let names_title_source = points
+        .iter()
+        .any(|point| point.service == services::TITLE_SOURCE);
+    if names_title_source && !is_namespace(&package.title_namespace) {
+        return Err(Refused::BadNamespace {
+            field: "title_namespace",
+            namespace: package.title_namespace.clone(),
+        });
+    }
+    Ok(())
+}
+
+/// Whether `namespace` is one by `ExternalId`'s rule. Empty isn't.
+fn is_namespace(namespace: &str) -> bool {
+    // Any value will do: only the namespace is being checked.
+    !matches!(
+        ExternalId::new(namespace, "_"),
+        Err(InvalidId::Namespace(_))
+    )
 }
 
 pub(super) fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema, Refused> {

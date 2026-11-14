@@ -373,7 +373,7 @@ fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
             ..notifier()
         },
         Manifest {
-            points: vec![point("nama.plugin.v1.TitleSourceService", "^1.0.0")],
+            points: vec![point("nama.plugin.v1.TeleporterService", "^1.0.0")],
             ..notifier()
         },
         Manifest {
@@ -421,7 +421,7 @@ fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
         [
             "its allowed host sonarr.lan:8989 has a port, and allowed hosts are matched without one"
                 .to_owned(),
-            "its Manifest names nama.plugin.v1.TitleSourceService, \
+            "its Manifest names nama.plugin.v1.TeleporterService, \
              an Extension Point this Server doesn't serve"
                 .to_owned(),
             "it wants nama.plugin.v1.NotifierService ^2.0.0, and this Server serves 1.0.0"
@@ -656,7 +656,7 @@ fn a_point_this_server_doesnt_know_refuses_the_plugin() {
     let unknown_after_a_known_one = Manifest {
         points: vec![
             point(services::NOTIFIER, "^1.0.0"),
-            point("nama.plugin.v1.TitleSourceService", "^1.0.0"),
+            point("nama.plugin.v1.TeleporterService", "^1.0.0"),
         ],
         ..Default::default()
     };
@@ -672,7 +672,7 @@ fn a_point_this_server_doesnt_know_refuses_the_plugin() {
     assert_eq!(
         refusals,
         [
-            "its Manifest names nama.plugin.v1.TitleSourceService, \
+            "its Manifest names nama.plugin.v1.TeleporterService, \
              an Extension Point this Server doesn't serve",
             "its Manifest names NotifierService, an Extension Point this Server doesn't serve",
         ]

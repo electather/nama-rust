@@ -326,6 +326,18 @@ pub struct Manifest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub points: ::buffa::alloc::vec::Vec<Point>,
+    /// The namespace the Plugin's `TitleSourceService` keeps titles under, such as "tvdb": one or
+    /// more of a-z and 0-9. A Server refuses a Plugin whose `points` name `TitleSourceService`
+    /// without one. Ignored unless `points` names `TitleSourceService`.
+    ///
+    /// Field 14: `title_namespace`
+    #[serde(
+        rename = "titleNamespace",
+        alias = "title_namespace",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub title_namespace: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -344,6 +356,7 @@ impl ::core::fmt::Debug for Manifest {
             .field("movie_id_namespaces", &self.movie_id_namespaces)
             .field("show_id_namespaces", &self.show_id_namespaces)
             .field("points", &self.points)
+            .field("title_namespace", &self.title_namespace)
             .finish()
     }
 }
@@ -417,6 +430,11 @@ impl ::buffa::Message for Manifest {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.title_namespace.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.title_namespace) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -469,6 +487,9 @@ impl ::buffa::Message for Manifest {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if !self.title_namespace.is_empty() {
+            ::buffa::types::put_string_field(14u32, &self.title_namespace, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -582,6 +603,13 @@ impl ::buffa::Message for Manifest {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.points.push(elem);
             }
+            14u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.title_namespace, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -601,6 +629,7 @@ impl ::buffa::Message for Manifest {
         self.movie_id_namespaces.clear();
         self.show_id_namespaces.clear();
         self.points.clear();
+        self.title_namespace.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

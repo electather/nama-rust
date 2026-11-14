@@ -8,6 +8,7 @@ use nama_plugin_api::{
     PluginError, PointKey, Priority, Registrar,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
+    metadata::TitleSource,
     notifier::Notifier,
     points::Events,
 };
@@ -107,6 +108,13 @@ pub(super) const OBSERVE_EVENTS: Method = Method {
     failure: Failure::Observer,
     ..provider(services::EVENT_OBSERVER, "ObserveEvents", "observe_events")
 };
+pub(super) const TITLE_SEARCH: Method = optional(services::TITLE_SOURCE, "Search", "title_search");
+pub(super) const TITLE_MOVIE: Method = optional(services::TITLE_SOURCE, "Movie", "title_movie");
+pub(super) const TITLE_SHOW: Method = optional(services::TITLE_SOURCE, "Show", "title_show");
+pub(super) const TITLE_SEASON: Method = optional(services::TITLE_SOURCE, "Season", "title_season");
+pub(super) const TITLE_EPISODE: Method =
+    optional(services::TITLE_SOURCE, "Episode", "title_episode");
+pub(super) const TITLE_IMAGE: Method = optional(services::TITLE_SOURCE, "Image", "title_image");
 
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[
@@ -157,6 +165,22 @@ pub(super) const POINTS: &[Point] = &[
         methods: &[OBSERVE_EVENTS],
         key: PointKey::observe::<Events>,
         register: |registrar, running| registrar.observe::<Events>(running),
+    },
+    Point {
+        service: services::TITLE_SOURCE,
+        crash_group: services::TITLE_SOURCE,
+        methods: &[
+            TITLE_SEARCH,
+            TITLE_MOVIE,
+            TITLE_SHOW,
+            TITLE_SEASON,
+            TITLE_EPISODE,
+            TITLE_IMAGE,
+        ],
+        key: PointKey::provide::<dyn TitleSource>,
+        register: |registrar, running| {
+            registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(running));
+        },
     },
 ];
 
