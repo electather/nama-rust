@@ -533,4 +533,46 @@ mod exports {
         series_id: i64,
         season_number: u32,
     }
+
+    #[cfg(test)]
+    mod tests {
+        use nama_pdk::TitleId;
+
+        use super::needed_tvdb_id;
+
+        fn id(namespace: &str, value: &str) -> TitleId {
+            TitleId {
+                namespace: namespace.to_owned(),
+                value: value.to_owned(),
+                ..TitleId::default()
+            }
+        }
+
+        #[test]
+        fn a_show_without_a_tvdb_id_is_refused() {
+            let error = needed_tvdb_id(&[id("tmdb", "1396")]).unwrap_err();
+
+            assert_eq!(
+                error.to_string(),
+                "Sonarr needs the Show's TVDB id, and none is known for it"
+            );
+        }
+
+        #[test]
+        fn a_show_s_tvdb_id_is_its_number() {
+            let ids = [id("tmdb", "1396"), id("tvdb", "81189")];
+
+            assert_eq!(needed_tvdb_id(&ids).unwrap(), 81189);
+        }
+
+        #[test]
+        fn a_show_whose_tvdb_id_is_not_a_number_is_refused() {
+            let error = needed_tvdb_id(&[id("tvdb", "breaking-bad")]).unwrap_err();
+
+            assert_eq!(
+                error.to_string(),
+                "Sonarr needs the Show's TVDB id, and none is known for it"
+            );
+        }
+    }
 }
