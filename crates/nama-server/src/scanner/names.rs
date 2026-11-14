@@ -8,7 +8,8 @@
 //!   specials in Season 0 (`S00E01`).
 //! - Extras (`Featurettes/`, `-trailer` and the like) are recognised so they can be left out.
 //! - ID Hints anywhere in a Movie's or Show's name: `{tmdb-123}`, `[tvdbid-123]`,
-//!   `(imdb=tt0083658)` and the like, or a bare `tt0083658`.
+//!   `(imdb=tt0083658)` and the like, a bare `tt0083658`, or `{namespace-value}` in any other
+//!   namespace, such as `{anidb-5101}`.
 //! - A country tag ending a Show's name, as Sonarr names same-name Shows apart: `The Office (US)`.
 //!   It stays in the stored name, so pins keep their key; Matching reads it with [`country_tag`].
 //!
@@ -23,17 +24,19 @@ use crate::{libraries::Kind, library::contents::Item};
 
 /// The version of this parser, stored with each file it reads. See the crate's `AGENTS.md` for
 /// when to bump it.
-pub(crate) const PARSER_VERSION: i64 = 4;
+pub(crate) const PARSER_VERSION: i64 = 5;
 
 /// The most Episodes one file can hold, so a typo like `S01E01-E900` isn't 900 Episodes.
 const MAX_EPISODES_PER_FILE: i64 = 20;
 
 /// An ID Hint in any bracket, as Plex (`{tmdb-123}`), Jellyfin (`[tvdbid-123]`), Sonarr and
-/// Radarr write them, or a bare IMDb id.
+/// Radarr write them, `{namespace-value}` in any namespace, or a bare IMDb id.
 static ID_HINT: LazyLock<Regex> = LazyLock::new(|| {
-    regex(
-        r"(?i)[\[{(]\s*(?P<source>tmdb|tvdb|imdb)(?:id)?\s*[-=]\s*(?P<id>tt\d+|\d+)\s*[\]})]|(?:\b|_)(?P<bare>tt\d{7,})(?:\b|_)",
-    )
+    regex(concat!(
+        r"(?i)[\[{(]\s*(?P<source>tmdb|tvdb|imdb)(?:id)?\s*[-=]\s*(?P<id>tt\d+|\d+)\s*[\]})]",
+        r"|\{\s*(?P<namespace>[a-z0-9]+)-(?P<value>[^\s\[\](){}]+)\s*\}",
+        r"|(?:\b|_)(?P<bare>tt\d{7,})(?:\b|_)",
+    ))
 });
 
 /// Any `{…}` or `[…]` tag, such as an ID Hint, an edition or a quality.
@@ -269,11 +272,12 @@ struct Named {
 
 impl Named {
     /// The ID Hint Matching goes by: TMDB's, which the metadata source is, or else TVDB's, which
-    /// Sonarr writes, or else IMDb's.
+    /// Sonarr writes, or else IMDb's, or else the first of any other namespace.
     fn hint(&self) -> Option<ExternalId> {
         [TMDB, TVDB, IMDB]
             .into_iter()
             .find_map(|namespace| self.hints.get(namespace))
+            .or_else(|| self.hints.iter().next())
     }
 }
 
@@ -306,25 +310,48 @@ fn id_hints(name: &str) -> ExternalIds {
     let mut hints = ExternalIds::default();
     for captures in ID_HINT.captures_iter(name) {
         // A bare id has no source, and is always IMDb's.
-        let source = captures
-            .name("source")
-            .map(|source| source.as_str().to_ascii_lowercase());
-        let Some(id) = captures.name("id").or_else(|| captures.name("bare")) else {
+        let (namespace, value) = if let Some(bare) = captures.name("bare") {
+            (IMDB.to_owned(), bare.as_str())
+        } else if let (Some(source), Some(id)) = (captures.name("source"), captures.name("id")) {
+            (source.as_str().to_ascii_lowercase(), id.as_str())
+        } else if let (Some(namespace), Some(value)) =
+            (captures.name("namespace"), captures.name("value"))
+        {
+            (namespace.as_str().to_ascii_lowercase(), value.as_str())
+        } else {
             continue;
         };
-        let id = id.as_str().to_ascii_lowercase();
-        let hint = match source.as_deref() {
-            Some("tmdb") => id.parse().ok().map(ExternalId::tmdb),
-            Some("tvdb") => id.parse().ok().map(ExternalId::tvdb),
-            Some("imdb") | None if id.starts_with("tt") => ExternalId::new(IMDB, id).ok(),
-            _ => None,
-        };
+        let hint = id_hint(&namespace, value);
         // The first hint of a namespace in a name wins.
         if let Some(hint) = hint.filter(|hint| hints.get(hint.namespace()).is_none()) {
             hints.insert(hint);
         }
     }
     hints
+}
+
+/// The id an ID Hint names, or `None` where it names none. The well-known namespaces keep the
+/// forms they had before any namespace was read, `{tmdbid-123}` included.
+fn id_hint(namespace: &str, value: &str) -> Option<ExternalId> {
+    let digits = |text: &str| !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit());
+    match namespace.strip_suffix("id").unwrap_or(namespace) {
+        // Leading zeros go, as they did when these were read as numbers.
+        well_known @ (TMDB | TVDB) => digits(value)
+            .then(|| value.parse::<i64>().ok())
+            .flatten()
+            .and_then(|id| ExternalId::new(well_known, id.to_string()).ok()),
+        IMDB => {
+            let value = value.to_ascii_lowercase();
+            value
+                .strip_prefix("tt")
+                .is_some_and(digits)
+                .then(|| ExternalId::new(IMDB, value).ok())
+                .flatten()
+        }
+        // Plex's edition tag names a cut, not a title.
+        _ if namespace == "edition" => None,
+        _ => ExternalId::new(namespace, value).ok(),
+    }
 }
 
 /// The title in a Show's name and the country its country tag names, as TMDB codes it: `The
@@ -557,6 +584,31 @@ mod tests {
             ("(1982)/movie.mkv", None),
             // Four digits that can't be a year.
             ("Movie (0042)/movie.mkv", None),
+        ];
+        for (path, expected) in cases {
+            assert_eq!(parse(Kind::Movies, Path::new(path)), expected, "{path}");
+        }
+    }
+
+    #[test]
+    fn movies_with_id_hints_in_any_namespace() {
+        let cases = [
+            // Any other namespace in curly braces, case-folded, but not Plex's edition tag.
+            (
+                "Perfect Blue {AniDB-5101}/movie.mkv",
+                movie(
+                    "Perfect Blue",
+                    None,
+                    ExternalId::new("anidb", "5101").unwrap(),
+                ),
+            ),
+            (
+                "Perfect Blue (1997) {tmdb-10494} {anidb-5101}/movie.mkv",
+                movie("Perfect Blue", Some(1997), tmdb(10494)),
+            ),
+            ("Blade Runner {edition-Director's Cut}/movie.mkv", None),
+            ("Blade Runner {edition-Final}/movie.mkv", None),
+            ("Blade Runner {tmdbid-abc}/movie.mkv", None),
         ];
         for (path, expected) in cases {
             assert_eq!(parse(Kind::Movies, Path::new(path)), expected, "{path}");
