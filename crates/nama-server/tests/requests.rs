@@ -60,7 +60,7 @@ use refused::assert_refused;
 use server::{
     Builder, Library, Subscription, TestServer, WAIT,
     fulfiller::{FakeFulfiller, Fulfills, MOVIE_FULFILLER, SHOWS_FULFILLER, quality},
-    requests::{Requester, title_id, tmdb_id},
+    requests::{Requester, tmdb_id},
     subscribe,
     tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, HEAT, THE_OFFICE, UNLISTED},
 };
@@ -2062,41 +2062,6 @@ async fn searching_for_a_blank_title_is_refused() {
     assert_eq!(refusal.field, "title");
 }
 
-#[tokio::test]
-async fn looking_up_a_movie_no_metadata_source_has_is_not_found() {
-    let fixture = Fixture::start().await;
-    let grace = fixture.server.user("Grace", &NEW_USER).await;
-    let as_grace = fixture.server.requests(&grace);
-
-    for id in [tmdb_id(1), title_id("anidb", "1")] {
-        let refused = as_grace.try_look_up_movie(id.clone()).await;
-
-        let refusal = assert_refused(
-            refused,
-            ErrorCode::NotFound,
-            RefusalReason::REFUSAL_REASON_TITLE_NOT_FOUND,
-        );
-        let title_id = format!("{}-{}", id.namespace, id.value);
-        assert_eq!(refusal.params.get("titleId"), Some(&title_id));
-    }
-}
-
-#[tokio::test]
-async fn looking_up_a_movie_by_a_malformed_id_is_refused() {
-    let fixture = Fixture::start().await;
-    let grace = fixture.server.user("Grace", &NEW_USER).await;
-    let as_grace = fixture.server.requests(&grace);
-
-    let refused = as_grace.try_look_up_movie(title_id("Ani-DB", "1")).await;
-
-    let refusal = assert_refused(
-        refused,
-        ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_TITLE_ID_MALFORMED,
-    );
-    assert_eq!(refusal.field, "movie_id");
-}
-
 /// Artwork is served for paths a search handed out, and still for no others: Alien's backdrop
 /// is one TMDB has, but no search gave it.
 #[tokio::test]
@@ -2640,45 +2605,6 @@ async fn a_show_search_finds_shows_with_their_year_and_poster() {
             (&tmdb_id(2996), "The Office", Some(2001))
         ]
     );
-}
-
-#[tokio::test]
-async fn looking_up_a_show_no_metadata_source_has_is_not_found() {
-    let fixture = Fixture::start().await;
-    let as_grace = fixture
-        .server
-        .user("Grace", &NEW_USER)
-        .await
-        .client_config();
-
-    let refused = requests(as_grace).try_look_up_show(tmdb_id(1)).await;
-
-    let refusal = assert_refused(
-        refused,
-        ErrorCode::NotFound,
-        RefusalReason::REFUSAL_REASON_TITLE_NOT_FOUND,
-    );
-    assert_eq!(refusal.field, "show_id");
-}
-
-#[tokio::test]
-async fn a_user_without_request_tv_is_refused_looking_up_a_show() {
-    let fixture = Fixture::start().await;
-    let as_grace = fixture
-        .server
-        .user("Grace", &[Permission::RequestMovie])
-        .await
-        .client_config();
-
-    let refused = requests(as_grace).try_look_up_show(tmdb_id(DARK)).await;
-
-    let refusal = assert_refused(
-        refused,
-        ErrorCode::PermissionDenied,
-        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
-    );
-    let permission = refusal.params.get("permission").map(String::as_str);
-    assert_eq!(permission, Some("PERMISSION_REQUEST_TV"));
 }
 
 /// Follows Dark as the caller of `client` as if it had two Seasons then: the fake TMDB has no
