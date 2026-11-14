@@ -1,4 +1,5 @@
-//! How the Server crate's files are laid out. The rules are under "Structure" in `crates/nama-server/AGENTS.md`.
+//! How the Server crate's files are laid out. The rules are under "Structure" in
+//! `crates/nama-server/AGENTS.md`.
 
 use std::{
     fs,
@@ -321,7 +322,8 @@ fn every_path_an_agents_md_names_exists() {
 
 #[test]
 fn named_paths_skips_fences_urls_globs_and_bare_names() {
-    let text = "`src/a.rs` `/media/` `*.rs` `src/*.rs` `src/{a,b}.rs` `a/<id>` `x::y/z` `README.md` `a b/c`\n```\n`src/fenced.rs`\n```\n`.sqlx/`";
+    let text = "`src/a.rs` `/media/` `*.rs` `src/*.rs` `src/{a,b}.rs` `a/<id>` `x::y/z` \
+                `README.md` `a b/c`\n```\n`src/fenced.rs`\n```\n`.sqlx/`";
     assert_eq!(named_paths(text), ["src/a.rs", ".sqlx/"]);
 }
 

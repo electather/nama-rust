@@ -124,8 +124,8 @@ pub(super) async fn change_state(
 /// Moves the Approved Request `id`, asked at the Quality `asked`, on as its Fulfiller said: to
 /// Processing, keeping its reference and the Quality used, or to Failed, keeping why, with the id
 /// namespaces the failure's `kind` names when the Kernel didn't hand it off for lack of an id.
-/// Either way it keeps the Plugin that answered. Returns it as it is now, or `None` if it isn't Approved any
-/// more.
+/// Either way it keeps the Plugin that answered. Returns it as it is now, or `None` if it isn't
+/// Approved any more.
 pub(super) async fn settle(
     conn: &mut SqliteConnection,
     id: i64,

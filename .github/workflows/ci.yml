@@ -12,8 +12,9 @@ on:
 # A new push to a PR cancels the run already going on it.
 # Keyed on the PR number, not github.ref: a merged PR's `closed` event has github.ref = main, so
 # it would cancel main's push run for the merge.
-# Each push to main gets its own group (its sha), so none is cancelled: the factory waits while main's
-# latest finished run is red, and with merges minutes apart cancelled runs left an old red one latest for good.
+# Each push to main gets its own group (its sha), so none is cancelled: the factory waits while
+# main's latest finished run is red, and with merges minutes apart cancelled runs left an old red
+# one latest for good.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true

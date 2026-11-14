@@ -50,8 +50,8 @@ CREATE TABLE requests (
     -- The friendly name of the Quality it had before, NULL if it had none.
     quality_changed_from TEXT,
     quality_changed_at INTEGER,
-    -- The Plugin whose Fulfiller a Request was handed to at its latest Hand-off, so a Failed one can
-    -- point at the Plugin to fix: NULL until it is handed off.
+    -- The Plugin whose Fulfiller a Request was handed to at its latest Hand-off, so a Failed one
+    -- can point at the Plugin to fix: NULL until it is handed off.
     fulfiller_plugin_id TEXT
 ) STRICT;
 
