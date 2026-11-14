@@ -1,6 +1,6 @@
 //! Talking to TMDB over HTTPS, as a [`TitleSource`].
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use http::{Request, StatusCode, header};
@@ -49,11 +49,24 @@ impl Client {
         api_key: &str,
         language: &str,
     ) -> std::io::Result<Self> {
-        let connector = HttpsConnectorBuilder::new()
-            .with_provider_and_native_roots(rustls::crypto::ring::default_provider())?
-            .https_or_http()
-            .enable_http1()
-            .build();
+        let provider = rustls::crypto::ring::default_provider();
+        let builder = HttpsConnectorBuilder::new();
+        // A plain-HTTP stand-in needs no trust roots, and loading them can fail: macOS's trust
+        // settings answer I/O error (-36) after about 20 s when many test processes ask at once.
+        let builder = if [&endpoints.api, &endpoints.images]
+            .iter()
+            .all(|url| url.starts_with("http://"))
+        {
+            let tls = rustls::ClientConfig::builder_with_provider(Arc::new(provider))
+                .with_safe_default_protocol_versions()
+                .map_err(std::io::Error::other)?
+                .with_root_certificates(rustls::RootCertStore::empty())
+                .with_no_client_auth();
+            builder.with_tls_config(tls)
+        } else {
+            builder.with_provider_and_native_roots(provider)?
+        };
+        let connector = builder.https_or_http().enable_http1().build();
         Ok(Self {
             http: HyperClient::builder(TokioExecutor::new()).build(connector),
             endpoints,
