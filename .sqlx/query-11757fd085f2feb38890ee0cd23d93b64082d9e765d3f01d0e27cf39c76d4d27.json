@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE followed_shows SET quality_id = ?, quality_name = ?, quality_profile_id = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "11757fd085f2feb38890ee0cd23d93b64082d9e765d3f01d0e27cf39c76d4d27"
+}

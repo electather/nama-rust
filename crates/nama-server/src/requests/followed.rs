@@ -151,7 +151,7 @@ pub(super) async fn approved_followed_show(
 }
 
 /// Every id the Followed Show `id` stores for its Show.
-async fn followed_show_ids(
+pub(super) async fn followed_show_ids(
     conn: &mut SqliteConnection,
     id: i64,
 ) -> Result<ExternalIds, sqlx::Error> {
@@ -201,6 +201,7 @@ pub(super) async fn follow(
     let asking = SeasonsToAsk::read(conn, show).await?;
     let already_open = open_followed_show_by_any(conn, &asking.show_ids).await?;
     let id = if let Some(id) = already_open {
+        store_ids(conn, id, &asking.show_ids).await?;
         id
     } else {
         open_followed(conn, &asking, state, now).await?
@@ -262,9 +263,22 @@ async fn open_followed(
     )
     .fetch_one(&mut *conn)
     .await?;
-    for known in show.show_ids.iter() {
+    store_ids(conn, id, &show.show_ids).await?;
+    Ok(id)
+}
+
+/// Stores each of `ids` whose namespace the Followed Show `id` has no id in yet.
+async fn store_ids(
+    conn: &mut SqliteConnection,
+    id: i64,
+    ids: &ExternalIds,
+) -> Result<(), sqlx::Error> {
+    // ponytail: two values for one namespace keep the first; a Show re-keyed by its source keeps
+    // the stale one until something rewrites them.
+    for known in ids.iter() {
         sqlx::query!(
-            "INSERT INTO followed_show_ids (followed_show_id, namespace, value) VALUES (?, ?, ?)",
+            "INSERT INTO followed_show_ids (followed_show_id, namespace, value) VALUES (?, ?, ?)
+             ON CONFLICT (followed_show_id, namespace) DO NOTHING",
             id,
             known.namespace(),
             known.value()
@@ -272,7 +286,7 @@ async fn open_followed(
         .execute(&mut *conn)
         .await?;
     }
-    Ok(id)
+    Ok(())
 }
 
 /// The open Followed Show of the Show `show`, found by any id it stores.
@@ -284,7 +298,7 @@ pub(super) async fn open_followed_show(
 }
 
 /// The open Followed Show of the Show with the ids `show`, found by any of them.
-async fn open_followed_show_by_any(
+pub(super) async fn open_followed_show_by_any(
     conn: &mut SqliteConnection,
     show: &ExternalIds,
 ) -> Result<Option<i64>, sqlx::Error> {

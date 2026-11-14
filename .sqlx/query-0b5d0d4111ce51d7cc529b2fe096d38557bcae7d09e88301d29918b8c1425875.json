@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT quality_id, quality_name, quality_profile_id FROM followed_shows\n                 WHERE show_id = ? AND state != 'declined'",
+  "query": "SELECT quality_id, quality_name, quality_profile_id FROM followed_shows WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -46,5 +46,5 @@
       true
     ]
   },
-  "hash": "21af45f9b9f9b0ceafecd8b0fdaf11d2cce821207b45d81429defddedcf99345"
+  "hash": "0b5d0d4111ce51d7cc529b2fe096d38557bcae7d09e88301d29918b8c1425875"
 }

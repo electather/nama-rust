@@ -341,11 +341,11 @@ impl SeasonsToAsk {
     ) -> Result<Self, Error> {
         // Read in the write, so two asks for the Show's Seasons at once can't take two Qualities
         // (ADR 0025).
-        let quality = show_requests(conn, &show.show_id)
-            .await?
-            .for_seasons(show.quality)?;
         let mut show_ids = show.show_ids;
         show_ids.insert(show.show_id.clone());
+        let quality = show_requests(conn, &show_ids)
+            .await?
+            .for_seasons(show.quality)?;
         Ok(Self {
             show_id: show.show_id,
             show_ids,
@@ -365,8 +365,8 @@ impl SeasonsToAsk {
         followed_show: &FollowedShow,
         season: Season,
     ) -> Result<Self, sqlx::Error> {
-        let quality = show_requests(conn, show_id).await?.for_scan();
         show_ids.insert(show_id.clone());
+        let quality = show_requests(conn, &show_ids).await?.for_scan();
         Ok(Self {
             show_id: show_id.clone(),
             show_ids,

@@ -128,7 +128,9 @@ impl Requests {
                 .pop(),
             None => None,
         };
-        let quality = show_requests(&mut conn, &id).await?.quality().cloned();
+        let mut ids = show.ids.clone();
+        ids.insert(id.clone());
+        let quality = show_requests(&mut conn, &ids).await?.quality().cloned();
         Ok(FoundShow {
             id,
             plugin: source.plugin,

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", state, fulfiller_reference IS NOT NULL AS \"handed_off!: bool\",\n                  quality_id, quality_name, quality_profile_id,\n                  quality_used_id, quality_used_name, quality_used_profile_id\n           FROM requests WHERE title_id = ? AND season IS NOT NULL\n           ORDER BY created_at, id",
+  "query": "SELECT id AS \"id!\", state, fulfiller_reference IS NOT NULL AS \"handed_off!: bool\",\n                  quality_id, quality_name, quality_profile_id,\n                  quality_used_id, quality_used_name, quality_used_profile_id\n           FROM requests\n           WHERE season IS NOT NULL AND id IN (\n               SELECT title.request_id FROM request_title_ids AS title\n               JOIN json_each(?) AS wanted\n                   ON title.namespace = wanted.key AND title.value = wanted.value)\n           ORDER BY created_at, id",
   "describe": {
     "columns": [
       {
@@ -113,5 +113,5 @@
       true
     ]
   },
-  "hash": "9900cf565a76faea122b9d2faff758468ed86799f68b0ac2f4d799fdaf6f143c"
+  "hash": "71a9ba4976702d8fa5ebf75b7bb9179683d5e81817aac0711d5375668410a983"
 }

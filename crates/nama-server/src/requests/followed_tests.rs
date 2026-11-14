@@ -335,3 +335,35 @@ async fn a_followed_show_opened_before_its_ids_were_stored_keeps_the_id_it_was_k
         ]
     );
 }
+
+#[tokio::test]
+async fn joining_an_open_followed_show_with_an_id_it_lacks_stores_it_and_a_later_ask_finds_it() {
+    let (_data, db) = ada_and_bob().await;
+    let tvdb = ExternalId::new("tvdb", "334824").unwrap();
+    let both = ExternalIds::from_iter([ExternalId::tmdb(DARK), tvdb.clone()]);
+    let id = follow_as(&db, ADA, dark(), RequestState::Approved)
+        .await
+        .value
+        .0
+        .id;
+    let with_tvdb = WantedSeasons {
+        show_ids: both.clone(),
+        ..dark()
+    };
+    follow_as(&db, BOB, with_tvdb, RequestState::Approved).await;
+
+    let asked_by_tvdb = WantedSeasons {
+        show_id: tvdb.clone(),
+        ..dark()
+    };
+    let later = follow_as(&db, ADA, asked_by_tvdb, RequestState::Approved).await;
+
+    let mut conn = db.reader().acquire().await.unwrap();
+    let by_tvdb = ExternalIds::from_iter([tvdb]);
+    let (_, _, ids) = approved_followed_show(&mut conn, &by_tvdb)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(ids, both);
+    assert_eq!(later.value.0.id, id);
+}

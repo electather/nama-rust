@@ -4,7 +4,7 @@
 use nama_plugin_api::{
     PluginId,
     fulfiller::{Fulfiller, Movies, Shows},
-    metadata::ExternalId,
+    metadata::{ExternalId, ExternalIds},
 };
 use nama_proto::nama::v1::{
     DefaultQuality, Quality, Request, RequestedQuality, request::MovieOrSeason,
@@ -12,8 +12,9 @@ use nama_proto::nama::v1::{
 use sqlx::SqliteConnection;
 
 use super::asked::Asked;
+use super::followed::{followed_show_ids, open_followed_show_by_any};
 use super::listing::load_one;
-use super::state::read_state;
+use super::state::{ids_json, read_state};
 use super::{Error, Requests, qualities};
 use crate::{db::now, library::title_source::TitleKind, users::User};
 
@@ -153,10 +154,13 @@ pub(super) async fn change_quality(
         .await?
         .ok_or(Error::NoSuch(Asked::Request, id))?;
     let show = match &request.movie_or_season {
-        Some(MovieOrSeason::Season(season)) => season
-            .show_id
-            .as_option()
-            .and_then(|show| ExternalId::new(&show.namespace, show.value.clone()).ok()),
+        Some(MovieOrSeason::Season(season)) => Some(
+            season
+                .show_ids
+                .iter()
+                .filter_map(|show| ExternalId::new(&show.namespace, show.value.clone()).ok())
+                .collect(),
+        ),
         _ => None,
     };
     requality(conn, Some(id), show, new_quality).await
@@ -172,32 +176,35 @@ pub(super) async fn change_followed_quality(
     let Some(new_quality) = new_quality else {
         return Ok(());
     };
-    let show = sqlx::query_scalar!("SELECT show_id FROM followed_shows WHERE id = ?", id)
-        .fetch_optional(&mut *conn)
-        .await?
-        .ok_or(Error::NoSuch(Asked::FollowedShow, id))?;
-    let show = show
-        .parse::<ExternalId>()
-        .map_err(|err| sqlx::Error::Decode(err.into()))?;
+    let show = followed_show_ids(conn, id).await?;
+    // Every Followed Show stores at least the id it is kept under.
+    if show.is_empty() {
+        return Err(Error::NoSuch(Asked::FollowedShow, id));
+    }
     requality(conn, None, Some(show), new_quality).await
 }
 
-/// Changes the Quality of the Request `id`, if given, and of the Show `show`, if given, to
-/// `quality`, where it isn't that one, keeping each change as that Request's latest in place of
-/// any earlier one. What the Show's change moves, or why it is refused, is
+/// Changes the Quality of the Request `id`, if given, and of the Show with the ids `show`, if
+/// given, to `quality`, where it isn't that one, keeping each change as that Request's latest in
+/// place of any earlier one. What the Show's change moves, or why it is refused, is
 /// [`qualities::ShowRequests::change`]'s to say.
 async fn requality(
     conn: &mut SqliteConnection,
     id: Option<i64>,
-    show: Option<ExternalId>,
+    show: Option<ExternalIds>,
     NewQuality { quality, by }: NewQuality,
 ) -> Result<(), Error> {
     let (seasons, followed) = match &show {
         Some(show) => {
             let moves = show_requests(conn, show).await?.change(&quality)?;
-            (moves.seasons, moves.followed)
+            let followed = if moves.followed {
+                open_followed_show_by_any(conn, show).await?
+            } else {
+                None
+            };
+            (moves.seasons, followed)
         }
-        None => (Vec::new(), false),
+        None => (Vec::new(), None),
     };
     let at = now();
     // ponytail: the Show's other Season Requests change without an event, so a client sees it on
@@ -220,43 +227,39 @@ async fn requality(
         .execute(&mut *conn)
         .await?;
     }
-    if followed {
-        let show = show.as_ref().map(ToString::to_string);
-        macro_rules! change {
-            ($open:literal) => {
-                sqlx::query!(
-                    "UPDATE followed_shows
-                     SET quality_id = ?, quality_name = ?, quality_profile_id = ?
-                     WHERE show_id = ? AND "
-                        + $open,
-                    quality.id,
-                    quality.name,
-                    quality.profile_id,
-                    show
-                )
-            };
-        }
-        super::state::open_followed_show_sql!(change)
-            .execute(&mut *conn)
-            .await?;
+    if let Some(followed) = followed {
+        sqlx::query!(
+            "UPDATE followed_shows SET quality_id = ?, quality_name = ?, quality_profile_id = ?
+             WHERE id = ?",
+            quality.id,
+            quality.name,
+            quality.profile_id,
+            followed
+        )
+        .execute(&mut *conn)
+        .await?;
     }
     Ok(())
 }
 
-/// The Season Requests, in the order they were made, and the open Followed Show of the Show
-/// `show`, for its Quality rules.
+/// The Season Requests, in the order they were made, and the open Followed Show of the Show with
+/// the ids `show`, each found by any of them, for its Quality rules.
 pub(super) async fn show_requests(
     conn: &mut SqliteConnection,
-    show: &ExternalId,
+    show: &ExternalIds,
 ) -> Result<qualities::ShowRequests, sqlx::Error> {
-    let title_id = show.to_string();
+    let show_ids = ids_json(show);
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", state, fulfiller_reference IS NOT NULL AS "handed_off!: bool",
                   quality_id, quality_name, quality_profile_id,
                   quality_used_id, quality_used_name, quality_used_profile_id
-           FROM requests WHERE title_id = ? AND season IS NOT NULL
+           FROM requests
+           WHERE season IS NOT NULL AND id IN (
+               SELECT title.request_id FROM request_title_ids AS title
+               JOIN json_each(?) AS wanted
+                   ON title.namespace = wanted.key AND title.value = wanted.value)
            ORDER BY created_at, id"#,
-        title_id
+        show_ids
     )
     .fetch_all(&mut *conn)
     .await?;
@@ -274,19 +277,15 @@ pub(super) async fn show_requests(
             handed_off: row.handed_off,
         })
         .collect();
-    macro_rules! followed {
-        ($open:literal) => {
-            sqlx::query!(
-                "SELECT quality_id, quality_name, quality_profile_id FROM followed_shows
-                 WHERE show_id = ? AND "
-                    + $open,
-                title_id
-            )
-        };
-    }
-    let followed = super::state::open_followed_show_sql!(followed)
+    let followed = match open_followed_show_by_any(conn, show).await? {
+        Some(id) => sqlx::query!(
+            "SELECT quality_id, quality_name, quality_profile_id FROM followed_shows WHERE id = ?",
+            id
+        )
         .fetch_optional(&mut *conn)
-        .await?;
+        .await?,
+        None => None,
+    };
     Ok(qualities::ShowRequests {
         seasons,
         followed: followed.is_some(),
@@ -321,3 +320,7 @@ pub(super) fn stored_quality(
         ..Default::default()
     })
 }
+
+#[cfg(test)]
+#[path = "quality_tests.rs"]
+mod tests;
