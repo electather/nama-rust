@@ -24,7 +24,7 @@ use crate::{libraries::Kind, library::contents::Item};
 
 /// The version of this parser, stored with each file it reads. See the crate's `AGENTS.md` for
 /// when to bump it.
-pub(crate) const PARSER_VERSION: i64 = 5;
+pub(crate) const PARSER_VERSION: i64 = 6;
 
 /// The most Episodes one file can hold, so a typo like `S01E01-E900` isn't 900 Episodes.
 const MAX_EPISODES_PER_FILE: i64 = 20;

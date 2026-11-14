@@ -125,10 +125,6 @@ impl MetadataSource {
 
     /// The same sources, the routing methods asking only those whose namespace is in `order`, in
     /// that order, such as a Library's.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "routing callers move over in later tasks")
-    )]
     pub(crate) fn in_order(&self, order: Vec<String>) -> Self {
         Self {
             plugins: self.plugins.clone(),
@@ -171,10 +167,6 @@ impl MetadataSource {
 
     /// Whether some source the routing methods ask keeps titles under `namespace`, such as an ID
     /// Hint's.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "routing callers move over in later tasks")
-    )]
     pub(crate) async fn serves(&self, namespace: &str) -> bool {
         let sources = self.sources().await;
         sources.iter().any(|source| source.namespace == namespace)
@@ -184,10 +176,6 @@ impl MetadataSource {
     /// that source. A source that has none, or doesn't search, passes to the next; one that fails
     /// stops the search as [`Error::Unavailable`], so a source being down never changes which
     /// source Matches.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "routing callers move over in later tasks")
-    )]
     pub(crate) async fn search_in_turn(
         &self,
         query: &SearchQuery,
@@ -203,10 +191,6 @@ impl MetadataSource {
     /// The metadata of the Movie with the id `id`, from the source keeping titles under its
     /// namespace, or else the first other one in order to have it, with that source. Fails as
     /// [`MetadataSource::search_in_turn`] does.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "routing callers move over in later tasks")
-    )]
     pub(crate) async fn movie_by(&self, id: &ExternalId) -> Result<(Source, Metadata), Error> {
         let sources = self.by_namespace(id.namespace()).await;
         let (source, movie) = self
@@ -224,10 +208,6 @@ impl MetadataSource {
     }
 
     /// The Show with the id `id`, routed as [`MetadataSource::movie_by`] routes a Movie.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "routing callers move over in later tasks")
-    )]
     pub(crate) async fn show_by(&self, id: &ExternalId) -> Result<(Source, Show), Error> {
         let sources = self.by_namespace(id.namespace()).await;
         self.first_answer(
@@ -243,10 +223,6 @@ impl MetadataSource {
 
     /// The Season `number` of the Show with the id `show`, asked only of `source`, which keeps the
     /// Show.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "routing callers move over in later tasks")
-    )]
     pub(crate) async fn season_from(
         &self,
         source: &Source,

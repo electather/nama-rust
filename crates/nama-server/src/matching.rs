@@ -1,18 +1,22 @@
-//! Matching: linking the items a scan found to titles from the metadata Provider, and storing
-//! those titles' metadata and external ids on the items.
+//! Matching: linking the items a scan found to titles from a Library's title sources, and storing
+//! those titles' metadata and ids on the items.
 //!
-//! After each scan, Matching decides about every item of the Library it hasn't decided yet:
+//! After each scan, Matching decides about every item of the Library it hasn't decided yet, asking
+//! the Library's title sources in its order (see [`sources`]):
 //!
-//! - An item whose name has an ID hint is fetched by that id directly. If the metadata source
-//!   has no such title, the item is Unmatched.
-//! - Otherwise its title and year are searched for, and it Matches only a result that fits
-//!   confidently and unambiguously (see [`confidence`]). Anything else is Unmatched. A Show's
-//!   country tag, as in `The Office (UK)`, is left out of the search and keeps only Shows from
-//!   that country.
-//! - An Episode Matches once its Show does and the Show's Season lists it. Each Show is looked up
-//!   once per pass, and each of its Seasons fetched once. An Episode keeps its own TMDB id and its
-//!   Show's external ids; Watch State keys Episodes by the Show's ids plus Season and Episode
-//!   numbers (ADR 0008), so its own IMDb and TVDB ids aren't fetched.
+//! - An item whose name has an ID hint is fetched by that id directly, from the source keeping its
+//!   namespace or else the first other to have it. If none has such a title, the item is
+//!   Unmatched. A hint in a namespace no source looks titles up by, such as `{x264-GROUP}`, is
+//!   ignored.
+//! - Otherwise its title and year are searched for with the first source that finds any, and it
+//!   Matches only a result that fits confidently and unambiguously (see [`confidence`]). Anything
+//!   else is Unmatched. A Show's country tag, as in `The Office (UK)`, is left out of the search
+//!   and keeps only Shows from that country.
+//! - A Match keeps every id the sources asked gave for its title, the answering source's winning.
+//! - An Episode Matches once its Show does and the Show's Season, fetched from the source that gave
+//!   the Show, lists it. Each Show is looked up once per pass, and each of its Seasons fetched
+//!   once. An Episode keeps its own ids and its Show's; Watch State keys Episodes by the Show's ids
+//!   plus Season and Episode numbers (ADR 0008).
 //!
 //! Matching stores why it left an item Unmatched, so an admin knows how to fix it: more than one
 //! title fits about as well (and which), none does, or its ID hint names none.
@@ -26,10 +30,10 @@
 //!
 //! A Matched or Unmatched item stays so on later scans until its file changes, or, if it was left
 //! Unmatched automatically, a newer name parser reads its file (ADR 0023). An item Matching
-//! couldn't decide, because no metadata Provider is enabled or the Provider failed (such as when
-//! TMDB is unreachable or rejects the API key), has no Match and so is Unmatched too, but nothing
-//! is stored for it: it is undecided, and the next scan tries it again. Once the Provider fails,
-//! the rest of that pass is left for the next scan too.
+//! couldn't decide, because no title source is enabled or one failed (such as when TMDB is
+//! unreachable or rejects the API key), or its pin's source isn't enabled, has no Match and so is
+//! Unmatched too, but nothing is stored for it: it is undecided, and the next scan tries it again.
+//! Once a source fails, the rest of that pass is left for the next scan too.
 //!
 //! A Match stores what [`METADATA_VERSION`] says Matching takes from the Provider. After deciding,
 //! each scan fetches the titles of Matches stored at an older version again, from the Plugin that
@@ -38,6 +42,7 @@
 //! what it had, at its older version, and the next scan tries again.
 
 mod confidence;
+mod sources;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -46,9 +51,7 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{
-        Candidate, Episode, ExternalId, ExternalIds, SearchQuery, Season, Show, TMDB, TitleKind,
-    },
+    metadata::{Episode, ExternalId, ExternalIds, Season, Show, TitleKind},
 };
 use nama_proto::nama::v1::{Event, ItemMatched};
 use tokio_util::sync::CancellationToken;
@@ -57,15 +60,14 @@ use crate::{
     artwork::Artwork,
     db::{Database, detached},
     events::{EventBus, event},
+    libraries::{self, Libraries},
     library::contents::{
-        Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin, TiedTitle, UnmatchedReason,
+        Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin, UnmatchedReason,
     },
-    metadata::{self, MetadataSource},
+    metadata::{self, MetadataSource, Source},
     plugins::ExtensionPoints,
-    scanner::{ScanLock, ScanLocks, country_tag},
+    scanner::{ScanLock, ScanLocks},
 };
-
-use confidence::Decision;
 
 /// The version of what a Match stores from the metadata Provider, stored with each Match. See the
 /// crate's `AGENTS.md` for when to bump it.
@@ -110,6 +112,8 @@ pub(crate) enum ManualError {
 #[derive(Debug, Clone)]
 pub(crate) struct Matcher {
     contents: Contents,
+    /// Reads a Library's title source order.
+    libraries: Libraries,
     metadata: MetadataSource,
     /// Downloads the images of the Matches set by hand.
     artwork: Artwork,
@@ -124,21 +128,10 @@ struct TitleKey {
     pin: Option<Pin>,
 }
 
-impl TitleKey {
-    /// `miss`, from fetching the title this key names, blamed on its ID Hint if that named it.
-    fn blame_id_hint(&self, miss: Miss) -> Miss {
-        match miss {
-            Miss::Unmatched(None) if self.pin.is_none() && self.name.hint.is_some() => {
-                Miss::Unmatched(Some(UnmatchedReason::UnknownIdHint))
-            }
-            miss @ (Miss::Unmatched(_) | Miss::Undecided) => miss,
-        }
-    }
-}
-
+/// A Show, the source that gave it, and its id there, which its Seasons are fetched by.
 #[derive(Debug)]
 struct FoundShow {
-    plugin: PluginId,
+    source: Source,
     id: ExternalId,
     show: Show,
 }
@@ -211,6 +204,9 @@ enum Miss {
     /// The metadata Provider couldn't answer: the item is Unmatched for now, but undecided, so
     /// the next scan tries again.
     Undecided,
+    /// The item's pin names a title no source the Library asks looks titles up by: undecided until
+    /// one does, while the sources go on Matching the Library's other titles.
+    Unserved,
 }
 
 impl From<metadata::Error> for Miss {
@@ -253,7 +249,7 @@ impl Metadata {
 
 impl Matcher {
     /// Shares `locks` with the Scanner, so a Match fixed by hand waits for a scan of its Library.
-    pub(crate) const fn new(
+    pub(crate) fn new(
         db: Arc<Database>,
         plugins: ExtensionPoints,
         artwork: Artwork,
@@ -261,6 +257,7 @@ impl Matcher {
         locks: ScanLocks,
     ) -> Self {
         Self {
+            libraries: Libraries::new(Arc::clone(&db)),
             contents: Contents::new(db),
             metadata: MetadataSource::new(plugins),
             artwork,
@@ -282,9 +279,7 @@ impl Matcher {
         let (_scan, named) = self.lock_named_like(item).await?;
         let outcomes = match named.name.kind() {
             TitleKind::Movie => {
-                let movie = self
-                    .metadata
-                    .movie(id)
+                let movie = sources::fetch_movie(&self.metadata, id, ExternalIds::default())
                     .await
                     .map_err(ManualError::looking_up(id))?;
                 named
@@ -294,8 +289,7 @@ impl Matcher {
                     .collect()
             }
             TitleKind::Show => {
-                let show = self
-                    .fetch_show(id)
+                let show = sources::fetch_show(&self.metadata, id, ExternalIds::default())
                     .await
                     .map_err(ManualError::looking_up(id))?;
                 let episodes: Vec<PendingEpisode> = named
@@ -334,6 +328,13 @@ impl Matcher {
         cancel: &CancellationToken,
     ) -> Result<Summary, Error> {
         let library = scan.library();
+        let order = match self.libraries.get(library).await {
+            Ok(found) => found.title_sources,
+            Err(libraries::Error::Database(err)) => return Err(err.into()),
+            // The only other failure of a read is the Library being gone, with nothing to Match.
+            Err(_) => return Ok(Summary::default()),
+        };
+        let this = self.in_order(order);
         let Pending { movies, shows } = self.undecided(library).await?;
         let mut summary = Summary::default();
         // Once the Provider fails (or there is none), asking about the other titles would only
@@ -347,7 +348,7 @@ impl Matcher {
                 summary.undecided += count(items.len());
                 continue;
             }
-            let outcome = self.match_movie(&key).await;
+            let outcome = sources::movie(&this.metadata, &key).await;
             available = !matches!(outcome, Err(Miss::Undecided));
             let decided = items.into_iter().map(|item| (item, outcome.clone()));
             self.store(library, decided.collect(), &mut summary).await?;
@@ -360,7 +361,7 @@ impl Matcher {
                 summary.undecided += count(episodes.len());
                 continue;
             }
-            let decided = self.match_episodes(&key, &episodes).await;
+            let decided = this.match_episodes(&key, &episodes).await;
             available = !decided.any_undecided();
             self.store(library, decided, &mut summary).await?;
         }
@@ -428,7 +429,8 @@ impl Matcher {
                 continue;
             }
             let only = self.only(plugin.clone());
-            let show = match only.fetch_show(&id).await {
+            let show = match sources::fetch_show(&only.metadata, &id, ExternalIds::default()).await
+            {
                 Ok(show) => show,
                 Err(metadata::Error::NotFound) => continue,
                 Err(metadata::Error::Unavailable) => {
@@ -455,6 +457,14 @@ impl Matcher {
             }
         }
         Ok(outdated)
+    }
+
+    /// This Matcher, asking only the title sources whose namespace is in `order`, in that order.
+    fn in_order(&self, order: Vec<String>) -> Self {
+        Self {
+            metadata: self.metadata.in_order(order),
+            ..self.clone()
+        }
     }
 
     /// This Matcher, asking only the Plugin `plugin`'s metadata Provider.
@@ -496,23 +506,8 @@ impl Matcher {
         Ok((scan, named))
     }
 
-    async fn match_movie(&self, key: &TitleKey) -> Result<Metadata, Miss> {
-        let id = self.find(TitleKind::Movie, key).await?;
-        self.metadata
-            .movie(&id)
-            .await
-            .map_err(|err| key.blame_id_hint(err.into()))
-    }
-
     async fn match_episodes(&self, key: &TitleKey, episodes: &[PendingEpisode]) -> Outcomes {
-        let show = match self.find(TitleKind::Show, key).await {
-            Ok(id) => self
-                .fetch_show(&id)
-                .await
-                .map_err(|err| key.blame_id_hint(err.into())),
-            Err(miss) => Err(miss),
-        };
-        match show {
+        match sources::show(&self.metadata, key).await {
             Ok(show) => self.match_in_show(&show, episodes).await,
             Err(miss) => episodes
                 .iter()
@@ -521,15 +516,8 @@ impl Matcher {
         }
     }
 
-    async fn fetch_show(&self, id: &ExternalId) -> Result<FoundShow, metadata::Error> {
-        let (plugin, show) = self.metadata.show(id).await?;
-        // Seasons are fetched by the Show's TMDB id, which an ID Hint from TVDB or IMDb isn't.
-        let id = show.ids.get(TMDB).unwrap_or_else(|| id.clone());
-        Ok(FoundShow { plugin, id, show })
-    }
-
-    async fn match_in_show(&self, show: &FoundShow, episodes: &[PendingEpisode]) -> Outcomes {
-        let FoundShow { plugin, id, show } = show;
+    async fn match_in_show(&self, found: &FoundShow, episodes: &[PendingEpisode]) -> Outcomes {
+        let FoundShow { source, id, show } = found;
         let mut by_season: BTreeMap<i64, Vec<&PendingEpisode>> = BTreeMap::new();
         for pending in episodes {
             by_season.entry(pending.season).or_default().push(pending);
@@ -539,18 +527,18 @@ impl Matcher {
             seasons: Vec::new(),
         };
         for (number, in_season) in by_season {
-            let season = self.season(id, number).await;
+            let season = sources::season(&self.metadata, found, number).await;
             outcomes.items.extend(in_season.into_iter().map(|pending| {
-                let found = match &season {
+                let outcome = match &season {
                     Ok(season) => season
                         .episodes
                         .iter()
                         .find(|e| i64::from(e.number) == pending.episode)
-                        .map(|episode| Metadata::episode(plugin, show, season, episode))
+                        .map(|episode| Metadata::episode(&source.plugin, show, season, episode))
                         .ok_or(Miss::Unmatched(None)),
                     Err(miss) => Err(miss.clone()),
                 };
-                (pending.item, found)
+                (pending.item, outcome)
             }));
             if let Ok(season) = season {
                 let show_ids = (Some(show.ids.clone()).filter(|ids| !ids.is_empty()))
@@ -559,69 +547,6 @@ impl Matcher {
             }
         }
         outcomes
-    }
-
-    async fn season(&self, show: &ExternalId, number: i64) -> Result<Season, Miss> {
-        let number = u32::try_from(number).map_err(|_negative| Miss::Unmatched(None))?;
-        Ok(self.metadata.season(show, number).await?)
-    }
-
-    /// The id of the title `key` names: what an admin pinned, its ID hint, or else the search
-    /// result that fits it.
-    async fn find(&self, kind: TitleKind, key: &TitleKey) -> Result<ExternalId, Miss> {
-        match &key.pin {
-            Some(Pin::Title(id)) => return Ok(id.clone()),
-            Some(Pin::Unmatched) => return Err(Miss::Unmatched(None)),
-            None => {}
-        }
-        let name = &key.name;
-        if let Some(id) = &name.hint {
-            return Ok(id.clone());
-        }
-        let year = name.year.and_then(|year| i32::try_from(year).ok());
-        let (title, country) = match (kind, country_tag(&name.title)) {
-            (TitleKind::Show, Some((title, country))) => (title, Some(country)),
-            _ => (name.title.as_str(), None),
-        };
-        let mut query = SearchQuery {
-            kind,
-            title: title.to_owned(),
-            year,
-        };
-        let mut decision = confidence::decide(title, year, &self.search(&query, country).await?);
-        // A metadata source may only return titles from exactly the year searched for, so a year
-        // off by one (release dates differ by country) finds nothing. Search again without it,
-        // and let the confidence score weigh the year.
-        if decision == Decision::NoMatch && year.is_some() {
-            query.year = None;
-            decision = confidence::decide(title, year, &self.search(&query, country).await?);
-        }
-        match decision {
-            Decision::Match(id) => Ok(id),
-            Decision::Ambiguous(tied) => {
-                tracing::info!(
-                    title = %name.title,
-                    year = ?name.year,
-                    "more than one title fits; left Unmatched"
-                );
-                let tied = tied.into_iter().map(TiedTitle::from).collect();
-                Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(tied))))
-            }
-            Decision::NoMatch => Err(Miss::Unmatched(Some(UnmatchedReason::NoTitleFits))),
-        }
-    }
-
-    /// What the Provider finds for `query`, keeping only titles from `country` if given.
-    async fn search(
-        &self,
-        query: &SearchQuery,
-        country: Option<&str>,
-    ) -> Result<Vec<Candidate>, Miss> {
-        let (_, mut candidates) = self.metadata.search(query).await?;
-        if let Some(country) = country {
-            candidates.retain(|candidate| candidate.origin_country.iter().any(|c| c == country));
-        }
-        Ok(candidates)
     }
 
     async fn store(
@@ -697,7 +622,7 @@ fn tally(outcomes: Outcomes, summary: &mut Summary) -> Decisions {
                 summary.unmatched += 1;
                 decided.push((item, Decided::Unmatched(reason)));
             }
-            Err(Miss::Undecided) => summary.undecided += 1,
+            Err(Miss::Undecided | Miss::Unserved) => summary.undecided += 1,
         }
     }
     Decisions {
