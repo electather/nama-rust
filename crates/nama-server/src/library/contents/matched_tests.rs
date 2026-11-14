@@ -295,3 +295,59 @@ async fn sqlite_refuses_an_id_whose_namespace_is_not_lowercase_letters_and_digit
         );
     }
 }
+
+#[tokio::test]
+async fn a_library_lists_its_titles_under_the_id_of_its_first_title_source() {
+    let fx = Fixture::new().await;
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    match_movie(
+        &fx,
+        ALIEN,
+        ExternalIds::from_iter([ExternalId::tmdb(348), ExternalId::tvdb(1)]),
+    )
+    .await;
+    let path = "/media/Firefly/Season 01/Firefly - S01E02.mkv";
+    let episode = Item::Episode {
+        show: "Firefly".to_owned(),
+        year: None,
+        hint: None,
+        season: 1,
+        episode: 2,
+    };
+    fx.store(path, 10, episode).await;
+    let metadata = super::super::Metadata {
+        ids: ExternalIds::from_iter([ExternalId::tmdb(1001), ExternalId::tvdb(297_989)]),
+        show_ids: ExternalIds::from_iter([ExternalId::tmdb(1437), ExternalId::tvdb(78874)]),
+        ..tmdb_movie(0, "The Train Job")
+    };
+    let item = fx.item(path).await;
+    fx.contents
+        .record(vec![(item, Decided::Matched(Box::new(metadata)))])
+        .await
+        .unwrap();
+    let listed = async || {
+        let movies = fx.contents.movies(fx.library).await.unwrap();
+        let shows = fx.contents.shows(fx.library).await.unwrap();
+        let episode_id = shows[0].seasons[&1].episodes[0].id.clone();
+        (movies[0].id.clone(), shows[0].id.clone(), episode_id)
+    };
+
+    let listed_by_tmdb = (
+        ExternalId::tmdb(348),
+        ExternalId::tmdb(1437),
+        ExternalId::tmdb(1001),
+    );
+    assert_eq!(listed().await, listed_by_tmdb);
+
+    let order = vec!["tvdb".to_owned(), "tmdb".to_owned()];
+    fx.libraries
+        .set_title_sources(fx.library, order)
+        .await
+        .unwrap();
+    let after_reorder = (
+        ExternalId::tvdb(1),
+        ExternalId::tvdb(78874),
+        ExternalId::tvdb(297_989),
+    );
+    assert_eq!(listed().await, after_reorder);
+}

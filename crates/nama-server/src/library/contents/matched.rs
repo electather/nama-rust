@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::SqliteConnection;
 
-use super::{Contents, ItemKind, Stored, ids_from_json, ids_sql, primary_id};
+use super::{Contents, ItemKind, Stored, ids_from_json, ids_sql, primary_id_in};
 
 /// A Library's downloaded Backdrop: see [`Contents::newest_backdrops`].
 #[derive(Debug)]
@@ -23,7 +23,7 @@ pub(crate) struct NewestBackdrop {
 /// Version stores. Browse hands it out with Versions of its own, which have Tracks.
 #[derive(Debug)]
 pub(crate) struct Movie<V = Version> {
-    /// Which of the Match's ids identifies the Movie: see [`primary_id`].
+    /// Which of the Match's ids identifies the Movie: see [`primary_id`](super::primary_id).
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Version gives it.
     pub(crate) ids: ExternalIds,
@@ -74,7 +74,7 @@ pub(crate) enum MatchedTo {
     NoSuchVersion,
     /// The file holds a Movie or nothing, and no Match: its Item is Unmatched or not Matched yet.
     Nothing,
-    /// The Movie's id, as browsing identifies it: see [`primary_id`].
+    /// The Movie's id, as browsing identifies it: see [`primary_id`](super::primary_id).
     Movie(ExternalId),
     /// The file holds Episodes.
     Episodes {
@@ -91,7 +91,7 @@ pub(crate) enum MatchedTo {
 /// first Episode, by season, episode and path, stores.
 #[derive(Debug, Clone)]
 pub(crate) struct Show<V = Version> {
-    /// Which of its Episodes' Show ids identifies it: see [`primary_id`].
+    /// Which of its Episodes' Show ids identifies it: see [`primary_id`](super::primary_id).
     pub(crate) id: ExternalId,
     /// Every Show id that Match gives it.
     pub(crate) ids: ExternalIds,
@@ -158,7 +158,7 @@ pub(crate) struct Season<V = Version> {
 /// Version stores.
 #[derive(Debug, Clone)]
 pub(crate) struct Episode<V = Version> {
-    /// Which of the Match's ids identifies the Episode: see [`primary_id`].
+    /// Which of the Match's ids identifies the Episode: see [`primary_id`](super::primary_id).
     pub(crate) id: ExternalId,
     /// Its Season's number.
     pub(crate) season: i64,
@@ -202,8 +202,9 @@ impl Contents {
                         + $ids
                         + r#"'title') AS "ids?: String", "#
                         + $ids
-                        + r#"'show') AS "show_ids?: String"
+                        + r#"'show') AS "show_ids?: String", libraries.title_sources
                        FROM library_files
+                       JOIN libraries ON libraries.id = library_files.library_id
                        LEFT JOIN library_items ON library_items.file_id = library_files.id
                        LEFT JOIN item_matches ON item_matches.item_id = library_items.id
                                              AND item_matches.state = 'matched'
@@ -220,8 +221,9 @@ impl Contents {
         let holds_episodes = first.kind == Some(ItemKind::Episode);
         let ids: Vec<_> = (rows.into_iter())
             .map(|row| {
-                let id = primary_id(&ids_from_json(row.ids.as_deref()));
-                let show = primary_id(&ids_from_json(row.show_ids.as_deref()));
+                let id = primary_id_in(&ids_from_json(row.ids.as_deref()), &row.title_sources);
+                let show =
+                    primary_id_in(&ids_from_json(row.show_ids.as_deref()), &row.title_sources);
                 (id, show)
             })
             .collect();
@@ -318,9 +320,10 @@ impl Contents {
             ($ids:literal) => {
                 sqlx::query!(
                     r#"SELECT library_id AS "library!", plugin AS "plugin!",
-                              backdrop AS "backdrop!", ids AS "ids?: String"
+                              backdrop AS "backdrop!", ids AS "ids?: String",
+                              title_sources AS "title_sources!"
                        FROM (SELECT library_files.library_id, item_matches.plugin,
-                                    item_matches.backdrop, "#
+                                    item_matches.backdrop, libraries.title_sources, "#
                         + $ids
                         + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS ids,
                                     ROW_NUMBER() OVER (PARTITION BY library_files.library_id
@@ -328,6 +331,7 @@ impl Contents {
                              FROM item_matches
                              JOIN library_items ON library_items.id = item_matches.item_id
                              JOIN library_files ON library_files.id = library_items.file_id
+                             JOIN libraries ON libraries.id = library_files.library_id
                              WHERE item_matches.state = 'matched'
                                AND item_matches.backdrop IS NOT NULL)
                        WHERE newest = 1"#
@@ -340,7 +344,7 @@ impl Contents {
             .filter_map(|row| {
                 let ids = ids_from_json(row.ids.as_deref());
                 let backdrop = NewestBackdrop {
-                    title: primary_id(&ids)?,
+                    title: primary_id_in(&ids, &row.title_sources)?,
                     ids,
                     plugin: row.plugin,
                     path: row.backdrop,
@@ -359,7 +363,7 @@ impl Contents {
         library_with_movie(&mut conn, id).await
     }
 
-    /// By title, grouped by [`primary_id`].
+    /// By title, grouped by [`primary_id`](super::primary_id).
     pub(crate) async fn movies(&self, library: i64) -> Result<Vec<Movie>, sqlx::Error> {
         macro_rules! select {
             ($ids:literal) => {
@@ -371,10 +375,12 @@ impl Contents {
                         + r#"'title') AS "ids?: String", item_matches.title AS "title!",
                               item_matches.original_title, item_matches.overview,
                               item_matches.release_date, item_matches.runtime_minutes,
-                              item_matches.poster, item_matches.backdrop
+                              item_matches.poster, item_matches.backdrop,
+                              libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
+                       JOIN libraries ON libraries.id = library_files.library_id
                        WHERE library_files.library_id = ?
                          AND library_items.kind = 'movie'
                          AND item_matches.state = 'matched'
@@ -389,7 +395,7 @@ impl Contents {
         let mut movies: BTreeMap<ExternalId, Movie> = BTreeMap::new();
         for row in rows {
             let ids = ids_from_json(row.ids.as_deref());
-            let Some(id) = primary_id(&ids) else {
+            let Some(id) = primary_id_in(&ids, &row.title_sources) else {
                 continue;
             };
             let version = version(
@@ -421,7 +427,7 @@ impl Contents {
         Ok(movies)
     }
 
-    /// By title, grouped by the Episodes' Show ids' [`primary_id`], each Season's Episodes by
+    /// By title, grouped by the Episodes' Show ids' [`primary_id`](super::primary_id), each Season's Episodes by
     /// their own.
     pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, sqlx::Error> {
         macro_rules! select {
@@ -440,10 +446,11 @@ impl Contents {
                               item_matches.show_title AS "show_title!",
                               item_matches.overview, item_matches.release_date,
                               item_matches.runtime_minutes, item_matches.poster,
-                              item_matches.backdrop, item_matches.still
+                              item_matches.backdrop, item_matches.still, libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
+                       JOIN libraries ON libraries.id = library_files.library_id
                        WHERE library_files.library_id = ?
                          AND library_items.kind = 'episode'
                          AND item_matches.state = 'matched'
@@ -459,7 +466,10 @@ impl Contents {
         for row in rows {
             let show_ids = ids_from_json(row.show_ids.as_deref());
             let ids = ids_from_json(row.ids.as_deref());
-            let (Some(show_id), Some(id)) = (primary_id(&show_ids), primary_id(&ids)) else {
+            let order = &row.title_sources;
+            let (Some(show_id), Some(id)) =
+                (primary_id_in(&show_ids, order), primary_id_in(&ids, order))
+            else {
                 continue;
             };
             let show = shows.entry(show_id.clone()).or_insert_with(|| Show {

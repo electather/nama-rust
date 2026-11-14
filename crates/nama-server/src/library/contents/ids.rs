@@ -21,14 +21,22 @@ impl Pin {
     }
 }
 
-/// The one of `ids` that identifies a title: its TMDB id if it has one, or else its IMDb, then
-/// its TVDB id, or else the first of any other in namespace order. `None` if it has none. This
-/// order stands until per-Library source order exists.
-pub(crate) fn primary_id(ids: &ExternalIds) -> Option<ExternalId> {
-    [TMDB, IMDB, TVDB]
-        .into_iter()
-        .find_map(|namespace| ids.get(namespace))
+/// The namespaces a title's id is preferred in where no Library says: TMDB's, then IMDb's,
+/// then TVDB's. A Request, which belongs to no Library, keeps a title under it.
+pub(crate) const DEFAULT_ORDER: [&str; 3] = [TMDB, IMDB, TVDB];
+
+/// The one of `ids` that identifies a title: the first in a namespace of `order`, a Library's
+/// title sources or [`DEFAULT_ORDER`], or else the first in namespace order. `None` if it has
+/// none.
+pub(crate) fn primary_id(ids: &ExternalIds, order: &[impl AsRef<str>]) -> Option<ExternalId> {
+    (order.iter())
+        .find_map(|namespace| ids.get(namespace.as_ref()))
         .or_else(|| ids.iter().next())
+}
+
+/// [`primary_id`] in the order a Library stores as `libraries.title_sources`, comma-separated.
+pub(super) fn primary_id_in(ids: &ExternalIds, title_sources: &str) -> Option<ExternalId> {
+    primary_id(ids, &title_sources.split(',').collect::<Vec<_>>())
 }
 
 /// Hands `$query!` the start of a subquery giving an Item's ids in one scope of `item_match_ids`

@@ -5,6 +5,7 @@ What a Library holds. Contents is its first part; the other Library files (libra
 - **One owner for a Library's contents.** Only `contents.rs` and its `contents/` folder read or write `library_files`, `library_items`, `item_matches`, `item_match_ids`, `match_pins` and `title_search`, tests included. Everything else goes through `Contents`. `OWNED_TABLES` in `crates/nama-server/tests/structure.rs` enforces it.
 - **Matches make Requests Available in the same write.** A write that stores Matches makes the Matched Movies' and Seasons' Requests Available by calling `requests::make_available` and `make_seasons_available` (ADR 0012). It is the one accepted call up the rows.
 - **Private modules.** Contents' files are private modules; neighbours import only what `contents.rs` re-exports, and items inside default to `pub(super)`. The one exception is `pub(crate) mod fixture`, which other areas' tests import as `library::contents::fixture`. The title id code is in `contents/ids.rs`.
+- **A title's preferred id follows its Library's order.** Contents reads name a Movie or Show by `primary_id` in the order of the Library's `title_sources`, read in the same query; only what belongs to no Library, such as a Request, uses `DEFAULT_ORDER`.
 - **Test helpers.** `contents/fixture.rs` is the one in-file fixture other areas' tests build on; `contents/testing.rs` holds what tests read back.
 
 ### Neighbours

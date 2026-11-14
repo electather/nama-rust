@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                              library_files.modified_ns, library_files.parser_version,\n                              library_items.season AS \"season!\",\n                              library_items.episode AS \"episode!\",\n                              item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'show') AS \"show_ids?: String\",\n                              item_matches.title AS \"title!\",\n                              item_matches.show_title AS \"show_title!\",\n                              item_matches.overview, item_matches.release_date,\n                              item_matches.runtime_minutes, item_matches.poster,\n                              item_matches.backdrop, item_matches.still\n                       FROM item_matches\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       WHERE library_files.library_id = ?\n                         AND library_items.kind = 'episode'\n                         AND item_matches.state = 'matched'\n                       ORDER BY library_items.season, library_items.episode, library_files.path",
+  "query": "SELECT library_files.id AS \"file!\", library_files.path, library_files.size,\n                              library_files.modified_ns, library_files.parser_version,\n                              library_items.season AS \"season!\",\n                              library_items.episode AS \"episode!\",\n                              item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'show') AS \"show_ids?: String\",\n                              item_matches.title AS \"title!\",\n                              item_matches.show_title AS \"show_title!\",\n                              item_matches.overview, item_matches.release_date,\n                              item_matches.runtime_minutes, item_matches.poster,\n                              item_matches.backdrop, item_matches.still, libraries.title_sources\n                       FROM item_matches\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       JOIN libraries ON libraries.id = library_files.library_id\n                       WHERE library_files.library_id = ?\n                         AND library_items.kind = 'episode'\n                         AND item_matches.state = 'matched'\n                       ORDER BY library_items.season, library_items.episode, library_files.path",
   "describe": {
     "columns": [
       {
@@ -190,6 +190,17 @@
             "name": "still"
           }
         }
+      },
+      {
+        "name": "title_sources",
+        "ordinal": 18,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "title_sources"
+          }
+        }
       }
     ],
     "parameters": {
@@ -213,8 +224,9 @@
       true,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "d0f5f5ebadefcf762cdaff6f26c76c9eaa4d3e752f1995ca22d08ff2995cb345"
+  "hash": "be77a0c681ae986bafe85a924df8e3a04662d68aeef128efdb6152b7bb14a4a0"
 }

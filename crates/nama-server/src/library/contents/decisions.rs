@@ -10,7 +10,7 @@ use nama_proto::nama::v1::Event;
 use sqlx::SqliteConnection;
 
 use super::{
-    Contents, Item, ItemKind, ItemRow, Pin, ids_from_json, ids_sql, parse_hint, primary_id,
+    Contents, Item, ItemKind, ItemRow, Pin, ids_from_json, ids_sql, parse_hint, primary_id_in,
 };
 use crate::{db::now, matching::METADATA_VERSION, requests};
 
@@ -149,7 +149,7 @@ impl Contents {
 
     /// The Matched Items of the Library `library` stored at a metadata version older than
     /// [`METADATA_VERSION`], in the order they were stored, each with the Plugin that Matched it
-    /// and its title's id: a Movie's, or an Episode's Show's (see [`primary_id`]).
+    /// and its title's id: a Movie's, or an Episode's Show's (see [`primary_id`](super::primary_id)).
     pub(crate) async fn outdated(
         &self,
         library: i64,
@@ -163,10 +163,11 @@ impl Contents {
                               item_matches.plugin AS "plugin!", "#
                         + $ids
                         + r#"IIF(library_items.kind = 'movie', 'title', 'show'))
-                                AS "ids?: String"
+                                AS "ids?: String", libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
+                       JOIN libraries ON libraries.id = library_files.library_id
                        WHERE library_files.library_id = ?
                          AND item_matches.state = 'matched'
                          AND item_matches.metadata_version < ?
@@ -180,7 +181,7 @@ impl Contents {
         Ok(rows
             .into_iter()
             .filter_map(|row| {
-                let title = primary_id(&ids_from_json(row.ids.as_deref()))?;
+                let title = primary_id_in(&ids_from_json(row.ids.as_deref()), &row.title_sources)?;
                 let item = ItemRow {
                     kind: row.kind,
                     title: Cow::Owned(row.title),

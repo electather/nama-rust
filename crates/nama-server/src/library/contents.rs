@@ -26,8 +26,8 @@ pub(crate) use testing::{File, FileItem, Recorded};
 use decisions::insert_decisions;
 pub(crate) use decisions::{Decided, Decisions, Metadata, TiedTitle, Unmatched, UnmatchedReason};
 pub(crate) use files::{Change, Stored};
-use ids::{ids_from_json, ids_sql};
-pub(crate) use ids::{parse_hint, primary_id};
+pub(crate) use ids::{DEFAULT_ORDER, parse_hint, primary_id};
+use ids::{ids_from_json, ids_sql, primary_id_in};
 pub(crate) use items::{Item, Name};
 use items::{ItemKind, ItemRow};
 pub(crate) use matched::{

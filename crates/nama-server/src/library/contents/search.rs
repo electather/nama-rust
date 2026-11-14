@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use super::{Contents, ItemKind, ids_from_json, ids_sql, primary_id, show_poster};
+use super::{Contents, ItemKind, ids_from_json, ids_sql, primary_id_in, show_poster};
 
 /// What [`Contents::search`] found in every Library, each kind best fit first, and each Movie,
 /// Show or Episode once per Library that has it.
@@ -21,7 +21,7 @@ pub(crate) struct Found {
 #[derive(Debug)]
 pub(crate) struct FoundMovie {
     pub(crate) library: i64,
-    /// As browsing identifies it: see [`primary_id`].
+    /// As browsing identifies it: see [`primary_id`](super::primary_id).
     pub(crate) id: ExternalId,
     /// Every id its Match gives it.
     pub(crate) ids: ExternalIds,
@@ -36,7 +36,7 @@ pub(crate) struct FoundMovie {
 #[derive(Debug)]
 pub(crate) struct FoundShow {
     pub(crate) library: i64,
-    /// As browsing identifies it: see [`primary_id`].
+    /// As browsing identifies it: see [`primary_id`](super::primary_id).
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Episode found gives it.
     pub(crate) ids: ExternalIds,
@@ -51,7 +51,7 @@ pub(crate) struct FoundShow {
 #[derive(Debug)]
 pub(crate) struct FoundEpisode {
     pub(crate) library: i64,
-    /// As browsing identifies it: see [`primary_id`].
+    /// As browsing identifies it: see [`primary_id`](super::primary_id).
     pub(crate) id: ExternalId,
     /// Its Show's id, as browsing identifies it.
     pub(crate) show: ExternalId,
@@ -72,15 +72,10 @@ impl Contents {
             return Ok(found);
         };
         for row in self.search_rows(&words.in_column("title")).await? {
-            let Some(id) = primary_id(&row.ids()) else {
+            let Some(id) = row.primary_id() else {
                 continue;
             };
-            match (
-                row.kind,
-                row.season,
-                row.episode,
-                primary_id(&row.show_ids()),
-            ) {
+            match (row.kind, row.season, row.episode, row.show_primary_id()) {
                 (ItemKind::Episode, Some(season), Some(number), Some(show)) => {
                     found.episodes.push(FoundEpisode {
                         library: row.library,
@@ -132,11 +127,12 @@ impl Contents {
                         + $ids
                         + r#"'show') AS "show_ids?: String", item_matches.title AS "title!",
                               item_matches.show_title, item_matches.release_date,
-                              item_matches.poster
+                              item_matches.poster, libraries.title_sources
                        FROM title_search
                        JOIN item_matches ON item_matches.item_id = title_search.rowid
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
+                       JOIN libraries ON libraries.id = library_files.library_id
                        WHERE title_search MATCH ?
                        ORDER BY title_search.rank"#,
                     fts_query
@@ -164,6 +160,8 @@ struct SearchRow {
     show_title: Option<String>,
     release_date: Option<String>,
     poster: Option<String>,
+    /// The Library's, as `libraries` stores them.
+    title_sources: String,
 }
 
 impl SearchRow {
@@ -174,13 +172,23 @@ impl SearchRow {
     fn show_ids(&self) -> ExternalIds {
         ids_from_json(self.show_ids.as_deref())
     }
+
+    /// As browsing identifies the title: see [`primary_id`](super::primary_id).
+    fn primary_id(&self) -> Option<ExternalId> {
+        primary_id_in(&self.ids(), &self.title_sources)
+    }
+
+    /// As browsing identifies the Show: see [`primary_id`](super::primary_id).
+    fn show_primary_id(&self) -> Option<ExternalId> {
+        primary_id_in(&self.show_ids(), &self.title_sources)
+    }
 }
 
 /// The Shows that `rows`, best fit first, are Episodes of: each once per Library, in the place of
 /// its first row.
 fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
     let rows: Vec<(ExternalId, SearchRow)> = (rows.into_iter())
-        .filter_map(|row| Some((primary_id(&row.show_ids())?, row)))
+        .filter_map(|row| Some((row.show_primary_id()?, row)))
         .collect();
     let mut seen = HashSet::new();
     let mut shows = Vec::new();

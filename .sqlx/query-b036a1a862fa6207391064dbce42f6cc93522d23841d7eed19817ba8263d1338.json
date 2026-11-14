@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_items.id AS \"id!\", library_items.kind AS \"kind: ItemKind\",\n                              library_items.title, library_items.year, library_items.hint,\n                              library_items.season, library_items.episode,\n                              item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = IIF(library_items.kind = 'movie', 'title', 'show'))\n                                AS \"ids?: String\"\n                       FROM item_matches\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       WHERE library_files.library_id = ?\n                         AND item_matches.state = 'matched'\n                         AND item_matches.metadata_version < ?\n                       ORDER BY library_items.id",
+  "query": "SELECT library_items.id AS \"id!\", library_items.kind AS \"kind: ItemKind\",\n                              library_items.title, library_items.year, library_items.hint,\n                              library_items.season, library_items.episode,\n                              item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = IIF(library_items.kind = 'movie', 'title', 'show'))\n                                AS \"ids?: String\", libraries.title_sources\n                       FROM item_matches\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       JOIN libraries ON libraries.id = library_files.library_id\n                       WHERE library_files.library_id = ?\n                         AND item_matches.state = 'matched'\n                         AND item_matches.metadata_version < ?\n                       ORDER BY library_items.id",
   "describe": {
     "columns": [
       {
@@ -96,6 +96,17 @@
         "ordinal": 8,
         "type_info": "Null",
         "origin": "Expression"
+      },
+      {
+        "name": "title_sources",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "title_sources"
+          }
+        }
       }
     ],
     "parameters": {
@@ -110,8 +121,9 @@
       true,
       true,
       true,
-      null
+      null,
+      false
     ]
   },
-  "hash": "c9129ec4d8f0bc8430f410f986cf3ba8570dc5974c923fa7b845d3988b98624e"
+  "hash": "b036a1a862fa6207391064dbce42f6cc93522d23841d7eed19817ba8263d1338"
 }

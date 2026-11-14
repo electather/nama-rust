@@ -1,6 +1,6 @@
 use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB};
 
-use super::{Pin, parse_hint, primary_id};
+use super::{DEFAULT_ORDER, Pin, parse_hint, primary_id};
 
 fn id(namespace: &str, value: &str) -> ExternalId {
     ExternalId::new(namespace, value).unwrap()
@@ -39,7 +39,7 @@ fn a_pinned_row_is_a_pin_on_its_id_or_on_unmatched_but_an_unparsable_id_is_no_pi
 
 #[test]
 fn the_primary_id_prefers_tmdb_then_imdb_then_tvdb_then_namespace_order() {
-    let primary = |ids: &[ExternalId]| primary_id(&ids.iter().cloned().collect());
+    let primary = |ids: &[ExternalId]| primary_id(&ids.iter().cloned().collect(), &DEFAULT_ORDER);
     let anidb = id("anidb", "1");
     let all = [
         anidb.clone(),
@@ -52,5 +52,24 @@ fn the_primary_id_prefers_tmdb_then_imdb_then_tvdb_then_namespace_order() {
     assert_eq!(primary(&all[..2]), Some(ExternalId::tvdb(1)));
     assert_eq!(primary(&all[..1]), Some(anidb.clone()));
     assert_eq!(primary(&[id("mal", "1"), anidb.clone()]), Some(anidb));
-    assert_eq!(primary_id(&ExternalIds::default()), None);
+    assert_eq!(primary_id(&ExternalIds::default(), &DEFAULT_ORDER), None);
+}
+
+#[test]
+fn the_primary_id_follows_the_order_given_then_namespace_order() {
+    let order = ["tvdb".to_owned(), "tmdb".to_owned()];
+    let primary = |ids: &[ExternalId]| primary_id(&ids.iter().cloned().collect(), &order);
+    let anidb = id("anidb", "1");
+    let all = [
+        anidb.clone(),
+        ExternalId::tvdb(1),
+        id(IMDB, "tt1"),
+        ExternalId::tmdb(1),
+    ];
+    assert_eq!(primary(&all), Some(ExternalId::tvdb(1)));
+    assert_eq!(
+        primary(&[anidb.clone(), ExternalId::tmdb(1)]),
+        Some(ExternalId::tmdb(1))
+    );
+    assert_eq!(primary(&[anidb.clone(), id(IMDB, "tt1")]), Some(anidb));
 }

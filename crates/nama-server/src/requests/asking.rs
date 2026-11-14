@@ -140,10 +140,11 @@ impl Requests {
 }
 
 /// The id a Request for the title asked for by `asked` is kept under, and found by: its preferred
-/// one among `ids`, which the metadata source gave for it, or `asked` if it gave none. So asking by
-/// any of a title's ids joins the one Request.
+/// one among `ids` in [`contents::DEFAULT_ORDER`], since a Request belongs to no Library, or
+/// `asked` if the metadata source gave none. So asking by any of a title's ids joins the one
+/// Request.
 pub(super) fn kept_under(asked: &ExternalId, ids: &ExternalIds) -> ExternalId {
-    contents::primary_id(ids).unwrap_or_else(|| asked.clone())
+    contents::primary_id(ids, &contents::DEFAULT_ORDER).unwrap_or_else(|| asked.clone())
 }
 
 impl Wanted {
