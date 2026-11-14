@@ -257,3 +257,41 @@ async fn an_episode_of_a_show_with_only_a_made_up_id_is_grouped_and_found_under_
     let found = matched_episodes(&mut conn, &mal, 1).await.unwrap();
     assert_eq!(found, [1].into());
 }
+
+/// Inserts a `title` id for `item_id` in `namespace` straight into SQLite.
+async fn insert_id(fx: &Fixture, item_id: i64, namespace: &'static str) -> sqlx::Result<()> {
+    fx.contents
+        .db
+        .write(move |tx| {
+            Box::pin(async move {
+                sqlx::query(
+                    "INSERT INTO item_match_ids (item_id, scope, namespace, value) \
+                     VALUES (?, 'title', ?, '1')",
+                )
+                .bind(item_id)
+                .bind(namespace)
+                .execute(&mut **tx)
+                .await?;
+                Ok(())
+            })
+        })
+        .await
+}
+
+#[tokio::test]
+async fn sqlite_refuses_an_id_whose_namespace_is_not_lowercase_letters_and_digits() {
+    let fx = Fixture::new().await;
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    match_movie(&fx, ALIEN, ExternalIds::from_iter([ExternalId::tmdb(348)])).await;
+    let item_id: i64 = sqlx::query_scalar("SELECT item_id FROM item_match_ids")
+        .fetch_one(fx.contents.db.reader())
+        .await
+        .unwrap();
+
+    for namespace in ["TMDB", "tm-db"] {
+        assert!(
+            insert_id(&fx, item_id, namespace).await.is_err(),
+            "{namespace}"
+        );
+    }
+}

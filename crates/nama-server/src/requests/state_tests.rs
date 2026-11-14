@@ -132,3 +132,33 @@ async fn a_failed_request_that_lacked_an_id_forgets_the_ids_it_needed_when_its_s
     assert_eq!(available.failure_reason, None);
     assert!(available.failure.as_option().is_none(), "{available:?}");
 }
+
+/// Inserts an id for the Request `id` in `namespace` straight into SQLite.
+async fn insert_title_id(db: &Database, id: i64, namespace: &'static str) -> sqlx::Result<()> {
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query(
+                "INSERT INTO request_title_ids (request_id, namespace, value) VALUES (?, ?, '1')",
+            )
+            .bind(id)
+            .bind(namespace)
+            .execute(&mut **tx)
+            .await?;
+            Ok(())
+        })
+    })
+    .await
+}
+
+#[tokio::test]
+async fn sqlite_refuses_a_title_id_whose_namespace_is_not_lowercase_letters_and_digits() {
+    let (_data, db) = ada_and_bob().await;
+    let id = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
+
+    for namespace in ["TMDB", "tm-db"] {
+        assert!(
+            insert_title_id(&db, id, namespace).await.is_err(),
+            "{namespace}"
+        );
+    }
+}
