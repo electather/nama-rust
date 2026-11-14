@@ -354,7 +354,7 @@ fn settings_refused(err: SettingsError) -> ConnectError {
         )
         .setting(&key),
         SettingsError::WrongKind { key, expected } => {
-            let kind = proto::SettingKind::from(expected).proto_name();
+            let kind = setting_kind_to_proto(expected).proto_name();
             refuse(
                 RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
                 format!("the setting {key} must be {kind}"),
@@ -476,16 +476,13 @@ fn setting_to_proto(
 ) -> proto::Setting {
     let secret = field.kind == settings::SettingKind::Secret;
     let shown = |value: Option<&settings::SettingValue>| {
-        value
-            .filter(|_| !secret)
-            .map(proto::SettingValue::from)
-            .into()
+        value.filter(|_| !secret).map(setting_value_to_proto).into()
     };
     proto::Setting {
         key: field.key.clone(),
         label: field.label.clone(),
         description: field.description.clone(),
-        kind: proto::SettingKind::from(field.kind).into(),
+        kind: setting_kind_to_proto(field.kind).into(),
         required: field.required,
         default_value: shown(field.default.as_ref()),
         value: shown(stored),
@@ -520,8 +517,39 @@ fn setting_choices_to_proto(choices: Vec<settings::Choice>) -> proto::SettingCho
 /// `value` as a setting's value, or `None` if it has none or is blank, which leaves the setting
 /// out.
 fn setting_value_from_proto(value: &proto::SettingValue) -> Option<settings::SettingValue> {
-    settings::SettingValue::from_proto(value)
-        .filter(|value| !matches!(value, settings::SettingValue::Text(text) if text.is_empty()))
+    use proto::setting_value::Value;
+    let value = match value.value.as_ref()? {
+        Value::TextValue(text) if text.is_empty() => return None,
+        Value::TextValue(text) => settings::SettingValue::Text(text.clone()),
+        Value::BoolValue(on) => settings::SettingValue::Bool(*on),
+        Value::IntegerValue(number) => settings::SettingValue::Integer(*number),
+    };
+    Some(value)
+}
+
+fn setting_value_to_proto(value: &settings::SettingValue) -> proto::SettingValue {
+    use proto::setting_value::Value;
+    let value = match value {
+        settings::SettingValue::Text(text) => Value::TextValue(text.clone()),
+        settings::SettingValue::Bool(on) => Value::BoolValue(*on),
+        settings::SettingValue::Integer(number) => Value::IntegerValue(*number),
+    };
+    proto::SettingValue {
+        value: Some(value),
+        ..Default::default()
+    }
+}
+
+fn setting_kind_to_proto(kind: settings::SettingKind) -> proto::SettingKind {
+    use settings::SettingKind as K;
+    match kind {
+        K::Text => proto::SettingKind::SETTING_KIND_TEXT,
+        K::Secret => proto::SettingKind::SETTING_KIND_SECRET,
+        K::Bool => proto::SettingKind::SETTING_KIND_BOOL,
+        K::Integer => proto::SettingKind::SETTING_KIND_INTEGER,
+        K::Choice => proto::SettingKind::SETTING_KIND_CHOICE,
+        K::Url => proto::SettingKind::SETTING_KIND_URL,
+    }
 }
 
 /// The Connect error a client gets when the Plugins couldn't be listed, logged as
@@ -570,8 +598,9 @@ fn invalid_qualities(err: qualities::Invalid, plugin: &PluginId) -> ConnectError
 #[cfg(test)]
 mod tests {
     use nama_plugin_api::settings::{SettingField, SettingKind, SettingValue};
+    use nama_proto::nama::v1 as proto;
 
-    use super::setting_to_proto;
+    use super::{setting_to_proto, setting_value_from_proto, setting_value_to_proto};
 
     #[test]
     fn a_secrets_default_and_stored_value_are_never_sent() {
@@ -590,5 +619,24 @@ mod tests {
         assert!(shown.default_value.is_unset(), "{shown:?}");
         assert!(shown.value.is_unset(), "{shown:?}");
         assert!(shown.secret_set);
+    }
+
+    #[test]
+    fn each_value_comes_back_from_the_schema_as_it_went() {
+        let values = [
+            SettingValue::Text("en".to_owned()),
+            SettingValue::Bool(true),
+            SettingValue::Integer(-3),
+        ];
+
+        let values_back = values
+            .each_ref()
+            .map(|value| setting_value_from_proto(&setting_value_to_proto(value)));
+
+        assert_eq!(values_back, values.map(Some));
+        assert_eq!(
+            setting_value_from_proto(&proto::SettingValue::default()),
+            None
+        );
     }
 }
