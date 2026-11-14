@@ -6,4 +6,5 @@ pub(super) const BUNDLED: &[(&str, &[u8])] = &[
     ("radarr.wasm", include_bytes!(env!("RADARR_WASM"))),
     ("sonarr.wasm", include_bytes!(env!("SONARR_WASM"))),
     ("telegram.wasm", include_bytes!(env!("TELEGRAM_WASM"))),
+    ("tvdb.wasm", include_bytes!(env!("TVDB_WASM"))),
 ];

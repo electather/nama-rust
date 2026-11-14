@@ -275,7 +275,8 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
             ("sonarr", installed),
             ("telegram", installed),
             (test_choices::ID, built_in),
-            ("tmdb", built_in)
+            ("tmdb", built_in),
+            ("tvdb", installed)
         ]
     );
     for plugin in &listed.summaries {
@@ -287,6 +288,7 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     assert!(!plugin(&listed, "radarr").enabled);
     assert!(!plugin(&listed, "sonarr").enabled);
     assert!(!plugin(&listed, "telegram").enabled);
+    assert!(!plugin(&listed, "tvdb").enabled);
 }
 
 // `plugins/AGENTS.md`: every Plugin ships a logo.
@@ -331,6 +333,7 @@ async fn every_plugin_is_listed_with_its_extension_points_enabled_or_not() {
         ]
     );
     assert_eq!(points("tmdb"), [EXTENSION_POINT_METADATA_PROVIDER]);
+    assert_eq!(points("tvdb"), [EXTENSION_POINT_METADATA_PROVIDER]);
 }
 
 #[tokio::test]

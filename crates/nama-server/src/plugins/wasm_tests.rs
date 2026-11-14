@@ -501,10 +501,25 @@ fn every_bundled_plugin_declares_its_settings_kinds_and_defaults() {
             Some(text("https://api.telegram.org")),
         ),
     ];
+    let tvdb = [
+        ("api_key", SettingKind::Secret, None),
+        ("pin", SettingKind::Secret, None),
+        (
+            "api_url",
+            SettingKind::Url,
+            Some(text("https://api4.thetvdb.com/v4")),
+        ),
+        (
+            "artwork_url",
+            SettingKind::Url,
+            Some(text("https://artworks.thetvdb.com")),
+        ),
+    ];
 
     let expected = |file: &str| match file {
         "radarr.wasm" | "sonarr.wasm" => &servarr[..],
         "telegram.wasm" => &telegram[..],
+        "tvdb.wasm" => &tvdb[..],
         _ => &[],
     };
 

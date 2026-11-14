@@ -265,6 +265,7 @@ jobs:
           --package nama-plugin-sonarr
           --package nama-plugin-telegram
           --package nama-plugin-template
+          --package nama-plugin-tvdb
           --package nama-servarr
           --target wasm32-unknown-unknown --locked -- -D warnings
       # Broken intra-doc links and malformed docs fail the build.
