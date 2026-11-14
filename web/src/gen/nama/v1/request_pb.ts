@@ -486,8 +486,10 @@ export const RequesterSchema: GenMessage<Requester> = /*@__PURE__*/
  */
 export type CreateRequestRequest = Message<"nama.v1.CreateRequestRequest"> & {
   /**
-   * The id of the Movie to ask for. Only a `tmdb` id is known for now; another is refused with
-   * `REFUSAL_REASON_UNKNOWN_TITLE`.
+   * The id of the Movie to ask for. Any well-formed id is taken. An id
+   * no metadata source has, or can look titles up by, is refused with
+   * `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+   * `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
    *
    * @generated from field: nama.v1.ExternalId movie_id = 3;
    */
@@ -532,8 +534,10 @@ export const CreateRequestResponseSchema: GenMessage<CreateRequestResponse> = /*
  */
 export type CreateSeasonRequestsRequest = Message<"nama.v1.CreateSeasonRequestsRequest"> & {
   /**
-   * The id of the Show. Only a `tmdb` id is known for now; another is refused with
-   * `REFUSAL_REASON_UNKNOWN_TITLE`.
+   * The id of the Show. Any well-formed id is taken. An id
+   * no metadata source has, or can look titles up by, is refused with
+   * `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+   * `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
    *
    * @generated from field: nama.v1.ExternalId show_id = 4;
    */
@@ -622,8 +626,10 @@ export const ListRequestsRequestSchema: GenMessage<ListRequestsRequest> = /*@__P
  */
 export type CreateFollowedShowRequest = Message<"nama.v1.CreateFollowedShowRequest"> & {
   /**
-   * The id of the Show. Only a `tmdb` id is known for now; another is refused with
-   * `REFUSAL_REASON_UNKNOWN_TITLE`.
+   * The id of the Show. Any well-formed id is taken. An id
+   * no metadata source has, or can look titles up by, is refused with
+   * `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+   * `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
    *
    * @generated from field: nama.v1.ExternalId show_id = 3;
    */

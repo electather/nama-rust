@@ -355,8 +355,10 @@ message Requester {
 message CreateRequestRequest {
   reserved 1;
   reserved "movie_tmdb_id";
-  // The id of the Movie to ask for. Only a `tmdb` id is known for now; another is refused with
-  // `REFUSAL_REASON_UNKNOWN_TITLE`.
+  // The id of the Movie to ask for. Any well-formed id is taken. An id
+  // no metadata source has, or can look titles up by, is refused with
+  // `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+  // `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
   ExternalId movie_id = 3;
   // The id of the Quality to download it at, from `ListMovieQualities`. Unset for the default.
   optional int64 quality = 2;
@@ -370,8 +372,10 @@ message CreateRequestResponse {
 message CreateSeasonRequestsRequest {
   reserved 1;
   reserved "show_tmdb_id";
-  // The id of the Show. Only a `tmdb` id is known for now; another is refused with
-  // `REFUSAL_REASON_UNKNOWN_TITLE`.
+  // The id of the Show. Any well-formed id is taken. An id
+  // no metadata source has, or can look titles up by, is refused with
+  // `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+  // `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
   ExternalId show_id = 4;
   // The numbers of the Seasons to ask for: at least one. A number given twice counts once.
   repeated uint32 season_numbers = 2;
@@ -400,8 +404,10 @@ message ListRequestsRequest {
 message CreateFollowedShowRequest {
   reserved 1;
   reserved "show_tmdb_id";
-  // The id of the Show. Only a `tmdb` id is known for now; another is refused with
-  // `REFUSAL_REASON_UNKNOWN_TITLE`.
+  // The id of the Show. Any well-formed id is taken. An id
+  // no metadata source has, or can look titles up by, is refused with
+  // `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+  // `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
   ExternalId show_id = 3;
   // The id of the Quality to download its Seasons at, from `ListShowQualities`. Unset for the
   // Show's, or else the default.

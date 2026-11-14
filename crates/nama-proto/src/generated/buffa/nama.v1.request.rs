@@ -3161,8 +3161,10 @@ pub const __REQUESTER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct CreateRequestRequest {
-    /// The id of the Movie to ask for. Only a `tmdb` id is known for now; another is refused with
-    /// `REFUSAL_REASON_UNKNOWN_TITLE`.
+    /// The id of the Movie to ask for. Any well-formed id is taken. An id
+    /// no metadata source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
     /// Field 3: `movie_id`
     #[serde(
@@ -3478,8 +3480,10 @@ pub const __CREATE_REQUEST_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct CreateSeasonRequestsRequest {
-    /// The id of the Show. Only a `tmdb` id is known for now; another is refused with
-    /// `REFUSAL_REASON_UNKNOWN_TITLE`.
+    /// The id of the Show. Any well-formed id is taken. An id
+    /// no metadata source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
     /// Field 4: `show_id`
     #[serde(
@@ -4060,8 +4064,10 @@ pub const __LIST_REQUESTS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct CreateFollowedShowRequest {
-    /// The id of the Show. Only a `tmdb` id is known for now; another is refused with
-    /// `REFUSAL_REASON_UNKNOWN_TITLE`.
+    /// The id of the Show. Any well-formed id is taken. An id
+    /// no metadata source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
     /// Field 3: `show_id`
     #[serde(

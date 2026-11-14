@@ -3736,8 +3736,10 @@ impl ::serde::Serialize for RequesterOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct CreateRequestRequestView<'a> {
-    /// The id of the Movie to ask for. Only a `tmdb` id is known for now; another is refused with
-    /// `REFUSAL_REASON_UNKNOWN_TITLE`.
+    /// The id of the Movie to ask for. Any well-formed id is taken. An id
+    /// no metadata source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
     /// Field 3: `movie_id`
     pub movie_id: ::buffa::MessageFieldView<
@@ -4013,8 +4015,10 @@ impl CreateRequestRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The id of the Movie to ask for. Only a `tmdb` id is known for now; another is refused with
-    /// `REFUSAL_REASON_UNKNOWN_TITLE`.
+    /// The id of the Movie to ask for. Any well-formed id is taken. An id
+    /// no metadata source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
     /// Field 3: `movie_id`
     #[must_use]
@@ -4358,8 +4362,10 @@ impl ::serde::Serialize for CreateRequestResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct CreateSeasonRequestsRequestView<'a> {
-    /// The id of the Show. Only a `tmdb` id is known for now; another is refused with
-    /// `REFUSAL_REASON_UNKNOWN_TITLE`.
+    /// The id of the Show. Any well-formed id is taken. An id
+    /// no metadata source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
     /// Field 4: `show_id`
     pub show_id: ::buffa::MessageFieldView<
@@ -4686,8 +4692,10 @@ impl CreateSeasonRequestsRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The id of the Show. Only a `tmdb` id is known for now; another is refused with
-    /// `REFUSAL_REASON_UNKNOWN_TITLE`.
+    /// The id of the Show. Any well-formed id is taken. An id
+    /// no metadata source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
     /// Field 4: `show_id`
     #[must_use]
@@ -5371,8 +5379,10 @@ impl ::serde::Serialize for ListRequestsRequestOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct CreateFollowedShowRequestView<'a> {
-    /// The id of the Show. Only a `tmdb` id is known for now; another is refused with
-    /// `REFUSAL_REASON_UNKNOWN_TITLE`.
+    /// The id of the Show. Any well-formed id is taken. An id
+    /// no metadata source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
     /// Field 3: `show_id`
     pub show_id: ::buffa::MessageFieldView<
@@ -5649,8 +5659,10 @@ impl CreateFollowedShowRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The id of the Show. Only a `tmdb` id is known for now; another is refused with
-    /// `REFUSAL_REASON_UNKNOWN_TITLE`.
+    /// The id of the Show. Any well-formed id is taken. An id
+    /// no metadata source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
     /// Field 3: `show_id`
     #[must_use]
