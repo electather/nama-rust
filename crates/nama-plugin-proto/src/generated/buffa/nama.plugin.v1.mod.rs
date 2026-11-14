@@ -119,6 +119,9 @@ pub mod __buffa {
         reg.register_json_any(super::__SEASON_ANSWER_JSON_ANY);
         reg.register_json_any(super::__EPISODE_ANSWER_JSON_ANY);
         reg.register_json_any(super::__IMAGE_ANSWER_JSON_ANY);
+        reg.register_json_any(super::__ARTWORK_ASKED_JSON_ANY);
+        reg.register_json_any(super::__ARTWORK_ANSWER_JSON_ANY);
+        reg.register_json_any(super::__ARTWORK_JSON_ANY);
         reg.register_json_any(super::__MOVIE_JSON_ANY);
         reg.register_json_any(super::__SHOW_JSON_ANY);
         reg.register_json_any(super::__SEASON_JSON_ANY);
@@ -394,6 +397,18 @@ pub use self::__buffa::view::EpisodeAnswerOwnedView;
 pub use self::__buffa::view::ImageAnswerView;
 #[doc(inline)]
 pub use self::__buffa::view::ImageAnswerOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ArtworkAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::ArtworkAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ArtworkAnswerView;
+#[doc(inline)]
+pub use self::__buffa::view::ArtworkAnswerOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ArtworkView;
+#[doc(inline)]
+pub use self::__buffa::view::ArtworkOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::MovieView;
 #[doc(inline)]

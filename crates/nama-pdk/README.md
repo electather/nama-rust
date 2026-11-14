@@ -62,7 +62,7 @@ Each point has a trait and a macro that exports it. The trait docs in [`src/lib.
 | `MOVIE_FULFILLER`, `SHOW_FULFILLER` | `Fulfiller`, `fulfiller!` | `fulfill`, `progress`; `unfollow` for Shows | `stop_monitoring` |
 | `NOTIFIER` | `Notifier`, `notifier!` | `deliver` | |
 | `CONNECTOR` | `Connector`, `connector!` | `start_connection`, `poll_connection` | |
-| `TITLE_SOURCE` | `TitleSource`, `title_source!` | | all of them |
+| `TITLE_SOURCE` | `TitleSource`, `title_source!` | | `search`, `movie`, `show`, `season`, `episode`, `image`, `artwork` |
 
 A trait's optional methods have defaults, and its macro exports them all, except `title_source!`, which exports only the methods it lists, since the Server asks nothing of a title source that lacks the export:
 

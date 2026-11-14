@@ -4,7 +4,7 @@ use std::{
 };
 
 use super::{MetadataError, TitleSource};
-use crate::contract::ImageAsked;
+use crate::contract::{ArtworkAsked, ImageAsked};
 
 struct NamespaceOnly;
 
@@ -22,11 +22,19 @@ fn a_method_a_source_leaves_out_is_unsupported() {
         ..Default::default()
     };
     let mut image = pin!(source.image(&asked));
+    let artwork_asked = ArtworkAsked::default();
+    let mut artwork = pin!(source.artwork(&artwork_asked));
+    let mut context = Context::from_waker(Waker::noop());
 
-    let answer = image.as_mut().poll(&mut Context::from_waker(Waker::noop()));
+    let image = image.as_mut().poll(&mut context);
+    let artwork = artwork.as_mut().poll(&mut context);
 
     assert!(
-        matches!(answer, Poll::Ready(Err(MetadataError::Unsupported))),
-        "{answer:?}"
+        matches!(image, Poll::Ready(Err(MetadataError::Unsupported))),
+        "{image:?}"
+    );
+    assert!(
+        matches!(artwork, Poll::Ready(Err(MetadataError::Unsupported))),
+        "{artwork:?}"
     );
 }

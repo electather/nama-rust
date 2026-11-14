@@ -13,11 +13,11 @@ pub use extism_pdk::{self, FnResult, plugin_fn};
 pub use nama_plugin_proto::{
     self,
     nama::plugin::v1::{
-        Candidate, CheckedSettings, ConnectionStarted, Download, Episode, EpisodeAnswer,
-        EpisodeAsked, Fulfilled, Image, ImageAnswer, ImageAsked, Manifest, Movie, MovieAnswer,
-        Notification, Point, Request, SearchQuery, SearchResults, Season, SeasonAnswer,
-        SeasonAsked, Show, ShowAnswer, StopMonitoring, TitleAsked, TitleId, TitleKind,
-        delivery::Recipient,
+        Artwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Candidate, CheckedSettings,
+        ConnectionStarted, Download, Episode, EpisodeAnswer, EpisodeAsked, Fulfilled, Image,
+        ImageAnswer, ImageAsked, Manifest, Movie, MovieAnswer, Notification, Point, Request,
+        SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer,
+        StopMonitoring, TitleAsked, TitleId, TitleKind, delivery::Recipient,
     },
     services,
 };
@@ -481,14 +481,24 @@ pub trait TitleSource {
         Err(not_served("episode"))
     }
 
-    /// The image at the path `asked` names, as the source gave it in a poster, backdrop or still,
-    /// unset if it has none there.
+    /// The image at the path `asked` names, as the source gave it in a poster, backdrop, still or
+    /// artwork, unset if it has none there.
     ///
     /// # Errors
     ///
     /// When the source couldn't be asked.
     fn image(_asked: ImageAsked) -> Result<ImageAnswer, Error> {
         Err(not_served("image"))
+    }
+
+    /// The artwork the source has for the title `asked` names, of every kind it has; none if it
+    /// has none.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked.
+    fn artwork(_asked: ArtworkAsked) -> Result<ArtworkAnswer, Error> {
+        Err(not_served("artwork"))
     }
 }
 
@@ -499,8 +509,9 @@ fn not_served(method: &str) -> Error {
 }
 
 /// Exports the [`TitleSource`] methods a Plugin serves, each under its export name: `search` as
-/// `title_search`, and `movie`, `show`, `season`, `episode` and `image` likewise, taking and
-/// returning their `nama.plugin.v1` messages: `title_source!(Tvdb, [search, show, season, image])`.
+/// `title_search`, and `movie`, `show`, `season`, `episode`, `image` and `artwork` likewise,
+/// taking and returning their `nama.plugin.v1` messages:
+/// `title_source!(Tvdb, [search, show, season, image])`.
 ///
 /// The Server treats a missing export as a method the source doesn't serve, so only the methods
 /// listed are exported. A macro can't see which of the trait's defaults a type overrides, so the
@@ -597,6 +608,21 @@ macro_rules! title_source {
                 Buffa(asked): Buffa<ImageAsked>,
             ) -> FnResult<Buffa<ImageAnswer>> {
                 Ok(Buffa(<$source as TitleSource>::image(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, artwork) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                ArtworkAnswer, ArtworkAsked, Buffa, FnResult, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_artwork(
+                Buffa(asked): Buffa<ArtworkAsked>,
+            ) -> FnResult<Buffa<ArtworkAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::artwork(asked)?))
             }
         };
     };
@@ -737,5 +763,8 @@ mod tests {
     // Each export is a `no_mangle` symbol, so these two link only if `title_source!` exports
     // nothing but the methods it lists: an unlisted `title_search` would be defined twice.
     crate::title_source!(Searcher, [search]);
-    crate::title_source!(EverythingElse, [movie, show, season, episode, image]);
+    crate::title_source!(
+        EverythingElse,
+        [movie, show, season, episode, image, artwork]
+    );
 }

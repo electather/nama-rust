@@ -13,8 +13,8 @@ pub use crate::ids::{ExternalId, ExternalIds, IMDB, InvalidId, TMDB, TVDB};
 use crate::{
     BoxFuture, PluginError,
     contract::{
-        EpisodeAnswer, EpisodeAsked, ImageAnswer, ImageAsked, MovieAnswer, SearchQuery,
-        SearchResults, SeasonAnswer, SeasonAsked, ShowAnswer, TitleAsked,
+        ArtworkAnswer, ArtworkAsked, EpisodeAnswer, EpisodeAsked, ImageAnswer, ImageAsked,
+        MovieAnswer, SearchQuery, SearchResults, SeasonAnswer, SeasonAsked, ShowAnswer, TitleAsked,
     },
 };
 
@@ -78,7 +78,8 @@ pub trait TitleSource: Send + Sync + 'static {
         unsupported()
     }
 
-    /// The image at the path asked for, as this source gave it in a poster, backdrop or still.
+    /// The image at the path asked for, as this source gave it in a poster, backdrop, still or
+    /// artwork.
     ///
     /// A path names bytes that never change, as TMDB's do: the Server keeps an image under its
     /// path and browsers cache it for good, so a changed image needs a new path.
@@ -86,6 +87,14 @@ pub trait TitleSource: Send + Sync + 'static {
         &'a self,
         _asked: &'a ImageAsked,
     ) -> BoxFuture<'a, Result<ImageAnswer, MetadataError>> {
+        unsupported()
+    }
+
+    /// The artwork this source has for the title asked for, of every kind it has.
+    fn artwork<'a>(
+        &'a self,
+        _asked: &'a ArtworkAsked,
+    ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
         unsupported()
     }
 }

@@ -27,10 +27,13 @@ service TitleSourceService {
   rpc Season(SeasonAsked) returns (SeasonAnswer);
   // The `title_episode` export: one Episode of the Show with the id asked for. Optional.
   rpc Episode(EpisodeAsked) returns (EpisodeAnswer);
-  // The `title_image` export: the image at a path the source gave in a poster, backdrop or still.
-  // A path names bytes that never change: the Kernel keeps an image under its path and browsers
-  // cache it for good, so a changed image needs a new path. Optional.
+  // The `title_image` export: the image at a path the source gave in a poster, backdrop, still or
+  // `Artwork`. A path names bytes that never change: the Kernel keeps an image under its path and
+  // browsers cache it for good, so a changed image needs a new path. Optional.
   rpc Image(ImageAsked) returns (ImageAnswer);
+  // The `title_artwork` export: the artwork the source has for one title, of every kind it has.
+  // Optional.
+  rpc Artwork(ArtworkAsked) returns (ArtworkAnswer);
 }
 
 // Whether a title is a Movie or a Show. A source that doesn't know a kind finds nothing of it.
@@ -102,7 +105,7 @@ message EpisodeAsked {
 
 // What the `title_image` export is asked for.
 message ImageAsked {
-  // The path, as the source gave it in a poster, backdrop or still.
+  // The path, as the source gave it in a poster, backdrop, still or `Artwork`.
   string path = 1;
 }
 
@@ -142,6 +145,59 @@ message EpisodeAnswer {
 message ImageAnswer {
   // The image, unset if the source has none at the path.
   Image image = 1;
+}
+
+// What the `title_artwork` export is asked for.
+message ArtworkAsked {
+  // Movie or Show.
+  TitleKind kind = 1;
+  // The title's id, in any namespace the source keeps or looks titles up by.
+  TitleId id = 2;
+}
+
+// What the `title_artwork` export returns.
+message ArtworkAnswer {
+  // The title's artwork, in no particular order. Empty if the source has none.
+  repeated Artwork artwork = 1;
+  // Set when the source can't look titles up by the asked id's namespace, with `artwork` empty.
+  bool unsupported_id = 2;
+}
+
+// One image of a title's artwork.
+message Artwork {
+  // What kind of artwork it is.
+  ArtworkKind kind = 1;
+  // Its path, for the `title_image` export.
+  string path = 2;
+  // The ISO 639-1 code of the language of its text, unset for an image without text.
+  optional string language = 3;
+  // Its width in pixels.
+  optional uint32 width = 4;
+  // Its height in pixels.
+  optional uint32 height = 5;
+  // The source's own score for it, where higher is better.
+  optional double rating = 6;
+  // How many people rated it.
+  optional uint32 votes = 7;
+}
+
+// The kinds of artwork a title has.
+enum ArtworkKind {
+  ARTWORK_KIND_UNSPECIFIED = 0;
+  // A poster, portrait.
+  ARTWORK_KIND_POSTER = 1;
+  // A backdrop, landscape and full screen, drawn behind the title's page.
+  ARTWORK_KIND_BACKDROP = 2;
+  // The Title Logo: the title's name as artwork, on a clear background.
+  ARTWORK_KIND_LOGO = 3;
+  // Characters or a scene from the title, on a clear background.
+  ARTWORK_KIND_CLEAR_ART = 4;
+  // A wide, short strip with the title's name.
+  ARTWORK_KIND_BANNER = 5;
+  // A landscape thumbnail, usually with the title's name.
+  ARTWORK_KIND_THUMB = 6;
+  // The art printed on the title's disc.
+  ARTWORK_KIND_DISC = 7;
 }
 
 // A Movie's details.

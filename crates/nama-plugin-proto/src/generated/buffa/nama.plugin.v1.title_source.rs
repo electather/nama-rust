@@ -145,6 +145,211 @@ impl ::buffa::Enumeration for TitleKind {
         &[Self::TITLE_KIND_UNSPECIFIED, Self::TITLE_KIND_MOVIE, Self::TITLE_KIND_SHOW]
     }
 }
+/// The kinds of artwork a title has.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum ArtworkKind {
+    ARTWORK_KIND_UNSPECIFIED = 0i32,
+    /// A poster, portrait.
+    ARTWORK_KIND_POSTER = 1i32,
+    /// A backdrop, landscape and full screen, drawn behind the title's page.
+    ARTWORK_KIND_BACKDROP = 2i32,
+    /// The Title Logo: the title's name as artwork, on a clear background.
+    ARTWORK_KIND_LOGO = 3i32,
+    /// Characters or a scene from the title, on a clear background.
+    ARTWORK_KIND_CLEAR_ART = 4i32,
+    /// A wide, short strip with the title's name.
+    ARTWORK_KIND_BANNER = 5i32,
+    /// A landscape thumbnail, usually with the title's name.
+    ARTWORK_KIND_THUMB = 6i32,
+    /// The art printed on the title's disc.
+    ARTWORK_KIND_DISC = 7i32,
+}
+impl ArtworkKind {
+    ///Idiomatic alias for [`Self::ARTWORK_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::ARTWORK_KIND_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::ARTWORK_KIND_POSTER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Poster: Self = Self::ARTWORK_KIND_POSTER;
+    ///Idiomatic alias for [`Self::ARTWORK_KIND_BACKDROP`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Backdrop: Self = Self::ARTWORK_KIND_BACKDROP;
+    ///Idiomatic alias for [`Self::ARTWORK_KIND_LOGO`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Logo: Self = Self::ARTWORK_KIND_LOGO;
+    ///Idiomatic alias for [`Self::ARTWORK_KIND_CLEAR_ART`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ClearArt: Self = Self::ARTWORK_KIND_CLEAR_ART;
+    ///Idiomatic alias for [`Self::ARTWORK_KIND_BANNER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Banner: Self = Self::ARTWORK_KIND_BANNER;
+    ///Idiomatic alias for [`Self::ARTWORK_KIND_THUMB`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Thumb: Self = Self::ARTWORK_KIND_THUMB;
+    ///Idiomatic alias for [`Self::ARTWORK_KIND_DISC`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Disc: Self = Self::ARTWORK_KIND_DISC;
+}
+impl ::core::default::Default for ArtworkKind {
+    fn default() -> Self {
+        Self::ARTWORK_KIND_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for ArtworkKind {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ArtworkKind {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = ArtworkKind;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!("a string, integer, or null for ", stringify!(ArtworkKind)),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<ArtworkKind, E> {
+                <ArtworkKind as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<ArtworkKind, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <ArtworkKind as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<ArtworkKind, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <ArtworkKind as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<ArtworkKind, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ArtworkKind {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for ArtworkKind {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::ARTWORK_KIND_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::ARTWORK_KIND_POSTER),
+            2i32 => ::core::option::Option::Some(Self::ARTWORK_KIND_BACKDROP),
+            3i32 => ::core::option::Option::Some(Self::ARTWORK_KIND_LOGO),
+            4i32 => ::core::option::Option::Some(Self::ARTWORK_KIND_CLEAR_ART),
+            5i32 => ::core::option::Option::Some(Self::ARTWORK_KIND_BANNER),
+            6i32 => ::core::option::Option::Some(Self::ARTWORK_KIND_THUMB),
+            7i32 => ::core::option::Option::Some(Self::ARTWORK_KIND_DISC),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::ARTWORK_KIND_UNSPECIFIED => "ARTWORK_KIND_UNSPECIFIED",
+            Self::ARTWORK_KIND_POSTER => "ARTWORK_KIND_POSTER",
+            Self::ARTWORK_KIND_BACKDROP => "ARTWORK_KIND_BACKDROP",
+            Self::ARTWORK_KIND_LOGO => "ARTWORK_KIND_LOGO",
+            Self::ARTWORK_KIND_CLEAR_ART => "ARTWORK_KIND_CLEAR_ART",
+            Self::ARTWORK_KIND_BANNER => "ARTWORK_KIND_BANNER",
+            Self::ARTWORK_KIND_THUMB => "ARTWORK_KIND_THUMB",
+            Self::ARTWORK_KIND_DISC => "ARTWORK_KIND_DISC",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "ARTWORK_KIND_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::ARTWORK_KIND_UNSPECIFIED)
+            }
+            "ARTWORK_KIND_POSTER" => {
+                ::core::option::Option::Some(Self::ARTWORK_KIND_POSTER)
+            }
+            "ARTWORK_KIND_BACKDROP" => {
+                ::core::option::Option::Some(Self::ARTWORK_KIND_BACKDROP)
+            }
+            "ARTWORK_KIND_LOGO" => ::core::option::Option::Some(Self::ARTWORK_KIND_LOGO),
+            "ARTWORK_KIND_CLEAR_ART" => {
+                ::core::option::Option::Some(Self::ARTWORK_KIND_CLEAR_ART)
+            }
+            "ARTWORK_KIND_BANNER" => {
+                ::core::option::Option::Some(Self::ARTWORK_KIND_BANNER)
+            }
+            "ARTWORK_KIND_THUMB" => {
+                ::core::option::Option::Some(Self::ARTWORK_KIND_THUMB)
+            }
+            "ARTWORK_KIND_DISC" => ::core::option::Option::Some(Self::ARTWORK_KIND_DISC),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::ARTWORK_KIND_UNSPECIFIED,
+            Self::ARTWORK_KIND_POSTER,
+            Self::ARTWORK_KIND_BACKDROP,
+            Self::ARTWORK_KIND_LOGO,
+            Self::ARTWORK_KIND_CLEAR_ART,
+            Self::ARTWORK_KIND_BANNER,
+            Self::ARTWORK_KIND_THUMB,
+            Self::ARTWORK_KIND_DISC,
+        ]
+    }
+}
 /// What the `title_search` export searches for.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
@@ -1347,7 +1552,7 @@ pub const __EPISODE_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ImageAsked {
-    /// The path, as the source gave it in a poster, backdrop or still.
+    /// The path, as the source gave it in a poster, backdrop, still or `Artwork`.
     ///
     /// Field 1: `path`
     #[serde(
@@ -2275,6 +2480,678 @@ pub const __IMAGE_ANSWER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buff
     type_url: "type.googleapis.com/nama.plugin.v1.ImageAnswer",
     to_json: ::buffa::type_registry::any_to_json::<ImageAnswer>,
     from_json: ::buffa::type_registry::any_from_json::<ImageAnswer>,
+    is_wkt: false,
+};
+/// What the `title_artwork` export is asked for.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ArtworkAsked {
+    /// Movie or Show.
+    ///
+    /// Field 1: `kind`
+    #[serde(
+        rename = "kind",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub kind: ::buffa::EnumValue<TitleKind>,
+    /// The title's id, in any namespace the source keeps or looks titles up by.
+    ///
+    /// Field 2: `id`
+    #[serde(
+        rename = "id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub id: ::buffa::MessageField<TitleId, ::buffa::Inline<TitleId>>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ArtworkAsked {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ArtworkAsked")
+            .field("kind", &self.kind)
+            .field("id", &self.id)
+            .finish()
+    }
+}
+impl ArtworkAsked {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ArtworkAsked";
+}
+::buffa::impl_default_instance!(ArtworkAsked);
+impl ::buffa::MessageName for ArtworkAsked {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "ArtworkAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.ArtworkAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ArtworkAsked";
+}
+impl ::buffa::Message for ArtworkAsked {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if self.id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        if self.id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.id.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.kind = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.kind = ::buffa::EnumValue::from(0);
+        self.id = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ArtworkAsked {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.ArtworkAsked";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ArtworkAsked {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __ARTWORK_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.ArtworkAsked",
+    to_json: ::buffa::type_registry::any_to_json::<ArtworkAsked>,
+    from_json: ::buffa::type_registry::any_from_json::<ArtworkAsked>,
+    is_wkt: false,
+};
+/// What the `title_artwork` export returns.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ArtworkAnswer {
+    /// The title's artwork, in no particular order. Empty if the source has none.
+    ///
+    /// Field 1: `artwork`
+    #[serde(
+        rename = "artwork",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub artwork: ::buffa::alloc::vec::Vec<Artwork>,
+    /// Set when the source can't look titles up by the asked id's namespace, with `artwork` empty.
+    ///
+    /// Field 2: `unsupported_id`
+    #[serde(
+        rename = "unsupportedId",
+        alias = "unsupported_id",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub unsupported_id: bool,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ArtworkAnswer {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ArtworkAnswer")
+            .field("artwork", &self.artwork)
+            .field("unsupported_id", &self.unsupported_id)
+            .finish()
+    }
+}
+impl ArtworkAnswer {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ArtworkAnswer";
+}
+::buffa::impl_default_instance!(ArtworkAnswer);
+impl ::buffa::MessageName for ArtworkAnswer {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "ArtworkAnswer";
+    const FULL_NAME: &'static str = "nama.plugin.v1.ArtworkAnswer";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ArtworkAnswer";
+}
+impl ::buffa::Message for ArtworkAnswer {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.artwork {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.unsupported_id {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.artwork {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        if self.unsupported_id {
+            ::buffa::types::put_bool_field(2u32, self.unsupported_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.artwork.push(elem);
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.unsupported_id = ::buffa::types::decode_bool(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.artwork.clear();
+        self.unsupported_id = false;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ArtworkAnswer {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.ArtworkAnswer";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ArtworkAnswer {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __ARTWORK_ANSWER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.ArtworkAnswer",
+    to_json: ::buffa::type_registry::any_to_json::<ArtworkAnswer>,
+    from_json: ::buffa::type_registry::any_from_json::<ArtworkAnswer>,
+    is_wkt: false,
+};
+/// One image of a title's artwork.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct Artwork {
+    /// What kind of artwork it is.
+    ///
+    /// Field 1: `kind`
+    #[serde(
+        rename = "kind",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub kind: ::buffa::EnumValue<ArtworkKind>,
+    /// Its path, for the `title_image` export.
+    ///
+    /// Field 2: `path`
+    #[serde(
+        rename = "path",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub path: ::buffa::alloc::string::String,
+    /// The ISO 639-1 code of the language of its text, unset for an image without text.
+    ///
+    /// Field 3: `language`
+    #[serde(
+        rename = "language",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub language: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Its width in pixels.
+    ///
+    /// Field 4: `width`
+    #[serde(
+        rename = "width",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub width: ::core::option::Option<u32>,
+    /// Its height in pixels.
+    ///
+    /// Field 5: `height`
+    #[serde(
+        rename = "height",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub height: ::core::option::Option<u32>,
+    /// The source's own score for it, where higher is better.
+    ///
+    /// Field 6: `rating`
+    #[serde(
+        rename = "rating",
+        with = "::buffa::json_helpers::opt_double",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub rating: ::core::option::Option<f64>,
+    /// How many people rated it.
+    ///
+    /// Field 7: `votes`
+    #[serde(
+        rename = "votes",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub votes: ::core::option::Option<u32>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for Artwork {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Artwork")
+            .field("kind", &self.kind)
+            .field("path", &self.path)
+            .field("language", &self.language)
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("rating", &self.rating)
+            .field("votes", &self.votes)
+            .finish()
+    }
+}
+impl Artwork {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Artwork";
+}
+impl Artwork {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::language`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_language(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.language = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::width`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_width(mut self, value: u32) -> Self {
+        self.width = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::height`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_height(mut self, value: u32) -> Self {
+        self.height = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::rating`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_rating(mut self, value: f64) -> Self {
+        self.rating = Some(value);
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::votes`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_votes(mut self, value: u32) -> Self {
+        self.votes = Some(value);
+        self
+    }
+}
+::buffa::impl_default_instance!(Artwork);
+impl ::buffa::MessageName for Artwork {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Artwork";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Artwork";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Artwork";
+}
+impl ::buffa::Message for Artwork {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if !self.path.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.path) as u64;
+        }
+        if let Some(ref v) = self.language {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.width {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.height {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        if self.rating.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(v) = self.votes {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        if !self.path.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.path, buf);
+        }
+        if let Some(ref v) = self.language {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if let Some(v) = self.width {
+            ::buffa::types::put_uint32_field(4u32, v, buf);
+        }
+        if let Some(v) = self.height {
+            ::buffa::types::put_uint32_field(5u32, v, buf);
+        }
+        if let Some(v) = self.rating {
+            ::buffa::types::put_double_field(6u32, v, buf);
+        }
+        if let Some(v) = self.votes {
+            ::buffa::types::put_uint32_field(7u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.kind = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.path, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .language
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.width = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.height = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                self.rating = ::core::option::Option::Some(
+                    ::buffa::types::decode_double(buf)?,
+                );
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.votes = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.kind = ::buffa::EnumValue::from(0);
+        self.path.clear();
+        self.language = ::core::option::Option::None;
+        self.width = ::core::option::Option::None;
+        self.height = ::core::option::Option::None;
+        self.rating = ::core::option::Option::None;
+        self.votes = ::core::option::Option::None;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for Artwork {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.Artwork";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for Artwork {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __ARTWORK_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.Artwork",
+    to_json: ::buffa::type_registry::any_to_json::<Artwork>,
+    from_json: ::buffa::type_registry::any_from_json::<Artwork>,
     is_wkt: false,
 };
 /// A Movie's details.

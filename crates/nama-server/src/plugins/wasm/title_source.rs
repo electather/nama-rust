@@ -5,8 +5,8 @@ use buffa::Message;
 use nama_plugin_api::{
     BoxFuture,
     contract::{
-        EpisodeAnswer, EpisodeAsked, ImageAnswer, ImageAsked, MovieAnswer, SearchQuery,
-        SearchResults, SeasonAnswer, SeasonAsked, ShowAnswer, TitleAsked,
+        ArtworkAnswer, ArtworkAsked, EpisodeAnswer, EpisodeAsked, ImageAnswer, ImageAsked,
+        MovieAnswer, SearchQuery, SearchResults, SeasonAnswer, SeasonAsked, ShowAnswer, TitleAsked,
     },
     metadata::{MetadataError, TitleSource},
 };
@@ -14,7 +14,8 @@ use nama_plugin_api::{
 use super::{
     Running,
     services::{
-        Method, TITLE_EPISODE, TITLE_IMAGE, TITLE_MOVIE, TITLE_SEARCH, TITLE_SEASON, TITLE_SHOW,
+        Method, TITLE_ARTWORK, TITLE_EPISODE, TITLE_IMAGE, TITLE_MOVIE, TITLE_SEARCH, TITLE_SEASON,
+        TITLE_SHOW,
     },
 };
 
@@ -86,6 +87,13 @@ impl TitleSource for Running {
         asked: &'a ImageAsked,
     ) -> BoxFuture<'a, Result<ImageAnswer, MetadataError>> {
         self.ask(&TITLE_IMAGE, asked)
+    }
+
+    fn artwork<'a>(
+        &'a self,
+        asked: &'a ArtworkAsked,
+    ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
+        self.ask(&TITLE_ARTWORK, asked)
     }
 }
 

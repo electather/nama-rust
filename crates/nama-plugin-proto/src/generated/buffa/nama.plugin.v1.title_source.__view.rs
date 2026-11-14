@@ -2067,7 +2067,7 @@ impl ::serde::Serialize for EpisodeAskedOwnedView {
 /// What the `title_image` export is asked for.
 #[derive(Clone, Debug, Default)]
 pub struct ImageAskedView<'a> {
-    /// The path, as the source gave it in a poster, backdrop or still.
+    /// The path, as the source gave it in a poster, backdrop, still or `Artwork`.
     ///
     /// Field 1: `path`
     pub path: &'a str,
@@ -2276,7 +2276,7 @@ impl ImageAskedOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The path, as the source gave it in a poster, backdrop or still.
+    /// The path, as the source gave it in a poster, backdrop, still or `Artwork`.
     ///
     /// Field 1: `path`
     #[must_use]
@@ -3849,6 +3849,1057 @@ impl ::buffa::HasMessageView for super::super::ImageAnswer {
     type ViewHandle = ImageAnswerOwnedView;
 }
 impl ::serde::Serialize for ImageAnswerOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// What the `title_artwork` export is asked for.
+#[derive(Clone, Debug, Default)]
+pub struct ArtworkAskedView<'a> {
+    /// Movie or Show.
+    ///
+    /// Field 1: `kind`
+    pub kind: ::buffa::EnumValue<super::super::TitleKind>,
+    /// The title's id, in any namespace the source keeps or looks titles up by.
+    ///
+    /// Field 2: `id`
+    pub id: ::buffa::MessageFieldView<super::super::__buffa::view::TitleIdView<'a>>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ArtworkAskedView<'a> {
+    type Owned = super::super::ArtworkAsked;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.kind = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.id.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.id = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::ArtworkAsked, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::ArtworkAsked, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ArtworkAsked {
+            kind: self.kind,
+            id: match self.id.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::TitleId,
+                        ::buffa::Inline<super::super::TitleId>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ArtworkAskedView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if self.id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        if self.id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.id.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ArtworkAskedView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.kind) {
+            __map.serialize_entry("kind", &self.kind)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.id.as_option() {
+                __map.serialize_entry("id", __v)?;
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ArtworkAskedView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "ArtworkAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.ArtworkAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ArtworkAsked";
+}
+::buffa::impl_default_view_instance!(ArtworkAskedView);
+::buffa::impl_view_reborrow!(ArtworkAskedView);
+/** Self-contained, `'static` owned view of a `ArtworkAsked` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ArtworkAskedView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ArtworkAskedView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ArtworkAskedOwnedView(::buffa::OwnedView<ArtworkAskedView<'static>>);
+impl ArtworkAskedOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ArtworkAskedOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ArtworkAskedOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ArtworkAsked,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ArtworkAskedOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ArtworkAskedView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ArtworkAskedView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ArtworkAsked {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Movie or Show.
+    ///
+    /// Field 1: `kind`
+    #[must_use]
+    pub fn kind(&self) -> ::buffa::EnumValue<super::super::TitleKind> {
+        self.0.reborrow().kind
+    }
+    /// The title's id, in any namespace the source keeps or looks titles up by.
+    ///
+    /// Field 2: `id`
+    #[must_use]
+    pub fn id(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ArtworkAskedView<'static>>>
+for ArtworkAskedOwnedView {
+    fn from(inner: ::buffa::OwnedView<ArtworkAskedView<'static>>) -> Self {
+        ArtworkAskedOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ArtworkAskedOwnedView>
+for ::buffa::OwnedView<ArtworkAskedView<'static>> {
+    fn from(wrapper: ArtworkAskedOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ArtworkAskedView<'static>>>
+for ArtworkAskedOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ArtworkAskedView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ArtworkAsked {
+    type View<'a> = ArtworkAskedView<'a>;
+    type ViewHandle = ArtworkAskedOwnedView;
+}
+impl ::serde::Serialize for ArtworkAskedOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// What the `title_artwork` export returns.
+#[derive(Clone, Debug, Default)]
+pub struct ArtworkAnswerView<'a> {
+    /// The title's artwork, in no particular order. Empty if the source has none.
+    ///
+    /// Field 1: `artwork`
+    pub artwork: ::buffa::RepeatedView<'a, super::super::__buffa::view::ArtworkView<'a>>,
+    /// Set when the source can't look titles up by the asked id's namespace, with `artwork` empty.
+    ///
+    /// Field 2: `unsupported_id`
+    pub unsupported_id: bool,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ArtworkAnswerView<'a> {
+    type Owned = super::super::ArtworkAnswer;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.unsupported_id = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::ArtworkView>(),
+                )?;
+                view.artwork
+                    .push(
+                        <super::super::__buffa::view::ArtworkView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::ArtworkAnswer, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::ArtworkAnswer, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ArtworkAnswer {
+            artwork: self
+                .artwork
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            unsupported_id: self.unsupported_id,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ArtworkAnswerView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.artwork {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.unsupported_id {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.artwork {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        if self.unsupported_id {
+            ::buffa::types::put_bool_field(2u32, self.unsupported_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ArtworkAnswerView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !self.artwork.is_empty() {
+            __map.serialize_entry("artwork", &*self.artwork)?;
+        }
+        if self.unsupported_id {
+            __map.serialize_entry("unsupportedId", &self.unsupported_id)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ArtworkAnswerView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "ArtworkAnswer";
+    const FULL_NAME: &'static str = "nama.plugin.v1.ArtworkAnswer";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ArtworkAnswer";
+}
+::buffa::impl_default_view_instance!(ArtworkAnswerView);
+::buffa::impl_view_reborrow!(ArtworkAnswerView);
+/** Self-contained, `'static` owned view of a `ArtworkAnswer` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ArtworkAnswerView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ArtworkAnswerView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ArtworkAnswerOwnedView(::buffa::OwnedView<ArtworkAnswerView<'static>>);
+impl ArtworkAnswerOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ArtworkAnswerOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ArtworkAnswerOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ArtworkAnswer,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ArtworkAnswerOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ArtworkAnswerView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ArtworkAnswerView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ArtworkAnswer {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The title's artwork, in no particular order. Empty if the source has none.
+    ///
+    /// Field 1: `artwork`
+    #[must_use]
+    pub fn artwork(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::ArtworkView<'_>> {
+        &self.0.reborrow().artwork
+    }
+    /// Set when the source can't look titles up by the asked id's namespace, with `artwork` empty.
+    ///
+    /// Field 2: `unsupported_id`
+    #[must_use]
+    pub fn unsupported_id(&self) -> bool {
+        self.0.reborrow().unsupported_id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ArtworkAnswerView<'static>>>
+for ArtworkAnswerOwnedView {
+    fn from(inner: ::buffa::OwnedView<ArtworkAnswerView<'static>>) -> Self {
+        ArtworkAnswerOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ArtworkAnswerOwnedView>
+for ::buffa::OwnedView<ArtworkAnswerView<'static>> {
+    fn from(wrapper: ArtworkAnswerOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ArtworkAnswerView<'static>>>
+for ArtworkAnswerOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ArtworkAnswerView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ArtworkAnswer {
+    type View<'a> = ArtworkAnswerView<'a>;
+    type ViewHandle = ArtworkAnswerOwnedView;
+}
+impl ::serde::Serialize for ArtworkAnswerOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// One image of a title's artwork.
+#[derive(Clone, Debug, Default)]
+pub struct ArtworkView<'a> {
+    /// What kind of artwork it is.
+    ///
+    /// Field 1: `kind`
+    pub kind: ::buffa::EnumValue<super::super::ArtworkKind>,
+    /// Its path, for the `title_image` export.
+    ///
+    /// Field 2: `path`
+    pub path: &'a str,
+    /// The ISO 639-1 code of the language of its text, unset for an image without text.
+    ///
+    /// Field 3: `language`
+    pub language: ::core::option::Option<&'a str>,
+    /// Its width in pixels.
+    ///
+    /// Field 4: `width`
+    pub width: ::core::option::Option<u32>,
+    /// Its height in pixels.
+    ///
+    /// Field 5: `height`
+    pub height: ::core::option::Option<u32>,
+    /// The source's own score for it, where higher is better.
+    ///
+    /// Field 6: `rating`
+    pub rating: ::core::option::Option<f64>,
+    /// How many people rated it.
+    ///
+    /// Field 7: `votes`
+    pub votes: ::core::option::Option<u32>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ArtworkView<'a> {
+    type Owned = super::super::Artwork;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.kind = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.path = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.language = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.width = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.height = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Fixed64,
+                )?;
+                view.rating = Some(::buffa::types::decode_double(&mut cur)?);
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.votes = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::Artwork, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::Artwork, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::Artwork {
+            kind: self.kind,
+            path: self.path.to_string(),
+            language: self.language.map(|s| s.to_string()),
+            width: self.width,
+            height: self.height,
+            rating: self.rating,
+            votes: self.votes,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ArtworkView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if !self.path.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.path) as u64;
+        }
+        if let Some(ref v) = self.language {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.width {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        if let Some(v) = self.height {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        if self.rating.is_some() {
+            size += 1u64 + ::buffa::types::FIXED64_ENCODED_LEN as u64;
+        }
+        if let Some(v) = self.votes {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(1u32, val, buf);
+            }
+        }
+        if !self.path.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.path, buf);
+        }
+        if let Some(ref v) = self.language {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if let Some(v) = self.width {
+            ::buffa::types::put_uint32_field(4u32, v, buf);
+        }
+        if let Some(v) = self.height {
+            ::buffa::types::put_uint32_field(5u32, v, buf);
+        }
+        if let Some(v) = self.rating {
+            ::buffa::types::put_double_field(6u32, v, buf);
+        }
+        if let Some(v) = self.votes {
+            ::buffa::types::put_uint32_field(7u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ArtworkView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.kind) {
+            __map.serialize_entry("kind", &self.kind)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.path) {
+            __map.serialize_entry("path", self.path)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.language {
+            __map.serialize_entry("language", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.width {
+            __map.serialize_entry("width", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.height {
+            __map.serialize_entry("height", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.rating {
+            __map.serialize_entry("rating", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        if let ::core::option::Option::Some(__v) = self.votes {
+            __map.serialize_entry("votes", &::buffa::json_helpers::ProtoJson(&__v))?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ArtworkView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Artwork";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Artwork";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Artwork";
+}
+::buffa::impl_default_view_instance!(ArtworkView);
+::buffa::impl_view_reborrow!(ArtworkView);
+/** Self-contained, `'static` owned view of a `Artwork` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ArtworkView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ArtworkView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ArtworkOwnedView(::buffa::OwnedView<ArtworkView<'static>>);
+impl ArtworkOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(ArtworkOwnedView(::buffa::OwnedView::decode(bytes)?))
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ArtworkOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::Artwork,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ArtworkOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ArtworkView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ArtworkView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::Artwork {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// What kind of artwork it is.
+    ///
+    /// Field 1: `kind`
+    #[must_use]
+    pub fn kind(&self) -> ::buffa::EnumValue<super::super::ArtworkKind> {
+        self.0.reborrow().kind
+    }
+    /// Its path, for the `title_image` export.
+    ///
+    /// Field 2: `path`
+    #[must_use]
+    pub fn path(&self) -> &'_ str {
+        self.0.reborrow().path
+    }
+    /// The ISO 639-1 code of the language of its text, unset for an image without text.
+    ///
+    /// Field 3: `language`
+    #[must_use]
+    pub fn language(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().language
+    }
+    /// Its width in pixels.
+    ///
+    /// Field 4: `width`
+    #[must_use]
+    pub fn width(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().width
+    }
+    /// Its height in pixels.
+    ///
+    /// Field 5: `height`
+    #[must_use]
+    pub fn height(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().height
+    }
+    /// The source's own score for it, where higher is better.
+    ///
+    /// Field 6: `rating`
+    #[must_use]
+    pub fn rating(&self) -> ::core::option::Option<f64> {
+        self.0.reborrow().rating
+    }
+    /// How many people rated it.
+    ///
+    /// Field 7: `votes`
+    #[must_use]
+    pub fn votes(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().votes
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ArtworkView<'static>>>
+for ArtworkOwnedView {
+    fn from(inner: ::buffa::OwnedView<ArtworkView<'static>>) -> Self {
+        ArtworkOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ArtworkOwnedView>
+for ::buffa::OwnedView<ArtworkView<'static>> {
+    fn from(wrapper: ArtworkOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ArtworkView<'static>>>
+for ArtworkOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ArtworkView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::Artwork {
+    type View<'a> = ArtworkView<'a>;
+    type ViewHandle = ArtworkOwnedView;
+}
+impl ::serde::Serialize for ArtworkOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

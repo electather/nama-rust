@@ -115,6 +115,8 @@ pub(super) const TITLE_SEASON: Method = optional(services::TITLE_SOURCE, "Season
 pub(super) const TITLE_EPISODE: Method =
     optional(services::TITLE_SOURCE, "Episode", "title_episode");
 pub(super) const TITLE_IMAGE: Method = optional(services::TITLE_SOURCE, "Image", "title_image");
+pub(super) const TITLE_ARTWORK: Method =
+    optional(services::TITLE_SOURCE, "Artwork", "title_artwork");
 
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[
@@ -176,6 +178,7 @@ pub(super) const POINTS: &[Point] = &[
             TITLE_SEASON,
             TITLE_EPISODE,
             TITLE_IMAGE,
+            TITLE_ARTWORK,
         ],
         key: PointKey::provide::<dyn TitleSource>,
         register: |registrar, running| {

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use nama_plugin_api::points::ObservedEvents;
-use nama_plugin_proto::{SERVICES, nama::plugin::v1::EventsObserved};
+use nama_plugin_proto::{SERVICES, nama::plugin::v1::EventsObserved, services};
 
 use super::{
     super::{
@@ -12,6 +12,22 @@ use super::{
     },
     OBSERVE_EVENTS, POINTS,
 };
+
+#[test]
+fn a_title_sources_artwork_list_is_an_optional_row_calling_title_artwork() {
+    let title_source = POINTS
+        .iter()
+        .find(|point| point.service == services::TITLE_SOURCE)
+        .unwrap();
+    let artwork = title_source
+        .methods
+        .iter()
+        .find(|method| method.name == "Artwork")
+        .unwrap();
+
+    assert_eq!(artwork.export, "title_artwork");
+    assert!(artwork.optional);
+}
 
 #[test]
 fn every_contract_service_has_adapter_rows_and_every_row_a_contract_service() {
