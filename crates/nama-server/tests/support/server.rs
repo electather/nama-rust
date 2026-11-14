@@ -158,6 +158,9 @@ impl Builder {
         };
         let config = Config {
             data_dir: data_dir.path().to_owned(),
+            // On macOS each Library change would wait on fseventsd, which parallel builds slow to
+            // a minute a test; no API test needs folder watching, which the scanner's tests cover.
+            watch_folders: false,
             ..config
         };
         let db = Arc::new(Database::open(data_dir.path()).await.unwrap());

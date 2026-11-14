@@ -103,6 +103,7 @@ pub fn serve(
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
     let points = plugins.extension_points();
+    let watch_folders = config.watch_folders;
     let settings = Settings::new(Arc::clone(&db), config.data_dir.join("transcodes"));
     let events = EventBus::new(Arc::clone(&db), points.clone(), settings.server_url());
     let ffmpeg = Arc::new(ffmpeg);
@@ -159,7 +160,9 @@ pub fn serve(
         scanner.start_all().await;
         // Quiet long enough that a file being copied in is scanned once it's whole; every six hours
         // for the folders whose changes the OS doesn't report, such as network shares.
-        scanner.watch(Duration::from_secs(30), Duration::from_hours(6));
+        if watch_folders {
+            scanner.watch(Duration::from_secs(30), Duration::from_hours(6));
+        }
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         requests.start(plugins.take_came_up(), Duration::from_mins(1));
         let served = axum::serve(

@@ -29,6 +29,10 @@ Without a usable pair it only Direct Plays, and says why in its startup log and 
 
 Tests make the media they probe with ffmpeg rather than commit sample files, so `cargo test` needs ffmpeg, built with libx264, libx265 and zscale (libzimg), and ffprobe on `PATH`. Homebrew's `ffmpeg` has no zscale, so on macOS install `ffmpeg-full` and put `$(brew --prefix ffmpeg-full)/bin` on `PATH`, since it's keg-only.
 
+## Watching Library folders
+
+A Server has the OS report changes in Library folders and scans a Library 30 s after its folders go quiet, and every Library every six hours for changes the OS doesn't report. `watch_folders = false` in `nama.toml` (or `NAMA_WATCH_FOLDERS=false`) turns the OS watch off, leaving the six-hourly and requested scans.
+
 ## Regenerating `.sqlx/` after a query or migration change
 
 Queries use `sqlx::query!` and friends, which check them at compile time against the query data checked in under `.sqlx/` at the workspace root. Builds need no database. After adding or changing a query or a migration, regenerate that data against a scratch database, from the workspace root:

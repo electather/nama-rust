@@ -49,6 +49,10 @@ pub struct Config {
     /// The ffprobe to run. `None`, the default, looks for it on `PATH`.
     #[serde(default)]
     pub ffprobe: Option<PathBuf>,
+    /// Whether the OS reports changes in Library folders so they're scanned soon after. On by
+    /// default; off, folders are scanned every six hours and when asked.
+    #[serde(default = "enabled_by_default")]
+    pub watch_folders: bool,
 }
 
 /// The `[plugins.<id>]` tables in the file, by Plugin id, as written.
@@ -128,6 +132,7 @@ impl Default for Config {
             trusted_proxies: Vec::new(),
             ffmpeg: None,
             ffprobe: None,
+            watch_folders: true,
         }
     }
 }
