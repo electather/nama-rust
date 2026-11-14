@@ -204,8 +204,7 @@ impl HandOff {
         let Answer { plugin, result } = self
             .plugins
             .ask_first(|fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
-                let needs = fulfiller.needs();
-                if !needs.is_empty() && !ids.iter().any(|id| needs.contains(&id.namespace)) {
+                if let Some(needs) = unmet(&*fulfiller, namespaces(ids)) {
                     return Ok(Err(needs));
                 }
                 fulfiller.fulfill(request).await.map(Ok)
@@ -226,36 +225,61 @@ impl HandOff {
     }
 
     /// Tells the Shows Fulfiller, if one is enabled, to stop following the Show of `season`, the
-    /// Season Request of a Followed Show that ended. A failure is only logged: the Followed Show
-    /// ended either way.
+    /// Season Request of a Followed Show that ended. A failure, or a Show lacking every id it
+    /// needs, which skips it, is only logged: the Followed Show ended either way.
     pub(super) async fn unfollow(&self, season: &Request) {
+        let Some(MovieOrSeason::Season(asked)) = &season.movie_or_season else {
+            return;
+        };
         let unfollowed = self
             .plugins
             .ask_first(|fulfiller: Arc<dyn Fulfiller<Shows>>| async move {
-                fulfiller.unfollow(season).await
+                if let Some(needs) = unmet(&*fulfiller, namespaces(&asked.show_ids)) {
+                    return Ok(Err(needs));
+                }
+                fulfiller.unfollow(season).await.map(Ok)
             })
             .await;
-        if let Some(Answer {
-            result: Err(failure),
-            ..
-        }) = unfollowed
-            && let Some(MovieOrSeason::Season(asked)) = &season.movie_or_season
-        {
-            warn!(
-                show = asked
-                    .show_id
-                    .as_option()
-                    .map(|id| format!("{}-{}", id.namespace, id.value)),
-                reason = failure.message,
-                "the Shows Fulfiller didn't stop following the Show"
-            );
-        }
+        let reason = match unfollowed {
+            Some(Answer {
+                plugin,
+                result: Ok(Err(needs)),
+            }) => missing(&plugin, "Show", &needs),
+            Some(Answer {
+                result: Err(failure),
+                ..
+            }) => failure.message,
+            _ => return,
+        };
+        warn!(
+            show = asked
+                .show_id
+                .as_option()
+                .map(|id| format!("{}-{}", id.namespace, id.value)),
+            reason, "the Shows Fulfiller didn't stop following the Show"
+        );
     }
+}
+
+/// The namespaces of `ids`.
+fn namespaces(ids: &[ExternalId]) -> impl Iterator<Item = &str> {
+    ids.iter().map(|id| id.namespace.as_str())
+}
+
+/// The namespaces `fulfiller` needs when a title, known by ids in `namespaces`, has an id in none
+/// of them, so the Kernel doesn't ask it about the title.
+pub(crate) fn unmet<'a, Kind: 'static>(
+    fulfiller: &dyn Fulfiller<Kind>,
+    mut namespaces: impl Iterator<Item = &'a str>,
+) -> Option<Vec<String>> {
+    let needs = fulfiller.needs();
+    let met = needs.is_empty() || namespaces.any(|namespace| needs.iter().any(|n| n == namespace));
+    (!met).then_some(needs)
 }
 
 /// Why the Plugin `plugin`'s Fulfiller wasn't handed a Request for a `title`, `Movie` or `Show`,
 /// which has no id in any of the namespaces it `needs`.
-fn missing(plugin: &PluginId, title: &str, needs: &[String]) -> String {
+pub(crate) fn missing(plugin: &PluginId, title: &str, needs: &[String]) -> String {
     let ids = match needs {
         [one] => format!("the {title}'s {one} id"),
         [first @ .., last] => format!("one of the {title}'s {} or {last} ids", first.join(", ")),

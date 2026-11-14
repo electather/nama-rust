@@ -171,11 +171,12 @@ async fn a_plugin_that_provides_no_fulfiller_coming_up_hands_nothing_off() {
 }
 
 /// A Fulfiller for Movies and Shows that needs an id in one of the namespaces `needs` holds, and
-/// keeps the ids of the Requests it is handed.
+/// keeps the ids of the Requests it is handed and of those it is told to unfollow.
 #[derive(Default)]
 struct Needing {
     needs: std::sync::Mutex<Vec<String>>,
     handed: std::sync::Mutex<Vec<i64>>,
+    unfollowed: std::sync::Mutex<Vec<i64>>,
 }
 
 impl Needing {
@@ -225,6 +226,11 @@ impl Fulfiller<Shows> for Needing {
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         self.take(request)
+    }
+
+    fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
+        self.unfollowed.lock().unwrap().push(request.id);
+        Box::pin(async { Ok(()) })
     }
 
     fn progress<'a>(
@@ -333,4 +339,25 @@ async fn retrying_a_request_that_lacked_an_id_forgets_why_it_failed() {
     assert_eq!(retried.state, RequestState::Processing);
     assert_eq!(retried.failure_reason, None);
     assert!(retried.failure.as_option().is_none(), "{retried:?}");
+}
+
+#[tokio::test]
+async fn a_show_lacking_every_id_its_fulfiller_needs_isnt_unfollowed() {
+    let needing = Needing::new(&["tvdb"]);
+    let (_data, requests, asked) = ask_dark_of(&needing, ExternalIds::default()).await;
+
+    requests.hand_off.unfollow(&asked[0]).await;
+
+    assert_eq!(*needing.unfollowed.lock().unwrap(), NOTHING);
+}
+
+#[tokio::test]
+async fn a_show_with_an_id_its_fulfiller_needs_is_unfollowed() {
+    let needing = Needing::new(&["tvdb"]);
+    let ids = ExternalIds::from_iter([ExternalId::tvdb(81189)]);
+    let (_data, requests, asked) = ask_dark_of(&needing, ids).await;
+
+    requests.hand_off.unfollow(&asked[0]).await;
+
+    assert_eq!(*needing.unfollowed.lock().unwrap(), [asked[0].id]);
 }

@@ -43,7 +43,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use nama_plugin_api::fulfiller::{Fulfiller, Movies, Shows, StopMonitoring};
+use nama_plugin_api::fulfiller::{
+    Fulfiller, Movies, Shows, StopMonitoring, stop_monitoring::Title,
+};
 use nama_proto::nama::v1::{
     MatchingFinished, ProbingFinished, ScanFinished, ScanProgress, ScanStarted,
 };
@@ -439,10 +441,19 @@ impl Scanner {
     }
 
     /// Asks each enabled Fulfiller of the kind `K` to stop monitoring `title`, which the log calls
-    /// `name`. Returns the name of each that couldn't be told.
+    /// `name`, but one that needs an id the title lacks. Returns the name of each not told.
     async fn ask_to_stop<K: 'static>(&self, title: &StopMonitoring, name: &str) -> Vec<String> {
+        let (kind, ids) = match &title.title {
+            Some(Title::Movie(movie)) => ("Movie", &movie.ids[..]),
+            Some(Title::Show(show)) => ("Show", &show.show_ids[..]),
+            None => ("title", &[][..]),
+        };
         let stop = |fulfiller: Arc<dyn Fulfiller<K>>| async move {
-            fulfiller.stop_monitoring(title).await
+            let namespaces = ids.iter().map(|id| id.namespace.as_str());
+            if let Some(needs) = requests::unmet(&*fulfiller, namespaces) {
+                return Ok(Err(needs));
+            }
+            fulfiller.stop_monitoring(title).await.map(Ok)
         };
         let plugins = &self.inner.plugins;
         let mut not_told = Vec::new();
@@ -450,7 +461,8 @@ impl Scanner {
             let answer = plugins.ask(&plugin, &stop).await;
             // `None`: it panicked, which disabled it, or was disabled meanwhile.
             let reason = match answer.map(|answer| answer.result) {
-                Some(Ok(())) => continue,
+                Some(Ok(Ok(()))) => continue,
+                Some(Ok(Err(needs))) => requests::missing(&plugin, kind, &needs),
                 Some(Err(failure)) => failure.message,
                 None => "it panicked or was disabled".to_owned(),
             };

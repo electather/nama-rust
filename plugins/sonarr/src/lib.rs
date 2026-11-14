@@ -95,10 +95,7 @@ mod exports {
             let Some(Title::Show(show_deleted)) = title.title else {
                 return Err(Error::msg("Sonarr stops monitoring only Shows"));
             };
-            // Sonarr finds a Show only by its TVDB id, so one without it was never handed over.
-            let Some(tvdb_id) = tvdb_id(&show_deleted.show_ids) else {
-                return Ok(());
-            };
+            let tvdb_id = needed_tvdb_id(&show_deleted.show_ids)?;
             let sonarr = Sonarr::from_config()?;
             let Some(show) = sonarr.find(tvdb_id)? else {
                 return Ok(());
@@ -348,13 +345,15 @@ mod exports {
     }
 
     fn show_tvdb_id(request: &Request) -> Result<i64, Error> {
-        tvdb_id(&asked_season(request)?.show_ids)
-            .ok_or_else(|| Error::msg("Sonarr needs the Show's TVDB id, and none is known for it"))
+        needed_tvdb_id(&asked_season(request)?.show_ids)
     }
 
-    /// The TVDB id among a Show's `ids`, as the number Sonarr's API takes.
-    fn tvdb_id(ids: &[TitleId]) -> Option<i64> {
-        title_id(ids, "tvdb")?.parse().ok()
+    /// The TVDB id among a Show's `ids`, as the number Sonarr's API finds it by, or why there is
+    /// none.
+    fn needed_tvdb_id(ids: &[TitleId]) -> Result<i64, Error> {
+        title_id(ids, "tvdb")
+            .and_then(|tvdb| tvdb.parse().ok())
+            .ok_or_else(|| Error::msg("Sonarr needs the Show's TVDB id, and none is known for it"))
     }
 
     /// Sonarr's `monitorNewItems` for a Show whose new Seasons it monitors if `monitored`.

@@ -507,6 +507,17 @@ async fn a_fulfiller_that_cant_be_told_is_named_and_the_delete_still_happens() {
     assert_eq!(fx.titles().await, ["Alien"]);
 }
 
+#[tokio::test]
+async fn a_fulfiller_needing_an_id_the_movie_lacks_is_named_and_not_asked() {
+    let fx = Fixture::alien_and_dune_on(TestServer::builder().fulfiller(&[])).await;
+    fx.server.fulfiller().need(&["made-up"]);
+
+    let deleted = fx.delete(movie(fx.library, DUNE)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, [MOVIE_FULFILLER]);
+    assert_eq!(fx.server.fulfiller().stopped_monitoring(), [0; 0]);
+}
+
 /// What the fake Radarr is asked when told to unmonitor Alien, which it has as its Movie 2, while
 /// the file it watches is `still_there` or not.
 fn unmonitored_alien(still_there: bool) -> Changed {

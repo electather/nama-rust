@@ -101,6 +101,8 @@ pub(crate) struct FakeFulfiller {
     check_fails: Arc<AtomicBool>,
     /// The profile id and name it reports it used on each hand-off, if any.
     used: Arc<Mutex<Option<(String, String)>>>,
+    /// The namespaces it needs a title to have an id in.
+    needs: Arc<Mutex<Vec<String>>>,
 }
 
 impl FakeFulfiller {
@@ -117,6 +119,22 @@ impl FakeFulfiller {
     /// Refuses the hand-offs that ask it to follow a Show from now on.
     pub(crate) fn refuse_to_follow(&self) {
         self.refuses_following.store(true, Ordering::Relaxed);
+    }
+
+    /// Needs a title to have an id in one of `namespaces` from now on.
+    pub(crate) fn need(&self, namespaces: &[&str]) {
+        *self.needs.lock().unwrap_or_else(PoisonError::into_inner) = namespaces
+            .iter()
+            .map(|&namespace| namespace.to_owned())
+            .collect();
+    }
+
+    /// The namespaces it needs a title to have an id in.
+    fn namespaces_needed(&self) -> Vec<String> {
+        self.needs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// Takes every Request it is handed from now on.
@@ -253,6 +271,10 @@ fn asked_season(request: &Request) -> &RequestedSeason {
 }
 
 impl Fulfiller<Movies> for FakeFulfiller {
+    fn needs(&self) -> Vec<String> {
+        self.namespaces_needed()
+    }
+
     fn fulfill<'a>(
         &'a self,
         request: &'a Request,
@@ -325,6 +347,10 @@ impl Fulfiller<Movies> for FakeFulfiller {
 }
 
 impl Fulfiller<Shows> for FakeFulfiller {
+    fn needs(&self) -> Vec<String> {
+        self.namespaces_needed()
+    }
+
     fn fulfill<'a>(
         &'a self,
         request: &'a Request,
