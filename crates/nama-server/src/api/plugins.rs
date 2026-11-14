@@ -22,8 +22,8 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
+    images::PluginLogos,
     library::custom_images::{CustomImages, Slot, Urls},
-    plugin_logos::PluginLogos,
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     requests::qualities,

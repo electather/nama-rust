@@ -15,7 +15,6 @@ pub mod images;
 mod library;
 mod matching;
 mod playback;
-mod plugin_logos;
 pub mod plugin_settings;
 pub mod plugins;
 mod probing;
@@ -42,13 +41,12 @@ use crate::{
     db::Database,
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
-    images::ImageStore,
+    images::{ImageStore, PluginLogos},
     library::artwork::Artwork,
     library::contents::Contents,
     library::custom_images::CustomImages,
     playback::running::RunningPlans,
     playback::subtitles,
-    plugin_logos::PluginLogos,
     plugin_settings::PluginSettings,
     probing::Probing,
     requests::Requests,

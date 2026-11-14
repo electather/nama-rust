@@ -23,13 +23,13 @@ use crate::{
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
+    images::{PluginLogos, plugin_logos_router},
     library::artwork::{self, Artwork},
     library::contents::Contents,
     library::custom_images::{self, CustomImages},
     library::libraries::Libraries,
     library::title_source::{MetadataSource, TitleKind},
     playback::running::RunningPlans,
-    plugin_logos::{self, PluginLogos},
     plugin_settings::PluginSettings,
     probing::Probing,
     requests::Requests,
@@ -177,7 +177,7 @@ pub(crate) fn router(
         .into_axum_router()
         .merge(artwork_router)
         .merge(custom_images::router(custom_images, image_settings))
-        .merge(plugin_logos::router(plugin_logos))
+        .merge(plugin_logos_router(plugin_logos))
         .merge(media)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
