@@ -38,10 +38,11 @@ enum Answers {
 /// What the sources were asked, as `namespace method id`, in the order asked.
 type Asked = Arc<Mutex<Vec<String>>>;
 
-/// A title source keeping titles under `namespace`, as the Plugin of that id. Whatever it has is
-/// the Show `Dark`, its id `<namespace>-1`.
+/// A title source keeping titles under `namespace`, as the Plugin of that id, and looking them up
+/// by `looks_up`. Whatever it has is the Show `Dark`, its id `<namespace>-1`.
 struct Fake {
     namespace: &'static str,
+    looks_up: &'static [&'static str],
     search: Answers,
     lookup: Answers,
     asked: Asked,
@@ -80,6 +81,10 @@ fn named(id: &TitleId) -> String {
 impl TitleSource for Fake {
     fn namespace(&self) -> &str {
         self.namespace
+    }
+
+    fn lookup_namespaces(&self) -> Vec<String> {
+        self.looks_up.iter().map(|&n| n.to_owned()).collect()
     }
 
     fn search<'a>(
@@ -157,7 +162,13 @@ impl TitleSource for Fake {
     }
 }
 
-struct FakePlugin(&'static str, Answers, Answers, Asked);
+struct FakePlugin(
+    &'static str,
+    Answers,
+    Answers,
+    Asked,
+    &'static [&'static str],
+);
 
 impl Plugin for FakePlugin {
     fn manifest(&self) -> Manifest {
@@ -175,6 +186,7 @@ impl Plugin for FakePlugin {
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         let source = Fake {
             namespace: self.0,
+            looks_up: self.4,
             search: self.1,
             lookup: self.2,
             asked: Arc::clone(&self.3),
@@ -187,15 +199,26 @@ impl Plugin for FakePlugin {
 /// How one fake source answers: its searches, then its lookups by id.
 type Answering = (Answers, Answers);
 
-/// Title sources under `aa` and `bb`, answering as given.
-fn aa_and_bb(aa: Answering, bb: Answering) -> (Registry, Asked) {
+/// Title sources under `aa` and `bb`, `bb` also looking titles up by `aa` ids and `aa` by those
+/// in `aa_looks_up`, answering as given.
+fn looking_up(
+    aa: Answering,
+    bb: Answering,
+    aa_looks_up: &'static [&'static str],
+) -> (Registry, Asked) {
     let plugins = Registry::new();
     let asked = Asked::default();
-    for (namespace, (search, lookup)) in [("aa", aa), ("bb", bb)] {
-        let plugin = FakePlugin(namespace, search, lookup, Arc::clone(&asked));
+    let fakes = [("aa", aa, aa_looks_up), ("bb", bb, &["aa"][..])];
+    for (namespace, (search, lookup), looks_up) in fakes {
+        let plugin = FakePlugin(namespace, search, lookup, Arc::clone(&asked), looks_up);
         plugins.enable(Arc::new(plugin)).unwrap();
     }
     (plugins, asked)
+}
+
+/// Title sources under `aa` and `bb`, `bb` also looking titles up by `aa` ids, answering as given.
+fn aa_and_bb(aa: Answering, bb: Answering) -> (Registry, Asked) {
+    looking_up(aa, bb, &[])
 }
 
 fn bb_aa() -> Vec<String> {
@@ -316,8 +339,9 @@ async fn seasons_come_from_the_source_that_gave_the_show_by_its_id_there() {
     assert_eq!(asked(&sources_asked).last().unwrap(), "bb season bb-1");
 }
 
-#[tokio::test]
-async fn a_pin_no_source_looks_up_leaves_the_rest_of_the_library_matching() {
+/// What matching a Movies Library with sources `[bb, aa]`, `aa` looking titles up by
+/// `aa_looks_up`, does with the Movies `Aaa`, pinned to `pin`, and `Dark`.
+async fn match_with_pin(pin: ExternalId, aa_looks_up: &'static [&'static str]) -> Summary {
     let data = tempfile::tempdir().unwrap();
     let media = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
@@ -345,12 +369,12 @@ async fn a_pin_no_source_looks_up_leaves_the_rest_of_the_library_matching() {
         .find(|file| file.path == "/media/Aaa.mkv")
         .unwrap();
     let named = contents.named_like(aaa.items[0].id).await.unwrap().unwrap();
-    let pin = Pin::Title(id("cc"));
+    let pin = Pin::Title(pin);
     contents
         .pin(library, named.name, pin, vec![])
         .await
         .unwrap();
-    let (plugins, _) = aa_and_bb(HAS, HAS);
+    let (plugins, _) = looking_up(HAS, HAS, aa_looks_up);
     let images = ImageStore::new(data.path(), Arc::clone(&db));
     let scanner = Scanner::new(
         Arc::clone(&db),
@@ -364,16 +388,64 @@ async fn a_pin_no_source_looks_up_leaves_the_rest_of_the_library_matching() {
     );
 
     let scan = scanner.lock(library).await;
-    let summary = scanner
+    scanner
         .matcher()
         .match_library(&scan, &CancellationToken::new())
         .await
-        .unwrap();
+        .unwrap()
+}
 
-    let expected = Summary {
-        matched: 1,
+/// Only `Dark` Matched; the pinned `Aaa` is neither Matched nor Unmatched.
+const PIN_UNDECIDED: Summary = Summary {
+    matched: 1,
+    unmatched: 0,
+    undecided: 1,
+};
+
+#[tokio::test]
+async fn a_pin_no_source_looks_up_leaves_the_rest_of_the_library_matching() {
+    assert_eq!(match_with_pin(id("cc"), &[]).await, PIN_UNDECIDED);
+}
+
+#[tokio::test]
+async fn an_imdb_pin_no_source_keeps_or_looks_up_stays_undecided() {
+    let pin = ExternalId::new("imdb", "tt0078748").unwrap();
+
+    assert_eq!(match_with_pin(pin, &[]).await, PIN_UNDECIDED);
+}
+
+#[tokio::test]
+async fn an_imdb_pin_matches_through_a_source_looking_up_imdb() {
+    let pin = ExternalId::new("imdb", "tt0078748").unwrap();
+    let both = Summary {
+        matched: 2,
         unmatched: 0,
-        undecided: 1,
+        undecided: 0,
     };
-    assert_eq!(summary, expected);
+
+    assert_eq!(match_with_pin(pin, &["imdb"]).await, both);
+}
+
+#[tokio::test]
+async fn an_imdb_hint_no_source_looks_up_by_is_searched_for_instead() {
+    let (metadata, sources_asked) = bb_then_aa(HAS, HAS);
+    let hint = ExternalId::new("imdb", "tt0078748").unwrap();
+
+    let found = show(&metadata, &dark(Some(hint))).await.unwrap();
+
+    assert_eq!(found.source.namespace, "bb");
+    assert_eq!(asked(&sources_asked), ["bb search", "bb show bb-1"]);
+}
+
+#[tokio::test]
+async fn a_source_neither_keeping_nor_looking_up_a_hint_is_never_asked() {
+    let (plugins, sources_asked) = looking_up(HAS, (Answers::Has, Answers::NotFound), &[]);
+    let metadata = MetadataSource::new(plugins.extension_points()).in_order(bb_aa());
+
+    // `bb` looks up `aa` ids but `aa` doesn't look up `bb` ones: a `bb` hint `bb` misses is blamed.
+    assert_eq!(
+        show(&metadata, &dark(Some(id("bb")))).await.unwrap_err(),
+        Miss::Unmatched(Some(UnmatchedReason::UnknownIdHint))
+    );
+    assert_eq!(asked(&sources_asked), ["bb show bb-1"]);
 }

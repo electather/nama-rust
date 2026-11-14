@@ -1,8 +1,8 @@
 //! Asking a Library's title sources, in its order, for the title an item names (ADR 0042's open
-//! ids): a pin or an ID Hint is fetched from the source keeping its namespace, and a title and
-//! year are searched for with the first source that answers.
+//! ids): a pin or an ID Hint is fetched from the source keeping its namespace, then those looking
+//! titles up by it, and a title and year are searched for with the first source that answers.
 
-use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB, TMDB, TVDB};
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
     FoundShow, Miss, TitleKey,
@@ -13,12 +13,6 @@ use crate::{
     library::title_source::{self, Candidate, MetadataSource, SearchQuery, Season, TitleKind},
     scanner::country_tag,
 };
-
-/// The namespaces a title source may look titles up by without keeping them, as TMDB looks up
-/// IMDb and TVDB ids, so a pin or an ID Hint in one is fetched even when no source keeps it.
-// ponytail: a fixed list, since a source can't yet say which namespaces it looks up by; let
-// `TitleSource` declare them once a source looks up by another.
-const LOOKED_UP_ACROSS: [&str; 3] = [TMDB, IMDB, TVDB];
 
 /// The title an item names, before its details are fetched.
 #[derive(Debug)]
@@ -67,8 +61,8 @@ pub(super) async fn show(metadata: &MetadataSource, key: &TitleKey) -> Result<Fo
         .map_err(|err| found.missed(err))
 }
 
-/// The Movie with the id `id`, from the source keeping its namespace or else the first other to
-/// have it, with every id `known` for it.
+/// The Movie with the id `id`, from the source keeping its namespace or else the first looking it
+/// up to have it, with every id `known` for it.
 pub(super) async fn fetch_movie(
     metadata: &MetadataSource,
     id: &ExternalId,
@@ -120,7 +114,7 @@ fn merged(asked: &ExternalId, known: ExternalIds, answered: &ExternalIds) -> Ext
 /// its namespace, or else the search result that fits it.
 async fn find(metadata: &MetadataSource, kind: TitleKind, key: &TitleKey) -> Result<Found, Miss> {
     match &key.pin {
-        Some(Pin::Title(id)) if looks_up(metadata, id.namespace()).await => {
+        Some(Pin::Title(id)) if metadata.serves(id.namespace()).await => {
             return Ok(Found::id(id.clone(), false));
         }
         // A pin waits for a source looking up its namespace rather than Matching another title.
@@ -131,16 +125,11 @@ async fn find(metadata: &MetadataSource, kind: TitleKind, key: &TitleKey) -> Res
     if let Some(hint) = &key.name.hint {
         // A curly tag such as `{x264-GROUP}` parses as an ID Hint no source looks up by, so the
         // item is searched for as if it had none.
-        if looks_up(metadata, hint.namespace()).await {
+        if metadata.serves(hint.namespace()).await {
             return Ok(Found::id(hint.clone(), true));
         }
     }
     search(metadata, kind, &key.name).await
-}
-
-/// Whether a source `metadata` asks may look a title up by an id in `namespace`.
-async fn looks_up(metadata: &MetadataSource, namespace: &str) -> bool {
-    LOOKED_UP_ACROSS.contains(&namespace) || metadata.serves(namespace).await
 }
 
 /// The search result that fits `name` confidently and unambiguously, from the first source to

@@ -277,6 +277,12 @@ impl Matcher {
         id: &ExternalId,
     ) -> Result<Summary, ManualError> {
         let (_scan, named) = self.lock_named_like(item).await?;
+        // No enabled source keeps or looks up the namespace, so none could have the title; with
+        // no source at all, fetching answers Unavailable instead.
+        if !self.metadata.serves(id.namespace()).await && !self.metadata.sources().await.is_empty()
+        {
+            return Err(ManualError::NoSuchTitle(id.clone()));
+        }
         let outcomes = match named.name.kind() {
             TitleKind::Movie => {
                 let movie = sources::fetch_movie(&self.metadata, id, ExternalIds::default())

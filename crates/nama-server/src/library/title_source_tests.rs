@@ -198,9 +198,11 @@ enum Answers {
 /// The namespaces of the sources asked for a title or Season, in the order they were asked.
 type Asked = Arc<Mutex<Vec<&'static str>>>;
 
-/// A title source keeping titles under `namespace`, as the Plugin of that id.
+/// A title source keeping titles under `namespace`, as the Plugin of that id, and looking them up
+/// by `looks_up`.
 struct Fake {
     namespace: &'static str,
+    looks_up: &'static [&'static str],
     answers: Answers,
     asked: Asked,
 }
@@ -241,6 +243,10 @@ impl Fake {
 impl TitleSource for Fake {
     fn namespace(&self) -> &str {
         self.namespace
+    }
+
+    fn lookup_namespaces(&self) -> Vec<String> {
+        self.looks_up.iter().map(|&n| n.to_owned()).collect()
     }
 
     fn search<'a>(
@@ -329,8 +335,14 @@ impl TitleSource for Fake {
     }
 }
 
-/// The Plugin serving a [`Fake`], registered at `.1`.
-struct FakePlugin(&'static str, Priority, Answers, Asked);
+/// The Plugin serving a [`Fake`], registered at `.1`, looking titles up by `.4`.
+struct FakePlugin(
+    &'static str,
+    Priority,
+    Answers,
+    Asked,
+    &'static [&'static str],
+);
 
 impl Plugin for FakePlugin {
     fn manifest(&self) -> Manifest {
@@ -348,6 +360,7 @@ impl Plugin for FakePlugin {
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         let source = Fake {
             namespace: self.0,
+            looks_up: self.4,
             answers: self.2,
             asked: Arc::clone(&self.3),
         };
@@ -356,15 +369,21 @@ impl Plugin for FakePlugin {
     }
 }
 
-/// Title sources under `aa` and `bb`, `aa` first in provider order, answering as given.
+/// Title sources under `aa` and `bb`, `aa` first in provider order and also looking titles up
+/// by `bb` ids, answering as given.
 fn two(aa: Answers, bb: Answers) -> (MetadataSource, Asked) {
     let plugins = Registry::new();
     let asked = Asked::default();
-    let fake = |namespace, priority, answers| {
-        Arc::new(FakePlugin(namespace, priority, answers, Arc::clone(&asked)))
+    let fake = |namespace, priority, answers, looks_up| {
+        let plugin = FakePlugin(namespace, priority, answers, Arc::clone(&asked), looks_up);
+        Arc::new(plugin)
     };
-    plugins.enable(fake("aa", Priority::EARLY, aa)).unwrap();
-    plugins.enable(fake("bb", Priority::DEFAULT, bb)).unwrap();
+    plugins
+        .enable(fake("aa", Priority::EARLY, aa, &["bb"]))
+        .unwrap();
+    plugins
+        .enable(fake("bb", Priority::DEFAULT, bb, &[]))
+        .unwrap();
     (MetadataSource::new(plugins.extension_points()), asked)
 }
 
@@ -372,10 +391,17 @@ fn asked(asked: &Asked) -> Vec<&'static str> {
     asked.lock().unwrap_or_else(PoisonError::into_inner).clone()
 }
 
+/// The source [`two`] enables under `namespace`.
 fn source(namespace: &'static str) -> Source {
+    let looks_up = if namespace == "aa" {
+        vec!["bb".to_owned()]
+    } else {
+        vec![]
+    };
     Source {
         plugin: PluginId::from_static(namespace),
         namespace: namespace.to_owned(),
+        looks_up,
     }
 }
 
@@ -405,10 +431,29 @@ async fn sources_come_in_provider_order_or_in_the_order_given() {
 }
 
 #[tokio::test]
+async fn a_source_serves_the_namespaces_it_looks_up_by_but_not_malformed_ones() {
+    let plugins = Registry::new();
+    let looks_up = &["imdb", "TV-DB"];
+    let fake = FakePlugin(
+        "aa",
+        Priority::DEFAULT,
+        Answers::Has,
+        Asked::default(),
+        looks_up,
+    );
+    plugins.enable(Arc::new(fake)).unwrap();
+    let metadata = MetadataSource::new(plugins.extension_points());
+
+    assert_eq!(metadata.sources().await[0].looks_up, ["imdb"]);
+    assert!(metadata.serves("imdb").await);
+    assert!(!metadata.serves("tvdb").await);
+}
+
+#[tokio::test]
 async fn a_source_whose_namespace_is_not_well_formed_is_left_out() {
     let plugins = Registry::new();
     let asked = Asked::default();
-    let malformed = FakePlugin("bad-ns", Priority::DEFAULT, Answers::Has, asked);
+    let malformed = FakePlugin("bad-ns", Priority::DEFAULT, Answers::Has, asked, &[]);
     plugins.enable(Arc::new(malformed)).unwrap();
 
     let metadata = MetadataSource::new(plugins.extension_points());
@@ -507,6 +552,35 @@ async fn a_source_answering_unsupported_id_passes_to_the_next() {
 }
 
 #[tokio::test]
+async fn an_id_is_asked_of_a_source_looking_it_up_after_its_keeper() {
+    let (metadata, sources_asked) = two(Answers::Has, Answers::NotFound);
+    let id = ExternalId::new("bb", "1").unwrap();
+
+    let (show_from, _) = metadata
+        .in_order(order(&["aa", "bb"]))
+        .show_by(&id)
+        .await
+        .unwrap();
+
+    assert_eq!(show_from, source("aa"));
+    assert_eq!(asked(&sources_asked), ["bb", "aa"]);
+}
+
+#[tokio::test]
+async fn a_source_neither_keeping_nor_looking_up_an_id_is_never_asked() {
+    let (metadata, sources_asked) = two(Answers::NotFound, Answers::Has);
+    let aa = ExternalId::new("aa", "1").unwrap();
+    let cc = ExternalId::new("cc", "1").unwrap();
+
+    assert_eq!(metadata.show_by(&aa).await.unwrap_err(), Error::NotFound);
+    assert_eq!(
+        metadata.movie_by(&cc).await.unwrap_err(),
+        Error::Unavailable
+    );
+    assert_eq!(asked(&sources_asked), ["aa"]);
+}
+
+#[tokio::test]
 async fn a_title_by_id_stops_at_a_failing_source() {
     let (metadata, sources_asked) = two(Answers::Has, Answers::Fails);
     let id = ExternalId::new("bb", "1").unwrap();
@@ -526,8 +600,8 @@ async fn a_source_not_in_the_order_is_never_asked() {
         .await
         .unwrap_err();
 
-    assert_eq!((search, show), (Error::NotFound, Error::NotFound));
-    assert_eq!(asked(&sources_asked), ["bb", "bb"]);
+    assert_eq!((search, show), (Error::NotFound, Error::Unavailable));
+    assert_eq!(asked(&sources_asked), ["bb"]);
 }
 
 #[tokio::test]

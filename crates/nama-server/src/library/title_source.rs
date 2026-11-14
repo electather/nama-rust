@@ -42,13 +42,15 @@ pub(crate) struct MetadataSource {
     order: Option<Vec<String>>,
 }
 
-/// An enabled title source and the namespace it keeps titles under.
+/// An enabled title source, the namespace it keeps titles under and the others it looks them up by.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Source {
     /// The Plugin serving it.
     pub(crate) plugin: PluginId,
     /// The namespace it keeps titles under.
     pub(crate) namespace: String,
+    /// The well-formed namespaces besides `namespace` it looks titles up by.
+    pub(crate) looks_up: Vec<String>,
 }
 
 impl MetadataSource {
@@ -141,7 +143,7 @@ impl MetadataSource {
     }
 
     /// The enabled title sources the routing methods ask, in the order they ask them. A source
-    /// whose namespace isn't well formed is left out.
+    /// whose namespace isn't well formed is left out, as is a malformed namespace it looks up by.
     // ponytail: asks each source its namespace per call; cache it if that shows up.
     pub(crate) async fn sources(&self) -> Vec<Source> {
         let mut sources = Vec::new();
@@ -152,18 +154,23 @@ impl MetadataSource {
             let answered = self
                 .plugins
                 .ask(&plugin, |source: Arc<dyn TitleSource>| async move {
-                    Ok::<_, MetadataError>(source.namespace().to_owned())
+                    let namespace = source.namespace().to_owned();
+                    Ok::<_, MetadataError>((namespace, source.lookup_namespaces()))
                 })
                 .await;
-            let Ok((_, namespace)) = meaning(answered) else {
+            let Ok((_, (namespace, mut looks_up))) = meaning(answered) else {
                 continue;
             };
-            // The namespace check `ExternalId::new` makes, with a stand-in value.
-            if ExternalId::new(&namespace, "_").is_err() {
+            if !well_formed(&namespace) {
                 tracing::warn!(%plugin, namespace, "the title source's namespace isn't well formed");
                 continue;
             }
-            sources.push(Source { plugin, namespace });
+            looks_up.retain(|lookup| well_formed(lookup));
+            sources.push(Source {
+                plugin,
+                namespace,
+                looks_up,
+            });
         }
         if let Some(order) = &self.order {
             sources.retain(|source| order.contains(&source.namespace));
@@ -173,10 +180,9 @@ impl MetadataSource {
     }
 
     /// Whether some source the routing methods ask keeps titles under `namespace`, such as an ID
-    /// Hint's.
+    /// Hint's, or looks them up by it.
     pub(crate) async fn serves(&self, namespace: &str) -> bool {
-        let sources = self.sources().await;
-        sources.iter().any(|source| source.namespace == namespace)
+        !self.by_namespace(namespace).await.is_empty()
     }
 
     /// The titles the first source in order to find any finds for `query`, best fit first, with
@@ -196,8 +202,9 @@ impl MetadataSource {
     }
 
     /// The metadata of the Movie with the id `id`, from the source keeping titles under its
-    /// namespace, or else the first other one in order to have it, with that source. Fails as
-    /// [`MetadataSource::search_in_turn`] does.
+    /// namespace, or else the first one in order looking them up by it to have it, with that
+    /// source. Fails as [`MetadataSource::search_in_turn`] does, so with no such source it is
+    /// [`Error::Unavailable`].
     pub(crate) async fn movie_by(&self, id: &ExternalId) -> Result<(Source, Metadata), Error> {
         let sources = self.by_namespace(id.namespace()).await;
         let asked = &asked(id);
@@ -252,9 +259,13 @@ impl MetadataSource {
         meaning(answered).map(|(_, season)| season)
     }
 
-    /// The sources in order, those keeping titles under `namespace` first.
+    /// The sources keeping titles under `namespace`, then those looking them up by it, each in
+    /// order; never one that does neither.
     async fn by_namespace(&self, namespace: &str) -> Vec<Source> {
         let mut sources = self.sources().await;
+        sources.retain(|source| {
+            source.namespace == namespace || source.looks_up.iter().any(|n| n == namespace)
+        });
         sources.sort_by_key(|source| source.namespace != namespace);
         sources
     }
@@ -298,6 +309,11 @@ impl MetadataSource {
         };
         meaning(answered)
     }
+}
+
+/// The namespace check `ExternalId::new` makes, with a stand-in value.
+fn well_formed(namespace: &str) -> bool {
+    ExternalId::new(namespace, "_").is_ok()
 }
 
 fn asked(id: &ExternalId) -> TitleAsked {
