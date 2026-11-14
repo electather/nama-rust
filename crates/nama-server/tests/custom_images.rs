@@ -21,12 +21,12 @@ use custom_images::image;
 use http::{Reply, fetch};
 use image::ImageFormat;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ContinueWatchingEntry, LibraryKind, ListContinueWatchingRequest,
-    ListEpisodesRequest, LookUpMovieRequest, LookUpShowRequest, ReportProgressRequest,
-    RequestServiceClient, SetMatchRequest, Show, WatchStateServiceClient,
-    continue_watching_entry::MovieOrEpisode,
+    BrowseServiceClient, ContinueWatchingEntry, LibraryKind, LibraryServiceClient,
+    ListContinueWatchingRequest, ListEpisodesRequest, ListLibrariesRequest, LookUpMovieRequest,
+    LookUpShowRequest, ReportProgressRequest, RequestServiceClient, SearchLibrariesRequest,
+    SetMatchRequest, Show, WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
 };
-use server::tmdb::{ALIEN, DARK, DUNE};
+use server::tmdb::{ALIEN, DARK, DARK_TVDB, DUNE};
 
 /// Where Alien's Poster is uploaded to and removed from.
 fn alien_poster() -> String {
@@ -428,4 +428,120 @@ async fn a_custom_image_removed_and_uploaded_again_gets_its_thumbhash_back_once_
 
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     assert!(movie.poster_thumbhash.is_some());
+}
+
+/// Values are text, not numbers, so a leading zero names another title.
+#[tokio::test]
+async fn a_custom_image_for_tmdb_0348_is_kept_apart_from_tmdb_348s() {
+    let fx = Fixture::alien().await;
+    let downloaded = fx.alien_poster(fx.library).await;
+
+    let uploaded = fx
+        .upload(
+            "/custom-images/movie/tmdb-0348/poster",
+            &image(ImageFormat::Png, 2, 3),
+        )
+        .await;
+
+    assert_eq!(uploaded.status, 204);
+    assert_eq!(fx.alien_poster(fx.library).await, downloaded);
+}
+
+#[tokio::test]
+async fn a_movies_custom_images_kept_under_its_imdb_id_show_everywhere_it_does() {
+    let fx = Fixture::alien().await;
+    let images = "/custom-images/movie/imdb-tt0078748";
+    fx.upload(&format!("{images}/poster"), &image(ImageFormat::Png, 2, 3))
+        .await;
+    fx.upload(
+        &format!("{images}/backdrop"),
+        &image(ImageFormat::Png, 3, 2),
+    )
+    .await;
+
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let looked_up = fx
+        .requests()
+        .look_up_movie(LookUpMovieRequest {
+            movie_id: tmdb_id(ALIEN).into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .movie
+        .into_option()
+        .unwrap();
+
+    assert!(movie.custom_poster && movie.custom_backdrop);
+    let poster = movie.poster_url.unwrap();
+    assert!(
+        poster.starts_with(&format!("/media{images}/poster/")),
+        "{poster}"
+    );
+    assert_eq!(looked_up.poster_url, Some(poster.clone()));
+    assert_eq!(looked_up.backdrop_url, movie.backdrop_url);
+    let found = (fx.browse)
+        .search_libraries(SearchLibrariesRequest {
+            query: "alien".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .movies;
+    assert_eq!(found[0].poster_url, Some(poster));
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        .list_libraries(ListLibrariesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .libraries;
+    let library = libraries.iter().find(|it| it.id == fx.library).unwrap();
+    assert_eq!(library.backdrop_url, movie.backdrop_url);
+}
+
+#[tokio::test]
+async fn a_shows_and_seasons_custom_images_kept_under_its_tvdb_id_show_in_browse_and_on_a_request()
+{
+    let fx = Fixture::dark().await;
+    let images = format!("/custom-images/show/tvdb-{DARK_TVDB}");
+    for (path, width, height) in [
+        ("poster", 2, 3),
+        ("backdrop", 3, 2),
+        ("season/1/poster", 2, 3),
+    ] {
+        let uploaded = fx
+            .upload(
+                &format!("{images}/{path}"),
+                &image(ImageFormat::Png, width, height),
+            )
+            .await;
+        assert_eq!(uploaded.status, 204, "{path}");
+    }
+
+    let dark = fx.get_dark().await;
+    let looked_up = fx
+        .requests()
+        .look_up_show(LookUpShowRequest {
+            show_id: tmdb_id(DARK).into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .show
+        .into_option()
+        .unwrap();
+
+    let show = dark.show.into_option().unwrap();
+    assert!(show.custom_poster && show.custom_backdrop);
+    assert!(dark.seasons[0].custom_poster);
+    let backdrop = show.backdrop_url.unwrap();
+    assert!(
+        backdrop.starts_with(&format!("/media{images}/backdrop/")),
+        "{backdrop}"
+    );
+    assert_eq!(looked_up.poster_url, show.poster_url);
+    assert_eq!(looked_up.backdrop_url, Some(backdrop));
 }

@@ -460,17 +460,16 @@ impl RequestService for RequestServiceHandler {
 }
 
 impl RequestServiceHandler {
-    /// The URL and thumbhash of the image a title shows in `slot`: its Custom Image in `images`, or
-    /// else the one at `path` from `plugin`'s Provider, offered to clients.
+    /// The URL and thumbhash of an image a title shows: `custom`, its Custom Image's URL, or else
+    /// the one at `path` from `plugin`'s Provider, offered to clients.
     fn image(
         &self,
         images: &ShownImages,
-        slot: &Slot,
+        custom: Option<String>,
         plugin: &PluginId,
         path: Option<String>,
     ) -> (Option<String>, Option<Vec<u8>>) {
-        let url =
-            (images.custom.of(slot)).or_else(|| path.map(|path| self.artwork.offer(plugin, &path)));
+        let url = custom.or_else(|| path.map(|path| self.artwork.offer(plugin, &path)));
         let thumbhash = images.thumbhash(url.as_deref());
         (url, thumbhash)
     }
@@ -486,7 +485,7 @@ impl RequestServiceHandler {
         } = found;
         let (poster_url, poster_thumbhash) = self.image(
             images,
-            &movie_slot(&id, Role::Poster),
+            images.custom.of(&movie_slot(&id, Role::Poster)),
             &plugin,
             movie.poster,
         );
@@ -515,7 +514,10 @@ impl RequestServiceHandler {
             library,
             request,
         } = found;
-        let image = |role, path| self.image(images, &movie_slot(&id, role), &plugin, path);
+        let image = |role, path| {
+            let custom = (images.custom).of_title(&id, &movie.ids, |id| movie_slot(id, role));
+            self.image(images, custom, &plugin, path)
+        };
         let (poster_url, poster_thumbhash) = image(Role::Poster, movie.poster);
         let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, movie.backdrop);
         proto::FoundMovie {
@@ -541,8 +543,12 @@ impl RequestServiceHandler {
             plugin,
             candidate: show,
         } = hit;
-        let (poster_url, poster_thumbhash) =
-            self.image(images, &show_slot(&id, Role::Poster), &plugin, show.poster);
+        let (poster_url, poster_thumbhash) = self.image(
+            images,
+            images.custom.of(&show_slot(&id, Role::Poster)),
+            &plugin,
+            show.poster,
+        );
         proto::ShowHit {
             id: external_id_to_proto(&id).into(),
             title: show.title,
@@ -563,7 +569,10 @@ impl RequestServiceHandler {
             followed_show,
             quality,
         } = found;
-        let image = |role, path| self.image(images, &show_slot(&id, role), &plugin, path);
+        let image = |role, path| {
+            let custom = (images.custom).of_title(&id, &show.ids, |id| show_slot(id, role));
+            self.image(images, custom, &plugin, path)
+        };
         let (poster_url, poster_thumbhash) = image(Role::Poster, show.poster);
         let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, show.backdrop);
         proto::FoundShow {

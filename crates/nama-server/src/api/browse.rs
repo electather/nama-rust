@@ -202,7 +202,7 @@ impl BrowseService for BrowseServiceHandler {
 fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::MovieInLibrary {
     let downloaded = movie.poster.map(|path| artwork::url(&movie.plugin, &path));
     let poster_url = (images.custom)
-        .of(&Slot::movie(&movie.id, Role::Poster))
+        .of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster))
         .or(downloaded);
     proto::MovieInLibrary {
         library_id: movie.library,
@@ -218,7 +218,7 @@ fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::Movie
 fn found_show_to_proto(show: FoundShow, images: &ShownImages) -> proto::ShowInLibrary {
     let downloaded = show.poster.map(|path| artwork::url(&show.plugin, &path));
     let poster_url = (images.custom)
-        .of(&Slot::show(&show.id, Role::Poster))
+        .of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Poster))
         .or(downloaded);
     proto::ShowInLibrary {
         library_id: show.library,
@@ -253,8 +253,10 @@ fn movie_to_proto(
 ) -> proto::Movie {
     let plugin = movie.plugin;
     let artwork_url = |path: String| artwork::url(&plugin, &path);
-    let custom_poster = images.custom.of(&Slot::movie(&movie.id, Role::Poster));
-    let custom_backdrop = images.custom.of(&Slot::movie(&movie.id, Role::Backdrop));
+    let custom_poster =
+        (images.custom).of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster));
+    let custom_backdrop =
+        (images.custom).of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Backdrop));
     let (poster_is_custom, backdrop_is_custom) =
         (custom_poster.is_some(), custom_backdrop.is_some());
     let poster_url = custom_poster.or_else(|| movie.poster.map(artwork_url));
@@ -325,8 +327,10 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
 /// thumbhashes, and its Custom Images in `images` in place of the downloaded ones. Without a
 /// Poster of its own, it has its first Season's.
 fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
-    let custom_poster = images.custom.of(&Slot::show(&show.id, Role::Poster));
-    let custom_backdrop = images.custom.of(&Slot::show(&show.id, Role::Backdrop));
+    let custom_poster =
+        (images.custom).of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Poster));
+    let custom_backdrop =
+        (images.custom).of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Backdrop));
     let (poster_is_custom, backdrop_is_custom) =
         (custom_poster.is_some(), custom_backdrop.is_some());
     let season_posters: Vec<_> = (show.seasons.keys())
@@ -355,7 +359,8 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
 /// The URL of the Poster of `show`'s Season `number`, its Custom Image in `images` if it has one,
 /// and whether it is.
 fn season_poster(show: &Show, number: i64, images: &ShownImages) -> (Option<String>, bool) {
-    if let Some(url) = images.custom.of(&Slot::season(&show.id, number)) {
+    if let Some(url) = (images.custom).of_title(&show.id, &show.ids, |id| Slot::season(id, number))
+    {
         return (Some(url), true);
     }
     let downloaded = (show.seasons.get(&number)).and_then(|season| season.poster.as_deref());

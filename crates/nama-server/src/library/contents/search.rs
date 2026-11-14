@@ -23,6 +23,8 @@ pub(crate) struct FoundMovie {
     pub(crate) library: i64,
     /// As browsing identifies it: see [`primary_id`].
     pub(crate) id: ExternalId,
+    /// Every id its Match gives it.
+    pub(crate) ids: ExternalIds,
     /// The Plugin whose metadata Provider made the Match, which the poster's path is for.
     pub(crate) plugin: String,
     pub(crate) title: String,
@@ -36,6 +38,8 @@ pub(crate) struct FoundShow {
     pub(crate) library: i64,
     /// As browsing identifies it: see [`primary_id`].
     pub(crate) id: ExternalId,
+    /// Every id the Match of its first Episode found gives it.
+    pub(crate) ids: ExternalIds,
     /// The Plugin whose metadata Provider made the Match, which the poster's path is for.
     pub(crate) plugin: String,
     pub(crate) title: String,
@@ -93,6 +97,7 @@ impl Contents {
                 (ItemKind::Movie, ..) => found.movies.push(FoundMovie {
                     library: row.library,
                     id,
+                    ids: row.ids(),
                     plugin: row.plugin,
                     title: row.title,
                     release_date: row.release_date,
@@ -197,6 +202,7 @@ fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
         shows.push(FoundShow {
             library: row.library,
             id: id.clone(),
+            ids: row.show_ids(),
             plugin: row.plugin.clone(),
             title: title.clone(),
             poster: show_poster(seasons).map(str::to_owned),

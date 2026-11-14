@@ -15,6 +15,8 @@ pub(crate) struct NewestBackdrop {
     pub(crate) path: String,
     /// The Movie's id, or for an Episode its Show's, whose own Custom Backdrop goes first.
     pub(crate) title: ExternalId,
+    /// Every id of that title, any of which a Custom Backdrop may be kept under.
+    pub(crate) ids: ExternalIds,
 }
 
 /// A Movie some Items of a Library are Matched to, with the metadata the Match of its first
@@ -336,8 +338,10 @@ impl Contents {
         Ok(rows
             .into_iter()
             .filter_map(|row| {
+                let ids = ids_from_json(row.ids.as_deref());
                 let backdrop = NewestBackdrop {
-                    title: primary_id(&ids_from_json(row.ids.as_deref()))?,
+                    title: primary_id(&ids)?,
+                    ids,
                     plugin: row.plugin,
                     path: row.backdrop,
                 };

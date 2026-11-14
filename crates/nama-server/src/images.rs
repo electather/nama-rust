@@ -674,8 +674,15 @@ fn key_at(root: &Path, path: &Path) -> Option<Vec<String>> {
 
 /// The text `name` is the [`file_name`] of, if it is one.
 fn unescape(name: &str) -> Option<String> {
-    let mut bytes = Vec::with_capacity(name.len());
-    let mut rest = name.as_bytes();
+    let text = percent_decode(name)?;
+    (file_name(&text) == name).then_some(text)
+}
+
+/// `text` with each `%XX` made the byte it stands for, `None` if one is cut short, isn't hex or
+/// the result isn't UTF-8. It accepts any encoding of a text; a caller wanting one checks it.
+pub(crate) fn percent_decode(text: &str) -> Option<String> {
+    let mut bytes = Vec::with_capacity(text.len());
+    let mut rest = text.as_bytes();
     while let Some((&byte, tail)) = rest.split_first() {
         rest = tail;
         if byte == b'%' {
@@ -686,8 +693,7 @@ fn unescape(name: &str) -> Option<String> {
             bytes.push(byte);
         }
     }
-    let text = String::from_utf8(bytes).ok()?;
-    (file_name(&text) == name).then_some(text)
+    String::from_utf8(bytes).ok()
 }
 
 #[cfg(test)]

@@ -68,12 +68,15 @@ impl Backdrops {
             return (Some(url), true);
         }
         let newest = self.newest.get(&library.id).map(|newest| {
-            let title = match library.kind {
-                Kind::Movies => Slot::movie(&newest.title, Role::Backdrop),
-                Kind::Shows => Slot::show(&newest.title, Role::Backdrop),
+            let slot = |id: &_| match library.kind {
+                Kind::Movies => Slot::movie(id, Role::Backdrop),
+                Kind::Shows => Slot::show(id, Role::Backdrop),
             };
-            (self.images.custom.of(&title))
-                .unwrap_or_else(|| artwork::url(&newest.plugin, &newest.path))
+            (self
+                .images
+                .custom
+                .of_title(&newest.title, &newest.ids, slot))
+            .unwrap_or_else(|| artwork::url(&newest.plugin, &newest.path))
         });
         (newest, false)
     }

@@ -23,12 +23,15 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, put},
 };
-use nama_plugin_api::{PluginId, metadata::ExternalId};
+use nama_plugin_api::{
+    PluginId,
+    metadata::{ExternalId, ExternalIds},
+};
 use sqlx::SqliteConnection;
 
 use crate::{
     db::Database,
-    images::{Asked, ImageStore, Received, Resize, SVG, UploadError},
+    images::{Asked, ImageStore, Received, Resize, SVG, UploadError, percent_decode},
     library::contents::parse_hint,
     server_settings::ImageSettings,
 };
@@ -182,28 +185,24 @@ fn encode(text: &str) -> String {
         .collect()
 }
 
-/// `text` with each `%XX` made the byte it stands for, `None` if one is cut short, isn't hex or
-/// the result isn't UTF-8.
-fn percent_decode(text: &str) -> Option<String> {
-    let mut bytes = Vec::with_capacity(text.len());
-    let mut rest = text.as_bytes();
-    while let Some((&byte, tail)) = rest.split_first() {
-        rest = tail;
-        if byte == b'%' {
-            let hex = std::str::from_utf8(rest.get(..2)?).ok()?;
-            bytes.push(u8::from_str_radix(hex, 16).ok()?);
-            rest = rest.get(2..)?;
-        } else {
-            bytes.push(byte);
-        }
-    }
-    String::from_utf8(bytes).ok()
-}
-
 impl Urls {
     /// The URL of the Custom Image at `slot`, if there is one.
     pub(crate) fn of(&self, slot: &Slot) -> Option<String> {
         self.0.get(slot).cloned()
+    }
+
+    /// The URL of the Custom Image the title `id` has at `slot(its id)`, by `id` or else by any of
+    /// `ids`, in namespace order: any one id identifies a title (ADR 0042), and an admin may have
+    /// uploaded it under another.
+    pub(crate) fn of_title(
+        &self,
+        id: &ExternalId,
+        ids: &ExternalIds,
+        slot: impl Fn(&ExternalId) -> Slot,
+    ) -> Option<String> {
+        iter::once(id.clone())
+            .chain(ids.iter())
+            .find_map(|id| self.of(&slot(&id)))
     }
 }
 
