@@ -15,6 +15,7 @@ use nama_plugin_proto::services;
 use tracing::warn;
 
 use super::{Running, failure_cause};
+use crate::plugins::without_secrets;
 
 /// The export that checks a Plugin's settings, if it has one. No service's: a Plugin of any has it.
 pub(super) const CHECK_SETTINGS: &str = "check_settings";
@@ -48,6 +49,9 @@ pub(super) struct Method {
 pub(super) struct Point {
     /// The service's full name, which a package's Manifest names it by.
     pub(super) service: &'static str,
+    /// The points that count their crashes in a row together: those whose methods call the same
+    /// exports, so one working between them doesn't hide the other's crashes.
+    pub(super) crash_group: &'static str,
     pub(super) methods: &'static [Method],
     pub(super) key: fn() -> PointKey,
     pub(super) register: fn(&mut Registrar, Running),
@@ -108,6 +112,7 @@ pub(super) const OBSERVE_EVENTS: Method = Method {
 pub(super) const POINTS: &[Point] = &[
     Point {
         service: services::MOVIE_FULFILLER,
+        crash_group: "fulfiller",
         methods: &[MOVIE_FULFILL, MOVIE_STOP_MONITORING, MOVIE_PROGRESS],
         key: PointKey::provide::<dyn Fulfiller<Movies>>,
         register: |registrar, running| {
@@ -116,6 +121,7 @@ pub(super) const POINTS: &[Point] = &[
     },
     Point {
         service: services::SHOW_FULFILLER,
+        crash_group: "fulfiller",
         methods: &[
             SHOW_FULFILL,
             SHOW_STOP_MONITORING,
@@ -129,6 +135,7 @@ pub(super) const POINTS: &[Point] = &[
     },
     Point {
         service: services::NOTIFIER,
+        crash_group: services::NOTIFIER,
         methods: &[DELIVER],
         key: PointKey::provide::<dyn Notifier>,
         register: |registrar, running| {
@@ -137,6 +144,7 @@ pub(super) const POINTS: &[Point] = &[
     },
     Point {
         service: services::CONNECTOR,
+        crash_group: services::CONNECTOR,
         methods: &[START_CONNECTION, POLL_CONNECTION],
         key: PointKey::provide::<dyn Connector>,
         register: |registrar, running| {
@@ -145,6 +153,7 @@ pub(super) const POINTS: &[Point] = &[
     },
     Point {
         service: services::EVENT_OBSERVER,
+        crash_group: services::EVENT_OBSERVER,
         methods: &[OBSERVE_EVENTS],
         key: PointKey::observe::<Events>,
         register: |registrar, running| registrar.observe::<Events>(running),
@@ -161,6 +170,12 @@ pub(super) fn known_exports() -> impl Iterator<Item = &'static str> {
 }
 
 impl Running {
+    /// Whether the Plugin serves `method`: a required one always, an optional one if it has the
+    /// export.
+    pub(super) fn serves(&self, method: &Method) -> bool {
+        !method.optional || self.exports.contains(method.export)
+    }
+
     /// Calls `method` with `request` on a fresh instance and decodes its answer, its failure
     /// mapped as the method's [`Failure`] says.
     pub(super) async fn call_method<Req: Message, Resp: Message>(
@@ -178,7 +193,7 @@ impl Running {
                 }
                 Ok(Err(err)) => {
                     self.observer_failed(&err);
-                    return Err(failure_cause(&err).into());
+                    return Err(without_secrets(failure_cause(&err), &self.secrets).into());
                 }
                 Err(err) => {
                     warn!(plugin = %self.package.id, "observer failed: {err}");

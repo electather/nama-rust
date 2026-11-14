@@ -1,6 +1,17 @@
-use nama_plugin_proto::SERVICES;
+use std::sync::Arc;
 
-use super::POINTS;
+use nama_plugin_api::points::ObservedEvents;
+use nama_plugin_proto::{SERVICES, nama::plugin::v1::EventsObserved};
+
+use super::{
+    super::{
+        Running,
+        bundled::BUNDLED,
+        compile,
+        load::{load, write_cache_config},
+    },
+    OBSERVE_EVENTS, POINTS,
+};
 
 #[test]
 fn every_contract_service_has_adapter_rows_and_every_row_a_contract_service() {
@@ -23,4 +34,30 @@ fn every_contract_service_has_adapter_rows_and_every_row_a_contract_service() {
             assert_eq!(method.service, point.service, "{}", method.name);
         }
     }
+}
+
+#[tokio::test]
+async fn an_observers_failure_doesnt_show_its_secret_settings() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let cache_config = write_cache_config(data_dir.path()).unwrap();
+    let (_, wasm) = BUNDLED
+        .iter()
+        .find(|(file, _)| *file == "radarr.wasm")
+        .unwrap();
+    let radarr = load(wasm.to_vec(), &cache_config).unwrap();
+    // Radarr has no Observer, so the call fails naming the export, here standing in for a secret.
+    let running = Running {
+        package: Arc::clone(&radarr.package),
+        compiled: Arc::new(compile(wasm, &cache_config, Vec::new(), Vec::new()).unwrap()),
+        secrets: vec![OBSERVE_EVENTS.export.to_owned()].into(),
+        crashes: Arc::default(),
+        exports: Arc::clone(&radarr.exports),
+    };
+
+    let failed = running
+        .call_method::<_, EventsObserved>(&OBSERVE_EVENTS, &ObservedEvents::default())
+        .await
+        .unwrap_err();
+
+    assert_eq!(failed.to_string(), "Function not found: …");
 }

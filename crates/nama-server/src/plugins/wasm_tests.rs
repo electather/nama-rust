@@ -353,7 +353,9 @@ fn a_manifest_for_another_contract_is_refused_for_that_before_the_rest_is_decode
         refusals,
         [
             format!("it wants Plugin contract ^0.1.0, and this Server has {CONTRACT_VERSION}"),
-            r#"its Plugin contract requirement "one" isn't a semver requirement: unexpected character 'o' while parsing major version number"#.to_owned(),
+            "its Plugin contract requirement \"one\" isn't a semver requirement: \
+             unexpected character 'o' while parsing major version number"
+                .to_owned(),
         ]
         .map(Some)
     );
@@ -417,13 +419,19 @@ fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
     assert_eq!(
         refusals,
         [
-            "its allowed host sonarr.lan:8989 has a port, and allowed hosts are matched without one".to_owned(),
-            "its Manifest names nama.plugin.v1.TitleSourceService, an Extension Point this Server doesn't serve".to_owned(),
-            "it wants nama.plugin.v1.NotifierService ^2.0.0, and this Server serves 1.0.0".to_owned(),
+            "its allowed host sonarr.lan:8989 has a port, and allowed hosts are matched without one"
+                .to_owned(),
+            "its Manifest names nama.plugin.v1.TitleSourceService, \
+             an Extension Point this Server doesn't serve"
+                .to_owned(),
+            "it wants nama.plugin.v1.NotifierService ^2.0.0, and this Server serves 1.0.0"
+                .to_owned(),
             "it wants nama.plugin.v1.NotifierService one, and this Server serves 1.0.0".to_owned(),
             r#"its movie_id_namespaces names "TMDB", which isn't a namespace"#.to_owned(),
             r#"its show_id_namespaces names "tv-db", which isn't a namespace"#.to_owned(),
-            "its Manifest names nama.plugin.v1.ConnectorService, and it has no start_connection export".to_owned(),
+            "its Manifest names nama.plugin.v1.ConnectorService, \
+             and it has no start_connection export"
+                .to_owned(),
             "its setting count is of a kind this Server doesn't know".to_owned(),
             "its setting count's default isn't Integer".to_owned(),
         ]
@@ -539,7 +547,8 @@ fn a_point_missing_one_of_its_exports_refuses_the_plugin_naming_the_export() {
         [
             "its Manifest names nama.plugin.v1.NotifierService, and it has no deliver export",
             "its Manifest names nama.plugin.v1.ShowFulfillerService, and it has no unfollow export",
-            "its Manifest names nama.plugin.v1.ConnectorService, and it has no poll_connection export",
+            "its Manifest names nama.plugin.v1.ConnectorService, \
+             and it has no poll_connection export",
         ]
         .map(|refusal| Some(refusal.to_owned()))
     );
@@ -571,12 +580,12 @@ async fn a_fulfiller_without_the_stop_monitoring_export_isnt_asked() {
         .unwrap();
     let radarr = load(wasm.to_vec(), &cache_config).unwrap();
     // Without its settings Radarr fails when asked, so only one not asked succeeds.
-    let running_with = |stops_monitoring| Running {
+    let running_with = |exports: &[&'static str]| Running {
         package: Arc::clone(&radarr.package),
         compiled: Arc::new(compile(wasm, &cache_config, Vec::new(), Vec::new()).unwrap()),
         secrets: Arc::default(),
         crashes: Arc::default(),
-        stops_monitoring,
+        exports: Arc::new(exports.iter().copied().collect()),
     };
     let alien = StopMonitoring {
         title: Some(Title::from(MovieDeleted {
@@ -595,9 +604,9 @@ async fn a_fulfiller_without_the_stop_monitoring_export_isnt_asked() {
             .is_ok()
     };
 
-    assert!(radarr.stops_monitoring);
-    assert!(!stop(running_with(true)).await);
-    assert!(stop(running_with(false)).await);
+    assert!(radarr.exports.contains("stop_monitoring"));
+    assert!(!stop(running_with(&["stop_monitoring"])).await);
+    assert!(stop(running_with(&[])).await);
 }
 
 #[test]
@@ -614,7 +623,7 @@ fn a_fulfiller_needs_the_id_namespaces_its_manifest_names() {
         compiled: Arc::clone(&compiled),
         secrets: Arc::default(),
         crashes: Arc::default(),
-        stops_monitoring: false,
+        exports: Arc::default(),
     };
     let naming = running(Manifest {
         movie_id_namespaces: vec!["tmdb".to_owned(), "imdb".to_owned()],
@@ -663,7 +672,8 @@ fn a_point_this_server_doesnt_know_refuses_the_plugin() {
     assert_eq!(
         refusals,
         [
-            "its Manifest names nama.plugin.v1.TitleSourceService, an Extension Point this Server doesn't serve",
+            "its Manifest names nama.plugin.v1.TitleSourceService, \
+             an Extension Point this Server doesn't serve",
             "its Manifest names NotifierService, an Extension Point this Server doesn't serve",
         ]
         .map(|refusal| Some(refusal.to_owned()))

@@ -26,7 +26,7 @@ use super::{
     Installed, Point, Refused,
     bundled::BUNDLED,
     check_exports, contract, points,
-    services::{CHECK_SETTINGS, MOVIE_STOP_MONITORING, known_exports},
+    services::{CHECK_SETTINGS, known_exports},
 };
 use crate::plugins::{contain_sync, kept_logo};
 
@@ -121,7 +121,7 @@ pub(super) fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refu
     if !wasm.starts_with(WASM_MAGIC) {
         return Err(Refused::NotWasm);
     }
-    let (bytes, exported): (_, Vec<&str>) = contain_sync(|| {
+    let (bytes, exported): (_, Vec<&'static str>) = contain_sync(|| {
         let compiled =
             compile(&wasm, cache_config, Vec::new(), Vec::new()).map_err(Refused::Load)?;
         let mut plugin = extism::Plugin::new_from_compiled(&compiled).map_err(Refused::Manifest)?;
@@ -141,7 +141,7 @@ pub(super) fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refu
         wasm: wasm.into(),
         cache_config: cache_config.into(),
         checks_settings: exported.contains(&CHECK_SETTINGS),
-        stops_monitoring: exported.contains(&MOVIE_STOP_MONITORING.export),
+        exports: Arc::new(exported.into_iter().collect()),
     })
 }
 

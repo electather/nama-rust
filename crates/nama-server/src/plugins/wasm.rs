@@ -3,7 +3,7 @@
 //! Built-in Plugin, so the Kernel can't tell them apart.
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, BTreeSet, HashMap},
     io, panic,
     path::Path,
     sync::{
@@ -118,8 +118,8 @@ pub(super) struct Installed {
     cache_config: Arc<Path>,
     /// Whether it exports [`CHECK_SETTINGS`].
     checks_settings: bool,
-    /// Whether it exports a Fulfiller's optional `stop_monitoring`.
-    stops_monitoring: bool,
+    /// Its exports among those the Server may call.
+    exports: Arc<BTreeSet<&'static str>>,
 }
 
 /// An enabled Installed Plugin, compiled once with its allowed hosts and settings. Each call into
@@ -130,11 +130,11 @@ struct Running {
     compiled: Arc<CompiledPlugin>,
     /// The values of its secret settings, which the failures it logs mustn't show.
     secrets: Arc<[String]>,
-    /// How many calls in a row crashed, counted apart for its Observer, its Fulfiller, its
-    /// Notifier and its Connector.
+    /// How many calls in a row crashed, counted apart for each of its points' `crash_group`s.
     crashes: Arc<AtomicU32>,
-    /// Whether it exports a Fulfiller's optional `stop_monitoring`.
-    stops_monitoring: bool,
+    /// Its exports among those the Server may call, which tell whether it serves an optional
+    /// method.
+    exports: Arc<BTreeSet<&'static str>>,
 }
 
 impl Running {
@@ -275,27 +275,17 @@ impl Plugin for Installed {
             compiled: Arc::new(compiled),
             secrets: secret_values(schema, settings).into(),
             crashes: Arc::default(),
-            stops_monitoring: self.stops_monitoring,
+            exports: Arc::clone(&self.exports),
         };
         // The Kernel refuses a Plugin registering at a point its Manifest doesn't name, so read
         // them from the same list the Kernel checks.
         let declared = &self.manifest.extension_points;
-        // Its Movie and Show Fulfillers call the same `fulfill` export, so they count as one.
-        let fulfiller_crashes = Arc::<AtomicU32>::default();
+        let mut crash_groups = BTreeMap::<_, Arc<AtomicU32>>::new();
         for point in POINTS
             .iter()
             .filter(|point| declared.contains(&(point.key)()))
         {
-            // Each counting its own crashes, so one point working between them doesn't hide them.
-            let fulfills = point
-                .methods
-                .iter()
-                .any(|method| method.export == services::MOVIE_FULFILL.export);
-            let crashes = if fulfills {
-                Arc::clone(&fulfiller_crashes)
-            } else {
-                Arc::default()
-            };
+            let crashes = Arc::clone(crash_groups.entry(point.crash_group).or_default());
             (point.register)(
                 registrar,
                 Running {
@@ -320,7 +310,9 @@ fn points(package: &wire::Manifest) -> Result<Vec<&'static Point>, Refused> {
                 .iter()
                 .find(|point| point.service == named.service)
                 .ok_or_else(|| Refused::UnknownPoint(named.service.clone()))?;
-            let version = served_version(point.service);
+            // POINTS equals SERVICES by test, so every point has a version.
+            let version = served_version(point.service)
+                .ok_or_else(|| Refused::UnknownPoint(named.service.clone()))?;
             let met = VersionReq::parse(&named.version)
                 .is_ok_and(|wants| Version::parse(version).is_ok_and(|v| wants.matches(&v)));
             if !met {
@@ -336,11 +328,11 @@ fn points(package: &wire::Manifest) -> Result<Vec<&'static Point>, Refused> {
 }
 
 /// The version this Server serves `service` at, from the contract's `SERVICES`.
-fn served_version(service: &str) -> &'static str {
+fn served_version(service: &str) -> Option<&'static str> {
     SERVICES
         .iter()
         .find(|&&(name, _)| name == service)
-        .map_or("none", |&(_, version)| version)
+        .map(|&(_, version)| version)
 }
 
 /// Checks that a Plugin has every export `points` need, `has_export` telling which it has.
@@ -385,7 +377,7 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
         &'a self,
         title: &'a StopMonitoring,
     ) -> BoxFuture<'a, Result<(), PluginError>> {
-        if !self.stops_monitoring {
+        if !self.serves(Kind::STOP_MONITORING) {
             return Box::pin(async { Ok(()) });
         }
         Box::pin(async move {

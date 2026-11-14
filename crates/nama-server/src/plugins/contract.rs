@@ -137,7 +137,7 @@ pub(crate) fn notification(
     clippy::too_many_lines,
     reason = "one exhaustive match, so a new client kind must be placed in or out"
 )]
-pub(crate) fn event(event: &api::Event) -> Option<wire::Event> {
+fn event(event: &api::Event) -> Option<wire::Event> {
     use api::event::Event as Api;
     use wire::event::Event as Wire;
     let event = match event.event.as_ref()? {

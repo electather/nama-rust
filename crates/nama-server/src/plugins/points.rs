@@ -273,8 +273,8 @@ impl ExtensionPoints {
                 Err(())
             }
         });
-        // A Built-in Plugin is only disabled until a restart, since saving the last Authenticator disabled would stop
-        // the Server starting.
+        // A Built-in Plugin is only disabled until a restart, since saving the last Authenticator
+        // disabled would stop the Server starting.
         let crashed = self.read(|state| {
             let installed = state
                 .known
