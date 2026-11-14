@@ -30,11 +30,27 @@ pub(crate) enum Error {
 }
 
 /// The metadata Providers among [`ExtensionPoints`], asked through the one that comes first, or
-/// only through one Plugin's.
+/// only through one Plugin's; or, through the routing methods, in turn by namespace.
 #[derive(Debug, Clone)]
 pub(crate) struct MetadataSource {
     plugins: ExtensionPoints,
     only: Option<PluginId>,
+    /// The namespaces of the sources the routing methods ask, in the order they ask them; every
+    /// source, in admin provider precedence, when `None`.
+    order: Option<Vec<String>>,
+}
+
+/// An enabled title source and the namespace it keeps titles under.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "routing callers move over in later tasks")
+)]
+pub(crate) struct Source {
+    /// The Plugin serving it.
+    pub(crate) plugin: PluginId,
+    /// The namespace it keeps titles under.
+    pub(crate) namespace: String,
 }
 
 impl MetadataSource {
@@ -42,6 +58,7 @@ impl MetadataSource {
         Self {
             plugins,
             only: None,
+            order: None,
         }
     }
 
@@ -51,6 +68,7 @@ impl MetadataSource {
         Self {
             plugins: self.plugins.clone(),
             only: Some(plugin),
+            order: self.order.clone(),
         }
     }
 
@@ -107,6 +125,183 @@ impl MetadataSource {
             })
             .await;
         meaning(answered).map(|(_, image)| image)
+    }
+
+    /// The same sources, the routing methods asking only those whose namespace is in `order`, in
+    /// that order, such as a Library's.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "routing callers move over in later tasks")
+    )]
+    pub(crate) fn in_order(&self, order: Vec<String>) -> Self {
+        Self {
+            plugins: self.plugins.clone(),
+            only: self.only.clone(),
+            order: Some(order),
+        }
+    }
+
+    /// The enabled title sources the routing methods ask, in the order they ask them. A source
+    /// whose namespace isn't well formed is left out.
+    // ponytail: asks each source its namespace per call; cache it if that shows up.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "routing callers move over in later tasks")
+    )]
+    pub(crate) async fn sources(&self) -> Vec<Source> {
+        let mut sources = Vec::new();
+        for plugin in self.plugins.ranked::<dyn TitleSource>() {
+            if self.only.as_ref().is_some_and(|only| *only != plugin) {
+                continue;
+            }
+            let answered = self
+                .plugins
+                .ask(&plugin, |source: Arc<dyn TitleSource>| async move {
+                    Ok::<_, MetadataError>(source.namespace().to_owned())
+                })
+                .await;
+            let Ok((_, namespace)) = meaning(answered) else {
+                continue;
+            };
+            // The namespace check `ExternalId::new` makes, with a stand-in value.
+            if ExternalId::new(&namespace, "_").is_err() {
+                tracing::warn!(%plugin, namespace, "the title source's namespace isn't well formed");
+                continue;
+            }
+            sources.push(Source { plugin, namespace });
+        }
+        if let Some(order) = &self.order {
+            sources.retain(|source| order.contains(&source.namespace));
+            sources.sort_by_key(|source| order.iter().position(|n| *n == source.namespace));
+        }
+        sources
+    }
+
+    /// Whether some source the routing methods ask keeps titles under `namespace`, such as an ID
+    /// Hint's.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "routing callers move over in later tasks")
+    )]
+    pub(crate) async fn serves(&self, namespace: &str) -> bool {
+        let sources = self.sources().await;
+        sources.iter().any(|source| source.namespace == namespace)
+    }
+
+    /// The titles the first source in order to find any finds for `query`, best fit first, with
+    /// that source. A source that has none, or doesn't search, passes to the next; one that fails
+    /// stops the search as [`Error::Unavailable`], so a source being down never changes which
+    /// source Matches.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "routing callers move over in later tasks")
+    )]
+    pub(crate) async fn search_in_turn(
+        &self,
+        query: &SearchQuery,
+    ) -> Result<(Source, Vec<Candidate>), Error> {
+        let sources = self.sources().await;
+        self.first_answer(sources, Vec::is_empty, |metadata| {
+            let query = query.clone();
+            async move { metadata.search(&query).await }
+        })
+        .await
+    }
+
+    /// The metadata of the Movie with the id `id`, from the source keeping titles under its
+    /// namespace, or else the first other one in order to have it, with that source. Fails as
+    /// [`MetadataSource::search_in_turn`] does.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "routing callers move over in later tasks")
+    )]
+    pub(crate) async fn movie_by(&self, id: &ExternalId) -> Result<(Source, Metadata), Error> {
+        let sources = self.by_namespace(id.namespace()).await;
+        let (source, movie) = self
+            .first_answer(
+                sources,
+                |_| false,
+                |metadata| {
+                    let id = id.clone();
+                    async move { metadata.movie(&id).await }
+                },
+            )
+            .await?;
+        let metadata = Metadata::movie(source.plugin.clone(), movie);
+        Ok((source, metadata))
+    }
+
+    /// The Show with the id `id`, routed as [`MetadataSource::movie_by`] routes a Movie.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "routing callers move over in later tasks")
+    )]
+    pub(crate) async fn show_by(&self, id: &ExternalId) -> Result<(Source, Show), Error> {
+        let sources = self.by_namespace(id.namespace()).await;
+        self.first_answer(
+            sources,
+            |_| false,
+            |metadata| {
+                let id = id.clone();
+                async move { metadata.show(&id).await }
+            },
+        )
+        .await
+    }
+
+    /// The Season `number` of the Show with the id `show`, asked only of `source`, which keeps the
+    /// Show.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "routing callers move over in later tasks")
+    )]
+    pub(crate) async fn season_from(
+        &self,
+        source: &Source,
+        show: &ExternalId,
+        number: u32,
+    ) -> Result<Season, Error> {
+        let answered = self
+            .plugins
+            .ask(&source.plugin, |metadata: Arc<dyn TitleSource>| {
+                let show = show.clone();
+                async move { metadata.season(&show, number).await }
+            })
+            .await;
+        meaning(answered).map(|(_, season)| season)
+    }
+
+    /// The sources in order, those keeping titles under `namespace` first.
+    async fn by_namespace(&self, namespace: &str) -> Vec<Source> {
+        let mut sources = self.sources().await;
+        sources.sort_by_key(|source| source.namespace != namespace);
+        sources
+    }
+
+    /// The first answer of `sources`, asked in turn, that isn't `empty`. Not found, or an empty
+    /// answer, passes to the next source; a failure stops. [`Error::NotFound`] when every source
+    /// passed, [`Error::Unavailable`] when there was none.
+    async fn first_answer<R, F>(
+        &self,
+        sources: Vec<Source>,
+        empty: impl Fn(&R) -> bool,
+        call: impl Fn(Arc<dyn TitleSource>) -> F,
+    ) -> Result<(Source, R), Error>
+    where
+        F: Future<Output = Result<R, MetadataError>>,
+    {
+        if sources.is_empty() {
+            tracing::debug!("no title source could be asked");
+            return Err(Error::Unavailable);
+        }
+        for source in sources {
+            match meaning(self.plugins.ask(&source.plugin, &call).await) {
+                Ok((_, answer)) if !empty(&answer) => return Ok((source, answer)),
+                Ok(_) | Err(Error::NotFound) => {}
+                Err(Error::Unavailable) => return Err(Error::Unavailable),
+            }
+        }
+        Err(Error::NotFound)
     }
 
     async fn ask<R, F>(
@@ -181,178 +376,5 @@ impl Metadata {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use nama_plugin_api::{
-        BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-        metadata::{
-            Candidate, Episode, ExternalId, IMDB, Image, MetadataError, Movie, SearchQuery, Season,
-            Show, TitleSource,
-        },
-        settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
-    };
-
-    use super::{Error, MetadataSource};
-    use crate::plugins::{Failure, Registry};
-
-    /// A title source that answers every question with the error `.0` makes.
-    struct Failing(fn() -> MetadataError);
-
-    impl TitleSource for Failing {
-        fn namespace(&self) -> &'static str {
-            "tmdb"
-        }
-
-        fn search<'a>(
-            &'a self,
-            _query: &'a SearchQuery,
-        ) -> BoxFuture<'a, Result<Vec<Candidate>, MetadataError>> {
-            Box::pin(async { Err(self.0()) })
-        }
-
-        fn movie<'a>(&'a self, _id: &'a ExternalId) -> BoxFuture<'a, Result<Movie, MetadataError>> {
-            Box::pin(async { Err(self.0()) })
-        }
-
-        fn show<'a>(&'a self, _id: &'a ExternalId) -> BoxFuture<'a, Result<Show, MetadataError>> {
-            Box::pin(async { Err(self.0()) })
-        }
-
-        fn season<'a>(
-            &'a self,
-            _show: &'a ExternalId,
-            _season: u32,
-        ) -> BoxFuture<'a, Result<Season, MetadataError>> {
-            Box::pin(async { Err(self.0()) })
-        }
-
-        fn episode<'a>(
-            &'a self,
-            _show: &'a ExternalId,
-            _season: u32,
-            _episode: u32,
-        ) -> BoxFuture<'a, Result<Episode, MetadataError>> {
-            Box::pin(async { Err(self.0()) })
-        }
-
-        fn image<'a>(&'a self, _path: &'a str) -> BoxFuture<'a, Result<Image, MetadataError>> {
-            Box::pin(async { Err(self.0()) })
-        }
-    }
-
-    struct FailingPlugin(fn() -> MetadataError);
-
-    impl Plugin for FailingPlugin {
-        fn manifest(&self) -> Manifest {
-            Manifest {
-                id: PluginId::from_static("failing"),
-                name: String::new(),
-                description: String::new(),
-                version: "0.0.0".to_owned(),
-                settings: SettingsSchema {
-                    fields: vec![SettingField {
-                        key: "api_key".to_owned(),
-                        label: String::new(),
-                        description: String::new(),
-                        kind: SettingKind::Secret,
-                        required: false,
-                        default: None,
-                    }],
-                },
-                extension_points: vec![PointKey::provide::<dyn TitleSource>()],
-                logo_svg: None,
-            }
-        }
-
-        fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-            registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(Failing(self.0)));
-            Ok(())
-        }
-    }
-
-    /// What asking for a Show, then for an image from the Plugin `failing`, fails with when its
-    /// Provider fails with `failure`, or when there is no Provider.
-    async fn asking(failure: Option<fn() -> MetadataError>) -> (Error, Error) {
-        let plugins = Registry::new();
-        if let Some(failure) = failure {
-            plugins.enable(Arc::new(FailingPlugin(failure))).unwrap();
-        }
-        let source = MetadataSource::new(plugins.extension_points());
-        let show = source.show(&ExternalId::tmdb(1399)).await.unwrap_err();
-        let image = source
-            .image(&PluginId::from_static("failing"), "/poster.jpg")
-            .await
-            .unwrap_err();
-        (show, image)
-    }
-
-    #[tokio::test]
-    async fn without_a_provider_the_source_is_unavailable() {
-        assert_eq!(asking(None).await, (Error::Unavailable, Error::Unavailable));
-    }
-
-    #[tokio::test]
-    async fn a_title_the_provider_does_not_have_is_not_found() {
-        let failure = || MetadataError::NotFound;
-
-        assert_eq!(
-            asking(Some(failure)).await,
-            (Error::NotFound, Error::NotFound)
-        );
-    }
-
-    #[tokio::test]
-    async fn an_id_the_provider_cannot_look_up_is_not_found() {
-        let failure = || MetadataError::UnsupportedId(ExternalId::new(IMDB, "tt0944947").unwrap());
-
-        assert_eq!(
-            asking(Some(failure)).await,
-            (Error::NotFound, Error::NotFound)
-        );
-    }
-
-    #[tokio::test]
-    async fn a_method_the_source_does_not_serve_is_not_found() {
-        let failure = || MetadataError::Unsupported;
-
-        assert_eq!(
-            asking(Some(failure)).await,
-            (Error::NotFound, Error::NotFound)
-        );
-    }
-
-    #[tokio::test]
-    async fn a_provider_that_fails_is_unavailable() {
-        let failure = || MetadataError::Failed("TMDB is unreachable".into());
-
-        assert_eq!(
-            asking(Some(failure)).await,
-            (Error::Unavailable, Error::Unavailable)
-        );
-    }
-
-    #[tokio::test]
-    async fn a_providers_failure_comes_without_its_plugins_secret_settings() {
-        let plugins = Registry::new();
-        let failure = || MetadataError::Failed("GET /tv/1399?api_key=s3cr3t failed".into());
-        let api_key = SettingValue::Text("s3cr3t".to_owned());
-        let settings = Settings::new([("api_key".to_owned(), api_key)].into());
-        plugins
-            .enable_with_settings(Arc::new(FailingPlugin(failure)), settings)
-            .unwrap();
-
-        let answer = plugins
-            .ask_first(|metadata: Arc<dyn TitleSource>| async move {
-                metadata.show(&ExternalId::tmdb(1399)).await
-            })
-            .await
-            .unwrap();
-
-        let blanked = Failure {
-            kind: Error::Unavailable,
-            message: "GET /tv/1399?api_key=… failed".to_owned(),
-        };
-        assert_eq!(answer.result.unwrap_err(), blanked);
-    }
-}
+#[path = "metadata_tests.rs"]
+mod tests;

@@ -104,17 +104,8 @@ impl ExtensionPoints {
         E: ProviderError<K>,
     {
         let point = PointKey::provide::<T>();
-        let mut entries = self.entries(point);
+        let mut entries = self.ranked_entries(point);
         entries.retain(|entry| only.is_none_or(|plugin| entry.plugin == *plugin));
-        let precedence =
-            self.read(|state| state.precedence.get(&point).cloned().unwrap_or_default());
-        // Stable, so Providers the admin didn't rank keep their priority order.
-        entries.sort_by_key(|entry| {
-            precedence
-                .iter()
-                .position(|ranked| *ranked == entry.plugin)
-                .unwrap_or(usize::MAX)
-        });
         for entry in entries {
             let Some(provider) = entry.registration.provider::<T>() else {
                 continue;
@@ -218,6 +209,29 @@ impl ExtensionPoints {
     pub fn providers<T: ?Sized + 'static>(&self) -> BTreeSet<PluginId> {
         let entries = self.entries(PointKey::provide::<T>());
         entries.into_iter().map(|entry| entry.plugin).collect()
+    }
+
+    /// The enabled Plugins that provide a `T`, in the order [`ExtensionPoints::ask_first`] asks
+    /// them, for a caller that picks which to [`ask`](ExtensionPoints::ask) itself.
+    #[must_use]
+    pub fn ranked<T: ?Sized + 'static>(&self) -> Vec<PluginId> {
+        let entries = self.ranked_entries(PointKey::provide::<T>());
+        entries.into_iter().map(|entry| entry.plugin).collect()
+    }
+
+    /// The handlers at `point` in the order [`ExtensionPoints::ask_first`] asks them.
+    fn ranked_entries(&self, point: PointKey) -> Vec<Entry> {
+        let mut entries = self.entries(point);
+        let precedence =
+            self.read(|state| state.precedence.get(&point).cloned().unwrap_or_default());
+        // Stable, so Providers the admin didn't rank keep their priority order.
+        entries.sort_by_key(|entry| {
+            precedence
+                .iter()
+                .position(|ranked| *ranked == entry.plugin)
+                .unwrap_or(usize::MAX)
+        });
+        entries
     }
 
     /// Disables the Plugin `id` if `check`, given the state and its enablement if it is enabled,
