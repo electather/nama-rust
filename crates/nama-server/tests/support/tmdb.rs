@@ -21,6 +21,8 @@ pub(crate) const DARK: i64 = 70_523;
 pub(crate) const DARK_TVDB: i64 = 334_824;
 /// The Office (US), a Show.
 pub(crate) const THE_OFFICE: i64 = 2316;
+/// Unlisted, a made-up Show the fake TMDB knows no TVDB id for.
+pub(crate) const UNLISTED: i64 = 900_001;
 
 /// Starts a fake TMDB and enables the TMDB Plugin in `plugins` against it, with the fake's API
 /// key. The fake serves until dropped.

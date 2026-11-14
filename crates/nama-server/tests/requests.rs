@@ -52,7 +52,6 @@ use nama_proto::nama::v1::{
 };
 use nama_server::{
     config::{Config, PluginConfig},
-    db::Database,
     ffmpeg::Ffmpeg,
     plugin_settings::{self, PluginSettings},
     plugins::Registry,
@@ -63,7 +62,7 @@ use server::{
     fulfiller::{FakeFulfiller, Fulfills, MOVIE_FULFILLER, SHOWS_FULFILLER, quality},
     requests::{Requester, title_id, tmdb_id},
     subscribe,
-    tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, HEAT, THE_OFFICE},
+    tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, HEAT, THE_OFFICE, UNLISTED},
 };
 use tokio::{net::TcpListener, sync::mpsc};
 
@@ -1402,30 +1401,12 @@ async fn a_season_request_whose_show_has_no_tvdb_id_is_still_handed_to_the_shows
     let fixture = Fixture::with_shows_fulfiller(&[]).await;
     let fulfiller = fixture.server.fulfiller();
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
-    let pending = requests(as_ada).ask_seasons(DARK, &[1]).await;
-    forget_show_tvdb_ids(fixture.server.db()).await;
+    let pending = requests(as_ada).ask_seasons(UNLISTED, &[1]).await;
 
     let approved = fixture.server.approve(pending[0].id).await;
 
     assert_eq!(approved.state, RequestState::Processing);
-    assert_eq!(fulfiller.handed_seasons(), [(DARK, None, 1, false)]);
-}
-
-/// Forgets every Season Request's Show TVDB id, as for a Show the metadata source has none for.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn forget_show_tvdb_ids(db: &Database) {
-    db.write(|tx| {
-        Box::pin(async move {
-            sqlx::query("DELETE FROM request_title_ids WHERE namespace = 'tvdb'")
-                .execute(&mut **tx)
-                .await
-        })
-    })
-    .await
-    .unwrap();
+    assert_eq!(fulfiller.handed_seasons(), [(UNLISTED, None, 1, false)]);
 }
 
 #[tokio::test]

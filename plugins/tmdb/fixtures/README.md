@@ -15,3 +15,6 @@ have a Season still airing.
 
 `search-tv-euphoria.json` departs from TMDB on purpose too: its second Euphoria, with no
 `origin_country`, is made up, so tests have a Show a country tag drops.
+
+`tv-900001.json` and its Season are made up: a Show with neither a TVDB nor an IMDb id, so tests
+have a Show a Fulfiller needing one cannot take.

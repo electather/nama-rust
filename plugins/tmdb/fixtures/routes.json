@@ -29,5 +29,7 @@
   "/3/find/1?external_source=tvdb_id": "find-empty.json",
   "/3/search/tv?query=Euphoria": "search-tv-euphoria.json",
   "/3/tv/85552?append_to_response=external_ids": "tv-85552.json",
-  "/3/tv/85552/season/1?append_to_response=external_ids": "tv-85552-season-1.json"
+  "/3/tv/85552/season/1?append_to_response=external_ids": "tv-85552-season-1.json",
+  "/3/tv/900001?append_to_response=external_ids": "tv-900001.json",
+  "/3/tv/900001/season/1?append_to_response=external_ids": "tv-900001-season-1.json"
 }

@@ -30,7 +30,7 @@ use server::{
     fulfiller::quality,
     requests::Requester,
     subscribe,
-    tmdb::{DARK, DARK_TVDB, THE_OFFICE},
+    tmdb::{DARK, DARK_TVDB, THE_OFFICE, UNLISTED},
 };
 
 /// Quality profiles the fake Sonarr offers, by id.
@@ -128,22 +128,6 @@ impl Fixture {
             .remove(0);
         assert_eq!(asked.state, RequestState::Pending);
         asked
-    }
-
-    /// Forgets every Season Request's Show TVDB id, as for a Show the metadata source has none
-    /// for.
-    async fn forget_show_tvdb_ids(&self) {
-        self.server
-            .db()
-            .write(|tx| {
-                Box::pin(async move {
-                    sqlx::query("DELETE FROM request_title_ids WHERE namespace = 'tvdb'")
-                        .execute(&mut **tx)
-                        .await
-                })
-            })
-            .await
-            .unwrap();
     }
 
     /// Subscribes as the Admin to the progress of every Request.
@@ -295,8 +279,7 @@ async fn with_sonarr_down_a_request_fails_in_plain_words_and_retrying_once_it_is
 async fn a_season_of_a_show_with_no_tvdb_id_fails_in_plain_words_without_asking_sonarr() {
     let fixture = Fixture::with_sonarr_enabled().await;
     let ada = fixture.server.user_with_default_permissions("Ada").await;
-    let pending = fixture.ask_pending(&ada, DARK, 1).await;
-    fixture.forget_show_tvdb_ids().await;
+    let pending = fixture.ask_pending(&ada, UNLISTED, 1).await;
 
     let failed = fixture.server.approve(pending.id).await;
 
