@@ -516,7 +516,23 @@ fn every_bundled_plugin_declares_its_settings_kinds_and_defaults() {
         ),
     ];
 
+    let fanart = [
+        ("api_key", SettingKind::Secret, None),
+        ("client_key", SettingKind::Secret, None),
+        (
+            "api_url",
+            SettingKind::Url,
+            Some(text("https://webservice.fanart.tv/v3")),
+        ),
+        (
+            "assets_url",
+            SettingKind::Url,
+            Some(text("https://assets.fanart.tv")),
+        ),
+    ];
+
     let expected = |file: &str| match file {
+        "fanart.wasm" => &fanart[..],
         "radarr.wasm" | "sonarr.wasm" => &servarr[..],
         "telegram.wasm" => &telegram[..],
         "tvdb.wasm" => &tvdb[..],

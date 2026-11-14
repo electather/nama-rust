@@ -261,6 +261,7 @@ jobs:
           cargo clippy
           --package nama-plugin-proto
           --package nama-test-plugin
+          --package nama-plugin-fanart
           --package nama-plugin-radarr
           --package nama-plugin-sonarr
           --package nama-plugin-telegram

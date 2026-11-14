@@ -5,6 +5,7 @@ The Plugin development kit: everything a Nama Installed Plugin needs, from its M
 Start from [`plugins/template`](../../plugins/template), a Notifier posting to a webhook, which CI builds so it keeps up with this crate. Fuller examples:
 
 - [`plugins/tvdb`](../../plugins/tvdb): a title source.
+- [`plugins/fanart`](../../plugins/fanart): a title source serving only artwork lists.
 - [`plugins/sonarr`](../../plugins/sonarr): a Fulfiller, with Choice settings.
 - [`plugins/telegram`](../../plugins/telegram): a Notifier and a Connector.
 

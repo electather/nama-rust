@@ -269,6 +269,7 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     assert_eq!(
         kinds,
         [
+            ("fanart", installed),
             ("local-auth", built_in),
             ("log-events", built_in),
             ("radarr", installed),
@@ -289,6 +290,7 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     assert!(!plugin(&listed, "sonarr").enabled);
     assert!(!plugin(&listed, "telegram").enabled);
     assert!(!plugin(&listed, "tvdb").enabled);
+    assert!(!plugin(&listed, "fanart").enabled);
 }
 
 // `plugins/AGENTS.md`: every Plugin ships a logo.
@@ -334,6 +336,7 @@ async fn every_plugin_is_listed_with_its_extension_points_enabled_or_not() {
     );
     assert_eq!(points("tmdb"), [EXTENSION_POINT_METADATA_PROVIDER]);
     assert_eq!(points("tvdb"), [EXTENSION_POINT_METADATA_PROVIDER]);
+    assert_eq!(points("fanart"), [EXTENSION_POINT_METADATA_PROVIDER]);
 }
 
 #[tokio::test]
