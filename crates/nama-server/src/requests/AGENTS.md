@@ -12,5 +12,5 @@ Requests and Followed Shows: Users asking for what isn't on the Server (ADR 0012
 
 ### Neighbours
 
-- Uses: `library::contents` (`Contents`, `Metadata`, `library_with_movie`, `matched_episodes`), `metadata` (`MetadataSource`), `events`, `plugins` (`ExtensionPoints`, `Answer`), `users` and `db`.
+- Uses: `library::contents` (`Contents`, `Metadata`, `library_with_movie`, `matched_episodes`), `library::title_source` (`MetadataSource`), `events`, `plugins` (`ExtensionPoints`, `Answer`), `users` and `db`.
 - Used by: the `api` parts for Requests and Plugins, `scanner` (deleting media, `RequestTitle`), `browse` (`RequestTitle`), `plugin_settings` (`qualities`), startup in `lib.rs`, `library::contents` (the ADR 0012 call), and `events` (`visible_to`, `may_see`), an import up the rows that a later stage cuts.

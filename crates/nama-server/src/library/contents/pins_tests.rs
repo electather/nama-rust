@@ -7,7 +7,7 @@ use super::{
     },
     Pin,
 };
-use crate::libraries::Kind;
+use crate::library::libraries::Kind;
 
 #[tokio::test]
 async fn a_pin_still_applies_after_its_items_are_replaced() {

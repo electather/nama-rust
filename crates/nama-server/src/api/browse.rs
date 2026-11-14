@@ -12,13 +12,13 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    artwork,
     browse::{self, Browse, Episode, Movie, Show, Started, Version},
-    custom_images::{Role, Slot},
-    libraries::Kind,
+    library::artwork,
     library::contents::{FoundEpisode, FoundMovie, FoundShow, show_poster},
+    library::custom_images::{Role, Slot},
+    library::libraries::Kind,
+    library::watch_states::WatchState,
     tracks::track_to_proto,
-    watch_states::WatchState,
 };
 
 use super::{

@@ -12,15 +12,15 @@ use tokio_util::sync::CancellationToken;
 
 use super::{season, show};
 use crate::{
-    artwork::Artwork,
-    custom_images::CustomImages,
     db::Database,
     events::EventBus,
     images::ImageStore,
-    libraries::Libraries,
+    library::artwork::Artwork,
     library::contents::{Change, Contents, Item, Pin, UnmatchedReason, fixture},
+    library::custom_images::CustomImages,
+    library::libraries::Libraries,
+    library::title_source::MetadataSource,
     matching::{Miss, Summary, TitleKey},
-    metadata::MetadataSource,
     plugins::{ExtensionPoints, Registry},
     scanner::Scanner,
     server_settings::ServerUrl,

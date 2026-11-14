@@ -15,7 +15,7 @@ use super::quality::show_requests;
 use super::{Error, Requests};
 use crate::{
     library::contents::{self, Metadata},
-    metadata,
+    library::title_source,
     users::User,
 };
 
@@ -98,8 +98,8 @@ impl Requests {
         };
         let (plugin, candidates) = match self.metadata.search(&query).await {
             Ok(found) => found,
-            Err(metadata::Error::NotFound) => return Ok(Vec::new()),
-            Err(metadata::Error::Unavailable) => return Err(Error::Unavailable),
+            Err(title_source::Error::NotFound) => return Ok(Vec::new()),
+            Err(title_source::Error::Unavailable) => return Err(Error::Unavailable),
         };
         Ok(candidates
             .into_iter()
@@ -237,9 +237,9 @@ impl Requests {
 }
 
 /// `err` from looking a title up, which is `missing` if the metadata source doesn't have it.
-pub(super) fn looking_up(err: metadata::Error, missing: Error) -> Error {
+pub(super) fn looking_up(err: title_source::Error, missing: Error) -> Error {
     match err {
-        metadata::Error::NotFound => missing,
-        metadata::Error::Unavailable => Error::Unavailable,
+        title_source::Error::NotFound => missing,
+        title_source::Error::Unavailable => Error::Unavailable,
     }
 }

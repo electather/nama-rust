@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     library::contents::{Metadata, Name, Pin, TiedTitle, UnmatchedReason},
-    metadata::{self, MetadataSource},
+    library::title_source::{self, MetadataSource},
     scanner::country_tag,
 };
 
@@ -43,7 +43,7 @@ impl Found {
     }
 
     /// `err`, from fetching this title, as a miss: blamed on the ID Hint if that named it.
-    fn missed(&self, err: metadata::Error) -> Miss {
+    fn missed(&self, err: title_source::Error) -> Miss {
         match Miss::from(err) {
             Miss::Unmatched(None) if self.from_hint => {
                 Miss::Unmatched(Some(UnmatchedReason::UnknownIdHint))
@@ -75,7 +75,7 @@ pub(super) async fn fetch_movie(
     metadata: &MetadataSource,
     id: &ExternalId,
     known: ExternalIds,
-) -> Result<Metadata, metadata::Error> {
+) -> Result<Metadata, title_source::Error> {
     let (_, mut movie) = metadata.movie_by(id).await?;
     movie.ids = merged(id, known, &movie.ids);
     Ok(movie)
@@ -87,7 +87,7 @@ pub(super) async fn fetch_show(
     metadata: &MetadataSource,
     id: &ExternalId,
     known: ExternalIds,
-) -> Result<FoundShow, metadata::Error> {
+) -> Result<FoundShow, title_source::Error> {
     let (source, mut show) = metadata.show_by(id).await?;
     show.ids = merged(id, known, &show.ids);
     let id = show
@@ -202,8 +202,8 @@ async fn searched(
 ) -> Result<Vec<Candidate>, Miss> {
     let mut candidates = match metadata.search_in_turn(query).await {
         Ok((_, candidates)) => candidates,
-        Err(metadata::Error::NotFound) => Vec::new(),
-        Err(metadata::Error::Unavailable) => return Err(Miss::Undecided),
+        Err(title_source::Error::NotFound) => Vec::new(),
+        Err(title_source::Error::Unavailable) => return Err(Miss::Undecided),
     };
     if let Some(country) = country {
         candidates.retain(|candidate| candidate.origin_country.iter().any(|c| c == country));

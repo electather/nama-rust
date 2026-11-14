@@ -503,11 +503,11 @@ mod tests {
         config::Config,
         db::Database,
         ffmpeg::{self, Ffmpeg},
-        libraries::{Kind, Libraries},
         library::contents::{
             Change, Contents, Decided, Item, Stored,
             fixture::{decide, tmdb_movie},
         },
+        library::libraries::{Kind, Libraries},
         playback::subtitles,
         tracks::{
             BaseLayer, Hdr, PROBE_ATTEMPTS, PROBE_VERSION, PassingReason, Probe, ProbeFailure,

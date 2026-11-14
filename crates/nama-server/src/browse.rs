@@ -19,12 +19,12 @@ use nama_plugin_api::{
 
 use crate::{
     db::Database,
-    libraries::{self, Kind, Libraries, Library},
     library::contents::{self, Contents, Found, MatchedTo, Stored},
+    library::libraries::{self, Kind, Libraries, Library},
+    library::watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
     requests::RequestTitle,
     scanner::{Doomed, deleting},
     tracks::{Probe, Track, Tracks},
-    watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
 };
 
 /// A Movie whose Versions have their Tracks.
@@ -694,15 +694,15 @@ mod tests {
     use super::{Browse, Error, Started, Target};
     use crate::{
         db::Database,
-        libraries::{Kind, Libraries},
         library::contents::{
             Change, Contents, Decided, Item, Metadata, Stored,
             fixture::{MatchedMovie, decide, tmdb_movie},
         },
+        library::libraries::{Kind, Libraries},
+        library::watch_states::{Progress, WatchStates},
         plugins::Registry,
         tracks::{Probe, Track, TrackKind, Tracks},
         users::{Permissions, User, Users},
-        watch_states::{Progress, WatchStates},
     };
 
     const ALIEN_TMDB_ID: i64 = 348;

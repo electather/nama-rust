@@ -15,13 +15,13 @@ use tempfile::TempDir;
 
 use super::{ManualError, Matcher, Summary};
 use crate::{
-    artwork::Artwork,
-    custom_images::CustomImages,
     db::Database,
     events::{EventBus, Filter, event},
     images::ImageStore,
-    libraries::{Kind, Libraries},
+    library::artwork::Artwork,
     library::contents::{Change, Contents, Decided, FileItem, Item, Recorded, Show},
+    library::custom_images::CustomImages,
+    library::libraries::{Kind, Libraries},
     plugins::{ExtensionPoints, Registry},
     scanner::Scanner,
     server_settings::ServerUrl,

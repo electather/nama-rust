@@ -1,22 +1,19 @@
 //! The Nama Server as a library, so its pieces can be tested on their own.
 
 mod api;
-pub mod artwork;
+pub use library::artwork;
 mod browse;
 pub mod codes;
 pub mod config;
 mod connections;
-mod custom_images;
 pub mod db;
 mod device_names;
 mod events;
 pub mod ffmpeg;
 mod forwarded;
 pub mod images;
-mod libraries;
 mod library;
 mod matching;
-mod metadata;
 mod playback;
 mod plugin_logos;
 pub mod plugin_settings;
@@ -32,7 +29,6 @@ mod sign_in_codes;
 mod track_preferences;
 mod tracks;
 pub mod users;
-mod watch_states;
 #[cfg(feature = "web")]
 mod web;
 
@@ -41,15 +37,15 @@ use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::net::TcpListener;
 
 use crate::{
-    artwork::Artwork,
     codes::SetupCode,
     config::Config,
-    custom_images::CustomImages,
     db::Database,
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     images::ImageStore,
+    library::artwork::Artwork,
     library::contents::Contents,
+    library::custom_images::CustomImages,
     playback::running::RunningPlans,
     playback::subtitles,
     plugin_logos::PluginLogos,

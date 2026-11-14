@@ -10,4 +10,4 @@ The Registry, how the Kernel calls Plugins at Extension Points, and the Built-in
 ### Neighbours
 
 - Uses: `images` (cleaning a Manifest's logo).
-- Used by: `plugin_settings` (the `Registry`), startup in `main.rs`, and, through `ExtensionPoints`, `metadata`, `matching`, `scanner`, `artwork`, `requests`, `events`, `connections`, `users` and the `api` part for Plugins.
+- Used by: `plugin_settings` (the `Registry`), startup in `main.rs`, and, through `ExtensionPoints`, `library::title_source`, `matching`, `scanner`, `library::artwork`, `requests`, `events`, `connections`, `users` and the `api` part for Plugins.

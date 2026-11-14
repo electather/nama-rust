@@ -24,9 +24,9 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    artwork::Artwork,
-    custom_images::{Role, Slot},
+    library::artwork::Artwork,
     library::contents::Metadata,
+    library::custom_images::{Role, Slot},
     requests::{self, Asked, Found, FoundShow, Hit, Requests, qualities},
 };
 

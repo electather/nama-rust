@@ -11,7 +11,7 @@ use nama_plugin_api::{
 use super::{Change, Contents, Decided, Item, Metadata};
 use crate::{
     db::Database,
-    libraries::{Kind, Libraries},
+    library::libraries::{Kind, Libraries},
 };
 
 /// A file stored in a Library and Matched to a Movie, by the ids tests need.

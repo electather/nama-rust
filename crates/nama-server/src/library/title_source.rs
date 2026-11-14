@@ -1,7 +1,7 @@
 //! Asking the title sources for titles and images, and what their failures mean: no title source
 //! enabled, or one that failed, is [`Error::Unavailable`]; a title or image it doesn't have, an id
 //! it can't look titles up by, or a method it doesn't serve, is [`Error::NotFound`]. It alone asks
-//! (see the crate's `AGENTS.md`).
+//! (see `src/library/AGENTS.md`).
 
 use std::{future::Future, sync::Arc};
 
@@ -344,5 +344,5 @@ impl Metadata {
 }
 
 #[cfg(test)]
-#[path = "metadata_tests.rs"]
+#[path = "title_source_tests.rs"]
 mod tests;

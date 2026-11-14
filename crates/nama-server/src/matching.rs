@@ -57,14 +57,14 @@ use nama_proto::nama::v1::{Event, ItemMatched};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    artwork::Artwork,
     db::{Database, detached},
     events::{EventBus, event},
-    libraries::{self, Libraries},
+    library::artwork::Artwork,
     library::contents::{
         Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin, UnmatchedReason,
     },
-    metadata::{self, MetadataSource, Source},
+    library::libraries::{self, Libraries},
+    library::title_source::{self, MetadataSource, Source},
     plugins::ExtensionPoints,
     scanner::{ScanLock, ScanLocks},
 };
@@ -209,21 +209,21 @@ enum Miss {
     Unserved,
 }
 
-impl From<metadata::Error> for Miss {
-    fn from(err: metadata::Error) -> Self {
+impl From<title_source::Error> for Miss {
+    fn from(err: title_source::Error) -> Self {
         match err {
-            metadata::Error::NotFound => Self::Unmatched(None),
-            metadata::Error::Unavailable => Self::Undecided,
+            title_source::Error::NotFound => Self::Unmatched(None),
+            title_source::Error::Unavailable => Self::Undecided,
         }
     }
 }
 
 impl ManualError {
     /// Why looking up the title `id` by hand failed.
-    fn looking_up(id: &ExternalId) -> impl FnOnce(metadata::Error) -> Self {
+    fn looking_up(id: &ExternalId) -> impl FnOnce(title_source::Error) -> Self {
         |err| match err {
-            metadata::Error::NotFound => Self::NoSuchTitle(id.clone()),
-            metadata::Error::Unavailable => Self::Unavailable,
+            title_source::Error::NotFound => Self::NoSuchTitle(id.clone()),
+            title_source::Error::Unavailable => Self::Unavailable,
         }
     }
 }
@@ -412,8 +412,8 @@ impl Matcher {
             }
             let movie = match self.only(plugin.clone()).metadata.movie(&id).await {
                 Ok(movie) => movie,
-                Err(metadata::Error::NotFound) => continue,
-                Err(metadata::Error::Unavailable) => {
+                Err(title_source::Error::NotFound) => continue,
+                Err(title_source::Error::Unavailable) => {
                     unavailable.insert(plugin);
                     continue;
                 }
@@ -432,8 +432,8 @@ impl Matcher {
             let show = match sources::fetch_show(&only.metadata, &id, ExternalIds::default()).await
             {
                 Ok(show) => show,
-                Err(metadata::Error::NotFound) => continue,
-                Err(metadata::Error::Unavailable) => {
+                Err(title_source::Error::NotFound) => continue,
+                Err(title_source::Error::Unavailable) => {
                     unavailable.insert(plugin);
                     continue;
                 }

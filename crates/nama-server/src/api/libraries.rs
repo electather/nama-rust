@@ -15,12 +15,12 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    artwork,
     browse::{Browse, Target, ToDelete},
-    custom_images::{Role, Slot},
-    libraries::{self, FolderProblem, Kind, Libraries, Library},
+    library::artwork,
     library::contents::{Contents, Episode, NewestBackdrop},
-    metadata::MetadataSource,
+    library::custom_images::{Role, Slot},
+    library::libraries::{self, FolderProblem, Kind, Libraries, Library},
+    library::title_source::MetadataSource,
     plugins::ExtensionPoints,
     scanner::{self, Deleted, Scanner},
 };

@@ -16,12 +16,12 @@ use crate::requests::testing::{
     follow_as, fulfilled, next_happened, told_season,
 };
 use crate::{
-    artwork::Artwork,
-    custom_images::CustomImages,
     events::Filter,
     images::ImageStore,
-    libraries::{Kind, Libraries},
+    library::artwork::Artwork,
     library::contents::{Change, Item},
+    library::custom_images::CustomImages,
+    library::libraries::{Kind, Libraries},
     plugins::Registry,
     scanner::Scanner,
     users::Permissions,

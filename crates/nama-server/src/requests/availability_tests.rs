@@ -24,11 +24,11 @@ use crate::requests::testing::{
 };
 use crate::{
     db::Database,
-    libraries::{Kind, Libraries},
     library::contents::{
         Change, Contents, Decisions, Item, Metadata,
         fixture::{MatchedMovie, tmdb_movie},
     },
+    library::libraries::{Kind, Libraries},
 };
 
 const TODAY: &str = "2026-11-08";

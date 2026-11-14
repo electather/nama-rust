@@ -17,8 +17,8 @@ use nama_plugin_api::{PluginId, metadata::ExternalId};
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 use crate::{
-    db::Database, events::EventBus, library::contents::Contents, metadata::MetadataSource,
-    plugins::ExtensionPoints,
+    db::Database, events::EventBus, library::contents::Contents,
+    library::title_source::MetadataSource, plugins::ExtensionPoints,
 };
 
 mod apply;

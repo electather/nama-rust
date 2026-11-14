@@ -15,19 +15,19 @@ use nama_plugin_api::metadata::{ExternalId, TitleKind};
 use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason};
 
 use crate::{
-    artwork::{self, Artwork},
     browse::Browse,
     codes::SetupCode,
     config::Config,
     connections::Connections,
-    custom_images::{self, CustomImages},
     db::{Database, now},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
-    libraries::Libraries,
+    library::artwork::{self, Artwork},
     library::contents::Contents,
-    metadata::MetadataSource,
+    library::custom_images::{self, CustomImages},
+    library::libraries::Libraries,
+    library::title_source::MetadataSource,
     playback::running::RunningPlans,
     plugin_logos::{self, PluginLogos},
     plugin_settings::PluginSettings,

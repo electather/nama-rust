@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     db::Database,
-    libraries::{Kind, Libraries},
+    library::libraries::{Kind, Libraries},
     matching::METADATA_VERSION,
     scanner::PARSER_VERSION,
 };

@@ -9,7 +9,7 @@ use super::super::{
     fixture::{MatchedMovie, decide, tmdb_movie},
     testing::Fixture,
 };
-use crate::libraries::Kind;
+use crate::library::libraries::Kind;
 
 /// What TMDB says of the Movie `tmdb`, called `title` and released on `release_date`.
 fn released_movie(tmdb: i64, title: &str, release_date: &str) -> Metadata {

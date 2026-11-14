@@ -14,8 +14,8 @@ use nama_proto::nama::v1::Request;
 
 use super::is_video;
 use crate::{
-    libraries::Library,
     library::contents::{Episode, Version},
+    library::libraries::Library,
     requests::RequestTitle,
 };
 
@@ -244,8 +244,8 @@ mod tests {
 
     use super::{Doomed, delete, each_file, preview};
     use crate::{
-        libraries::{Kind, Library},
         library::contents::{Stored, Version},
+        library::libraries::{Kind, Library},
         requests::RequestTitle,
     };
 

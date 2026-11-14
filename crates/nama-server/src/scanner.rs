@@ -21,7 +21,7 @@
 //! Library's scan lock, so Matching sees the items the scan stored. Then [`crate::probing`] is told
 //! its files changed, and probes them in the background without holding up the next scan. Last,
 //! the images no Match stores any more are deleted, and those the Library's Matches store and the
-//! store lacks are downloaded in the background (see [`crate::artwork`]).
+//! store lacks are downloaded in the background (see [`crate::library::artwork`]).
 //!
 //! Probing passes of one Library overlap, so `ProbingFinished` says the Library has caught up, not
 //! that one pass is done (ADR 0030): a pass waits for the files it left to another prober, and
@@ -53,12 +53,12 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use walkdir::{DirEntry, WalkDir};
 
 use crate::{
-    artwork::Artwork,
-    custom_images::CustomImages,
     db::{Database, detached},
     events::{EventBus, event},
-    libraries::{self, Kind, Libraries, Library},
+    library::artwork::Artwork,
     library::contents::{Change, Contents, Stored},
+    library::custom_images::CustomImages,
+    library::libraries::{self, Kind, Libraries, Library},
     matching::{self, Matcher, count},
     playback::running::RunningPlans,
     plugins::ExtensionPoints,
@@ -823,14 +823,14 @@ mod tests {
 
     use super::{Doomed, Scanner, Summary};
     use crate::{
-        artwork::Artwork,
-        custom_images::CustomImages,
         db::Database,
         events::{EventBus, Filter},
         ffmpeg::Ffmpeg,
         images::ImageStore,
-        libraries::{self, Kind, Libraries},
+        library::artwork::Artwork,
         library::contents::{Contents, File, Item, Version},
+        library::custom_images::CustomImages,
+        library::libraries::{self, Kind, Libraries},
         playback::subtitles,
         plugins::ExtensionPoints,
         probing::Probing,

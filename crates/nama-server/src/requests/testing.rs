@@ -32,11 +32,11 @@ use super::{Requests, qualities};
 use crate::{
     db::Database,
     events::EventBus,
-    libraries::{Kind, Libraries},
     library::contents::{
         Change, Contents, Decided, Decisions, Item, Metadata,
         fixture::{MatchedMovie, movies_library, tmdb_movie},
     },
+    library::libraries::{Kind, Libraries},
     plugins::{Answer, ExtensionPoints, Failure, Registry},
     server_settings::ServerUrl,
     users::{Permissions, User},

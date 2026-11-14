@@ -9,10 +9,10 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    libraries::Libraries,
     library::contents::{Contents, Item, TiedTitle, Unmatched, UnmatchedReason},
+    library::libraries::Libraries,
+    library::title_source::{self, MetadataSource},
     matching::{ManualError, Matcher},
-    metadata::{self, MetadataSource},
 };
 
 use super::{database_failed, external_id_to_proto, refuse, required_id, title_kind_from_proto};
@@ -53,8 +53,8 @@ impl MatchService for MatchServiceHandler {
         };
         let candidates = match self.metadata.search(&query).await {
             Ok((_, candidates)) => candidates,
-            Err(metadata::Error::NotFound) => Vec::new(),
-            Err(metadata::Error::Unavailable) => return Err(ManualError::Unavailable.into()),
+            Err(title_source::Error::NotFound) => Vec::new(),
+            Err(title_source::Error::Unavailable) => return Err(ManualError::Unavailable.into()),
         };
         Response::ok(SearchMetadataResponse {
             candidates: candidates

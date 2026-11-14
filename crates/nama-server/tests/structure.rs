@@ -174,9 +174,9 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ("src/requests", &["request_title_ids", "followed_show_ids"]),
     ("src/server_settings", &["server_settings"]),
     ("src/images", &["image_thumbhashes"]),
-    ("src/custom_images", &["custom_images"]),
+    ("src/library/custom_images", &["custom_images"]),
     ("src/track_preferences", &["track_preferences"]),
-    ("src/watch_states", &["watch_states"]),
+    ("src/library/watch_states", &["watch_states"]),
 ];
 
 /// The keywords a table's name follows in SQL, upper case as every query here writes them.
