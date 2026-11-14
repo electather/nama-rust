@@ -12,7 +12,7 @@ use super::quality::show_requests;
 use super::{Error, Requests};
 use crate::{
     library::contents::{self, Metadata},
-    library::title_source::{self, Candidate, SearchQuery, Season, Show, TitleKind},
+    library::title_source::{self, Candidate, SearchQuery, Season, Show, Source, TitleKind},
     users::User,
 };
 
@@ -86,14 +86,15 @@ impl Requests {
         self.find(TitleKind::Show, title).await
     }
 
-    /// The titles of `kind` the metadata source finds titled like `title`, best fit first.
+    /// The titles of `kind` the first enabled title source to find any finds titled like `title`,
+    /// best fit first: a search belongs to no Library, so it asks in Admin precedence.
     async fn find(&self, kind: TitleKind, title: String) -> Result<Vec<Hit>, Error> {
         let query = SearchQuery {
             kind,
             title,
             year: None,
         };
-        let (plugin, candidates) = match self.metadata.search(&query).await {
+        let (source, candidates) = match self.metadata.search_in_turn(&query).await {
             Ok(found) => found,
             Err(title_source::Error::NotFound) => return Ok(Vec::new()),
             Err(title_source::Error::Unavailable) => return Err(Error::Unavailable),
@@ -102,7 +103,7 @@ impl Requests {
             .into_iter()
             .map(|candidate| Hit {
                 id: candidate.id.clone(),
-                plugin: plugin.clone(),
+                plugin: source.plugin.clone(),
                 candidate,
             })
             .collect())
@@ -114,13 +115,9 @@ impl Requests {
         viewer: &User,
         asked: &ExternalId,
     ) -> Result<FoundShow, Error> {
-        let (plugin, show) = self
-            .metadata
-            .show(asked)
-            .await
-            .map_err(|err| looking_up(err, Error::NoSuchShow(asked.clone())))?;
+        let (source, show) = self.show(asked).await?;
         let id = kept_under(asked, &show.ids);
-        let seasons = self.seasons(&id, &show).await?;
+        let seasons = self.seasons_from(&source, asked, &show).await?;
         let mut conn = self.db.reader().acquire().await?;
         let seasons = self
             .look_around_seasons(&mut conn, viewer, &id, seasons)
@@ -134,7 +131,7 @@ impl Requests {
         let quality = show_requests(&mut conn, &id).await?.quality().cloned();
         Ok(FoundShow {
             id,
-            plugin,
+            plugin: source.plugin,
             show,
             seasons,
             followed_show,
@@ -142,14 +139,54 @@ impl Requests {
         })
     }
 
-    /// Each of the Seasons `show`, the Show `id`, lists, fetched now. One it lists but can't give
-    /// fails the lookup as an unknown Show.
-    pub(super) async fn seasons(&self, id: &ExternalId, show: &Show) -> Result<Vec<Season>, Error> {
+    /// The Show `asked`, from the title source keeping titles under its namespace, else the first
+    /// one looking them up by it to have it, with that source.
+    pub(super) async fn show(&self, asked: &ExternalId) -> Result<(Source, Show), Error> {
+        if self.unserved(asked).await {
+            return Err(Error::NoSuchShow(asked.clone()));
+        }
+        self.metadata
+            .show_by(asked)
+            .await
+            .map_err(|err| looking_up(err, Error::NoSuchShow(asked.clone())))
+    }
+
+    /// Whether title sources are enabled but none keeps or looks titles up by `id`'s namespace, so
+    /// none could have the title; with none enabled, fetching answers Unavailable instead.
+    async fn unserved(&self, id: &ExternalId) -> bool {
+        !self.metadata.serves(id.namespace()).await && !self.metadata.sources().await.is_empty()
+    }
+
+    /// The Season `number` of `show`, which `source` gave when asked by `asked`, from that source
+    /// by the Show's id in its namespace, else by `asked`: the id a Request is kept under may be
+    /// one `source` doesn't know.
+    pub(super) async fn season_from(
+        &self,
+        source: &Source,
+        asked: &ExternalId,
+        show: &Show,
+        number: u32,
+    ) -> Result<Season, title_source::Error> {
+        let id = show
+            .ids
+            .get(&source.namespace)
+            .unwrap_or_else(|| asked.clone());
+        self.metadata.season_from(source, &id, number).await
+    }
+
+    /// Each of the Seasons `show` lists, fetched now as [`Self::season_from`] fetches one. One it
+    /// lists but can't give fails the lookup as an unknown Show.
+    pub(super) async fn seasons_from(
+        &self,
+        source: &Source,
+        asked: &ExternalId,
+        show: &Show,
+    ) -> Result<Vec<Season>, Error> {
         let mut seasons = Vec::with_capacity(show.seasons.len());
         // ponytail: one metadata lookup per Season, one after another.
         for &number in &show.seasons {
-            let season = self.metadata.season(id, number).await;
-            seasons.push(season.map_err(|err| looking_up(err, Error::NoSuchShow(id.clone())))?);
+            let season = self.season_from(source, asked, show, number).await;
+            seasons.push(season.map_err(|err| looking_up(err, Error::NoSuchShow(asked.clone())))?);
         }
         Ok(seasons)
     }
@@ -169,12 +206,17 @@ impl Requests {
             .map_err(Error::from)
     }
 
-    /// The Movie `id` from the metadata source, failing with [`Error::NoSuchMovie`] or
+    /// The Movie `id` from the title source keeping titles under its namespace, else the first one
+    /// looking them up by it to have it, failing with [`Error::NoSuchMovie`] or
     /// [`Error::Unavailable`] as [`looking_up`] maps it.
     pub(super) async fn fetch(&self, id: &ExternalId) -> Result<Metadata, Error> {
+        if self.unserved(id).await {
+            return Err(Error::NoSuchMovie(id.clone()));
+        }
         self.metadata
-            .movie(id)
+            .movie_by(id)
             .await
+            .map(|(_, movie)| movie)
             .map_err(|err| looking_up(err, Error::NoSuchMovie(id.clone())))
     }
 

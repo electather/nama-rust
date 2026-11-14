@@ -19,7 +19,6 @@ use super::asked::{self, Asked, may_see};
 use super::asking::{SeasonsToAsk, WantedSeasons, Way, kept_under, opening_state};
 use super::deciding::{decide, given_reason};
 use super::listing::{load_one, read_title_id, visible_to};
-use super::lookup::looking_up;
 use super::quality::{NewQuality, change_followed_quality, quality_columns, stored_quality};
 use super::state::{ids_json, read_state, state_changed, stored};
 use super::{Error, Requests};
@@ -40,14 +39,10 @@ impl Requests {
         chosen: Option<i64>,
     ) -> Result<(FollowedShow, Vec<Request>), Error> {
         let quality = self.quality::<Shows>(asker, chosen).await?;
-        let (_, show) = self
-            .metadata
-            .show(show_id)
-            .await
-            .map_err(|err| looking_up(err, Error::NoSuchShow(show_id.clone())))?;
+        let (source, show) = self.show(show_id).await?;
         let id = kept_under(show_id, &show.ids);
         let wanted = WantedSeasons {
-            seasons: self.seasons(&id, &show).await?,
+            seasons: self.seasons_from(&source, show_id, &show).await?,
             show_id: id,
             show_ids: show.ids,
             show_title: show.title,

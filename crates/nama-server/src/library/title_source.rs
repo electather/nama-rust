@@ -31,8 +31,9 @@ pub(crate) enum Error {
     Unavailable,
 }
 
-/// The metadata Providers among [`ExtensionPoints`], asked through the one that comes first, or
-/// only through one Plugin's; or, through the routing methods, in turn by namespace.
+/// The metadata Providers among [`ExtensionPoints`]: a Movie asked through the one that comes
+/// first, or only through one Plugin's; everything else, through the routing methods, in turn by
+/// namespace.
 #[derive(Debug, Clone)]
 pub(crate) struct MetadataSource {
     plugins: ExtensionPoints,
@@ -72,17 +73,6 @@ impl MetadataSource {
         }
     }
 
-    /// The titles the Provider finds for `query`, best fit first, with the Plugin whose Provider
-    /// found them, which their image paths are for.
-    pub(crate) async fn search(
-        &self,
-        query: &SearchQuery,
-    ) -> Result<(PluginId, Vec<Candidate>), Error> {
-        let query = &titles::search_query(query);
-        self.ask(|metadata| async move { candidates(metadata.search(query).await?) })
-            .await
-    }
-
     /// The metadata of the Movie with the id `id`.
     pub(crate) async fn movie(&self, id: &ExternalId) -> Result<Metadata, Error> {
         let asked = &asked(id);
@@ -93,27 +83,6 @@ impl MetadataSource {
             })
             .await?;
         Ok(Metadata::movie(plugin, movie))
-    }
-
-    /// The Show with the id `id`, and the Plugin whose Provider gave it.
-    pub(crate) async fn show(&self, id: &ExternalId) -> Result<(PluginId, Show), Error> {
-        let asked = &asked(id);
-        self.ask(|metadata| async move {
-            let found = metadata.show(asked).await?;
-            title(found.unsupported_id, found.show, titles::show)
-        })
-        .await
-    }
-
-    /// The Season `number` of the Show with the id `show`, with its Episodes.
-    pub(crate) async fn season(&self, show: &ExternalId, number: u32) -> Result<Season, Error> {
-        let asked = &season_asked(show, number);
-        self.ask(|metadata| async move {
-            let found = metadata.season(asked).await?;
-            title(found.unsupported_id, found.season, titles::season)
-        })
-        .await
-        .map(|(_, season)| season)
     }
 
     /// The image at `path` from the Plugin `plugin`'s Provider, which handed the path out.

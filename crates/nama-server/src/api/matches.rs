@@ -50,7 +50,8 @@ impl MatchService for MatchServiceHandler {
             title: request.title,
             year: request.year,
         };
-        let candidates = match self.metadata.search(&query).await {
+        // A Match search belongs to no Library, so it asks in Admin precedence.
+        let candidates = match self.metadata.search_in_turn(&query).await {
             Ok((_, candidates)) => candidates,
             Err(title_source::Error::NotFound) => Vec::new(),
             Err(title_source::Error::Unavailable) => return Err(ManualError::Unavailable.into()),

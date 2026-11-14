@@ -110,7 +110,7 @@ async fn asking(failure: Option<fn() -> Option<MetadataError>>) -> (Error, Error
         plugins.enable(Arc::new(FailingPlugin(failure))).unwrap();
     }
     let source = MetadataSource::new(plugins.extension_points());
-    let show = source.show(&ExternalId::tmdb(1399)).await.unwrap_err();
+    let show = source.show_by(&ExternalId::tmdb(1399)).await.unwrap_err();
     let image = source
         .image(&PluginId::from_static("failing"), "/poster.jpg")
         .await

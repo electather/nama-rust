@@ -103,11 +103,7 @@ impl Requests {
         chosen: Option<i64>,
     ) -> Result<Vec<Request>, Error> {
         let quality = self.quality::<Shows>(asker, chosen).await?;
-        let (_, show) = self
-            .metadata
-            .show(show_id)
-            .await
-            .map_err(|err| looking_up(err, Error::NoSuchShow(show_id.clone())))?;
+        let (source, show) = self.show(show_id).await?;
         let id = kept_under(show_id, &show.ids);
         let mut seasons = Vec::with_capacity(numbers.len());
         // ponytail: one metadata lookup per Season, one after another.
@@ -120,8 +116,7 @@ impl Requests {
                 return Err(no_such_season());
             }
             let season = self
-                .metadata
-                .season(&id, number)
+                .season_from(&source, show_id, &show, number)
                 .await
                 .map_err(|err| looking_up(err, no_such_season()))?;
             seasons.push(season);

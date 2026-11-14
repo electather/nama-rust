@@ -91,7 +91,7 @@ async fn a_title_source_without_its_exports_answers_unsupported_to_each_method()
 }
 
 #[tokio::test]
-async fn tvdb_asked_for_a_show_by_a_tmdb_id_answers_unsupported_id_which_is_not_found() {
+async fn tvdb_asked_by_a_tmdb_id_answers_unsupported_id_which_is_not_found() {
     let data_dir = tempfile::tempdir().unwrap();
     let cache_config = write_cache_config(data_dir.path()).unwrap();
     let (_, wasm) = BUNDLED
@@ -123,8 +123,11 @@ async fn tvdb_asked_for_a_show_by_a_tmdb_id_answers_unsupported_id_which_is_not_
     };
 
     let answer = running.show(&asked).await.unwrap();
-    let through_kernel = MetadataSource::new(plugins.extension_points())
-        .show(&ExternalId::tmdb(1399))
+    // Routing never asks TVDB by a tmdb id, so the Kernel asks it directly, as for a Season.
+    let kernel = MetadataSource::new(plugins.extension_points());
+    let tvdb_source = kernel.sources().await.remove(0);
+    let through_kernel = kernel
+        .season_from(&tvdb_source, &ExternalId::tmdb(1399), 1)
         .await;
 
     assert!(
