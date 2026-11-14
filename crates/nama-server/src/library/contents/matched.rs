@@ -5,12 +5,12 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::SqliteConnection;
 
-use super::{Contents, ItemKind, Stored, ids_from_json, ids_sql, primary_id_in};
+use super::{Contents, ImageRef, ItemKind, Stored, ids_from_json, ids_sql, primary_id_in};
 
 /// A Library's downloaded Backdrop: see [`Contents::newest_backdrops`].
 #[derive(Debug)]
 pub(crate) struct NewestBackdrop {
-    /// The Plugin whose Provider the path is of.
+    /// The Plugin whose title source serves the path, which may differ from the Match's.
     pub(crate) plugin: String,
     pub(crate) path: String,
     /// The Movie's id, or for an Episode its Show's, whose own Custom Backdrop goes first.
@@ -27,15 +27,15 @@ pub(crate) struct Movie<V = Version> {
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Version gives it.
     pub(crate) ids: ExternalIds,
-    /// The Plugin whose metadata Provider made the Match, which the image paths are for.
+    /// The Plugin whose metadata Provider made the Match.
     pub(crate) plugin: String,
     pub(crate) title: String,
     pub(crate) original_title: Option<String>,
     pub(crate) overview: Option<String>,
     pub(crate) release_date: Option<String>,
     pub(crate) runtime_minutes: Option<i64>,
-    pub(crate) poster: Option<String>,
-    pub(crate) backdrop: Option<String>,
+    pub(crate) poster: Option<ImageRef>,
+    pub(crate) backdrop: Option<ImageRef>,
     /// The files Matched to it, by path.
     pub(crate) versions: Vec<V>,
 }
@@ -95,10 +95,10 @@ pub(crate) struct Show<V = Version> {
     pub(crate) id: ExternalId,
     /// Every Show id that Match gives it.
     pub(crate) ids: ExternalIds,
-    /// The Plugin whose metadata Provider made the Match, which the image paths are for.
+    /// The Plugin whose metadata Provider made the Match, which the Season posters are for.
     pub(crate) plugin: String,
     pub(crate) title: String,
-    pub(crate) backdrop: Option<String>,
+    pub(crate) backdrop: Option<ImageRef>,
     /// The Seasons the Library has Episodes of, by number.
     pub(crate) seasons: BTreeMap<i64, Season<V>>,
 }
@@ -273,8 +273,10 @@ impl Contents {
     ) -> Result<bool, sqlx::Error> {
         sqlx::query_scalar!(
             r#"SELECT EXISTS (SELECT 1 FROM item_matches
-                              WHERE state = 'matched' AND plugin = ?
-                                AND (poster = ?2 OR backdrop = ?2 OR still = ?2))
+                              WHERE state = 'matched'
+                                AND ((poster_plugin = ?1 AND poster = ?2)
+                                     OR (backdrop_plugin = ?1 AND backdrop = ?2)
+                                     OR (plugin = ?1 AND still = ?2)))
                AS "stored!: bool""#,
             plugin,
             image
@@ -291,16 +293,17 @@ impl Contents {
     ) -> Result<Vec<(String, String)>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"WITH matched AS (
-                   SELECT item_matches.plugin, item_matches.poster, item_matches.backdrop,
-                          item_matches.still
+                   SELECT item_matches.plugin, item_matches.poster, item_matches.poster_plugin,
+                          item_matches.backdrop, item_matches.backdrop_plugin, item_matches.still
                    FROM item_matches
                    JOIN library_items ON library_items.id = item_matches.item_id
                    JOIN library_files ON library_files.id = library_items.file_id
                    WHERE item_matches.state = 'matched'
                      AND (?1 IS NULL OR library_files.library_id = ?1))
-               SELECT plugin AS "plugin!", poster AS "path!" FROM matched WHERE poster IS NOT NULL
+               SELECT poster_plugin AS "plugin!", poster AS "path!" FROM matched
+               WHERE poster IS NOT NULL
                UNION
-               SELECT plugin, backdrop FROM matched WHERE backdrop IS NOT NULL
+               SELECT backdrop_plugin, backdrop FROM matched WHERE backdrop IS NOT NULL
                UNION
                SELECT plugin, still FROM matched WHERE still IS NOT NULL"#,
             library
@@ -322,7 +325,8 @@ impl Contents {
                     r#"SELECT library_id AS "library!", plugin AS "plugin!",
                               backdrop AS "backdrop!", ids AS "ids?: String",
                               title_sources AS "title_sources!"
-                       FROM (SELECT library_files.library_id, item_matches.plugin,
+                       FROM (SELECT library_files.library_id,
+                                    item_matches.backdrop_plugin AS plugin,
                                     item_matches.backdrop, libraries.title_sources, "#
                         + $ids
                         + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS ids,
@@ -375,7 +379,8 @@ impl Contents {
                         + r#"'title') AS "ids?: String", item_matches.title AS "title!",
                               item_matches.original_title, item_matches.overview,
                               item_matches.release_date, item_matches.runtime_minutes,
-                              item_matches.poster, item_matches.backdrop,
+                              item_matches.poster, item_matches.poster_plugin,
+                              item_matches.backdrop, item_matches.backdrop_plugin,
                               libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
@@ -415,8 +420,8 @@ impl Contents {
                     overview: row.overview,
                     release_date: row.release_date,
                     runtime_minutes: row.runtime_minutes,
-                    poster: row.poster,
-                    backdrop: row.backdrop,
+                    poster: ImageRef::stored(row.poster, row.poster_plugin),
+                    backdrop: ImageRef::stored(row.backdrop, row.backdrop_plugin),
                     versions: Vec::new(),
                 })
                 .versions
@@ -446,7 +451,7 @@ impl Contents {
                               item_matches.show_title AS "show_title!",
                               item_matches.overview, item_matches.release_date,
                               item_matches.runtime_minutes, item_matches.poster,
-                              item_matches.backdrop, item_matches.still, libraries.title_sources
+                              item_matches.backdrop, backdrop_plugin, still, libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
@@ -477,7 +482,7 @@ impl Contents {
                 ids: show_ids,
                 plugin: row.plugin.clone(),
                 title: row.show_title,
-                backdrop: row.backdrop,
+                backdrop: ImageRef::stored(row.backdrop, row.backdrop_plugin),
                 seasons: BTreeMap::new(),
             });
             let season = show.seasons.entry(row.season).or_insert_with(|| Season {

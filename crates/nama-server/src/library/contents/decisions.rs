@@ -97,10 +97,35 @@ pub(crate) struct Metadata {
     pub(crate) overview: Option<String>,
     pub(crate) release_date: Option<String>,
     pub(crate) runtime_minutes: Option<u32>,
-    pub(crate) poster: Option<String>,
-    pub(crate) backdrop: Option<String>,
-    /// For an Episode, its Still.
+    pub(crate) poster: Option<ImageRef>,
+    pub(crate) backdrop: Option<ImageRef>,
+    /// For an Episode, its Still, from the Match's [`plugin`](Self::plugin).
     pub(crate) still: Option<String>,
+}
+
+/// An image a Match stores: a path the title source of `plugin` serves.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ImageRef {
+    /// The Plugin whose title source's `image` serves the path.
+    pub plugin: PluginId,
+    /// The path that source gave.
+    pub path: String,
+}
+
+impl ImageRef {
+    /// The image at `path`, if any, that `plugin`'s title source serves.
+    pub(crate) fn of(plugin: &PluginId, path: Option<&String>) -> Option<Self> {
+        let path = path?.clone();
+        let plugin = plugin.clone();
+        Some(Self { plugin, path })
+    }
+
+    /// An image's `path` column with its Plugin's, which the write that stores them pairs.
+    pub(super) fn stored(path: Option<String>, plugin: Option<String>) -> Option<Self> {
+        let (path, plugin) = path.zip(plugin)?;
+        let plugin = plugin.into();
+        Some(Self { plugin, path })
+    }
 }
 
 impl Contents {
@@ -283,9 +308,10 @@ pub(super) async fn insert_decisions(
         let written = sqlx::query!(
             "INSERT OR REPLACE INTO item_matches (
                  item_id, state, plugin, title, original_title, show_title,
-                 overview, release_date, runtime_minutes, poster, backdrop, still,
-                 unmatched_reason, tied_titles, metadata_version, decided_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                 overview, release_date, runtime_minutes, poster, poster_plugin, backdrop,
+                 backdrop_plugin, still, unmatched_reason, tied_titles, metadata_version,
+                 decided_at)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
@@ -296,8 +322,10 @@ pub(super) async fn insert_decisions(
             row.metadata.overview,
             row.metadata.release_date,
             row.metadata.runtime_minutes,
-            row.metadata.poster,
-            row.metadata.backdrop,
+            row.metadata.poster.map(|image| image.path),
+            row.metadata.poster.map(|image| image.plugin),
+            row.metadata.backdrop.map(|image| image.path),
+            row.metadata.backdrop.map(|image| image.plugin),
             row.metadata.still,
             row.unmatched_reason,
             row.tied_titles,
@@ -415,9 +443,25 @@ struct MetadataColumns<'a> {
     overview: Option<&'a str>,
     release_date: Option<&'a str>,
     runtime_minutes: Option<u32>,
-    poster: Option<&'a str>,
-    backdrop: Option<&'a str>,
+    poster: Option<ImageColumns<'a>>,
+    backdrop: Option<ImageColumns<'a>>,
     still: Option<&'a str>,
+}
+
+/// An [`ImageRef`] as the columns of `item_matches` that store it.
+#[derive(Debug, Clone, Copy)]
+struct ImageColumns<'a> {
+    path: &'a str,
+    plugin: &'a str,
+}
+
+impl<'a> From<&'a ImageRef> for ImageColumns<'a> {
+    fn from(image: &'a ImageRef) -> Self {
+        Self {
+            path: &image.path,
+            plugin: image.plugin.as_str(),
+        }
+    }
 }
 
 impl<'a> From<&'a Decided> for MatchRow<'a> {
@@ -449,8 +493,8 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     overview: metadata.overview.as_deref(),
                     release_date: metadata.release_date.as_deref(),
                     runtime_minutes: metadata.runtime_minutes,
-                    poster: metadata.poster.as_deref(),
-                    backdrop: metadata.backdrop.as_deref(),
+                    poster: metadata.poster.as_ref().map(ImageColumns::from),
+                    backdrop: metadata.backdrop.as_ref().map(ImageColumns::from),
                     still: metadata.still.as_deref(),
                 },
                 unmatched_reason: None,

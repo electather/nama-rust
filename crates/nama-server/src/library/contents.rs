@@ -24,7 +24,9 @@ mod testing;
 pub(crate) use testing::{File, FileItem, Recorded};
 
 use decisions::insert_decisions;
-pub(crate) use decisions::{Decided, Decisions, Metadata, TiedTitle, Unmatched, UnmatchedReason};
+pub(crate) use decisions::{
+    Decided, Decisions, ImageRef, Metadata, TiedTitle, Unmatched, UnmatchedReason,
+};
 pub(crate) use files::{Change, Stored};
 pub(crate) use ids::{DEFAULT_ORDER, parse_hint, primary_id};
 use ids::{ids_from_json, ids_sql, primary_id_in};

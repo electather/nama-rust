@@ -25,7 +25,7 @@ use nama_proto::nama::v1::{
 
 use crate::{
     library::artwork::Artwork,
-    library::contents::Metadata,
+    library::contents::{ImageRef, Metadata},
     library::custom_images::{Role, Slot},
     library::title_source::Candidate,
     requests::{self, Asked, Found, FoundShow, Hit, Requests, qualities},
@@ -515,9 +515,12 @@ impl RequestServiceHandler {
             library,
             request,
         } = found;
-        let image = |role, path| {
+        let image = |role, image: Option<ImageRef>| {
             let custom = (images.custom).of_title(&id, &movie.ids, |id| movie_slot(id, role));
-            self.image(images, custom, &plugin, path)
+            match image {
+                Some(ImageRef { plugin: by, path }) => self.image(images, custom, &by, Some(path)),
+                None => self.image(images, custom, &plugin, None),
+            }
         };
         let (poster_url, poster_thumbhash) = image(Role::Poster, movie.poster);
         let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, movie.backdrop);

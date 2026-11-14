@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use super::{Contents, ItemKind, ids_from_json, ids_sql, primary_id_in, show_poster};
+use super::{Contents, ImageRef, ItemKind, ids_from_json, ids_sql, primary_id_in, show_poster};
 
 /// What [`Contents::search`] found in every Library, each kind best fit first, and each Movie,
 /// Show or Episode once per Library that has it.
@@ -25,11 +25,9 @@ pub(crate) struct FoundMovie {
     pub(crate) id: ExternalId,
     /// Every id its Match gives it.
     pub(crate) ids: ExternalIds,
-    /// The Plugin whose metadata Provider made the Match, which the poster's path is for.
-    pub(crate) plugin: String,
     pub(crate) title: String,
     pub(crate) release_date: Option<String>,
-    pub(crate) poster: Option<String>,
+    pub(crate) poster: Option<ImageRef>,
 }
 
 /// A Show a search found, with the metadata the Match of its best-fitting Episode stores.
@@ -93,10 +91,9 @@ impl Contents {
                     library: row.library,
                     id,
                     ids: row.ids(),
-                    plugin: row.plugin,
                     title: row.title,
                     release_date: row.release_date,
-                    poster: row.poster,
+                    poster: ImageRef::stored(row.poster, row.poster_plugin),
                 }),
             }
         }
@@ -127,7 +124,8 @@ impl Contents {
                         + $ids
                         + r#"'show') AS "show_ids?: String", item_matches.title AS "title!",
                               item_matches.show_title, item_matches.release_date,
-                              item_matches.poster, libraries.title_sources
+                              item_matches.poster, item_matches.poster_plugin,
+                              libraries.title_sources
                        FROM title_search
                        JOIN item_matches ON item_matches.item_id = title_search.rowid
                        JOIN library_items ON library_items.id = item_matches.item_id
@@ -160,6 +158,7 @@ struct SearchRow {
     show_title: Option<String>,
     release_date: Option<String>,
     poster: Option<String>,
+    poster_plugin: Option<String>,
     /// The Library's, as `libraries` stores them.
     title_sources: String,
 }

@@ -1,8 +1,11 @@
-use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_plugin_api::{
+    PluginId,
+    metadata::{ExternalId, ExternalIds},
+};
 
 use super::{
     super::{
-        Change, Decided, Item,
+        Change, Decided, ImageRef, Item,
         fixture::tmdb_movie,
         testing::{ALIEN, Fixture, movie},
     },
@@ -350,4 +353,42 @@ async fn a_library_lists_its_titles_under_the_id_of_its_first_title_source() {
         ExternalId::tvdb(297_989),
     );
     assert_eq!(listed().await, after_reorder);
+}
+
+#[tokio::test]
+async fn an_image_is_stored_and_served_under_its_own_plugin() {
+    let fx = Fixture::new().await;
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    let item = fx.item(ALIEN).await;
+    let fanart = PluginId::from_static("fanart");
+    let poster = ImageRef {
+        plugin: fanart.clone(),
+        path: "/poster.jpg".to_owned(),
+    };
+    let metadata = super::super::Metadata {
+        poster: Some(poster.clone()),
+        ..tmdb_movie(348, "Alien")
+    };
+    fx.contents
+        .record(vec![(item, Decided::Matched(Box::new(metadata)))])
+        .await
+        .unwrap();
+
+    let movies = fx.contents.movies(fx.library).await.unwrap();
+    assert_eq!(movies[0].plugin, "tmdb");
+    assert_eq!(movies[0].poster, Some(poster));
+    let images = fx.contents.images(Some(fx.library)).await.unwrap();
+    assert_eq!(images, [("fanart".to_owned(), "/poster.jpg".to_owned())]);
+    assert!(
+        fx.contents
+            .stores_image("fanart", "/poster.jpg")
+            .await
+            .unwrap()
+    );
+    assert!(
+        !fx.contents
+            .stores_image("tmdb", "/poster.jpg")
+            .await
+            .unwrap()
+    );
 }

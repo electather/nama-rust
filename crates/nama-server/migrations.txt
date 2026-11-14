@@ -61,3 +61,4 @@
 0063_id_namespace_check.sql
 0064_followed_show_ids.sql
 0065_library_title_sources.sql
+0066_match_image_plugins.sql

@@ -14,7 +14,7 @@ use nama_proto::nama::v1::{
 use crate::{
     browse::{self, Browse, Episode, Movie, Show, Started, Version},
     library::artwork,
-    library::contents::{FoundEpisode, FoundMovie, FoundShow, show_poster},
+    library::contents::{FoundEpisode, FoundMovie, FoundShow, ImageRef, show_poster},
     library::custom_images::{Role, Slot},
     library::libraries::Kind,
     library::watch_states::WatchState,
@@ -200,7 +200,7 @@ impl BrowseService for BrowseServiceHandler {
 }
 
 fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::MovieInLibrary {
-    let downloaded = movie.poster.map(|path| artwork::url(&movie.plugin, &path));
+    let downloaded = (movie.poster).map(|image| artwork::url(image.plugin.as_str(), &image.path));
     let poster_url = (images.custom)
         .of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster))
         .or(downloaded);
@@ -251,8 +251,7 @@ fn movie_to_proto(
     watch_state: Option<WatchState>,
     images: &ShownImages,
 ) -> proto::Movie {
-    let plugin = movie.plugin;
-    let artwork_url = |path: String| artwork::url(&plugin, &path);
+    let artwork_url = |image: ImageRef| artwork::url(image.plugin.as_str(), &image.path);
     let custom_poster =
         (images.custom).of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster));
     let custom_backdrop =
@@ -337,7 +336,7 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         .filter_map(|&number| Some((number, season_poster(show, number, images).0?)))
         .collect();
     let downloaded_backdrop =
-        (show.backdrop.as_deref()).map(|path| artwork::url(&show.plugin, path));
+        (show.backdrop.as_ref()).map(|image| artwork::url(image.plugin.as_str(), &image.path));
     let poster_url = custom_poster.or_else(|| {
         let posters = (season_posters.iter()).map(|(n, url)| (*n, Some(url.as_str())));
         show_poster(posters).map(str::to_owned)

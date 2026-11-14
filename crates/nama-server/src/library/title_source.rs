@@ -16,7 +16,7 @@ mod titles;
 pub(crate) use titles::{Candidate, Episode, Image, Movie, SearchQuery, Season, Show, TitleKind};
 
 use crate::{
-    library::contents::Metadata,
+    library::contents::{ImageRef, Metadata},
     plugins::{Answer, ExtensionPoints, Failure, ProviderError},
 };
 
@@ -412,6 +412,8 @@ fn meaning<R>(answered: Option<Answer<R, Error>>) -> Result<(PluginId, R), Error
 
 impl Metadata {
     fn movie(plugin: PluginId, movie: Movie) -> Self {
+        let poster = ImageRef::of(&plugin, movie.poster.as_ref());
+        let backdrop = ImageRef::of(&plugin, movie.backdrop.as_ref());
         Self {
             plugin,
             ids: movie.ids,
@@ -422,8 +424,8 @@ impl Metadata {
             overview: movie.overview,
             release_date: movie.release_date,
             runtime_minutes: movie.runtime_minutes,
-            poster: movie.poster,
-            backdrop: movie.backdrop,
+            poster,
+            backdrop,
             still: None,
         }
     }

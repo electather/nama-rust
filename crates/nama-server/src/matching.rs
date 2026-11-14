@@ -61,7 +61,7 @@ use crate::{
     events::{EventBus, event},
     library::artwork::Artwork,
     library::contents::{
-        Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin, UnmatchedReason,
+        Contents, Decided, Decisions, ImageRef, Item, Metadata, Name, Named, Pin, UnmatchedReason,
     },
     library::libraries::{self, Libraries},
     library::title_source::{self, Episode, MetadataSource, Season, Show, Source, TitleKind},
@@ -240,8 +240,8 @@ impl Metadata {
             overview: episode.overview.clone(),
             release_date: episode.air_date.clone(),
             runtime_minutes: episode.runtime_minutes,
-            poster: season.poster.clone().or_else(|| show.poster.clone()),
-            backdrop: show.backdrop.clone(),
+            poster: ImageRef::of(plugin, season.poster.as_ref().or(show.poster.as_ref())),
+            backdrop: ImageRef::of(plugin, show.backdrop.as_ref()),
             still: episode.still.clone(),
         }
     }
