@@ -128,6 +128,10 @@ _Avoid_: linker, integration
 A User's identity at an outside service, such as their Telegram chat, that a Plugin acts on for them.
 _Avoid_: integration, link, account
 
+**Personal setting**:
+A setting a Plugin's Manifest declares for each User to set for themself, such as their ntfy topic or Discord webhook. The Admin sets the Plugin's own settings; only the User sees their Personal settings, and a Plugin gets them only in a call for that User (ADR 0046).
+_Avoid_: user setting (confused with Settings preferences)
+
 ## Media
 
 **Library**:
