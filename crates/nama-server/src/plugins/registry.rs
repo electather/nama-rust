@@ -1,0 +1,465 @@
+//! The Registry: which Plugins are enabled, and enabling, disabling and listing them.
+
+use std::{
+    collections::{BTreeMap, HashMap},
+    convert::Infallible,
+    fmt,
+    ops::Deref,
+    sync::Arc,
+};
+
+use nama_plugin_api::{
+    Manifest, Plugin, PluginId, PointKey, Priority, Registrar, Registration,
+    fulfiller::{Fulfiller, Movies, Shows},
+    settings::{Choices, SettingKind, Settings, SettingsSchema},
+};
+use nama_proto::nama::v1::PluginKind;
+use tokio::sync::mpsc;
+use tracing::{error, info};
+
+use super::{
+    CheckError, CheckTimedOut, EnableError, ExtensionPoints, LastProvider, Listed,
+    SETTINGS_CHECK_TIMEOUT, contain, contain_sync, secret_values, without_secrets,
+};
+/// Every Plugin enabled on this Server and everything they registered.
+///
+/// Only Plugin settings and startup hold one (`crates/nama-server/AGENTS.md`, "One owner for
+/// Plugin changes"). Cloning a `Registry` gives another handle to the same one.
+#[derive(Clone, Default)]
+pub struct Registry {
+    points: ExtensionPoints,
+}
+
+// A Registry calls Plugins as every other module does; only it also changes them.
+impl Deref for Registry {
+    type Target = ExtensionPoints;
+
+    fn deref(&self) -> &ExtensionPoints {
+        &self.points
+    }
+}
+
+#[derive(Default)]
+pub(super) struct State {
+    pub(super) plugins: BTreeMap<PluginId, Enabled>,
+    next_generation: u64,
+    /// Each Extension Point's handlers, in the order they run.
+    pub(super) points: HashMap<PointKey, Vec<Entry>>,
+    /// The admin's ranking of Providers, by capability. It outlasts Plugins being disabled.
+    pub(super) precedence: HashMap<PointKey, Vec<PluginId>>,
+    /// Each Plugin the Server has, Built-in or Installed, enabled or not.
+    pub(super) known: BTreeMap<PluginId, Described>,
+    /// Where [`Registry::crashed`] sends the Installed Plugins it disables for crashing.
+    pub(super) crashed: Option<mpsc::UnboundedSender<PluginId>>,
+    /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
+    #[cfg(feature = "testing")]
+    pub(super) as_installed: Vec<fn() -> Arc<dyn Plugin>>,
+}
+
+pub(super) type Make = Arc<dyn Fn() -> Arc<dyn Plugin> + Send + Sync>;
+
+/// A Plugin the Server has, with what it said about itself when the Server read it, so listing
+/// runs no Plugin code.
+pub(super) struct Described {
+    pub(super) kind: PluginKind,
+    /// What makes the Plugin anew for each enablement, kept beside its Manifest, or why the Server
+    /// refused it. Keeping one instance instead would hold it past disabling, so its `Drop` would
+    /// run uncontained when the registry goes.
+    pub(super) plugin: Result<(Make, Manifest), String>,
+    pub(super) checks_settings: bool,
+}
+
+pub(super) struct Enabled {
+    // Held so the Plugin lives as long as it is enabled.
+    _plugin: Arc<dyn Plugin>,
+    /// Tells this enablement apart from earlier ones of the same Plugin, so a call that started
+    /// before a disable can't reach or disable the Plugin enabled again since.
+    pub(super) generation: u64,
+}
+
+#[derive(Clone)]
+pub(super) struct Entry {
+    pub(super) plugin: PluginId,
+    pub(super) generation: u64,
+    /// Position among the Plugin's own registrations, which breaks the last tie.
+    index: usize,
+    /// The values of the secret settings the Plugin was enabled with, which its errors mustn't
+    /// show.
+    pub(super) secrets: Arc<[String]>,
+    pub(super) registration: Registration,
+}
+
+impl Entry {
+    fn order(&self) -> (Priority, &PluginId, usize) {
+        (self.registration.priority(), &self.plugin, self.index)
+    }
+}
+
+impl Registry {
+    /// A registry with no Plugins enabled.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Enables `plugin` with no settings: calls its [`Plugin::register`] and records everything
+    /// it registers under its id.
+    ///
+    /// # Errors
+    ///
+    /// If a Plugin with the same id is already enabled, the Plugin requires a setting, or the
+    /// Plugin refuses to start or panics.
+    pub fn enable(&self, plugin: Arc<dyn Plugin>) -> Result<(), EnableError> {
+        self.enable_with_settings(plugin, Settings::default())
+    }
+
+    /// Enables `plugin` with `settings`, once they are checked against its
+    /// [`Manifest::settings`] and its defaults are filled in.
+    ///
+    /// # Errors
+    ///
+    /// If a Plugin with the same id is already enabled, the settings don't fit the Plugin's
+    /// schema, or the Plugin refuses to start or panics.
+    pub fn enable_with_settings(
+        &self,
+        plugin: Arc<dyn Plugin>,
+        settings: Settings,
+    ) -> Result<(), EnableError> {
+        // Everything a Plugin does here (its `manifest`, `register` and `Drop`) is Plugin code, so
+        // a panic in any of it is contained.
+        let manifest = match contain_sync(|| plugin.manifest()) {
+            Ok(manifest) => manifest,
+            Err(message) => {
+                // A panic dropping it is moot: the Plugin is already refused.
+                let _dropped = contain_sync(|| drop(plugin));
+                return Err(EnableError::ManifestPanicked { message });
+            }
+        };
+        contain_sync(|| self.enable_as(&manifest, plugin, settings)).unwrap_or_else(|message| {
+            Err(EnableError::Panicked {
+                plugin: manifest.id,
+                message,
+            })
+        })
+    }
+
+    /// Enables the Plugin `id` that [`Registry::plugins`] lists with `settings`, as
+    /// [`Registry::enable_with_settings`] does.
+    ///
+    /// # Errors
+    ///
+    /// If no Plugin has the id, the Server refused it, or as [`Registry::enable_with_settings`]
+    /// fails, such as the Plugin refusing to start.
+    pub fn enable_by_id(&self, id: &PluginId, settings: Settings) -> Result<(), EnableError> {
+        let make = self
+            .read(|state| {
+                let known = state.known.get(id)?;
+                Some(
+                    known
+                        .plugin
+                        .as_ref()
+                        .map(|(make, _)| Arc::clone(make))
+                        .map_err(Clone::clone),
+                )
+            })
+            .ok_or_else(|| EnableError::Unknown(id.clone()))?
+            .map_err(|reason| EnableError::Refused {
+                plugin: id.clone(),
+                reason,
+            })?;
+        let plugin = contain_sync(|| make()).map_err(|message| EnableError::Panicked {
+            plugin: id.clone(),
+            message,
+        })?;
+        self.enable_with_settings(plugin, settings)
+    }
+
+    /// Enables `plugin`, whose Manifest is `manifest`. Plugin code runs here, so only call it from
+    /// within [`contain_sync`].
+    fn enable_as(
+        &self,
+        manifest: &Manifest,
+        plugin: Arc<dyn Plugin>,
+        settings: Settings,
+    ) -> Result<(), EnableError> {
+        let id = &manifest.id;
+        if self.read(|state| state.plugins.contains_key(id)) {
+            return Err(EnableError::AlreadyEnabled(id.clone()));
+        }
+        let schema = &manifest.settings;
+        let settings = settings
+            .resolve(schema)
+            .map_err(|error| EnableError::InvalidSettings {
+                plugin: id.clone(),
+                error,
+            })?;
+        let secrets: Arc<[String]> = secret_values(schema, &settings).into();
+        let mut registrar = Registrar::with_settings(settings);
+        // The error and the half-filled registrar are Plugin values, dropped here inside the
+        // containment the caller runs this in.
+        if let Err(err) = plugin.register(&mut registrar) {
+            return Err(EnableError::RefusedToStart {
+                plugin: id.clone(),
+                reason: without_secrets(err.to_string(), &secrets),
+            });
+        }
+        let registrations = registrar.into_registrations();
+        let declared = &manifest.extension_points;
+        if let Some(point) = registrations
+            .iter()
+            .map(Registration::point)
+            .find(|point| !declared.contains(point))
+        {
+            return Err(EnableError::Refused {
+                plugin: id.clone(),
+                reason: format!(
+                    "it registers at {}, which its Manifest doesn't name",
+                    point.name()
+                ),
+            });
+        }
+        let count = registrations.len();
+        // Plugin values the lock refuses are dropped after it is released, since a Plugin's `Drop`
+        // is Plugin code.
+        let refused = self.write(|state| {
+            let refusal = if state.plugins.contains_key(id) {
+                Some(EnableError::AlreadyEnabled(id.clone()))
+            } else {
+                state.fulfiller_taken(id, &registrations)
+            };
+            if let Some(refusal) = refusal {
+                return Some((refusal, plugin, registrations));
+            }
+            let generation = state.next_generation;
+            state.next_generation += 1;
+            state.plugins.insert(
+                id.clone(),
+                Enabled {
+                    _plugin: plugin,
+                    generation,
+                },
+            );
+            for (index, registration) in registrations.into_iter().enumerate() {
+                state
+                    .points
+                    .entry(registration.point())
+                    .or_default()
+                    .push(Entry {
+                        plugin: id.clone(),
+                        generation,
+                        index,
+                        secrets: Arc::clone(&secrets),
+                        registration,
+                    });
+            }
+            // Once, after every push. A list nothing was pushed to is already sorted, which the
+            // stable sort sees in one pass.
+            for entries in state.points.values_mut() {
+                entries.sort_by(|a, b| a.order().cmp(&b.order()));
+            }
+            None
+        });
+        if let Some((refusal, ..)) = refused {
+            return Err(refusal);
+        }
+        info!(plugin = %id, version = %manifest.version, registrations = count, "enabled plugin");
+        Ok(())
+    }
+
+    /// Disables the Plugin `id` and removes everything it registered. Returns whether it was
+    /// enabled.
+    #[expect(
+        clippy::must_use_candidate,
+        reason = "callers often disable without caring whether the Plugin was enabled"
+    )]
+    pub fn disable(&self, id: &PluginId) -> bool {
+        let Ok(was_enabled) = self.disable_if(id, |_, _| Ok::<_, Infallible>(()));
+        was_enabled
+    }
+
+    /// The refusal of disabling the Plugin `id` if no other enabled Plugin provides `T`, such as
+    /// the Authenticator a Server can't do without, or `None`. Also refused if `id` isn't enabled
+    /// and no Plugin provides `T`: what a Plugin that isn't running provides is unknown, and it
+    /// may be one that panicked and would provide `T` after a restart.
+    #[must_use]
+    pub fn last_provider<T: ?Sized + 'static>(&self, id: &PluginId) -> Option<LastProvider> {
+        let point = PointKey::provide::<T>();
+        self.read(|state| {
+            let entries = state.points.get(&point).map_or(&[][..], Vec::as_slice);
+            let provides =
+                !state.plugins.contains_key(id) || entries.iter().any(|entry| entry.plugin == *id);
+            let others = entries.iter().any(|entry| entry.plugin != *id);
+            (provides && !others).then(|| LastProvider {
+                plugin: id.clone(),
+                point: point.name(),
+            })
+        })
+    }
+
+    /// Runs the Plugin `id`'s settings check on `settings`, on a fresh instance whether
+    /// it is enabled or not, and returns the choices it offers. The settings are checked against
+    /// its schema first, with its Choice settings optional, and its defaults filled in.
+    ///
+    /// # Errors
+    ///
+    /// If no Plugin has the id, it has no check, the settings don't fit, or the check
+    /// fails. A check that panics or runs past [`SETTINGS_CHECK_TIMEOUT`] fails without harming the
+    /// Server.
+    pub async fn check_settings(
+        &self,
+        id: &PluginId,
+        settings: Settings,
+    ) -> Result<Choices, CheckError> {
+        let checkable = self
+            .read(|state| {
+                let known = state.known.get(id)?;
+                let checkable = known.plugin.as_ref().ok().filter(|_| known.checks_settings);
+                Some(
+                    checkable.map(|(make, manifest)| (Arc::clone(make), manifest.settings.clone())),
+                )
+            })
+            .ok_or_else(|| CheckError::Unknown(id.clone()))?;
+        let no_check = || CheckError::Failed(format!("{id} has no settings check"));
+        let Some((make, schema)) = checkable else {
+            return Err(no_check());
+        };
+        let settings = settings
+            .resolve(&with_optional_choices(schema.clone()))
+            .map_err(CheckError::InvalidSettings)?;
+        let secrets = secret_values(&schema, &settings);
+        let scrubbed = |message: String| without_secrets(message, &secrets);
+        let panicked = |message: String| {
+            let message = scrubbed(message);
+            error!(plugin = %id, message, "plugin panicked while checking its settings");
+            CheckError::Failed(format!("{id} failed while checking its settings"))
+        };
+        let plugin = contain_sync(|| make()).map_err(panicked)?;
+        // The timeout is inside `contain`, so dropping a check it gave up on (Plugin code) is
+        // contained too, as are formatting and dropping the Plugin's error.
+        let check = contain(|| async {
+            let check = plugin.settings_check()?;
+            let checked = tokio::time::timeout(SETTINGS_CHECK_TIMEOUT, check.check(&settings))
+                .await
+                .unwrap_or_else(|_elapsed| Err(CheckTimedOut(SETTINGS_CHECK_TIMEOUT).into()));
+            Some(
+                checked.map_err(|error| match error.downcast::<CheckTimedOut>() {
+                    Ok(timed_out) => CheckError::TimedOut(id.clone(), timed_out.0),
+                    Err(error) => CheckError::Failed(scrubbed(error.to_string())),
+                }),
+            )
+        });
+        let checked = match check.await {
+            Ok(Some(checked)) => checked,
+            Ok(None) => Err(no_check()),
+            Err(message) => Err(panicked(message)),
+        };
+        if let Err(message) = contain_sync(|| drop(plugin)) {
+            error!(plugin = %id, message, "plugin panicked while being dropped");
+        }
+        checked
+    }
+
+    /// The ids of the enabled Plugins, sorted.
+    #[must_use]
+    pub fn enabled(&self) -> Vec<PluginId> {
+        self.read(|state| state.plugins.keys().cloned().collect())
+    }
+
+    /// Every Plugin the Server has, enabled or not, sorted by id: the Built-in ones
+    /// [`Registry::with_builtins`] or [`Registry::describe_builtin`] made known, and the Installed
+    /// ones the Server last read.
+    #[must_use]
+    pub fn plugins(&self) -> Vec<Listed> {
+        self.read(|state| {
+            let listed = |(id, described)| state.listed(id, described);
+            state.known.iter().map(listed).collect()
+        })
+    }
+
+    /// The Plugin `id`, as [`Registry::plugins`] lists it, or `None` if the Server has none.
+    #[must_use]
+    pub fn plugin(&self, id: &PluginId) -> Option<Listed> {
+        self.read(|state| Some(state.listed(id, state.known.get(id)?)))
+    }
+
+    /// How the rest of the Kernel calls these Plugins, which can't change them.
+    #[must_use]
+    pub fn extension_points(&self) -> ExtensionPoints {
+        self.points.clone()
+    }
+
+    /// Sets which Plugins' Providers of `T` come first, and in what order, overriding their
+    /// priorities. Plugins not in `plugins` follow in priority order. The ranking is kept while a
+    /// Plugin in it is disabled or not yet enabled.
+    pub fn set_provider_precedence<T: ?Sized + 'static>(&self, plugins: Vec<PluginId>) {
+        self.write(|state| state.precedence.insert(PointKey::provide::<T>(), plugins));
+    }
+
+    /// The id of each Installed Plugin disabled from now on because it crashed, for the Server to
+    /// save as disabled. Replaces the receiver an earlier call returned.
+    pub(crate) fn crashed(&self) -> mpsc::UnboundedReceiver<PluginId> {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        self.write(|state| state.crashed = Some(sender));
+        receiver
+    }
+}
+
+impl State {
+    fn listed(&self, id: &PluginId, described: &Described) -> Listed {
+        Listed {
+            id: id.clone(),
+            kind: described.kind,
+            manifest: described
+                .plugin
+                .as_ref()
+                .map(|(_, manifest)| manifest.clone())
+                .map_err(Clone::clone),
+            checks_settings: described.checks_settings,
+            enabled: self.plugins.contains_key(id),
+        }
+    }
+
+    /// The refusal of enabling `id` with `registrations`, if they include a Fulfiller for a kind of
+    /// title another enabled Plugin already provides one for.
+    fn fulfiller_taken(
+        &self,
+        id: &PluginId,
+        registrations: &[Registration],
+    ) -> Option<EnableError> {
+        let kinds = [
+            (PointKey::provide::<dyn Fulfiller<Movies>>(), "Movie"),
+            (PointKey::provide::<dyn Fulfiller<Shows>>(), "Show"),
+        ];
+        kinds.into_iter().find_map(|(point, kind)| {
+            let provides = registrations
+                .iter()
+                .any(|registration| registration.point() == point);
+            if !provides {
+                return None;
+            }
+            let by = self.points.get(&point)?.first()?.plugin.clone();
+            Some(EnableError::FulfillerTaken {
+                plugin: id.clone(),
+                kind,
+                by,
+            })
+        })
+    }
+}
+
+/// `schema` with its Choice settings optional, since checking the settings is how an admin finds
+/// what to pick for them.
+fn with_optional_choices(mut schema: SettingsSchema) -> SettingsSchema {
+    for field in &mut schema.fields {
+        field.required &= field.kind != SettingKind::Choice;
+    }
+    schema
+}
+
+impl fmt::Debug for Registry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Registry")
+            .field("enabled", &self.enabled())
+            .finish_non_exhaustive()
+    }
+}

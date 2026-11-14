@@ -4,31 +4,23 @@
 
 use std::{
     collections::HashMap,
-    fmt, fs, io, mem, panic,
-    path::{Path, PathBuf},
+    fmt, io, panic,
+    path::Path,
     sync::{
         Arc,
         atomic::{AtomicU32, Ordering},
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use buffa::{
-    DecodeError, Enumeration, Message,
-    encoding::{self, Tag, WireType},
-    types,
-};
-use extism::{CompiledPlugin, CurrentPlugin, PluginBuilder, UserData, Val, ValType, Wasm};
+use buffa::{DecodeError, Enumeration, Message};
+use extism::CompiledPlugin;
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     connector::{ConnectionStarted, Connector},
     fulfiller::{Download, Fulfiller, Movies, Shows},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
     points::Events,
-    settings::{
-        Choice, Choices, SettingField, SettingKind, SettingValue, Settings, SettingsCheck,
-        SettingsSchema,
-    },
+    settings::{Choice, Choices, SettingKind, Settings, SettingsCheck},
 };
 use nama_plugin_proto::{
     CONTRACT_VERSION,
@@ -38,39 +30,32 @@ use nama_plugin_proto::{
         StopMonitoring,
     },
 };
-use nama_proto::nama::v1::{Event, PluginKind, Request};
-use semver::{Version, VersionReq};
+use nama_proto::nama::v1::{Event, Request};
 use thiserror::Error;
 use tokio::task;
-use tracing::{error, info, warn};
+use tracing::warn;
 
-use super::{
-    CheckTimedOut, Described, Make, Registry, contain_sync, kept_logo, secret_values,
-    without_secrets,
-};
+use super::{CheckTimedOut, registry::Make, secret_values, without_secrets};
 
+mod bundled;
 mod contract;
+mod listing;
+mod load;
 
-/// How long one call into an Installed Plugin may run, so one that never returns can't hold up
-/// the start, its Observer's task or a settings check.
-const CALL_TIMEOUT: Duration = Duration::from_secs(5);
-
-/// How much memory one call into an Installed Plugin may use, in 64 KiB pages: the guest's own and
-/// what Extism keeps for it, so one Plugin can't take the Server down.
-// ponytail: one cap for all; let a Manifest ask for more once a Plugin needs it.
-const MEMORY_MAX_PAGES: u32 = 2048;
+pub(crate) use listing::read;
+use load::{CALL_TIMEOUT, MEMORY_MAX_PAGES, allowed_hosts, compile, extism_config};
 
 /// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
 /// cost an admin a Plugin.
 const CRASHES_BEFORE_DISABLING: u32 = 3;
 
 /// The export that checks a Plugin's settings, if it has one.
-const CHECK_SETTINGS: &str = "check_settings";
+pub(super) const CHECK_SETTINGS: &str = "check_settings";
 
 const FULFILL: &str = "fulfill";
 const UNFOLLOW: &str = "unfollow";
 /// A Fulfiller's optional export: a Plugin built before it isn't asked.
-const STOP_MONITORING: &str = "stop_monitoring";
+pub(super) const STOP_MONITORING: &str = "stop_monitoring";
 const PROGRESS: &str = "progress";
 const DELIVER: &str = "deliver";
 const START_CONNECTION: &str = "start_connection";
@@ -78,7 +63,7 @@ const POLL_CONNECTION: &str = "poll_connection";
 const OBSERVE_EVENTS: &str = "observe_events";
 
 /// The Extension Points an Installed Plugin can take part at.
-const POINTS: &[Point] = &[
+pub(super) const POINTS: &[Point] = &[
     Point {
         named: Named::Provider(ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER),
         exports: &[FULFILL, PROGRESS],
@@ -120,7 +105,7 @@ const POINTS: &[Point] = &[
 ];
 
 /// One Extension Point an Installed Plugin can take part at.
-struct Point {
+pub(super) struct Point {
     /// What a package's Manifest names it by.
     named: Named,
     /// The exports the Server calls there, which a package naming it must have.
@@ -131,7 +116,7 @@ struct Point {
 
 /// A value in a package's Manifest naming an Extension Point.
 #[derive(Clone, Copy, PartialEq, Debug)]
-enum Named {
+pub(super) enum Named {
     Provider(ProvidePoint),
     Observer(ObservePoint),
 }
@@ -145,20 +130,9 @@ impl fmt::Display for Named {
     }
 }
 
-/// The Installed Plugins bundled in the Server, each by the name it is listed under if refused.
-/// `build.rs` builds them.
-const BUNDLED: &[(&str, &[u8])] = &[
-    ("radarr.wasm", include_bytes!(env!("RADARR_WASM"))),
-    ("sonarr.wasm", include_bytes!(env!("SONARR_WASM"))),
-    ("telegram.wasm", include_bytes!(env!("TELEGRAM_WASM"))),
-];
-
-/// What every binary WASM module starts with.
-const WASM_MAGIC: &[u8] = b"\0asm";
-
 /// Why the Server refused an Installed Plugin.
 #[derive(Debug, Error)]
-enum Refused {
+pub(super) enum Refused {
     #[error("could not read it: {0}")]
     Read(io::Error),
     #[error("it is not a WASM module")]
@@ -196,7 +170,7 @@ enum Refused {
 
 /// An Installed Plugin the Server read and checked, ready to enable.
 #[derive(Clone)]
-struct Installed {
+pub(super) struct Installed {
     /// What its package says about it, as the Kernel reads it.
     manifest: Manifest,
     /// Its package's own Manifest, for what only an Installed Plugin says, such as its hosts.
@@ -325,7 +299,7 @@ fn failure_cause(err: &extism::Error) -> String {
 }
 
 /// A Plugin to list as Installed once [`describe`] finds its id free.
-struct Listable {
+pub(super) struct Listable {
     make: Make,
     manifest: Manifest,
     checks_settings: bool,
@@ -395,7 +369,7 @@ impl Plugin for Installed {
 
 /// The Extension Points `package` names. One this Server doesn't know refuses it, rather than
 /// leaving the Plugin doing less than its Manifest says.
-fn points(package: &wire::Manifest) -> Result<Vec<&'static Point>, Refused> {
+pub(super) fn points(package: &wire::Manifest) -> Result<Vec<&'static Point>, Refused> {
     let providers = package.providers.iter().map(|named| {
         known_point(named.as_known().map(Named::Provider), || {
             format!("provider {named}")
@@ -421,7 +395,10 @@ fn known_point(
 }
 
 /// Checks that a Plugin has every export `points` need, `has_export` telling which it has.
-fn check_exports(points: &[&Point], has_export: impl Fn(&str) -> bool) -> Result<(), Refused> {
+pub(super) fn check_exports(
+    points: &[&Point],
+    has_export: impl Fn(&str) -> bool,
+) -> Result<(), Refused> {
     for point in points {
         if let Some(&export) = point.exports.iter().find(|&&export| !has_export(export)) {
             return Err(Refused::MissingExport {
@@ -621,429 +598,6 @@ fn choices(checked: CheckedSettings) -> Choices {
         .collect()
 }
 
-/// The bundled Installed Plugins and those in `<data_dir>/plugins/`, compiled but not yet listed.
-pub(crate) struct Found(Vec<(PathBuf, Result<Installed, Refused>)>);
-
-/// Reads the bundled Installed Plugins and those in `<data_dir>/plugins/`, for
-/// [`Registry::list_installed`] to list.
-///
-/// Blocks while it compiles each Plugin. wasmtime caches what it compiles under
-/// `<data_dir>/wasmtime/`, not in the home directory.
-pub(crate) fn read(data_dir: &Path) -> Found {
-    Found(read_plugins(data_dir))
-}
-
-impl Registry {
-    /// Reads and lists the bundled Installed Plugins and those in `<data_dir>/plugins/` at start,
-    /// as listing the Plugins does, and logs each one's id and version, or why the Server refused
-    /// it. Enables none.
-    pub(crate) fn load_installed(&self, data_dir: &Path) {
-        let found = read(data_dir);
-        for (file, plugin) in &found.0 {
-            match plugin {
-                Ok(plugin) => info!(
-                    file = %file.display(),
-                    id = %plugin.manifest.id,
-                    version = %plugin.manifest.version,
-                    "found Installed Plugin"
-                ),
-                Err(refused) => {
-                    warn!(file = %file.display(), "refused Installed Plugin: {refused}");
-                }
-            }
-        }
-        self.list_installed(found);
-    }
-
-    /// Lists the Installed Plugins `found` beside the Built-in ones, in place of those listed
-    /// before. An enabled Plugin stays listed as it was enabled, even if its file is gone or
-    /// changed, until it is disabled. Enables none.
-    pub(crate) fn list_installed(&self, found: Found) {
-        let mut taken: Vec<PluginId> = self.read(|state| {
-            let builtin = |(id, known): (&PluginId, &Described)| {
-                (known.kind == PluginKind::PLUGIN_KIND_BUILT_IN).then(|| id.clone())
-            };
-            state.known.iter().filter_map(builtin).collect()
-        });
-        let found = found.0.into_iter();
-        let found = found.map(|(file, plugin)| (file, plugin.map(Listable::from)));
-        #[cfg(feature = "testing")]
-        let found = found.chain(self.made_as_installed());
-        let mut described = Vec::new();
-        for (file, plugin) in found {
-            let (id, known) = describe(&file, plugin, &taken);
-            if known.plugin.is_ok() {
-                taken.push(id.clone());
-            }
-            described.push((id, known));
-        }
-        self.write(|state| {
-            let enabled = &state.plugins;
-            state.known.retain(|id, known| {
-                known.kind == PluginKind::PLUGIN_KIND_BUILT_IN || enabled.contains_key(id)
-            });
-            for (id, known) in described {
-                state.known.entry(id).or_insert(known);
-            }
-        });
-    }
-
-    /// Lists the in-process Plugins `plugins` make as Installed ones beside the Packages found on
-    /// disk, from the next listing on and in place of those given before, so a test can try what
-    /// holds for an Installed Plugin without building a Package.
-    #[cfg(feature = "testing")]
-    pub fn list_as_installed(&self, plugins: Vec<fn() -> Arc<dyn Plugin>>) {
-        self.write(|state| state.as_installed = plugins);
-    }
-
-    /// The Plugins [`Registry::list_as_installed`] lists, each as if found in a file named after
-    /// its id. One that panics saying what it is is logged and left out.
-    #[cfg(feature = "testing")]
-    fn made_as_installed(&self) -> Vec<(PathBuf, Result<Listable, Refused>)> {
-        let plugins = self.read(|state| state.as_installed.clone());
-        let listable = |make: fn() -> Arc<dyn Plugin>| {
-            let (manifest, checks_settings) = super::what_it_says(&make)?;
-            // Not the id itself, so one refused for its id taken is listed apart from the holder.
-            let file = PathBuf::from(format!("{}.in-process", manifest.id));
-            let make = Arc::new(make);
-            Some((
-                file,
-                Ok(Listable {
-                    make,
-                    manifest,
-                    checks_settings,
-                }),
-            ))
-        };
-        plugins.into_iter().filter_map(listable).collect()
-    }
-}
-
-/// The Installed Plugin found in `file`, or listed in-process under a made-up one, as the registry
-/// lists it: by its id, or by the file's name if the Server refused it, since it may not know the
-/// id. One whose id is `taken` is refused.
-fn describe(
-    file: &Path,
-    plugin: Result<Listable, Refused>,
-    taken: &[PluginId],
-) -> (PluginId, Described) {
-    let plugin = plugin.and_then(|plugin| match &plugin.manifest.id {
-        id if taken.contains(id) => Err(Refused::IdTaken(id.clone())),
-        _ => Ok(plugin),
-    });
-    match plugin {
-        Ok(Listable {
-            make,
-            manifest,
-            checks_settings,
-        }) => {
-            let id = manifest.id.clone();
-            let described = Described {
-                kind: PluginKind::PLUGIN_KIND_INSTALLED,
-                plugin: Ok((make, manifest)),
-                checks_settings,
-            };
-            (id, described)
-        }
-        Err(refused) => {
-            let name = file.file_name().unwrap_or_default().to_string_lossy();
-            let described = Described {
-                kind: PluginKind::PLUGIN_KIND_INSTALLED,
-                plugin: Err(refused.to_string()),
-                checks_settings: false,
-            };
-            (PluginId::from(name.into_owned()), described)
-        }
-    }
-}
-
-/// The bundled Plugins, then each `.wasm` file in `<data_dir>/plugins/` in name order, each with
-/// its Plugin or why the Server refused it. Bundled Plugins come first, so a file with one's id is
-/// refused. Logs why it read no files, if it couldn't.
-fn read_plugins(data_dir: &Path) -> Vec<(PathBuf, Result<Installed, Refused>)> {
-    let dir = data_dir.join("plugins");
-    let files = wasm_files(&dir).unwrap_or_else(|err| {
-        error!(
-            "could not list the Installed Plugins in {}: {err}",
-            dir.display()
-        );
-        Vec::new()
-    });
-    let cache_config = match write_cache_config(data_dir) {
-        Ok(cache_config) => cache_config,
-        Err(err) => {
-            error!(
-                "could not set up wasmtime's compile cache in {}: {err}",
-                data_dir.display()
-            );
-            return Vec::new();
-        }
-    };
-    // ponytail: one Plugin at a time, each up to CALL_TIMEOUT, at start and on every listing;
-    // compile them in parallel, or only changed files, if many Plugins make that slow.
-    let bundled = BUNDLED.iter().map(|&(name, wasm)| {
-        let plugin = load(wasm.to_vec(), &cache_config);
-        (Path::new("<bundled>").join(name), plugin)
-    });
-    let dropped_in = files.into_iter().map(|file| {
-        let plugin = fs::read(&file)
-            .map_err(Refused::Read)
-            .and_then(|wasm| load(wasm, &cache_config));
-        (file, plugin)
-    });
-    bundled.chain(dropped_in).collect()
-}
-
-/// The `.wasm` files in `dir`, sorted by name. A missing `dir` holds none.
-fn wasm_files(dir: &Path) -> io::Result<Vec<PathBuf>> {
-    let entries = match fs::read_dir(dir) {
-        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-        entries => entries?,
-    };
-    let mut files = Vec::new();
-    for entry in entries {
-        let path = entry?.path();
-        if path
-            .extension()
-            .is_some_and(|extension| extension == "wasm")
-        {
-            files.push(path);
-        }
-    }
-    files.sort();
-    Ok(files)
-}
-
-/// Writes the wasmtime cache config that Extism reads, pointing the cache at
-/// `<data_dir>/wasmtime/cache/`, and returns its path. Extism takes the cache's location only
-/// from such a file.
-fn write_cache_config(data_dir: &Path) -> io::Result<PathBuf> {
-    // wasmtime requires an absolute cache directory.
-    let dir = std::path::absolute(data_dir)?.join("wasmtime");
-    fs::create_dir_all(&dir)?;
-    // A JSON string is also a valid TOML basic string, escapes included.
-    let cache_dir = serde_json::to_string(&dir.join("cache"))?;
-    let file = dir.join("cache.toml");
-    fs::write(&file, format!("[cache]\ndirectory = {cache_dir}\n"))?;
-    Ok(file)
-}
-
-/// Compiles the Plugin `wasm`, calls its `manifest()` and checks the Manifest it returns.
-fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refused> {
-    // Extism would also take WASM's text format, and its parse errors span many lines.
-    if !wasm.starts_with(WASM_MAGIC) {
-        return Err(Refused::NotWasm);
-    }
-    let (bytes, exported): (_, Vec<&str>) = contain_sync(|| {
-        let compiled =
-            compile(&wasm, cache_config, Vec::new(), Vec::new()).map_err(Refused::Load)?;
-        let mut plugin = extism::Plugin::new_from_compiled(&compiled).map_err(Refused::Manifest)?;
-        let bytes = plugin
-            .call::<(), Vec<u8>>("manifest", ())
-            .map_err(Refused::Manifest)?;
-        let known_exports = POINTS.iter().flat_map(|point| point.exports);
-        let exported = known_exports
-            .chain([&CHECK_SETTINGS, &STOP_MONITORING])
-            .filter(|export| plugin.function_exists(export))
-            .copied()
-            .collect();
-        Ok((bytes, exported))
-    })
-    .map_err(Refused::Panicked)??;
-    let mut package = decode(&bytes)?;
-    Ok(Installed {
-        manifest: judge(&mut package, &exported)?,
-        package: Arc::new(package),
-        wasm: wasm.into(),
-        cache_config: cache_config.into(),
-        checks_settings: exported.contains(&CHECK_SETTINGS),
-        stops_monitoring: exported.contains(&STOP_MONITORING),
-    })
-}
-
-/// `bytes` as a Manifest, once its Plugin contract requirement matches this Server's: a package
-/// built for another Plugin contract may encode the rest differently, so it is refused for that
-/// rather than found undecodable.
-fn decode(bytes: &[u8]) -> Result<wire::Manifest, Refused> {
-    check_contract(&contract_requirement(bytes).map_err(Refused::Decode)?)?;
-    wire::Manifest::decode_from_slice(bytes).map_err(Refused::Decode)
-}
-
-/// The `contract` of the encoded Manifest `bytes`, its field 3, read alone. `manifest.proto`
-/// keeps that number in every Plugin contract version.
-fn contract_requirement(mut bytes: &[u8]) -> Result<String, DecodeError> {
-    let mut wants = String::new();
-    while !bytes.is_empty() {
-        let tag = Tag::decode(&mut bytes)?;
-        if tag.field_number() == 3 && tag.wire_type() == WireType::LengthDelimited {
-            wants = types::decode_string(&mut bytes)?;
-        } else {
-            encoding::skip_field(tag, &mut bytes)?;
-        }
-    }
-    Ok(wants)
-}
-
-/// What the Server makes of `package`, the Manifest of a Package with the exports `exported`: the
-/// Manifest the Kernel reads, or why it refuses the Plugin. Runs no Plugin code, so a test needs
-/// no Package.
-fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<Manifest, Refused> {
-    check_allowed_hosts(&package.allowed_hosts)?;
-    let points = points(package)?;
-    check_exports(&points, |export| exported.contains(&export))?;
-    manifest(package, &points)
-}
-
-/// What `package`, naming `points`, says about its Plugin, as the Kernel reads it. Its logo is
-/// taken out, so the package kept with the Plugin never holds one the Server dropped.
-fn manifest(package: &mut wire::Manifest, points: &[&Point]) -> Result<Manifest, Refused> {
-    let settings = settings_schema(package)?;
-    let id = PluginId::from(package.id.clone());
-    let logo_svg = kept_logo(&id, &mem::take(&mut package.logo_svg));
-    Ok(Manifest {
-        id,
-        name: package.name.clone(),
-        description: package.description.clone(),
-        version: package.version.clone(),
-        settings,
-        extension_points: points.iter().map(|point| (point.key)()).collect(),
-        logo_svg,
-    })
-}
-
-/// Compiles `wasm`, letting it send HTTP requests to `hosts`, read `config` and call [`now`].
-fn compile(
-    wasm: &[u8],
-    cache_config: &Path,
-    hosts: Vec<String>,
-    config: Vec<(String, String)>,
-) -> Result<CompiledPlugin, extism::Error> {
-    let manifest = extism::Manifest::new([Wasm::data(wasm.to_vec())])
-        .with_timeout(CALL_TIMEOUT)
-        .with_memory_max(MEMORY_MAX_PAGES)
-        .with_allowed_hosts(hosts.into_iter())
-        .with_config(config.into_iter());
-    CompiledPlugin::new(
-        PluginBuilder::new(manifest)
-            .with_cache_config(cache_config)
-            .with_function_in_namespace("nama", "now", [], [ValType::I64], UserData::new(()), now),
-    )
-}
-
-/// `nama.now`, a Plugin's clock, since `SystemTime::now()` panics on wasm32-unknown-unknown:
-/// writes the milliseconds since the Unix epoch by the Server's clock.
-#[expect(clippy::unnecessary_wraps, reason = "Extism's signature")]
-fn now(
-    _: &mut CurrentPlugin,
-    _: &[Val],
-    out: &mut [Val],
-    _: UserData<()>,
-) -> Result<(), extism::Error> {
-    let millis = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| since.as_millis());
-    out.fill(Val::I64(i64::try_from(millis).unwrap_or(i64::MAX)));
-    Ok(())
-}
-
-/// The hosts a Plugin enabled with `settings` may send HTTP requests to: those its Manifest
-/// names, and the host of each of its URL settings (ADR 0006).
-fn allowed_hosts(
-    package: &wire::Manifest,
-    schema: &SettingsSchema,
-    settings: &Settings,
-) -> Vec<String> {
-    // Extism reads every allowed host as a glob, and a URL's host may hold `*` or, for IPv6, `[`:
-    // escaped, it names only itself.
-    let url_hosts = schema
-        .fields
-        .iter()
-        .filter(|field| field.kind == SettingKind::Url)
-        .filter_map(|field| Some(glob::Pattern::escape(settings.url(&field.key)?.host_str()?)));
-    package
-        .allowed_hosts
-        .iter()
-        .cloned()
-        .chain(url_hosts)
-        .collect()
-}
-
-/// `settings` as the Extism config a Plugin reads them from, each value as text: a bool as
-/// `true` or `false`, a number in decimal.
-fn extism_config(schema: &SettingsSchema, settings: &Settings) -> Vec<(String, String)> {
-    schema
-        .fields
-        .iter()
-        .filter_map(|field| {
-            let text = match settings.get(&field.key)? {
-                SettingValue::Bool(on) => on.to_string(),
-                SettingValue::Integer(number) => number.to_string(),
-                SettingValue::Text(text) => text.clone(),
-            };
-            Some((field.key.clone(), text))
-        })
-        .collect()
-}
-
-/// Checks that this Server's Plugin contract version meets `wants`, a Plugin's semver requirement.
-fn check_contract(wants: &str) -> Result<(), Refused> {
-    let requirement = VersionReq::parse(wants).map_err(|error| Refused::BadRequirement {
-        wants: wants.to_owned(),
-        error,
-    })?;
-    // every_bundled_plugin_has_the_exports_its_manifests_points_need fails if this stops parsing.
-    if Version::parse(CONTRACT_VERSION).is_ok_and(|server| requirement.matches(&server)) {
-        Ok(())
-    } else {
-        Err(Refused::OutOfRange {
-            wants: wants.to_owned(),
-        })
-    }
-}
-
-/// Checks that no host in a Manifest's `allowed_hosts` has a port, which Extism would never match.
-fn check_allowed_hosts(hosts: &[String]) -> Result<(), Refused> {
-    match hosts.iter().find(|host| host.contains(':')) {
-        Some(host) => Err(Refused::HostWithPort(host.clone())),
-        None => Ok(()),
-    }
-}
-
-fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema, Refused> {
-    let fields = package
-        .settings
-        .iter()
-        .map(|field| {
-            let kind = field
-                .kind
-                .as_known()
-                .and_then(contract::setting_kind)
-                .ok_or_else(|| Refused::UnknownSettingKind {
-                    key: field.key.clone(),
-                })?;
-            let default = field
-                .default_value
-                .as_option()
-                .and_then(contract::setting_value);
-            if default.as_ref().is_some_and(|default| !default.is(kind)) {
-                return Err(Refused::DefaultWrongKind {
-                    key: field.key.clone(),
-                    kind,
-                });
-            }
-            Ok(SettingField {
-                key: field.key.clone(),
-                label: field.label.clone(),
-                description: field.description.clone(),
-                kind,
-                required: field.required,
-                default,
-            })
-        })
-        .collect::<Result<_, _>>()?;
-    Ok(SettingsSchema { fields })
-}
-
 #[cfg(test)]
-#[path = "installed_tests.rs"]
+#[path = "wasm_tests.rs"]
 mod tests;

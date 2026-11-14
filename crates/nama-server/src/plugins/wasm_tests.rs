@@ -16,8 +16,11 @@ use nama_plugin_proto::{
 };
 
 use super::{
-    BUNDLED, Running, allowed_hosts, check_allowed_hosts, check_exports, compile, decode,
-    extism_config, is_crash, judge, load, points, settings_schema, write_cache_config,
+    Running, allowed_hosts,
+    bundled::BUNDLED,
+    check_exports, compile, extism_config, is_crash,
+    load::{check_allowed_hosts, decode, judge, load, settings_schema, write_cache_config},
+    points,
 };
 
 // The errors as Extism 1.41 gives them for the test Plugin's Observer.

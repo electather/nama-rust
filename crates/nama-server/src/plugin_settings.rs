@@ -23,8 +23,8 @@ use crate::{
     config::{Config, InvalidPluginTable, PluginConfig},
     db::Database,
     plugins::{
-        CheckError, EnableError, ExtensionPoints, LastProvider, Listed, Registry, installed,
-        log_not_enabled,
+        CheckError, EnableError, ExtensionPoints, LastProvider, Listed, Registry, log_not_enabled,
+        read_installed,
     },
     requests::qualities,
 };
@@ -342,7 +342,7 @@ impl PluginSettings {
     pub async fn list(&self) -> Result<Vec<StoredPlugin>, ListError> {
         let data_dir = self.data_dir.clone();
         // Compiled before taking `changing`, so a slow Plugin doesn't hold up Plugin changes.
-        let found = task::spawn_blocking(move || installed::read(&data_dir)).await?;
+        let found = task::spawn_blocking(move || read_installed(&data_dir)).await?;
         // Under `changing`, so a Plugin being enabled can't lose its listing halfway.
         let changing = self.lock().await;
         self.registry.list_installed(found);

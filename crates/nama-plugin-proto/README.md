@@ -8,7 +8,7 @@ The contract is more than the messages: `CONTRACT_VERSION` also covers what the 
 
 ## What the Kernel gives a Plugin
 
-The Server sets this up in [`crates/nama-server/src/plugins/installed.rs`](../nama-server/src/plugins/installed.rs), mostly in `compile`. It calls an Installed Plugin in three ways: `manifest()` once, when it loads the Package; `check_settings()` when an admin tests settings; and the exports of the Extension Points its Manifest names, such as `fulfill`, while it is enabled.
+The Server sets this up in [`crates/nama-server/src/plugins/wasm/load.rs`](../nama-server/src/plugins/wasm/load.rs), mostly in `compile`. It calls an Installed Plugin in three ways: `manifest()` once, when it loads the Package; `check_settings()` when an admin tests settings; and the exports of the Extension Points its Manifest names, such as `fulfill`, while it is enabled.
 
 - **A clock.** The function `now` in the Wasm import namespace `nama` takes no arguments and returns an `i64`: the milliseconds since the Unix epoch by the Server's clock. A Plugin needs it because `SystemTime::now()` panics on `wasm32-unknown-unknown`. Every call has it.
 - **128 MiB of memory and 5 seconds per call**, the memory counting the Plugin's own and what Extism keeps for it. A call past either limit fails. What that costs depends on the call: past one, `manifest()` gets the Plugin refused, and `check_settings()` fails that check.

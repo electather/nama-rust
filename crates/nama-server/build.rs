@@ -2,7 +2,7 @@
 //!
 //! It builds the Installed Plugins the Server bundles (ADR 0003) for wasm32, and sets
 //! `<NAME>_WASM`, such as `RADARR_WASM`, to each one's `.wasm` for
-//! `src/plugins/installed.rs` to embed.
+//! `src/plugins/wasm/bundled.rs` to embed.
 //!
 //! With the `web` feature, it also embeds the built web app so a release is one binary (ADR 0004).
 //! It writes `web_assets.rs` to `OUT_DIR` for `src/web.rs`: `SHELL`, the prerendered
