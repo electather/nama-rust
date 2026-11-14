@@ -481,6 +481,34 @@ pub(super) async fn settled(
         .unwrap()
 }
 
+/// The Kernel failed the Approved Request `id` for lack of an id in any of `needs`.
+pub(super) async fn failed_needing(db: &Database, id: i64, needs: &[&str]) -> Request {
+    let failure = Answer {
+        plugin: PluginId::from_static("fulfiller"),
+        result: Err(Failure {
+            kind: needs
+                .iter()
+                .map(|&namespace| namespace.to_owned())
+                .collect(),
+            message: "needs an id".to_owned(),
+        }),
+    };
+    db.write(move |tx| Box::pin(settle(tx, id, failure, None)))
+        .await
+        .unwrap()
+        .value
+        .unwrap()
+}
+
+/// The Request `id` as it is stored now.
+pub(super) async fn read(db: &Database, id: i64) -> Request {
+    let mut conn = db.reader().acquire().await.unwrap();
+    super::listing::load_one(&mut conn, id)
+        .await
+        .unwrap()
+        .unwrap()
+}
+
 /// What the Plugin `plugin`'s Fulfiller answered, as the Registry hands it back.
 pub(super) fn answered(
     plugin: &'static str,

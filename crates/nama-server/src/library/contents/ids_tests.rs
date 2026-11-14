@@ -1,6 +1,6 @@
 use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB};
 
-use super::{parse_hint, primary_id};
+use super::{Pin, parse_hint, primary_id};
 
 fn id(namespace: &str, value: &str) -> ExternalId {
     ExternalId::new(namespace, value).unwrap()
@@ -25,6 +25,16 @@ fn an_id_hint_needs_a_well_formed_namespace_and_a_value() {
     for text in ["Anidb-1", "-1", "anidb-", "anidb"] {
         assert_eq!(parse_hint(text), None, "{text}");
     }
+}
+
+#[test]
+fn a_pinned_row_is_a_pin_on_its_id_or_on_unmatched_but_an_unparsable_id_is_no_pin() {
+    assert_eq!(
+        Pin::from_row(true, Some("tmdb-603")),
+        Some(Pin::Title(ExternalId::tmdb(603)))
+    );
+    assert_eq!(Pin::from_row(true, None), Some(Pin::Unmatched));
+    assert_eq!(Pin::from_row(true, Some("not an id")), None);
 }
 
 #[test]

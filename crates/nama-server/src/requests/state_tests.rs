@@ -2,12 +2,12 @@ use std::collections::HashSet;
 
 use nama_proto::nama::v1::RequestState;
 
-use super::{is_open, settle};
+use super::{change_state, is_open, settle};
 use crate::{
     db::Database,
     requests::testing::{
-        ADA, NOTHING, ada_and_bob, answered, ask_for, fulfilled, handed_off, happened,
-        insert_in_each_state, settled,
+        ADA, NOTHING, ada_and_bob, answered, ask_for, failed_needing, fulfilled, handed_off,
+        happened, insert_in_each_state, read, settled,
     },
 };
 
@@ -109,4 +109,26 @@ async fn settling_a_request_names_the_plugin_whose_fulfiller_failed_it() {
         .unwrap();
 
     assert_eq!(failed.fulfiller_plugin_id.as_deref(), Some("radarr"));
+}
+
+#[tokio::test]
+async fn a_failed_request_that_lacked_an_id_forgets_the_ids_it_needed_when_its_state_changes() {
+    let (_data, db) = ada_and_bob().await;
+    let id = ask_for(&db, ADA, 949, RequestState::Approved)
+        .await
+        .value
+        .id;
+    let failed = failed_needing(&db, id, &["tvdb"]).await;
+    assert!(failed.failure.as_option().is_some(), "{failed:?}");
+
+    let changed = db
+        .write(move |tx| Box::pin(change_state(tx, id, RequestState::Available)))
+        .await
+        .unwrap();
+    let available = read(&db, id).await;
+
+    assert!(changed.is_some());
+    assert_eq!(available.state, RequestState::Available);
+    assert_eq!(available.failure_reason, None);
+    assert!(available.failure.as_option().is_none(), "{available:?}");
 }
