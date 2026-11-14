@@ -99,6 +99,8 @@ pub(crate) struct Metadata {
     pub(crate) runtime_minutes: Option<u32>,
     pub(crate) poster: Option<ImageRef>,
     pub(crate) backdrop: Option<ImageRef>,
+    /// The Title Logo; for an Episode, its Show's.
+    pub(crate) logo: Option<ImageRef>,
     /// For an Episode, its Still, from the Match's [`plugin`](Self::plugin).
     pub(crate) still: Option<String>,
 }
@@ -310,9 +312,9 @@ pub(super) async fn insert_decisions(
             "INSERT OR REPLACE INTO item_matches (
                  item_id, state, plugin, title, original_title, show_title,
                  overview, release_date, runtime_minutes, poster, poster_plugin, backdrop,
-                 backdrop_plugin, still, unmatched_reason, tied_titles, metadata_version,
-                 decided_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                 backdrop_plugin, logo, logo_plugin, still, unmatched_reason, tied_titles,
+                 metadata_version, decided_at)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
@@ -327,6 +329,8 @@ pub(super) async fn insert_decisions(
             row.metadata.poster.map(|image| image.plugin),
             row.metadata.backdrop.map(|image| image.path),
             row.metadata.backdrop.map(|image| image.plugin),
+            row.metadata.logo.map(|image| image.path),
+            row.metadata.logo.map(|image| image.plugin),
             row.metadata.still,
             row.unmatched_reason,
             row.tied_titles,
@@ -446,6 +450,7 @@ struct MetadataColumns<'a> {
     runtime_minutes: Option<u32>,
     poster: Option<ImageColumns<'a>>,
     backdrop: Option<ImageColumns<'a>>,
+    logo: Option<ImageColumns<'a>>,
     still: Option<&'a str>,
 }
 
@@ -496,6 +501,7 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     runtime_minutes: metadata.runtime_minutes,
                     poster: metadata.poster.as_ref().map(ImageColumns::from),
                     backdrop: metadata.backdrop.as_ref().map(ImageColumns::from),
+                    logo: metadata.logo.as_ref().map(ImageColumns::from),
                     still: metadata.still.as_deref(),
                 },
                 unmatched_reason: None,

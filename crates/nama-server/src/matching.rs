@@ -242,6 +242,7 @@ impl Metadata {
             runtime_minutes: episode.runtime_minutes,
             poster: ImageRef::of(plugin, season.poster.as_ref().or(show.poster.as_ref())),
             backdrop: ImageRef::of(plugin, show.backdrop.as_ref()),
+            logo: None,
             still: episode.still.clone(),
         }
     }

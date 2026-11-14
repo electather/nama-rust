@@ -36,6 +36,7 @@ pub(crate) struct Movie<V = Version> {
     pub(crate) runtime_minutes: Option<i64>,
     pub(crate) poster: Option<ImageRef>,
     pub(crate) backdrop: Option<ImageRef>,
+    pub(crate) logo: Option<ImageRef>,
     /// The files Matched to it, by path.
     pub(crate) versions: Vec<V>,
 }
@@ -54,6 +55,7 @@ impl<V> Movie<V> {
             runtime_minutes: self.runtime_minutes,
             poster: self.poster,
             backdrop: self.backdrop,
+            logo: self.logo,
             versions: self.versions.into_iter().map(version).collect(),
         }
     }
@@ -99,6 +101,7 @@ pub(crate) struct Show<V = Version> {
     pub(crate) plugin: String,
     pub(crate) title: String,
     pub(crate) backdrop: Option<ImageRef>,
+    pub(crate) logo: Option<ImageRef>,
     /// The Seasons the Library has Episodes of, by number.
     pub(crate) seasons: BTreeMap<i64, Season<V>>,
 }
@@ -141,6 +144,7 @@ impl<V> Show<V> {
             plugin: self.plugin,
             title: self.title,
             backdrop: self.backdrop,
+            logo: self.logo,
             seasons,
         }
     }
@@ -277,6 +281,7 @@ impl Contents {
                               WHERE state = 'matched'
                                 AND ((poster_plugin = ?1 AND poster = ?2)
                                      OR (backdrop_plugin = ?1 AND backdrop = ?2)
+                                     OR (logo_plugin = ?1 AND logo = ?2)
                                      OR (plugin = ?1 AND still = ?2)))
                AS "stored!: bool""#,
             plugin,
@@ -295,7 +300,8 @@ impl Contents {
         let rows = sqlx::query!(
             r#"WITH matched AS (
                    SELECT item_matches.plugin, item_matches.poster, item_matches.poster_plugin,
-                          item_matches.backdrop, item_matches.backdrop_plugin, item_matches.still
+                          item_matches.backdrop, item_matches.backdrop_plugin, item_matches.logo,
+                          item_matches.logo_plugin, item_matches.still
                    FROM item_matches
                    JOIN library_items ON library_items.id = item_matches.item_id
                    JOIN library_files ON library_files.id = library_items.file_id
@@ -305,6 +311,8 @@ impl Contents {
                WHERE poster IS NOT NULL
                UNION
                SELECT backdrop_plugin, backdrop FROM matched WHERE backdrop IS NOT NULL
+               UNION
+               SELECT logo_plugin, logo FROM matched WHERE logo IS NOT NULL
                UNION
                SELECT plugin, still FROM matched WHERE still IS NOT NULL"#,
             library
@@ -382,7 +390,7 @@ impl Contents {
                               item_matches.release_date, item_matches.runtime_minutes,
                               item_matches.poster, item_matches.poster_plugin,
                               item_matches.backdrop, item_matches.backdrop_plugin,
-                              libraries.title_sources
+                              item_matches.logo, item_matches.logo_plugin, libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
@@ -423,6 +431,7 @@ impl Contents {
                     runtime_minutes: row.runtime_minutes,
                     poster: ImageRef::stored(row.poster, row.poster_plugin),
                     backdrop: ImageRef::stored(row.backdrop, row.backdrop_plugin),
+                    logo: ImageRef::stored(row.logo, row.logo_plugin),
                     versions: Vec::new(),
                 })
                 .versions
@@ -450,9 +459,8 @@ impl Contents {
                         + r#"'show') AS "show_ids?: String",
                               item_matches.title AS "title!",
                               item_matches.show_title AS "show_title!",
-                              item_matches.overview, item_matches.release_date,
-                              item_matches.runtime_minutes, item_matches.poster,
-                              item_matches.backdrop, backdrop_plugin, still, libraries.title_sources
+                              overview, release_date, runtime_minutes, poster, backdrop,
+                              backdrop_plugin, logo, logo_plugin, still, libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
@@ -484,6 +492,7 @@ impl Contents {
                 plugin: row.plugin.clone(),
                 title: row.show_title,
                 backdrop: ImageRef::stored(row.backdrop, row.backdrop_plugin),
+                logo: ImageRef::stored(row.logo, row.logo_plugin),
                 seasons: BTreeMap::new(),
             });
             let season = show.seasons.entry(row.season).or_insert_with(|| Season {

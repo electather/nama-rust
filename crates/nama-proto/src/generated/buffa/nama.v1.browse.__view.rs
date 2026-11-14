@@ -66,6 +66,10 @@ pub struct MovieView<'a> {
     ///
     /// Field 14: `backdrop_thumbhash`
     pub backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
+    /// The Title Logo's URL on this Server.
+    ///
+    /// Field 15: `logo_url`
+    pub logo_url: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
@@ -217,6 +221,13 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 )?;
                 view.backdrop_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
             }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.logo_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             9u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -291,6 +302,7 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
             custom_backdrop: self.custom_backdrop,
             poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
             backdrop_thumbhash: self.backdrop_thumbhash.map(|b| (b).to_vec()),
+            logo_url: self.logo_url.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -359,6 +371,9 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         if let Some(ref v) = self.backdrop_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.logo_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -426,6 +441,9 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
         }
         if let Some(ref v) = self.backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(14u32, v, buf);
+        }
+        if let Some(ref v) = self.logo_url {
+            ::buffa::types::put_string_field(15u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -505,6 +523,9 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
                     "backdropThumbhash",
                     &::buffa::json_helpers::BytesJson(__v),
                 )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.logo_url {
+            __map.serialize_entry("logoUrl", __v)?;
         }
         __map.end()
     }
@@ -697,6 +718,13 @@ impl MovieOwnedView {
     #[must_use]
     pub fn backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
         self.0.reborrow().backdrop_thumbhash
+    }
+    /// The Title Logo's URL on this Server.
+    ///
+    /// Field 15: `logo_url`
+    #[must_use]
+    pub fn logo_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().logo_url
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieView<'static>>> for MovieOwnedView {
@@ -4121,6 +4149,10 @@ pub struct ShowView<'a> {
     ///
     /// Field 8: `backdrop_thumbhash`
     pub backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
+    /// The Title Logo's URL on this Server.
+    ///
+    /// Field 9: `logo_url`
+    pub logo_url: ::core::option::Option<&'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
@@ -4223,6 +4255,13 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 )?;
                 view.backdrop_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.logo_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4261,6 +4300,7 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
             custom_backdrop: self.custom_backdrop,
             poster_thumbhash: self.poster_thumbhash.map(|b| (b).to_vec()),
             backdrop_thumbhash: self.backdrop_thumbhash.map(|b| (b).to_vec()),
+            logo_url: self.logo_url.map(|s| s.to_string()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4301,6 +4341,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         if let Some(ref v) = self.backdrop_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.logo_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4340,6 +4383,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
         }
         if let Some(ref v) = self.backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(8u32, v, buf);
+        }
+        if let Some(ref v) = self.logo_url {
+            ::buffa::types::put_string_field(9u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4395,6 +4441,9 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
                     "backdropThumbhash",
                     &::buffa::json_helpers::BytesJson(__v),
                 )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.logo_url {
+            __map.serialize_entry("logoUrl", __v)?;
         }
         __map.end()
     }
@@ -4542,6 +4591,13 @@ impl ShowOwnedView {
     #[must_use]
     pub fn backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
         self.0.reborrow().backdrop_thumbhash
+    }
+    /// The Title Logo's URL on this Server.
+    ///
+    /// Field 9: `logo_url`
+    #[must_use]
+    pub fn logo_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().logo_url
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowView<'static>>> for ShowOwnedView {

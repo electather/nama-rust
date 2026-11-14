@@ -451,6 +451,15 @@ pub struct Movie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// The Title Logo's URL on this Server.
+    ///
+    /// Field 15: `logo_url`
+    #[serde(
+        rename = "logoUrl",
+        alias = "logo_url",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub logo_url: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -472,6 +481,7 @@ impl ::core::fmt::Debug for Movie {
             .field("custom_backdrop", &self.custom_backdrop)
             .field("poster_thumbhash", &self.poster_thumbhash)
             .field("backdrop_thumbhash", &self.backdrop_thumbhash)
+            .field("logo_url", &self.logo_url)
             .finish()
     }
 }
@@ -560,6 +570,16 @@ impl Movie {
         self.backdrop_thumbhash = Some(value.into());
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::logo_url`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_logo_url(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.logo_url = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Movie);
 impl ::buffa::MessageName for Movie {
@@ -638,6 +658,9 @@ impl ::buffa::Message for Movie {
         if let Some(ref v) = self.backdrop_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.logo_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -704,6 +727,9 @@ impl ::buffa::Message for Movie {
         }
         if let Some(ref v) = self.backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(14u32, v, buf);
+        }
+        if let Some(ref v) = self.logo_url {
+            ::buffa::types::put_string_field(15u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -866,6 +892,18 @@ impl ::buffa::Message for Movie {
                     buf,
                 )?;
             }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .logo_url
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -888,6 +926,7 @@ impl ::buffa::Message for Movie {
         self.custom_backdrop = false;
         self.poster_thumbhash = ::core::option::Option::None;
         self.backdrop_thumbhash = ::core::option::Option::None;
+        self.logo_url = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3140,6 +3179,15 @@ pub struct Show {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
+    /// The Title Logo's URL on this Server.
+    ///
+    /// Field 9: `logo_url`
+    #[serde(
+        rename = "logoUrl",
+        alias = "logo_url",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub logo_url: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3155,6 +3203,7 @@ impl ::core::fmt::Debug for Show {
             .field("custom_backdrop", &self.custom_backdrop)
             .field("poster_thumbhash", &self.poster_thumbhash)
             .field("backdrop_thumbhash", &self.backdrop_thumbhash)
+            .field("logo_url", &self.logo_url)
             .finish()
     }
 }
@@ -3204,6 +3253,16 @@ impl Show {
         value: impl Into<::buffa::alloc::vec::Vec<u8>>,
     ) -> Self {
         self.backdrop_thumbhash = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::logo_url`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_logo_url(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.logo_url = Some(value.into());
         self
     }
 }
@@ -3256,6 +3315,9 @@ impl ::buffa::Message for Show {
         if let Some(ref v) = self.backdrop_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if let Some(ref v) = self.logo_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3294,6 +3356,9 @@ impl ::buffa::Message for Show {
         }
         if let Some(ref v) = self.backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(8u32, v, buf);
+        }
+        if let Some(ref v) = self.logo_url {
+            ::buffa::types::put_string_field(9u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3388,6 +3453,18 @@ impl ::buffa::Message for Show {
                     buf,
                 )?;
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .logo_url
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3404,6 +3481,7 @@ impl ::buffa::Message for Show {
         self.custom_backdrop = false;
         self.poster_thumbhash = ::core::option::Option::None;
         self.backdrop_thumbhash = ::core::option::Option::None;
+        self.logo_url = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

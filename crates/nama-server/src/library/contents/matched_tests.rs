@@ -392,3 +392,33 @@ async fn an_image_is_stored_and_served_under_its_own_plugin() {
             .unwrap()
     );
 }
+
+#[tokio::test]
+async fn a_title_logo_is_stored_read_back_and_kept() {
+    let fx = Fixture::new().await;
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    let item = fx.item(ALIEN).await;
+    let logo = ImageRef {
+        plugin: PluginId::from_static("fanart"),
+        path: "/logo.png".to_owned(),
+    };
+    let metadata = super::super::Metadata {
+        logo: Some(logo.clone()),
+        ..tmdb_movie(348, "Alien")
+    };
+    fx.contents
+        .record(vec![(item, Decided::Matched(Box::new(metadata)))])
+        .await
+        .unwrap();
+
+    let movies = fx.contents.movies(fx.library).await.unwrap();
+    assert_eq!(movies[0].logo, Some(logo));
+    let images = fx.contents.images(Some(fx.library)).await.unwrap();
+    assert_eq!(images, [("fanart".to_owned(), "/logo.png".to_owned())]);
+    assert!(
+        fx.contents
+            .stores_image("fanart", "/logo.png")
+            .await
+            .unwrap()
+    );
+}

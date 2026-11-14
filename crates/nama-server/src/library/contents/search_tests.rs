@@ -84,6 +84,7 @@ fn office_episode(tmdb: i64, title: &str) -> Decided {
         runtime_minutes: None,
         poster: None,
         backdrop: None,
+        logo: None,
         still: None,
     }))
 }

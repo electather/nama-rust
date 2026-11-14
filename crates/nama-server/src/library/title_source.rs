@@ -411,6 +411,7 @@ impl Metadata {
             runtime_minutes: movie.runtime_minutes,
             poster,
             backdrop,
+            logo: None,
             still: None,
         }
     }

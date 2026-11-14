@@ -261,6 +261,7 @@ fn movie_to_proto(
     let poster_url = custom_poster.or_else(|| movie.poster.map(artwork_url));
     let backdrop_url = custom_backdrop.or_else(|| movie.backdrop.map(artwork_url));
     proto::Movie {
+        logo_url: movie.logo.map(artwork_url),
         custom_poster: poster_is_custom,
         custom_backdrop: backdrop_is_custom,
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
@@ -351,6 +352,8 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         backdrop_thumbhash: images.thumbhash(backdrop_url.as_deref()),
         poster_url,
         backdrop_url,
+        logo_url: (show.logo.as_ref())
+            .map(|image| artwork::url(image.plugin.as_str(), &image.path)),
         ..Default::default()
     }
 }
@@ -472,5 +475,61 @@ pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError 
             browse::Error::Database(err) => return database_failed(err),
         };
         refused.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::{BTreeMap, HashMap};
+
+    use nama_plugin_api::{
+        PluginId,
+        metadata::{ExternalId, ExternalIds},
+    };
+
+    use crate::library::custom_images::Urls;
+
+    use super::{ImageRef, Movie, Show, ShownImages, artwork, movie_to_proto, show_to_proto};
+
+    fn logo() -> ImageRef {
+        let plugin = PluginId::from_static("fanart");
+        let path = "/logo.png".to_owned();
+        ImageRef { plugin, path }
+    }
+
+    #[test]
+    fn a_movie_and_a_show_carry_their_title_logo_url() {
+        let images = ShownImages {
+            custom: Urls::default(),
+            thumbhashes: HashMap::new(),
+        };
+        let id = ExternalId::tmdb(348);
+        let movie = Movie {
+            id: id.clone(),
+            ids: ExternalIds::from_iter([id.clone()]),
+            plugin: "tmdb".to_owned(),
+            title: "Alien".to_owned(),
+            original_title: None,
+            overview: None,
+            release_date: None,
+            runtime_minutes: None,
+            poster: None,
+            backdrop: None,
+            logo: Some(logo()),
+            versions: Vec::new(),
+        };
+        let show = Show {
+            id: id.clone(),
+            ids: ExternalIds::from_iter([id]),
+            plugin: "tmdb".to_owned(),
+            title: "Alien".to_owned(),
+            backdrop: None,
+            logo: Some(logo()),
+            seasons: BTreeMap::new(),
+        };
+        let url = Some(artwork::url("fanart", "/logo.png"));
+
+        assert_eq!(movie_to_proto(movie, None, &images).logo_url, url);
+        assert_eq!(show_to_proto(&show, &images).logo_url, url);
     }
 }

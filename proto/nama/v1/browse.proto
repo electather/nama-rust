@@ -92,6 +92,8 @@ message Movie {
   optional bytes poster_thumbhash = 13;
   // As `poster_thumbhash`, for the backdrop.
   optional bytes backdrop_thumbhash = 14;
+  // The Title Logo's URL on this Server.
+  optional string logo_url = 15;
 }
 
 // One file a Movie or Episode is available in.
@@ -228,6 +230,8 @@ message Show {
   optional bytes poster_thumbhash = 7;
   // As `Movie.backdrop_thumbhash`.
   optional bytes backdrop_thumbhash = 8;
+  // The Title Logo's URL on this Server.
+  optional string logo_url = 9;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.
