@@ -104,7 +104,8 @@ pub(crate) struct Show<V = Version> {
 }
 
 /// The poster of the lowest-numbered Season after the Specials (Season 0) that has one, or else
-/// the Specials'. A Match stores each Episode's Season poster and none of the Show's own. `seasons` are Season numbers with their posters, in any order.
+/// the Specials'. A Match stores each Episode's Season poster and none of the Show's own.
+/// `seasons` are Season numbers with their posters, in any order.
 pub(crate) fn show_poster<'a>(
     seasons: impl IntoIterator<Item = (i64, Option<&'a str>)>,
 ) -> Option<&'a str> {
@@ -432,8 +433,8 @@ impl Contents {
         Ok(movies)
     }
 
-    /// By title, grouped by the Episodes' Show ids' [`primary_id`](super::primary_id), each Season's Episodes by
-    /// their own.
+    /// By title, grouped by the Episodes' Show ids' [`primary_id`](super::primary_id), each
+    /// Season's Episodes by their own.
     pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, sqlx::Error> {
         macro_rules! select {
             ($ids:literal) => {

@@ -179,7 +179,8 @@ impl Contents {
 
     /// The Matched Items of the Library `library` stored at a metadata version older than
     /// [`METADATA_VERSION`], in the order they were stored, each with the Plugin that Matched it
-    /// and its title's id: a Movie's, or an Episode's Show's (see [`primary_id`](super::primary_id)).
+    /// and its title's id: a Movie's, or an Episode's Show's (see
+    /// [`primary_id`](super::primary_id)).
     pub(crate) async fn outdated(
         &self,
         library: i64,
