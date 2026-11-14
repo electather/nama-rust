@@ -191,7 +191,7 @@ A title's id at a metadata source: a Namespace and a value that Namespace's owne
 _Avoid_: title id (for an id the Server makes up), TMDB id (as the general word)
 
 **Namespace**:
-Who owns an External ID's values, such as `tmdb`, `imdb` or `tvdb`: lowercase letters and digits.
+Who owns an External ID's values, such as `tmdb`, `imdb` or `tvdb`: one or more lowercase ASCII letters and digits.
 _Avoid_: source id, id type
 
 **ID Hint**:

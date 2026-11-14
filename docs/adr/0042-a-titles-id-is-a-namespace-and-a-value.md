@@ -6,6 +6,7 @@ A title's id at a metadata source, its External ID, is a pair: a namespace and a
 
 - Where a row carries several ids of one title, a child table of (owner, namespace, value) holds one row per namespace: `item_match_ids` for a Match (the Item's own title and, for an Episode, its Show), and `request_title_ids` for a Request's title.
 - Where a row keys on one id, one column holds its text form: `requests.title_id`, `followed_shows.show_id` and `match_pins.pinned_id`, as `watch_states.title_id`, `track_preferences.title_id` and Custom Image paths already do.
+- `requests.failure_needs` holds the namespaces a Failed Request lacked, as one comma-separated text column (a namespace has no comma), because it is only shown, never queried by.
 - The uniqueness rules are unchanged, over the new shape: one open Request per Movie or Season (`title_id`, season), one open Followed Show per Show, and one pin per name.
 - An existing Server keeps its Matches (their ids are copied into `item_match_ids`), Pinned Matches, Watch State, track preferences and Custom Images.
 - An existing Server loses every Request with its Requesters, and every Followed Show with its Requesters. Those tables are recreated empty, because carrying their rows through SQLite's foreign-key rules would cost more than the owner wants spent. Users ask again.
@@ -24,6 +25,6 @@ A title's id at a metadata source, its External ID, is a pair: a namespace and a
 
 ## Consequences
 
-- A Request asked by one namespace and Matched under another meet only through the preferred id, so both must carry it for the Library to make the Request Available.
+- A Request and a Match meet through an id both carry, so a Library's Match makes a Request Available only when the two share one.
 - ID Hints in file and folder names still recognise only the forms the Scanner knows.
 - Title metadata still comes from one source, TMDB, in this change; tests prove ids are open with made-up namespaces.
