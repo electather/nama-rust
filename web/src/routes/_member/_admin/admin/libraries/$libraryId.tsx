@@ -49,7 +49,7 @@ function LibraryPage() {
       <HomePageImage library={library} />
       <section aria-labelledby="edit" className="mt-10 max-w-sm">
         <h2 id="edit" className="font-medium">
-          Name and folders
+          Name, folders and title sources
         </h2>
         <EditLibrary library={library} />
       </section>

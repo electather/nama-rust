@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choices, FormEnd, FormField, FormTextarea } from "@/components/form-field";
+import { TitleSourcesField } from "@/components/title-sources-field";
 import { type Library, LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { type FormErrors, formText, onSubmitted } from "@/lib/forms";
 import { foldersTyped, librariesKey, libraryErrors } from "@/lib/libraries";
@@ -30,6 +31,7 @@ export function CreateLibrary() {
             name: formText(typed, "name"),
             kind: formText(typed, "kind") === "shows" ? LibraryKind.SHOWS : LibraryKind.MOVIES,
             folders: foldersTyped(formText(typed, "folders")),
+            titleSources: titleSourcesTyped(typed),
           },
           {
             onSuccess: () => {
@@ -70,6 +72,7 @@ export function EditLibrary({ library }: { library: Library }) {
           id: library.id,
           name: formText(typed, "name"),
           folders: foldersTyped(formText(typed, "folders")),
+          titleSources: titleSourcesTyped(typed),
         });
       })}
     >
@@ -106,7 +109,7 @@ export function DeleteLibrary({ library }: { library: Library }) {
   );
 }
 
-/** The name and folders fields, with any `children` between them. */
+/** The name, folders and title sources fields, with any `children` between them. */
 function NameAndFolders({
   errors,
   library,
@@ -134,6 +137,12 @@ function NameAndFolders({
         hint="Where its files are on the Server: one full path per line, such as /srv/media/films."
         error={errors.folders}
       />
+      <TitleSourcesField initial={library?.titleSources} error={errors.titleSources} />
     </>
   );
+}
+
+/** The title sources the form holds, in the order the Admin set. */
+function titleSourcesTyped(typed: FormData) {
+  return typed.getAll("titleSources").filter((each) => typeof each === "string");
 }

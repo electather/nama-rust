@@ -2,6 +2,7 @@ import { Code } from "@connectrpc/connect";
 import { createConnectQueryKey } from "@connectrpc/connect-query";
 
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
 import { type FormErrors, refusedFieldErrors, refusal, serverMessage } from "./forms";
 
@@ -25,9 +26,16 @@ export function foldersTyped(typed: string) {
 
 /** Why the Server refused to `attempt` (such as "create the Library"), next to its field. */
 export function libraryErrors(error: unknown, attempt: string): FormErrors {
-  return refusal(error, attempt, {
-    [Code.InvalidArgument]: refusedFieldErrors(error, ["name", "folders"]),
-    [Code.AlreadyExists]: { folders: serverMessage(error) },
-    [Code.NotFound]: { form: "This Library isn’t on the Server any more." },
-  });
+  return refusal(
+    error,
+    attempt,
+    {
+      [Code.InvalidArgument]: refusedFieldErrors(error, ["name", "folders"]),
+      [Code.AlreadyExists]: { folders: serverMessage(error) },
+      [Code.NotFound]: { form: "This Library isn’t on the Server any more." },
+    },
+    {
+      [RefusalReason.TITLE_SOURCES_INVALID]: { titleSources: serverMessage(error) },
+    },
+  );
 }
