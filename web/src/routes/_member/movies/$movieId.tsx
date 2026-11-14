@@ -6,7 +6,13 @@ import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { externalIdFromParam, metadataLine, queryOrNotFound, runtimeOf } from "@/lib/browse";
+import {
+  externalIdFromParam,
+  metadataLine,
+  queryOrNotFound,
+  runtimeOf,
+  titleParam,
+} from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
 /** A Movie from the metadata source, for Requesting it. One a Library has opens there instead. */
@@ -21,7 +27,7 @@ export const Route = createFileRoute("/_member/movies/$movieId")({
     if (movie?.libraryId !== undefined) {
       throw redirect({
         to: "/libraries/$libraryId/movies/$movieId",
-        params: { libraryId: String(movie.libraryId), movieId: params.movieId },
+        params: { libraryId: String(movie.libraryId), movieId: titleParam(movie.id) },
         replace: true,
       });
     }
