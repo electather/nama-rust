@@ -42,10 +42,6 @@ pub(crate) struct MetadataSource {
 
 /// An enabled title source and the namespace it keeps titles under.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "routing callers move over in later tasks")
-)]
 pub(crate) struct Source {
     /// The Plugin serving it.
     pub(crate) plugin: PluginId,
@@ -144,10 +140,6 @@ impl MetadataSource {
     /// The enabled title sources the routing methods ask, in the order they ask them. A source
     /// whose namespace isn't well formed is left out.
     // ponytail: asks each source its namespace per call; cache it if that shows up.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "routing callers move over in later tasks")
-    )]
     pub(crate) async fn sources(&self) -> Vec<Source> {
         let mut sources = Vec::new();
         for plugin in self.plugins.ranked::<dyn TitleSource>() {

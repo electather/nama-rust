@@ -8,10 +8,10 @@ use nama_proto::nama::v1::{
     self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
     DeleteLibraryResponse, DeleteMediaRequest, DeleteMediaResponse, EpisodeTakenAlong,
     FileNotDeleted, GetLibraryRequest, GetLibraryResponse, LibraryKind, LibraryService,
-    ListLibrariesRequest, ListLibrariesResponse, MediaFile, MediaToDelete, Permission,
-    PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason, Request, RequestToCancel,
-    ScanLibraryRequest, ScanLibraryResponse, UpdateLibraryRequest, UpdateLibraryResponse,
-    media_to_delete, request::MovieOrSeason,
+    ListLibrariesRequest, ListLibrariesResponse, ListTitleSourcesRequest, ListTitleSourcesResponse,
+    MediaFile, MediaToDelete, Permission, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse,
+    RefusalReason, Request, RequestToCancel, ScanLibraryRequest, ScanLibraryResponse, TitleSource,
+    UpdateLibraryRequest, UpdateLibraryResponse, media_to_delete, request::MovieOrSeason,
 };
 
 use crate::{
@@ -20,6 +20,8 @@ use crate::{
     custom_images::{Role, Slot},
     libraries::{self, FolderProblem, Kind, Libraries, Library},
     library::contents::{Contents, Episode, NewestBackdrop},
+    metadata::MetadataSource,
+    plugins::ExtensionPoints,
     scanner::{self, Deleted, Scanner},
 };
 
@@ -41,6 +43,10 @@ pub(super) struct LibraryServiceHandler {
     /// Finds each Library's newest title's Backdrop.
     pub(super) contents: Contents,
     pub(super) images: ImageSources,
+    /// Lists the title sources a Library may name.
+    pub(super) title_sources: MetadataSource,
+    /// Names the Plugins serving them.
+    pub(super) plugins: ExtensionPoints,
 }
 
 /// What each Library is shown by: see [`Backdrops::of`].
@@ -97,7 +103,7 @@ impl LibraryService for LibraryServiceHandler {
         let kind = kind_from_proto(request.kind)?;
         let library = self
             .scanner
-            .create_library(request.name, kind, request.folders)
+            .create_library(request.name, kind, request.folders, request.title_sources)
             .await?;
         let backdrops = self.backdrops().await?;
         Response::ok(CreateLibraryResponse {
@@ -156,7 +162,12 @@ impl LibraryService for LibraryServiceHandler {
         let request = request.to_owned_message();
         let library = self
             .scanner
-            .update_library(request.id, request.name, request.folders)
+            .update_library(
+                request.id,
+                request.name,
+                request.folders,
+                request.title_sources,
+            )
             .await?;
         let backdrops = self.backdrops().await?;
         Response::ok(UpdateLibraryResponse {
@@ -221,6 +232,25 @@ impl LibraryService for LibraryServiceHandler {
         let doomed = self.browse.doomed(target).await.map_err(refused(fields))?;
         let deleted = self.scanner.delete_media(doomed, by).await;
         Response::ok(deleted_to_proto(deleted.map_err(deleting_failed)?))
+    }
+
+    async fn list_title_sources(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, ListTitleSourcesRequest>,
+    ) -> ServiceResult<ListTitleSourcesResponse> {
+        let sources = self.title_sources.sources().await;
+        Response::ok(ListTitleSourcesResponse {
+            title_sources: (sources.into_iter())
+                .map(|source| TitleSource {
+                    plugin_name: self.plugins.name(&source.plugin),
+                    plugin_id: source.plugin.to_string(),
+                    namespace: source.namespace,
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        })
     }
 }
 
@@ -397,6 +427,7 @@ fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
         backdrop_thumbhash: backdrops.images.thumbhash(backdrop_url.as_deref()),
         backdrop_url,
         custom_backdrop,
+        title_sources: library.title_sources,
         ..Default::default()
     }
 }
@@ -443,6 +474,14 @@ impl From<libraries::Error> for ConnectError {
                     .field("folders")
                     .param("folder", &folder)
                     .param("library", &library)
+            }
+            libraries::Error::TitleSources { namespace } => {
+                let refused =
+                    refuse(R::REFUSAL_REASON_TITLE_SOURCES_INVALID, message).field("title_sources");
+                match namespace {
+                    Some(namespace) => refused.param("namespace", &namespace),
+                    None => refused,
+                }
             }
             libraries::Error::Database(err) => return database_failed(err),
         };

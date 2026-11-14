@@ -6,6 +6,7 @@
 
 use std::{collections::HashMap, path::Path, sync::Arc};
 
+use nama_plugin_api::metadata::{ExternalId, InvalidId};
 use sqlx::SqliteConnection;
 
 use crate::db::Database;
@@ -30,6 +31,9 @@ pub(crate) struct Library {
     /// Those of `folders` the Server couldn't write to when it last scanned the Library, so media
     /// in them isn't deleted (ADR 0038).
     pub(crate) read_only: Vec<String>,
+    /// The namespaces of the title sources its titles are searched and Matched with, first
+    /// asked first.
+    pub(crate) title_sources: Vec<String>,
 }
 
 /// Why a change to the Libraries was refused or failed.
@@ -51,6 +55,12 @@ pub(crate) enum Error {
     /// A folder in the request already belongs to another Library.
     #[error("the folder {folder} already belongs to the Library {library:?}")]
     FolderTaken { folder: String, library: String },
+    /// The title sources given aren't one or more well-formed namespaces, each named once;
+    /// `namespace` is the first that breaks it, none if none was given.
+    #[error(
+        "a Library's title sources must be one or more well-formed namespaces, each named once"
+    )]
+    TitleSources { namespace: Option<String> },
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -101,7 +111,8 @@ impl Libraries {
     pub(crate) async fn list(&self) -> Result<Vec<Library>, Error> {
         let mut tx = self.db.reader().begin().await?;
         let rows = sqlx::query!(
-            r#"SELECT id AS "id!", name, kind AS "kind: Kind" FROM libraries ORDER BY id"#
+            r#"SELECT id AS "id!", name, kind AS "kind: Kind", title_sources FROM libraries
+               ORDER BY id"#
         )
         .fetch_all(&mut *tx)
         .await?;
@@ -132,6 +143,7 @@ impl Libraries {
                 id: row.id,
                 name: row.name,
                 kind: row.kind,
+                title_sources: split_sources(&row.title_sources),
             })
             .collect())
     }
@@ -139,7 +151,7 @@ impl Libraries {
     pub(crate) async fn get(&self, id: i64) -> Result<Library, Error> {
         let mut tx = self.db.reader().begin().await?;
         let row = sqlx::query!(
-            r#"SELECT name, kind AS "kind: Kind" FROM libraries WHERE id = ?"#,
+            r#"SELECT name, kind AS "kind: Kind", title_sources FROM libraries WHERE id = ?"#,
             id
         )
         .fetch_optional(&mut *tx)
@@ -162,6 +174,7 @@ impl Libraries {
             kind: row.kind,
             folders: rows.into_iter().map(|folder| folder.path).collect(),
             read_only,
+            title_sources: split_sources(&row.title_sources),
         })
     }
 
@@ -169,6 +182,16 @@ impl Libraries {
     pub(crate) async fn set_read_only(&self, id: i64, read_only: Vec<String>) -> Result<(), Error> {
         self.db
             .write(move |tx| Box::pin(set_read_only(tx, id, read_only)))
+            .await
+    }
+
+    /// Sets the order of the Library `id`'s title sources, by namespace. Titles it already
+    /// Matched stay as they are: nothing Matches them again.
+    pub(crate) async fn set_title_sources(&self, id: i64, order: Vec<String>) -> Result<(), Error> {
+        check_title_sources(&order)?;
+        let order = order.join(",");
+        self.db
+            .write(move |tx| Box::pin(set_title_sources(tx, id, order)))
             .await
     }
 
@@ -214,6 +237,7 @@ async fn create(
         kind,
         folders,
         read_only: Vec::new(),
+        title_sources: vec!["tmdb".to_owned()],
     })
 }
 
@@ -224,8 +248,9 @@ async fn update(
     name: String,
     folders: Vec<String>,
 ) -> Result<Library, Error> {
-    let kind = sqlx::query_scalar!(
-        r#"UPDATE libraries SET name = ? WHERE id = ? RETURNING kind AS "kind: Kind""#,
+    let row = sqlx::query!(
+        r#"UPDATE libraries SET name = ? WHERE id = ?
+           RETURNING kind AS "kind: Kind", title_sources"#,
         name,
         id,
     )
@@ -252,9 +277,10 @@ async fn update(
     Ok(Library {
         id,
         name,
-        kind,
+        kind: row.kind,
         folders,
         read_only,
+        title_sources: split_sources(&row.title_sources),
     })
 }
 
@@ -290,6 +316,52 @@ async fn set_read_only(
         .await?;
     }
     Ok(())
+}
+
+/// `order` must already be checked and joined with commas.
+async fn set_title_sources(
+    conn: &mut SqliteConnection,
+    id: i64,
+    order: String,
+) -> Result<(), Error> {
+    let updated = sqlx::query!(
+        "UPDATE libraries SET title_sources = ? WHERE id = ?",
+        order,
+        id
+    )
+    .execute(&mut *conn)
+    .await?;
+    if updated.rows_affected() == 0 {
+        return Err(Error::NotFound(id));
+    }
+    Ok(())
+}
+
+/// Fails unless `order` is one or more namespaces by `ExternalId`'s rule, each named once, as
+/// [`Libraries::set_title_sources`] needs, so a caller can check before it changes anything else.
+pub(crate) fn check_title_sources(order: &[String]) -> Result<(), Error> {
+    if order.is_empty() {
+        return Err(Error::TitleSources { namespace: None });
+    }
+    for (seen, namespace) in (1..).zip(order) {
+        // Any value will do: only the namespace is being checked.
+        let malformed = matches!(
+            ExternalId::new(namespace, "_"),
+            Err(InvalidId::Namespace(_))
+        );
+        let repeated = order.iter().take(seen).filter(|n| *n == namespace).count() > 1;
+        if malformed || repeated {
+            return Err(Error::TitleSources {
+                namespace: Some(namespace.clone()),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// The stored, comma-separated `title_sources`, as a list. A well-formed namespace has no comma.
+fn split_sources(stored: &str) -> Vec<String> {
+    stored.split(',').map(str::to_owned).collect()
 }
 
 fn check_name(name: &str) -> Result<String, Error> {

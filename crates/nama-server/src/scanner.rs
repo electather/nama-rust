@@ -257,34 +257,54 @@ impl Scanner {
         }
     }
 
-    /// Creates a Library and watches its folders. The watch follows even if the caller stops
-    /// waiting (ADR 0029); scanning the new Library is left to the caller.
+    /// Creates a Library searching `title_sources` in order, or TMDB alone if it names none, and
+    /// watches its folders. The watch follows even if the caller stops waiting (ADR 0029);
+    /// scanning the new Library is left to the caller.
     pub(crate) async fn create_library(
         &self,
         name: String,
         kind: Kind,
         folders: Vec<String>,
+        title_sources: Vec<String>,
     ) -> Result<Library, libraries::Error> {
         let scanner = self.clone();
         detached(async move {
-            let library = scanner.inner.libraries.create(&name, kind, folders).await?;
+            let libraries = &scanner.inner.libraries;
+            if !title_sources.is_empty() {
+                libraries::check_title_sources(&title_sources)?;
+            }
+            let mut library = libraries.create(&name, kind, folders).await?;
+            if !title_sources.is_empty() {
+                (libraries.set_title_sources(library.id, title_sources.clone())).await?;
+                library.title_sources = title_sources;
+            }
             scanner.rewatch().await;
             Ok(library)
         })
         .await
     }
 
-    /// Renames the Library `id` and replaces its folders, then watches its new folders and not its
-    /// old ones, even if the caller stops waiting (ADR 0029).
+    /// Renames the Library `id`, replaces its folders and, unless `title_sources` is empty, the
+    /// order of its title sources, then watches its new folders and not its old ones, even if the
+    /// caller stops waiting (ADR 0029). A new order doesn't Match its titles again.
     pub(crate) async fn update_library(
         &self,
         id: i64,
         name: String,
         folders: Vec<String>,
+        title_sources: Vec<String>,
     ) -> Result<Library, libraries::Error> {
         let scanner = self.clone();
         detached(async move {
-            let library = scanner.inner.libraries.update(id, &name, folders).await?;
+            let libraries = &scanner.inner.libraries;
+            if !title_sources.is_empty() {
+                libraries::check_title_sources(&title_sources)?;
+            }
+            let mut library = libraries.update(id, &name, folders).await?;
+            if !title_sources.is_empty() {
+                (libraries.set_title_sources(id, title_sources.clone())).await?;
+                library.title_sources = title_sources;
+            }
             scanner.rewatch().await;
             Ok(library)
         })
@@ -1378,6 +1398,7 @@ mod tests {
                 "More".to_owned(),
                 Kind::Shows,
                 vec![first.to_str().unwrap().to_owned()],
+                Vec::new(),
             )
             .await
             .unwrap();
@@ -1392,6 +1413,7 @@ mod tests {
                 created.id,
                 "More".to_owned(),
                 vec![second.to_str().unwrap().to_owned()],
+                Vec::new(),
             )
             .await
             .unwrap();
@@ -1413,7 +1435,7 @@ mod tests {
         watch(&media).await;
         let created = media
             .scanner
-            .create_library("Inner".to_owned(), Kind::Shows, vec![inner])
+            .create_library("Inner".to_owned(), Kind::Shows, vec![inner], Vec::new())
             .await
             .unwrap();
 

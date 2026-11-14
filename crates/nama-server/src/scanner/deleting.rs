@@ -289,6 +289,7 @@ mod tests {
                     kind: Kind::Movies,
                     folders: vec![self.path("")],
                     read_only: Vec::new(),
+                    title_sources: vec!["tmdb".to_owned()],
                 },
                 title: "Title".to_owned(),
                 to_unmonitor: None,

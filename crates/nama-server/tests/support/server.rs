@@ -387,11 +387,22 @@ impl TestServer {
     }
 
     /// [`Self::library`] without the scan, for a test that watches or times the scan itself.
+    pub(crate) async fn create_library(&self, kind: LibraryKind, files: &[&str]) -> Library {
+        self.create_library_searching(kind, files, &[]).await
+    }
+
+    /// [`Self::create_library`], searching the title sources `title_sources` names in order, or
+    /// TMDB alone if it names none.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    pub(crate) async fn create_library(&self, kind: LibraryKind, files: &[&str]) -> Library {
+    pub(crate) async fn create_library_searching(
+        &self,
+        kind: LibraryKind,
+        files: &[&str],
+        title_sources: &[&str],
+    ) -> Library {
         let dir = tempfile::tempdir().unwrap();
         // The Server stores and sends a folder's canonical path, which a temp dir's may not be.
         let folder = dir.path().canonicalize().unwrap();
@@ -401,6 +412,10 @@ impl TestServer {
                 name: "Media".to_owned(),
                 kind: kind.into(),
                 folders: vec![folder.to_str().unwrap().to_owned()],
+                title_sources: title_sources
+                    .iter()
+                    .map(|&source| source.to_owned())
+                    .collect(),
                 ..Default::default()
             })
             .await

@@ -1,22 +1,11 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT name, kind AS \"kind: Kind\" FROM libraries WHERE id = ?",
+  "query": "UPDATE libraries SET name = ? WHERE id = ?\n           RETURNING kind AS \"kind: Kind\", title_sources",
   "describe": {
     "columns": [
       {
-        "name": "name",
-        "ordinal": 0,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "libraries",
-            "name": "name"
-          }
-        }
-      },
-      {
         "name": "kind: Kind",
-        "ordinal": 1,
+        "ordinal": 0,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -24,15 +13,26 @@
             "name": "kind"
           }
         }
+      },
+      {
+        "name": "title_sources",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "title_sources"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
       false
     ]
   },
-  "hash": "240fe4970d647ec6510fd635c6b576d4e66d506b4b58d852c27c426e834d7370"
+  "hash": "15bcee94253bc2096e57dee2d04952c861a4d57d7c5be15987c065acb15f8fb7"
 }

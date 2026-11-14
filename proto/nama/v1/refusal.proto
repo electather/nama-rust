@@ -230,4 +230,7 @@ enum RefusalReason {
   // and the title has none, so the Request wasn't handed to it. Params: `pluginId`, `namespaces`
   // (comma-separated).
   REFUSAL_REASON_TITLE_ID_MISSING = 72;
+  // `invalid_argument`: a Library's title sources name a namespace that isn't lowercase ASCII
+  // letters and digits, or name one twice. `field` is `title_sources`. Params: `namespace`.
+  REFUSAL_REASON_TITLE_SOURCES_INVALID = 73;
 }

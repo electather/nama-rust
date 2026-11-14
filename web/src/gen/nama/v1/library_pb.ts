@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/library.proto.
  */
 export const file_nama_v1_library: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL2xpYnJhcnkucHJvdG8SB25hbWEudjEi1QEKB0xpYnJhcnkSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIiCgRraW5kGAMgASgOMhQubmFtYS52MS5MaWJyYXJ5S2luZBIPCgdmb2xkZXJzGAQgAygJEhkKDGJhY2tkcm9wX3VybBgFIAEoCUgAiAEBEhcKD2N1c3RvbV9iYWNrZHJvcBgGIAEoCBIfChJiYWNrZHJvcF90aHVtYmhhc2gYByABKAxIAYgBAUIPCg1fYmFja2Ryb3BfdXJsQhUKE19iYWNrZHJvcF90aHVtYmhhc2giWQoUQ3JlYXRlTGlicmFyeVJlcXVlc3QSDAoEbmFtZRgBIAEoCRIiCgRraW5kGAIgASgOMhQubmFtYS52MS5MaWJyYXJ5S2luZBIPCgdmb2xkZXJzGAMgAygJIjoKFUNyZWF0ZUxpYnJhcnlSZXNwb25zZRIhCgdsaWJyYXJ5GAEgASgLMhAubmFtYS52MS5MaWJyYXJ5IhYKFExpc3RMaWJyYXJpZXNSZXF1ZXN0IjwKFUxpc3RMaWJyYXJpZXNSZXNwb25zZRIjCglsaWJyYXJpZXMYASADKAsyEC5uYW1hLnYxLkxpYnJhcnkiHwoRR2V0TGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMiNwoSR2V0TGlicmFyeVJlc3BvbnNlEiEKB2xpYnJhcnkYASABKAsyEC5uYW1hLnYxLkxpYnJhcnkiQQoUVXBkYXRlTGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIPCgdmb2xkZXJzGAMgAygJIjoKFVVwZGF0ZUxpYnJhcnlSZXNwb25zZRIhCgdsaWJyYXJ5GAEgASgLMhAubmFtYS52MS5MaWJyYXJ5IiIKFERlbGV0ZUxpYnJhcnlSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFURlbGV0ZUxpYnJhcnlSZXNwb25zZSIgChJTY2FuTGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMiFQoTU2NhbkxpYnJhcnlSZXNwb25zZSJDChlQcmV2aWV3RGVsZXRlTWVkaWFSZXF1ZXN0EiYKBnRhcmdldBgBIAEoCzIWLm5hbWEudjEuTWVkaWFUb0RlbGV0ZSKJAgoaUHJldmlld0RlbGV0ZU1lZGlhUmVzcG9uc2USIQoFZmlsZXMYASADKAsyEi5uYW1hLnYxLk1lZGlhRmlsZRITCgtieXRlc19mcmVlZBgCIAEoBBI4ChRlcGlzb2Rlc190YWtlbl9hbG9uZxgDIAMoCzIaLm5hbWEudjEuRXBpc29kZVRha2VuQWxvbmcSDwoHcGxheWluZxgEIAEoDRIdChByZWFkX29ubHlfZm9sZGVyGAUgASgJSACIAQESNAoScmVxdWVzdHNfY2FuY2VsbGVkGAYgAygLMhgubmFtYS52MS5SZXF1ZXN0VG9DYW5jZWxCEwoRX3JlYWRfb25seV9mb2xkZXIiTgoPUmVxdWVzdFRvQ2FuY2VsEg0KBXRpdGxlGAEgASgJEhoKDXNlYXNvbl9udW1iZXIYAiABKA1IAIgBAUIQCg5fc2Vhc29uX251bWJlciI8ChJEZWxldGVNZWRpYVJlcXVlc3QSJgoGdGFyZ2V0GAEgASgLMhYubmFtYS52MS5NZWRpYVRvRGVsZXRlIpoBChNEZWxldGVNZWRpYVJlc3BvbnNlEiMKB2RlbGV0ZWQYASADKAsyEi5uYW1hLnYxLk1lZGlhRmlsZRITCgtieXRlc19mcmVlZBgCIAEoBBIsCgtub3RfZGVsZXRlZBgDIAMoCzIXLm5hbWEudjEuRmlsZU5vdERlbGV0ZWQSGwoTZnVsZmlsbGVyc19ub3RfdG9sZBgEIAMoCSLXAQoNTWVkaWFUb0RlbGV0ZRInCgVtb3ZpZRgBIAEoCzIWLm5hbWEudjEuTW92aWVUb0RlbGV0ZUgAEhQKCnZlcnNpb25faWQYAiABKANIABIlCgRzaG93GAMgASgLMhUubmFtYS52MS5TaG93VG9EZWxldGVIABIpCgZzZWFzb24YBCABKAsyFy5uYW1hLnYxLlNlYXNvblRvRGVsZXRlSAASKwoHZXBpc29kZRgFIAEoCzIYLm5hbWEudjEuRXBpc29kZVRvRGVsZXRlSABCCAoGdGFyZ2V0IkoKDU1vdmllVG9EZWxldGUSEgoKbGlicmFyeV9pZBgBIAEoAxIlCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCJICgxTaG93VG9EZWxldGUSEgoKbGlicmFyeV9pZBgBIAEoAxIkCgdzaG93X2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkImEKDlNlYXNvblRvRGVsZXRlEhIKCmxpYnJhcnlfaWQYASABKAMSJAoHc2hvd19pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAMgASgNInYKD0VwaXNvZGVUb0RlbGV0ZRISCgpsaWJyYXJ5X2lkGAEgASgDEicKCmVwaXNvZGVfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFwoKdmVyc2lvbl9pZBgDIAEoA0gAiAEBQg0KC192ZXJzaW9uX2lkIlEKEUVwaXNvZGVUYWtlbkFsb25nEhUKDXNlYXNvbl9udW1iZXIYASABKA0SFgoOZXBpc29kZV9udW1iZXIYAiABKA0SDQoFdGl0bGUYAyABKAkiLAoJTWVkaWFGaWxlEhEKCWZpbGVfbmFtZRgBIAEoCRIMCgRzaXplGAIgASgEIjMKDkZpbGVOb3REZWxldGVkEhEKCWZpbGVfbmFtZRgBIAEoCRIOCgZyZWFzb24YAiABKAkqXAoLTGlicmFyeUtpbmQSHAoYTElCUkFSWV9LSU5EX1VOU1BFQ0lGSUVEEAASFwoTTElCUkFSWV9LSU5EX01PVklFUxABEhYKEkxJQlJBUllfS0lORF9TSE9XUxACMqgFCg5MaWJyYXJ5U2VydmljZRJOCg1DcmVhdGVMaWJyYXJ5Eh0ubmFtYS52MS5DcmVhdGVMaWJyYXJ5UmVxdWVzdBoeLm5hbWEudjEuQ3JlYXRlTGlicmFyeVJlc3BvbnNlElMKDUxpc3RMaWJyYXJpZXMSHS5uYW1hLnYxLkxpc3RMaWJyYXJpZXNSZXF1ZXN0Gh4ubmFtYS52MS5MaXN0TGlicmFyaWVzUmVzcG9uc2UiA5ACARJKCgpHZXRMaWJyYXJ5EhoubmFtYS52MS5HZXRMaWJyYXJ5UmVxdWVzdBobLm5hbWEudjEuR2V0TGlicmFyeVJlc3BvbnNlIgOQAgESUwoNVXBkYXRlTGlicmFyeRIdLm5hbWEudjEuVXBkYXRlTGlicmFyeVJlcXVlc3QaHi5uYW1hLnYxLlVwZGF0ZUxpYnJhcnlSZXNwb25zZSIDkAICElMKDURlbGV0ZUxpYnJhcnkSHS5uYW1hLnYxLkRlbGV0ZUxpYnJhcnlSZXF1ZXN0Gh4ubmFtYS52MS5EZWxldGVMaWJyYXJ5UmVzcG9uc2UiA5ACAhJNCgtTY2FuTGlicmFyeRIbLm5hbWEudjEuU2NhbkxpYnJhcnlSZXF1ZXN0GhwubmFtYS52MS5TY2FuTGlicmFyeVJlc3BvbnNlIgOQAgISYgoSUHJldmlld0RlbGV0ZU1lZGlhEiIubmFtYS52MS5QcmV2aWV3RGVsZXRlTWVkaWFSZXF1ZXN0GiMubmFtYS52MS5QcmV2aWV3RGVsZXRlTWVkaWFSZXNwb25zZSIDkAIBEkgKC0RlbGV0ZU1lZGlhEhsubmFtYS52MS5EZWxldGVNZWRpYVJlcXVlc3QaHC5uYW1hLnYxLkRlbGV0ZU1lZGlhUmVzcG9uc2ViBnByb3RvMw", [file_nama_v1_match]);
+  fileDesc("ChVuYW1hL3YxL2xpYnJhcnkucHJvdG8SB25hbWEudjEi7AEKB0xpYnJhcnkSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIiCgRraW5kGAMgASgOMhQubmFtYS52MS5MaWJyYXJ5S2luZBIPCgdmb2xkZXJzGAQgAygJEhkKDGJhY2tkcm9wX3VybBgFIAEoCUgAiAEBEhcKD2N1c3RvbV9iYWNrZHJvcBgGIAEoCBIfChJiYWNrZHJvcF90aHVtYmhhc2gYByABKAxIAYgBARIVCg10aXRsZV9zb3VyY2VzGAggAygJQg8KDV9iYWNrZHJvcF91cmxCFQoTX2JhY2tkcm9wX3RodW1iaGFzaCJwChRDcmVhdGVMaWJyYXJ5UmVxdWVzdBIMCgRuYW1lGAEgASgJEiIKBGtpbmQYAiABKA4yFC5uYW1hLnYxLkxpYnJhcnlLaW5kEg8KB2ZvbGRlcnMYAyADKAkSFQoNdGl0bGVfc291cmNlcxgEIAMoCSI6ChVDcmVhdGVMaWJyYXJ5UmVzcG9uc2USIQoHbGlicmFyeRgBIAEoCzIQLm5hbWEudjEuTGlicmFyeSIWChRMaXN0TGlicmFyaWVzUmVxdWVzdCI8ChVMaXN0TGlicmFyaWVzUmVzcG9uc2USIwoJbGlicmFyaWVzGAEgAygLMhAubmFtYS52MS5MaWJyYXJ5Ih8KEUdldExpYnJhcnlSZXF1ZXN0EgoKAmlkGAEgASgDIjcKEkdldExpYnJhcnlSZXNwb25zZRIhCgdsaWJyYXJ5GAEgASgLMhAubmFtYS52MS5MaWJyYXJ5IlgKFFVwZGF0ZUxpYnJhcnlSZXF1ZXN0EgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkSDwoHZm9sZGVycxgDIAMoCRIVCg10aXRsZV9zb3VyY2VzGAQgAygJIjoKFVVwZGF0ZUxpYnJhcnlSZXNwb25zZRIhCgdsaWJyYXJ5GAEgASgLMhAubmFtYS52MS5MaWJyYXJ5IiIKFERlbGV0ZUxpYnJhcnlSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFURlbGV0ZUxpYnJhcnlSZXNwb25zZSIgChJTY2FuTGlicmFyeVJlcXVlc3QSCgoCaWQYASABKAMiFQoTU2NhbkxpYnJhcnlSZXNwb25zZSJDChlQcmV2aWV3RGVsZXRlTWVkaWFSZXF1ZXN0EiYKBnRhcmdldBgBIAEoCzIWLm5hbWEudjEuTWVkaWFUb0RlbGV0ZSKJAgoaUHJldmlld0RlbGV0ZU1lZGlhUmVzcG9uc2USIQoFZmlsZXMYASADKAsyEi5uYW1hLnYxLk1lZGlhRmlsZRITCgtieXRlc19mcmVlZBgCIAEoBBI4ChRlcGlzb2Rlc190YWtlbl9hbG9uZxgDIAMoCzIaLm5hbWEudjEuRXBpc29kZVRha2VuQWxvbmcSDwoHcGxheWluZxgEIAEoDRIdChByZWFkX29ubHlfZm9sZGVyGAUgASgJSACIAQESNAoScmVxdWVzdHNfY2FuY2VsbGVkGAYgAygLMhgubmFtYS52MS5SZXF1ZXN0VG9DYW5jZWxCEwoRX3JlYWRfb25seV9mb2xkZXIiTgoPUmVxdWVzdFRvQ2FuY2VsEg0KBXRpdGxlGAEgASgJEhoKDXNlYXNvbl9udW1iZXIYAiABKA1IAIgBAUIQCg5fc2Vhc29uX251bWJlciI8ChJEZWxldGVNZWRpYVJlcXVlc3QSJgoGdGFyZ2V0GAEgASgLMhYubmFtYS52MS5NZWRpYVRvRGVsZXRlIpoBChNEZWxldGVNZWRpYVJlc3BvbnNlEiMKB2RlbGV0ZWQYASADKAsyEi5uYW1hLnYxLk1lZGlhRmlsZRITCgtieXRlc19mcmVlZBgCIAEoBBIsCgtub3RfZGVsZXRlZBgDIAMoCzIXLm5hbWEudjEuRmlsZU5vdERlbGV0ZWQSGwoTZnVsZmlsbGVyc19ub3RfdG9sZBgEIAMoCSLXAQoNTWVkaWFUb0RlbGV0ZRInCgVtb3ZpZRgBIAEoCzIWLm5hbWEudjEuTW92aWVUb0RlbGV0ZUgAEhQKCnZlcnNpb25faWQYAiABKANIABIlCgRzaG93GAMgASgLMhUubmFtYS52MS5TaG93VG9EZWxldGVIABIpCgZzZWFzb24YBCABKAsyFy5uYW1hLnYxLlNlYXNvblRvRGVsZXRlSAASKwoHZXBpc29kZRgFIAEoCzIYLm5hbWEudjEuRXBpc29kZVRvRGVsZXRlSABCCAoGdGFyZ2V0IkoKDU1vdmllVG9EZWxldGUSEgoKbGlicmFyeV9pZBgBIAEoAxIlCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCJICgxTaG93VG9EZWxldGUSEgoKbGlicmFyeV9pZBgBIAEoAxIkCgdzaG93X2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkImEKDlNlYXNvblRvRGVsZXRlEhIKCmxpYnJhcnlfaWQYASABKAMSJAoHc2hvd19pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAMgASgNInYKD0VwaXNvZGVUb0RlbGV0ZRISCgpsaWJyYXJ5X2lkGAEgASgDEicKCmVwaXNvZGVfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFwoKdmVyc2lvbl9pZBgDIAEoA0gAiAEBQg0KC192ZXJzaW9uX2lkIlEKEUVwaXNvZGVUYWtlbkFsb25nEhUKDXNlYXNvbl9udW1iZXIYASABKA0SFgoOZXBpc29kZV9udW1iZXIYAiABKA0SDQoFdGl0bGUYAyABKAkiLAoJTWVkaWFGaWxlEhEKCWZpbGVfbmFtZRgBIAEoCRIMCgRzaXplGAIgASgEIjMKDkZpbGVOb3REZWxldGVkEhEKCWZpbGVfbmFtZRgBIAEoCRIOCgZyZWFzb24YAiABKAkiGQoXTGlzdFRpdGxlU291cmNlc1JlcXVlc3QiRwoYTGlzdFRpdGxlU291cmNlc1Jlc3BvbnNlEisKDXRpdGxlX3NvdXJjZXMYASADKAsyFC5uYW1hLnYxLlRpdGxlU291cmNlIkgKC1RpdGxlU291cmNlEhEKCW5hbWVzcGFjZRgBIAEoCRIRCglwbHVnaW5faWQYAiABKAkSEwoLcGx1Z2luX25hbWUYAyABKAkqXAoLTGlicmFyeUtpbmQSHAoYTElCUkFSWV9LSU5EX1VOU1BFQ0lGSUVEEAASFwoTTElCUkFSWV9LSU5EX01PVklFUxABEhYKEkxJQlJBUllfS0lORF9TSE9XUxACMoYGCg5MaWJyYXJ5U2VydmljZRJOCg1DcmVhdGVMaWJyYXJ5Eh0ubmFtYS52MS5DcmVhdGVMaWJyYXJ5UmVxdWVzdBoeLm5hbWEudjEuQ3JlYXRlTGlicmFyeVJlc3BvbnNlElMKDUxpc3RMaWJyYXJpZXMSHS5uYW1hLnYxLkxpc3RMaWJyYXJpZXNSZXF1ZXN0Gh4ubmFtYS52MS5MaXN0TGlicmFyaWVzUmVzcG9uc2UiA5ACARJKCgpHZXRMaWJyYXJ5EhoubmFtYS52MS5HZXRMaWJyYXJ5UmVxdWVzdBobLm5hbWEudjEuR2V0TGlicmFyeVJlc3BvbnNlIgOQAgESUwoNVXBkYXRlTGlicmFyeRIdLm5hbWEudjEuVXBkYXRlTGlicmFyeVJlcXVlc3QaHi5uYW1hLnYxLlVwZGF0ZUxpYnJhcnlSZXNwb25zZSIDkAICElMKDURlbGV0ZUxpYnJhcnkSHS5uYW1hLnYxLkRlbGV0ZUxpYnJhcnlSZXF1ZXN0Gh4ubmFtYS52MS5EZWxldGVMaWJyYXJ5UmVzcG9uc2UiA5ACAhJNCgtTY2FuTGlicmFyeRIbLm5hbWEudjEuU2NhbkxpYnJhcnlSZXF1ZXN0GhwubmFtYS52MS5TY2FuTGlicmFyeVJlc3BvbnNlIgOQAgISYgoSUHJldmlld0RlbGV0ZU1lZGlhEiIubmFtYS52MS5QcmV2aWV3RGVsZXRlTWVkaWFSZXF1ZXN0GiMubmFtYS52MS5QcmV2aWV3RGVsZXRlTWVkaWFSZXNwb25zZSIDkAIBEkgKC0RlbGV0ZU1lZGlhEhsubmFtYS52MS5EZWxldGVNZWRpYVJlcXVlc3QaHC5uYW1hLnYxLkRlbGV0ZU1lZGlhUmVzcG9uc2USXAoQTGlzdFRpdGxlU291cmNlcxIgLm5hbWEudjEuTGlzdFRpdGxlU291cmNlc1JlcXVlc3QaIS5uYW1hLnYxLkxpc3RUaXRsZVNvdXJjZXNSZXNwb25zZSIDkAIBYgZwcm90bzM", [file_nama_v1_match]);
 
 /**
  * A named collection of one kind of media on a Server, backed by one or more folders.
@@ -77,6 +77,15 @@ export type Library = Message<"nama.v1.Library"> & {
    * @generated from field: optional bytes backdrop_thumbhash = 7;
    */
   backdropThumbhash?: Uint8Array | undefined;
+
+  /**
+   * The namespaces of the title sources the Library's titles are searched and Matched with, in
+   * order: the first source that answers Matches a title. `tmdb` alone unless an Admin set it.
+   * Changing it doesn't Match the Library's titles again.
+   *
+   * @generated from field: repeated string title_sources = 8;
+   */
+  titleSources: string[];
 };
 
 /**
@@ -110,6 +119,14 @@ export type CreateLibraryRequest = Message<"nama.v1.CreateLibraryRequest"> & {
    * @generated from field: repeated string folders = 3;
    */
   folders: string[];
+
+  /**
+   * The Library's `title_sources`, each a namespace of lowercase ASCII letters and digits, named
+   * once. Empty leaves `tmdb` alone.
+   *
+   * @generated from field: repeated string title_sources = 4;
+   */
+  titleSources: string[];
 };
 
 /**
@@ -227,6 +244,14 @@ export type UpdateLibraryRequest = Message<"nama.v1.UpdateLibraryRequest"> & {
    * @generated from field: repeated string folders = 3;
    */
   folders: string[];
+
+  /**
+   * The new `title_sources`, under the same rules as `CreateLibraryRequest.title_sources`. Empty
+   * keeps the Library's.
+   *
+   * @generated from field: repeated string title_sources = 4;
+   */
+  titleSources: string[];
 };
 
 /**
@@ -753,6 +778,71 @@ export const FileNotDeletedSchema: GenMessage<FileNotDeleted> = /*@__PURE__*/
   messageDesc(file_nama_v1_library, 25);
 
 /**
+ * @generated from message nama.v1.ListTitleSourcesRequest
+ */
+export type ListTitleSourcesRequest = Message<"nama.v1.ListTitleSourcesRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.ListTitleSourcesRequest.
+ * Use `create(ListTitleSourcesRequestSchema)` to create a new message.
+ */
+export const ListTitleSourcesRequestSchema: GenMessage<ListTitleSourcesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 26);
+
+/**
+ * @generated from message nama.v1.ListTitleSourcesResponse
+ */
+export type ListTitleSourcesResponse = Message<"nama.v1.ListTitleSourcesResponse"> & {
+  /**
+   * @generated from field: repeated nama.v1.TitleSource title_sources = 1;
+   */
+  titleSources: TitleSource[];
+};
+
+/**
+ * Describes the message nama.v1.ListTitleSourcesResponse.
+ * Use `create(ListTitleSourcesResponseSchema)` to create a new message.
+ */
+export const ListTitleSourcesResponseSchema: GenMessage<ListTitleSourcesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 27);
+
+/**
+ * An enabled title source, a Plugin that searches and describes titles.
+ *
+ * @generated from message nama.v1.TitleSource
+ */
+export type TitleSource = Message<"nama.v1.TitleSource"> & {
+  /**
+   * The namespace it keeps titles under, which a Library's `title_sources` names it by.
+   *
+   * @generated from field: string namespace = 1;
+   */
+  namespace: string;
+
+  /**
+   * The Plugin serving it.
+   *
+   * @generated from field: string plugin_id = 2;
+   */
+  pluginId: string;
+
+  /**
+   * What people know that Plugin by.
+   *
+   * @generated from field: string plugin_name = 3;
+   */
+  pluginName: string;
+};
+
+/**
+ * Describes the message nama.v1.TitleSource.
+ * Use `create(TitleSourceSchema)` to create a new message.
+ */
+export const TitleSourceSchema: GenMessage<TitleSource> = /*@__PURE__*/
+  messageDesc(file_nama_v1_library, 28);
+
+/**
  * The kind of media a Library holds. A Library holds exactly one kind.
  *
  * @generated from enum nama.v1.LibraryKind
@@ -902,6 +992,16 @@ export const LibraryService: GenService<{
     methodKind: "unary";
     input: typeof DeleteMediaRequestSchema;
     output: typeof DeleteMediaResponseSchema;
+  },
+  /**
+   * Lists the enabled title sources a Library's `title_sources` can name, in no set order.
+   *
+   * @generated from rpc nama.v1.LibraryService.ListTitleSources
+   */
+  listTitleSources: {
+    methodKind: "unary";
+    input: typeof ListTitleSourcesRequestSchema;
+    output: typeof ListTitleSourcesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_library, 0);

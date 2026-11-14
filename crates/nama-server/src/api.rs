@@ -129,7 +129,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: scanner.matcher().clone(),
-            metadata: MetadataSource::new(plugins),
+            metadata: MetadataSource::new(plugins.clone()),
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
         }))
@@ -163,6 +163,8 @@ pub(crate) fn router(
             browse,
             contents: Contents::new(db),
             images,
+            title_sources: MetadataSource::new(plugins.clone()),
+            plugins,
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,
@@ -248,6 +250,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::LIBRARY_SERVICE_SCAN_LIBRARY_SPEC.procedure,          MANAGE_LIBRARIES),
     (proto::LIBRARY_SERVICE_PREVIEW_DELETE_MEDIA_SPEC.procedure,  DELETE_MEDIA),
     (proto::LIBRARY_SERVICE_DELETE_MEDIA_SPEC.procedure,          DELETE_MEDIA),
+    (proto::LIBRARY_SERVICE_LIST_TITLE_SOURCES_SPEC.procedure,    MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_SEARCH_METADATA_SPEC.procedure,         MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_SET_MATCH_SPEC.procedure,               MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_CLEAR_MATCH_SPEC.procedure,             MANAGE_LIBRARIES),
@@ -556,7 +559,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SHOW_HAS_QUALITY
         | R::REFUSAL_REASON_GPU_NOT_OFFERED
         | R::REFUSAL_REASON_UNKNOWN_LANGUAGE
-        | R::REFUSAL_REASON_TITLE_ID_MALFORMED => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_TITLE_ID_MALFORMED
+        | R::REFUSAL_REASON_TITLE_SOURCES_INVALID => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD

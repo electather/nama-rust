@@ -64,6 +64,10 @@ service LibraryService {
   // Library, title, Season or Version, and with `failed_precondition` if a file it would delete is
   // in a Library folder the Server couldn't write to when it last scanned the Library.
   rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
+  // Lists the enabled title sources a Library's `title_sources` can name, in no set order.
+  rpc ListTitleSources(ListTitleSourcesRequest) returns (ListTitleSourcesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // The kind of media a Library holds. A Library holds exactly one kind.
@@ -98,6 +102,10 @@ message Library {
   bool custom_backdrop = 6;
   // As `Movie.backdrop_thumbhash`.
   optional bytes backdrop_thumbhash = 7;
+  // The namespaces of the title sources the Library's titles are searched and Matched with, in
+  // order: the first source that answers Matches a title. `tmdb` alone unless an Admin set it.
+  // Changing it doesn't Match the Library's titles again.
+  repeated string title_sources = 8;
 }
 
 message CreateLibraryRequest {
@@ -107,6 +115,9 @@ message CreateLibraryRequest {
   LibraryKind kind = 2;
   // At least one absolute path to a directory the Server can read, each named once.
   repeated string folders = 3;
+  // The Library's `title_sources`, each a namespace of lowercase ASCII letters and digits, named
+  // once. Empty leaves `tmdb` alone.
+  repeated string title_sources = 4;
 }
 
 message CreateLibraryResponse {
@@ -136,6 +147,9 @@ message UpdateLibraryRequest {
   // The new folders, replacing the old ones, under the same rules as
   // `CreateLibraryRequest.folders`.
   repeated string folders = 3;
+  // The new `title_sources`, under the same rules as `CreateLibraryRequest.title_sources`. Empty
+  // keeps the Library's.
+  repeated string title_sources = 4;
 }
 
 message UpdateLibraryResponse {
@@ -279,4 +293,20 @@ message FileNotDeleted {
   string file_name = 1;
   // Why, as the Server's operating system put it, such as "Permission denied".
   string reason = 2;
+}
+
+message ListTitleSourcesRequest {}
+
+message ListTitleSourcesResponse {
+  repeated TitleSource title_sources = 1;
+}
+
+// An enabled title source, a Plugin that searches and describes titles.
+message TitleSource {
+  // The namespace it keeps titles under, which a Library's `title_sources` names it by.
+  string namespace = 1;
+  // The Plugin serving it.
+  string plugin_id = 2;
+  // What people know that Plugin by.
+  string plugin_name = 3;
 }

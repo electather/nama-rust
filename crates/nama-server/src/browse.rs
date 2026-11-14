@@ -677,7 +677,8 @@ fn finding_failed(err: libraries::Error) -> Error {
         libraries::Error::NameBlank
         | libraries::Error::FoldersEmpty
         | libraries::Error::Folder { .. }
-        | libraries::Error::FolderTaken { .. } => {
+        | libraries::Error::FolderTaken { .. }
+        | libraries::Error::TitleSources { .. } => {
             unreachable!("finding a Library refused a change: {err}")
         }
     }

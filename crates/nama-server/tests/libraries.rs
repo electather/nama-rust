@@ -6,14 +6,19 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use nama_plugin_tmdb::Tmdb;
 use nama_proto::nama::v1::{
     CreateLibraryRequest, DeleteLibraryRequest, GetLibraryRequest, Library, LibraryKind,
-    LibraryServiceClient, ListLibrariesRequest, RefusalReason, ScanLibraryRequest,
-    UpdateLibraryRequest,
+    LibraryServiceClient, ListLibrariesRequest, ListTitleSourcesRequest, RefusalReason,
+    ScanLibraryRequest, TitleSource, UpdateLibraryRequest,
 };
+use nama_server::plugins::Registry;
 use refused::assert_refused;
 use server::TestServer;
 use tempfile::TempDir;
@@ -523,4 +528,140 @@ async fn a_scan_can_be_started_for_a_library_but_not_for_one_that_doesnt_exist()
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
     );
+}
+
+/// `names` as the title sources a request names.
+fn sources(names: &[&str]) -> Vec<String> {
+    names.iter().map(|&name| name.to_owned()).collect()
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+impl Fixture {
+    async fn create_searching(
+        &self,
+        folder: &str,
+        title_sources: &[&str],
+    ) -> Result<Library, ConnectError> {
+        let response = self
+            .client
+            .create_library(CreateLibraryRequest {
+                name: "TV".to_owned(),
+                kind: LibraryKind::LIBRARY_KIND_SHOWS.into(),
+                folders: vec![folder.to_owned()],
+                title_sources: sources(title_sources),
+                ..Default::default()
+            })
+            .await?
+            .into_owned();
+        Ok(response.library.into_option().unwrap())
+    }
+
+    async fn update_searching(
+        &self,
+        library: &Library,
+        title_sources: &[&str],
+    ) -> Result<Library, ConnectError> {
+        let response = self
+            .client
+            .update_library(UpdateLibraryRequest {
+                id: library.id,
+                name: library.name.clone(),
+                folders: library.folders.clone(),
+                title_sources: sources(title_sources),
+                ..Default::default()
+            })
+            .await?
+            .into_owned();
+        Ok(response.library.into_option().unwrap())
+    }
+}
+
+#[tokio::test]
+async fn a_library_searches_tmdb_alone_unless_created_with_title_sources() {
+    let fx = Fixture::start().await;
+
+    let plain = fx.create_searching(&fx.folder("tv"), &[]).await.unwrap();
+    let ordered = (fx.create_searching(&fx.folder("anime"), &["tvdb", "tmdb"]))
+        .await
+        .unwrap();
+
+    assert_eq!(plain.title_sources, ["tmdb"]);
+    assert_eq!(fx.get(plain.id).await.unwrap().title_sources, ["tmdb"]);
+    assert_eq!(ordered.title_sources, ["tvdb", "tmdb"]);
+    assert_eq!(fx.get(ordered.id).await.unwrap(), ordered);
+}
+
+#[tokio::test]
+async fn an_update_naming_title_sources_sets_them_and_one_naming_none_keeps_them() {
+    let fx = Fixture::start().await;
+    let library = fx.create_searching(&fx.folder("tv"), &[]).await.unwrap();
+
+    let set = fx
+        .update_searching(&library, &["tvdb", "tmdb"])
+        .await
+        .unwrap();
+    let kept = fx.update_searching(&library, &[]).await.unwrap();
+
+    assert_eq!(set.title_sources, ["tvdb", "tmdb"]);
+    assert_eq!(kept.title_sources, ["tvdb", "tmdb"]);
+    assert_eq!(fx.get(library.id).await.unwrap(), kept);
+}
+
+#[tokio::test]
+async fn malformed_or_repeated_title_sources_are_refused_and_change_nothing() {
+    let fx = Fixture::start().await;
+    let library = fx.create_searching(&fx.folder("tv"), &[]).await.unwrap();
+    let other = fx.folder("other");
+
+    let cases: [(&str, &[&str], &str); 3] = [
+        ("an uppercase namespace", &["TMDB"], "TMDB"),
+        ("a namespace named twice", &["tmdb", "tvdb", "tmdb"], "tmdb"),
+        ("an empty namespace", &[""], ""),
+    ];
+    for (case, title_sources, namespace) in cases {
+        for refused in [
+            fx.create_searching(&other, title_sources).await,
+            fx.update_searching(&library, title_sources).await,
+        ] {
+            let refusal = assert_refused(
+                refused,
+                ErrorCode::InvalidArgument,
+                RefusalReason::REFUSAL_REASON_TITLE_SOURCES_INVALID,
+            );
+            assert_eq!(refusal.field, "title_sources", "{case}");
+            assert_eq!(
+                refusal.params.get("namespace").map(String::as_str),
+                Some(namespace),
+                "{case}"
+            );
+        }
+    }
+    assert_eq!(fx.list().await, [library]);
+}
+
+#[tokio::test]
+async fn list_title_sources_names_tmdb_by_its_namespace() {
+    // Described as a Server describes its Built-in Plugins, so the Server knows TMDB's name.
+    let plugins = Registry::new();
+    plugins.describe_builtin(|| Arc::new(Tmdb::new()));
+    let server = TestServer::builder().plugins(plugins).tmdb().start().await;
+    let client = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let listed = client
+        .list_title_sources(ListTitleSourcesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .title_sources;
+
+    let tmdb = TitleSource {
+        namespace: "tmdb".to_owned(),
+        plugin_id: "tmdb".to_owned(),
+        plugin_name: "TMDB".to_owned(),
+        ..Default::default()
+    };
+    assert_eq!(listed, [tmdb]);
 }

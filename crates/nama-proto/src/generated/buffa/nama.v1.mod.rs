@@ -271,6 +271,9 @@ pub mod __buffa {
         reg.register_json_any(super::__EPISODE_TAKEN_ALONG_JSON_ANY);
         reg.register_json_any(super::__MEDIA_FILE_JSON_ANY);
         reg.register_json_any(super::__FILE_NOT_DELETED_JSON_ANY);
+        reg.register_json_any(super::__LIST_TITLE_SOURCES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_TITLE_SOURCES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__TITLE_SOURCE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_SETTINGS_REQUEST_JSON_ANY);
@@ -1162,6 +1165,18 @@ pub use self::__buffa::view::MediaFileOwnedView;
 pub use self::__buffa::view::FileNotDeletedView;
 #[doc(inline)]
 pub use self::__buffa::view::FileNotDeletedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTitleSourcesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTitleSourcesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTitleSourcesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTitleSourcesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleSourceView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleSourceOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetServerInfoRequestView;
 #[doc(inline)]
