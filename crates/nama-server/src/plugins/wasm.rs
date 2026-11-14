@@ -15,9 +15,9 @@ use std::{
 use buffa::{DecodeError, Message};
 use extism::CompiledPlugin;
 use nama_plugin_api::{
-    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, Registrar,
     connector::{ConnectionStarted, Connector},
-    fulfiller::{Download, Fulfiller, Movies, Request, Shows},
+    fulfiller::{Download, Fulfiller, Request},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
     points::{Events, ObservedEvents},
     settings::{Choice, Choices, SettingKind, Settings, SettingsCheck},
@@ -26,9 +26,9 @@ use nama_plugin_proto::{
     CONTRACT_VERSION, SERVICES,
     nama::plugin::v1::{
         self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled, ConnectionStart,
-        Delivered, Delivery, Fulfilled, Progress, ProgressAsked, StopMonitoring,
+        Delivered, Delivery, EventsObserved, Fulfilled, Progress, ProgressAsked, StopMonitoring,
+        StoppedMonitoring, Unfollowed,
     },
-    services,
 };
 use semver::{Version, VersionReq};
 use thiserror::Error;
@@ -41,78 +41,17 @@ mod bundled;
 mod contract;
 mod listing;
 mod load;
+mod services;
 
 pub(crate) use listing::read;
 use load::{CALL_TIMEOUT, MEMORY_MAX_PAGES, allowed_hosts, compile, extism_config};
+use services::{
+    CHECK_SETTINGS, DELIVER, OBSERVE_EVENTS, POINTS, POLL_CONNECTION, Point, START_CONNECTION,
+};
 
 /// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
 /// cost an admin a Plugin.
 const CRASHES_BEFORE_DISABLING: u32 = 3;
-
-/// The export that checks a Plugin's settings, if it has one.
-pub(super) const CHECK_SETTINGS: &str = "check_settings";
-
-const FULFILL: &str = "fulfill";
-const UNFOLLOW: &str = "unfollow";
-/// A Fulfiller's optional export: a Plugin built before it isn't asked.
-pub(super) const STOP_MONITORING: &str = "stop_monitoring";
-const PROGRESS: &str = "progress";
-const DELIVER: &str = "deliver";
-const START_CONNECTION: &str = "start_connection";
-const POLL_CONNECTION: &str = "poll_connection";
-const OBSERVE_EVENTS: &str = "observe_events";
-
-/// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
-pub(super) const POINTS: &[Point] = &[
-    Point {
-        service: services::MOVIE_FULFILLER,
-        exports: &[FULFILL, PROGRESS],
-        key: PointKey::provide::<dyn Fulfiller<Movies>>,
-        register: |registrar, running| {
-            registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(running));
-        },
-    },
-    Point {
-        service: services::SHOW_FULFILLER,
-        exports: &[FULFILL, UNFOLLOW, PROGRESS],
-        key: PointKey::provide::<dyn Fulfiller<Shows>>,
-        register: |registrar, running| {
-            registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::new(running));
-        },
-    },
-    Point {
-        service: services::NOTIFIER,
-        exports: &[DELIVER],
-        key: PointKey::provide::<dyn Notifier>,
-        register: |registrar, running| {
-            registrar.provide::<dyn Notifier>(Priority::DEFAULT, Arc::new(running));
-        },
-    },
-    Point {
-        service: services::CONNECTOR,
-        exports: &[START_CONNECTION, POLL_CONNECTION],
-        key: PointKey::provide::<dyn Connector>,
-        register: |registrar, running| {
-            registrar.provide::<dyn Connector>(Priority::DEFAULT, Arc::new(running));
-        },
-    },
-    Point {
-        service: services::EVENT_OBSERVER,
-        exports: &[OBSERVE_EVENTS],
-        key: PointKey::observe::<Events>,
-        register: |registrar, running| registrar.observe::<Events>(running),
-    },
-];
-
-/// One Extension Point an Installed Plugin can take part at.
-pub(super) struct Point {
-    /// The service's full name, which a package's Manifest names it by.
-    service: &'static str,
-    /// The exports the Server calls there, which a package naming it must have.
-    exports: &'static [&'static str],
-    key: fn() -> PointKey,
-    register: fn(&mut Registrar, Running),
-}
 
 /// Why the Server refused an Installed Plugin.
 #[derive(Debug, Error)]
@@ -179,7 +118,7 @@ pub(super) struct Installed {
     cache_config: Arc<Path>,
     /// Whether it exports [`CHECK_SETTINGS`].
     checks_settings: bool,
-    /// Whether it exports [`STOP_MONITORING`].
+    /// Whether it exports a Fulfiller's optional `stop_monitoring`.
     stops_monitoring: bool,
 }
 
@@ -194,7 +133,7 @@ struct Running {
     /// How many calls in a row crashed, counted apart for its Observer, its Fulfiller, its
     /// Notifier and its Connector.
     crashes: Arc<AtomicU32>,
-    /// Whether it exports [`STOP_MONITORING`].
+    /// Whether it exports a Fulfiller's optional `stop_monitoring`.
     stops_monitoring: bool,
 }
 
@@ -348,7 +287,11 @@ impl Plugin for Installed {
             .filter(|point| declared.contains(&(point.key)()))
         {
             // Each counting its own crashes, so one point working between them doesn't hide them.
-            let crashes = if point.exports.contains(&FULFILL) {
+            let fulfills = point
+                .methods
+                .iter()
+                .any(|method| method.export == services::MOVIE_FULFILL.export);
+            let crashes = if fulfills {
                 Arc::clone(&fulfiller_crashes)
             } else {
                 Arc::default()
@@ -368,7 +311,7 @@ impl Plugin for Installed {
 /// The Extension Points `package` names. One this Server doesn't serve, or doesn't serve at a
 /// version the Manifest takes, refuses it, rather than leaving the Plugin doing less than its
 /// Manifest says.
-pub(super) fn points(package: &wire::Manifest) -> Result<Vec<&'static Point>, Refused> {
+fn points(package: &wire::Manifest) -> Result<Vec<&'static Point>, Refused> {
     package
         .points
         .iter()
@@ -401,15 +344,12 @@ fn served_version(service: &str) -> &'static str {
 }
 
 /// Checks that a Plugin has every export `points` need, `has_export` telling which it has.
-pub(super) fn check_exports(
-    points: &[&Point],
-    has_export: impl Fn(&str) -> bool,
-) -> Result<(), Refused> {
+fn check_exports(points: &[&Point], has_export: impl Fn(&str) -> bool) -> Result<(), Refused> {
     for point in points {
-        if let Some(&export) = point.exports.iter().find(|&&export| !has_export(export)) {
+        if let Some(method) = point.required().find(|method| !has_export(method.export)) {
             return Err(Refused::MissingExport {
-                service: point.service,
-                export,
+                service: method.service,
+                export: method.export,
             });
         }
     }
@@ -426,16 +366,19 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        let input = request.encode_to_vec();
-        Box::pin(async move {
-            let output = self.provide(FULFILL, input).await?;
-            Ok(Fulfilled::decode_from_slice(&output)?)
-        })
+        Box::pin(self.call_method(Kind::FULFILL, request))
     }
 
     fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
-        let input = request.encode_to_vec();
-        Box::pin(async move { self.provide(UNFOLLOW, input).await.map(drop) })
+        // The Kernel asks only a Show Fulfiller to unfollow, so only its service has the method.
+        let Some(unfollow) = Kind::UNFOLLOW else {
+            return Box::pin(async { Ok(()) });
+        };
+        Box::pin(async move {
+            self.call_method::<_, Unfollowed>(unfollow, request)
+                .await
+                .map(drop)
+        })
     }
 
     fn stop_monitoring<'a>(
@@ -445,23 +388,25 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
         if !self.stops_monitoring {
             return Box::pin(async { Ok(()) });
         }
-        let input = title.encode_to_vec();
-        Box::pin(async move { self.provide(STOP_MONITORING, input).await.map(drop) })
+        Box::pin(async move {
+            self.call_method::<_, StoppedMonitoring>(Kind::STOP_MONITORING, title)
+                .await
+                .map(drop)
+        })
     }
 
     fn progress<'a>(
         &'a self,
         references: &'a [String],
     ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
-        let input = ProgressAsked {
-            references: references.to_vec(),
-            ..Default::default()
-        }
-        .encode_to_vec();
         Box::pin(async move {
-            let output = self.provide(PROGRESS, input).await?;
-            let downloads = Progress::decode_from_slice(&output)?.downloads;
-            Ok(downloads
+            let asked = ProgressAsked {
+                references: references.to_vec(),
+                ..Default::default()
+            };
+            let progress: Progress = self.call_method(Kind::PROGRESS, &asked).await?;
+            Ok(progress
+                .downloads
                 .into_iter()
                 .map(|(reference, downloads)| (reference, downloads.downloads))
                 .collect())
@@ -481,15 +426,14 @@ impl Notifier for Running {
                 wire::delivery::Recipient::Connection(connection.clone())
             }
         };
-        let input = Delivery {
+        let delivery = Delivery {
             notification: Some(notification.clone()).into(),
             recipient: Some(recipient),
             ..Default::default()
-        }
-        .encode_to_vec();
+        };
         Box::pin(async move {
-            let output = self.provide(DELIVER, input).await?;
-            if Delivered::decode_from_slice(&output)?.recipient_gone {
+            let delivered: Delivered = self.call_method(&DELIVER, &delivery).await?;
+            if delivered.recipient_gone {
                 return Err(RecipientGone.into());
             }
             Ok(())
@@ -502,42 +446,36 @@ impl Connector for Running {
         &'a self,
         code: &'a str,
     ) -> BoxFuture<'a, Result<ConnectionStarted, PluginError>> {
-        let input = ConnectionStart {
+        let start = ConnectionStart {
             code: code.to_owned(),
             ..Default::default()
-        }
-        .encode_to_vec();
-        Box::pin(async move {
-            let output = self.provide(START_CONNECTION, input).await?;
-            Ok(ConnectionStarted::decode_from_slice(&output)?)
-        })
+        };
+        Box::pin(async move { self.call_method(&START_CONNECTION, &start).await })
     }
 
     fn poll_connection<'a>(
         &'a self,
         pending: &'a str,
     ) -> BoxFuture<'a, Result<Option<String>, PluginError>> {
-        let input = ConnectionPoll {
+        let poll = ConnectionPoll {
             pending: pending.to_owned(),
             ..Default::default()
-        }
-        .encode_to_vec();
+        };
         Box::pin(async move {
-            let output = self.provide(POLL_CONNECTION, input).await?;
-            Ok(ConnectionPolled::decode_from_slice(&output)?.connection)
+            let polled: ConnectionPolled = self.call_method(&POLL_CONNECTION, &poll).await?;
+            Ok(polled.connection)
         })
     }
 }
 
 impl Observer<Events> for Running {
     fn observe<'a>(&'a self, event: &'a ObservedEvents) -> BoxFuture<'a, ()> {
-        let input = event.encode_to_vec();
         Box::pin(async move {
-            match self.call_blocking(OBSERVE_EVENTS, input).await {
-                Ok(Ok(_)) => self.crashes.store(0, Ordering::Relaxed),
-                Ok(Err(err)) => self.observer_failed(&err),
-                Err(err) => warn!(plugin = %self.package.id, "observer failed: {err}"),
-            }
+            // An Observer's failure is logged and counted there; the Kernel waits for no answer.
+            drop(
+                self.call_method::<_, EventsObserved>(&OBSERVE_EVENTS, event)
+                    .await,
+            );
         })
     }
 }

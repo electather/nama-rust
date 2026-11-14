@@ -23,8 +23,10 @@ use semver::{Version, VersionReq};
 use tracing::error;
 
 use super::{
-    CHECK_SETTINGS, Installed, POINTS, Point, Refused, STOP_MONITORING, bundled::BUNDLED,
+    Installed, Point, Refused,
+    bundled::BUNDLED,
     check_exports, contract, points,
+    services::{CHECK_SETTINGS, MOVIE_STOP_MONITORING, known_exports},
 };
 use crate::plugins::{contain_sync, kept_logo};
 
@@ -126,11 +128,8 @@ pub(super) fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refu
         let bytes = plugin
             .call::<(), Vec<u8>>("manifest", ())
             .map_err(Refused::Manifest)?;
-        let known_exports = POINTS.iter().flat_map(|point| point.exports);
-        let exported = known_exports
-            .chain([&CHECK_SETTINGS, &STOP_MONITORING])
+        let exported = known_exports()
             .filter(|export| plugin.function_exists(export))
-            .copied()
             .collect();
         Ok((bytes, exported))
     })
@@ -142,7 +141,7 @@ pub(super) fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refu
         wasm: wasm.into(),
         cache_config: cache_config.into(),
         checks_settings: exported.contains(&CHECK_SETTINGS),
-        stops_monitoring: exported.contains(&STOP_MONITORING),
+        stops_monitoring: exported.contains(&MOVIE_STOP_MONITORING.export),
     })
 }
 
