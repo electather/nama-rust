@@ -165,7 +165,7 @@ impl Browse {
         let read_only_folder = deleting::read_only_folder(&library, paths).map(str::to_owned);
         let state = self
             .watch_states
-            .of(user, &[MovieOrEpisode::movie(id)])
+            .of(user, &[MovieOrEpisode::movie(&movie.id)])
             .await?
             .pop();
         Ok((movie, state.flatten(), read_only_folder))
@@ -401,15 +401,17 @@ impl<V> Titles<V> {
         }
     }
 
+    /// The Movie with `id` among its ids: any one identifies it (ADR 0042).
     fn movie(self, id: &ExternalId) -> Result<contents::Movie<V>, Error> {
         (self.movies()?.into_iter())
-            .find(|movie| &movie.id == id)
+            .find(|movie| names(&movie.ids, id))
             .ok_or(Error::NothingMatched)
     }
 
+    /// The Show with `id` among its ids: any one identifies it (ADR 0042).
     fn show(self, id: &ExternalId) -> Result<contents::Show<V>, Error> {
         (self.shows()?.into_iter())
-            .find(|show| &show.id == id)
+            .find(|show| names(&show.ids, id))
             .ok_or(Error::NothingMatched)
     }
 
@@ -554,14 +556,20 @@ fn to_unmonitor_of<'a>(
     }))
 }
 
+/// Whether `id` is one of `ids`: any one identifies a title (ADR 0042).
+fn names(ids: &ExternalIds, id: &ExternalId) -> bool {
+    ids.get(id.namespace()).as_ref() == Some(id)
+}
+
 /// The Episodes of `shows` that `target` names, with its name for the log and their Show. A Movie
 /// is in no Shows Library.
 fn named_episodes<'a>(
     shows: &'a [contents::Show],
     target: &Target,
 ) -> Result<(String, &'a contents::Show, Vec<&'a contents::Episode>), Error> {
-    let show_of =
-        |id: &ExternalId| (shows.iter().find(|show| &show.id == id)).ok_or(Error::NothingMatched);
+    let show_of = |id: &ExternalId| {
+        (shows.iter().find(|show| names(&show.ids, id))).ok_or(Error::NothingMatched)
+    };
     match target {
         Target::Movie(_) => Err(Error::WrongKind {
             wanted: Kind::Movies,
