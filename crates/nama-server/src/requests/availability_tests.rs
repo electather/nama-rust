@@ -11,8 +11,8 @@ use crate::requests::listing::{load, load_one};
 use crate::requests::qualities;
 use crate::requests::testing::{
     ADA, BOB, DARK, ada_and_bob, ask_each, asked_season, dark, dark_season, episode, follow_as,
-    fulfilled, match_dark_episodes, match_episodes, matched, movie, said, scan_dark, season_1,
-    season_ids, settled, tmdb,
+    fulfilled, match_dark_episodes, match_episodes, match_show_episodes, matched, movie, said,
+    scan_dark, season_1, season_ids, settled, tmdb,
 };
 use crate::{
     db::Database,
@@ -100,7 +100,7 @@ async fn an_available_season_request_stays_available_when_a_later_episode_airs()
         .unwrap()[0];
     let scan = |episode_2_airs| Decisions {
         items: vec![(item, matched(ExternalIds::default(), tmdb(DARK)))],
-        seasons: vec![(ExternalId::tmdb(DARK), season_1(episode_2_airs))],
+        seasons: vec![(tmdb(DARK), season_1(episode_2_airs))],
     };
     contents.record(scan("2099-12-01")).await.unwrap();
 
@@ -436,7 +436,10 @@ async fn a_season_request_kept_under_a_made_up_namespace_follows_how_much_of_it_
         .id;
     settled(&db, id, Ok(fulfilled())).await;
     let scan = || {
-        let seasons = vec![(show.clone(), season_1("2017-12-08"))];
+        let seasons = vec![(
+            ExternalIds::from_iter([show.clone()]),
+            season_1("2017-12-08"),
+        )];
         db.write(move |tx| Box::pin(super::make_seasons_available(tx, seasons)))
     };
 
@@ -447,4 +450,93 @@ async fn a_season_request_kept_under_a_made_up_namespace_follows_how_much_of_it_
 
     assert_eq!(said(&partly), [("moved", RequestState::PartiallyAvailable)]);
     assert_eq!(said(&fully), [("moved", RequestState::Available)]);
+}
+
+/// TVDB's id 5 and TMDB's id 9, which the tests below give one title.
+fn tvdb_5_and_tmdb_9() -> (ExternalId, ExternalIds) {
+    let tvdb = ExternalId::new("tvdb", "5").unwrap();
+    (
+        tvdb.clone(),
+        ExternalIds::from_iter([tvdb, ExternalId::tmdb(9)]),
+    )
+}
+
+#[tokio::test]
+async fn a_movie_request_kept_under_tvdb_becomes_available_when_a_match_prefers_tmdb() {
+    let (_data, db) = ada_and_bob().await;
+    let (tvdb, both) = tvdb_5_and_tmdb_9();
+    let wanted = Wanted {
+        id: tvdb,
+        ..movie(9)
+    };
+    let id = db
+        .write(move |tx| Box::pin(ask_movie(tx, ADA, wanted, RequestState::Pending)))
+        .await
+        .unwrap()
+        .value
+        .id;
+
+    let folder = tempfile::tempdir().unwrap();
+    let matched = Metadata {
+        ids: both,
+        ..tmdb_movie(9, "Nine")
+    };
+    MatchedMovie::new(&db, folder.path(), matched).await;
+
+    let mut conn = db.reader().acquire().await.unwrap();
+    let request = load_one(&mut conn, id).await.unwrap().unwrap();
+    assert_eq!(request.state, RequestState::Available);
+}
+
+#[tokio::test]
+async fn a_season_request_kept_under_tvdb_becomes_available_when_a_match_prefers_tmdb() {
+    let (_data, db) = ada_and_bob().await;
+    let (tvdb, both) = tvdb_5_and_tmdb_9();
+    let wanted = Wanted {
+        id: tvdb,
+        season: Some(1),
+        ..movie(9)
+    };
+    let id = db
+        .write(move |tx| Box::pin(ask(tx, ADA, wanted, RequestState::Approved)))
+        .await
+        .unwrap()
+        .value
+        .id;
+    match_show_episodes(&db, both.clone(), 1, &[1, 2]).await;
+
+    let seasons = vec![(both, season_1("2017-12-08"))];
+    let scanned = db
+        .write(move |tx| Box::pin(super::make_seasons_available(tx, seasons)))
+        .await
+        .unwrap();
+
+    assert_eq!(said(&scanned), [("moved", RequestState::Available)]);
+    let mut conn = db.reader().acquire().await.unwrap();
+    let request = load_one(&mut conn, id).await.unwrap().unwrap();
+    assert_eq!(request.state, RequestState::Available);
+}
+
+#[tokio::test]
+async fn a_scan_opens_a_season_of_a_followed_show_kept_under_tvdb_when_a_match_prefers_tmdb() {
+    let (_data, db) = ada_and_bob().await;
+    let (tvdb, both) = tvdb_5_and_tmdb_9();
+    let followed = WantedSeasons {
+        show_id: tvdb,
+        ..dark()
+    };
+    follow_as(&db, ADA, followed, RequestState::Approved).await;
+    match_show_episodes(&db, both.clone(), 3, &[1, 2]).await;
+
+    let seasons = vec![(both, dark_season(3))];
+    let scanned = db
+        .write(move |tx| Box::pin(super::make_seasons_available(tx, seasons)))
+        .await
+        .unwrap();
+
+    assert_eq!(said(&scanned), [("created", RequestState::Available)]);
+    assert_eq!(
+        dark_seasons(&db).await.last(),
+        Some(&(3, RequestState::Available, vec![ADA]))
+    );
 }

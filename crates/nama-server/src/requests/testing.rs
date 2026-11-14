@@ -592,6 +592,16 @@ pub(super) async fn match_episodes(
     season: i64,
     episodes: &[i64],
 ) {
+    match_show_episodes(db, ExternalIds::from_iter([show]), season, episodes).await;
+}
+
+/// [`match_episodes`], for a Show Matched with every id in `show`, hinted by the first.
+pub(super) async fn match_show_episodes(
+    db: &Arc<Database>,
+    show: ExternalIds,
+    season: i64,
+    episodes: &[i64],
+) {
     let folder = tempfile::tempdir().unwrap();
     let root = folder.path().canonicalize().unwrap();
     let contents = Contents::new(Arc::clone(db));
@@ -613,7 +623,7 @@ pub(super) async fn match_episodes(
             items: vec![Item::Episode {
                 show: "Dark".to_owned(),
                 year: None,
-                hint: Some(show.clone()),
+                hint: show.iter().next(),
                 season,
                 episode,
             }],
@@ -626,15 +636,7 @@ pub(super) async fn match_episodes(
         .unwrap()
         .into_iter()
         .flat_map(|file| file.items)
-        .map(|stored| {
-            (
-                stored.id,
-                matched(
-                    ExternalIds::default(),
-                    ExternalIds::from_iter([show.clone()]),
-                ),
-            )
-        })
+        .map(|stored| (stored.id, matched(ExternalIds::default(), show.clone())))
         .collect();
     contents.record(Decisions::from(decided)).await.unwrap();
 }
@@ -649,7 +651,7 @@ pub(super) async fn scan_dark(db: &Database, numbers: &[u32]) -> Vec<Event> {
 pub(super) async fn scan(db: &Database, show: ExternalId, numbers: &[u32]) -> Vec<Event> {
     let seasons = numbers
         .iter()
-        .map(|&number| (show.clone(), dark_season(number)))
+        .map(|&number| (ExternalIds::from_iter([show.clone()]), dark_season(number)))
         .collect();
     db.write(move |tx| Box::pin(make_seasons_available(tx, seasons)))
         .await

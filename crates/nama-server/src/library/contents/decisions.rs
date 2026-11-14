@@ -65,9 +65,9 @@ impl From<metadata::Candidate> for TiedTitle {
 pub(crate) struct Decisions {
     /// Each Item, with what was decided about it.
     pub(crate) items: Vec<(i64, Decided)>,
-    /// The Seasons fetched to decide about Episodes, as the metadata source gave them, with their
-    /// Show's preferred id. Their Requests follow how much of them a Library has.
-    pub(crate) seasons: Vec<(ExternalId, metadata::Season)>,
+    /// The Seasons fetched to decide about Episodes, as the metadata source gave them, with every
+    /// id of their Show. Their Requests follow how much of them a Library has.
+    pub(crate) seasons: Vec<(ExternalIds, metadata::Season)>,
 }
 
 impl From<Vec<(i64, Decided)>> for Decisions {
@@ -271,7 +271,7 @@ pub(super) async fn insert_decisions(
     let mut movies = Vec::new();
     for (item, decision) in decided.items {
         if let Decided::Matched(metadata) = &decision {
-            movies.extend(primary_id(&metadata.ids));
+            movies.push(metadata.ids.clone());
         }
         let row = MatchRow::from(&decision);
         let written = sqlx::query!(

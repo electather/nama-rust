@@ -3,7 +3,10 @@
 
 use std::iter;
 
-use nama_plugin_api::{fulfiller::Shows, metadata::ExternalId};
+use nama_plugin_api::{
+    fulfiller::Shows,
+    metadata::{ExternalId, ExternalIds},
+};
 use nama_proto::nama::v1::{
     FollowedShow, FollowedShowCancelled, FollowedShowCreated, FollowedShowRequesterAdded,
     FollowedShowRequesterRemoved, FollowedShowStateChanged, FollowedShowWithdrawn, Permission,
@@ -122,22 +125,30 @@ impl Requests {
     }
 }
 
-/// The Approved Followed Show of the Show `show`.
+/// The Approved Followed Show of the Show with the ids `show`, kept under any of them, with the
+/// id it is kept under.
 pub(super) async fn approved_followed_show(
     conn: &mut SqliteConnection,
-    show: &ExternalId,
-) -> Result<Option<FollowedShow>, sqlx::Error> {
-    let show_id = show.to_string();
-    let id = sqlx::query_scalar!(
-        "SELECT id FROM followed_shows WHERE show_id = ? AND state = 'approved'",
-        show_id
+    show: &ExternalIds,
+) -> Result<Option<(ExternalId, FollowedShow)>, sqlx::Error> {
+    let show_ids = serde_json::Value::from_iter(show.iter().map(|id| id.to_string())).to_string();
+    // ponytail: the first if the Show's ids name two Approved Followed Shows, each kept under
+    // another of them.
+    let row = sqlx::query!(
+        r#"SELECT id AS "id!", show_id FROM followed_shows
+           WHERE show_id IN (SELECT value FROM json_each(?)) AND state = 'approved'
+           ORDER BY id LIMIT 1"#,
+        show_ids
     )
     .fetch_optional(&mut *conn)
     .await?;
-    let Some(id) = id else {
+    let Some(row) = row else {
         return Ok(None);
     };
-    Ok(load_followed(conn, Some(id), None).await?.pop())
+    let kept_under =
+        (row.show_id.parse::<ExternalId>()).map_err(|err| sqlx::Error::Decode(err.into()))?;
+    let followed = load_followed(conn, Some(row.id), None).await?.pop();
+    Ok(followed.map(|followed| (kept_under, followed)))
 }
 
 /// Whether the Followed Show `id` covers the Season `season`: it is numbered no later than the

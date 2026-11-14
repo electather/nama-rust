@@ -3,14 +3,14 @@
 
 use std::collections::HashSet;
 
-use nama_plugin_api::metadata::{Episode, ExternalId, Season};
+use nama_plugin_api::metadata::{Episode, ExternalId, ExternalIds, Season};
 use nama_proto::nama::v1::{Event, FollowedShow, Request, RequestState};
 use sqlx::SqliteConnection;
 
 use super::apply::Applied;
 use super::asking::{Asker, SeasonsToAsk, Wanted, ask_as};
 use super::followed::{approved_followed_show, covers};
-use super::state::{change_state, open_request};
+use super::state::{change_state, ids_json, open_requests};
 use crate::{db::now, library::contents};
 
 /// Today as `YYYY-MM-DD`, by SQLite's calendar, since `std` has none.
@@ -26,6 +26,8 @@ pub(super) async fn today(conn: &mut SqliteConnection) -> Result<String, sqlx::E
 #[derive(Debug)]
 struct Scanning {
     followed_show: FollowedShow,
+    /// Every id the Match gave the Show, any of which a Request for it may be kept under.
+    show_ids: ExternalIds,
 }
 
 impl Asker for Scanning {
@@ -38,13 +40,13 @@ impl Asker for Scanning {
     async fn opens_in(
         &self,
         conn: &mut SqliteConnection,
-        show: &ExternalId,
+        _: &ExternalId,
         season: u32,
         has: Option<RequestState>,
     ) -> Result<Option<RequestState>, sqlx::Error> {
         let skips = has.is_none()
             || covers(conn, self.followed_show.id, season).await?
-            || was_available(conn, show, season).await?;
+            || was_available(conn, &self.show_ids, season).await?;
         Ok(if skips { None } else { has })
     }
 
@@ -91,80 +93,100 @@ pub(super) fn availability(
     }
 }
 
-/// Makes Available the open Request for each of the Movies `ids`, each its preferred id, that a
-/// Library now has, and returns an event for each (ADR 0012). Declined Requests are closed, so
-/// they stay as they are.
+/// Makes Available the open Request for each of the Movies `movies`, each by every id its Match
+/// gave it, that a Library now has, and returns an event for each (ADR 0012). A Request sharing
+/// any id with the Match is for it, whichever id each prefers (ADR 0042). Declined Requests are
+/// closed, so they stay as they are.
 pub(crate) async fn make_available(
     conn: &mut SqliteConnection,
-    ids: Vec<ExternalId>,
+    movies: Vec<ExternalIds>,
 ) -> Result<Vec<Event>, sqlx::Error> {
     let mut happened = Vec::new();
-    for movie in ids {
-        let Some(id) = open_request(conn, &movie, None).await? else {
+    for ids in movies {
+        let Some(any) = ids.iter().next() else {
             continue;
         };
+        let open = open_requests(conn, &ids, None).await?;
         // Not every Matched id is a Movie in a Library: the Match isn't stored if its Item went
         // since it was decided about, and an Episode's id can equal an unrelated Movie's.
-        if contents::library_with_movie(conn, &movie).await?.is_none() {
+        if open.is_empty() || contents::library_with_movie(conn, &any).await?.is_none() {
             continue;
         }
-        happened.extend(change_state(conn, id, RequestState::Available).await?);
+        for id in open {
+            happened.extend(change_state(conn, id, RequestState::Available).await?);
+        }
     }
     Ok(happened)
 }
 
 /// Makes the open Request for each of `seasons`, as the metadata source gave them just now with
-/// their Show's preferred id, Partially Available (if Processing) or Available by how many of its
-/// aired Episodes a Library has, and returns an event for each Request that changed (ADR 0012).
+/// every id their Show's Match gave it, Partially Available (if Processing) or Available by how
+/// many of its aired Episodes a Library has, and returns an event for each Request that changed
+/// (ADR 0012). A Request sharing any id with the Show is for it, as [`make_available`] says.
 /// Declined and Available Requests are closed, so Episodes that air later don't reopen them. A
 /// Season with no open Request is asked for by a scan, as [`Scanning`] says.
 pub(crate) async fn make_seasons_available(
     conn: &mut SqliteConnection,
-    seasons: Vec<(ExternalId, Season)>,
+    seasons: Vec<(ExternalIds, Season)>,
 ) -> Result<Vec<Event>, sqlx::Error> {
     let today = today(conn).await?;
     let mut happened = Vec::new();
     for (show, season) in seasons {
-        let matched = contents::matched_episodes(conn, &show, season.number.into()).await?;
+        let Some(any) = show.iter().next() else {
+            continue;
+        };
+        let matched = contents::matched_episodes(conn, &any, season.number.into()).await?;
         let Some(state) = availability(&season.episodes, &matched, &today) else {
             continue;
         };
-        match open_request(conn, &show, Some(season.number)).await? {
-            Some(id) => happened.extend(change_state(conn, id, state).await?),
-            None => happened.extend(scan_season(conn, &show, season).await?),
+        let open = open_requests(conn, &show, Some(season.number)).await?;
+        if open.is_empty() {
+            happened.extend(scan_season(conn, show, season).await?);
+        }
+        for id in open {
+            happened.extend(change_state(conn, id, state).await?);
         }
     }
     Ok(happened)
 }
 
-/// Asks for `season` of the Show `show`, which a Library's write found no open Request for, by a
-/// scan. Returns the events for it.
+/// Asks for `season` of the Show with the ids `show`, which a Library's write found no open
+/// Request for, by a scan, under the id its Approved Followed Show is kept under. Returns the
+/// events for it.
 async fn scan_season(
     conn: &mut SqliteConnection,
-    show: &ExternalId,
+    show: ExternalIds,
     season: Season,
 ) -> Result<Vec<Event>, sqlx::Error> {
     // A Show with no Approved Followed Show has no one a scan could ask for.
-    let Some(followed_show) = approved_followed_show(conn, show).await? else {
+    let Some((kept_under, followed_show)) = approved_followed_show(conn, &show).await? else {
         return Ok(Vec::new());
     };
-    let asking = SeasonsToAsk::for_scan(conn, show, &followed_show, season).await?;
-    let scanned = asking.ask(conn, Scanning { followed_show }).await?;
+    let asking = SeasonsToAsk::for_scan(conn, &kept_under, &followed_show, season).await?;
+    let scanning = Scanning {
+        followed_show,
+        show_ids: show,
+    };
+    let scanned = asking.ask(conn, scanning).await?;
     Ok(scanned.events)
 }
 
-/// Whether the Season `season` of the Show `show` ever had an Available Request, so its Followed
-/// Show doesn't ask for it again.
+/// Whether the Season `season` of the Show with any of the ids `show` ever had an Available
+/// Request, so its Followed Show doesn't ask for it again.
 async fn was_available(
     conn: &mut SqliteConnection,
-    show: &ExternalId,
+    show: &ExternalIds,
     season: u32,
 ) -> Result<bool, sqlx::Error> {
-    let title_id = show.to_string();
+    let ids = ids_json(show);
     sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM requests
-                          WHERE title_id = ? AND season = ? AND state = 'available') AS "is!: bool""#,
-        title_id,
+                          JOIN request_title_ids AS title ON title.request_id = requests.id
+                          JOIN json_each(?) AS wanted
+                              ON title.namespace = wanted.key AND title.value = wanted.value
+                          WHERE requests.season = ? AND requests.state = 'available')
+           AS "is!: bool""#,
+        ids,
         season
     )
     .fetch_one(&mut *conn)

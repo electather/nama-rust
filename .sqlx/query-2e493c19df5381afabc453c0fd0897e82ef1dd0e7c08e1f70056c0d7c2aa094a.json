@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM requests\n                          JOIN request_title_ids AS title ON title.request_id = requests.id\n                          JOIN json_each(?) AS wanted\n                              ON title.namespace = wanted.key AND title.value = wanted.value\n                          WHERE requests.season = ? AND requests.state = 'available')\n           AS \"is!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "is!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2e493c19df5381afabc453c0fd0897e82ef1dd0e7c08e1f70056c0d7c2aa094a"
+}

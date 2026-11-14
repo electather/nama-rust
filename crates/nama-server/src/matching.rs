@@ -46,7 +46,9 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{Candidate, Episode, ExternalId, SearchQuery, Season, Show, TMDB, TitleKind},
+    metadata::{
+        Candidate, Episode, ExternalId, ExternalIds, SearchQuery, Season, Show, TMDB, TitleKind,
+    },
 };
 use nama_proto::nama::v1::{Event, ItemMatched};
 use tokio_util::sync::CancellationToken;
@@ -57,7 +59,6 @@ use crate::{
     events::{EventBus, event},
     library::contents::{
         Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin, TiedTitle, UnmatchedReason,
-        primary_id,
     },
     metadata::{self, MetadataSource},
     plugins::ExtensionPoints,
@@ -156,12 +157,12 @@ struct Outdated {
     shows: BTreeMap<(PluginId, ExternalId), Vec<PendingEpisode>>,
 }
 
-/// What looking items up found for each, with the Seasons fetched to find Episodes in, by their
-/// Show's preferred id, which Season Requests follow.
+/// What looking items up found for each, with the Seasons fetched to find Episodes in, by every
+/// id of their Show, which Season Requests follow.
 #[derive(Debug, Default)]
 struct Outcomes {
     items: Vec<(i64, Result<Metadata, Miss>)>,
-    seasons: Vec<(ExternalId, Season)>,
+    seasons: Vec<(ExternalIds, Season)>,
 }
 
 impl Outcomes {
@@ -552,8 +553,9 @@ impl Matcher {
                 (pending.item, found)
             }));
             if let Ok(season) = season {
-                let show_id = primary_id(&show.ids).unwrap_or_else(|| id.clone());
-                outcomes.seasons.push((show_id, season));
+                let show_ids = (Some(show.ids.clone()).filter(|ids| !ids.is_empty()))
+                    .unwrap_or_else(|| ExternalIds::from_iter([id.clone()]));
+                outcomes.seasons.push((show_ids, season));
             }
         }
         outcomes

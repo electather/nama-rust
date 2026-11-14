@@ -1,7 +1,10 @@
 //! The states a Request is stored in, which of them are open, and the two moves no User decides:
 //! a Library making a Request Available and a Fulfiller settling its Hand-off.
 
-use nama_plugin_api::{fulfiller::Fulfilled, metadata::ExternalId};
+use nama_plugin_api::{
+    fulfiller::Fulfilled,
+    metadata::{ExternalId, ExternalIds},
+};
 use nama_proto::nama::v1::{Event, Request, RequestState, RequestStateChanged, RequestedQuality};
 use sqlx::SqliteConnection;
 
@@ -82,6 +85,41 @@ pub(super) async fn open_request(
         };
     }
     open_request_sql!(find).fetch_optional(&mut *conn).await
+}
+
+/// The open Requests for the Movie with any of `ids`, or for its Season `season` if `ids` are a
+/// Show's: those whose `request_title_ids` share a namespace and value with `ids`, whichever id
+/// each is kept under (ADR 0042).
+pub(super) async fn open_requests(
+    conn: &mut SqliteConnection,
+    ids: &ExternalIds,
+    season: Option<u32>,
+) -> Result<Vec<i64>, sqlx::Error> {
+    let ids = ids_json(ids);
+    macro_rules! find {
+        ($open:literal) => {
+            sqlx::query_scalar!(
+                r#"SELECT DISTINCT requests.id AS "id!" FROM requests
+                 JOIN request_title_ids AS title ON title.request_id = requests.id
+                 JOIN json_each(?) AS wanted
+                     ON title.namespace = wanted.key AND title.value = wanted.value
+                 WHERE requests.season IS ? AND "#
+                    + $open,
+                ids,
+                season
+            )
+        };
+    }
+    open_request_sql!(find).fetch_all(&mut *conn).await
+}
+
+/// `ids` as a JSON object of namespace to value, which SQLite's `json_each` reads.
+pub(super) fn ids_json(ids: &ExternalIds) -> String {
+    let pairs: serde_json::Map<_, _> = ids
+        .iter()
+        .map(|id| (id.namespace().to_owned(), id.value().into()))
+        .collect();
+    serde_json::Value::Object(pairs).to_string()
 }
 
 /// Moves the Request `id` to `state`, Available or Partially Available, and returns the event for
