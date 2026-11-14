@@ -20,15 +20,23 @@ use crate::{
 
 /// A title source: where the Kernel finds and fetches Movies and Shows. It speaks the contract's
 /// `TitleSourceService` messages, as an Installed Plugin's exports do. Titles carry ids as open
-/// namespace and value pairs, of which `tmdb`, `imdb` and `tvdb` are well known; a source refuses
-/// an id in a namespace it doesn't know with [`MetadataError::UnsupportedId`]. An answer with its
-/// title left unset means the source has no such title.
+/// namespace and value pairs, of which `tmdb`, `imdb` and `tvdb` are well known. Asked by an id in
+/// a namespace it can't look titles up by, a source answers with `unsupported_id` set, not an
+/// error, and the Kernel asks the next source. An answer with its title left unset means the
+/// source has no such title.
 ///
-/// Every method but [`namespace`](Self::namespace) is optional: one left out answers
+/// Every method but [`namespace`](Self::namespace) and
+/// [`lookup_namespaces`](Self::lookup_namespaces) is optional: one left out answers
 /// [`MetadataError::Unsupported`], so one point serves sources that answer only some of them.
 pub trait TitleSource: Send + Sync + 'static {
     /// The namespace this source keeps titles under, such as `tmdb`: one or more of a-z and 0-9.
     fn namespace(&self) -> &str;
+
+    /// The namespaces besides [`namespace`](Self::namespace) it looks titles up by, such as
+    /// `imdb`.
+    fn lookup_namespaces(&self) -> Vec<String> {
+        Vec::new()
+    }
 
     /// The titles of `query.kind` that best fit `query`, best first.
     fn search<'a>(
@@ -92,8 +100,6 @@ fn unsupported<'a, T: Send + 'a>() -> BoxFuture<'a, Result<T, MetadataError>> {
 pub enum MetadataError {
     /// This title source doesn't serve that method.
     Unsupported,
-    /// The source can't look titles up by this kind of id.
-    UnsupportedId(ExternalId),
     /// Anything else, such as the metadata source being unreachable. Worth trying again later.
     Failed(PluginError),
 }
@@ -102,7 +108,6 @@ impl fmt::Display for MetadataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Unsupported => f.write_str("this title source doesn't serve that"),
-            Self::UnsupportedId(id) => write!(f, "can't look up {id}"),
             Self::Failed(error) => write!(f, "{error}"),
         }
     }

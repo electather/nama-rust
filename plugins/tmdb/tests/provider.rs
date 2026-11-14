@@ -103,10 +103,11 @@ fn registering_without_an_api_key_fails_and_registers_nothing() {
 }
 
 #[tokio::test]
-async fn it_keeps_titles_under_the_tmdb_namespace() {
+async fn it_keeps_titles_under_tmdb_and_looks_them_up_by_imdb_and_tvdb() {
     let fake = FakeTmdb::start().await;
 
     assert_eq!(provider(&fake, API_KEY).namespace(), TMDB);
+    assert_eq!(provider(&fake, API_KEY).lookup_namespaces(), [IMDB, TVDB]);
 }
 
 #[tokio::test]
@@ -359,11 +360,11 @@ async fn seasons_are_looked_up_by_tmdb_ids_only() {
     let tmdb = provider(&fake, API_KEY);
     let dark = ExternalId::tvdb(334_824);
 
-    let result = tmdb.season(&season_asked(&dark, 1)).await;
+    let answer = tmdb.season(&season_asked(&dark, 1)).await.unwrap();
 
     assert!(
-        matches!(result, Err(MetadataError::UnsupportedId(ref id)) if *id == dark),
-        "{result:?}"
+        answer.unsupported_id && answer.season.is_unset(),
+        "{answer:?}"
     );
     assert_eq!(fake.requests(), Vec::<String>::new());
 }
@@ -374,11 +375,11 @@ async fn an_id_in_a_namespace_tmdb_does_not_know_is_unsupported() {
     let tmdb = provider(&fake, API_KEY);
     let id = ExternalId::new("example", "348").unwrap();
 
-    let result = tmdb.movie(&asked(&id)).await;
+    let answer = tmdb.movie(&asked(&id)).await.unwrap();
 
     assert!(
-        matches!(result, Err(MetadataError::UnsupportedId(ref unsupported)) if *unsupported == id),
-        "{result:?}"
+        answer.unsupported_id && answer.movie.is_unset(),
+        "{answer:?}"
     );
     assert_eq!(fake.requests(), Vec::<String>::new());
 }

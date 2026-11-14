@@ -338,6 +338,20 @@ pub struct Manifest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub title_namespace: ::buffa::alloc::string::String,
+    /// The id namespaces besides `title_namespace` that the Plugin's `TitleSourceService` can look a
+    /// title up by, such as "imdb", each one or more of a-z and 0-9. A Server refuses a Plugin naming
+    /// a malformed one. Ignored unless `points` names `TitleSourceService`.
+    ///
+    /// Field 15: `title_lookup_namespaces`
+    #[serde(
+        rename = "titleLookupNamespaces",
+        alias = "title_lookup_namespaces",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub title_lookup_namespaces: ::buffa::alloc::vec::Vec<
+        ::buffa::alloc::string::String,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -357,6 +371,7 @@ impl ::core::fmt::Debug for Manifest {
             .field("show_id_namespaces", &self.show_id_namespaces)
             .field("points", &self.points)
             .field("title_namespace", &self.title_namespace)
+            .field("title_lookup_namespaces", &self.title_lookup_namespaces)
             .finish()
     }
 }
@@ -435,6 +450,9 @@ impl ::buffa::Message for Manifest {
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.title_namespace) as u64;
         }
+        for v in &self.title_lookup_namespaces {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -490,6 +508,9 @@ impl ::buffa::Message for Manifest {
         }
         if !self.title_namespace.is_empty() {
             ::buffa::types::put_string_field(14u32, &self.title_namespace, buf);
+        }
+        for v in &self.title_lookup_namespaces {
+            ::buffa::types::put_string_field(15u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -610,6 +631,17 @@ impl ::buffa::Message for Manifest {
                 )?;
                 ::buffa::types::merge_string(&mut self.title_namespace, buf)?;
             }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.title_lookup_namespaces.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -630,6 +662,7 @@ impl ::buffa::Message for Manifest {
         self.show_id_namespaces.clear();
         self.points.clear();
         self.title_namespace.clear();
+        self.title_lookup_namespaces.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

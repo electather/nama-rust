@@ -42,6 +42,10 @@ impl TitleSource for Running {
         &self.package.title_namespace
     }
 
+    fn lookup_namespaces(&self) -> Vec<String> {
+        self.package.title_lookup_namespaces.clone()
+    }
+
     fn search<'a>(
         &'a self,
         query: &'a SearchQuery,

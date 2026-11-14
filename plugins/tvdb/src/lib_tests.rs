@@ -1,8 +1,8 @@
 use nama_pdk::{TitleId, nama_plugin_proto::nama::plugin::v1::SettingKind, services};
 
 use super::{
-    Episodes, Found, Login, Series, artwork_path, content_type, data, encoded, manifest, season,
-    title_id, tvdb_id,
+    Episodes, Found, Login, Lookup, Series, artwork_path, content_type, data, encoded, manifest,
+    season, title_id, tvdb_id,
 };
 
 fn ids(pairs: &[(&str, &str)]) -> Vec<TitleId> {
@@ -19,6 +19,7 @@ fn manifest_serves_the_title_source_under_tvdb_with_four_settings() {
     let points: Vec<_> = manifest.points.iter().map(|point| &point.service).collect();
     assert_eq!(points, [services::TITLE_SOURCE]);
     assert_eq!(manifest.title_namespace, "tvdb");
+    assert_eq!(manifest.title_lookup_namespaces, Vec::<String>::new());
     let settings: Vec<_> = manifest
         .settings
         .iter()
@@ -138,16 +139,18 @@ fn a_season_without_episodes_is_none_and_season_zero_is_specials() {
 }
 
 #[test]
-fn ids_in_other_namespaces_fail_and_non_numbers_are_unknown() {
+fn ids_in_other_namespaces_are_unsupported_and_non_numbers_are_unknown() {
     assert_eq!(
         tvdb_id(Some(&title_id("tvdb", "371980"))).unwrap(),
-        Some(371_980)
+        Lookup::Found(371_980)
     );
-    assert_eq!(tvdb_id(Some(&title_id("tvdb", "x"))).unwrap(), None);
-    let refused = tvdb_id(Some(&title_id("tmdb", "95396"))).unwrap_err();
     assert_eq!(
-        refused.to_string(),
-        "TVDB doesn't know the id namespace tmdb"
+        tvdb_id(Some(&title_id("tvdb", "x"))).unwrap(),
+        Lookup::Missing
+    );
+    assert_eq!(
+        tvdb_id(Some(&title_id("tmdb", "95396"))).unwrap(),
+        Lookup::Unsupported
     );
 }
 

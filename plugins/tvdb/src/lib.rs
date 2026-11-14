@@ -123,8 +123,15 @@ impl TitleSource for Tvdb {
     }
 
     fn show(asked: TitleAsked) -> Result<ShowAnswer, Error> {
-        let Some(id) = tvdb_id(asked.id.as_option())? else {
-            return Ok(ShowAnswer::default());
+        let id = match tvdb_id(asked.id.as_option())? {
+            Lookup::Found(id) => id,
+            Lookup::Missing => return Ok(ShowAnswer::default()),
+            Lookup::Unsupported => {
+                return Ok(ShowAnswer {
+                    unsupported_id: true,
+                    ..ShowAnswer::default()
+                });
+            }
         };
         let path = format!("series/{id}/extended?meta=translations");
         let series: Option<Series> = Api::login()?.get(&path)?;
@@ -135,8 +142,15 @@ impl TitleSource for Tvdb {
     }
 
     fn season(asked: SeasonAsked) -> Result<SeasonAnswer, Error> {
-        let Some(id) = tvdb_id(asked.show.as_option())? else {
-            return Ok(SeasonAnswer::default());
+        let id = match tvdb_id(asked.show.as_option())? {
+            Lookup::Found(id) => id,
+            Lookup::Missing => return Ok(SeasonAnswer::default()),
+            Lookup::Unsupported => {
+                return Ok(SeasonAnswer {
+                    unsupported_id: true,
+                    ..SeasonAnswer::default()
+                });
+            }
         };
         let path = format!("series/{id}/episodes/default?season={}", asked.season);
         let episodes: Option<Episodes> = Api::login()?.get(&path)?;
@@ -259,19 +273,27 @@ fn data<T: DeserializeOwned>(body: &[u8]) -> Result<T, Error> {
     Ok(answer.data)
 }
 
-/// The TVDB id `id` names, `None` if it isn't a number TVDB could have.
+/// What an asked id comes to at TVDB.
+#[derive(Debug, PartialEq, Eq)]
+enum Lookup {
+    /// The TVDB id of the title.
+    Found(u64),
+    /// Not a number TVDB could have.
+    Missing,
+    /// In a namespace TVDB can't look titles up by.
+    Unsupported,
+}
+
+/// What the TVDB id `id` names comes to.
 ///
 /// # Errors
-/// If `id` is in another namespace, or there is none.
-fn tvdb_id(id: Option<&TitleId>) -> Result<Option<u64>, Error> {
+/// If there is no id.
+fn tvdb_id(id: Option<&TitleId>) -> Result<Lookup, Error> {
     let id = id.ok_or_else(|| Error::msg("TVDB was asked for no id"))?;
     if id.namespace != NAMESPACE {
-        return Err(Error::msg(format!(
-            "TVDB doesn't know the id namespace {}",
-            id.namespace
-        )));
+        return Ok(Lookup::Unsupported);
     }
-    Ok(id.value.parse().ok())
+    Ok(id.value.parse().map_or(Lookup::Missing, Lookup::Found))
 }
 
 fn title_id(namespace: &str, value: impl Into<String>) -> TitleId {

@@ -17,7 +17,7 @@ use nama_plugin_api::{
         SearchQuery, SearchResults, SeasonAnswer, SeasonAsked, ShowAnswer, TitleAsked, TitleId,
         TitleKind,
     },
-    metadata::{ExternalId, IMDB, MetadataError, TMDB, TVDB, TitleSource},
+    metadata::{IMDB, MetadataError, TMDB, TVDB, TitleSource},
 };
 use serde::de::DeserializeOwned;
 use url::Url;
@@ -96,16 +96,15 @@ impl Client {
             .map_err(|err| failed(format!("TMDB sent {path}: {err}")))
     }
 
-    /// The TMDB id of the `kind` of title `id` names, found with `/find` if it's another source's,
-    /// or `None` where TMDB has no such title.
-    async fn find(&self, kind: TitleKind, id: &TitleId) -> Result<Option<i64>, MetadataError> {
+    /// The TMDB id of the `kind` of title `id` names, found with `/find` if it's another source's.
+    async fn find(&self, kind: TitleKind, id: &TitleId) -> Result<Lookup, MetadataError> {
         let source = match id.namespace.as_str() {
-            TMDB => return tmdb_id(id),
+            TMDB => return Ok(tmdb_id(id)),
             // The id goes in the path, so only a number or an IMDb id's own shape is sent.
             TVDB if is_number(&id.value) => "tvdb_id",
             IMDB if is_imdb_id(&id.value) => "imdb_id",
-            TVDB | IMDB => return Ok(None),
-            _ => return Err(unsupported_id(id)),
+            TVDB | IMDB => return Ok(Lookup::Missing),
+            _ => return Ok(Lookup::Unsupported),
         };
         let found: Option<Found> = self
             .api(
@@ -118,7 +117,9 @@ impl Client {
             (Some(found), TitleKind::TITLE_KIND_SHOW) => found.tv_results,
             _ => Vec::new(),
         };
-        Ok(results.first().map(|title| title.id))
+        Ok(results
+            .first()
+            .map_or(Lookup::Missing, |title| Lookup::Found(title.id)))
     }
 
     async fn details<T: DeserializeOwned>(&self, path: &str) -> Result<Option<T>, MetadataError> {
@@ -176,21 +177,22 @@ fn is_number(text: &str) -> bool {
     !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit())
 }
 
-/// The TMDB id in `id`, the only kind TMDB looks Seasons and Episodes up by, or `None` if it
-/// can't be one.
-fn tmdb_id(id: &TitleId) -> Result<Option<i64>, MetadataError> {
-    if id.namespace != TMDB {
-        return Err(unsupported_id(id));
-    }
-    Ok(id.value.parse().ok())
+/// What an asked id comes to at TMDB.
+enum Lookup {
+    /// The TMDB id of the title.
+    Found(i64),
+    /// TMDB has no such title.
+    Missing,
+    /// TMDB can't look titles up by the id's namespace.
+    Unsupported,
 }
 
-/// The refusal of `id`, whose namespace TMDB can't look titles up by.
-fn unsupported_id(id: &TitleId) -> MetadataError {
-    ExternalId::new(&id.namespace, id.value.clone()).map_or_else(
-        |err| failed(format!("asked for a malformed id: {err}")),
-        MetadataError::UnsupportedId,
-    )
+/// The TMDB id in `id`, the only kind TMDB looks Seasons and Episodes up by.
+fn tmdb_id(id: &TitleId) -> Lookup {
+    if id.namespace != TMDB {
+        return Lookup::Unsupported;
+    }
+    id.value.parse().map_or(Lookup::Missing, Lookup::Found)
 }
 
 /// The Candidates on a search's page; none where TMDB has no page.
@@ -208,6 +210,10 @@ fn failed(error: impl Into<nama_plugin_api::PluginError>) -> MetadataError {
 impl TitleSource for Client {
     fn namespace(&self) -> &'static str {
         TMDB
+    }
+
+    fn lookup_namespaces(&self) -> Vec<String> {
+        vec![IMDB.to_owned(), TVDB.to_owned()]
     }
 
     fn search<'a>(
@@ -241,8 +247,15 @@ impl TitleSource for Client {
         asked: &'a TitleAsked,
     ) -> BoxFuture<'a, Result<MovieAnswer, MetadataError>> {
         Box::pin(async move {
-            let Some(id) = self.find(TitleKind::TITLE_KIND_MOVIE, &asked.id).await? else {
-                return Ok(MovieAnswer::default());
+            let id = match self.find(TitleKind::TITLE_KIND_MOVIE, &asked.id).await? {
+                Lookup::Found(id) => id,
+                Lookup::Missing => return Ok(MovieAnswer::default()),
+                Lookup::Unsupported => {
+                    return Ok(MovieAnswer {
+                        unsupported_id: true,
+                        ..Default::default()
+                    });
+                }
             };
             let movie: Option<MovieDetails> = self.details(&format!("/movie/{id}")).await?;
             Ok(MovieAnswer {
@@ -257,8 +270,15 @@ impl TitleSource for Client {
         asked: &'a TitleAsked,
     ) -> BoxFuture<'a, Result<ShowAnswer, MetadataError>> {
         Box::pin(async move {
-            let Some(id) = self.find(TitleKind::TITLE_KIND_SHOW, &asked.id).await? else {
-                return Ok(ShowAnswer::default());
+            let id = match self.find(TitleKind::TITLE_KIND_SHOW, &asked.id).await? {
+                Lookup::Found(id) => id,
+                Lookup::Missing => return Ok(ShowAnswer::default()),
+                Lookup::Unsupported => {
+                    return Ok(ShowAnswer {
+                        unsupported_id: true,
+                        ..Default::default()
+                    });
+                }
             };
             let show: Option<ShowDetails> = self.details(&format!("/tv/{id}")).await?;
             Ok(ShowAnswer {
@@ -273,8 +293,15 @@ impl TitleSource for Client {
         asked: &'a SeasonAsked,
     ) -> BoxFuture<'a, Result<SeasonAnswer, MetadataError>> {
         Box::pin(async move {
-            let Some(show) = tmdb_id(&asked.show)? else {
-                return Ok(SeasonAnswer::default());
+            let show = match tmdb_id(&asked.show) {
+                Lookup::Found(show) => show,
+                Lookup::Missing => return Ok(SeasonAnswer::default()),
+                Lookup::Unsupported => {
+                    return Ok(SeasonAnswer {
+                        unsupported_id: true,
+                        ..Default::default()
+                    });
+                }
             };
             let path = format!("/tv/{show}/season/{}", asked.season);
             let season: Option<SeasonDetails> = self.details(&path).await?;
@@ -290,8 +317,15 @@ impl TitleSource for Client {
         asked: &'a EpisodeAsked,
     ) -> BoxFuture<'a, Result<EpisodeAnswer, MetadataError>> {
         Box::pin(async move {
-            let Some(show) = tmdb_id(&asked.show)? else {
-                return Ok(EpisodeAnswer::default());
+            let show = match tmdb_id(&asked.show) {
+                Lookup::Found(show) => show,
+                Lookup::Missing => return Ok(EpisodeAnswer::default()),
+                Lookup::Unsupported => {
+                    return Ok(EpisodeAnswer {
+                        unsupported_id: true,
+                        ..Default::default()
+                    });
+                }
             };
             let path = format!(
                 "/tv/{show}/season/{}/episode/{}",

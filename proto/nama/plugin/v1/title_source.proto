@@ -11,7 +11,9 @@ import "nama/plugin/v1/request.proto";
 //
 // Every rpc is optional: a Plugin without its export isn't asked, and the Kernel treats the method
 // as one the source doesn't serve. An export that fails means the source couldn't answer, which is
-// worth trying again later; an answer with its title unset means there is no such title.
+// worth trying again later; an answer with its title unset means there is no such title. An answer
+// with `unsupported_id` set means the source can't look titles up by the asked id's namespace, and
+// the Kernel asks the next source; a source answers that rather than failing its export.
 service TitleSourceService {
   // The `title_search` export: the titles of `SearchQuery.kind` that best fit the query, best
   // first. Optional.
@@ -108,24 +110,32 @@ message ImageAsked {
 message MovieAnswer {
   // The Movie, unset if the source has no such Movie.
   Movie movie = 1;
+  // Set when the source can't look titles up by the asked id's namespace, with `movie` unset.
+  bool unsupported_id = 2;
 }
 
 // What the `title_show` export returns.
 message ShowAnswer {
   // The Show, unset if the source has no such Show.
   Show show = 1;
+  // Set when the source can't look titles up by the asked id's namespace, with `show` unset.
+  bool unsupported_id = 2;
 }
 
 // What the `title_season` export returns.
 message SeasonAnswer {
   // The Season, unset if the source has no such Season.
   Season season = 1;
+  // Set when the source can't look titles up by the asked id's namespace, with `season` unset.
+  bool unsupported_id = 2;
 }
 
 // What the `title_episode` export returns.
 message EpisodeAnswer {
   // The Episode, unset if the source has no such Episode.
   Episode episode = 1;
+  // Set when the source can't look titles up by the asked id's namespace, with `episode` unset.
+  bool unsupported_id = 2;
 }
 
 // What the `title_image` export returns.

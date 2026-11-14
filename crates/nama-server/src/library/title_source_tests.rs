@@ -7,7 +7,7 @@ use nama_plugin_api::{
         SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer,
         TitleAsked, TitleId,
     },
-    metadata::{ExternalId, IMDB, MetadataError, TitleSource},
+    metadata::{ExternalId, MetadataError, TitleSource},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 
@@ -134,20 +134,6 @@ async fn a_title_the_provider_does_not_have_is_not_found() {
 }
 
 #[tokio::test]
-async fn an_id_the_provider_cannot_look_up_is_not_found() {
-    let failure = || {
-        Some(MetadataError::UnsupportedId(
-            ExternalId::new(IMDB, "tt0944947").unwrap(),
-        ))
-    };
-
-    assert_eq!(
-        asking(Some(failure)).await,
-        (Error::NotFound, Error::NotFound)
-    );
-}
-
-#[tokio::test]
 async fn a_method_the_source_does_not_serve_is_not_found() {
     let failure = || Some(MetadataError::Unsupported);
 
@@ -203,6 +189,8 @@ enum Answers {
     /// With a search that finds nothing.
     Empty,
     NotFound,
+    /// With `unsupported_id` set on a title or Season.
+    UnsupportedId,
     Unsupported,
     Fails,
 }
@@ -229,7 +217,7 @@ impl Fake {
             .push(self.namespace);
         match self.answers {
             Answers::Has | Answers::Empty => Ok(found(vec![self.id()])),
-            Answers::NotFound => Ok(T::default()),
+            Answers::NotFound | Answers::UnsupportedId => Ok(T::default()),
             Answers::Unsupported => Err(MetadataError::Unsupported),
             Answers::Fails => Err(MetadataError::Failed("unreachable".into())),
         }
@@ -243,6 +231,10 @@ impl Fake {
             value: "1".to_owned(),
             ..Default::default()
         }
+    }
+
+    fn unsupported_id(&self) -> bool {
+        matches!(self.answers, Answers::UnsupportedId)
     }
 }
 
@@ -288,6 +280,10 @@ impl TitleSource for Fake {
             .into(),
             ..Default::default()
         });
+        let found = found.map(|found| MovieAnswer {
+            unsupported_id: self.unsupported_id(),
+            ..found
+        });
         Box::pin(async { found })
     }
 
@@ -305,6 +301,10 @@ impl TitleSource for Fake {
             .into(),
             ..Default::default()
         });
+        let found = found.map(|found| ShowAnswer {
+            unsupported_id: self.unsupported_id(),
+            ..found
+        });
         Box::pin(async { found })
     }
 
@@ -320,6 +320,10 @@ impl TitleSource for Fake {
             }
             .into(),
             ..Default::default()
+        });
+        let found = found.map(|found| SeasonAnswer {
+            unsupported_id: self.unsupported_id(),
+            ..found
         });
         Box::pin(async { found })
     }
@@ -486,6 +490,20 @@ async fn a_title_by_id_falls_through_to_the_other_sources_in_order() {
 
     assert_eq!(show_from, source("aa"));
     assert_eq!(asked(&sources_asked), ["bb", "aa"]);
+}
+
+#[tokio::test]
+async fn a_source_answering_unsupported_id_passes_to_the_next() {
+    let (metadata, sources_asked) = two(Answers::Has, Answers::UnsupportedId);
+    let id = ExternalId::new("bb", "1").unwrap();
+
+    let (show_from, _) = metadata.show_by(&id).await.unwrap();
+    let (movie_from, _) = metadata.movie_by(&id).await.unwrap();
+    let season = metadata.season_from(&source("bb"), &id, 1).await;
+
+    assert_eq!((show_from, movie_from), (source("aa"), source("aa")));
+    assert_eq!(season.unwrap_err(), Error::NotFound);
+    assert_eq!(asked(&sources_asked), ["bb", "aa", "bb", "aa", "bb"]);
 }
 
 #[tokio::test]

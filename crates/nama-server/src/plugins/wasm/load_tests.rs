@@ -66,6 +66,23 @@ fn a_title_source_without_a_well_formed_namespace_is_refused() {
 }
 
 #[test]
+fn a_title_source_with_a_malformed_lookup_namespace_is_refused() {
+    let mut package = Manifest {
+        title_lookup_namespaces: vec!["imdb".to_owned(), "TV-DB".to_owned()],
+        ..title_source("tmdb")
+    };
+
+    let refused = judge(&mut package, &[])
+        .err()
+        .map(|refused| refused.to_string());
+
+    assert_eq!(
+        refused.as_deref(),
+        Some(r#"its title_lookup_namespaces names "TV-DB", which isn't a namespace"#)
+    );
+}
+
+#[test]
 fn a_title_source_without_any_title_export_loads() {
     let judged = judge(&mut title_source("tvdb"), &[]).map(|manifest| manifest.id.to_string());
 

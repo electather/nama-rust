@@ -319,15 +319,25 @@ fn check_namespaces(package: &wire::Manifest) -> Result<(), Refused> {
 }
 
 /// Checks that a Manifest naming `TitleSourceService` among `points` names the namespace it keeps
-/// titles under.
+/// titles under, and that each other namespace it looks titles up by is one.
 fn check_title_namespace(package: &wire::Manifest, points: &[&Point]) -> Result<(), Refused> {
     let names_title_source = points
         .iter()
         .any(|point| point.service == services::TITLE_SOURCE);
-    if names_title_source && !is_namespace(&package.title_namespace) {
+    if !names_title_source {
+        return Ok(());
+    }
+    if !is_namespace(&package.title_namespace) {
         return Err(Refused::BadNamespace {
             field: "title_namespace",
             namespace: package.title_namespace.clone(),
+        });
+    }
+    let lookup = &package.title_lookup_namespaces;
+    if let Some(namespace) = lookup.iter().find(|namespace| !is_namespace(namespace)) {
+        return Err(Refused::BadNamespace {
+            field: "title_lookup_namespaces",
+            namespace: namespace.clone(),
         });
     }
     Ok(())

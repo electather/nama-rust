@@ -80,7 +80,22 @@ impl TitleSource for Tvdb {
 nama_pdk::title_source!(Tvdb, [search]);
 ```
 
-A title source also sets the Manifest's `title_namespace`, and a Fulfiller its `movie_id_namespaces` or `show_id_namespaces`: see the contract's [README](../nama-plugin-proto/README.md) and its [Title ids](../nama-plugin-proto/README.md#title-ids).
+A title source also sets the Manifest's `title_namespace`, the namespace it keeps titles under, and `title_lookup_namespaces`, any others it can look a title up by, and a Fulfiller its `movie_id_namespaces` or `show_id_namespaces`: see the contract's [README](../nama-plugin-proto/README.md) and its [Title ids](../nama-plugin-proto/README.md#title-ids).
+
+```rust
+use nama_pdk::{Manifest, services};
+
+fn manifest() -> Manifest {
+    Manifest {
+        points: vec![nama_pdk::point(services::TITLE_SOURCE)],
+        title_namespace: "tmdb".to_owned(),
+        title_lookup_namespaces: vec!["imdb".to_owned(), "tvdb".to_owned()],
+        ..nama_pdk::manifest("tmdb", env!("CARGO_PKG_VERSION"))
+    }
+}
+```
+
+Asked for a title by an id in a namespace it can't look titles up by, a title source answers with `unsupported_id` set, never a failure: the Server then asks the next source, while a failure means the source couldn't answer and is worth trying again.
 
 ## 5. Settings
 

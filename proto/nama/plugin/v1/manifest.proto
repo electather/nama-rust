@@ -57,6 +57,10 @@ message Manifest {
   // more of a-z and 0-9. A Server refuses a Plugin whose `points` name `TitleSourceService`
   // without one. Ignored unless `points` names `TitleSourceService`.
   string title_namespace = 14;
+  // The id namespaces besides `title_namespace` that the Plugin's `TitleSourceService` can look a
+  // title up by, such as "imdb", each one or more of a-z and 0-9. A Server refuses a Plugin naming
+  // a malformed one. Ignored unless `points` names `TitleSourceService`.
+  repeated string title_lookup_namespaces = 15;
 }
 
 // An Extension Point an Installed Plugin serves: a service of this package, whose rpcs name the

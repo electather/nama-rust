@@ -80,6 +80,12 @@ pub struct ManifestView<'a> {
     ///
     /// Field 14: `title_namespace`
     pub title_namespace: &'a str,
+    /// The id namespaces besides `title_namespace` that the Plugin's `TitleSourceService` can look a
+    /// title up by, such as "imdb", each one or more of a-z and 0-9. A Server refuses a Plugin naming
+    /// a malformed one. Ignored unless `points` names `TitleSourceService`.
+    ///
+    /// Field 15: `title_lookup_namespaces`
+    pub title_lookup_namespaces: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
@@ -232,6 +238,17 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                         )?,
                     );
             }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.title_lookup_namespaces.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -282,6 +299,11 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             title_namespace: self.title_namespace.to_string(),
+            title_lookup_namespaces: self
+                .title_lookup_namespaces
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -341,6 +363,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
                 += 1u64
                     + ::buffa::types::string_encoded_len(&self.title_namespace) as u64;
         }
+        for v in &self.title_lookup_namespaces {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -398,6 +423,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         if !self.title_namespace.is_empty() {
             ::buffa::types::put_string_field(14u32, &self.title_namespace, buf);
         }
+        for v in &self.title_lookup_namespaces {
+            ::buffa::types::put_string_field(15u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -454,6 +482,13 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.title_namespace) {
             __map.serialize_entry("titleNamespace", self.title_namespace)?;
+        }
+        if !self.title_lookup_namespaces.is_empty() {
+            __map
+                .serialize_entry(
+                    "titleLookupNamespaces",
+                    &*self.title_lookup_namespaces,
+                )?;
         }
         __map.end()
     }
@@ -649,6 +684,15 @@ impl ManifestOwnedView {
     #[must_use]
     pub fn title_namespace(&self) -> &'_ str {
         self.0.reborrow().title_namespace
+    }
+    /// The id namespaces besides `title_namespace` that the Plugin's `TitleSourceService` can look a
+    /// title up by, such as "imdb", each one or more of a-z and 0-9. A Server refuses a Plugin naming
+    /// a malformed one. Ignored unless `points` names `TitleSourceService`.
+    ///
+    /// Field 15: `title_lookup_namespaces`
+    #[must_use]
+    pub fn title_lookup_namespaces(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().title_lookup_namespaces
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ManifestView<'static>>>

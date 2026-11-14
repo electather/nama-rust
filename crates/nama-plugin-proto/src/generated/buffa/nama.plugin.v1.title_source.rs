@@ -1482,13 +1482,26 @@ pub struct MovieAnswer {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub movie: ::buffa::MessageField<Movie, ::buffa::Inline<Movie>>,
+    /// Set when the source can't look titles up by the asked id's namespace, with `movie` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    #[serde(
+        rename = "unsupportedId",
+        alias = "unsupported_id",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub unsupported_id: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for MovieAnswer {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("MovieAnswer").field("movie", &self.movie).finish()
+        f.debug_struct("MovieAnswer")
+            .field("movie", &self.movie)
+            .field("unsupported_id", &self.unsupported_id)
+            .finish()
     }
 }
 impl MovieAnswer {
@@ -1526,6 +1539,9 @@ impl ::buffa::Message for MovieAnswer {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.unsupported_id {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1543,6 +1559,9 @@ impl ::buffa::Message for MovieAnswer {
                 buf,
             );
             self.movie.write_to(__cache, buf);
+        }
+        if self.unsupported_id {
+            ::buffa::types::put_bool_field(2u32, self.unsupported_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1568,6 +1587,13 @@ impl ::buffa::Message for MovieAnswer {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.unsupported_id = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1577,6 +1603,7 @@ impl ::buffa::Message for MovieAnswer {
     }
     fn clear(&mut self) {
         self.movie = ::buffa::MessageField::none();
+        self.unsupported_id = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1622,13 +1649,26 @@ pub struct ShowAnswer {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub show: ::buffa::MessageField<Show, ::buffa::Inline<Show>>,
+    /// Set when the source can't look titles up by the asked id's namespace, with `show` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    #[serde(
+        rename = "unsupportedId",
+        alias = "unsupported_id",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub unsupported_id: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ShowAnswer {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ShowAnswer").field("show", &self.show).finish()
+        f.debug_struct("ShowAnswer")
+            .field("show", &self.show)
+            .field("unsupported_id", &self.unsupported_id)
+            .finish()
     }
 }
 impl ShowAnswer {
@@ -1666,6 +1706,9 @@ impl ::buffa::Message for ShowAnswer {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.unsupported_id {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1683,6 +1726,9 @@ impl ::buffa::Message for ShowAnswer {
                 buf,
             );
             self.show.write_to(__cache, buf);
+        }
+        if self.unsupported_id {
+            ::buffa::types::put_bool_field(2u32, self.unsupported_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1708,6 +1754,13 @@ impl ::buffa::Message for ShowAnswer {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.unsupported_id = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1717,6 +1770,7 @@ impl ::buffa::Message for ShowAnswer {
     }
     fn clear(&mut self) {
         self.show = ::buffa::MessageField::none();
+        self.unsupported_id = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1762,13 +1816,26 @@ pub struct SeasonAnswer {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub season: ::buffa::MessageField<Season, ::buffa::Inline<Season>>,
+    /// Set when the source can't look titles up by the asked id's namespace, with `season` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    #[serde(
+        rename = "unsupportedId",
+        alias = "unsupported_id",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub unsupported_id: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for SeasonAnswer {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SeasonAnswer").field("season", &self.season).finish()
+        f.debug_struct("SeasonAnswer")
+            .field("season", &self.season)
+            .field("unsupported_id", &self.unsupported_id)
+            .finish()
     }
 }
 impl SeasonAnswer {
@@ -1806,6 +1873,9 @@ impl ::buffa::Message for SeasonAnswer {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.unsupported_id {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1823,6 +1893,9 @@ impl ::buffa::Message for SeasonAnswer {
                 buf,
             );
             self.season.write_to(__cache, buf);
+        }
+        if self.unsupported_id {
+            ::buffa::types::put_bool_field(2u32, self.unsupported_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1848,6 +1921,13 @@ impl ::buffa::Message for SeasonAnswer {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.unsupported_id = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1857,6 +1937,7 @@ impl ::buffa::Message for SeasonAnswer {
     }
     fn clear(&mut self) {
         self.season = ::buffa::MessageField::none();
+        self.unsupported_id = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1902,13 +1983,26 @@ pub struct EpisodeAnswer {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub episode: ::buffa::MessageField<Episode, ::buffa::Inline<Episode>>,
+    /// Set when the source can't look titles up by the asked id's namespace, with `episode` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    #[serde(
+        rename = "unsupportedId",
+        alias = "unsupported_id",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub unsupported_id: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for EpisodeAnswer {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("EpisodeAnswer").field("episode", &self.episode).finish()
+        f.debug_struct("EpisodeAnswer")
+            .field("episode", &self.episode)
+            .field("unsupported_id", &self.unsupported_id)
+            .finish()
     }
 }
 impl EpisodeAnswer {
@@ -1946,6 +2040,9 @@ impl ::buffa::Message for EpisodeAnswer {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.unsupported_id {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1963,6 +2060,9 @@ impl ::buffa::Message for EpisodeAnswer {
                 buf,
             );
             self.episode.write_to(__cache, buf);
+        }
+        if self.unsupported_id {
+            ::buffa::types::put_bool_field(2u32, self.unsupported_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1988,6 +2088,13 @@ impl ::buffa::Message for EpisodeAnswer {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.unsupported_id = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1997,6 +2104,7 @@ impl ::buffa::Message for EpisodeAnswer {
     }
     fn clear(&mut self) {
         self.episode = ::buffa::MessageField::none();
+        self.unsupported_id = false;
         self.__buffa_unknown_fields.clear();
     }
 }

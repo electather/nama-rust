@@ -400,7 +400,12 @@ macro_rules! connector {
 
 /// A title source: tells the Server about Movies and Shows so it can Match the files in a Library
 /// to titles. Every method is optional, and only those [`title_source!`] lists are exported; the
-/// Server asks nothing of one that isn't:
+/// Server asks nothing of one that isn't.
+///
+/// Asked by an id in a namespace it can't look titles up by, a method answers with
+/// `unsupported_id` set rather than failing, and the Server asks the next source; a failure means
+/// the source couldn't answer, which is worth trying again. The Manifest's `title_namespace` and
+/// `title_lookup_namespaces` say which namespaces it looks titles up by:
 ///
 /// ```
 /// use nama_pdk::{
@@ -444,7 +449,7 @@ pub trait TitleSource {
     ///
     /// # Errors
     ///
-    /// When the source couldn't be asked or doesn't know the id's namespace.
+    /// When the source couldn't be asked.
     fn movie(_asked: TitleAsked) -> Result<MovieAnswer, Error> {
         Err(not_served("movie"))
     }
@@ -453,7 +458,7 @@ pub trait TitleSource {
     ///
     /// # Errors
     ///
-    /// When the source couldn't be asked or doesn't know the id's namespace.
+    /// When the source couldn't be asked.
     fn show(_asked: TitleAsked) -> Result<ShowAnswer, Error> {
         Err(not_served("show"))
     }
@@ -462,7 +467,7 @@ pub trait TitleSource {
     ///
     /// # Errors
     ///
-    /// When the source couldn't be asked or doesn't know the Show id's namespace.
+    /// When the source couldn't be asked.
     fn season(_asked: SeasonAsked) -> Result<SeasonAnswer, Error> {
         Err(not_served("season"))
     }
@@ -471,7 +476,7 @@ pub trait TitleSource {
     ///
     /// # Errors
     ///
-    /// When the source couldn't be asked or doesn't know the Show id's namespace.
+    /// When the source couldn't be asked.
     fn episode(_asked: EpisodeAsked) -> Result<EpisodeAnswer, Error> {
         Err(not_served("episode"))
     }

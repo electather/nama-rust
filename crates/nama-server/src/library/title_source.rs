@@ -85,9 +85,10 @@ impl MetadataSource {
     pub(crate) async fn movie(&self, id: &ExternalId) -> Result<Metadata, Error> {
         let asked = &asked(id);
         let (plugin, movie) = self
-            .ask(
-                |metadata| async move { answer(metadata.movie(asked).await?.movie, titles::movie) },
-            )
+            .ask(|metadata| async move {
+                let found = metadata.movie(asked).await?;
+                title(found.unsupported_id, found.movie, titles::movie)
+            })
             .await?;
         Ok(Metadata::movie(plugin, movie))
     }
@@ -95,16 +96,20 @@ impl MetadataSource {
     /// The Show with the id `id`, and the Plugin whose Provider gave it.
     pub(crate) async fn show(&self, id: &ExternalId) -> Result<(PluginId, Show), Error> {
         let asked = &asked(id);
-        self.ask(|metadata| async move { answer(metadata.show(asked).await?.show, titles::show) })
-            .await
+        self.ask(|metadata| async move {
+            let found = metadata.show(asked).await?;
+            title(found.unsupported_id, found.show, titles::show)
+        })
+        .await
     }
 
     /// The Season `number` of the Show with the id `show`, with its Episodes.
     pub(crate) async fn season(&self, show: &ExternalId, number: u32) -> Result<Season, Error> {
         let asked = &season_asked(show, number);
-        self.ask(
-            |metadata| async move { answer(metadata.season(asked).await?.season, titles::season) },
-        )
+        self.ask(|metadata| async move {
+            let found = metadata.season(asked).await?;
+            title(found.unsupported_id, found.season, titles::season)
+        })
         .await
         .map(|(_, season)| season)
     }
@@ -200,7 +205,10 @@ impl MetadataSource {
             .first_answer(
                 sources,
                 |_| false,
-                |metadata| async move { answer(metadata.movie(asked).await?.movie, titles::movie) },
+                |metadata| async move {
+                    let found = metadata.movie(asked).await?;
+                    title(found.unsupported_id, found.movie, titles::movie)
+                },
             )
             .await?;
         let metadata = Metadata::movie(source.plugin.clone(), movie);
@@ -214,7 +222,10 @@ impl MetadataSource {
         self.first_answer(
             sources,
             |_| false,
-            |metadata| async move { answer(metadata.show(asked).await?.show, titles::show) },
+            |metadata| async move {
+                let found = metadata.show(asked).await?;
+                title(found.unsupported_id, found.show, titles::show)
+            },
         )
         .await
     }
@@ -233,7 +244,8 @@ impl MetadataSource {
             .ask(
                 &source.plugin,
                 |metadata: Arc<dyn TitleSource>| async move {
-                    answer(metadata.season(asked).await?.season, titles::season)
+                    let found = metadata.season(asked).await?;
+                    title(found.unsupported_id, found.season, titles::season)
                 },
             )
             .await;
@@ -303,10 +315,11 @@ fn season_asked(show: &ExternalId, season: u32) -> SeasonAsked {
     }
 }
 
-/// Why a source gave no title: it refused, or answered with the title unset, which means it has
-/// no such title.
+/// Why a source gave no title: it refused, answered that it can't look titles up by the asked
+/// id's namespace, or answered with the title unset, which means it has no such title.
 enum Refusal {
     Refused(MetadataError),
+    UnsupportedId,
     Unset,
 }
 
@@ -320,6 +333,10 @@ impl ProviderError<Error> for Refusal {
     fn failure(self) -> Failure<Error> {
         match self {
             Self::Refused(error) => error.failure(),
+            Self::UnsupportedId => Failure {
+                kind: Error::NotFound,
+                message: "the title source can't look titles up by that id".to_owned(),
+            },
             Self::Unset => Failure {
                 kind: Error::NotFound,
                 message: "the title source has no such title".to_owned(),
@@ -338,6 +355,18 @@ fn answer<W, T>(
     Ok(kernel(title)?)
 }
 
+/// The title in an answer, as [`answer`] reads it, unless the source answered `unsupported_id`.
+fn title<W, T>(
+    unsupported_id: bool,
+    field: impl Into<Option<W>>,
+    kernel: fn(W) -> Result<T, MetadataError>,
+) -> Result<T, Refusal> {
+    if unsupported_id {
+        return Err(Refusal::UnsupportedId);
+    }
+    answer(field, kernel)
+}
+
 /// The Kernel's twins of a search's Candidates.
 fn candidates(found: wire::SearchResults) -> Result<Vec<Candidate>, Refusal> {
     let found = found.candidates.into_iter().map(titles::candidate);
@@ -347,7 +376,7 @@ fn candidates(found: wire::SearchResults) -> Result<Vec<Candidate>, Refusal> {
 impl ProviderError<Error> for MetadataError {
     fn failure(self) -> Failure<Error> {
         let kind = match self {
-            Self::Unsupported | Self::UnsupportedId(_) => Error::NotFound,
+            Self::Unsupported => Error::NotFound,
             Self::Failed(_) => Error::Unavailable,
         };
         Failure {

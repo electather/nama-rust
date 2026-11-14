@@ -2321,6 +2321,10 @@ pub struct MovieAnswerView<'a> {
     ///
     /// Field 1: `movie`
     pub movie: ::buffa::MessageFieldView<super::super::__buffa::view::MovieView<'a>>,
+    /// Set when the source can't look titles up by the asked id's namespace, with `movie` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    pub unsupported_id: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for MovieAnswerView<'a> {
@@ -2374,6 +2378,13 @@ impl<'a> ::buffa::MessageView<'a> for MovieAnswerView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.unsupported_id = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2405,6 +2416,7 @@ impl<'a> ::buffa::MessageView<'a> for MovieAnswerView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            unsupported_id: self.unsupported_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2424,6 +2436,9 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieAnswerView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.unsupported_id {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2442,6 +2457,9 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieAnswerView<'a> {
                 buf,
             );
             self.movie.write_to(__cache, buf);
+        }
+        if self.unsupported_id {
+            ::buffa::types::put_bool_field(2u32, self.unsupported_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2468,6 +2486,9 @@ impl<'__a> ::serde::Serialize for MovieAnswerView<'__a> {
             if let ::core::option::Option::Some(__v) = self.movie.as_option() {
                 __map.serialize_entry("movie", __v)?;
             }
+        }
+        if self.unsupported_id {
+            __map.serialize_entry("unsupportedId", &self.unsupported_id)?;
         }
         __map.end()
     }
@@ -2569,6 +2590,13 @@ impl MovieAnswerOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::MovieView<'_>> {
         &self.0.reborrow().movie
     }
+    /// Set when the source can't look titles up by the asked id's namespace, with `movie` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    #[must_use]
+    pub fn unsupported_id(&self) -> bool {
+        self.0.reborrow().unsupported_id
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<MovieAnswerView<'static>>>
 for MovieAnswerOwnedView {
@@ -2607,6 +2635,10 @@ pub struct ShowAnswerView<'a> {
     ///
     /// Field 1: `show`
     pub show: ::buffa::MessageFieldView<super::super::__buffa::view::ShowView<'a>>,
+    /// Set when the source can't look titles up by the asked id's namespace, with `show` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    pub unsupported_id: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ShowAnswerView<'a> {
@@ -2660,6 +2692,13 @@ impl<'a> ::buffa::MessageView<'a> for ShowAnswerView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.unsupported_id = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2691,6 +2730,7 @@ impl<'a> ::buffa::MessageView<'a> for ShowAnswerView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            unsupported_id: self.unsupported_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2710,6 +2750,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowAnswerView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.unsupported_id {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2728,6 +2771,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowAnswerView<'a> {
                 buf,
             );
             self.show.write_to(__cache, buf);
+        }
+        if self.unsupported_id {
+            ::buffa::types::put_bool_field(2u32, self.unsupported_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2754,6 +2800,9 @@ impl<'__a> ::serde::Serialize for ShowAnswerView<'__a> {
             if let ::core::option::Option::Some(__v) = self.show.as_option() {
                 __map.serialize_entry("show", __v)?;
             }
+        }
+        if self.unsupported_id {
+            __map.serialize_entry("unsupportedId", &self.unsupported_id)?;
         }
         __map.end()
     }
@@ -2855,6 +2904,13 @@ impl ShowAnswerOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ShowView<'_>> {
         &self.0.reborrow().show
     }
+    /// Set when the source can't look titles up by the asked id's namespace, with `show` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    #[must_use]
+    pub fn unsupported_id(&self) -> bool {
+        self.0.reborrow().unsupported_id
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<ShowAnswerView<'static>>>
 for ShowAnswerOwnedView {
@@ -2893,6 +2949,10 @@ pub struct SeasonAnswerView<'a> {
     ///
     /// Field 1: `season`
     pub season: ::buffa::MessageFieldView<super::super::__buffa::view::SeasonView<'a>>,
+    /// Set when the source can't look titles up by the asked id's namespace, with `season` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    pub unsupported_id: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SeasonAnswerView<'a> {
@@ -2946,6 +3006,13 @@ impl<'a> ::buffa::MessageView<'a> for SeasonAnswerView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.unsupported_id = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2977,6 +3044,7 @@ impl<'a> ::buffa::MessageView<'a> for SeasonAnswerView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            unsupported_id: self.unsupported_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2996,6 +3064,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SeasonAnswerView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.unsupported_id {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3014,6 +3085,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SeasonAnswerView<'a> {
                 buf,
             );
             self.season.write_to(__cache, buf);
+        }
+        if self.unsupported_id {
+            ::buffa::types::put_bool_field(2u32, self.unsupported_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3040,6 +3114,9 @@ impl<'__a> ::serde::Serialize for SeasonAnswerView<'__a> {
             if let ::core::option::Option::Some(__v) = self.season.as_option() {
                 __map.serialize_entry("season", __v)?;
             }
+        }
+        if self.unsupported_id {
+            __map.serialize_entry("unsupportedId", &self.unsupported_id)?;
         }
         __map.end()
     }
@@ -3141,6 +3218,13 @@ impl SeasonAnswerOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::SeasonView<'_>> {
         &self.0.reborrow().season
     }
+    /// Set when the source can't look titles up by the asked id's namespace, with `season` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    #[must_use]
+    pub fn unsupported_id(&self) -> bool {
+        self.0.reborrow().unsupported_id
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<SeasonAnswerView<'static>>>
 for SeasonAnswerOwnedView {
@@ -3179,6 +3263,10 @@ pub struct EpisodeAnswerView<'a> {
     ///
     /// Field 1: `episode`
     pub episode: ::buffa::MessageFieldView<super::super::__buffa::view::EpisodeView<'a>>,
+    /// Set when the source can't look titles up by the asked id's namespace, with `episode` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    pub unsupported_id: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for EpisodeAnswerView<'a> {
@@ -3232,6 +3320,13 @@ impl<'a> ::buffa::MessageView<'a> for EpisodeAnswerView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.unsupported_id = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3263,6 +3358,7 @@ impl<'a> ::buffa::MessageView<'a> for EpisodeAnswerView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            unsupported_id: self.unsupported_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3282,6 +3378,9 @@ impl<'a> ::buffa::ViewEncode<'a> for EpisodeAnswerView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.unsupported_id {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3300,6 +3399,9 @@ impl<'a> ::buffa::ViewEncode<'a> for EpisodeAnswerView<'a> {
                 buf,
             );
             self.episode.write_to(__cache, buf);
+        }
+        if self.unsupported_id {
+            ::buffa::types::put_bool_field(2u32, self.unsupported_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3326,6 +3428,9 @@ impl<'__a> ::serde::Serialize for EpisodeAnswerView<'__a> {
             if let ::core::option::Option::Some(__v) = self.episode.as_option() {
                 __map.serialize_entry("episode", __v)?;
             }
+        }
+        if self.unsupported_id {
+            __map.serialize_entry("unsupportedId", &self.unsupported_id)?;
         }
         __map.end()
     }
@@ -3426,6 +3531,13 @@ impl EpisodeAnswerOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::EpisodeView<'_>> {
         &self.0.reborrow().episode
+    }
+    /// Set when the source can't look titles up by the asked id's namespace, with `episode` unset.
+    ///
+    /// Field 2: `unsupported_id`
+    #[must_use]
+    pub fn unsupported_id(&self) -> bool {
+        self.0.reborrow().unsupported_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<EpisodeAnswerView<'static>>>
