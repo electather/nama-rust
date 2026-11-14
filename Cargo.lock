@@ -2135,6 +2135,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-template"
+version = "0.1.0"
+dependencies = [
+ "nama-pdk",
+]
+
+[[package]]
 name = "nama-plugin-test-choices"
 version = "0.1.0"
 dependencies = [

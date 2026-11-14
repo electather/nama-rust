@@ -1,0 +1,19 @@
+# A minimal Installed Plugin to copy. Change `name` to `nama-plugin-<your folder>`, and the
+# description; the id, name and point to change are in `src/lib.rs`.
+[package]
+name = "nama-plugin-template"
+version = "0.1.0"
+description = "Template Installed Plugin posting Request events to a webhook, not bundled"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nama-pdk = { version = "0.1.0", path = "../../crates/nama-pdk" }
+
+[lints]
+workspace = true
