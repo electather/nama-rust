@@ -3,7 +3,8 @@
 Responses from the TMDB v3 API, served by `nama_plugin_tmdb::testing::FakeTmdb` so no test
 touches the network. `routes.json` maps each request (path, then its query parameters sorted by
 name, leaving out `api_key`, `language` and `include_adult`) to the file under `api/` that
-answers it. A request with no route gets TMDB's own 404 body. `images/` holds stand-in image
+answers it. Images lists (`/movie/{id}/images`, `/tv/{id}/images`) are asked in every
+language, so their routes have no query. A request with no route gets TMDB's own 404 body. `images/` holds stand-in image
 bytes, served under `/t/p/<size>/`.
 
 The bodies follow TMDB's documented response shapes and are trimmed to a realistic subset of
@@ -18,3 +19,8 @@ have a Season still airing.
 
 `tv-900001.json` and its Season are made up: a Show with neither a TVDB nor an IMDb id, so tests
 have a Show a Fulfiller needing one cannot take.
+
+The images lists depart from TMDB on purpose: each is built so the artwork pick rule (English,
+then textless, then other languages; then rating) takes the title's own `poster_path` and
+`backdrop_path`, since those are the only images whose bytes are here. Heat has no logos.
+`wire_tests.rs` checks this; the picked logos' bytes are 1x1 PNGs.

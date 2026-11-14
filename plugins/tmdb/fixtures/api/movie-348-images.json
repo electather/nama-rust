@@ -1,0 +1,90 @@
+{
+  "id": 348,
+  "backdrops": [
+    {
+      "aspect_ratio": 1.778,
+      "height": 2160,
+      "iso_639_1": "fr",
+      "file_path": "/kXJgv4OsYHNspnf0w5uquLUDBk5.jpg",
+      "vote_average": 5.9,
+      "vote_count": 12,
+      "width": 3840
+    },
+    {
+      "aspect_ratio": 1.778,
+      "height": 1080,
+      "iso_639_1": null,
+      "file_path": "/AmR3JG1VQVxU8TfAvljUhfSFUOx.jpg",
+      "vote_average": 5.6,
+      "vote_count": 10,
+      "width": 1920
+    },
+    {
+      "aspect_ratio": 1.778,
+      "height": 1080,
+      "iso_639_1": null,
+      "file_path": "/nlcNBhxq0QG1e6fAsDy8sHn5o3J.jpg",
+      "vote_average": 5.3,
+      "vote_count": 4,
+      "width": 1920
+    }
+  ],
+  "logos": [
+    {
+      "aspect_ratio": 2.618,
+      "height": 382,
+      "iso_639_1": "en",
+      "file_path": "/qH7nHxlGlKvK3vqSRtrjtE4ZQgW.png",
+      "vote_average": 5.4,
+      "vote_count": 6,
+      "width": 1000
+    },
+    {
+      "aspect_ratio": 2.667,
+      "height": 300,
+      "iso_639_1": "de",
+      "file_path": "/9a8ZUfhRrqY3fQ0sBRXQf2bDVqQ.png",
+      "vote_average": 5.6,
+      "vote_count": 3,
+      "width": 800
+    }
+  ],
+  "posters": [
+    {
+      "aspect_ratio": 0.667,
+      "height": 1500,
+      "iso_639_1": "de",
+      "file_path": "/hoGYDwrRSCAt1XtkJbVQz3RR3pr.jpg",
+      "vote_average": 5.8,
+      "vote_count": 9,
+      "width": 1000
+    },
+    {
+      "aspect_ratio": 0.667,
+      "height": 3000,
+      "iso_639_1": "en",
+      "file_path": "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg",
+      "vote_average": 5.7,
+      "vote_count": 21,
+      "width": 2000
+    },
+    {
+      "aspect_ratio": 0.667,
+      "height": 1500,
+      "iso_639_1": "en",
+      "file_path": "/2xcXrPA5kHJu8a7BxRnwV4tz0ws.jpg",
+      "vote_average": 5.4,
+      "vote_count": 8,
+      "width": 1000
+    },
+    {
+      "aspect_ratio": 0.667,
+      "height": 1500,
+      "iso_639_1": null,
+      "file_path": "/k6n8djLKCFDtt9BXNgNbe4xUQ5r.jpg",
+      "vote_average": 5.2,
+      "vote_count": 2,
+      "width": 1000
+    }
+  ]
+}

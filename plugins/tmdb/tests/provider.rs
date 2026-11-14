@@ -11,8 +11,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use nama_plugin_api::{
     Plugin, Registrar,
     contract::{
-        Candidate, EpisodeAsked, ImageAsked, SearchQuery, SeasonAsked, TitleAsked, TitleId,
-        TitleKind,
+        ArtworkAsked, ArtworkKind, Candidate, EpisodeAsked, ImageAsked, SearchQuery, SeasonAsked,
+        TitleAsked, TitleId, TitleKind,
     },
     metadata::{ExternalId, ExternalIds, IMDB, MetadataError, TMDB, TVDB, TitleSource},
     settings::{SettingKind, SettingValue, Settings},
@@ -418,4 +418,103 @@ async fn an_image_is_fetched_by_the_path_tmdb_gave() {
         fake.requests(),
         ["/t/p/original/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg"]
     );
+}
+
+fn artwork_asked(kind: TitleKind, id: &ExternalId) -> ArtworkAsked {
+    ArtworkAsked {
+        kind: kind.into(),
+        id: title_id(id).into(),
+        ..Default::default()
+    }
+}
+
+/// How many of `kind` are in `answer`'s artwork.
+fn count(artwork: &[nama_plugin_api::contract::Artwork], kind: ArtworkKind) -> usize {
+    artwork.iter().filter(|image| image.kind == kind).count()
+}
+
+#[tokio::test]
+async fn artwork_is_listed_in_every_language_by_any_id_tmdb_looks_up() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let alien = tmdb
+        .artwork(&artwork_asked(
+            TitleKind::TITLE_KIND_MOVIE,
+            &imdb("tt0078748"),
+        ))
+        .await
+        .unwrap();
+    let dark = tmdb
+        .artwork(&artwork_asked(
+            TitleKind::TITLE_KIND_SHOW,
+            &ExternalId::tvdb(334_824),
+        ))
+        .await
+        .unwrap();
+
+    let kinds = |artwork: &[_]| {
+        [
+            ArtworkKind::ARTWORK_KIND_POSTER,
+            ArtworkKind::ARTWORK_KIND_BACKDROP,
+            ArtworkKind::ARTWORK_KIND_LOGO,
+        ]
+        .map(|kind| count(artwork, kind))
+    };
+    assert_eq!(kinds(&alien.artwork), [4, 3, 2]);
+    assert_eq!(kinds(&dark.artwork), [2, 2, 2]);
+    let images: Vec<_> = fake
+        .requests()
+        .into_iter()
+        .filter(|request| request.contains("/images"))
+        .collect();
+    assert_eq!(images.len(), 2, "{images:?}");
+    assert!(
+        images.iter().all(|request| !request.contains("language")),
+        "{images:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_title_with_no_artwork_on_tmdb_lists_none() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let heat = tmdb
+        .artwork(&artwork_asked(
+            TitleKind::TITLE_KIND_MOVIE,
+            &ExternalId::tmdb(949),
+        ))
+        .await
+        .unwrap();
+    // The fake has no images for this one, so TMDB's 404 answers it.
+    let unknown = tmdb
+        .artwork(&artwork_asked(
+            TitleKind::TITLE_KIND_MOVIE,
+            &ExternalId::tmdb(10688),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(count(&heat.artwork, ArtworkKind::ARTWORK_KIND_LOGO), 0);
+    assert_eq!(heat.artwork.len(), 4);
+    assert!(
+        unknown.artwork.is_empty() && !unknown.unsupported_id,
+        "{unknown:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_picked_logo_downloads_as_a_png() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let asked = ImageAsked {
+        path: "/qH7nHxlGlKvK3vqSRtrjtE4ZQgW.png".to_owned(),
+        ..Default::default()
+    };
+    let image = tmdb.image(&asked).await.unwrap().image.unwrap();
+
+    assert_eq!(image.content_type, "image/png");
+    assert!(image.bytes.starts_with(b"\x89PNG"));
 }

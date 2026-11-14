@@ -1,7 +1,7 @@
 //! TMDB's v3 JSON, as far as the Plugin reads it, and how it maps onto the contract's messages.
 
 use nama_plugin_api::{
-    contract::{Candidate, Episode, Movie, Season, Show, TitleId},
+    contract::{Artwork, ArtworkKind, Candidate, Episode, Movie, Season, Show, TitleId},
     metadata::{ExternalId, IMDB},
 };
 use serde::Deserialize;
@@ -239,6 +239,51 @@ impl From<EpisodeDetails> for Episode {
     }
 }
 
+/// `/movie/{id}/images` or `/tv/{id}/images`, asked in every language.
+#[derive(Debug, Deserialize)]
+pub(crate) struct Images {
+    #[serde(default)]
+    posters: Vec<ImageDetails>,
+    #[serde(default)]
+    backdrops: Vec<ImageDetails>,
+    #[serde(default)]
+    logos: Vec<ImageDetails>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ImageDetails {
+    file_path: String,
+    iso_639_1: Option<String>,
+    width: Option<u32>,
+    height: Option<u32>,
+    vote_average: Option<f64>,
+    vote_count: Option<u32>,
+}
+
+impl From<Images> for Vec<Artwork> {
+    fn from(images: Images) -> Self {
+        [
+            (ArtworkKind::ARTWORK_KIND_POSTER, images.posters),
+            (ArtworkKind::ARTWORK_KIND_BACKDROP, images.backdrops),
+            (ArtworkKind::ARTWORK_KIND_LOGO, images.logos),
+        ]
+        .into_iter()
+        .flat_map(|(kind, list)| list.into_iter().map(move |image| (kind, image)))
+        .filter(|(_, image)| !image.file_path.trim().is_empty())
+        .map(|(kind, image)| Artwork {
+            kind: kind.into(),
+            path: image.file_path,
+            language: present(image.iso_639_1),
+            width: image.width,
+            height: image.height,
+            rating: image.vote_average,
+            votes: image.vote_count,
+            ..Default::default()
+        })
+        .collect()
+    }
+}
+
 /// `id` as the contract carries it.
 pub(crate) fn title_id(id: &ExternalId) -> TitleId {
     TitleId {
@@ -257,3 +302,7 @@ fn present(text: Option<String>) -> Option<String> {
 fn year(date: Option<&str>) -> Option<i32> {
     date?.get(..4)?.parse().ok()
 }
+
+#[cfg(test)]
+#[path = "wire_tests.rs"]
+mod tests;

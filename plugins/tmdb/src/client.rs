@@ -13,9 +13,9 @@ use hyper_util::{
 use nama_plugin_api::{
     BoxFuture,
     contract::{
-        Candidate, EpisodeAnswer, EpisodeAsked, Image, ImageAnswer, ImageAsked, MovieAnswer,
-        SearchQuery, SearchResults, SeasonAnswer, SeasonAsked, ShowAnswer, TitleAsked, TitleId,
-        TitleKind,
+        ArtworkAnswer, ArtworkAsked, Candidate, EpisodeAnswer, EpisodeAsked, Image, ImageAnswer,
+        ImageAsked, MovieAnswer, SearchQuery, SearchResults, SeasonAnswer, SeasonAsked, ShowAnswer,
+        TitleAsked, TitleId, TitleKind,
     },
     metadata::{IMDB, MetadataError, TMDB, TVDB, TitleSource},
 };
@@ -25,7 +25,7 @@ use url::Url;
 use crate::{
     Endpoints,
     wire::{
-        EpisodeDetails, Found, MovieDetails, MovieResult, Page, SeasonDetails, ShowDetails,
+        EpisodeDetails, Found, Images, MovieDetails, MovieResult, Page, SeasonDetails, ShowDetails,
         ShowResult,
     },
 };
@@ -77,16 +77,27 @@ impl Client {
         })
     }
 
-    /// The JSON at `path`, or `None` where TMDB has nothing there.
+    /// The JSON at `path` in the configured language, or `None` where TMDB has nothing there.
     async fn api<T: DeserializeOwned>(
         &self,
+        path: &str,
+        params: &[(&str, &str)],
+    ) -> Result<Option<T>, MetadataError> {
+        self.api_in(Some(&self.language), path, params).await
+    }
+
+    /// The JSON at `path`, or `None` where TMDB has nothing there. With no `language`, TMDB
+    /// answers in every language, which is what an images list needs.
+    async fn api_in<T: DeserializeOwned>(
+        &self,
+        language: Option<&str>,
         path: &str,
         params: &[(&str, &str)],
     ) -> Result<Option<T>, MetadataError> {
         let mut url = Url::parse(&format!("{}{path}", self.endpoints.api)).map_err(failed)?;
         url.query_pairs_mut()
             .append_pair("api_key", &self.api_key)
-            .append_pair("language", &self.language)
+            .extend_pairs(language.map(|language| ("language", language)))
             .extend_pairs(params);
         let Some((_, body)) = self.get(url).await? else {
             return Ok(None);
@@ -362,4 +373,38 @@ impl TitleSource for Client {
             })
         })
     }
+
+    fn artwork<'a>(
+        &'a self,
+        asked: &'a ArtworkAsked,
+    ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
+        Box::pin(async move {
+            let (kind, section) = match asked.kind.as_known() {
+                Some(kind @ TitleKind::TITLE_KIND_MOVIE) => (kind, "movie"),
+                Some(kind @ TitleKind::TITLE_KIND_SHOW) => (kind, "tv"),
+                // A kind TMDB doesn't know has no artwork.
+                _ => return Ok(ArtworkAnswer::default()),
+            };
+            let id = match self.find(kind, &asked.id).await? {
+                Lookup::Found(id) => id,
+                Lookup::Missing => return Ok(ArtworkAnswer::default()),
+                Lookup::Unsupported => {
+                    return Ok(ArtworkAnswer {
+                        unsupported_id: true,
+                        ..Default::default()
+                    });
+                }
+            };
+            let path = format!("/{section}/{id}/images");
+            let images: Option<Images> = self.api_in(None, &path, &[]).await?;
+            Ok(ArtworkAnswer {
+                artwork: images.map(Vec::from).unwrap_or_default(),
+                ..Default::default()
+            })
+        })
+    }
 }
+
+#[cfg(test)]
+#[path = "client_tests.rs"]
+mod tests;
