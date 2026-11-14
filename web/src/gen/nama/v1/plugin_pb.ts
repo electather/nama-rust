@@ -699,8 +699,9 @@ export const PluginKindSchema: GenEnum<PluginKind> = /*@__PURE__*/
   enumDesc(file_nama_v1_plugin, 0);
 
 /**
- * A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
- * `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+ * A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin
+ * names the points it serves by their `nama.plugin.v1` service, such as
+ * `nama.plugin.v1.MovieFulfillerService` (ADR 0043).
  *
  * @generated from enum nama.v1.ExtensionPoint
  */
@@ -746,7 +747,7 @@ export const ExtensionPoint = {
   AUTHENTICATOR: 5,
 
   /**
-   * Finds metadata for Movies and Shows, such as TMDB.
+   * A title source: searches for and describes Movies and Shows, such as TMDB.
    *
    * @generated from enum value: EXTENSION_POINT_METADATA_PROVIDER = 6;
    */
@@ -768,8 +769,9 @@ export const ExtensionPoint = {
 } as const;
 
 /**
- * A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
- * `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+ * A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin
+ * names the points it serves by their `nama.plugin.v1` service, such as
+ * `nama.plugin.v1.MovieFulfillerService` (ADR 0043).
  *
  * @generated from enum nama.v1.ExtensionPoint
  */
@@ -853,8 +855,8 @@ export const SettingKindSchema: GenEnum<SettingKind> = /*@__PURE__*/
 /**
  * The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
  * `permission_denied` without it. A secret setting's value never leaves the Server. Every call
- * but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails with
- * `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
+ * but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails
+ * with `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
  * settings, which fails `EnablePlugin` with `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`.
  *
  * @generated from service nama.v1.PluginService

@@ -4,8 +4,8 @@ package nama.v1;
 
 // The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
 // `permission_denied` without it. A secret setting's value never leaves the Server. Every call
-// but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails with
-// `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
+// but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails
+// with `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
 // settings, which fails `EnablePlugin` with `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`.
 service PluginService {
   // Lists every Plugin on the Server, by id, without its settings.
@@ -235,7 +235,8 @@ message PluginSummary {
 message Plugin {
   // Held what `summary` holds now.
   reserved 1, 2, 3, 4, 7, 8, 9, 10, 11;
-  reserved "id", "version", "kind", "enabled", "refused_reason", "name", "description", "extension_points", "logo_svg";
+  reserved "id", "version", "kind", "enabled", "refused_reason";
+  reserved "name", "description", "extension_points", "logo_svg";
   // Its id, name, whether it is enabled and the rest that `ListPlugins` lists.
   PluginSummary summary = 12;
   // Every setting it takes, in the order a form shows them.
@@ -244,8 +245,9 @@ message Plugin {
   bool checks_settings = 6;
 }
 
-// A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
-// `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+// A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin
+// names the points it serves by their `nama.plugin.v1` service, such as
+// `nama.plugin.v1.MovieFulfillerService` (ADR 0043).
 enum ExtensionPoint {
   EXTENSION_POINT_UNSPECIFIED = 0;
   // Hands Approved Movie Requests to an outside service, such as Radarr.
@@ -258,7 +260,7 @@ enum ExtensionPoint {
   EXTENSION_POINT_CONNECTOR = 4;
   // Checks the credentials people sign in with.
   EXTENSION_POINT_AUTHENTICATOR = 5;
-  // Finds metadata for Movies and Shows, such as TMDB.
+  // A title source: searches for and describes Movies and Shows, such as TMDB.
   EXTENSION_POINT_METADATA_PROVIDER = 6;
   // Observes the Server's Events.
   EXTENSION_POINT_EVENTS_OBSERVER = 7;

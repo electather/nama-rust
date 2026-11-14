@@ -386,8 +386,8 @@ pub const PLUGIN_SERVICE_REPLACE_QUALITIES_SPEC: ::connectrpc::Spec = ::connectr
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
 /// `permission_denied` without it. A secret setting's value never leaves the Server. Every call
-/// but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails with
-/// `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
+/// but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails
+/// with `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
 /// settings, which fails `EnablePlugin` with `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`.
 ///
 /// # Implementing handlers

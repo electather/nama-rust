@@ -156,8 +156,9 @@ impl ::buffa::Enumeration for PluginKind {
         ]
     }
 }
-/// A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
-/// `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+/// A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin
+/// names the points it serves by their `nama.plugin.v1` service, such as
+/// `nama.plugin.v1.MovieFulfillerService` (ADR 0043).
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
@@ -173,7 +174,7 @@ pub enum ExtensionPoint {
     EXTENSION_POINT_CONNECTOR = 4i32,
     /// Checks the credentials people sign in with.
     EXTENSION_POINT_AUTHENTICATOR = 5i32,
-    /// Finds metadata for Movies and Shows, such as TMDB.
+    /// A title source: searches for and describes Movies and Shows, such as TMDB.
     EXTENSION_POINT_METADATA_PROVIDER = 6i32,
     /// Observes the Server's Events.
     EXTENSION_POINT_EVENTS_OBSERVER = 7i32,
