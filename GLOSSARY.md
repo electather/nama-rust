@@ -105,8 +105,12 @@ A Plugin's handler that is told something happened and can't change it.
 _Avoid_: listener, subscriber
 
 **Provider**:
-A Plugin's implementation of a capability the Server needs, such as metadata, checking a User's credentials, or Request fulfillment.
+A Plugin's implementation of a capability the Server needs, such as finding titles, checking a User's credentials, or Request fulfillment.
 _Avoid_: driver, backend, adapter
+
+**Title source**:
+A Provider that finds and fetches Movies and Shows by a Namespace of External IDs, such as TMDB or TVDB. It keeps its titles under one Namespace and may look them up by others. Each Library asks its own title sources in its own order (ADR 0044).
+_Avoid_: metadata provider, metadata agent, scraper
 
 **Fulfiller**:
 A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, reports how they're progressing, and has the service stop monitoring what's been deleted, so it doesn't download it again.
@@ -127,7 +131,7 @@ _Avoid_: integration, link, account
 ## Media
 
 **Library**:
-A named collection of one kind of media (Movies or Shows) on a Server, backed by one or more folders.
+A named collection of one kind of media (Movies or Shows) on a Server, backed by one or more folders, whose titles come from its title sources, asked in its own order.
 _Avoid_: collection, section
 
 **Item**:
@@ -135,11 +139,11 @@ What a file in a Library holds, going by its name: one Movie, or one or more Epi
 _Avoid_: entry, media item, title
 
 **Movie**:
-A film, as a metadata source describes it.
+A film, as a title source describes it.
 _Avoid_: film, title, item
 
 **Show**:
-A TV series, as a metadata source describes it, made up of Seasons of Episodes.
+A TV series, as a title source describes it, made up of Seasons of Episodes.
 _Avoid_: series, TV show, title
 
 **Season**:
@@ -179,7 +183,7 @@ An image an admin uploaded to show in place of the one the Server would otherwis
 _Avoid_: override, variant, replacement
 
 **Match**:
-The link between an Item in a Library and a title in a metadata source. An Item without one is Unmatched.
+The link between an Item in a Library and a title in a title source. An Item without one is Unmatched.
 _Avoid_: identification, lookup
 
 **Pinned Match**:
@@ -187,15 +191,15 @@ A Match an admin set or cleared by hand. Automatic Matching follows it instead o
 _Avoid_: locked match, override, manual lock
 
 **External ID**:
-A title's id at a metadata source: a Namespace and a value that Namespace's owner defines, written `tmdb-603`. A title may have several, at most one per Namespace, and any one of them identifies it.
+A title's id at a title source: a Namespace and a value that Namespace's owner defines, written `tmdb-603`. A title may have several, at most one per Namespace, and any one of them identifies it.
 _Avoid_: title id (for an id the Server makes up), TMDB id (as the general word)
 
 **Namespace**:
-Who owns an External ID's values, such as `tmdb`, `imdb` or `tvdb`: one or more lowercase ASCII letters and digits.
+Who owns an External ID's values, such as `tmdb`, `imdb` or `tvdb`: one or more lowercase ASCII letters and digits. A title source keeps its titles under one Namespace and may look titles up by others.
 _Avoid_: source id, id type
 
 **ID Hint**:
-An External ID written in a file or folder name, such as `{tmdb-78}` or `[tvdbid-433631]`. An Item with one is Matched by that id without a search.
+An External ID written in a file or folder name, such as `{tmdb-78}` or `[tvdbid-433631]`. An Item with one is Matched by that id without a search, by the title source that keeps or looks up its Namespace; while no enabled source does, the Item waits undecided.
 _Avoid_: id tag, provider id
 
 **Scan**:

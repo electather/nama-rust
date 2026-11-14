@@ -26,5 +26,5 @@ A title's id at a metadata source, its External ID, is a pair: a namespace and a
 ## Consequences
 
 - A Library's Match makes a Request Available when the two share any id, whichever id each prefers: a Request kept under `tvdb` becomes Available through a Match whose preferred id is `tmdb`, if the Match carries the same `tvdb` id. A Followed Show's scan finds it the same way.
-- ID Hints in file and folder names still recognise only the forms the Scanner knows.
-- Title metadata still comes from one source, TMDB, in this change; tests prove ids are open with made-up namespaces.
+- ID Hints in file and folder names accept any namespace some enabled title source keeps or looks titles up by (ADR 0044).
+- Title metadata comes from each Library's title sources, not TMDB alone (ADR 0044).
