@@ -8,6 +8,12 @@ The contract is more than the messages: `CONTRACT_VERSION` also covers what the 
 
 Each Extension Point an Installed Plugin can serve is a service of the contract, such as `nama.plugin.v1.NotifierService`, whose rpcs name the exports the Kernel calls (ADR 0043). Each has a version of its own, in `SERVICES`; the `services` module holds their full names. A Manifest names the points it serves in `points`, each by its service's full name and a semver requirement on its version.
 
+## Title ids
+
+A title's ids reach a Plugin as `repeated TitleId`, each a namespace and a value, defined in [`proto/nama/plugin/v1/request.proto`](../../proto/nama/plugin/v1/request.proto) (ADR [0042](../../docs/adr/0042-a-titles-id-is-a-namespace-and-a-value.md)). A namespace is one or more of a-z and 0-9; a value is never empty. A title has at most one id per namespace, and any one of them identifies it. `tmdb`, `imdb` and `tvdb` are well known, and a Plugin may bring any other. The Kernel never interprets a value, so a Plugin that needs a number parses it itself. `nama_pdk::title_id` reads the value in one namespace.
+
+The Manifest's `movie_id_namespaces` and `show_id_namespaces` (fields 11 and 12 in [`manifest.proto`](../../proto/nama/plugin/v1/manifest.proto)) name the namespaces a `MovieFulfillerService` or `ShowFulfillerService` can find a title by. Any one is enough, and an empty list means any title. The Kernel refuses at load a Manifest naming a malformed namespace there. It never hands such a Fulfiller a Request whose title has none of them: it fails the Request instead, showing the missing namespaces.
+
 ## What the Kernel gives a Plugin
 
 The Server sets this up in [`crates/nama-server/src/plugins/wasm/load.rs`](../nama-server/src/plugins/wasm/load.rs), mostly in `compile`. It calls an Installed Plugin in three ways: `manifest()` once, when it loads the Package; `check_settings()` when an admin tests settings; and the exports of the Extension Points its Manifest names, such as `fulfill`, while it is enabled.
