@@ -21,7 +21,7 @@ use super::deciding::{decide, given_reason};
 use super::listing::{load_one, read_title_id, visible_to};
 use super::lookup::looking_up;
 use super::quality::{NewQuality, change_followed_quality, quality_columns, stored_quality};
-use super::state::{read_state, state_changed, stored};
+use super::state::{ids_json, read_state, state_changed, stored};
 use super::{Error, Requests};
 use crate::{db::now, events::event, users::User};
 
@@ -125,19 +125,22 @@ impl Requests {
     }
 }
 
-/// The Approved Followed Show of the Show with the ids `show`, kept under any of them, with the
-/// id it is kept under.
+/// The Approved Followed Show of the Show with the ids `show`, found by any of them, with the id it
+/// is kept under and every id it stores for the Show.
 pub(super) async fn approved_followed_show(
     conn: &mut SqliteConnection,
     show: &ExternalIds,
-) -> Result<Option<(ExternalId, FollowedShow)>, sqlx::Error> {
-    let show_ids = serde_json::Value::from_iter(show.iter().map(|id| id.to_string())).to_string();
+) -> Result<Option<(ExternalId, FollowedShow, ExternalIds)>, sqlx::Error> {
+    let show_ids = ids_json(show);
     // ponytail: the first if the Show's ids name two Approved Followed Shows, each kept under
     // another of them.
     let row = sqlx::query!(
-        r#"SELECT id AS "id!", show_id FROM followed_shows
-           WHERE show_id IN (SELECT value FROM json_each(?)) AND state = 'approved'
-           ORDER BY id LIMIT 1"#,
+        r#"SELECT followed_shows.id AS "id!", show_id FROM followed_shows
+           JOIN followed_show_ids AS known ON known.followed_show_id = followed_shows.id
+           JOIN json_each(?) AS wanted
+               ON known.namespace = wanted.key AND known.value = wanted.value
+           WHERE state = 'approved'
+           ORDER BY followed_shows.id LIMIT 1"#,
         show_ids
     )
     .fetch_optional(&mut *conn)
@@ -147,8 +150,28 @@ pub(super) async fn approved_followed_show(
     };
     let kept_under =
         (row.show_id.parse::<ExternalId>()).map_err(|err| sqlx::Error::Decode(err.into()))?;
+    let ids = followed_show_ids(conn, row.id).await?;
     let followed = load_followed(conn, Some(row.id), None).await?.pop();
-    Ok(followed.map(|followed| (kept_under, followed)))
+    Ok(followed.map(|followed| (kept_under, followed, ids)))
+}
+
+/// Every id the Followed Show `id` stores for its Show.
+async fn followed_show_ids(
+    conn: &mut SqliteConnection,
+    id: i64,
+) -> Result<ExternalIds, sqlx::Error> {
+    let rows = sqlx::query!(
+        "SELECT namespace, value FROM followed_show_ids WHERE followed_show_id = ?",
+        id
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    rows.into_iter()
+        .map(|row| {
+            ExternalId::new(&row.namespace, row.value)
+                .map_err(|err| sqlx::Error::Decode(err.into()))
+        })
+        .collect()
 }
 
 /// Whether the Followed Show `id` covers the Season `season`: it is numbered no later than the
@@ -181,7 +204,7 @@ pub(super) async fn follow(
 ) -> Result<Applied<(FollowedShow, Vec<Request>)>, Error> {
     let now = now();
     let asking = SeasonsToAsk::read(conn, show).await?;
-    let already_open = open_followed_show(conn, &asking.show_id).await?;
+    let already_open = open_followed_show_by_any(conn, &asking.show_ids).await?;
     let id = if let Some(id) = already_open {
         id
     } else {
@@ -218,7 +241,8 @@ pub(super) async fn follow(
     })
 }
 
-/// Opens a Followed Show of `show` at the Quality its Seasons take, in `state`, returning its id.
+/// Opens a Followed Show of `show` at the Quality its Seasons take, in `state`, storing every id of
+/// the Show, and returns its id.
 async fn open_followed(
     conn: &mut SqliteConnection,
     show: &SeasonsToAsk,
@@ -227,7 +251,7 @@ async fn open_followed(
 ) -> Result<i64, sqlx::Error> {
     let (quality_id, quality_name, quality_profile_id) = quality_columns(show.quality.taken());
     let show_id = show.show_id.to_string();
-    sqlx::query_scalar!(
+    let id = sqlx::query_scalar!(
         "INSERT INTO followed_shows (show_id, title, state, latest_season, created_at, quality_id,
                                      quality_name, quality_profile_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -242,23 +266,48 @@ async fn open_followed(
         quality_profile_id
     )
     .fetch_one(&mut *conn)
-    .await
+    .await?;
+    for known in show.show_ids.iter() {
+        sqlx::query!(
+            "INSERT INTO followed_show_ids (followed_show_id, namespace, value) VALUES (?, ?, ?)",
+            id,
+            known.namespace(),
+            known.value()
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(id)
 }
 
-/// The open Followed Show of the Show `show`.
+/// The open Followed Show of the Show `show`, found by any id it stores.
 pub(super) async fn open_followed_show(
     conn: &mut SqliteConnection,
     show: &ExternalId,
 ) -> Result<Option<i64>, sqlx::Error> {
-    let show_id = show.to_string();
+    open_followed_show_by_any(conn, &ExternalIds::from_iter([show.clone()])).await
+}
+
+/// The open Followed Show of the Show with the ids `show`, found by any of them.
+async fn open_followed_show_by_any(
+    conn: &mut SqliteConnection,
+    show: &ExternalIds,
+) -> Result<Option<i64>, sqlx::Error> {
+    let show_ids = ids_json(show);
     macro_rules! find {
         ($open:literal) => {
             sqlx::query_scalar!(
-                "SELECT id FROM followed_shows WHERE show_id = ? AND " + $open,
-                show_id
+                r#"SELECT DISTINCT followed_shows.id AS "id!" FROM followed_shows
+                   JOIN followed_show_ids AS known ON known.followed_show_id = followed_shows.id
+                   JOIN json_each(?) AS wanted
+                       ON known.namespace = wanted.key AND known.value = wanted.value
+                   WHERE "#
+                    + $open,
+                show_ids
             )
         };
     }
+    // ponytail: the first if the Show's ids name two open Followed Shows.
     super::state::open_followed_show_sql!(find)
         .fetch_optional(&mut *conn)
         .await
@@ -369,8 +418,8 @@ async fn followed_season(
     if !followed_show_approved(conn, id).await? {
         return Ok(None);
     }
-    // ponytail: a Followed Show stores no Show ids, so once every Season Request it opened is
-    // cancelled its Fulfiller isn't told to stop; store them if that bites.
+    // ponytail: once every Season Request it opened is cancelled its Fulfiller isn't told to stop;
+    // build one from its `followed_show_ids` if that bites.
     let first = sqlx::query_scalar!(
         "SELECT MIN(id) FROM requests WHERE followed_show_id = ?",
         id

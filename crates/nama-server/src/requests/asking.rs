@@ -329,10 +329,8 @@ impl Asker for Way<'_> {
 #[derive(Debug)]
 pub(super) struct SeasonsToAsk {
     pub(super) show_id: ExternalId,
-    /// The Show's ids, or `None` for a scan.
-    // ponytail: a Followed Show stores no Show ids, and a Season a scan asks for opens already in a
-    // Library.
-    pub(super) show_ids: Option<ExternalIds>,
+    /// Every id of the Show, [`Self::show_id`] among them.
+    pub(super) show_ids: ExternalIds,
     pub(super) show_title: String,
     pub(super) seasons: Vec<Season>,
     pub(super) quality: qualities::Ask,
@@ -349,28 +347,32 @@ impl SeasonsToAsk {
         let quality = show_requests(conn, &show.show_id)
             .await?
             .for_seasons(show.quality)?;
+        let mut show_ids = show.show_ids;
+        show_ids.insert(show.show_id.clone());
         Ok(Self {
             show_id: show.show_id,
-            show_ids: Some(show.show_ids),
+            show_ids,
             show_title: show.show_title,
             seasons: show.seasons,
             quality,
         })
     }
 
-    /// The Season `season` of the Show `show_id`, which `followed_show` follows, at the Show's
-    /// Quality, as a scan asks for it. A scan names no Quality, so unlike [`Self::read`] it refuses
-    /// none.
+    /// The Season `season` of the Show `show_id`, known by `show_ids`, which `followed_show`
+    /// follows, at the Show's Quality, as a scan asks for it. A scan names no Quality, so unlike
+    /// [`Self::read`] it refuses none.
     pub(super) async fn for_scan(
         conn: &mut SqliteConnection,
         show_id: &ExternalId,
+        mut show_ids: ExternalIds,
         followed_show: &FollowedShow,
         season: Season,
     ) -> Result<Self, sqlx::Error> {
         let quality = show_requests(conn, show_id).await?.for_scan();
+        show_ids.insert(show_id.clone());
         Ok(Self {
             show_id: show_id.clone(),
-            show_ids: None,
+            show_ids,
             show_title: followed_show.show_title.clone(),
             seasons: vec![season],
             quality,
@@ -413,7 +415,7 @@ impl SeasonsToAsk {
             season: Some(season.number),
             title: self.show_title.clone(),
             release_date: season.air_date.clone(),
-            ids: self.show_ids.clone().unwrap_or_default(),
+            ids: self.show_ids.clone(),
             followed_show,
             quality: self.quality.clone(),
         }

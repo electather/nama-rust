@@ -1,13 +1,15 @@
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::RequestState;
 
-use super::{cancel_followed, decide_followed, open_followed_show, withdraw_followed};
+use super::{
+    approved_followed_show, cancel_followed, decide_followed, open_followed_show, withdraw_followed,
+};
 use crate::requests::Error;
 use crate::requests::apply::Applied;
 use crate::requests::asking::WantedSeasons;
 use crate::requests::listing::load;
 use crate::requests::testing::{
-    ADA, BOB, NOTHING, ada_and_bob, asked_season, breaking_bad, dark, follow_as, handed_off,
+    ADA, BOB, DARK, NOTHING, ada_and_bob, asked_season, breaking_bad, dark, follow_as, handed_off,
     happened, match_episodes, said, scan, season_ids,
 };
 
@@ -270,4 +272,66 @@ async fn a_scan_opens_a_new_season_of_a_show_followed_under_an_id_other_than_tmd
     );
     let requesters: Vec<_> = season.requesters.iter().map(|one| one.user_id).collect();
     assert_eq!(requesters, [BOB, ADA]);
+}
+
+#[tokio::test]
+async fn following_a_show_asked_by_tmdb_stores_the_tvdb_id_its_source_gave_and_finds_it_by_either()
+{
+    let (_data, db) = ada_and_bob().await;
+    let tvdb = ExternalId::new("tvdb", "334824").unwrap();
+    let both = ExternalIds::from_iter([ExternalId::tmdb(DARK), tvdb.clone()]);
+    let show = WantedSeasons {
+        show_ids: both.clone(),
+        ..dark()
+    };
+    let id = follow_as(&db, ADA, show, RequestState::Approved)
+        .await
+        .value
+        .0
+        .id;
+
+    let mut conn = db.reader().acquire().await.unwrap();
+    let by_tvdb = ExternalIds::from_iter([tvdb.clone()]);
+    let found = approved_followed_show(&mut conn, &by_tvdb).await.unwrap();
+    let open = open_followed_show(&mut conn, &tvdb).await.unwrap();
+
+    let (kept_under, followed, ids) = found.unwrap();
+    assert_eq!(
+        (kept_under, followed.id, ids),
+        (ExternalId::tmdb(DARK), id, both)
+    );
+    assert_eq!(open, Some(id));
+}
+
+#[tokio::test]
+async fn a_followed_show_opened_before_its_ids_were_stored_keeps_the_id_it_was_kept_under() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let options = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(data_dir.path().join(crate::db::FILE_NAME))
+        .create_if_missing(true);
+    // A raw connection, not `Database::write`: `Database::open` would run every migration.
+    let mut before = sqlx::ConnectOptions::connect(&options).await.unwrap();
+    sqlx::migrate!().run_to(63, &mut before).await.unwrap();
+    sqlx::query(
+        "INSERT INTO followed_shows (id, show_id, title, state, created_at)
+         VALUES (1, 'tmdb-70523', 'Dark', 'approved', 0), (2, 'tvdb-5', 'Five', 'declined', 0)",
+    )
+    .execute(&mut before)
+    .await
+    .unwrap();
+
+    sqlx::migrate!().run_to(64, &mut before).await.unwrap();
+    let ids: Vec<(i64, String, String)> =
+        sqlx::query_as("SELECT * FROM followed_show_ids ORDER BY followed_show_id")
+            .fetch_all(&mut before)
+            .await
+            .unwrap();
+
+    assert_eq!(
+        ids,
+        [
+            (1, "tmdb".to_owned(), "70523".to_owned()),
+            (2, "tvdb".to_owned(), "5".to_owned())
+        ]
+    );
 }

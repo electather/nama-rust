@@ -171,7 +171,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
         "src/requests/qualities",
         &["qualities", "default_qualities"],
     ),
-    ("src/requests", &["request_title_ids"]),
+    ("src/requests", &["request_title_ids", "followed_show_ids"]),
     ("src/server_settings", &["server_settings"]),
     ("src/images", &["image_thumbhashes"]),
     ("src/custom_images", &["custom_images"]),

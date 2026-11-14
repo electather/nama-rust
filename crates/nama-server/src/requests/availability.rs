@@ -151,18 +151,22 @@ pub(crate) async fn make_seasons_available(
 }
 
 /// Asks for `season` of the Show with the ids `show`, which a Library's write found no open
-/// Request for, by a scan, under the id its Approved Followed Show is kept under. Returns the
-/// events for it.
+/// Request for, by a scan, under the id its Approved Followed Show is kept under and with every id
+/// that Followed Show stores and `show` gives. Returns the events for it.
 async fn scan_season(
     conn: &mut SqliteConnection,
     show: ExternalIds,
     season: Season,
 ) -> Result<Vec<Event>, sqlx::Error> {
     // A Show with no Approved Followed Show has no one a scan could ask for.
-    let Some((kept_under, followed_show)) = approved_followed_show(conn, &show).await? else {
+    let Some((kept_under, followed_show, followed_ids)) =
+        approved_followed_show(conn, &show).await?
+    else {
         return Ok(Vec::new());
     };
-    let asking = SeasonsToAsk::for_scan(conn, &kept_under, &followed_show, season).await?;
+    // The ids the Followed Show stores win over the Match's: its Requests are kept under them.
+    let ids = show.iter().chain(followed_ids.iter()).collect();
+    let asking = SeasonsToAsk::for_scan(conn, &kept_under, ids, &followed_show, season).await?;
     let scanning = Scanning {
         followed_show,
         show_ids: show,
