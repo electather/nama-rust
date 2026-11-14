@@ -1268,10 +1268,14 @@ mod tests {
     /// The periodic scan's interval, so it never comes within a test.
     const LONGER_THAN_A_TEST: Duration = Duration::from_secs(3600);
 
-    /// Starts watching, and waits up to 10 s for the Library's folder to be watched.
+    /// How many 50 ms polls the watch tests wait, 60 s in all. macOS's fseventsd falls behind
+    /// when builds run beside the tests, and starting a watch has then taken over 10 s.
+    const POLLS: usize = 1200;
+
+    /// Starts watching, and waits for the Library's folder to be watched.
     async fn watch(media: &Fixture) {
         media.scanner.watch(QUIET, LONGER_THAN_A_TEST);
-        for _ in 0..200 {
+        for _ in 0..POLLS {
             if !media.scanner.watched().is_empty() {
                 return;
             }
@@ -1280,7 +1284,7 @@ mod tests {
         panic!("the Library's folder was never watched");
     }
 
-    /// Waits up to 10 s for the stored files to be `expected`.
+    /// Waits for the stored files to be `expected`.
     async fn wait_for_files(media: &Fixture, expected: &[&str]) {
         let names = async || -> Vec<String> {
             media
@@ -1290,7 +1294,7 @@ mod tests {
                 .map(|(path, _)| path)
                 .collect()
         };
-        for _ in 0..200 {
+        for _ in 0..POLLS {
             if names().await == expected {
                 return;
             }
