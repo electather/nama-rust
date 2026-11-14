@@ -18,7 +18,7 @@ vp install       # dependencies
 | Format, lint, type-check                         | `vp check` (`vp check --fix` to apply fixes)   | oxfmt, oxlint, tsgo                |
 | Tests                                            | `vp test`                                      | Vitest on happy-dom                |
 | Unused code, duplication, complexity, boundaries | `vp run fallow`                                | Fallow                             |
-| Design check                                     | `impeccable detect --json <files>` (repo root) | impeccable                         |
+| Design check                                     | `vp dlx impeccable@4.8.0 detect --json <files>` (repo root) | impeccable                         |
 
 All lint, type-check and Fallow config lives in `vite.config.ts`, `tsconfig.json` and the Fallow config. There is no `.oxlintrc`. pnpm's own settings (`minimumReleaseAge`, the allowlist for dependency build scripts, and `runtimeOnFail`/`pmOnFail` set to `ignore` so pnpm leaves Node and pnpm versions to `vp`) are in `pnpm-workspace.yaml`.
 
@@ -31,7 +31,7 @@ vp check
 vp test
 vp build
 vp run fallow   # fallow --ci
-(cd .. && impeccable detect --json web/src)
+(cd .. && vp dlx impeccable@4.8.0 detect --json web/src)
 ```
 
 impeccable runs from the repo root because that's where it finds `.impeccable/config.json`, which ignores `src/gen/`, and `DESIGN.md`. From `web/` it reads neither.
