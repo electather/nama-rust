@@ -3,6 +3,7 @@ name = "nama-pdk"
 version = "0.1.0"
 description = "Plugin development kit for writing Installed Plugins for a Nama Server"
 license = "MIT OR Apache-2.0"
+readme = "README.md"
 edition.workspace = true
 repository.workspace = true
 

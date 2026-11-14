@@ -1,55 +1,11 @@
 //! Plugin development kit for Installed Plugins (ADR 0006, ADR 0009).
 //!
-//! An Installed Plugin is a `cdylib` built for `wasm32-unknown-unknown`. Each of its exports is a
-//! [`plugin_fn`] that takes and returns `nama.plugin.v1` messages wrapped in [`Buffa`]. Every
-//! Plugin exports `manifest()`, which returns its [`Manifest`]:
-//!
-//! ```
-//! // `plugin_fn` expands to paths starting with `extism_pdk`.
-//! use nama_pdk::{Buffa, FnResult, Manifest, extism_pdk, plugin_fn};
-//!
-//! #[plugin_fn]
-//! pub fn manifest() -> FnResult<Buffa<Manifest>> {
-//!     Ok(Buffa(nama_pdk::manifest("hello", env!("CARGO_PKG_VERSION"))))
-//! }
-//! ```
-//!
-//! The Plugin reads its settings with [`extism_pdk::config::get`], sends HTTP requests with
-//! [`http_request`] to the hosts its Manifest's `allowed_hosts` and its URL settings name, and
-//! reads the time with [`now`]. A call's limits on memory and time are in `nama-plugin-proto`'s
-//! README, under "What the Kernel gives a Plugin".
-//!
-//! A Plugin with [`SETTING_KIND_CHOICE`](nama_plugin_proto::nama::plugin::v1::SettingKind)
-//! settings exports `check_settings()`, which checks its settings against the outside service and
-//! offers the choices for each, built with [`checked_settings`]. It runs only when an admin tests
-//! settings, which may be unsaved, and may reach the hosts of the URL settings tested:
-//!
-//! ```
-//! use nama_pdk::{Buffa, CheckedSettings, FnResult, extism_pdk, plugin_fn};
-//!
-//! #[plugin_fn]
-//! pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
-//!     let profiles = [("1", "HD"), ("4", "Ultra HD")];
-//!     Ok(Buffa(nama_pdk::checked_settings([("profile", profiles)])))
-//! }
-//! ```
-//!
-//! If the Plugin panics, the Server gets the panic's message with the error of the call that
-//! panicked, not just a bare trap.
-//!
-//! A Plugin that hands Requests to an outside service implements [`Fulfiller`] and exports it with
-//! [`fulfiller!`].
-//!
-//! A Plugin that tells people about Requests through an outside service implements [`Notifier`] and
-//! exports it with [`notifier!`].
-//!
-//! A Plugin that connects Users to an outside service, such as their Telegram chat, implements
-//! [`Connector`] and exports it with [`connector!`].
-//!
-//! A Plugin that tells the Server about Movies and Shows, such as from TVDB, implements
-//! [`TitleSource`] and exports the methods it serves with [`title_source!`]. Its Manifest's
-//! `points` name [`services::TITLE_SOURCE`] and its `title_namespace` names the namespace it keeps
-//! titles under, such as `tvdb`. An answer with its title unset means the source has no such title.
+//! The crate's `README.md` walks through writing a Plugin with it, from the Manifest to the `.wasm`.
+
+// Compiles and runs the README's examples with this crate's doctests.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeExamples;
 
 use std::{collections::HashMap, fmt};
 

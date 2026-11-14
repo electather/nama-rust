@@ -8,6 +8,8 @@ The contract is more than the messages: `CONTRACT_VERSION` also covers what the 
 
 Each Extension Point an Installed Plugin can serve is a service of the contract, such as `nama.plugin.v1.NotifierService`, whose rpcs name the exports the Kernel calls (ADR 0043). Each has a version of its own, in `SERVICES`; the `services` module holds their full names. A Manifest names the points it serves in `points`, each by its service's full name and a semver requirement on its version.
 
+`nama.plugin.v1.TitleSourceService`, in [`title_source.proto`](../../proto/nama/plugin/v1/title_source.proto), is a title source the Kernel searches and fetches Movies and Shows from to Match a Library's files. Every one of its exports (`title_search`, `title_movie`, `title_show`, `title_season`, `title_episode` and `title_image`) is optional: the Kernel asks a source only for the ones it has. Its Manifest names in `title_namespace` the id namespace it keeps titles under, such as `tvdb`, and the Kernel refuses one naming the service without a well-formed namespace there.
+
 ## Title ids
 
 A title's ids reach a Plugin as `repeated TitleId`, each a namespace and a value, defined in [`proto/nama/plugin/v1/request.proto`](../../proto/nama/plugin/v1/request.proto) (ADR [0042](../../docs/adr/0042-a-titles-id-is-a-namespace-and-a-value.md)). A namespace is one or more of a-z and 0-9; a value is never empty. A title has at most one id per namespace, and any one of them identifies it. `tmdb`, `imdb` and `tvdb` are well known, and a Plugin may bring any other. The Kernel never interprets a value, so a Plugin that needs a number parses it itself. `nama_pdk::title_id` reads the value in one namespace.
