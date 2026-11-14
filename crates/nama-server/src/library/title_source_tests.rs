@@ -2,18 +2,27 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    metadata::{
-        Candidate, Episode, ExternalId, ExternalIds, IMDB, Image, MetadataError, Movie,
-        SearchQuery, Season, Show, TitleSource,
+    contract::{
+        Candidate, EpisodeAnswer, EpisodeAsked, ImageAnswer, ImageAsked, Movie, MovieAnswer,
+        SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer,
+        TitleAsked, TitleId,
     },
+    metadata::{ExternalId, IMDB, MetadataError, TitleSource},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 
 use super::{Error, MetadataSource, Source};
 use crate::plugins::{Failure, Registry};
 
-/// A title source that answers every question with the error `.0` makes.
-struct Failing(fn() -> MetadataError);
+/// A title source that answers every question with the error `.0` makes, or with the title unset
+/// where it makes none.
+struct Failing(fn() -> Option<MetadataError>);
+
+impl Failing {
+    fn refuse<T: Default>(&self) -> Result<T, MetadataError> {
+        self.0().map_or_else(|| Ok(T::default()), Err)
+    }
+}
 
 impl TitleSource for Failing {
     fn namespace(&self) -> &'static str {
@@ -23,41 +32,47 @@ impl TitleSource for Failing {
     fn search<'a>(
         &'a self,
         _query: &'a SearchQuery,
-    ) -> BoxFuture<'a, Result<Vec<Candidate>, MetadataError>> {
-        Box::pin(async { Err(self.0()) })
+    ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
+        Box::pin(async { self.refuse() })
     }
 
-    fn movie<'a>(&'a self, _id: &'a ExternalId) -> BoxFuture<'a, Result<Movie, MetadataError>> {
-        Box::pin(async { Err(self.0()) })
+    fn movie<'a>(
+        &'a self,
+        _asked: &'a TitleAsked,
+    ) -> BoxFuture<'a, Result<MovieAnswer, MetadataError>> {
+        Box::pin(async { self.refuse() })
     }
 
-    fn show<'a>(&'a self, _id: &'a ExternalId) -> BoxFuture<'a, Result<Show, MetadataError>> {
-        Box::pin(async { Err(self.0()) })
+    fn show<'a>(
+        &'a self,
+        _asked: &'a TitleAsked,
+    ) -> BoxFuture<'a, Result<ShowAnswer, MetadataError>> {
+        Box::pin(async { self.refuse() })
     }
 
     fn season<'a>(
         &'a self,
-        _show: &'a ExternalId,
-        _season: u32,
-    ) -> BoxFuture<'a, Result<Season, MetadataError>> {
-        Box::pin(async { Err(self.0()) })
+        _asked: &'a SeasonAsked,
+    ) -> BoxFuture<'a, Result<SeasonAnswer, MetadataError>> {
+        Box::pin(async { self.refuse() })
     }
 
     fn episode<'a>(
         &'a self,
-        _show: &'a ExternalId,
-        _season: u32,
-        _episode: u32,
-    ) -> BoxFuture<'a, Result<Episode, MetadataError>> {
-        Box::pin(async { Err(self.0()) })
+        _asked: &'a EpisodeAsked,
+    ) -> BoxFuture<'a, Result<EpisodeAnswer, MetadataError>> {
+        Box::pin(async { self.refuse() })
     }
 
-    fn image<'a>(&'a self, _path: &'a str) -> BoxFuture<'a, Result<Image, MetadataError>> {
-        Box::pin(async { Err(self.0()) })
+    fn image<'a>(
+        &'a self,
+        _asked: &'a ImageAsked,
+    ) -> BoxFuture<'a, Result<ImageAnswer, MetadataError>> {
+        Box::pin(async { self.refuse() })
     }
 }
 
-struct FailingPlugin(fn() -> MetadataError);
+struct FailingPlugin(fn() -> Option<MetadataError>);
 
 impl Plugin for FailingPlugin {
     fn manifest(&self) -> Manifest {
@@ -89,7 +104,7 @@ impl Plugin for FailingPlugin {
 
 /// What asking for a Show, then for an image from the Plugin `failing`, fails with when its
 /// Provider fails with `failure`, or when there is no Provider.
-async fn asking(failure: Option<fn() -> MetadataError>) -> (Error, Error) {
+async fn asking(failure: Option<fn() -> Option<MetadataError>>) -> (Error, Error) {
     let plugins = Registry::new();
     if let Some(failure) = failure {
         plugins.enable(Arc::new(FailingPlugin(failure))).unwrap();
@@ -110,7 +125,7 @@ async fn without_a_provider_the_source_is_unavailable() {
 
 #[tokio::test]
 async fn a_title_the_provider_does_not_have_is_not_found() {
-    let failure = || MetadataError::NotFound;
+    let failure = || None;
 
     assert_eq!(
         asking(Some(failure)).await,
@@ -120,7 +135,11 @@ async fn a_title_the_provider_does_not_have_is_not_found() {
 
 #[tokio::test]
 async fn an_id_the_provider_cannot_look_up_is_not_found() {
-    let failure = || MetadataError::UnsupportedId(ExternalId::new(IMDB, "tt0944947").unwrap());
+    let failure = || {
+        Some(MetadataError::UnsupportedId(
+            ExternalId::new(IMDB, "tt0944947").unwrap(),
+        ))
+    };
 
     assert_eq!(
         asking(Some(failure)).await,
@@ -130,7 +149,7 @@ async fn an_id_the_provider_cannot_look_up_is_not_found() {
 
 #[tokio::test]
 async fn a_method_the_source_does_not_serve_is_not_found() {
-    let failure = || MetadataError::Unsupported;
+    let failure = || Some(MetadataError::Unsupported);
 
     assert_eq!(
         asking(Some(failure)).await,
@@ -140,7 +159,7 @@ async fn a_method_the_source_does_not_serve_is_not_found() {
 
 #[tokio::test]
 async fn a_provider_that_fails_is_unavailable() {
-    let failure = || MetadataError::Failed("TMDB is unreachable".into());
+    let failure = || Some(MetadataError::Failed("TMDB is unreachable".into()));
 
     assert_eq!(
         asking(Some(failure)).await,
@@ -151,7 +170,11 @@ async fn a_provider_that_fails_is_unavailable() {
 #[tokio::test]
 async fn a_providers_failure_comes_without_its_plugins_secret_settings() {
     let plugins = Registry::new();
-    let failure = || MetadataError::Failed("GET /tv/1399?api_key=s3cr3t failed".into());
+    let failure = || {
+        Some(MetadataError::Failed(
+            "GET /tv/1399?api_key=s3cr3t failed".into(),
+        ))
+    };
     let api_key = SettingValue::Text("s3cr3t".to_owned());
     let settings = Settings::new([("api_key".to_owned(), api_key)].into());
     plugins
@@ -160,7 +183,7 @@ async fn a_providers_failure_comes_without_its_plugins_secret_settings() {
 
     let answer = plugins
         .ask_first(|metadata: Arc<dyn TitleSource>| async move {
-            metadata.show(&ExternalId::tmdb(1399)).await
+            metadata.show(&TitleAsked::default()).await
         })
         .await
         .unwrap();
@@ -195,17 +218,30 @@ struct Fake {
 }
 
 impl Fake {
-    fn answer<T>(&self, found: impl FnOnce(ExternalIds) -> T) -> Result<T, MetadataError> {
+    /// Its answer, `found` with its ids for what it has.
+    fn answer<T: Default>(
+        &self,
+        found: impl FnOnce(Vec<TitleId>) -> T,
+    ) -> Result<T, MetadataError> {
         self.asked
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(self.namespace);
-        let ids = ExternalIds::from_iter([ExternalId::new(self.namespace, "1").unwrap()]);
         match self.answers {
-            Answers::Has | Answers::Empty => Ok(found(ids)),
-            Answers::NotFound => Err(MetadataError::NotFound),
+            Answers::Has | Answers::Empty => Ok(found(vec![self.id()])),
+            Answers::NotFound => Ok(T::default()),
             Answers::Unsupported => Err(MetadataError::Unsupported),
             Answers::Fails => Err(MetadataError::Failed("unreachable".into())),
+        }
+    }
+}
+
+impl Fake {
+    fn id(&self) -> TitleId {
+        TitleId {
+            namespace: self.namespace.to_owned(),
+            value: "1".to_owned(),
+            ..Default::default()
         }
     }
 }
@@ -218,67 +254,72 @@ impl TitleSource for Fake {
     fn search<'a>(
         &'a self,
         _query: &'a SearchQuery,
-    ) -> BoxFuture<'a, Result<Vec<Candidate>, MetadataError>> {
+    ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
         let empty = matches!(self.answers, Answers::Empty);
         let found = self.answer(|ids| {
-            if empty {
-                return Vec::new();
+            let candidates = if empty {
+                Vec::new()
+            } else {
+                vec![Candidate {
+                    id: self.id().into(),
+                    ids,
+                    title: "Title".to_owned(),
+                    ..Default::default()
+                }]
+            };
+            SearchResults {
+                candidates,
+                ..Default::default()
             }
-            vec![Candidate {
-                id: ExternalId::new(self.namespace, "1").unwrap(),
+        });
+        Box::pin(async { found })
+    }
+
+    fn movie<'a>(
+        &'a self,
+        _asked: &'a TitleAsked,
+    ) -> BoxFuture<'a, Result<MovieAnswer, MetadataError>> {
+        let found = self.answer(|ids| MovieAnswer {
+            movie: Movie {
                 ids,
                 title: "Title".to_owned(),
-                original_title: None,
-                year: None,
-                poster: None,
-                origin_country: Vec::new(),
-                vote_count: 0,
-            }]
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
         });
         Box::pin(async { found })
     }
 
-    fn movie<'a>(&'a self, _id: &'a ExternalId) -> BoxFuture<'a, Result<Movie, MetadataError>> {
-        let found = self.answer(|ids| Movie {
-            ids,
-            title: "Title".to_owned(),
-            original_title: None,
-            overview: None,
-            release_date: None,
-            runtime_minutes: None,
-            poster: None,
-            backdrop: None,
-        });
-        Box::pin(async { found })
-    }
-
-    fn show<'a>(&'a self, _id: &'a ExternalId) -> BoxFuture<'a, Result<Show, MetadataError>> {
-        let found = self.answer(|ids| Show {
-            ids,
-            title: "Title".to_owned(),
-            original_title: None,
-            overview: None,
-            first_air_date: None,
-            poster: None,
-            backdrop: None,
-            seasons: vec![1],
+    fn show<'a>(
+        &'a self,
+        _asked: &'a TitleAsked,
+    ) -> BoxFuture<'a, Result<ShowAnswer, MetadataError>> {
+        let found = self.answer(|ids| ShowAnswer {
+            show: Show {
+                ids,
+                title: "Title".to_owned(),
+                seasons: vec![1],
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
         });
         Box::pin(async { found })
     }
 
     fn season<'a>(
         &'a self,
-        _show: &'a ExternalId,
-        season: u32,
-    ) -> BoxFuture<'a, Result<Season, MetadataError>> {
-        let found = self.answer(|ids| Season {
-            ids,
-            number: season,
-            title: String::new(),
-            overview: None,
-            air_date: None,
-            poster: None,
-            episodes: Vec::new(),
+        asked: &'a SeasonAsked,
+    ) -> BoxFuture<'a, Result<SeasonAnswer, MetadataError>> {
+        let found = self.answer(|ids| SeasonAnswer {
+            season: Season {
+                ids,
+                number: asked.season,
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
         });
         Box::pin(async { found })
     }

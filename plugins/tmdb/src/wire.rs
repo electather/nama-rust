@@ -1,7 +1,8 @@
-//! TMDB's v3 JSON, as far as the Plugin reads it, and how it maps onto the plugin API's types.
+//! TMDB's v3 JSON, as far as the Plugin reads it, and how it maps onto the contract's messages.
 
-use nama_plugin_api::metadata::{
-    Candidate, Episode, ExternalId, ExternalIds, IMDB, Movie, Season, Show,
+use nama_plugin_api::{
+    contract::{Candidate, Episode, Movie, Season, Show, TitleId},
+    metadata::{ExternalId, IMDB},
 };
 use serde::Deserialize;
 
@@ -23,16 +24,17 @@ pub(crate) struct MovieResult {
 
 impl From<MovieResult> for Candidate {
     fn from(movie: MovieResult) -> Self {
-        let id = ExternalId::tmdb(movie.id);
+        let id = title_id(&ExternalId::tmdb(movie.id));
         Self {
-            ids: ExternalIds::from_iter([id.clone()]),
-            id,
+            ids: vec![id.clone()],
+            id: id.into(),
             year: year(movie.release_date.as_deref()),
             title: movie.title,
             original_title: present(movie.original_title),
             poster: present(movie.poster_path),
             origin_country: Vec::new(),
             vote_count: movie.vote_count,
+            ..Default::default()
         }
     }
 }
@@ -52,16 +54,17 @@ pub(crate) struct ShowResult {
 
 impl From<ShowResult> for Candidate {
     fn from(show: ShowResult) -> Self {
-        let id = ExternalId::tmdb(show.id);
+        let id = title_id(&ExternalId::tmdb(show.id));
         Self {
-            ids: ExternalIds::from_iter([id.clone()]),
-            id,
+            ids: vec![id.clone()],
+            id: id.into(),
             year: year(show.first_air_date.as_deref()),
             title: show.name,
             original_title: present(show.original_name),
             poster: present(show.poster_path),
             origin_country: show.origin_country,
             vote_count: show.vote_count,
+            ..Default::default()
         }
     }
 }
@@ -88,15 +91,17 @@ pub(crate) struct WireIds {
 }
 
 impl WireIds {
-    fn with_tmdb(self, tmdb: i64) -> impl Iterator<Item = ExternalId> {
+    fn with_tmdb(self, tmdb: i64) -> Vec<TitleId> {
         let imdb = present(self.imdb_id).and_then(|imdb| ExternalId::new(IMDB, imdb).ok());
         [
             Some(ExternalId::tmdb(tmdb)),
             imdb,
             self.tvdb_id.map(ExternalId::tvdb),
         ]
-        .into_iter()
+        .iter()
         .flatten()
+        .map(title_id)
+        .collect()
     }
 }
 
@@ -121,7 +126,7 @@ impl From<MovieDetails> for Movie {
         let mut wire = movie.external_ids;
         wire.imdb_id = present(wire.imdb_id).or(movie.imdb_id);
         Self {
-            ids: wire.with_tmdb(movie.id).collect(),
+            ids: wire.with_tmdb(movie.id),
             title: movie.title,
             original_title: present(movie.original_title),
             overview: present(movie.overview),
@@ -129,6 +134,7 @@ impl From<MovieDetails> for Movie {
             runtime_minutes: movie.runtime.filter(|&minutes| minutes > 0),
             poster: present(movie.poster_path),
             backdrop: present(movie.backdrop_path),
+            ..Default::default()
         }
     }
 }
@@ -157,7 +163,7 @@ struct SeasonSummary {
 impl From<ShowDetails> for Show {
     fn from(show: ShowDetails) -> Self {
         Self {
-            ids: show.external_ids.with_tmdb(show.id).collect(),
+            ids: show.external_ids.with_tmdb(show.id),
             title: show.name,
             original_title: present(show.original_name),
             overview: present(show.overview),
@@ -165,6 +171,7 @@ impl From<ShowDetails> for Show {
             poster: present(show.poster_path),
             backdrop: present(show.backdrop_path),
             seasons: show.seasons.iter().map(|s| s.season_number).collect(),
+            ..Default::default()
         }
     }
 }
@@ -187,7 +194,7 @@ pub(crate) struct SeasonDetails {
 impl From<SeasonDetails> for Season {
     fn from(season: SeasonDetails) -> Self {
         Self {
-            ids: season.external_ids.with_tmdb(season.id).collect(),
+            ids: season.external_ids.with_tmdb(season.id),
             number: season.season_number,
             title: present(season.name)
                 .unwrap_or_else(|| format!("Season {}", season.season_number)),
@@ -195,6 +202,7 @@ impl From<SeasonDetails> for Season {
             air_date: present(season.air_date),
             poster: present(season.poster_path),
             episodes: season.episodes.into_iter().map(Episode::from).collect(),
+            ..Default::default()
         }
     }
 }
@@ -217,7 +225,7 @@ pub(crate) struct EpisodeDetails {
 impl From<EpisodeDetails> for Episode {
     fn from(episode: EpisodeDetails) -> Self {
         Self {
-            ids: episode.external_ids.with_tmdb(episode.id).collect(),
+            ids: episode.external_ids.with_tmdb(episode.id),
             season: episode.season_number,
             number: episode.episode_number,
             title: present(episode.name)
@@ -226,7 +234,17 @@ impl From<EpisodeDetails> for Episode {
             air_date: present(episode.air_date),
             runtime_minutes: episode.runtime.filter(|&minutes| minutes > 0),
             still: present(episode.still_path),
+            ..Default::default()
         }
+    }
+}
+
+/// `id` as the contract carries it.
+pub(crate) fn title_id(id: &ExternalId) -> TitleId {
+    TitleId {
+        namespace: id.namespace().to_owned(),
+        value: id.value().to_owned(),
+        ..Default::default()
     }
 }
 

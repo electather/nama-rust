@@ -1,140 +1,16 @@
 use std::sync::Arc;
 
-use nama_plugin_api::metadata::{ExternalId, MetadataError, SearchQuery, TitleKind, TitleSource};
-use nama_plugin_proto::nama::plugin::v1 as wire;
-
-use super::{
-    super::{
-        Running,
-        bundled::BUNDLED,
-        compile,
-        load::{load, write_cache_config},
-    },
-    candidate, episode, search_query, season, show,
+use nama_plugin_api::{
+    contract::{EpisodeAsked, ImageAsked, SearchQuery, SeasonAsked, TitleAsked, TitleId},
+    metadata::{MetadataError, TitleSource},
 };
 
-fn id(namespace: &str, value: &str) -> wire::TitleId {
-    wire::TitleId {
-        namespace: namespace.to_owned(),
-        value: value.to_owned(),
-        ..Default::default()
-    }
-}
-
-#[test]
-fn a_candidate_becomes_the_kernels_with_every_id() {
-    let found = wire::Candidate {
-        id: id("tvdb", "81189").into(),
-        ids: vec![id("tvdb", "81189"), id("imdb", "tt0903747")],
-        title: "Breaking Bad".to_owned(),
-        year: Some(2008),
-        origin_country: vec!["US".to_owned()],
-        vote_count: 12,
-        ..Default::default()
-    };
-
-    let candidate = candidate(found).unwrap();
-
-    assert_eq!(candidate.id, ExternalId::tvdb(81189));
-    assert_eq!(
-        candidate
-            .ids
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>(),
-        ["imdb-tt0903747", "tvdb-81189"]
-    );
-    assert_eq!(
-        (
-            candidate.title.as_str(),
-            candidate.year,
-            candidate.vote_count
-        ),
-        ("Breaking Bad", Some(2008), 12)
-    );
-}
-
-#[test]
-fn an_answer_with_a_malformed_id_fails_naming_it() {
-    let bad_candidate = wire::Candidate {
-        id: id("TVDB", "81189").into(),
-        ..Default::default()
-    };
-    let no_id = wire::Candidate {
-        title: "Breaking Bad".to_owned(),
-        ..Default::default()
-    };
-    let bad_show = wire::Show {
-        ids: vec![id("tvdb", "")],
-        ..Default::default()
-    };
-    let bad_episode = wire::Season {
-        episodes: vec![wire::Episode {
-            ids: vec![id("t v", "1")],
-            ..Default::default()
-        }],
-        ..Default::default()
-    };
-
-    let failures = [
-        candidate(bad_candidate).err(),
-        candidate(no_id).err(),
-        show(bad_show).err(),
-        season(bad_episode).err(),
-    ]
-    .map(|failed| match failed {
-        Some(MetadataError::Failed(err)) => err.to_string(),
-        other => panic!("{other:?}"),
-    });
-
-    assert_eq!(
-        failures,
-        [
-            r#"the title source answered with the id "TVDB-81189": the namespace "TVDB" isn't one or more of a-z and 0-9"#,
-            r#"the title source found "Breaking Bad" without an id"#,
-            r#"the title source answered with the id "tvdb-": the id's value is empty"#,
-            r#"the title source answered with the id "t v-1": the namespace "t v" isn't one or more of a-z and 0-9"#,
-        ]
-    );
-}
-
-#[test]
-fn an_episode_keeps_its_numbers_and_still() {
-    let aired = wire::Episode {
-        ids: vec![id("tvdb", "349232")],
-        season: 1,
-        number: 2,
-        title: "Cat's in the Bag...".to_owned(),
-        runtime_minutes: Some(48),
-        still: Some("/still.jpg".to_owned()),
-        ..Default::default()
-    };
-
-    let episode = episode(aired).unwrap();
-
-    assert_eq!(
-        (episode.season, episode.number, episode.runtime_minutes),
-        (1, 2, Some(48))
-    );
-    assert_eq!(episode.still.as_deref(), Some("/still.jpg"));
-}
-
-#[test]
-fn a_search_asks_for_its_kind() {
-    let query = SearchQuery {
-        kind: TitleKind::Show,
-        title: "Breaking Bad".to_owned(),
-        year: None,
-    };
-
-    let asked = search_query(&query);
-
-    assert_eq!(
-        asked.kind.as_known(),
-        Some(wire::TitleKind::TITLE_KIND_SHOW)
-    );
-    assert_eq!((asked.title.as_str(), asked.year), ("Breaking Bad", None));
-}
+use super::super::{
+    Running,
+    bundled::BUNDLED,
+    compile,
+    load::{load, write_cache_config},
+};
 
 #[tokio::test]
 async fn a_title_source_without_its_exports_answers_unsupported_to_each_method() {
@@ -155,20 +31,38 @@ async fn a_title_source_without_its_exports_answers_unsupported_to_each_method()
         crashes: Arc::default(),
         exports: Arc::clone(&radarr.exports),
     };
-    let title = ExternalId::tvdb(81189);
-    let query = SearchQuery {
-        kind: TitleKind::Show,
-        title: "Breaking Bad".to_owned(),
-        year: None,
+    let title = TitleId {
+        namespace: "tvdb".to_owned(),
+        value: "81189".to_owned(),
+        ..Default::default()
+    };
+    let asked = TitleAsked {
+        id: title.clone().into(),
+        ..Default::default()
+    };
+    let season = SeasonAsked {
+        show: title.clone().into(),
+        season: 1,
+        ..Default::default()
+    };
+    let episode = EpisodeAsked {
+        show: title.into(),
+        season: 1,
+        episode: 1,
+        ..Default::default()
+    };
+    let image = ImageAsked {
+        path: "/poster.jpg".to_owned(),
+        ..Default::default()
     };
 
     let answers = [
-        running.search(&query).await.err(),
-        running.movie(&title).await.err(),
-        running.show(&title).await.err(),
-        running.season(&title, 1).await.err(),
-        running.episode(&title, 1, 1).await.err(),
-        running.image("/poster.jpg").await.err(),
+        running.search(&SearchQuery::default()).await.err(),
+        running.movie(&asked).await.err(),
+        running.show(&asked).await.err(),
+        running.season(&season).await.err(),
+        running.episode(&episode).await.err(),
+        running.image(&image).await.err(),
     ];
 
     assert_eq!(running.namespace(), "tvdb");

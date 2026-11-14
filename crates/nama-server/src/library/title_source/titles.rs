@@ -1,11 +1,13 @@
 //! The Kernel's title model: what a title source tells the Kernel about Movies and Shows, apart
-//! from the Plugin contract's own types.
-//!
-//! title-source-messages replaces the `From` conversions here with the contract's messages.
+//! from the Plugin contract's own messages, and the trust boundary between them. Every answer,
+//! from a Built-in or an Installed source, crosses here, so its ids are checked once.
 
 use std::fmt;
 
-use nama_plugin_api::metadata::{self as api, ExternalId, ExternalIds};
+use nama_plugin_api::{
+    contract as wire,
+    metadata::{ExternalId, ExternalIds, MetadataError},
+};
 
 /// Whether a title is a Movie or a Show.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -40,7 +42,7 @@ pub(crate) struct Candidate {
     pub(crate) original_title: Option<String>,
     /// The year a Movie was released or a Show first aired.
     pub(crate) year: Option<i32>,
-    /// The poster's path, to pass to [`TitleSource::image`](api::TitleSource::image).
+    /// The poster's path, to pass to [`TitleSource::image`](super::TitleSource::image).
     pub(crate) poster: Option<String>,
     /// The ISO 3166-1 alpha-2 codes of the countries a Show comes from. Empty where unknown, as
     /// for Movies.
@@ -64,9 +66,9 @@ pub(crate) struct Movie {
     pub(crate) release_date: Option<String>,
     /// How long it runs, in minutes.
     pub(crate) runtime_minutes: Option<u32>,
-    /// The poster, as a path for [`TitleSource::image`](api::TitleSource::image).
+    /// The poster, as a path for [`TitleSource::image`](super::TitleSource::image).
     pub(crate) poster: Option<String>,
-    /// The backdrop, as a path for [`TitleSource::image`](api::TitleSource::image).
+    /// The backdrop, as a path for [`TitleSource::image`](super::TitleSource::image).
     pub(crate) backdrop: Option<String>,
 }
 
@@ -83,9 +85,9 @@ pub(crate) struct Show {
     pub(crate) overview: Option<String>,
     /// When it first aired, as `YYYY-MM-DD`.
     pub(crate) first_air_date: Option<String>,
-    /// The poster, as a path for [`TitleSource::image`](api::TitleSource::image).
+    /// The poster, as a path for [`TitleSource::image`](super::TitleSource::image).
     pub(crate) poster: Option<String>,
-    /// The backdrop, as a path for [`TitleSource::image`](api::TitleSource::image).
+    /// The backdrop, as a path for [`TitleSource::image`](super::TitleSource::image).
     pub(crate) backdrop: Option<String>,
     /// The numbers of its Seasons, in order. Season 0 holds specials.
     pub(crate) seasons: Vec<u32>,
@@ -104,7 +106,7 @@ pub(crate) struct Season {
     pub(crate) overview: Option<String>,
     /// When it first aired, as `YYYY-MM-DD`.
     pub(crate) air_date: Option<String>,
-    /// The poster, as a path for [`TitleSource::image`](api::TitleSource::image).
+    /// The poster, as a path for [`TitleSource::image`](super::TitleSource::image).
     pub(crate) poster: Option<String>,
     /// Its Episodes, in order.
     pub(crate) episodes: Vec<Episode>,
@@ -127,7 +129,7 @@ pub(crate) struct Episode {
     pub(crate) air_date: Option<String>,
     /// How long it runs, in minutes.
     pub(crate) runtime_minutes: Option<u32>,
-    /// A still from it, as a path for [`TitleSource::image`](api::TitleSource::image).
+    /// A still from it, as a path for [`TitleSource::image`](super::TitleSource::image).
     pub(crate) still: Option<String>,
 }
 
@@ -149,104 +151,124 @@ impl fmt::Debug for Image {
     }
 }
 
-impl From<TitleKind> for api::TitleKind {
-    fn from(kind: TitleKind) -> Self {
-        match kind {
-            TitleKind::Movie => Self::Movie,
-            TitleKind::Show => Self::Show,
-        }
+/// `query` as the contract asks it.
+pub(super) fn search_query(query: &SearchQuery) -> wire::SearchQuery {
+    let kind = match query.kind {
+        TitleKind::Movie => wire::TitleKind::TITLE_KIND_MOVIE,
+        TitleKind::Show => wire::TitleKind::TITLE_KIND_SHOW,
+    };
+    wire::SearchQuery {
+        kind: kind.into(),
+        title: query.title.clone(),
+        year: query.year,
+        ..Default::default()
     }
 }
 
-impl From<SearchQuery> for api::SearchQuery {
-    fn from(query: SearchQuery) -> Self {
-        Self {
-            kind: query.kind.into(),
-            title: query.title,
-            year: query.year,
-        }
+/// `id` as the contract carries it.
+pub(super) fn title_id(id: &ExternalId) -> wire::TitleId {
+    wire::TitleId {
+        namespace: id.namespace().to_owned(),
+        value: id.value().to_owned(),
+        ..Default::default()
     }
 }
 
-impl From<api::Candidate> for Candidate {
-    fn from(candidate: api::Candidate) -> Self {
-        Self {
-            id: candidate.id,
-            ids: candidate.ids,
-            title: candidate.title,
-            original_title: candidate.original_title,
-            year: candidate.year,
-            poster: candidate.poster,
-            origin_country: candidate.origin_country,
-            vote_count: candidate.vote_count,
-        }
+/// `id` as the Kernel's, or why the source's answer is no good: a source's id is checked here,
+/// at the trust boundary, since the Kernel stores and links by it.
+pub(super) fn external_id(id: &wire::TitleId) -> Result<ExternalId, MetadataError> {
+    ExternalId::new(&id.namespace, id.value.clone()).map_err(|err| {
+        let named = format!("{}-{}", id.namespace, id.value);
+        MetadataError::Failed(
+            format!("the title source answered with the id {named:?}: {err}").into(),
+        )
+    })
+}
+
+fn external_ids(ids: &[wire::TitleId]) -> Result<ExternalIds, MetadataError> {
+    ids.iter().map(external_id).collect()
+}
+
+pub(super) fn candidate(candidate: wire::Candidate) -> Result<Candidate, MetadataError> {
+    let id = candidate.id.as_option().ok_or_else(|| {
+        MetadataError::Failed(
+            format!("the title source found {:?} without an id", candidate.title).into(),
+        )
+    })?;
+    Ok(Candidate {
+        id: external_id(id)?,
+        ids: external_ids(&candidate.ids)?,
+        title: candidate.title,
+        original_title: candidate.original_title,
+        year: candidate.year,
+        poster: candidate.poster,
+        origin_country: candidate.origin_country,
+        vote_count: candidate.vote_count,
+    })
+}
+
+pub(super) fn movie(movie: wire::Movie) -> Result<Movie, MetadataError> {
+    Ok(Movie {
+        ids: external_ids(&movie.ids)?,
+        title: movie.title,
+        original_title: movie.original_title,
+        overview: movie.overview,
+        release_date: movie.release_date,
+        runtime_minutes: movie.runtime_minutes,
+        poster: movie.poster,
+        backdrop: movie.backdrop,
+    })
+}
+
+pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
+    Ok(Show {
+        ids: external_ids(&show.ids)?,
+        title: show.title,
+        original_title: show.original_title,
+        overview: show.overview,
+        first_air_date: show.first_air_date,
+        poster: show.poster,
+        backdrop: show.backdrop,
+        seasons: show.seasons,
+    })
+}
+
+pub(super) fn season(season: wire::Season) -> Result<Season, MetadataError> {
+    Ok(Season {
+        ids: external_ids(&season.ids)?,
+        number: season.number,
+        title: season.title,
+        overview: season.overview,
+        air_date: season.air_date,
+        poster: season.poster,
+        episodes: season
+            .episodes
+            .into_iter()
+            .map(episode)
+            .collect::<Result<_, _>>()?,
+    })
+}
+
+pub(super) fn episode(episode: wire::Episode) -> Result<Episode, MetadataError> {
+    Ok(Episode {
+        ids: external_ids(&episode.ids)?,
+        season: episode.season,
+        number: episode.number,
+        title: episode.title,
+        overview: episode.overview,
+        air_date: episode.air_date,
+        runtime_minutes: episode.runtime_minutes,
+        still: episode.still,
+    })
+}
+
+pub(super) fn image(image: wire::Image) -> Image {
+    Image {
+        content_type: image.content_type,
+        bytes: image.bytes,
     }
 }
 
-impl From<api::Movie> for Movie {
-    fn from(movie: api::Movie) -> Self {
-        Self {
-            ids: movie.ids,
-            title: movie.title,
-            original_title: movie.original_title,
-            overview: movie.overview,
-            release_date: movie.release_date,
-            runtime_minutes: movie.runtime_minutes,
-            poster: movie.poster,
-            backdrop: movie.backdrop,
-        }
-    }
-}
-
-impl From<api::Show> for Show {
-    fn from(show: api::Show) -> Self {
-        Self {
-            ids: show.ids,
-            title: show.title,
-            original_title: show.original_title,
-            overview: show.overview,
-            first_air_date: show.first_air_date,
-            poster: show.poster,
-            backdrop: show.backdrop,
-            seasons: show.seasons,
-        }
-    }
-}
-
-impl From<api::Season> for Season {
-    fn from(season: api::Season) -> Self {
-        Self {
-            ids: season.ids,
-            number: season.number,
-            title: season.title,
-            overview: season.overview,
-            air_date: season.air_date,
-            poster: season.poster,
-            episodes: season.episodes.into_iter().map(Episode::from).collect(),
-        }
-    }
-}
-
-impl From<api::Episode> for Episode {
-    fn from(episode: api::Episode) -> Self {
-        Self {
-            ids: episode.ids,
-            season: episode.season,
-            number: episode.number,
-            title: episode.title,
-            overview: episode.overview,
-            air_date: episode.air_date,
-            runtime_minutes: episode.runtime_minutes,
-            still: episode.still,
-        }
-    }
-}
-
-impl From<api::Image> for Image {
-    fn from(image: api::Image) -> Self {
-        Self {
-            content_type: image.content_type,
-            bytes: image.bytes,
-        }
-    }
-}
+#[cfg(test)]
+#[path = "titles_tests.rs"]
+mod tests;

@@ -7,7 +7,8 @@ use std::{future::Future, sync::Arc};
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{self as api, ExternalId, ExternalIds, MetadataError, TitleSource},
+    contract::{self as wire, ImageAsked, SeasonAsked, TitleAsked},
+    metadata::{ExternalId, ExternalIds, MetadataError, TitleSource},
 };
 
 mod titles;
@@ -75,50 +76,50 @@ impl MetadataSource {
         &self,
         query: &SearchQuery,
     ) -> Result<(PluginId, Vec<Candidate>), Error> {
-        self.ask(|metadata| {
-            let query = api::SearchQuery::from(query.clone());
-            async move { candidates(metadata.search(&query).await) }
-        })
-        .await
+        let query = &titles::search_query(query);
+        self.ask(|metadata| async move { candidates(metadata.search(query).await?) })
+            .await
     }
 
     /// The metadata of the Movie with the id `id`.
     pub(crate) async fn movie(&self, id: &ExternalId) -> Result<Metadata, Error> {
+        let asked = &asked(id);
         let (plugin, movie) = self
-            .ask(|metadata| {
-                let id = id.clone();
-                async move { metadata.movie(&id).await.map(Movie::from) }
-            })
+            .ask(
+                |metadata| async move { answer(metadata.movie(asked).await?.movie, titles::movie) },
+            )
             .await?;
         Ok(Metadata::movie(plugin, movie))
     }
 
     /// The Show with the id `id`, and the Plugin whose Provider gave it.
     pub(crate) async fn show(&self, id: &ExternalId) -> Result<(PluginId, Show), Error> {
-        self.ask(|metadata| {
-            let id = id.clone();
-            async move { metadata.show(&id).await.map(Show::from) }
-        })
-        .await
+        let asked = &asked(id);
+        self.ask(|metadata| async move { answer(metadata.show(asked).await?.show, titles::show) })
+            .await
     }
 
     /// The Season `number` of the Show with the id `show`, with its Episodes.
     pub(crate) async fn season(&self, show: &ExternalId, number: u32) -> Result<Season, Error> {
-        self.ask(|metadata| {
-            let show = show.clone();
-            async move { metadata.season(&show, number).await.map(Season::from) }
-        })
+        let asked = &season_asked(show, number);
+        self.ask(
+            |metadata| async move { answer(metadata.season(asked).await?.season, titles::season) },
+        )
         .await
         .map(|(_, season)| season)
     }
 
     /// The image at `path` from the Plugin `plugin`'s Provider, which handed the path out.
     pub(crate) async fn image(&self, plugin: &PluginId, path: &str) -> Result<Image, Error> {
+        let asked = &ImageAsked {
+            path: path.to_owned(),
+            ..Default::default()
+        };
         let answered = self
             .plugins
-            .ask(plugin, |metadata: Arc<dyn TitleSource>| {
-                let path = path.to_owned();
-                async move { metadata.image(&path).await.map(Image::from) }
+            .ask(plugin, |metadata: Arc<dyn TitleSource>| async move {
+                let image = metadata.image(asked).await?.image;
+                answer(image, |image| Ok(titles::image(image)))
             })
             .await;
         meaning(answered).map(|(_, image)| image)
@@ -182,9 +183,9 @@ impl MetadataSource {
         query: &SearchQuery,
     ) -> Result<(Source, Vec<Candidate>), Error> {
         let sources = self.sources().await;
-        self.first_answer(sources, Vec::is_empty, |metadata| {
-            let query = api::SearchQuery::from(query.clone());
-            async move { candidates(metadata.search(&query).await) }
+        let query = &titles::search_query(query);
+        self.first_answer(sources, Vec::is_empty, |metadata| async move {
+            candidates(metadata.search(query).await?)
         })
         .await
     }
@@ -194,14 +195,12 @@ impl MetadataSource {
     /// [`MetadataSource::search_in_turn`] does.
     pub(crate) async fn movie_by(&self, id: &ExternalId) -> Result<(Source, Metadata), Error> {
         let sources = self.by_namespace(id.namespace()).await;
+        let asked = &asked(id);
         let (source, movie) = self
             .first_answer(
                 sources,
                 |_| false,
-                |metadata| {
-                    let id = id.clone();
-                    async move { metadata.movie(&id).await.map(Movie::from) }
-                },
+                |metadata| async move { answer(metadata.movie(asked).await?.movie, titles::movie) },
             )
             .await?;
         let metadata = Metadata::movie(source.plugin.clone(), movie);
@@ -211,13 +210,11 @@ impl MetadataSource {
     /// The Show with the id `id`, routed as [`MetadataSource::movie_by`] routes a Movie.
     pub(crate) async fn show_by(&self, id: &ExternalId) -> Result<(Source, Show), Error> {
         let sources = self.by_namespace(id.namespace()).await;
+        let asked = &asked(id);
         self.first_answer(
             sources,
             |_| false,
-            |metadata| {
-                let id = id.clone();
-                async move { metadata.show(&id).await.map(Show::from) }
-            },
+            |metadata| async move { answer(metadata.show(asked).await?.show, titles::show) },
         )
         .await
     }
@@ -230,12 +227,15 @@ impl MetadataSource {
         show: &ExternalId,
         number: u32,
     ) -> Result<Season, Error> {
+        let asked = &season_asked(show, number);
         let answered = self
             .plugins
-            .ask(&source.plugin, |metadata: Arc<dyn TitleSource>| {
-                let show = show.clone();
-                async move { metadata.season(&show, number).await.map(Season::from) }
-            })
+            .ask(
+                &source.plugin,
+                |metadata: Arc<dyn TitleSource>| async move {
+                    answer(metadata.season(asked).await?.season, titles::season)
+                },
+            )
             .await;
         meaning(answered).map(|(_, season)| season)
     }
@@ -257,7 +257,7 @@ impl MetadataSource {
         call: impl Fn(Arc<dyn TitleSource>) -> F,
     ) -> Result<(Source, R), Error>
     where
-        F: Future<Output = Result<R, MetadataError>>,
+        F: Future<Output = Result<R, Refusal>>,
     {
         if sources.is_empty() {
             tracing::debug!("no title source could be asked");
@@ -278,7 +278,7 @@ impl MetadataSource {
         call: impl Fn(Arc<dyn TitleSource>) -> F,
     ) -> Result<(PluginId, R), Error>
     where
-        F: Future<Output = Result<R, MetadataError>>,
+        F: Future<Output = Result<R, Refusal>>,
     {
         let answered = match &self.only {
             Some(plugin) => self.plugins.ask(plugin, call).await,
@@ -288,17 +288,66 @@ impl MetadataSource {
     }
 }
 
+fn asked(id: &ExternalId) -> TitleAsked {
+    TitleAsked {
+        id: titles::title_id(id).into(),
+        ..Default::default()
+    }
+}
+
+fn season_asked(show: &ExternalId, season: u32) -> SeasonAsked {
+    SeasonAsked {
+        show: titles::title_id(show).into(),
+        season,
+        ..Default::default()
+    }
+}
+
+/// Why a source gave no title: it refused, or answered with the title unset, which means it has
+/// no such title.
+enum Refusal {
+    Refused(MetadataError),
+    Unset,
+}
+
+impl From<MetadataError> for Refusal {
+    fn from(error: MetadataError) -> Self {
+        Self::Refused(error)
+    }
+}
+
+impl ProviderError<Error> for Refusal {
+    fn failure(self) -> Failure<Error> {
+        match self {
+            Self::Refused(error) => error.failure(),
+            Self::Unset => Failure {
+                kind: Error::NotFound,
+                message: "the title source has no such title".to_owned(),
+            },
+        }
+    }
+}
+
+/// The title in an answer's `field` as the Kernel's, through `kernel`; unset, it is
+/// [`Refusal::Unset`], and malformed, a failure.
+fn answer<W, T>(
+    field: impl Into<Option<W>>,
+    kernel: fn(W) -> Result<T, MetadataError>,
+) -> Result<T, Refusal> {
+    let title = field.into().ok_or(Refusal::Unset)?;
+    Ok(kernel(title)?)
+}
+
 /// The Kernel's twins of a search's Candidates.
-fn candidates(
-    found: Result<Vec<api::Candidate>, MetadataError>,
-) -> Result<Vec<Candidate>, MetadataError> {
-    found.map(|found| found.into_iter().map(Candidate::from).collect())
+fn candidates(found: wire::SearchResults) -> Result<Vec<Candidate>, Refusal> {
+    let found = found.candidates.into_iter().map(titles::candidate);
+    Ok(found.collect::<Result<_, _>>()?)
 }
 
 impl ProviderError<Error> for MetadataError {
     fn failure(self) -> Failure<Error> {
         let kind = match self {
-            Self::NotFound | Self::Unsupported | Self::UnsupportedId(_) => Error::NotFound,
+            Self::Unsupported | Self::UnsupportedId(_) => Error::NotFound,
             Self::Failed(_) => Error::Unavailable,
         };
         Failure {

@@ -2,10 +2,11 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    metadata::{
-        Candidate, ExternalId, ExternalIds, MetadataError, Movie, SearchQuery, Season, Show,
-        TitleSource,
+    contract::{
+        Candidate, Movie, MovieAnswer, SearchQuery, SearchResults, Season, SeasonAnswer,
+        SeasonAsked, Show, ShowAnswer, TitleAsked, TitleId,
     },
+    metadata::{ExternalId, ExternalIds, MetadataError, TitleSource},
     settings::SettingsSchema,
 };
 use tokio_util::sync::CancellationToken;
@@ -47,19 +48,33 @@ struct Fake {
 }
 
 impl Fake {
-    fn ids(&self) -> ExternalIds {
-        ExternalIds::from_iter([ExternalId::new(self.namespace, "1").unwrap()])
+    fn ids(&self) -> Vec<TitleId> {
+        vec![TitleId {
+            namespace: self.namespace.to_owned(),
+            value: "1".to_owned(),
+            ..Default::default()
+        }]
     }
 
-    fn answer<T>(&self, asked: &str, answers: Answers, found: T) -> Result<T, MetadataError> {
+    fn answer<T: Default>(
+        &self,
+        asked: &str,
+        answers: Answers,
+        found: T,
+    ) -> Result<T, MetadataError> {
         let mut log = self.asked.lock().unwrap_or_else(PoisonError::into_inner);
         log.push(format!("{} {asked}", self.namespace));
         match answers {
             Answers::Has => Ok(found),
-            Answers::NotFound => Err(MetadataError::NotFound),
+            Answers::NotFound => Ok(T::default()),
             Answers::Fails => Err(MetadataError::Failed("unreachable".into())),
         }
     }
+}
+
+/// `id` as `namespace-value`, as an [`ExternalId`] shows.
+fn named(id: &TitleId) -> String {
+    format!("{}-{}", id.namespace, id.value)
 }
 
 impl TitleSource for Fake {
@@ -70,66 +85,74 @@ impl TitleSource for Fake {
     fn search<'a>(
         &'a self,
         _query: &'a SearchQuery,
-    ) -> BoxFuture<'a, Result<Vec<Candidate>, MetadataError>> {
+    ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
         let candidate = Candidate {
-            id: ExternalId::new(self.namespace, "1").unwrap(),
+            id: self.ids().remove(0).into(),
             ids: self.ids(),
             title: "Dark".to_owned(),
-            original_title: None,
-            year: None,
-            poster: None,
-            origin_country: Vec::new(),
             vote_count: 100,
+            ..Default::default()
         };
-        let found = self.answer("search", self.search, vec![candidate]);
+        let found = SearchResults {
+            candidates: vec![candidate],
+            ..Default::default()
+        };
+        let found = self.answer("search", self.search, found);
         Box::pin(async { found })
     }
 
-    fn movie<'a>(&'a self, id: &'a ExternalId) -> BoxFuture<'a, Result<Movie, MetadataError>> {
-        let movie = Movie {
-            ids: self.ids(),
-            title: "Dark".to_owned(),
-            original_title: None,
-            overview: None,
-            release_date: None,
-            runtime_minutes: None,
-            poster: None,
-            backdrop: None,
+    fn movie<'a>(
+        &'a self,
+        asked: &'a TitleAsked,
+    ) -> BoxFuture<'a, Result<MovieAnswer, MetadataError>> {
+        let movie = MovieAnswer {
+            movie: Movie {
+                ids: self.ids(),
+                title: "Dark".to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
         };
-        let found = self.answer(&format!("movie {id}"), self.lookup, movie);
+        let found = self.answer(&format!("movie {}", named(&asked.id)), self.lookup, movie);
         Box::pin(async { found })
     }
 
-    fn show<'a>(&'a self, id: &'a ExternalId) -> BoxFuture<'a, Result<Show, MetadataError>> {
-        let show = Show {
-            ids: self.ids(),
-            title: "Dark".to_owned(),
-            original_title: None,
-            overview: None,
-            first_air_date: None,
-            poster: None,
-            backdrop: None,
-            seasons: vec![1],
+    fn show<'a>(
+        &'a self,
+        asked: &'a TitleAsked,
+    ) -> BoxFuture<'a, Result<ShowAnswer, MetadataError>> {
+        let show = ShowAnswer {
+            show: Show {
+                ids: self.ids(),
+                title: "Dark".to_owned(),
+                seasons: vec![1],
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
         };
-        let found = self.answer(&format!("show {id}"), self.lookup, show);
+        let found = self.answer(&format!("show {}", named(&asked.id)), self.lookup, show);
         Box::pin(async { found })
     }
 
     fn season<'a>(
         &'a self,
-        show: &'a ExternalId,
-        number: u32,
-    ) -> BoxFuture<'a, Result<Season, MetadataError>> {
-        let season = Season {
-            ids: ExternalIds::default(),
-            number,
-            title: String::new(),
-            overview: None,
-            air_date: None,
-            poster: None,
-            episodes: Vec::new(),
+        asked: &'a SeasonAsked,
+    ) -> BoxFuture<'a, Result<SeasonAnswer, MetadataError>> {
+        let season = SeasonAnswer {
+            season: Season {
+                number: asked.season,
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
         };
-        let found = self.answer(&format!("season {show}"), self.lookup, season);
+        let found = self.answer(
+            &format!("season {}", named(&asked.show)),
+            self.lookup,
+            season,
+        );
         Box::pin(async { found })
     }
 }
