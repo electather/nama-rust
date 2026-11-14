@@ -4,6 +4,35 @@ package nama.plugin.v1;
 
 import "nama/plugin/v1/request.proto";
 
+// The Extension Point for a Fulfiller of Movie Requests. An Installed Plugin serves it through
+// the WASM exports each rpc names, each taking and returning its messages encoded as protobuf.
+service MovieFulfillerService {
+  // The `fulfill` export: hands the Fulfiller an Approved `Request` for a Movie. Required.
+  rpc Fulfill(Request) returns (Fulfilled);
+  // The `stop_monitoring` export: a delete asks the service to stop monitoring a title. Optional:
+  // a Plugin without it isn't asked.
+  rpc StopMonitoring(nama.plugin.v1.StopMonitoring) returns (StoppedMonitoring);
+  // The `progress` export: what the service is downloading for the Fulfiller's references.
+  // Required.
+  rpc Progress(ProgressAsked) returns (nama.plugin.v1.Progress);
+}
+
+// The Extension Point for a Fulfiller of Season Requests, with the exports of
+// `MovieFulfillerService` and `unfollow`. A Plugin serving both tells a Movie Request from a Season
+// one by which it holds.
+service ShowFulfillerService {
+  // The `fulfill` export, as for `MovieFulfillerService`, for a Season. Required.
+  rpc Fulfill(Request) returns (Fulfilled);
+  // The `stop_monitoring` export, as for `MovieFulfillerService`. Optional: a Plugin without it
+  // isn't asked.
+  rpc StopMonitoring(nama.plugin.v1.StopMonitoring) returns (StoppedMonitoring);
+  // The `progress` export, as for `MovieFulfillerService`. Required.
+  rpc Progress(ProgressAsked) returns (nama.plugin.v1.Progress);
+  // The `unfollow` export: takes the `Request` for a Season of a Followed Show that ended, and
+  // stops following the Show. Required.
+  rpc Unfollow(Request) returns (Unfollowed);
+}
+
 // What an Installed Plugin's `fulfill` export returns once its Fulfiller took the `Request` it was
 // handed. If the service didn't take it, the export fails instead, and its error is the reason the
 // Request shows as Failed.
@@ -68,7 +97,7 @@ enum DownloadStatus {
 
 // What a delete asks a Fulfiller to stop monitoring, so its service doesn't download it again.
 // The service keeps the title, and one it doesn't have means nothing to do. An Installed Plugin's
-// `stop_monitoring` export takes it and returns nothing.
+// `stop_monitoring` export takes it and returns `StoppedMonitoring`.
 message StopMonitoring {
   reserved 1;
   reserved "movie_tmdb_id";
@@ -113,3 +142,10 @@ message EpisodeNumber {
   uint32 season_number = 1;
   uint32 episode_number = 2;
 }
+
+// What an Installed Plugin's `stop_monitoring` export returns. Empty, so it encodes to nothing and
+// an export returning nothing returns it.
+message StoppedMonitoring {}
+
+// What an Installed Plugin's `unfollow` export returns. Empty, as `StoppedMonitoring` is.
+message Unfollowed {}

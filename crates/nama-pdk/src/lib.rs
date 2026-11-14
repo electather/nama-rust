@@ -52,9 +52,10 @@ pub use extism_pdk::{self, FnResult, plugin_fn};
 pub use nama_plugin_proto::{
     self,
     nama::plugin::v1::{
-        CheckedSettings, ConnectionStarted, Download, Fulfilled, Manifest, Notification, Request,
-        StopMonitoring, TitleId, delivery::Recipient,
+        CheckedSettings, ConnectionStarted, Download, Fulfilled, Manifest, Notification, Point,
+        Request, StopMonitoring, TitleId, delivery::Recipient,
     },
+    services,
 };
 
 use extism_pdk::{Error, FromBytesOwned, HttpRequest, HttpResponse, ToBytes, ToMemory};
@@ -100,10 +101,44 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
     }
 }
 
+/// The Extension Point `service`, one of [`services`], at the versions this `nama-pdk` was built
+/// against, for a Manifest's `points`:
+///
+/// ```
+/// use nama_pdk::{Manifest, services};
+///
+/// let manifest = Manifest {
+///     points: vec![nama_pdk::point(services::NOTIFIER)],
+///     ..nama_pdk::manifest("hello", "0.1.0")
+/// };
+/// ```
+///
+/// # Panics
+///
+/// When `service` isn't one of [`services`]: a Plugin's own bug, which its first `manifest()`
+/// call finds.
+#[must_use]
+#[expect(
+    clippy::panic,
+    reason = "an unknown service is the Plugin author's bug"
+)]
+pub fn point(service: &str) -> Point {
+    let &(service, version) = nama_plugin_proto::SERVICES
+        .iter()
+        .find(|&&(name, _)| name == service)
+        .unwrap_or_else(|| panic!("{service} isn't an Extension Point of the Plugin contract"));
+    Point {
+        service: service.to_owned(),
+        version: format!("^{version}"),
+        ..Point::default()
+    }
+}
+
 /// A Fulfiller: hands Approved Movie or Season Requests to an outside service, such as Radarr
-/// (ADR 0003). Its Manifest lists `PROVIDE_POINT_MOVIE_FULFILLER`, `PROVIDE_POINT_SHOW_FULFILLER` or
-/// both in `providers`, names the id namespaces it can find a title by in `movie_id_namespaces`
-/// and `show_id_namespaces`, such as `tmdb`, and [`fulfiller!`] exports it:
+/// (ADR 0003). Its Manifest's `points` name [`services::MOVIE_FULFILLER`],
+/// [`services::SHOW_FULFILLER`] or both, built with [`point`]; it names the id namespaces it can
+/// find a title by in `movie_id_namespaces` and `show_id_namespaces`, such as `tmdb`, and
+/// [`fulfiller!`] exports it:
 ///
 /// ```
 /// use std::collections::HashMap;
@@ -236,7 +271,7 @@ macro_rules! fulfiller {
 
 /// A Notifier: tells people about Requests through an outside service, such as Telegram (ADR
 /// 0021). The Server decides who is told what, and hands it each notification with its recipient.
-/// Its Manifest lists `PROVIDE_POINT_NOTIFIER` in `providers`, and [`notifier!`] exports it:
+/// Its Manifest's `points` name [`services::NOTIFIER`], and [`notifier!`] exports it:
 ///
 /// ```
 /// use nama_pdk::{Notification, Notifier, Recipient, extism_pdk::Error};
@@ -320,7 +355,7 @@ macro_rules! notifier {
 
 /// A Connector: connects a User to an outside service through a link they open, such as a
 /// Telegram deep link (ADR 0021). The Server keeps what it finds as the User's Plugin Connection.
-/// Its Manifest lists `PROVIDE_POINT_CONNECTOR` in `providers`, and [`connector!`] exports it:
+/// Its Manifest's `points` name [`services::CONNECTOR`], and [`connector!`] exports it:
 ///
 /// ```
 /// use nama_pdk::{ConnectionStarted, Connector, extism_pdk::Error};

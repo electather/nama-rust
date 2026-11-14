@@ -15,6 +15,7 @@ use buffa::{
 use extism::{CompiledPlugin, CurrentPlugin, PluginBuilder, UserData, Val, ValType, Wasm};
 use nama_plugin_api::{
     Manifest, PluginId,
+    metadata::{ExternalId, InvalidId},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use nama_plugin_proto::{CONTRACT_VERSION, nama::plugin::v1 as wire};
@@ -173,6 +174,7 @@ fn contract_requirement(mut bytes: &[u8]) -> Result<String, DecodeError> {
 /// no Package.
 pub(super) fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<Manifest, Refused> {
     check_allowed_hosts(&package.allowed_hosts)?;
+    check_namespaces(package)?;
     let points = points(package)?;
     check_exports(&points, |export| exported.contains(&export))?;
     manifest(package, &points)
@@ -292,6 +294,30 @@ pub(super) fn check_allowed_hosts(hosts: &[String]) -> Result<(), Refused> {
         Some(host) => Err(Refused::HostWithPort(host.clone())),
         None => Ok(()),
     }
+}
+
+/// Checks that each id namespace a Manifest's Fulfillers name is one, by `ExternalId`'s rule.
+fn check_namespaces(package: &wire::Manifest) -> Result<(), Refused> {
+    let fields = [
+        ("movie_id_namespaces", &package.movie_id_namespaces),
+        ("show_id_namespaces", &package.show_id_namespaces),
+    ];
+    for (field, namespaces) in fields {
+        // Any value will do: only the namespace is being checked.
+        let malformed = namespaces.iter().find(|namespace| {
+            matches!(
+                ExternalId::new(namespace, "_"),
+                Err(InvalidId::Namespace(_))
+            )
+        });
+        if let Some(namespace) = malformed {
+            return Err(Refused::BadNamespace {
+                field,
+                namespace: namespace.clone(),
+            });
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema, Refused> {

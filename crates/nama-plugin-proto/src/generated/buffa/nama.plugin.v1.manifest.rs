@@ -195,332 +195,6 @@ impl ::buffa::Enumeration for SettingKind {
         ]
     }
 }
-/// An Observe Extension Point an Installed Plugin can register an Observer at.
-#[allow(non_camel_case_types)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-#[repr(i32)]
-pub enum ObservePoint {
-    OBSERVE_POINT_UNSPECIFIED = 0i32,
-    /// Things happened in the Kernel: the kinds of `Event` the contract has. The Plugin's
-    /// `observe_events` export takes each batch as `ObservedEvents` and returns nothing.
-    OBSERVE_POINT_EVENTS = 1i32,
-}
-impl ObservePoint {
-    ///Idiomatic alias for [`Self::OBSERVE_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Unspecified: Self = Self::OBSERVE_POINT_UNSPECIFIED;
-    ///Idiomatic alias for [`Self::OBSERVE_POINT_EVENTS`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Events: Self = Self::OBSERVE_POINT_EVENTS;
-}
-impl ::core::default::Default for ObservePoint {
-    fn default() -> Self {
-        Self::OBSERVE_POINT_UNSPECIFIED
-    }
-}
-impl ::serde::Serialize for ObservePoint {
-    fn serialize<S: ::serde::Serializer>(
-        &self,
-        s: S,
-    ) -> ::core::result::Result<S::Ok, S::Error> {
-        s.serialize_str(::buffa::Enumeration::proto_name(self))
-    }
-}
-impl<'de> ::serde::Deserialize<'de> for ObservePoint {
-    fn deserialize<D: ::serde::Deserializer<'de>>(
-        d: D,
-    ) -> ::core::result::Result<Self, D::Error> {
-        struct _V;
-        impl ::serde::de::Visitor<'_> for _V {
-            type Value = ObservePoint;
-            fn expecting(
-                &self,
-                f: &mut ::core::fmt::Formatter<'_>,
-            ) -> ::core::fmt::Result {
-                f.write_str(
-                    concat!("a string, integer, or null for ", stringify!(ObservePoint)),
-                )
-            }
-            fn visit_str<E: ::serde::de::Error>(
-                self,
-                v: &str,
-            ) -> ::core::result::Result<ObservePoint, E> {
-                <ObservePoint as ::buffa::Enumeration>::from_proto_name(v)
-                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
-            }
-            fn visit_i64<E: ::serde::de::Error>(
-                self,
-                v: i64,
-            ) -> ::core::result::Result<ObservePoint, E> {
-                let v32 = i32::try_from(v)
-                    .map_err(|_| {
-                        ::serde::de::Error::custom(
-                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
-                        )
-                    })?;
-                <ObservePoint as ::buffa::Enumeration>::from_i32(v32)
-                    .ok_or_else(|| {
-                        ::serde::de::Error::custom(
-                            ::buffa::alloc::format!("unknown enum value {v32}"),
-                        )
-                    })
-            }
-            fn visit_u64<E: ::serde::de::Error>(
-                self,
-                v: u64,
-            ) -> ::core::result::Result<ObservePoint, E> {
-                let v32 = i32::try_from(v)
-                    .map_err(|_| {
-                        ::serde::de::Error::custom(
-                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
-                        )
-                    })?;
-                <ObservePoint as ::buffa::Enumeration>::from_i32(v32)
-                    .ok_or_else(|| {
-                        ::serde::de::Error::custom(
-                            ::buffa::alloc::format!("unknown enum value {v32}"),
-                        )
-                    })
-            }
-            fn visit_unit<E: ::serde::de::Error>(
-                self,
-            ) -> ::core::result::Result<ObservePoint, E> {
-                ::core::result::Result::Ok(::core::default::Default::default())
-            }
-        }
-        d.deserialize_any(_V)
-    }
-}
-impl ::buffa::json_helpers::ProtoElemJson for ObservePoint {
-    fn serialize_proto_json<S: ::serde::Serializer>(
-        v: &Self,
-        s: S,
-    ) -> ::core::result::Result<S::Ok, S::Error> {
-        ::serde::Serialize::serialize(v, s)
-    }
-    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
-        d: D,
-    ) -> ::core::result::Result<Self, D::Error> {
-        <Self as ::serde::Deserialize>::deserialize(d)
-    }
-}
-impl ::buffa::Enumeration for ObservePoint {
-    fn from_i32(value: i32) -> ::core::option::Option<Self> {
-        match value {
-            0i32 => ::core::option::Option::Some(Self::OBSERVE_POINT_UNSPECIFIED),
-            1i32 => ::core::option::Option::Some(Self::OBSERVE_POINT_EVENTS),
-            _ => ::core::option::Option::None,
-        }
-    }
-    fn to_i32(&self) -> i32 {
-        *self as i32
-    }
-    fn proto_name(&self) -> &'static str {
-        match self {
-            Self::OBSERVE_POINT_UNSPECIFIED => "OBSERVE_POINT_UNSPECIFIED",
-            Self::OBSERVE_POINT_EVENTS => "OBSERVE_POINT_EVENTS",
-        }
-    }
-    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
-        match name {
-            "OBSERVE_POINT_UNSPECIFIED" => {
-                ::core::option::Option::Some(Self::OBSERVE_POINT_UNSPECIFIED)
-            }
-            "OBSERVE_POINT_EVENTS" => {
-                ::core::option::Option::Some(Self::OBSERVE_POINT_EVENTS)
-            }
-            _ => ::core::option::Option::None,
-        }
-    }
-    fn values() -> &'static [Self] {
-        &[Self::OBSERVE_POINT_UNSPECIFIED, Self::OBSERVE_POINT_EVENTS]
-    }
-}
-/// A capability an Installed Plugin can register a Provider for.
-#[allow(non_camel_case_types)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-#[repr(i32)]
-pub enum ProvidePoint {
-    PROVIDE_POINT_UNSPECIFIED = 0i32,
-    /// The Fulfiller for Movie Requests. The Plugin's `fulfill` export takes each `Request` and
-    /// returns `Fulfilled`, and its `progress` export takes `ProgressAsked` and
-    /// returns `Progress`. Its `stop_monitoring` export, which takes `StopMonitoring`, is optional: a
-    /// Plugin without it isn't asked.
-    PROVIDE_POINT_MOVIE_FULFILLER = 1i32,
-    /// The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER and
-    /// an `unfollow` export, which takes the `Request` for a Season of a Followed Show that ended,
-    /// stops following the Show and returns nothing. A Plugin providing both tells a Movie Request
-    /// from a Season one by which it holds.
-    PROVIDE_POINT_SHOW_FULFILLER = 2i32,
-    /// A Notifier. The Plugin's `deliver` export takes each notification as `Delivery` and returns
-    /// `Delivered`, or fails with why the service didn't take it, which the Server logs.
-    PROVIDE_POINT_NOTIFIER = 3i32,
-    /// A Connector, which connects Users to the outside service. The Plugin's `start_connection`
-    /// export takes `ConnectionStart` and returns `ConnectionStarted`, and its `poll_connection` export
-    /// takes `ConnectionPoll` and returns `ConnectionPolled`.
-    PROVIDE_POINT_CONNECTOR = 4i32,
-}
-impl ProvidePoint {
-    ///Idiomatic alias for [`Self::PROVIDE_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Unspecified: Self = Self::PROVIDE_POINT_UNSPECIFIED;
-    ///Idiomatic alias for [`Self::PROVIDE_POINT_MOVIE_FULFILLER`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const MovieFulfiller: Self = Self::PROVIDE_POINT_MOVIE_FULFILLER;
-    ///Idiomatic alias for [`Self::PROVIDE_POINT_SHOW_FULFILLER`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const ShowFulfiller: Self = Self::PROVIDE_POINT_SHOW_FULFILLER;
-    ///Idiomatic alias for [`Self::PROVIDE_POINT_NOTIFIER`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Notifier: Self = Self::PROVIDE_POINT_NOTIFIER;
-    ///Idiomatic alias for [`Self::PROVIDE_POINT_CONNECTOR`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const Connector: Self = Self::PROVIDE_POINT_CONNECTOR;
-}
-impl ::core::default::Default for ProvidePoint {
-    fn default() -> Self {
-        Self::PROVIDE_POINT_UNSPECIFIED
-    }
-}
-impl ::serde::Serialize for ProvidePoint {
-    fn serialize<S: ::serde::Serializer>(
-        &self,
-        s: S,
-    ) -> ::core::result::Result<S::Ok, S::Error> {
-        s.serialize_str(::buffa::Enumeration::proto_name(self))
-    }
-}
-impl<'de> ::serde::Deserialize<'de> for ProvidePoint {
-    fn deserialize<D: ::serde::Deserializer<'de>>(
-        d: D,
-    ) -> ::core::result::Result<Self, D::Error> {
-        struct _V;
-        impl ::serde::de::Visitor<'_> for _V {
-            type Value = ProvidePoint;
-            fn expecting(
-                &self,
-                f: &mut ::core::fmt::Formatter<'_>,
-            ) -> ::core::fmt::Result {
-                f.write_str(
-                    concat!("a string, integer, or null for ", stringify!(ProvidePoint)),
-                )
-            }
-            fn visit_str<E: ::serde::de::Error>(
-                self,
-                v: &str,
-            ) -> ::core::result::Result<ProvidePoint, E> {
-                <ProvidePoint as ::buffa::Enumeration>::from_proto_name(v)
-                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
-            }
-            fn visit_i64<E: ::serde::de::Error>(
-                self,
-                v: i64,
-            ) -> ::core::result::Result<ProvidePoint, E> {
-                let v32 = i32::try_from(v)
-                    .map_err(|_| {
-                        ::serde::de::Error::custom(
-                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
-                        )
-                    })?;
-                <ProvidePoint as ::buffa::Enumeration>::from_i32(v32)
-                    .ok_or_else(|| {
-                        ::serde::de::Error::custom(
-                            ::buffa::alloc::format!("unknown enum value {v32}"),
-                        )
-                    })
-            }
-            fn visit_u64<E: ::serde::de::Error>(
-                self,
-                v: u64,
-            ) -> ::core::result::Result<ProvidePoint, E> {
-                let v32 = i32::try_from(v)
-                    .map_err(|_| {
-                        ::serde::de::Error::custom(
-                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
-                        )
-                    })?;
-                <ProvidePoint as ::buffa::Enumeration>::from_i32(v32)
-                    .ok_or_else(|| {
-                        ::serde::de::Error::custom(
-                            ::buffa::alloc::format!("unknown enum value {v32}"),
-                        )
-                    })
-            }
-            fn visit_unit<E: ::serde::de::Error>(
-                self,
-            ) -> ::core::result::Result<ProvidePoint, E> {
-                ::core::result::Result::Ok(::core::default::Default::default())
-            }
-        }
-        d.deserialize_any(_V)
-    }
-}
-impl ::buffa::json_helpers::ProtoElemJson for ProvidePoint {
-    fn serialize_proto_json<S: ::serde::Serializer>(
-        v: &Self,
-        s: S,
-    ) -> ::core::result::Result<S::Ok, S::Error> {
-        ::serde::Serialize::serialize(v, s)
-    }
-    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
-        d: D,
-    ) -> ::core::result::Result<Self, D::Error> {
-        <Self as ::serde::Deserialize>::deserialize(d)
-    }
-}
-impl ::buffa::Enumeration for ProvidePoint {
-    fn from_i32(value: i32) -> ::core::option::Option<Self> {
-        match value {
-            0i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_UNSPECIFIED),
-            1i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_MOVIE_FULFILLER),
-            2i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_SHOW_FULFILLER),
-            3i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_NOTIFIER),
-            4i32 => ::core::option::Option::Some(Self::PROVIDE_POINT_CONNECTOR),
-            _ => ::core::option::Option::None,
-        }
-    }
-    fn to_i32(&self) -> i32 {
-        *self as i32
-    }
-    fn proto_name(&self) -> &'static str {
-        match self {
-            Self::PROVIDE_POINT_UNSPECIFIED => "PROVIDE_POINT_UNSPECIFIED",
-            Self::PROVIDE_POINT_MOVIE_FULFILLER => "PROVIDE_POINT_MOVIE_FULFILLER",
-            Self::PROVIDE_POINT_SHOW_FULFILLER => "PROVIDE_POINT_SHOW_FULFILLER",
-            Self::PROVIDE_POINT_NOTIFIER => "PROVIDE_POINT_NOTIFIER",
-            Self::PROVIDE_POINT_CONNECTOR => "PROVIDE_POINT_CONNECTOR",
-        }
-    }
-    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
-        match name {
-            "PROVIDE_POINT_UNSPECIFIED" => {
-                ::core::option::Option::Some(Self::PROVIDE_POINT_UNSPECIFIED)
-            }
-            "PROVIDE_POINT_MOVIE_FULFILLER" => {
-                ::core::option::Option::Some(Self::PROVIDE_POINT_MOVIE_FULFILLER)
-            }
-            "PROVIDE_POINT_SHOW_FULFILLER" => {
-                ::core::option::Option::Some(Self::PROVIDE_POINT_SHOW_FULFILLER)
-            }
-            "PROVIDE_POINT_NOTIFIER" => {
-                ::core::option::Option::Some(Self::PROVIDE_POINT_NOTIFIER)
-            }
-            "PROVIDE_POINT_CONNECTOR" => {
-                ::core::option::Option::Some(Self::PROVIDE_POINT_CONNECTOR)
-            }
-            _ => ::core::option::Option::None,
-        }
-    }
-    fn values() -> &'static [Self] {
-        &[
-            Self::PROVIDE_POINT_UNSPECIFIED,
-            Self::PROVIDE_POINT_MOVIE_FULFILLER,
-            Self::PROVIDE_POINT_SHOW_FULFILLER,
-            Self::PROVIDE_POINT_NOTIFIER,
-            Self::PROVIDE_POINT_CONNECTOR,
-        ]
-    }
-}
 /// What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
 /// `manifest()` export, which takes no input.
 ///
@@ -586,26 +260,6 @@ pub struct Manifest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub allowed_hosts: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
-    /// The Extension Points the Plugin registers an Observer at. A Server refuses a Plugin naming
-    /// one it doesn't know, or lacking an export one needs.
-    ///
-    /// Field 6: `observers`
-    #[serde(
-        rename = "observers",
-        with = "::buffa::json_helpers::repeated_enum",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
-    )]
-    pub observers: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ObservePoint>>,
-    /// The capabilities the Plugin registers a Provider for. A Server refuses a Plugin naming one it
-    /// doesn't know, or lacking an export one needs.
-    ///
-    /// Field 7: `providers`
-    #[serde(
-        rename = "providers",
-        with = "::buffa::json_helpers::repeated_enum",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
-    )]
-    pub providers: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ProvidePoint>>,
     /// What admins know the Plugin by, such as "Sonarr". Optional: its `id` stands in.
     ///
     /// Field 8: `name`
@@ -638,10 +292,10 @@ pub struct Manifest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub logo_svg: ::buffa::alloc::string::String,
-    /// The id namespaces the Plugin's Movie Fulfiller can find a title by, such as "tmdb". The
-    /// Kernel hands it a Request only when the title has an id in at least one of them, and otherwise
-    /// fails the Request saying which id is missing. Empty means any title. Ignored unless the Plugin
-    /// provides PROVIDE_POINT_MOVIE_FULFILLER.
+    /// The id namespaces the Plugin's `MovieFulfillerService` can find a title by, such as "tmdb",
+    /// each one or more of a-z and 0-9. The Kernel hands it a Request only when the title has an id
+    /// in at least one of them, and otherwise fails the Request saying which id is missing. Empty
+    /// means any title. Ignored unless `points` names `MovieFulfillerService`.
     ///
     /// Field 11: `movie_id_namespaces`
     #[serde(
@@ -651,9 +305,8 @@ pub struct Manifest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub movie_id_namespaces: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
-    /// The id namespaces the Plugin's Show Fulfiller can find a title by, such as "tvdb", as
-    /// `movie_id_namespaces` is for Movies. Ignored unless the Plugin provides
-    /// PROVIDE_POINT_SHOW_FULFILLER.
+    /// The id namespaces the Plugin's `ShowFulfillerService` can find a title by, such as "tvdb", as
+    /// `movie_id_namespaces` is for Movies. Ignored unless `points` names `ShowFulfillerService`.
     ///
     /// Field 12: `show_id_namespaces`
     #[serde(
@@ -663,6 +316,16 @@ pub struct Manifest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub show_id_namespaces: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The Extension Points the Plugin serves. A Server refuses a Plugin naming one it doesn't
+    /// serve, at a version it doesn't serve, or lacking an export one needs.
+    ///
+    /// Field 13: `points`
+    #[serde(
+        rename = "points",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub points: ::buffa::alloc::vec::Vec<Point>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -675,13 +338,12 @@ impl ::core::fmt::Debug for Manifest {
             .field("contract", &self.contract)
             .field("settings", &self.settings)
             .field("allowed_hosts", &self.allowed_hosts)
-            .field("observers", &self.observers)
-            .field("providers", &self.providers)
             .field("name", &self.name)
             .field("description", &self.description)
             .field("logo_svg", &self.logo_svg)
             .field("movie_id_namespaces", &self.movie_id_namespaces)
             .field("show_id_namespaces", &self.show_id_namespaces)
+            .field("points", &self.points)
             .finish()
     }
 }
@@ -732,22 +394,6 @@ impl ::buffa::Message for Manifest {
         for v in &self.allowed_hosts {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
-        if !self.observers.is_empty() {
-            let payload: u64 = self
-                .observers
-                .iter()
-                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
-                .sum::<u64>();
-            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
-        }
-        if !self.providers.is_empty() {
-            let payload: u64 = self
-                .providers
-                .iter()
-                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
-                .sum::<u64>();
-            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
-        }
         if !self.name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
         }
@@ -762,6 +408,14 @@ impl ::buffa::Message for Manifest {
         }
         for v in &self.show_id_namespaces {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.points {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -793,28 +447,6 @@ impl ::buffa::Message for Manifest {
         for v in &self.allowed_hosts {
             ::buffa::types::put_string_field(5u32, v, buf);
         }
-        if !self.observers.is_empty() {
-            let payload: u64 = self
-                .observers
-                .iter()
-                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
-                .sum::<u64>();
-            ::buffa::types::put_len_delimited_header(6u32, payload, buf);
-            for v in &self.observers {
-                ::buffa::types::encode_int32(v.to_i32(), buf);
-            }
-        }
-        if !self.providers.is_empty() {
-            let payload: u64 = self
-                .providers
-                .iter()
-                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
-                .sum::<u64>();
-            ::buffa::types::put_len_delimited_header(7u32, payload, buf);
-            for v in &self.providers {
-                ::buffa::types::encode_int32(v.to_i32(), buf);
-            }
-        }
         if !self.name.is_empty() {
             ::buffa::types::put_string_field(8u32, &self.name, buf);
         }
@@ -829,6 +461,14 @@ impl ::buffa::Message for Manifest {
         }
         for v in &self.show_id_namespaces {
             ::buffa::types::put_string_field(12u32, v, buf);
+        }
+        for v in &self.points {
+            ::buffa::types::put_len_delimited_header(
+                13u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -887,82 +527,6 @@ impl ::buffa::Message for Manifest {
                 )?;
                 self.allowed_hosts.push(__elem);
             }
-            6u32 => {
-                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
-                    let len = ::buffa::encoding::decode_varint(buf)?;
-                    let len = usize::try_from(len)
-                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
-                    if buf.remaining() < len {
-                        return ::core::result::Result::Err(
-                            ::buffa::DecodeError::UnexpectedEof,
-                        );
-                    }
-                    self.observers.reserve(len);
-                    let mut limited = buf.take(len);
-                    while limited.has_remaining() {
-                        self.observers
-                            .push(
-                                ::buffa::EnumValue::from(
-                                    ::buffa::types::decode_int32_packed(&mut limited)?,
-                                ),
-                            );
-                    }
-                    let leftover = limited.remaining();
-                    if leftover > 0 {
-                        limited.advance(leftover);
-                    }
-                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
-                    self.observers
-                        .push(
-                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
-                        );
-                } else {
-                    return ::core::result::Result::Err(
-                        ::buffa::encoding::wire_type_mismatch(
-                            tag,
-                            ::buffa::encoding::WireType::LengthDelimited,
-                        ),
-                    );
-                }
-            }
-            7u32 => {
-                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
-                    let len = ::buffa::encoding::decode_varint(buf)?;
-                    let len = usize::try_from(len)
-                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
-                    if buf.remaining() < len {
-                        return ::core::result::Result::Err(
-                            ::buffa::DecodeError::UnexpectedEof,
-                        );
-                    }
-                    self.providers.reserve(len);
-                    let mut limited = buf.take(len);
-                    while limited.has_remaining() {
-                        self.providers
-                            .push(
-                                ::buffa::EnumValue::from(
-                                    ::buffa::types::decode_int32_packed(&mut limited)?,
-                                ),
-                            );
-                    }
-                    let leftover = limited.remaining();
-                    if leftover > 0 {
-                        limited.advance(leftover);
-                    }
-                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
-                    self.providers
-                        .push(
-                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
-                        );
-                } else {
-                    return ::core::result::Result::Err(
-                        ::buffa::encoding::wire_type_mismatch(
-                            tag,
-                            ::buffa::encoding::WireType::LengthDelimited,
-                        ),
-                    );
-                }
-            }
             8u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -1006,6 +570,18 @@ impl ::buffa::Message for Manifest {
                 )?;
                 self.show_id_namespaces.push(__elem);
             }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.points.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1019,13 +595,12 @@ impl ::buffa::Message for Manifest {
         self.contract.clear();
         self.settings.clear();
         self.allowed_hosts.clear();
-        self.observers.clear();
-        self.providers.clear();
         self.name.clear();
         self.description.clear();
         self.logo_svg.clear();
         self.movie_id_namespaces.clear();
         self.show_id_namespaces.clear();
+        self.points.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1056,6 +631,161 @@ pub const __MANIFEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::t
     type_url: "type.googleapis.com/nama.plugin.v1.Manifest",
     to_json: ::buffa::type_registry::any_to_json::<Manifest>,
     from_json: ::buffa::type_registry::any_from_json::<Manifest>,
+    is_wkt: false,
+};
+/// An Extension Point an Installed Plugin serves: a service of this package, whose rpcs name the
+/// WASM exports the Kernel calls.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct Point {
+    /// The service's full name, such as "nama.plugin.v1.MovieFulfillerService".
+    ///
+    /// Field 1: `service`
+    #[serde(
+        rename = "service",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub service: ::buffa::alloc::string::String,
+    /// The versions of the service the Plugin works with, as a Cargo-style semver requirement such
+    /// as "^1.0.0". Each service has a version of its own, apart from `Manifest.contract`.
+    ///
+    /// Field 2: `version`
+    #[serde(
+        rename = "version",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub version: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for Point {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Point")
+            .field("service", &self.service)
+            .field("version", &self.version)
+            .finish()
+    }
+}
+impl Point {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Point";
+}
+::buffa::impl_default_instance!(Point);
+impl ::buffa::MessageName for Point {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Point";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Point";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Point";
+}
+impl ::buffa::Message for Point {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.service.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.service) as u64;
+        }
+        if !self.version.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.version) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.service.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.service, buf);
+        }
+        if !self.version.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.version, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.service, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.version, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.service.clear();
+        self.version.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for Point {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.Point";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for Point {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __POINT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.Point",
+    to_json: ::buffa::type_registry::any_to_json::<Point>,
+    from_json: ::buffa::type_registry::any_from_json::<Point>,
     is_wkt: false,
 };
 /// One setting an Installed Plugin takes.

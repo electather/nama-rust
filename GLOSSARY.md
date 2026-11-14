@@ -93,11 +93,11 @@ What an Installed Plugin is built against, with a version of its own that a Mani
 _Avoid_: plugin API, SDK, Nama API
 
 **Manifest**:
-What a Plugin says about itself before it is enabled: its id, name, version, description and logo, the Plugin contract versions it works with, its settings, the hosts it may reach, its Extension Points, and the ids its Fulfiller needs. A Built-in Plugin's comes from its code, an Installed Plugin's from its package. A Server outside those Plugin contract versions refuses the Plugin, as it refuses an Installed Plugin naming an Extension Point it doesn't know or lacking an export one needs, and a Plugin may take part only at the Extension Points it names.
+What a Plugin says about itself before it is enabled: its id, name, version, description and logo, the Plugin contract versions it works with, its settings, the hosts it may reach, its Extension Points, and the ids its Fulfiller needs. A Built-in Plugin's comes from its code, an Installed Plugin's from its package. An Installed Plugin's names each Extension Point by its service's full name with the versions of it the Plugin works with. A Server outside those Plugin contract versions refuses the Plugin, as it refuses an Installed Plugin naming an Extension Point it doesn't serve, at a version it doesn't serve, or lacking an export one needs, and a Plugin may take part only at the Extension Points it names.
 _Avoid_: descriptor, plugin.json, metadata
 
 **Extension Point**:
-A named place where the Kernel lets Plugins take part, declared as Observe or Provide.
+A named place where the Kernel lets Plugins take part, declared as Observe or Provide. One an Installed Plugin can serve is a service of the Plugin contract, such as `nama.plugin.v1.NotifierService`, with a version of its own (ADR 0043).
 _Avoid_: hook, seam, slot
 
 **Observer**:

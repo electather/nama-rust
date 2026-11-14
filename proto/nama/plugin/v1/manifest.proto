@@ -30,12 +30,8 @@ message Manifest {
   // "*.example.com". Ports aren't part of the match, so a host allows every port on it, and a
   // Server refuses a Plugin naming a host with one.
   repeated string allowed_hosts = 5;
-  // The Extension Points the Plugin registers an Observer at. A Server refuses a Plugin naming
-  // one it doesn't know, or lacking an export one needs.
-  repeated ObservePoint observers = 6;
-  // The capabilities the Plugin registers a Provider for. A Server refuses a Plugin naming one it
-  // doesn't know, or lacking an export one needs.
-  repeated ProvidePoint providers = 7;
+  reserved 6, 7;
+  reserved "observers", "providers";
   // What admins know the Plugin by, such as "Sonarr". Optional: its `id` stands in.
   string name = 8;
   // What the Plugin does, in one sentence. Optional.
@@ -46,15 +42,27 @@ message Manifest {
   // Plugin.
   // Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
   string logo_svg = 10;
-  // The id namespaces the Plugin's Movie Fulfiller can find a title by, such as "tmdb". The
-  // Kernel hands it a Request only when the title has an id in at least one of them, and otherwise
-  // fails the Request saying which id is missing. Empty means any title. Ignored unless the Plugin
-  // provides PROVIDE_POINT_MOVIE_FULFILLER.
+  // The id namespaces the Plugin's `MovieFulfillerService` can find a title by, such as "tmdb",
+  // each one or more of a-z and 0-9. The Kernel hands it a Request only when the title has an id
+  // in at least one of them, and otherwise fails the Request saying which id is missing. Empty
+  // means any title. Ignored unless `points` names `MovieFulfillerService`.
   repeated string movie_id_namespaces = 11;
-  // The id namespaces the Plugin's Show Fulfiller can find a title by, such as "tvdb", as
-  // `movie_id_namespaces` is for Movies. Ignored unless the Plugin provides
-  // PROVIDE_POINT_SHOW_FULFILLER.
+  // The id namespaces the Plugin's `ShowFulfillerService` can find a title by, such as "tvdb", as
+  // `movie_id_namespaces` is for Movies. Ignored unless `points` names `ShowFulfillerService`.
   repeated string show_id_namespaces = 12;
+  // The Extension Points the Plugin serves. A Server refuses a Plugin naming one it doesn't
+  // serve, at a version it doesn't serve, or lacking an export one needs.
+  repeated Point points = 13;
+}
+
+// An Extension Point an Installed Plugin serves: a service of this package, whose rpcs name the
+// WASM exports the Kernel calls.
+message Point {
+  // The service's full name, such as "nama.plugin.v1.MovieFulfillerService".
+  string service = 1;
+  // The versions of the service the Plugin works with, as a Cargo-style semver requirement such
+  // as "^1.0.0". Each service has a version of its own, apart from `Manifest.contract`.
+  string version = 2;
 }
 
 // One setting an Installed Plugin takes.
@@ -122,34 +130,4 @@ message Choice {
   string value = 1;
   // What an admin picks it by, such as the profile's name.
   string label = 2;
-}
-
-// An Observe Extension Point an Installed Plugin can register an Observer at.
-enum ObservePoint {
-  OBSERVE_POINT_UNSPECIFIED = 0;
-  // Things happened in the Kernel: the kinds of `Event` the contract has. The Plugin's
-  // `observe_events` export takes each batch as `ObservedEvents` and returns nothing.
-  OBSERVE_POINT_EVENTS = 1;
-}
-
-// A capability an Installed Plugin can register a Provider for.
-enum ProvidePoint {
-  PROVIDE_POINT_UNSPECIFIED = 0;
-  // The Fulfiller for Movie Requests. The Plugin's `fulfill` export takes each `Request` and
-  // returns `Fulfilled`, and its `progress` export takes `ProgressAsked` and
-  // returns `Progress`. Its `stop_monitoring` export, which takes `StopMonitoring`, is optional: a
-  // Plugin without it isn't asked.
-  PROVIDE_POINT_MOVIE_FULFILLER = 1;
-  // The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER and
-  // an `unfollow` export, which takes the `Request` for a Season of a Followed Show that ended,
-  // stops following the Show and returns nothing. A Plugin providing both tells a Movie Request
-  // from a Season one by which it holds.
-  PROVIDE_POINT_SHOW_FULFILLER = 2;
-  // A Notifier. The Plugin's `deliver` export takes each notification as `Delivery` and returns
-  // `Delivered`, or fails with why the service didn't take it, which the Server logs.
-  PROVIDE_POINT_NOTIFIER = 3;
-  // A Connector, which connects Users to the outside service. The Plugin's `start_connection`
-  // export takes `ConnectionStart` and returns `ConnectionStarted`, and its `poll_connection` export
-  // takes `ConnectionPoll` and returns `ConnectionPolled`.
-  PROVIDE_POINT_CONNECTOR = 4;
 }

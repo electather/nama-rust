@@ -4,11 +4,23 @@ package nama.plugin.v1;
 
 import "nama/plugin/v1/request.proto";
 
-// What an Installed Plugin's Observer at `OBSERVE_POINT_EVENTS` is told: one batch of Events, in
+// The Extension Point for an Observer of what happens in the Kernel, served through the WASM
+// export the rpc names.
+service EventObserverService {
+  // The `observe_events` export: takes each batch of the kinds of `Event` the contract has.
+  // Required.
+  rpc ObserveEvents(ObservedEvents) returns (EventsObserved);
+}
+
+// What an Installed Plugin's Observer at `EventObserverService` is told: one batch of Events, in
 // the order they happened. Two batches may arrive in either order.
 message ObservedEvents {
   repeated Event events = 1;
 }
+
+// What an Installed Plugin's `observe_events` export returns. Empty, so it encodes to nothing and
+// an export returning nothing returns it.
+message EventsObserved {}
 
 // Something that happened in the Kernel. Left out on purpose: Request progress, Followed Show and
 // Playback events, which the Kernel doesn't tell an Installed Plugin. A kind joins when a Plugin

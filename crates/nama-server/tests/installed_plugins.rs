@@ -387,7 +387,7 @@ async fn a_plugin_naming_a_point_without_its_exports_is_refused_naming_the_expor
     let listed = started.listed("unexported.wasm").await.unwrap();
     assert_eq!(
         listed.refused_reason,
-        "its Manifest names PROVIDE_POINT_CONNECTOR, and it has no start_connection export"
+        "its Manifest names nama.plugin.v1.ConnectorService, and it has no start_connection export"
     );
     assert_refused(
         started

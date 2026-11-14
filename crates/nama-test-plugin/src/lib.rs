@@ -15,10 +15,10 @@ mod exports {
         Notifier, Recipient, Request,
         extism_pdk::{self, Error, HttpRequest, config, http},
         nama_plugin_proto::nama::plugin::v1::{
-            ObservePoint, ObservedEvents, ProvidePoint, SettingField, SettingKind, SettingValue,
-            request::MovieOrSeason, setting_value,
+            ObservedEvents, SettingField, SettingKind, SettingValue, request::MovieOrSeason,
+            setting_value,
         },
-        plugin_fn,
+        plugin_fn, services,
     };
 
     /// The setting that picks what its Observer does: `log`, `clock`, `hoard`, `loop` or
@@ -52,10 +52,10 @@ mod exports {
             Manifest {
                 name: "Test Plugin".to_owned(),
                 description: "Stands in for an Installed Plugin in the Server's tests.".to_owned(),
-                observers: vec![ObservePoint::OBSERVE_POINT_EVENTS.into()],
-                providers: vec![
-                    ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into(),
-                    ProvidePoint::PROVIDE_POINT_NOTIFIER.into(),
+                points: vec![
+                    nama_pdk::point(services::MOVIE_FULFILLER),
+                    nama_pdk::point(services::NOTIFIER),
+                    nama_pdk::point(services::EVENT_OBSERVER),
                 ],
                 settings: vec![
                     setting("url", SettingKind::SETTING_KIND_URL),
@@ -84,7 +84,10 @@ mod exports {
         };
         #[cfg(feature = "unexported-connector")]
         let manifest = Manifest {
-            providers: vec![ProvidePoint::PROVIDE_POINT_CONNECTOR.into()],
+            points: vec![
+                nama_pdk::point(services::CONNECTOR),
+                nama_pdk::point(services::EVENT_OBSERVER),
+            ],
             ..manifest
         };
         #[cfg(feature = "contract-0-1")]

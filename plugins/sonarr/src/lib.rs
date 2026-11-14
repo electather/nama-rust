@@ -16,10 +16,10 @@ mod exports {
         StopMonitoring, TitleId,
         extism_pdk::{self, Error},
         nama_plugin_proto::nama::plugin::v1::{
-            EpisodeNumbers, ProvidePoint, RequestedSeason, request::MovieOrSeason,
-            show_deleted::Deleted, stop_monitoring::Title,
+            EpisodeNumbers, RequestedSeason, request::MovieOrSeason, show_deleted::Deleted,
+            stop_monitoring::Title,
         },
-        plugin_fn, title_id,
+        plugin_fn, services, title_id,
     };
     use nama_servarr::{QualityProfile, Queued, Servarr};
     use serde::{Deserialize, Serialize};
@@ -35,7 +35,7 @@ mod exports {
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         Ok(Buffa(Manifest {
             logo_svg: include_str!("../logo.svg").to_owned(),
-            providers: vec![ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER.into()],
+            points: vec![nama_pdk::point(services::SHOW_FULFILLER)],
             show_id_namespaces: vec!["tvdb".to_owned()],
             settings: nama_servarr::settings("Sonarr", "Show", 8989),
             name: "Sonarr".to_owned(),

@@ -31,6 +31,32 @@ pub mod nama {
 /// The version of the Plugin contract, which an Installed Plugin's
 /// [`Manifest::contract`](nama::plugin::v1::Manifest::contract) requirement is matched against.
 ///
-/// It covers the `nama.plugin.v1` messages, the exports the Kernel calls and the functions it
-/// gives a Plugin. It is not this crate's version; `AGENTS.md` says when it changes.
+/// It covers the Manifest, the messages the services share and what the Kernel gives a Plugin;
+/// each service has a version of its own, in [`SERVICES`]. It is not this crate's version;
+/// `AGENTS.md` says when it changes.
 pub const CONTRACT_VERSION: &str = "0.3.0";
+
+/// The full names of the `nama.plugin.v1` services, the Extension Points an Installed Plugin can
+/// serve, as a Manifest's `Point.service` names them.
+pub mod services {
+    /// The Fulfiller for Movie Requests.
+    pub const MOVIE_FULFILLER: &str = "nama.plugin.v1.MovieFulfillerService";
+    /// The Fulfiller for Season Requests.
+    pub const SHOW_FULFILLER: &str = "nama.plugin.v1.ShowFulfillerService";
+    /// A Notifier.
+    pub const NOTIFIER: &str = "nama.plugin.v1.NotifierService";
+    /// A Connector, which connects Users to the outside service.
+    pub const CONNECTOR: &str = "nama.plugin.v1.ConnectorService";
+    /// An Observer of the Kernel's Events.
+    pub const EVENT_OBSERVER: &str = "nama.plugin.v1.EventObserverService";
+}
+
+/// Each service in [`services`] with its version, which a Manifest's `Point.version` requirement
+/// is matched against. `AGENTS.md` says when one changes.
+pub const SERVICES: &[(&str, &str)] = &[
+    (services::MOVIE_FULFILLER, "1.0.0"),
+    (services::SHOW_FULFILLER, "1.0.0"),
+    (services::NOTIFIER, "1.0.0"),
+    (services::CONNECTOR, "1.0.0"),
+    (services::EVENT_OBSERVER, "1.0.0"),
+];

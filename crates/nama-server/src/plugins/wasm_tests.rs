@@ -11,12 +11,13 @@ use nama_plugin_api::{
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use nama_plugin_proto::{
-    CONTRACT_VERSION,
-    nama::plugin::v1::{self as wire, Manifest, ObservePoint, ProvidePoint, setting_value},
+    CONTRACT_VERSION, SERVICES,
+    nama::plugin::v1::{self as wire, Manifest, setting_value},
+    services,
 };
 
 use super::{
-    Running, allowed_hosts,
+    POINTS, Running, allowed_hosts,
     bundled::BUNDLED,
     check_exports, compile, extism_config, is_crash,
     load::{check_allowed_hosts, decode, judge, load, settings_schema, write_cache_config},
@@ -209,6 +210,15 @@ fn a_setting_of_no_known_kind_refuses_the_plugin() {
     );
 }
 
+/// The Extension Point `service` at the versions `version`, as a Manifest names it.
+fn point(service: &str, version: &str) -> wire::Point {
+    wire::Point {
+        service: service.to_owned(),
+        version: version.to_owned(),
+        ..Default::default()
+    }
+}
+
 /// A Manifest this Server takes, for a Notifier with a logo, before each test changes it.
 fn notifier() -> Manifest {
     Manifest {
@@ -217,7 +227,7 @@ fn notifier() -> Manifest {
         description: "Stands in for an Installed Plugin.".to_owned(),
         version: "0.1.0".to_owned(),
         contract: format!("^{CONTRACT_VERSION}"),
-        providers: vec![ProvidePoint::PROVIDE_POINT_NOTIFIER.into()],
+        points: vec![point(services::NOTIFIER, "^1.0.0")],
         logo_svg: r#"<svg xmlns="http://www.w3.org/2000/svg"/>"#.to_owned(),
         ..Default::default()
     }
@@ -252,6 +262,39 @@ fn a_manifest_this_server_takes_is_read_as_the_kernel_reads_it() {
         [PointKey::provide::<dyn Notifier>()]
     );
     assert!(manifest.logo_svg.unwrap().contains("<svg"));
+}
+
+#[test]
+fn a_manifest_naming_served_versions_and_well_formed_namespaces_is_taken() {
+    let mut package = Manifest {
+        points: vec![
+            point(services::MOVIE_FULFILLER, "^1"),
+            point(services::SHOW_FULFILLER, ">=1.0.0, <2"),
+        ],
+        movie_id_namespaces: vec!["tmdb".to_owned(), "anidb2".to_owned()],
+        show_id_namespaces: vec!["tvdb".to_owned()],
+        ..notifier()
+    };
+
+    let manifest = judge(&mut package, &["fulfill", "progress", "unfollow"]).unwrap();
+
+    assert_eq!(
+        manifest.extension_points,
+        [
+            PointKey::provide::<dyn Fulfiller<Movies>>(),
+            PointKey::provide::<dyn Fulfiller<Shows>>(),
+        ]
+    );
+}
+
+#[test]
+fn every_point_this_server_serves_is_a_service_the_contract_versions() {
+    let mut served: Vec<_> = POINTS.iter().map(|point| point.service).collect();
+    served.sort_unstable();
+    let mut versioned: Vec<_> = SERVICES.iter().map(|&(service, _)| service).collect();
+    versioned.sort_unstable();
+
+    assert_eq!(served, versioned);
 }
 
 #[test]
@@ -327,11 +370,27 @@ fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
             ..notifier()
         },
         Manifest {
-            observers: vec![99.into()],
+            points: vec![point("nama.plugin.v1.TitleSourceService", "^1.0.0")],
             ..notifier()
         },
         Manifest {
-            providers: vec![ProvidePoint::PROVIDE_POINT_CONNECTOR.into()],
+            points: vec![point(services::NOTIFIER, "^2.0.0")],
+            ..notifier()
+        },
+        Manifest {
+            points: vec![point(services::NOTIFIER, "one")],
+            ..notifier()
+        },
+        Manifest {
+            movie_id_namespaces: vec!["tmdb".to_owned(), "TMDB".to_owned()],
+            ..notifier()
+        },
+        Manifest {
+            show_id_namespaces: vec!["tv-db".to_owned()],
+            ..notifier()
+        },
+        Manifest {
+            points: vec![point(services::CONNECTOR, "^1.0.0")],
             ..notifier()
         },
         Manifest {
@@ -358,8 +417,12 @@ fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
         refusals,
         [
             "its allowed host sonarr.lan:8989 has a port, and allowed hosts are matched without one".to_owned(),
-            "its Manifest names observer 99, an Extension Point this Server doesn't know".to_owned(),
-            "its Manifest names PROVIDE_POINT_CONNECTOR, and it has no start_connection export".to_owned(),
+            "its Manifest names nama.plugin.v1.TitleSourceService, an Extension Point this Server doesn't serve".to_owned(),
+            "it wants nama.plugin.v1.NotifierService ^2.0.0, and this Server serves 1.0.0".to_owned(),
+            "it wants nama.plugin.v1.NotifierService one, and this Server serves 1.0.0".to_owned(),
+            r#"its movie_id_namespaces names "TMDB", which isn't a namespace"#.to_owned(),
+            r#"its show_id_namespaces names "tv-db", which isn't a namespace"#.to_owned(),
+            "its Manifest names nama.plugin.v1.ConnectorService, and it has no start_connection export".to_owned(),
             "its setting count is of a kind this Server doesn't know".to_owned(),
             "its setting count's default isn't Integer".to_owned(),
         ]
@@ -451,9 +514,9 @@ fn every_bundled_plugin_declares_its_settings_kinds_and_defaults() {
     }
 }
 
-fn refused_for_lacking(named: ProvidePoint, export: &str) -> Option<String> {
+fn refused_for_lacking(service: &str, export: &str) -> Option<String> {
     let package = Manifest {
-        providers: vec![named.into()],
+        points: vec![point(service, "^1.0.0")],
         ..Default::default()
     };
     let points = points(&package).unwrap();
@@ -464,18 +527,18 @@ fn refused_for_lacking(named: ProvidePoint, export: &str) -> Option<String> {
 #[test]
 fn a_point_missing_one_of_its_exports_refuses_the_plugin_naming_the_export() {
     let refusals = [
-        (ProvidePoint::PROVIDE_POINT_NOTIFIER, "deliver"),
-        (ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER, "unfollow"),
-        (ProvidePoint::PROVIDE_POINT_CONNECTOR, "poll_connection"),
+        (services::NOTIFIER, "deliver"),
+        (services::SHOW_FULFILLER, "unfollow"),
+        (services::CONNECTOR, "poll_connection"),
     ]
     .map(|(named, export)| refused_for_lacking(named, export));
 
     assert_eq!(
         refusals,
         [
-            "its Manifest names PROVIDE_POINT_NOTIFIER, and it has no deliver export",
-            "its Manifest names PROVIDE_POINT_SHOW_FULFILLER, and it has no unfollow export",
-            "its Manifest names PROVIDE_POINT_CONNECTOR, and it has no poll_connection export",
+            "its Manifest names nama.plugin.v1.NotifierService, and it has no deliver export",
+            "its Manifest names nama.plugin.v1.ShowFulfillerService, and it has no unfollow export",
+            "its Manifest names nama.plugin.v1.ConnectorService, and it has no poll_connection export",
         ]
         .map(|refusal| Some(refusal.to_owned()))
     );
@@ -484,18 +547,15 @@ fn a_point_missing_one_of_its_exports_refuses_the_plugin_naming_the_export() {
 // The Kernel asks only a Show Fulfiller to unfollow.
 #[test]
 fn a_movie_fulfiller_needs_no_unfollow_export() {
-    let refused = refused_for_lacking(ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER, "unfollow");
+    let refused = refused_for_lacking(services::MOVIE_FULFILLER, "unfollow");
 
     assert_eq!(refused, None);
 }
 
 #[test]
 fn a_fulfiller_needs_no_stop_monitoring_export() {
-    let refused = [
-        ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER,
-        ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER,
-    ]
-    .map(|named| refused_for_lacking(named, "stop_monitoring"));
+    let refused = [services::MOVIE_FULFILLER, services::SHOW_FULFILLER]
+        .map(|named| refused_for_lacking(named, "stop_monitoring"));
 
     assert_eq!(refused, [None, None]);
 }
@@ -583,23 +643,27 @@ fn radarr_needs_a_tmdb_id_and_sonarr_a_tvdb_id() {
 
 #[test]
 fn a_point_this_server_doesnt_know_refuses_the_plugin() {
-    let unknown_provider = Manifest {
-        providers: vec![ProvidePoint::PROVIDE_POINT_NOTIFIER.into(), 99.into()],
+    let unknown_after_a_known_one = Manifest {
+        points: vec![
+            point(services::NOTIFIER, "^1.0.0"),
+            point("nama.plugin.v1.TitleSourceService", "^1.0.0"),
+        ],
         ..Default::default()
     };
-    let unspecified_observer = Manifest {
-        observers: vec![ObservePoint::OBSERVE_POINT_UNSPECIFIED.into()],
+    // A service is named by its full name alone.
+    let short_name = Manifest {
+        points: vec![point("NotifierService", "^1.0.0")],
         ..Default::default()
     };
 
-    let refusals = [unknown_provider, unspecified_observer]
+    let refusals = [unknown_after_a_known_one, short_name]
         .map(|package| points(&package).err().map(|refused| refused.to_string()));
 
     assert_eq!(
         refusals,
         [
-            "its Manifest names provider 99, an Extension Point this Server doesn't know",
-            "its Manifest names observer OBSERVE_POINT_UNSPECIFIED, an Extension Point this Server doesn't know",
+            "its Manifest names nama.plugin.v1.TitleSourceService, an Extension Point this Server doesn't serve",
+            "its Manifest names NotifierService, an Extension Point this Server doesn't serve",
         ]
         .map(|refusal| Some(refusal.to_owned()))
     );

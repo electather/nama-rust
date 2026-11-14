@@ -62,6 +62,7 @@ pub mod __buffa {
         reg.register_json_any(super::__REQUESTED_QUALITY_JSON_ANY);
         reg.register_json_any(super::__QUALITY_CHANGE_JSON_ANY);
         reg.register_json_any(super::__OBSERVED_EVENTS_JSON_ANY);
+        reg.register_json_any(super::__EVENTS_OBSERVED_JSON_ANY);
         reg.register_json_any(super::__EVENT_JSON_ANY);
         reg.register_json_any(super::__SCAN_STARTED_JSON_ANY);
         reg.register_json_any(super::__SCAN_PROGRESS_JSON_ANY);
@@ -87,7 +88,10 @@ pub mod __buffa {
         reg.register_json_any(super::__SHOW_DELETED_JSON_ANY);
         reg.register_json_any(super::__EPISODE_NUMBERS_JSON_ANY);
         reg.register_json_any(super::__EPISODE_NUMBER_JSON_ANY);
+        reg.register_json_any(super::__STOPPED_MONITORING_JSON_ANY);
+        reg.register_json_any(super::__UNFOLLOWED_JSON_ANY);
         reg.register_json_any(super::__MANIFEST_JSON_ANY);
+        reg.register_json_any(super::__POINT_JSON_ANY);
         reg.register_json_any(super::__SETTING_FIELD_JSON_ANY);
         reg.register_json_any(super::__CHECKED_SETTINGS_JSON_ANY);
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
@@ -147,6 +151,10 @@ pub use self::__buffa::view::QualityChangeOwnedView;
 pub use self::__buffa::view::ObservedEventsView;
 #[doc(inline)]
 pub use self::__buffa::view::ObservedEventsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EventsObservedView;
+#[doc(inline)]
+pub use self::__buffa::view::EventsObservedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::EventView;
 #[doc(inline)]
@@ -248,9 +256,21 @@ pub use self::__buffa::view::EpisodeNumberView;
 #[doc(inline)]
 pub use self::__buffa::view::EpisodeNumberOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::StoppedMonitoringView;
+#[doc(inline)]
+pub use self::__buffa::view::StoppedMonitoringOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnfollowedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnfollowedOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::ManifestView;
 #[doc(inline)]
 pub use self::__buffa::view::ManifestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PointView;
+#[doc(inline)]
+pub use self::__buffa::view::PointOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SettingFieldView;
 #[doc(inline)]

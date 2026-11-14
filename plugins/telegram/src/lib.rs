@@ -24,9 +24,9 @@ mod exports {
         RecipientGone,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
         nama_plugin_proto::nama::plugin::v1::{
-            ProvidePoint, SettingField, SettingKind, SettingValue, setting_value,
+            SettingField, SettingKind, SettingValue, setting_value,
         },
-        plugin_fn,
+        plugin_fn, services,
     };
     use serde::{
         Deserialize, Serialize,
@@ -48,9 +48,9 @@ mod exports {
         };
         Ok(Buffa(Manifest {
             logo_svg: include_str!("../logo.svg").to_owned(),
-            providers: vec![
-                ProvidePoint::PROVIDE_POINT_NOTIFIER.into(),
-                ProvidePoint::PROVIDE_POINT_CONNECTOR.into(),
+            points: vec![
+                nama_pdk::point(services::NOTIFIER),
+                nama_pdk::point(services::CONNECTOR),
             ],
             allowed_hosts: vec!["api.telegram.org".to_owned()],
             settings: vec![

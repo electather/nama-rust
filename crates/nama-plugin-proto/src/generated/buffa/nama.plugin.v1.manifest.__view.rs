@@ -41,22 +41,6 @@ pub struct ManifestView<'a> {
     ///
     /// Field 5: `allowed_hosts`
     pub allowed_hosts: ::buffa::RepeatedView<'a, &'a str>,
-    /// The Extension Points the Plugin registers an Observer at. A Server refuses a Plugin naming
-    /// one it doesn't know, or lacking an export one needs.
-    ///
-    /// Field 6: `observers`
-    pub observers: ::buffa::RepeatedView<
-        'a,
-        ::buffa::EnumValue<super::super::ObservePoint>,
-    >,
-    /// The capabilities the Plugin registers a Provider for. A Server refuses a Plugin naming one it
-    /// doesn't know, or lacking an export one needs.
-    ///
-    /// Field 7: `providers`
-    pub providers: ::buffa::RepeatedView<
-        'a,
-        ::buffa::EnumValue<super::super::ProvidePoint>,
-    >,
     /// What admins know the Plugin by, such as "Sonarr". Optional: its `id` stands in.
     ///
     /// Field 8: `name`
@@ -73,19 +57,23 @@ pub struct ManifestView<'a> {
     ///
     /// Field 10: `logo_svg`
     pub logo_svg: &'a str,
-    /// The id namespaces the Plugin's Movie Fulfiller can find a title by, such as "tmdb". The
-    /// Kernel hands it a Request only when the title has an id in at least one of them, and otherwise
-    /// fails the Request saying which id is missing. Empty means any title. Ignored unless the Plugin
-    /// provides PROVIDE_POINT_MOVIE_FULFILLER.
+    /// The id namespaces the Plugin's `MovieFulfillerService` can find a title by, such as "tmdb",
+    /// each one or more of a-z and 0-9. The Kernel hands it a Request only when the title has an id
+    /// in at least one of them, and otherwise fails the Request saying which id is missing. Empty
+    /// means any title. Ignored unless `points` names `MovieFulfillerService`.
     ///
     /// Field 11: `movie_id_namespaces`
     pub movie_id_namespaces: ::buffa::RepeatedView<'a, &'a str>,
-    /// The id namespaces the Plugin's Show Fulfiller can find a title by, such as "tvdb", as
-    /// `movie_id_namespaces` is for Movies. Ignored unless the Plugin provides
-    /// PROVIDE_POINT_SHOW_FULFILLER.
+    /// The id namespaces the Plugin's `ShowFulfillerService` can find a title by, such as "tvdb", as
+    /// `movie_id_namespaces` is for Movies. Ignored unless `points` names `ShowFulfillerService`.
     ///
     /// Field 12: `show_id_namespaces`
     pub show_id_namespaces: ::buffa::RepeatedView<'a, &'a str>,
+    /// The Extension Points the Plugin serves. A Server refuses a Plugin naming one it doesn't
+    /// serve, at a version it doesn't serve, or lacking an export one needs.
+    ///
+    /// Field 13: `points`
+    pub points: ::buffa::RepeatedView<'a, super::super::__buffa::view::PointView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
@@ -191,64 +179,6 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                 )?;
                 view.allowed_hosts.push(__elem);
             }
-            6u32 => {
-                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
-                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
-                    view.observers.reserve(::buffa::encoding::count_varints(payload));
-                    let mut pcur: &[u8] = payload;
-                    while !pcur.is_empty() {
-                        view.observers
-                            .push(
-                                ::buffa::EnumValue::from(
-                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
-                                ),
-                            );
-                    }
-                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
-                    view.observers
-                        .push(
-                            ::buffa::EnumValue::from(
-                                ::buffa::types::decode_int32(&mut cur)?,
-                            ),
-                        );
-                } else {
-                    return Err(
-                        ::buffa::encoding::wire_type_mismatch(
-                            tag,
-                            ::buffa::encoding::WireType::LengthDelimited,
-                        ),
-                    );
-                }
-            }
-            7u32 => {
-                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
-                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
-                    view.providers.reserve(::buffa::encoding::count_varints(payload));
-                    let mut pcur: &[u8] = payload;
-                    while !pcur.is_empty() {
-                        view.providers
-                            .push(
-                                ::buffa::EnumValue::from(
-                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
-                                ),
-                            );
-                    }
-                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
-                    view.providers
-                        .push(
-                            ::buffa::EnumValue::from(
-                                ::buffa::types::decode_int32(&mut cur)?,
-                            ),
-                        );
-                } else {
-                    return Err(
-                        ::buffa::encoding::wire_type_mismatch(
-                            tag,
-                            ::buffa::encoding::WireType::LengthDelimited,
-                        ),
-                    );
-                }
-            }
             11u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -270,6 +200,24 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                     ::buffa::__private::element_footprint(&__elem),
                 )?;
                 view.show_id_namespaces.push(__elem);
+            }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::PointView>(),
+                )?;
+                view.points
+                    .push(
+                        <super::super::__buffa::view::PointView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -302,8 +250,6 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             allowed_hosts: self.allowed_hosts.iter().map(|s| s.to_string()).collect(),
-            observers: self.observers.to_vec(),
-            providers: self.providers.to_vec(),
             name: self.name.to_string(),
             description: self.description.to_string(),
             logo_svg: self.logo_svg.to_string(),
@@ -317,6 +263,11 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
+            points: self
+                .points
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -348,22 +299,6 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         for v in &self.allowed_hosts {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
-        if !self.observers.is_empty() {
-            let payload: u64 = self
-                .observers
-                .iter()
-                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
-                .sum::<u64>();
-            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
-        }
-        if !self.providers.is_empty() {
-            let payload: u64 = self
-                .providers
-                .iter()
-                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
-                .sum::<u64>();
-            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
-        }
         if !self.name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
         }
@@ -378,6 +313,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         }
         for v in &self.show_id_namespaces {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.points {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -410,28 +353,6 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         for v in &self.allowed_hosts {
             ::buffa::types::put_string_field(5u32, v, buf);
         }
-        if !self.observers.is_empty() {
-            let payload: u64 = self
-                .observers
-                .iter()
-                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
-                .sum::<u64>();
-            ::buffa::types::put_len_delimited_header(6u32, payload, buf);
-            for v in &self.observers {
-                ::buffa::types::encode_int32(v.to_i32(), buf);
-            }
-        }
-        if !self.providers.is_empty() {
-            let payload: u64 = self
-                .providers
-                .iter()
-                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
-                .sum::<u64>();
-            ::buffa::types::put_len_delimited_header(7u32, payload, buf);
-            for v in &self.providers {
-                ::buffa::types::encode_int32(v.to_i32(), buf);
-            }
-        }
         if !self.name.is_empty() {
             ::buffa::types::put_string_field(8u32, &self.name, buf);
         }
@@ -446,6 +367,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         }
         for v in &self.show_id_namespaces {
             ::buffa::types::put_string_field(12u32, v, buf);
+        }
+        for v in &self.points {
+            ::buffa::types::put_len_delimited_header(
+                13u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -483,20 +412,6 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
         if !self.allowed_hosts.is_empty() {
             __map.serialize_entry("allowedHosts", &*self.allowed_hosts)?;
         }
-        if !self.observers.is_empty() {
-            __map
-                .serialize_entry(
-                    "observers",
-                    &::buffa::json_helpers::EnumSeqJson(&self.observers),
-                )?;
-        }
-        if !self.providers.is_empty() {
-            __map
-                .serialize_entry(
-                    "providers",
-                    &::buffa::json_helpers::EnumSeqJson(&self.providers),
-                )?;
-        }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
             __map.serialize_entry("name", self.name)?;
         }
@@ -511,6 +426,9 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
         }
         if !self.show_id_namespaces.is_empty() {
             __map.serialize_entry("showIdNamespaces", &*self.show_id_namespaces)?;
+        }
+        if !self.points.is_empty() {
+            __map.serialize_entry("points", &*self.points)?;
         }
         __map.end()
     }
@@ -645,26 +563,6 @@ impl ManifestOwnedView {
     pub fn allowed_hosts(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().allowed_hosts
     }
-    /// The Extension Points the Plugin registers an Observer at. A Server refuses a Plugin naming
-    /// one it doesn't know, or lacking an export one needs.
-    ///
-    /// Field 6: `observers`
-    #[must_use]
-    pub fn observers(
-        &self,
-    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::ObservePoint>> {
-        &self.0.reborrow().observers
-    }
-    /// The capabilities the Plugin registers a Provider for. A Server refuses a Plugin naming one it
-    /// doesn't know, or lacking an export one needs.
-    ///
-    /// Field 7: `providers`
-    #[must_use]
-    pub fn providers(
-        &self,
-    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::ProvidePoint>> {
-        &self.0.reborrow().providers
-    }
     /// What admins know the Plugin by, such as "Sonarr". Optional: its `id` stands in.
     ///
     /// Field 8: `name`
@@ -690,24 +588,33 @@ impl ManifestOwnedView {
     pub fn logo_svg(&self) -> &'_ str {
         self.0.reborrow().logo_svg
     }
-    /// The id namespaces the Plugin's Movie Fulfiller can find a title by, such as "tmdb". The
-    /// Kernel hands it a Request only when the title has an id in at least one of them, and otherwise
-    /// fails the Request saying which id is missing. Empty means any title. Ignored unless the Plugin
-    /// provides PROVIDE_POINT_MOVIE_FULFILLER.
+    /// The id namespaces the Plugin's `MovieFulfillerService` can find a title by, such as "tmdb",
+    /// each one or more of a-z and 0-9. The Kernel hands it a Request only when the title has an id
+    /// in at least one of them, and otherwise fails the Request saying which id is missing. Empty
+    /// means any title. Ignored unless `points` names `MovieFulfillerService`.
     ///
     /// Field 11: `movie_id_namespaces`
     #[must_use]
     pub fn movie_id_namespaces(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().movie_id_namespaces
     }
-    /// The id namespaces the Plugin's Show Fulfiller can find a title by, such as "tvdb", as
-    /// `movie_id_namespaces` is for Movies. Ignored unless the Plugin provides
-    /// PROVIDE_POINT_SHOW_FULFILLER.
+    /// The id namespaces the Plugin's `ShowFulfillerService` can find a title by, such as "tvdb", as
+    /// `movie_id_namespaces` is for Movies. Ignored unless `points` names `ShowFulfillerService`.
     ///
     /// Field 12: `show_id_namespaces`
     #[must_use]
     pub fn show_id_namespaces(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().show_id_namespaces
+    }
+    /// The Extension Points the Plugin serves. A Server refuses a Plugin naming one it doesn't
+    /// serve, at a version it doesn't serve, or lacking an export one needs.
+    ///
+    /// Field 13: `points`
+    #[must_use]
+    pub fn points(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::PointView<'_>> {
+        &self.0.reborrow().points
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ManifestView<'static>>>
@@ -733,6 +640,280 @@ impl ::buffa::HasMessageView for super::super::Manifest {
     type ViewHandle = ManifestOwnedView;
 }
 impl ::serde::Serialize for ManifestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// An Extension Point an Installed Plugin serves: a service of this package, whose rpcs name the
+/// WASM exports the Kernel calls.
+#[derive(Clone, Debug, Default)]
+pub struct PointView<'a> {
+    /// The service's full name, such as "nama.plugin.v1.MovieFulfillerService".
+    ///
+    /// Field 1: `service`
+    pub service: &'a str,
+    /// The versions of the service the Plugin works with, as a Cargo-style semver requirement such
+    /// as "^1.0.0". Each service has a version of its own, apart from `Manifest.contract`.
+    ///
+    /// Field 2: `version`
+    pub version: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PointView<'a> {
+    type Owned = super::super::Point;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.service = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.version = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::Point, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::Point, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::Point {
+            service: self.service.to_string(),
+            version: self.version.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PointView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.service.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.service) as u64;
+        }
+        if !self.version.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.version) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.service.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.service, buf);
+        }
+        if !self.version.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.version, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PointView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.service) {
+            __map.serialize_entry("service", self.service)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.version) {
+            __map.serialize_entry("version", self.version)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PointView<'a> {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Point";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Point";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Point";
+}
+::buffa::impl_default_view_instance!(PointView);
+::buffa::impl_view_reborrow!(PointView);
+/** Self-contained, `'static` owned view of a `Point` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PointView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PointView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PointOwnedView(::buffa::OwnedView<PointView<'static>>);
+impl PointOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(PointOwnedView(::buffa::OwnedView::decode(bytes)?))
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PointOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::Point,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(PointOwnedView(::buffa::OwnedView::from_owned(msg)?))
+    }
+    /// Borrow the full [`PointView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PointView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::Point {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The service's full name, such as "nama.plugin.v1.MovieFulfillerService".
+    ///
+    /// Field 1: `service`
+    #[must_use]
+    pub fn service(&self) -> &'_ str {
+        self.0.reborrow().service
+    }
+    /// The versions of the service the Plugin works with, as a Cargo-style semver requirement such
+    /// as "^1.0.0". Each service has a version of its own, apart from `Manifest.contract`.
+    ///
+    /// Field 2: `version`
+    #[must_use]
+    pub fn version(&self) -> &'_ str {
+        self.0.reborrow().version
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PointView<'static>>> for PointOwnedView {
+    fn from(inner: ::buffa::OwnedView<PointView<'static>>) -> Self {
+        PointOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PointOwnedView> for ::buffa::OwnedView<PointView<'static>> {
+    fn from(wrapper: PointOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<PointView<'static>>> for PointOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PointView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::Point {
+    type View<'a> = PointView<'a>;
+    type ViewHandle = PointOwnedView;
+}
+impl ::serde::Serialize for PointOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

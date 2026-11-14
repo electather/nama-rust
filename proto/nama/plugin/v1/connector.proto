@@ -2,6 +2,15 @@ syntax = "proto3";
 
 package nama.plugin.v1;
 
+// The Extension Point for a Connector, which connects Users to the outside service, served
+// through the WASM exports each rpc names.
+service ConnectorService {
+  // The `start_connection` export: where a User goes to connect. Required.
+  rpc StartConnection(ConnectionStart) returns (ConnectionStarted);
+  // The `poll_connection` export: whether the User connected yet. Required.
+  rpc PollConnection(ConnectionPoll) returns (ConnectionPolled);
+}
+
 // What an Installed Plugin's `start_connection` export takes: the one-time code to connect a User
 // with. The Server makes it, since an Installed Plugin has no source of randomness.
 message ConnectionStart {

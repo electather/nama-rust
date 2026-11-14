@@ -4,7 +4,7 @@
 
 use std::{
     collections::HashMap,
-    fmt, io, panic,
+    io, panic,
     path::Path,
     sync::{
         Arc,
@@ -12,7 +12,7 @@ use std::{
     },
 };
 
-use buffa::{DecodeError, Enumeration, Message};
+use buffa::{DecodeError, Message};
 use extism::CompiledPlugin;
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
@@ -23,14 +23,15 @@ use nama_plugin_api::{
     settings::{Choice, Choices, SettingKind, Settings, SettingsCheck},
 };
 use nama_plugin_proto::{
-    CONTRACT_VERSION,
+    CONTRACT_VERSION, SERVICES,
     nama::plugin::v1::{
         self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled, ConnectionStart,
-        Delivered, Delivery, Fulfilled, ObservePoint, Progress, ProgressAsked, ProvidePoint,
-        StopMonitoring,
+        Delivered, Delivery, Fulfilled, Progress, ProgressAsked, StopMonitoring,
     },
+    services,
 };
 use nama_proto::nama::v1::{Event, Request};
+use semver::{Version, VersionReq};
 use thiserror::Error;
 use tokio::task;
 use tracing::warn;
@@ -62,10 +63,10 @@ const START_CONNECTION: &str = "start_connection";
 const POLL_CONNECTION: &str = "poll_connection";
 const OBSERVE_EVENTS: &str = "observe_events";
 
-/// The Extension Points an Installed Plugin can take part at.
+/// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[
     Point {
-        named: Named::Provider(ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER),
+        service: services::MOVIE_FULFILLER,
         exports: &[FULFILL, PROGRESS],
         key: PointKey::provide::<dyn Fulfiller<Movies>>,
         register: |registrar, running| {
@@ -73,7 +74,7 @@ pub(super) const POINTS: &[Point] = &[
         },
     },
     Point {
-        named: Named::Provider(ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER),
+        service: services::SHOW_FULFILLER,
         exports: &[FULFILL, UNFOLLOW, PROGRESS],
         key: PointKey::provide::<dyn Fulfiller<Shows>>,
         register: |registrar, running| {
@@ -81,7 +82,7 @@ pub(super) const POINTS: &[Point] = &[
         },
     },
     Point {
-        named: Named::Provider(ProvidePoint::PROVIDE_POINT_NOTIFIER),
+        service: services::NOTIFIER,
         exports: &[DELIVER],
         key: PointKey::provide::<dyn Notifier>,
         register: |registrar, running| {
@@ -89,7 +90,7 @@ pub(super) const POINTS: &[Point] = &[
         },
     },
     Point {
-        named: Named::Provider(ProvidePoint::PROVIDE_POINT_CONNECTOR),
+        service: services::CONNECTOR,
         exports: &[START_CONNECTION, POLL_CONNECTION],
         key: PointKey::provide::<dyn Connector>,
         register: |registrar, running| {
@@ -97,7 +98,7 @@ pub(super) const POINTS: &[Point] = &[
         },
     },
     Point {
-        named: Named::Observer(ObservePoint::OBSERVE_POINT_EVENTS),
+        service: services::EVENT_OBSERVER,
         exports: &[OBSERVE_EVENTS],
         key: PointKey::observe::<Events>,
         register: |registrar, running| registrar.observe::<Events>(running),
@@ -106,28 +107,12 @@ pub(super) const POINTS: &[Point] = &[
 
 /// One Extension Point an Installed Plugin can take part at.
 pub(super) struct Point {
-    /// What a package's Manifest names it by.
-    named: Named,
+    /// The service's full name, which a package's Manifest names it by.
+    service: &'static str,
     /// The exports the Server calls there, which a package naming it must have.
     exports: &'static [&'static str],
     key: fn() -> PointKey,
     register: fn(&mut Registrar, Running),
-}
-
-/// A value in a package's Manifest naming an Extension Point.
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub(super) enum Named {
-    Provider(ProvidePoint),
-    Observer(ObservePoint),
-}
-
-impl fmt::Display for Named {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Provider(point) => point.proto_name(),
-            Self::Observer(point) => point.proto_name(),
-        })
-    }
 }
 
 /// Why the Server refused an Installed Plugin.
@@ -162,10 +147,24 @@ pub(super) enum Refused {
     HostWithPort(String),
     #[error("its id {0} is another Plugin's")]
     IdTaken(PluginId),
-    #[error("its Manifest names {0}, an Extension Point this Server doesn't know")]
+    #[error("its Manifest names {0}, an Extension Point this Server doesn't serve")]
     UnknownPoint(String),
-    #[error("its Manifest names {named}, and it has no {export} export")]
-    MissingExport { named: Named, export: &'static str },
+    #[error("it wants {service} {wants}, and this Server serves {version}")]
+    PointVersion {
+        service: &'static str,
+        wants: String,
+        version: &'static str,
+    },
+    #[error("its Manifest names {service}, and it has no {export} export")]
+    MissingExport {
+        service: &'static str,
+        export: &'static str,
+    },
+    #[error("its {field} names {namespace:?}, which isn't a namespace")]
+    BadNamespace {
+        field: &'static str,
+        namespace: String,
+    },
 }
 
 /// An Installed Plugin the Server read and checked, ready to enable.
@@ -367,31 +366,39 @@ impl Plugin for Installed {
     }
 }
 
-/// The Extension Points `package` names. One this Server doesn't know refuses it, rather than
-/// leaving the Plugin doing less than its Manifest says.
+/// The Extension Points `package` names. One this Server doesn't serve, or doesn't serve at a
+/// version the Manifest takes, refuses it, rather than leaving the Plugin doing less than its
+/// Manifest says.
 pub(super) fn points(package: &wire::Manifest) -> Result<Vec<&'static Point>, Refused> {
-    let providers = package.providers.iter().map(|named| {
-        known_point(named.as_known().map(Named::Provider), || {
-            format!("provider {named}")
+    package
+        .points
+        .iter()
+        .map(|named| {
+            let point = POINTS
+                .iter()
+                .find(|point| point.service == named.service)
+                .ok_or_else(|| Refused::UnknownPoint(named.service.clone()))?;
+            let version = served_version(point.service);
+            let met = VersionReq::parse(&named.version)
+                .is_ok_and(|wants| Version::parse(version).is_ok_and(|v| wants.matches(&v)));
+            if !met {
+                return Err(Refused::PointVersion {
+                    service: point.service,
+                    wants: named.version.clone(),
+                    version,
+                });
+            }
+            Ok(point)
         })
-    });
-    let observers = package.observers.iter().map(|named| {
-        known_point(named.as_known().map(Named::Observer), || {
-            format!("observer {named}")
-        })
-    });
-    providers.chain(observers).collect()
+        .collect()
 }
 
-/// The point in [`POINTS`] `named`, or the refusal naming it `as_written`.
-fn known_point(
-    named: Option<Named>,
-    as_written: impl FnOnce() -> String,
-) -> Result<&'static Point, Refused> {
-    POINTS
+/// The version this Server serves `service` at, from the contract's `SERVICES`.
+fn served_version(service: &str) -> &'static str {
+    SERVICES
         .iter()
-        .find(|point| Some(point.named) == named)
-        .ok_or_else(|| Refused::UnknownPoint(as_written()))
+        .find(|&&(name, _)| name == service)
+        .map_or("none", |&(_, version)| version)
 }
 
 /// Checks that a Plugin has every export `points` need, `has_export` telling which it has.
@@ -402,7 +409,7 @@ pub(super) fn check_exports(
     for point in points {
         if let Some(&export) = point.exports.iter().find(|&&export| !has_export(export)) {
             return Err(Refused::MissingExport {
-                named: point.named,
+                service: point.service,
                 export,
             });
         }

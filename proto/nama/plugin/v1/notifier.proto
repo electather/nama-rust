@@ -5,6 +5,13 @@ package nama.plugin.v1;
 import "nama/plugin/v1/events.proto";
 import "nama/plugin/v1/request.proto";
 
+// The Extension Point for a Notifier, served through the WASM export the rpc names.
+service NotifierService {
+  // The `deliver` export: takes each notification with its recipient, and fails with why the
+  // service didn't take it, which the Server logs. Required.
+  rpc Deliver(Delivery) returns (Delivered);
+}
+
 // What the Kernel hands a Notifier to deliver: something that happened to a Request. The Notifier
 // formats it for its service.
 message Notification {

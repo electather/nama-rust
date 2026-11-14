@@ -16,9 +16,9 @@ mod exports {
         StopMonitoring, TitleId,
         extism_pdk::{self, Error},
         nama_plugin_proto::nama::plugin::v1::{
-            ProvidePoint, RequestedMovie, request::MovieOrSeason, stop_monitoring::Title,
+            RequestedMovie, request::MovieOrSeason, stop_monitoring::Title,
         },
-        plugin_fn, title_id,
+        plugin_fn, services, title_id,
     };
     use nama_servarr::{Queued, Servarr};
     use serde::{Deserialize, Serialize};
@@ -30,7 +30,7 @@ mod exports {
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         Ok(Buffa(Manifest {
             logo_svg: include_str!("../logo.svg").to_owned(),
-            providers: vec![ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into()],
+            points: vec![nama_pdk::point(services::MOVIE_FULFILLER)],
             movie_id_namespaces: vec!["tmdb".to_owned()],
             settings: nama_servarr::settings("Radarr", "Movie", 7878),
             name: "Radarr".to_owned(),

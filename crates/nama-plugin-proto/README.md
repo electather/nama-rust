@@ -6,6 +6,8 @@ Rust types for the Plugin contract, generated from [`proto/nama/plugin/`](../../
 
 The contract is more than the messages: `CONTRACT_VERSION` also covers what the Kernel gives an Installed Plugin at run time, below.
 
+Each Extension Point an Installed Plugin can serve is a service of the contract, such as `nama.plugin.v1.NotifierService`, whose rpcs name the exports the Kernel calls (ADR 0043). Each has a version of its own, in `SERVICES`; the `services` module holds their full names. A Manifest names the points it serves in `points`, each by its service's full name and a semver requirement on its version.
+
 ## What the Kernel gives a Plugin
 
 The Server sets this up in [`crates/nama-server/src/plugins/wasm/load.rs`](../nama-server/src/plugins/wasm/load.rs), mostly in `compile`. It calls an Installed Plugin in three ways: `manifest()` once, when it loads the Package; `check_settings()` when an admin tests settings; and the exports of the Extension Points its Manifest names, such as `fulfill`, while it is enabled.
