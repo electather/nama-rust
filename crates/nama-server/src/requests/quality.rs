@@ -4,7 +4,7 @@
 use nama_plugin_api::{
     PluginId,
     fulfiller::{Fulfiller, Movies, Shows},
-    metadata::{ExternalId, TitleKind},
+    metadata::ExternalId,
 };
 use nama_proto::nama::v1::{
     DefaultQuality, Quality, Request, RequestedQuality, request::MovieOrSeason,
@@ -15,7 +15,7 @@ use super::asked::Asked;
 use super::listing::load_one;
 use super::state::read_state;
 use super::{Error, Requests, qualities};
-use crate::{db::now, users::User};
+use crate::{db::now, library::title_source::TitleKind, users::User};
 
 /// A User changing a Request's Quality: a Request manager as they approve or retry it, or an
 /// auto-approved Requester whose ask approves it.

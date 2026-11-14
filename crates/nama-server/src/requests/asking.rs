@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use nama_plugin_api::{
     fulfiller::{Movies, Shows},
-    metadata::{ExternalId, ExternalIds, Season},
+    metadata::{ExternalId, ExternalIds},
 };
 use nama_proto::nama::v1::{
     FollowedShow, Permission, Request, RequestCreated, RequestState, Requester, RequesterAdded,
@@ -24,6 +24,7 @@ use crate::{
     db::now,
     events::event,
     library::contents::{self, Metadata},
+    library::title_source::Season,
     users::User,
 };
 

@@ -10,7 +10,7 @@ use futures_util::{Stream, StreamExt};
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, contract,
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
-    metadata::{Episode, ExternalId, ExternalIds, Season},
+    metadata::{ExternalId, ExternalIds},
     settings::{SettingValue, Settings},
 };
 use nama_plugin_tmdb::{
@@ -37,6 +37,7 @@ use crate::{
         fixture::{MatchedMovie, movies_library, tmdb_movie},
     },
     library::libraries::{Kind, Libraries},
+    library::title_source::{Episode, Season},
     plugins::{Answer, ExtensionPoints, Failure, Registry},
     server_settings::ServerUrl,
     users::{Permissions, User},

@@ -7,7 +7,9 @@
 //! as well known are ambiguous, and an ambiguous file stays Unmatched rather than risk the wrong
 //! Match.
 
-use nama_plugin_api::metadata::{Candidate, ExternalId};
+use nama_plugin_api::metadata::ExternalId;
+
+use crate::library::title_source::Candidate;
 
 /// The least confidence a Match needs.
 const THRESHOLD: f64 = 0.85;
@@ -163,7 +165,9 @@ fn similarity(a: &str, b: &str) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use nama_plugin_api::metadata::{Candidate, ExternalId, ExternalIds};
+    use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+
+    use crate::library::title_source::Candidate;
 
     use super::{Decision, decide};
 

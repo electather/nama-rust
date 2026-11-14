@@ -1,9 +1,6 @@
 //! Looking titles up in the metadata source for Requests, as a viewer sees them.
 
-use nama_plugin_api::{
-    PluginId,
-    metadata::{Candidate, ExternalId, SearchQuery, Season, Show, TitleKind},
-};
+use nama_plugin_api::{PluginId, metadata::ExternalId};
 use nama_proto::nama::v1::{FollowedShow, FoundSeason, Request, RequestState, RequestedQuality};
 use sqlx::SqliteConnection;
 
@@ -15,7 +12,7 @@ use super::quality::show_requests;
 use super::{Error, Requests};
 use crate::{
     library::contents::{self, Metadata},
-    library::title_source,
+    library::title_source::{self, Candidate, SearchQuery, Season, Show, TitleKind},
     users::User,
 };
 

@@ -1,7 +1,6 @@
 //! Fixing Matches by hand: `nama.v1.MatchService`.
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
-use nama_plugin_api::metadata::SearchQuery;
 use nama_proto::nama::v1::{
     self as proto, ClearMatchRequest, ClearMatchResponse, ListUnmatchedItemsRequest,
     ListUnmatchedItemsResponse, MatchService, RefusalReason, SearchMetadataRequest,
@@ -11,7 +10,7 @@ use nama_proto::nama::v1::{
 use crate::{
     library::contents::{Contents, Item, TiedTitle, Unmatched, UnmatchedReason},
     library::libraries::Libraries,
-    library::title_source::{self, MetadataSource},
+    library::title_source::{self, MetadataSource, SearchQuery},
     matching::{ManualError, Matcher},
 };
 

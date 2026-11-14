@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{self, ExternalId, ExternalIds},
+    metadata::{ExternalId, ExternalIds},
 };
 use nama_proto::nama::v1::Event;
 use sqlx::SqliteConnection;
@@ -12,7 +12,12 @@ use sqlx::SqliteConnection;
 use super::{
     Contents, Item, ItemKind, ItemRow, Pin, ids_from_json, ids_sql, parse_hint, primary_id_in,
 };
-use crate::{db::now, matching::METADATA_VERSION, requests};
+use crate::{
+    db::now,
+    library::title_source::{Candidate, Season},
+    matching::METADATA_VERSION,
+    requests,
+};
 
 #[derive(Debug)]
 pub(crate) struct Unmatched {
@@ -49,8 +54,8 @@ pub(crate) struct TiedTitle {
     pub(crate) year: Option<i32>,
 }
 
-impl From<metadata::Candidate> for TiedTitle {
-    fn from(candidate: metadata::Candidate) -> Self {
+impl From<Candidate> for TiedTitle {
+    fn from(candidate: Candidate) -> Self {
         Self {
             id: candidate.id,
             title: candidate.title,
@@ -67,7 +72,7 @@ pub(crate) struct Decisions {
     pub(crate) items: Vec<(i64, Decided)>,
     /// The Seasons fetched to decide about Episodes, as the metadata source gave them, with every
     /// id of their Show. Their Requests follow how much of them a Library has.
-    pub(crate) seasons: Vec<(ExternalIds, metadata::Season)>,
+    pub(crate) seasons: Vec<(ExternalIds, Season)>,
 }
 
 impl From<Vec<(i64, Decided)>> for Decisions {

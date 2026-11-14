@@ -6,7 +6,7 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_plugin_api::{
     PluginId,
     fulfiller::{Movies, Shows},
-    metadata::{Candidate, ExternalId},
+    metadata::ExternalId,
 };
 use nama_proto::nama::v1::{
     self as proto, ApproveFollowedShowRequest, ApproveFollowedShowResponse, ApproveRequestRequest,
@@ -27,6 +27,7 @@ use crate::{
     library::artwork::Artwork,
     library::contents::Metadata,
     library::custom_images::{Role, Slot},
+    library::title_source::Candidate,
     requests::{self, Asked, Found, FoundShow, Hit, Requests, qualities},
 };
 

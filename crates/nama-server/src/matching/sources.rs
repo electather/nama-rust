@@ -2,9 +2,7 @@
 //! ids): a pin or an ID Hint is fetched from the source keeping its namespace, and a title and
 //! year are searched for with the first source that answers.
 
-use nama_plugin_api::metadata::{
-    Candidate, ExternalId, ExternalIds, IMDB, SearchQuery, Season, TMDB, TVDB, TitleKind,
-};
+use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB, TMDB, TVDB};
 
 use super::{
     FoundShow, Miss, TitleKey,
@@ -12,7 +10,7 @@ use super::{
 };
 use crate::{
     library::contents::{Metadata, Name, Pin, TiedTitle, UnmatchedReason},
-    library::title_source::{self, MetadataSource},
+    library::title_source::{self, Candidate, MetadataSource, SearchQuery, Season, TitleKind},
     scanner::country_tag,
 };
 

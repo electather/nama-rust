@@ -4,7 +4,7 @@ use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     metadata::{
         Candidate, Episode, ExternalId, ExternalIds, IMDB, Image, MetadataError, Movie,
-        SearchQuery, Season, Show, TitleKind, TitleSource,
+        SearchQuery, Season, Show, TitleSource,
     },
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
@@ -338,9 +338,9 @@ fn order(namespaces: &[&str]) -> Vec<String> {
     namespaces.iter().map(|&n| n.to_owned()).collect()
 }
 
-fn query() -> SearchQuery {
-    SearchQuery {
-        kind: TitleKind::Show,
+fn query() -> super::SearchQuery {
+    super::SearchQuery {
+        kind: super::TitleKind::Show,
         title: "Title".to_owned(),
         year: None,
     }

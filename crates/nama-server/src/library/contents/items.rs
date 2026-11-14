@@ -2,7 +2,9 @@
 
 use std::borrow::Cow;
 
-use nama_plugin_api::metadata::{ExternalId, TitleKind};
+use nama_plugin_api::metadata::ExternalId;
+
+use crate::library::title_source::TitleKind;
 
 use super::parse_hint;
 

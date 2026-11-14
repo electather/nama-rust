@@ -51,7 +51,7 @@ use std::{
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{Episode, ExternalId, ExternalIds, Season, Show, TitleKind},
+    metadata::{ExternalId, ExternalIds},
 };
 use nama_proto::nama::v1::{Event, ItemMatched};
 use tokio_util::sync::CancellationToken;
@@ -64,7 +64,7 @@ use crate::{
         Contents, Decided, Decisions, Item, Metadata, Name, Named, Pin, UnmatchedReason,
     },
     library::libraries::{self, Libraries},
-    library::title_source::{self, MetadataSource, Source},
+    library::title_source::{self, Episode, MetadataSource, Season, Show, Source, TitleKind},
     plugins::ExtensionPoints,
     scanner::{ScanLock, ScanLocks},
 };

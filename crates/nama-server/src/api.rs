@@ -11,7 +11,7 @@ use axum::{
 use buffa::MessageName;
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, ErrorCode, ErrorDetail, RequestContext, Response};
-use nama_plugin_api::metadata::{ExternalId, TitleKind};
+use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason};
 
 use crate::{
@@ -27,7 +27,7 @@ use crate::{
     library::contents::Contents,
     library::custom_images::{self, CustomImages},
     library::libraries::Libraries,
-    library::title_source::MetadataSource,
+    library::title_source::{MetadataSource, TitleKind},
     playback::running::RunningPlans,
     plugin_logos::{self, PluginLogos},
     plugin_settings::PluginSettings,

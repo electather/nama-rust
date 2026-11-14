@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use nama_plugin_api::metadata::{Episode, ExternalId, ExternalIds, Season};
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{Event, FollowedShow, Request, RequestState};
 use sqlx::SqliteConnection;
 
@@ -11,7 +11,11 @@ use super::apply::Applied;
 use super::asking::{Asker, SeasonsToAsk, Wanted, ask_as};
 use super::followed::{approved_followed_show, covers};
 use super::state::{change_state, ids_json, open_requests};
-use crate::{db::now, library::contents};
+use crate::{
+    db::now,
+    library::contents,
+    library::title_source::{Episode, Season},
+};
 
 /// Today as `YYYY-MM-DD`, by SQLite's calendar, since `std` has none.
 pub(super) async fn today(conn: &mut SqliteConnection) -> Result<String, sqlx::Error> {

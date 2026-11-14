@@ -7,11 +7,12 @@ use std::{future::Future, sync::Arc};
 
 use nama_plugin_api::{
     PluginId,
-    metadata::{
-        Candidate, ExternalId, ExternalIds, Image, MetadataError, Movie, SearchQuery, Season, Show,
-        TitleSource,
-    },
+    metadata::{self as api, ExternalId, ExternalIds, MetadataError, TitleSource},
 };
+
+mod titles;
+
+pub(crate) use titles::{Candidate, Episode, Image, Movie, SearchQuery, Season, Show, TitleKind};
 
 use crate::{
     library::contents::Metadata,
@@ -75,8 +76,8 @@ impl MetadataSource {
         query: &SearchQuery,
     ) -> Result<(PluginId, Vec<Candidate>), Error> {
         self.ask(|metadata| {
-            let query = query.clone();
-            async move { metadata.search(&query).await }
+            let query = api::SearchQuery::from(query.clone());
+            async move { candidates(metadata.search(&query).await) }
         })
         .await
     }
@@ -86,7 +87,7 @@ impl MetadataSource {
         let (plugin, movie) = self
             .ask(|metadata| {
                 let id = id.clone();
-                async move { metadata.movie(&id).await }
+                async move { metadata.movie(&id).await.map(Movie::from) }
             })
             .await?;
         Ok(Metadata::movie(plugin, movie))
@@ -96,7 +97,7 @@ impl MetadataSource {
     pub(crate) async fn show(&self, id: &ExternalId) -> Result<(PluginId, Show), Error> {
         self.ask(|metadata| {
             let id = id.clone();
-            async move { metadata.show(&id).await }
+            async move { metadata.show(&id).await.map(Show::from) }
         })
         .await
     }
@@ -105,7 +106,7 @@ impl MetadataSource {
     pub(crate) async fn season(&self, show: &ExternalId, number: u32) -> Result<Season, Error> {
         self.ask(|metadata| {
             let show = show.clone();
-            async move { metadata.season(&show, number).await }
+            async move { metadata.season(&show, number).await.map(Season::from) }
         })
         .await
         .map(|(_, season)| season)
@@ -117,7 +118,7 @@ impl MetadataSource {
             .plugins
             .ask(plugin, |metadata: Arc<dyn TitleSource>| {
                 let path = path.to_owned();
-                async move { metadata.image(&path).await }
+                async move { metadata.image(&path).await.map(Image::from) }
             })
             .await;
         meaning(answered).map(|(_, image)| image)
@@ -182,8 +183,8 @@ impl MetadataSource {
     ) -> Result<(Source, Vec<Candidate>), Error> {
         let sources = self.sources().await;
         self.first_answer(sources, Vec::is_empty, |metadata| {
-            let query = query.clone();
-            async move { metadata.search(&query).await }
+            let query = api::SearchQuery::from(query.clone());
+            async move { candidates(metadata.search(&query).await) }
         })
         .await
     }
@@ -199,7 +200,7 @@ impl MetadataSource {
                 |_| false,
                 |metadata| {
                     let id = id.clone();
-                    async move { metadata.movie(&id).await }
+                    async move { metadata.movie(&id).await.map(Movie::from) }
                 },
             )
             .await?;
@@ -215,7 +216,7 @@ impl MetadataSource {
             |_| false,
             |metadata| {
                 let id = id.clone();
-                async move { metadata.show(&id).await }
+                async move { metadata.show(&id).await.map(Show::from) }
             },
         )
         .await
@@ -233,7 +234,7 @@ impl MetadataSource {
             .plugins
             .ask(&source.plugin, |metadata: Arc<dyn TitleSource>| {
                 let show = show.clone();
-                async move { metadata.season(&show, number).await }
+                async move { metadata.season(&show, number).await.map(Season::from) }
             })
             .await;
         meaning(answered).map(|(_, season)| season)
@@ -285,6 +286,13 @@ impl MetadataSource {
         };
         meaning(answered)
     }
+}
+
+/// The Kernel's twins of a search's Candidates.
+fn candidates(
+    found: Result<Vec<api::Candidate>, MetadataError>,
+) -> Result<Vec<Candidate>, MetadataError> {
+    found.map(|found| found.into_iter().map(Candidate::from).collect())
 }
 
 impl ProviderError<Error> for MetadataError {
