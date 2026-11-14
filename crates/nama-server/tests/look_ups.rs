@@ -17,7 +17,7 @@ use refused::assert_refused;
 use server::{
     TestServer,
     requests::{Requester, title_id, tmdb_id},
-    tmdb::DARK,
+    tmdb::{DARK, DARK_TVDB},
 };
 
 /// What a new User gets: `REQUEST` and `VIEW_REQUESTS`.
@@ -112,4 +112,51 @@ async fn a_user_without_request_tv_is_refused_looking_up_a_show() {
     );
     let permission = refusal.params.get("permission").map(String::as_str);
     assert_eq!(permission, Some("PERMISSION_REQUEST_TV"));
+}
+
+#[tokio::test]
+async fn looking_up_a_show_by_a_malformed_id_is_refused() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let as_grace = fixture.server.requests(&grace);
+
+    for id in [title_id("Ani-DB", "1"), title_id("tvdb", "")] {
+        let refused = as_grace.try_look_up_show(id).await;
+
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_TITLE_ID_MALFORMED,
+        );
+        assert_eq!(refusal.field, "show_id");
+    }
+}
+
+#[tokio::test]
+async fn looking_up_a_show_in_a_namespace_no_metadata_source_knows_is_not_found() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let as_grace = fixture.server.requests(&grace);
+
+    let refused = as_grace.try_look_up_show(title_id("anidb", "1")).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_TITLE_NOT_FOUND,
+    );
+    assert_eq!(refusal.field, "show_id");
+}
+
+#[tokio::test]
+async fn looking_up_a_show_by_its_tvdb_id_finds_it_under_its_preferred_id() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let as_grace = fixture.server.requests(&grace);
+
+    let by_tvdb = title_id("tvdb", &DARK_TVDB.to_string());
+    let found = as_grace.try_look_up_show(by_tvdb).await.unwrap();
+
+    assert_eq!(found.id.into_option(), Some(tmdb_id(DARK)));
+    assert_eq!(found.title, "Dark");
 }
