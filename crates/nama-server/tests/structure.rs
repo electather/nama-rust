@@ -37,7 +37,8 @@ const CEILINGS: &[(&str, usize)] = &[
     ("tests/users.rs", 1200),
 ];
 
-/// A hand-written Rust file of the crate: its crate-relative path with `/` separators, and its text.
+/// A hand-written Rust file of the crate: its crate-relative path with `/` separators, and its
+/// text.
 struct SourceFile {
     path: String,
     text: String,
@@ -232,7 +233,8 @@ fn an_owned_tables_sql_appears_only_in_its_owners_files() {
     for (owner, tables) in OWNED_TABLES {
         for table in tables.iter().filter(|table| !seen_in_owner.contains(table)) {
             problems.push(format!(
-                "{table} is never named in SQL under {owner}: the table or its owner's path is stale"
+                "{table} is never named in SQL under {owner}: \
+                 the table or its owner's path is stale"
             ));
         }
     }
@@ -247,7 +249,8 @@ fn sql_tables_reads_the_word_after_a_keyword_across_lines() {
     );
 }
 
-/// The paths `text`, an `AGENTS.md`, names: inline code spans outside fenced blocks that hold a `/`.
+/// The paths `text`, an `AGENTS.md`, names: inline code spans outside fenced blocks that hold a
+/// `/`.
 // ponytail: a bare file name without a `/` (`README.md`, `libraries.rs`) is not checked, since
 // it rarely says which folder it means; name it with its folder to have it checked.
 fn named_paths(text: &str) -> Vec<&str> {
