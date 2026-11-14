@@ -8,8 +8,8 @@ use std::{
     time::Duration,
 };
 
-use nama_plugin_api::fulfiller::{Download, Fulfiller, Movies, Shows};
-use nama_proto::nama::v1::{Request, RequestProgress, RequestState};
+use nama_plugin_api::fulfiller::{Fulfiller, Movies, Shows};
+use nama_proto::nama::v1::{Download, Request, RequestProgress, RequestState};
 use sqlx::SqliteConnection;
 use tokio::{sync::Notify, time::error::Elapsed};
 use tracing::{error, warn};
@@ -19,7 +19,7 @@ use super::lock;
 use crate::{
     db::Database,
     events::{EventBus, event},
-    plugins::ExtensionPoints,
+    plugins::{self, ExtensionPoints},
 };
 
 /// Hands `$query!` the SQL for whether a Request's Fulfiller has it and it isn't Available yet,
@@ -171,8 +171,11 @@ impl Progress {
         fulfilling
             .into_iter()
             .map(|request| {
-                let downloads = by_reference.get(&request.reference).cloned();
-                (request.id, downloads.unwrap_or_default())
+                let downloads = by_reference.get(&request.reference).into_iter().flatten();
+                (
+                    request.id,
+                    downloads.cloned().map(plugins::download).collect(),
+                )
             })
             .collect()
     }

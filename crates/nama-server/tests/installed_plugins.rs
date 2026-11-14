@@ -22,12 +22,12 @@ use std::{
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use log::Log;
 use nama_plugin_api::{
-    PluginId,
+    PluginId, contract,
     notifier::{Notification, Notifier, Recipient},
 };
 use nama_plugin_proto::CONTRACT_VERSION;
 use nama_proto::nama::v1::{
-    self as api, CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
+    CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
     GetPluginRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind,
     PluginServiceClient, PluginSummary, RefusalReason, ScanLibraryRequest, SettingValue,
     TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
@@ -725,12 +725,14 @@ async fn a_check_that_fails_is_refused_with_the_plugins_error() {
     );
 }
 
+// A Request's progress never reaches a Notifier: the Kernel's conversion leaves it out
+// (`a_request_progress_notification_gives_none`), and the contract has no message for it.
 #[tokio::test]
-async fn an_installed_notifier_isnt_handed_request_progress() {
+async fn an_installed_notifier_is_handed_the_contracts_notification() {
     let started = Started::new().await;
     started.drop_in("test.wasm", "");
     started.listed("test-plugin").await.unwrap();
-    // It fails every notification for its channel, so only one it isn't handed succeeds.
+    // It fails every notification for its channel, so a failure shows it was handed one.
     started
         .save_settings(&[("notifier", "error")])
         .await
@@ -740,41 +742,38 @@ async fn an_installed_notifier_isnt_handed_request_progress() {
         .enable_plugin(enable("test-plugin"))
         .await
         .unwrap();
-    let asked = api::Request {
+    let asked = contract::Request {
         id: 7,
         ..Default::default()
     };
-    let told = |event: api::event::Event| Notification {
-        event: api::Event {
-            event: Some(event),
+    let withdrawn = Notification {
+        event: Some(contract::Event {
+            event: Some(
+                contract::RequestWithdrawn {
+                    request: Some(asked.clone()).into(),
+                    ..Default::default()
+                }
+                .into(),
+            ),
             ..Default::default()
-        },
-        request: asked.clone(),
-        request_url: None,
-    };
-    let withdrawn = told(
-        api::RequestWithdrawn {
-            request: Some(asked.clone()).into(),
-            ..Default::default()
-        }
+        })
         .into(),
-    );
-    let progress = told(api::RequestProgress::default().into());
+        request: Some(asked).into(),
+        ..Default::default()
+    };
 
     let (sender, mut delivered) = tokio::sync::mpsc::unbounded_channel();
     started
         .plugins
         .extension_points()
         .tell_each(move |_, notifier: Arc<dyn Notifier>| {
-            let (sender, withdrawn, progress) =
-                (sender.clone(), withdrawn.clone(), progress.clone());
+            let (sender, withdrawn) = (sender.clone(), withdrawn.clone());
             async move {
                 let withdrawn = notifier.deliver(&withdrawn, &Recipient::Channel).await;
-                let progress = notifier.deliver(&progress, &Recipient::Channel).await;
-                sender.send((withdrawn.is_ok(), progress.is_ok())).unwrap();
+                sender.send(withdrawn.is_ok()).unwrap();
                 Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
             }
         });
 
-    assert_eq!(delivered.recv().await, Some((false, true)));
+    assert_eq!(delivered.recv().await, Some(false));
 }

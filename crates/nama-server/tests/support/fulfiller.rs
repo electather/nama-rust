@@ -12,14 +12,14 @@ use std::{
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    contract::{RequestedMovie, RequestedSeason, request::MovieOrSeason},
     fulfiller::{
-        Download, Fulfilled, Fulfiller, Movies, ShowDeleted, Shows, StopMonitoring, stop_monitoring,
+        Download, Fulfilled, Fulfiller, Movies, Request, ShowDeleted, Shows, StopMonitoring,
+        TitleId, stop_monitoring,
     },
     settings::{Choice, Choices, Settings, SettingsCheck},
 };
-use nama_proto::nama::v1::{
-    ExternalId, Quality, Request, RequestedMovie, RequestedSeason, request::MovieOrSeason,
-};
+use nama_proto::nama::v1::Quality;
 use nama_server::plugins::Registry;
 
 /// The id of the Plugin providing the fake Fulfiller for Movies.
@@ -247,7 +247,7 @@ fn asked_movie(request: &Request) -> &RequestedMovie {
 }
 
 /// The number in `namespace` among `ids`, if they have one.
-fn id_number(ids: &[ExternalId], namespace: &str) -> Option<i64> {
+fn id_number(ids: &[TitleId], namespace: &str) -> Option<i64> {
     let id = ids.iter().find(|id| id.namespace == namespace)?;
     id.value.parse().ok()
 }
@@ -257,7 +257,7 @@ fn id_number(ids: &[ExternalId], namespace: &str) -> Option<i64> {
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-fn tmdb_number(ids: &[ExternalId]) -> i64 {
+fn tmdb_number(ids: &[TitleId]) -> i64 {
     id_number(ids, "tmdb").unwrap()
 }
 

@@ -2,6 +2,7 @@
 //! Kernel calls them at Extension Points.
 
 mod builtin;
+mod contract;
 mod points;
 mod registry;
 mod wasm;
@@ -25,6 +26,7 @@ use tracing::{error, warn};
 
 use crate::images::{MAX_SVG_BYTES, clean_svg};
 
+pub(crate) use contract::{download, notification, observed, request};
 pub use points::ExtensionPoints;
 pub use registry::Registry;
 pub(crate) use wasm::read as read_installed;

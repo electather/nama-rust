@@ -22,6 +22,10 @@ pub mod notifier;
 pub mod points;
 pub mod settings;
 
+/// The Plugin contract's messages (ADR 0041), which the Extension Points take and return, so a
+/// Built-in Plugin sees the same types an Installed one does.
+pub use nama_plugin_proto::nama::plugin::v1 as contract;
+
 use std::{
     any::{Any, TypeId},
     borrow::Cow,

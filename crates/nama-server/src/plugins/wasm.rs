@@ -17,9 +17,9 @@ use extism::CompiledPlugin;
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     connector::{ConnectionStarted, Connector},
-    fulfiller::{Download, Fulfiller, Movies, Shows},
+    fulfiller::{Download, Fulfiller, Movies, Request, Shows},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
-    points::Events,
+    points::{Events, ObservedEvents},
     settings::{Choice, Choices, SettingKind, Settings, SettingsCheck},
 };
 use nama_plugin_proto::{
@@ -30,7 +30,6 @@ use nama_plugin_proto::{
     },
     services,
 };
-use nama_proto::nama::v1::{Event, Request};
 use semver::{Version, VersionReq};
 use thiserror::Error;
 use tokio::task;
@@ -427,7 +426,7 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        let input = contract::request(request).encode_to_vec();
+        let input = request.encode_to_vec();
         Box::pin(async move {
             let output = self.provide(FULFILL, input).await?;
             Ok(Fulfilled::decode_from_slice(&output)?)
@@ -435,7 +434,7 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
     }
 
     fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
-        let input = contract::request(request).encode_to_vec();
+        let input = request.encode_to_vec();
         Box::pin(async move { self.provide(UNFOLLOW, input).await.map(drop) })
     }
 
@@ -464,10 +463,7 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
             let downloads = Progress::decode_from_slice(&output)?.downloads;
             Ok(downloads
                 .into_iter()
-                .map(|(reference, downloads)| {
-                    let downloads = downloads.downloads.into_iter().map(contract::download);
-                    (reference, downloads.collect())
-                })
+                .map(|(reference, downloads)| (reference, downloads.downloads))
                 .collect())
         })
     }
@@ -485,18 +481,13 @@ impl Notifier for Running {
                 wire::delivery::Recipient::Connection(connection.clone())
             }
         };
-        let input = contract::notification(notification).map(|notification| {
-            Delivery {
-                notification: notification.into(),
-                recipient: Some(recipient),
-                ..Default::default()
-            }
-            .encode_to_vec()
-        });
+        let input = Delivery {
+            notification: Some(notification.clone()).into(),
+            recipient: Some(recipient),
+            ..Default::default()
+        }
+        .encode_to_vec();
         Box::pin(async move {
-            let Some(input) = input else {
-                return Ok(());
-            };
             let output = self.provide(DELIVER, input).await?;
             if Delivered::decode_from_slice(&output)?.recipient_gone {
                 return Err(RecipientGone.into());
@@ -539,10 +530,9 @@ impl Connector for Running {
 }
 
 impl Observer<Events> for Running {
-    fn observe<'a>(&'a self, event: &'a Vec<Event>) -> BoxFuture<'a, ()> {
-        let input = contract::observed(event).map(|batch| batch.encode_to_vec());
+    fn observe<'a>(&'a self, event: &'a ObservedEvents) -> BoxFuture<'a, ()> {
+        let input = event.encode_to_vec();
         Box::pin(async move {
-            let Some(input) = input else { return };
             match self.call_blocking(OBSERVE_EVENTS, input).await {
                 Ok(Ok(_)) => self.crashes.store(0, Ordering::Relaxed),
                 Ok(Err(err)) => self.observer_failed(&err),

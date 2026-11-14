@@ -10,7 +10,7 @@ repository.workspace = true
 # `testing::FakeTmdb`: a local stand-in for TMDB serving the recorded responses in fixtures/.
 testing = ["dep:axum", "tokio/net"]
 
-# Built-in Plugins depend on no workspace crate but nama-plugin-api and nama-proto (ADR 0006).
+# Built-in Plugins depend on no workspace crate but nama-plugin-api (ADR 0006).
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "query"], optional = true }
 bytes = "1"

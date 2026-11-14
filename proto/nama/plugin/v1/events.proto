@@ -22,9 +22,8 @@ message ObservedEvents {
 // an export returning nothing returns it.
 message EventsObserved {}
 
-// Something that happened in the Kernel. Left out on purpose: Request progress, Followed Show and
-// Playback events, which the Kernel doesn't tell an Installed Plugin. A kind joins when a Plugin
-// needs it.
+// Something that happened in the Kernel. Left out on purpose: Request progress and Followed Show
+// events. A kind joins when a Plugin needs it.
 message Event {
   oneof event {
     ScanStarted scan_started = 1;
@@ -41,6 +40,9 @@ message Event {
     RequestCancelled request_cancelled = 12;
     RequesterRemoved requester_removed = 13;
     RequestWithdrawn request_withdrawn = 14;
+    PlaybackStarted playback_started = 15;
+    PlaybackEnded playback_ended = 16;
+    PlaybackChanged playback_changed = 17;
   }
 }
 
@@ -160,4 +162,47 @@ message RequesterRemoved {
 message RequestWithdrawn {
   // The Request as it was before it was removed.
   Request request = 1;
+}
+
+// A Playback Plan started playing a Version on a Device.
+message PlaybackStarted {
+  Playback playback = 1;
+}
+
+// A plan that `PlaybackStarted` told of stopped: its player stopped it, or went 60 seconds without
+// asking for it, or the Server shut down.
+message PlaybackEnded {
+  // As its `PlaybackStarted` told it.
+  Playback playback = 1;
+}
+
+// A plan that `PlaybackStarted` told of changed how it plays while playing, such as falling back
+// to a software Transcode.
+message PlaybackChanged {
+  // As it plays now.
+  Playback playback = 1;
+}
+
+// One Playback Plan playing a Version on a Device.
+message Playback {
+  // The User playing.
+  int64 user_id = 1;
+  // The Device playing.
+  int64 device_id = 2;
+  // The Version played.
+  int64 version_id = 3;
+  // How the plan plays it.
+  PlaybackMethod method = 4;
+}
+
+// How a Playback Plan plays a Version.
+enum PlaybackMethod {
+  // Not one this contract knows.
+  PLAYBACK_METHOD_UNSPECIFIED = 0;
+  // Its file exactly as it is.
+  PLAYBACK_METHOD_DIRECT_PLAY = 1;
+  // Its video as it is, in a different container.
+  PLAYBACK_METHOD_REMUX = 2;
+  // With its video re-encoded.
+  PLAYBACK_METHOD_TRANSCODE = 3;
 }

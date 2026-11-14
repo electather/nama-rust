@@ -327,7 +327,10 @@ fn what_happened(notification: &Notification) -> Option<String> {
         | Event::LibraryItemRemoved(_)
         | Event::ItemMatched(_)
         | Event::MatchingFinished(_)
-        | Event::ProbingFinished(_) => return None,
+        | Event::ProbingFinished(_)
+        | Event::PlaybackStarted(_)
+        | Event::PlaybackEnded(_)
+        | Event::PlaybackChanged(_) => return None,
     })
 }
 

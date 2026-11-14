@@ -2078,7 +2078,6 @@ name = "nama-plugin-api"
 version = "0.1.0"
 dependencies = [
  "nama-plugin-proto",
- "nama-proto",
  "serde",
  "url",
 ]
@@ -2096,7 +2095,6 @@ name = "nama-plugin-log-events"
 version = "0.1.0"
 dependencies = [
  "nama-plugin-api",
- "nama-proto",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2141,7 +2139,6 @@ name = "nama-plugin-test-choices"
 version = "0.1.0"
 dependencies = [
  "nama-plugin-api",
- "nama-proto",
 ]
 
 [[package]]

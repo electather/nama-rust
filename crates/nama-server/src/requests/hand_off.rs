@@ -23,7 +23,7 @@ use super::listing::{load, load_one};
 use super::{Error, Requests, lock};
 use crate::{
     db::{BoxFuture, Database, detached},
-    plugins::{Answer, ExtensionPoints, Failure},
+    plugins::{self, Answer, ExtensionPoints, Failure},
 };
 
 /// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled.
@@ -199,6 +199,7 @@ impl HandOff {
         title: &str,
         ids: &[ExternalId],
     ) -> Option<Answer<Fulfilled, Vec<String>>> {
+        let told = &plugins::request(request);
         // Asked inside the Plugin's containment, so the failure names the Plugin that would have
         // been handed the Request.
         let Answer { plugin, result } = self
@@ -207,7 +208,7 @@ impl HandOff {
                 if let Some(needs) = unmet(&*fulfiller, namespaces(ids)) {
                     return Ok(Err(needs));
                 }
-                fulfiller.fulfill(request).await.map(Ok)
+                fulfiller.fulfill(told).await.map(Ok)
             })
             .await?;
         let result = match result {
@@ -231,13 +232,14 @@ impl HandOff {
         let Some(MovieOrSeason::Season(asked)) = &season.movie_or_season else {
             return;
         };
+        let told = &plugins::request(season);
         let unfollowed = self
             .plugins
             .ask_first(|fulfiller: Arc<dyn Fulfiller<Shows>>| async move {
                 if let Some(needs) = unmet(&*fulfiller, namespaces(&asked.show_ids)) {
                     return Ok(Err(needs));
                 }
-                fulfiller.unfollow(season).await.map(Ok)
+                fulfiller.unfollow(told).await.map(Ok)
             })
             .await;
         let reason = match unfollowed {

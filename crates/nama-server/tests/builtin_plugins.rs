@@ -191,7 +191,7 @@ fn plugin_crates_depend_only_on_the_workspace_crates_they_may() {
         let allowed: &[&str] = if installed_or_shared {
             &pdk_and_shared
         } else {
-            &["nama-plugin-api", "nama-proto"]
+            &["nama-plugin-api"]
         };
         for dependency in package["dependencies"].as_array().unwrap() {
             let name = dependency["name"].as_str().unwrap();

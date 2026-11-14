@@ -23,11 +23,10 @@ use figment::{
 use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    fulfiller::{Download, Fulfilled, Fulfiller, Movies},
+    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Request},
     settings::{SettingField, SettingKind, SettingValue, SettingsSchema},
 };
 use nama_plugin_local_auth::LocalAuth;
-use nama_proto::nama::v1::Request;
 use nama_server::{
     config::{Config, PluginConfig},
     db::Database,

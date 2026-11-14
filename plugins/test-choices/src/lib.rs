@@ -6,12 +6,12 @@ use std::{collections::HashMap, future, sync::Arc};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
+    contract::{TitleId, request::MovieOrSeason},
+    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Request, Shows},
     settings::{
         Choice, Choices, SettingField, SettingKind, Settings, SettingsCheck, SettingsSchema,
     },
 };
-use nama_proto::nama::v1::{Request, request::MovieOrSeason};
 
 /// The test Plugin's id.
 pub const ID: &str = "test-choices";
@@ -101,6 +101,13 @@ impl Plugin for TestChoices {
     }
 }
 
+/// The value of the `tmdb` id among `ids`, or empty without one.
+fn tmdb(ids: &[TitleId]) -> &str {
+    (ids.iter())
+        .find(|id| id.namespace == "tmdb")
+        .map_or("", |id| id.value.as_str())
+}
+
 /// Takes every Request, giving `movie-<TMDB id>` as its reference.
 impl Fulfiller<Movies> for TestChoices {
     fn fulfill<'a>(
@@ -109,7 +116,7 @@ impl Fulfiller<Movies> for TestChoices {
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let fulfilled = match &request.movie_or_season {
             Some(MovieOrSeason::Movie(movie)) => Ok(Fulfilled {
-                reference: format!("movie-{}", movie.id.value),
+                reference: format!("movie-{}", tmdb(&movie.ids)),
                 ..Fulfilled::default()
             }),
             _ => Err("not a Movie Request".into()),
@@ -135,7 +142,8 @@ impl Fulfiller<Shows> for TestChoices {
             Some(MovieOrSeason::Season(season)) => Ok(Fulfilled {
                 reference: format!(
                     "show-{}-season-{}",
-                    season.show_id.value, season.season_number
+                    tmdb(&season.show_ids),
+                    season.season_number
                 ),
                 ..Fulfilled::default()
             }),

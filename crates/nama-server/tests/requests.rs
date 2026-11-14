@@ -39,7 +39,7 @@ use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_proto::nama::plugin::v1 as wire;
 use nama_plugin_test_choices as test_choices;
 use nama_proto::nama::v1::{
-    ApproveFollowedShowRequest, ApproveRequestRequest, CancelFollowedShowRequest,
+    self as api, ApproveFollowedShowRequest, ApproveRequestRequest, CancelFollowedShowRequest,
     CancelRequestRequest, CountPendingRequestsRequest, CreateFollowedShowRequest,
     CreateRequestRequest, CreateSeasonRequestsRequest, DeclineFollowedShowRequest,
     DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundShow,
@@ -843,16 +843,26 @@ async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and
     assert_eq!(ada.list().await, [changed.request.into_option().unwrap()]);
 }
 
-/// One download, `percent` done, as a Fulfiller reports it.
-fn downloading(title: &str, percent: f32) -> Download {
-    Download {
+/// One download, `percent` done, as a Fulfiller reports it and as a client is shown it.
+fn downloading(title: &str, percent: f32) -> (Download, api::Download) {
+    let (size_bytes, eta_seconds) = (Some(4_000_000_000), Some(600));
+    let reported = Download {
         title: title.to_owned(),
         percent,
-        size_bytes: Some(4_000_000_000),
-        eta_seconds: Some(600),
+        size_bytes,
+        eta_seconds,
         status: DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING.into(),
         ..Default::default()
-    }
+    };
+    let shown = api::Download {
+        title: title.to_owned(),
+        percent,
+        size_bytes,
+        eta_seconds,
+        status: api::DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING.into(),
+        ..Default::default()
+    };
+    (reported, shown)
 }
 
 #[tokio::test]
@@ -865,10 +875,10 @@ async fn without_view_requests_a_user_sees_the_progress_of_only_their_own_proces
         .user("Grace", &[Permission::RequestMovie])
         .await
         .client_config();
-    let heat = downloading("Heat.1995.1080p", 42.5);
-    let dune = downloading("Dune.2021.2160p", 7.0);
-    fulfiller.download(HEAT, vec![heat.clone()]);
-    fulfiller.download(DUNE, vec![dune.clone()]);
+    let (reported_heat, heat) = downloading("Heat.1995.1080p", 42.5);
+    let (reported_dune, dune) = downloading("Dune.2021.2160p", 7.0);
+    fulfiller.download(HEAT, vec![reported_heat]);
+    fulfiller.download(DUNE, vec![reported_dune]);
     let adas = requests(as_ada).ask(HEAT).await;
     let graces = requests(as_grace.clone()).ask(DUNE).await;
     let mut graces_events = subscribe(&as_grace, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
@@ -896,7 +906,7 @@ async fn a_request_whose_fulfiller_cant_say_how_it_is_progressing_stays_processi
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada.clone());
     let mut adas_events = subscribe(&as_ada, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
-    fulfiller.download(HEAT, vec![downloading("Heat.1995.1080p", 42.5)]);
+    fulfiller.download(HEAT, vec![downloading("Heat.1995.1080p", 42.5).0]);
     let heat = fixture.server.approve(ada.ask(HEAT).await.id).await;
     let event::Event::RequestProgress(_) = adas_events.next().await else {
         panic!("not Heat's first progress");
@@ -1180,7 +1190,7 @@ async fn approving_a_request_hands_it_to_an_installed_movie_fulfiller_which_says
     let event::Event::RequestProgress(progress) = event else {
         panic!("not progress: {event:?}");
     };
-    let half_done = Download {
+    let half_done = api::Download {
         title: "test-949".to_owned(),
         percent: 50.0,
         ..Default::default()
@@ -4002,11 +4012,11 @@ async fn creating_a_movie_request_delivers_it_to_each_enabled_notifiers_channel(
         assert_eq!(delivered.len(), 1, "{delivered:?}");
         let (notification, recipient) = &delivered[0];
         assert_eq!(*recipient, Recipient::Channel);
-        assert_eq!(notification.request, request);
-        let Some(event::Event::RequestCreated(created)) = &notification.event.event else {
+        assert_eq!(notification.request.id, request.id);
+        let Some(wire::event::Event::RequestCreated(created)) = &notification.event.event else {
             panic!("not the new Request: {notification:?}");
         };
-        assert_eq!(created.request.as_option(), Some(&request));
+        assert_eq!(created.request.id, request.id);
     }
 }
 
@@ -4075,7 +4085,7 @@ async fn creating_a_movie_request_has_an_installed_notifier_post_it_to_the_url_i
     let request = requests(as_ada).ask(HEAT).await;
     let body = tokio::time::timeout(WAIT, posted.recv()).await.unwrap();
 
-    let notification = wire::Notification::decode_from_slice(&body.unwrap()).unwrap();
+    let notification = Notification::decode_from_slice(&body.unwrap()).unwrap();
     let Some(wire::event::Event::RequestCreated(created)) = &notification.event.event else {
         panic!("not the new Request: {notification:?}");
     };

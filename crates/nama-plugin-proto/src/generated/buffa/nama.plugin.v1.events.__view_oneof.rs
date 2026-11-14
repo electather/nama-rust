@@ -76,5 +76,20 @@ pub mod event {
                 super::super::super::super::__buffa::view::RequestWithdrawnView<'a>,
             >,
         ),
+        PlaybackStarted(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::PlaybackStartedView<'a>,
+            >,
+        ),
+        PlaybackEnded(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::PlaybackEndedView<'a>,
+            >,
+        ),
+        PlaybackChanged(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::PlaybackChangedView<'a>,
+            >,
+        ),
     }
 }

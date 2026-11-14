@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_plugin_api::{
-    BoxFuture, PluginError,
+    BoxFuture, PluginError, contract,
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
 };
 use nama_proto::nama::v1::{RefusalReason, Request, RequestState};
@@ -50,7 +50,10 @@ impl Gated {
         self.handed.lock().unwrap().clone()
     }
 
-    fn take<'a>(&'a self, request: &Request) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+    fn take<'a>(
+        &'a self,
+        request: &contract::Request,
+    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         self.handed.lock().unwrap().push(request.id);
         Box::pin(async {
             self.open.notified().await;
@@ -65,7 +68,7 @@ impl Gated {
 impl Fulfiller<Movies> for Gated {
     fn fulfill<'a>(
         &'a self,
-        request: &'a Request,
+        request: &'a contract::Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         self.take(request)
     }
@@ -81,7 +84,7 @@ impl Fulfiller<Movies> for Gated {
 impl Fulfiller<Shows> for Gated {
     fn fulfill<'a>(
         &'a self,
-        request: &'a Request,
+        request: &'a contract::Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         self.take(request)
     }
@@ -190,7 +193,10 @@ impl Needing {
         self.handed.lock().unwrap().clone()
     }
 
-    fn take(&self, request: &Request) -> BoxFuture<'static, Result<Fulfilled, PluginError>> {
+    fn take(
+        &self,
+        request: &contract::Request,
+    ) -> BoxFuture<'static, Result<Fulfilled, PluginError>> {
         self.handed.lock().unwrap().push(request.id);
         took("taken".to_owned())
     }
@@ -203,7 +209,7 @@ impl Fulfiller<Movies> for Needing {
 
     fn fulfill<'a>(
         &'a self,
-        request: &'a Request,
+        request: &'a contract::Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         self.take(request)
     }
@@ -223,12 +229,15 @@ impl Fulfiller<Shows> for Needing {
 
     fn fulfill<'a>(
         &'a self,
-        request: &'a Request,
+        request: &'a contract::Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         self.take(request)
     }
 
-    fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
+    fn unfollow<'a>(
+        &'a self,
+        request: &'a contract::Request,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
         self.unfollowed.lock().unwrap().push(request.id);
         Box::pin(async { Ok(()) })
     }

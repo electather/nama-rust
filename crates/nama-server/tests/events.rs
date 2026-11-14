@@ -6,11 +6,12 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_plugin_api::{
-    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Registrar, points,
+    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Registrar, contract,
+    points::{self, ObservedEvents},
 };
 use nama_proto::nama::v1::{
     Event, EventType, LibraryItemAdded, LibraryKind, ListUnmatchedItemsRequest, MatchServiceClient,
@@ -122,7 +123,7 @@ async fn a_subscriber_without_manage_libraries_receives_added_items_without_thei
 }
 
 /// A test Plugin whose Observer forwards each batch of events it is told.
-struct Forward(mpsc::UnboundedSender<Vec<Event>>);
+struct Forward(mpsc::UnboundedSender<Vec<contract::Event>>);
 
 impl Plugin for Forward {
     fn manifest(&self) -> Manifest {
@@ -140,20 +141,35 @@ impl Plugin for Forward {
 }
 
 /// The Observer [`Forward`] registers.
-struct ForwardObserver(mpsc::UnboundedSender<Vec<Event>>);
+struct ForwardObserver(mpsc::UnboundedSender<Vec<contract::Event>>);
 
 impl Observer<points::Events> for ForwardObserver {
-    fn observe<'a>(&'a self, event: &'a Vec<Event>) -> BoxFuture<'a, ()> {
+    fn observe<'a>(&'a self, event: &'a ObservedEvents) -> BoxFuture<'a, ()> {
         Box::pin(async move {
-            let _: Result<(), _> = self.0.send(event.clone());
+            let _: Result<(), _> = self.0.send(event.events.clone());
         })
     }
 }
 
-/// `batches` in an order that doesn't depend on the order they came in.
-fn sorted(mut batches: Vec<Vec<Event>>) -> Vec<Vec<Event>> {
-    batches.sort_by_key(|batch| format!("{batch:?}"));
-    batches
+/// The kind of event `event`, a client API or contract event's oneof, holds, such as
+/// `ScanStarted`: the two share the kinds' names, which is how a batch is compared across them.
+fn kind(event: &impl Debug) -> String {
+    let debug = format!("{event:?}");
+    let inner = debug.strip_prefix("Some(").unwrap_or(&debug);
+    inner
+        .split(['(', ' '])
+        .next()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+/// The kinds of each of `batches`, in an order that doesn't depend on the order they came in.
+fn sorted<E>(batches: &[Vec<E>], oneof: impl Fn(&E) -> String) -> Vec<Vec<String>> {
+    let mut kinds: Vec<Vec<String>> = (batches.iter())
+        .map(|batch| batch.iter().map(&oneof).collect())
+        .collect();
+    kinds.sort();
+    kinds
 }
 
 #[tokio::test]
@@ -196,7 +212,10 @@ async fn an_observer_is_told_the_same_events_a_subscriber_receives_in_one_batch_
             .expect("the Observer is gone");
         told.push(batch);
     }
-    assert_eq!(sorted(told), sorted(written));
+    assert_eq!(
+        sorted(&told, |event| kind(&event.event)),
+        sorted(&written, |event| kind(&event.event))
+    );
 }
 
 #[tokio::test]

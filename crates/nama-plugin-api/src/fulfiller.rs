@@ -15,11 +15,9 @@
 use std::collections::HashMap;
 
 pub use nama_plugin_proto::nama::plugin::v1::{
-    EpisodeNumber, EpisodeNumbers, Fulfilled, MovieDeleted, ShowDeleted, StopMonitoring, TitleId,
-    show_deleted, stop_monitoring,
+    Download, DownloadStatus, EpisodeNumber, EpisodeNumbers, Fulfilled, MovieDeleted, Request,
+    ShowDeleted, StopMonitoring, TitleId, show_deleted, stop_monitoring,
 };
-use nama_proto::nama::v1::Request;
-pub use nama_proto::nama::v1::{Download, DownloadStatus};
 
 use crate::{BoxFuture, PluginError};
 

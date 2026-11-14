@@ -8,7 +8,7 @@ use std::{
 
 use futures_util::{Stream, StreamExt};
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, contract,
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
     metadata::{Episode, ExternalId, ExternalIds, Season},
     settings::{SettingValue, Settings},
@@ -54,6 +54,22 @@ pub(super) fn asked_movie(request: &Request) -> &RequestedMovie {
 pub(super) fn asked_season(request: &Request) -> &RequestedSeason {
     match &request.movie_or_season {
         Some(MovieOrSeason::Season(season)) => season,
+        other => panic!("not a Season Request: {other:?}"),
+    }
+}
+
+/// The Movie a Fulfiller is told `request` asks for, panicking if it asks for a Season.
+pub(super) fn told_movie(request: &contract::Request) -> &contract::RequestedMovie {
+    match &request.movie_or_season {
+        Some(contract::request::MovieOrSeason::Movie(movie)) => movie,
+        other => panic!("not a Movie Request: {other:?}"),
+    }
+}
+
+/// The Season a Fulfiller is told `request` asks for, panicking if it asks for a Movie.
+pub(super) fn told_season(request: &contract::Request) -> &contract::RequestedSeason {
+    match &request.movie_or_season {
+        Some(contract::request::MovieOrSeason::Season(season)) => season,
         other => panic!("not a Season Request: {other:?}"),
     }
 }
@@ -105,9 +121,12 @@ pub(super) struct Asked(pub(super) std::sync::Mutex<Vec<Vec<String>>>);
 impl Fulfiller<Movies> for Asked {
     fn fulfill<'a>(
         &'a self,
-        request: &'a Request,
+        request: &'a contract::Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        took(asked_movie(request).id.value.clone())
+        let ids = &told_movie(request).ids;
+        // The contract has no key id: these tests keep a Movie under its TMDB id.
+        let tmdb = ids.iter().find(|id| id.namespace == "tmdb");
+        took(tmdb.expect("a TMDB id").value.clone())
     }
 
     fn progress<'a>(
@@ -121,9 +140,9 @@ impl Fulfiller<Movies> for Asked {
 impl Fulfiller<Shows> for Asked {
     fn fulfill<'a>(
         &'a self,
-        request: &'a Request,
+        request: &'a contract::Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        took(format!("season-{}", asked_season(request).season_number))
+        took(format!("season-{}", told_season(request).season_number))
     }
 
     fn progress<'a>(

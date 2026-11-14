@@ -14,7 +14,7 @@ use crate::requests::testing::{
 use crate::{
     db::Database,
     events::{EventBus, Filter},
-    plugins::Registry,
+    plugins::{self, Registry},
     server_settings::ServerUrl,
     users::Permissions,
 };
@@ -201,8 +201,11 @@ async fn a_handed_off_season_gets_progress_while_partially_available_but_not_onc
         (published.id, published.state),
         (id, RequestState::PartiallyAvailable.into())
     );
-    assert_eq!(published.downloads, downloading("season-1"));
-    assert_eq!(partly.downloads, downloading("season-1"));
+    let shown: Vec<_> = (downloading("season-1").into_iter())
+        .map(plugins::download)
+        .collect();
+    assert_eq!(published.downloads, shown);
+    assert_eq!(partly.downloads, shown);
     assert!(!any_once_available);
     assert_eq!(asked.batches().len(), batches);
     assert_eq!(published_once_available.ok(), None);

@@ -27,7 +27,7 @@ use crate::{
     connections,
     db::Database,
     playback,
-    plugins::{ExtensionPoints, Failure, ProviderError},
+    plugins::{self, ExtensionPoints, Failure, ProviderError},
     requests,
     server_settings::ServerUrl,
     users::User,
@@ -111,18 +111,21 @@ impl EventBus {
         }
     }
 
-    /// Publishes `events`, in order, to each subscriber, and as one batch to each Observer. Each
-    /// Request event goes to every Notifier too.
+    /// Publishes `events`, in order, to each subscriber, and those of the kinds the Plugin contract
+    /// has as one batch to each Observer. Each Request event goes to every Notifier too.
     pub(crate) fn publish(&self, events: Vec<Event>) {
         if events.is_empty() {
             return;
         }
-        for event in &events {
+        let batch = plugins::observed(&events);
+        for event in events {
             // Fails only when nobody is subscribed, which is fine.
             let _: Result<usize, _> = self.sender.send(event.clone());
-            self.tell_notifiers(event);
+            self.tell_notifiers(&event);
         }
-        self.plugins.notify::<points::Events>(events);
+        if let Some(batch) = batch {
+            self.plugins.notify::<points::Events>(batch);
+        }
     }
 
     /// Hands `event`, if it is a Request event, to every Notifier for its channel and for the
@@ -136,19 +139,16 @@ impl EventBus {
             kind,
             EventType::EVENT_TYPE_REQUEST_CANCELLED | EventType::EVENT_TYPE_REQUEST_WITHDRAWN
         );
-        let notification = Arc::new(Notification {
-            event: event.clone(),
-            request: request.clone(),
-            // A removed Request is no longer in the web app to link to.
-            request_url: self
-                .server_url
-                .request_link(request.id)
-                .filter(|_| !removed),
-        });
+        // A removed Request is no longer in the web app to link to.
+        let request_url = (self.server_url.request_link(request.id)).filter(|_| !removed);
+        let Some(notification) = plugins::notification(event, request, request_url) else {
+            return;
+        };
+        let told = Arc::new((event.clone(), notification));
         let db = Arc::clone(&self.db);
         self.plugins
             .tell_each(move |plugin, notifier: Arc<dyn Notifier>| {
-                deliver(Arc::clone(&db), plugin, notifier, Arc::clone(&notification))
+                deliver(Arc::clone(&db), plugin, notifier, Arc::clone(&told))
             });
     }
 
@@ -243,9 +243,9 @@ async fn next_message(
     }
 }
 
-/// Hands `notification` to `plugin`'s `notifier` for its channel and for the Plugin Connection to
-/// `plugin` of each User told about it, [`DELIVERING_AT_ONCE`] at a time. A User with none is
-/// skipped, and one the Notifier finds gone is disconnected (ADR 0021).
+/// Hands `told`'s notification to `plugin`'s `notifier` for its channel and for the Plugin
+/// Connection to `plugin` of each User told about its event, [`DELIVERING_AT_ONCE`] at a time. A
+/// User with none is skipped, and one the Notifier finds gone is disconnected (ADR 0021).
 ///
 /// # Errors
 ///
@@ -255,15 +255,16 @@ async fn deliver(
     db: Arc<Database>,
     plugin: PluginId,
     notifier: Arc<dyn Notifier>,
-    notification: Arc<Notification>,
+    told: Arc<(Event, Notification)>,
 ) -> Result<(), Undelivered> {
+    let (event, notification) = &*told;
     let mut recipients = vec![(None, Recipient::Channel)];
     match connections::connected(&db, &plugin).await {
-        Ok(connected) => recipients.extend(connections_to_tell(&notification.event, connected)),
+        Ok(connected) => recipients.extend(connections_to_tell(event, connected)),
         Err(err) => error!(%plugin, "could not read whom to message about a Request: {err}"),
     }
     let deliveries = recipients.into_iter().map(|(user, recipient)| {
-        let (db, plugin, notifier, notification) = (&db, &plugin, &notifier, &notification);
+        let (db, plugin, notifier) = (&db, &plugin, &notifier);
         async move {
             let delivered = deliver_to(notifier.as_ref(), notification, &recipient).await;
             match (delivered, user, recipient) {

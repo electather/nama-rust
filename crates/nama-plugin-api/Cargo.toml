@@ -8,7 +8,6 @@ repository.workspace = true
 
 [dependencies]
 nama-plugin-proto = { version = "0.1.0", path = "../nama-plugin-proto" }
-nama-proto = { version = "0.2.0", path = "../nama-proto" }
 serde = { version = "1", features = ["derive"] }
 url = "2"
 

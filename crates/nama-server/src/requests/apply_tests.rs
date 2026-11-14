@@ -2,18 +2,18 @@ use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
 
 use futures_util::Stream;
 use nama_plugin_api::{
-    BoxFuture, PluginError,
+    BoxFuture, PluginError, contract,
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
     metadata::ExternalId,
 };
 use nama_plugin_tmdb::testing::FakeTmdb;
-use nama_proto::nama::v1::{Request, RequestState, SubscribeResponse, event::Event as Happened};
+use nama_proto::nama::v1::{RequestState, SubscribeResponse, event::Event as Happened};
 use tokio::sync::Notify;
 
 use crate::requests::Requests;
 use crate::requests::testing::{
-    ADA, Asked, DARK, FulfillerPlugin, ada, approved_for, approved_on, ask_as, asked_season, dark,
-    enable_tmdb, follow_as, fulfilled, next_happened,
+    ADA, Asked, DARK, FulfillerPlugin, ada, approved_for, approved_on, ask_as, dark, enable_tmdb,
+    follow_as, fulfilled, next_happened, told_season,
 };
 use crate::{
     artwork::Artwork,
@@ -212,15 +212,20 @@ async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_mad
 struct Unfollowing(std::sync::Mutex<Vec<i64>>);
 
 impl Fulfiller<Shows> for Unfollowing {
-    fn fulfill<'a>(&'a self, _: &'a Request) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+    fn fulfill<'a>(
+        &'a self,
+        _: &'a contract::Request,
+    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         Box::pin(async { Ok(fulfilled()) })
     }
 
-    fn unfollow<'a>(&'a self, season: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
-        self.0
-            .lock()
-            .unwrap()
-            .push(asked_season(season).show_id.value.parse().unwrap());
+    fn unfollow<'a>(
+        &'a self,
+        season: &'a contract::Request,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        let ids = &told_season(season).show_ids;
+        let tmdb = ids.iter().find(|id| id.namespace == "tmdb").unwrap();
+        self.0.lock().unwrap().push(tmdb.value.parse().unwrap());
         Box::pin(async { Ok(()) })
     }
 
