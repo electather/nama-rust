@@ -5113,6 +5113,15 @@ pub struct TitleSource {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub plugin_name: ::buffa::alloc::string::String,
+    /// Whether it searches for titles; a source that doesn't only adds artwork and ids it looks up.
+    ///
+    /// Field 4: `searches`
+    #[serde(
+        rename = "searches",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub searches: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -5123,6 +5132,7 @@ impl ::core::fmt::Debug for TitleSource {
             .field("namespace", &self.namespace)
             .field("plugin_id", &self.plugin_id)
             .field("plugin_name", &self.plugin_name)
+            .field("searches", &self.searches)
             .finish()
     }
 }
@@ -5162,6 +5172,9 @@ impl ::buffa::Message for TitleSource {
         if !self.plugin_name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_name) as u64;
         }
+        if self.searches {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5180,6 +5193,9 @@ impl ::buffa::Message for TitleSource {
         }
         if !self.plugin_name.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.plugin_name, buf);
+        }
+        if self.searches {
+            ::buffa::types::put_bool_field(4u32, self.searches, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5215,6 +5231,13 @@ impl ::buffa::Message for TitleSource {
                 )?;
                 ::buffa::types::merge_string(&mut self.plugin_name, buf)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.searches = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -5226,6 +5249,7 @@ impl ::buffa::Message for TitleSource {
         self.namespace.clear();
         self.plugin_id.clear();
         self.plugin_name.clear();
+        self.searches = false;
         self.__buffa_unknown_fields.clear();
     }
 }

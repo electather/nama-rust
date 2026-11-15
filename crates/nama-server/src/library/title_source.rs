@@ -59,6 +59,13 @@ pub(crate) struct Source {
     pub(crate) answers: Vec<TitleMethod>,
 }
 
+impl Source {
+    /// Whether it searches for titles; one that doesn't only adds artwork and the ids it looks up.
+    pub(crate) fn searches(&self) -> bool {
+        self.answers.contains(&TitleMethod::Search)
+    }
+}
+
 /// Every [`TitleMethod`], for reading which a source answers.
 const METHODS: [TitleMethod; 7] = [
     TitleMethod::Search,
@@ -166,6 +173,18 @@ impl TitleSources {
         sources
     }
 
+    /// Whether `order`, a Library's, could ever Match: false only when every namespace in it
+    /// names an enabled source and none of them searches. A namespace no enabled source keeps
+    /// passes, as a disabled source does.
+    pub(crate) async fn searches_any(&self, order: &[String]) -> bool {
+        let sources = self.sources().await;
+        order.iter().any(|namespace| {
+            (sources.iter())
+                .find(|source| source.namespace == *namespace)
+                .is_none_or(Source::searches)
+        })
+    }
+
     /// Whether some source the routing methods ask answers `method` and keeps titles under
     /// `namespace`, such as an ID Hint's, or looks them up by it.
     pub(crate) async fn serves(&self, namespace: &str, method: TitleMethod) -> bool {
@@ -189,7 +208,7 @@ impl TitleSources {
         query: &SearchQuery,
     ) -> Result<(Source, Vec<Candidate>), Unanswered> {
         let mut sources = self.sources().await;
-        sources.retain(|source| source.answers.contains(&TitleMethod::Search));
+        sources.retain(Source::searches);
         let query = &titles::search_query(query);
         self.first_answer(sources, Vec::is_empty, |metadata| async move {
             candidates(metadata.search(query).await?)

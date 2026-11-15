@@ -10,8 +10,9 @@ import { refused } from "./test-refusal";
 
 afterEach(cleanup);
 
-const tmdb = { namespace: "tmdb", pluginId: "tmdb", pluginName: "TMDB" };
-const tvdb = { namespace: "tvdb", pluginId: "tvdb", pluginName: "TVDB" };
+const tmdb = { namespace: "tmdb", pluginId: "tmdb", pluginName: "TMDB", searches: true };
+const tvdb = { namespace: "tvdb", pluginId: "tvdb", pluginName: "TVDB", searches: true };
+const fanart = { namespace: "fanart", pluginId: "fanart", pluginName: "fanart.tv" };
 
 /** A fake Server with the Library Films, ordered `titleSources`, whose saved orders go to `saved`. */
 function titleSourcesServer(
@@ -31,7 +32,7 @@ function titleSourcesServer(
     libraries: [library],
     libraryService: {
       getLibrary: () => ({ library }),
-      listTitleSources: () => ({ titleSources: [tmdb, tvdb] }),
+      listTitleSources: () => ({ titleSources: [tmdb, tvdb, fanart] }),
       updateLibrary: (request) => {
         saved(request.titleSources);
         return { library: { ...library, titleSources: request.titleSources } };
@@ -132,4 +133,13 @@ test("creating a Library puts the title sources back to TMDB alone", async () =>
 
   await screen.findByText("Shows is ready. Scan it to fill it.");
   expect(titleSourcesShown()).toEqual(["TMDB"]);
+});
+
+test("a source that doesn't search shows as artwork only, in its row and on its add button", async () => {
+  openApp("/admin/libraries/1", titleSourcesServer(["tmdb"]));
+  const add = await screen.findByRole("button", { name: "Add fanart.tv · Artwork only" });
+  fireEvent.click(add);
+
+  expect(titleSourcesShown()).toEqual(["TMDB", "fanart.tv · Artwork only"]);
+  screen.getByText(/artwork comes from every source in the order/iu);
 });

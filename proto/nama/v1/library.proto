@@ -309,4 +309,6 @@ message TitleSource {
   string plugin_id = 2;
   // What people know that Plugin by.
   string plugin_name = 3;
+  // Whether it searches for titles; a source that doesn't only adds artwork and ids it looks up.
+  bool searches = 4;
 }

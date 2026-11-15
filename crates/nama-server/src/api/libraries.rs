@@ -64,6 +64,21 @@ impl LibraryServiceHandler {
             images: self.images.shown().await?,
         })
     }
+
+    /// Refuses a non-empty `order` that could never Match, as no source in it searches; an empty
+    /// one keeps the Library's order, or TMDB alone.
+    async fn check_searches(&self, order: &[String]) -> Result<(), ConnectError> {
+        if order.is_empty() || self.title_sources.searches_any(order).await {
+            return Ok(());
+        }
+        let message =
+            "No source in this order searches for titles; add one that does, such as TMDB";
+        Err(
+            refuse(RefusalReason::REFUSAL_REASON_TITLE_SOURCES_INVALID, message)
+                .field("title_sources")
+                .into(),
+        )
+    }
 }
 
 impl Backdrops {
@@ -101,6 +116,7 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<CreateLibraryResponse> {
         let request = request.to_owned_message();
         let kind = kind_from_proto(request.kind)?;
+        self.check_searches(&request.title_sources).await?;
         let library = self
             .scanner
             .create_library(request.name, kind, request.folders, request.title_sources)
@@ -160,6 +176,7 @@ impl LibraryService for LibraryServiceHandler {
         request: ServiceRequest<'_, UpdateLibraryRequest>,
     ) -> ServiceResult<UpdateLibraryResponse> {
         let request = request.to_owned_message();
+        self.check_searches(&request.title_sources).await?;
         let library = self
             .scanner
             .update_library(
@@ -245,6 +262,7 @@ impl LibraryService for LibraryServiceHandler {
                 .map(|source| TitleSource {
                     plugin_name: self.plugins.name(&source.plugin),
                     plugin_id: source.plugin.to_string(),
+                    searches: source.searches(),
                     namespace: source.namespace,
                     ..Default::default()
                 })

@@ -661,6 +661,7 @@ async fn list_title_sources_names_tmdb_by_its_namespace() {
         namespace: "tmdb".to_owned(),
         plugin_id: "tmdb".to_owned(),
         plugin_name: "TMDB".to_owned(),
+        searches: true,
         ..Default::default()
     };
     assert_eq!(listed, [tmdb]);

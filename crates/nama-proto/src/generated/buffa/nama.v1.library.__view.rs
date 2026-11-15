@@ -8905,6 +8905,10 @@ pub struct TitleSourceView<'a> {
     ///
     /// Field 3: `plugin_name`
     pub plugin_name: &'a str,
+    /// Whether it searches for titles; a source that doesn't only adds artwork and ids it looks up.
+    ///
+    /// Field 4: `searches`
+    pub searches: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for TitleSourceView<'a> {
@@ -8958,6 +8962,13 @@ impl<'a> ::buffa::MessageView<'a> for TitleSourceView<'a> {
                 )?;
                 view.plugin_name = ::buffa::types::borrow_str(&mut cur)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.searches = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -8983,6 +8994,7 @@ impl<'a> ::buffa::MessageView<'a> for TitleSourceView<'a> {
             namespace: self.namespace.to_string(),
             plugin_id: self.plugin_id.to_string(),
             plugin_name: self.plugin_name.to_string(),
+            searches: self.searches,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -9003,6 +9015,9 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleSourceView<'a> {
         if !self.plugin_name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_name) as u64;
         }
+        if self.searches {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9022,6 +9037,9 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleSourceView<'a> {
         }
         if !self.plugin_name.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.plugin_name, buf);
+        }
+        if self.searches {
+            ::buffa::types::put_bool_field(4u32, self.searches, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9052,6 +9070,9 @@ impl<'__a> ::serde::Serialize for TitleSourceView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.plugin_name) {
             __map.serialize_entry("pluginName", self.plugin_name)?;
+        }
+        if self.searches {
+            __map.serialize_entry("searches", &self.searches)?;
         }
         __map.end()
     }
@@ -9164,6 +9185,13 @@ impl TitleSourceOwnedView {
     #[must_use]
     pub fn plugin_name(&self) -> &'_ str {
         self.0.reborrow().plugin_name
+    }
+    /// Whether it searches for titles; a source that doesn't only adds artwork and ids it looks up.
+    ///
+    /// Field 4: `searches`
+    #[must_use]
+    pub fn searches(&self) -> bool {
+        self.0.reborrow().searches
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<TitleSourceView<'static>>>

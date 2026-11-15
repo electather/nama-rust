@@ -43,13 +43,15 @@ export function TitleSourcesField({
               label={source === undefined ? namespace : sourceName(source)}
               // Until the list arrives, no stored source is known to be missing.
               unavailable={data !== undefined && source === undefined}
+              artworkOnly={source?.searches === false}
             />
           );
         })}
       </ol>
       <AddSources enabled={enabled} order={order} setOrder={setOrder} />
       <p id={`${id}-hint`} className="text-sm text-muted-foreground">
-        Titles are Matched with the first source that finds them.
+        Titles are Matched with the first source that finds them. Artwork comes from every source in
+        the order.
       </p>
       {/* Always there, so screen readers announce an error as it appears. */}
       <p id={`${id}-error`} role="alert" className="text-sm text-destructive empty:hidden">
@@ -101,10 +103,16 @@ function AddSources({
             }}
           >
             Add {sourceName(source)}
+            {!source.searches && <ArtworkOnly />}
           </Button>
         ))}
     </div>
   );
+}
+
+/** The note beside a source that only adds artwork, as it can't search for titles to Match. */
+function ArtworkOnly() {
+  return <span className="text-muted-foreground"> · Artwork only</span>;
 }
 
 /** What people know `source` by: its Plugin's name, or else its namespace. */
@@ -119,12 +127,14 @@ function SourceRow({
   setOrder,
   label,
   unavailable,
+  artworkOnly,
 }: {
   order: string[];
   index: number;
   setOrder: (order: string[]) => void;
   label: string;
   unavailable: boolean;
+  artworkOnly: boolean;
 }) {
   const move = (by: -1 | 1) => () => {
     const next = [...order];
@@ -137,6 +147,7 @@ function SourceRow({
       <span className="me-auto">
         {label}
         {unavailable && <span className="text-muted-foreground"> · not available</span>}
+        {artworkOnly && <ArtworkOnly />}
       </span>
       <RowButton name={`Move ${label} up`} disabled={index === 0} onClick={move(-1)}>
         <ArrowUp aria-hidden />
