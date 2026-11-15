@@ -266,7 +266,16 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
         .collect();
     let built_in = Some(PluginKind::PLUGIN_KIND_BUILT_IN);
     let installed = Some(PluginKind::PLUGIN_KIND_INSTALLED);
-    let bundled = bundled_plugin_folders();
+    // The folders under `plugins/` the Server bundles, by the rule in `plugins/AGENTS.md`.
+    let plugins = fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../../plugins")).unwrap();
+    let manifest = |dir: &fs::DirEntry| fs::read_to_string(dir.path().join("Cargo.toml"));
+    let rule = |toml: String| {
+        toml.contains(r#"crate-type = ["cdylib"]"#) && !toml.contains("\nbundled = false")
+    };
+    let folders = plugins
+        .flatten()
+        .filter(|dir| manifest(dir).is_ok_and(rule));
+    let bundled = Vec::from_iter(folders.map(|dir| dir.file_name().into_string().unwrap()));
     let built_ins = ["local-auth", "log-events", test_choices::ID, "tmdb"].map(|id| (id, built_in));
     let bundled_kinds = bundled.iter().map(|id| (id.as_str(), installed));
     let mut expected: Vec<_> = built_ins.into_iter().chain(bundled_kinds).collect();
@@ -281,17 +290,6 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     for id in &bundled {
         assert!(!plugin(&listed, id).enabled, "{id}");
     }
-}
-
-/// The folders under `plugins/` the Server bundles, by the rule in `plugins/AGENTS.md`.
-fn bundled_plugin_folders() -> Vec<String> {
-    let plugins = fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../../plugins")).unwrap();
-    let toml = |folder: &fs::DirEntry| fs::read_to_string(folder.path().join("Cargo.toml"));
-    let rule = |toml: String| {
-        toml.contains(r#"crate-type = ["cdylib"]"#) && !toml.contains("\nbundled = false")
-    };
-    let folders = plugins.flatten().filter(|dir| toml(dir).is_ok_and(rule));
-    Vec::from_iter(folders.map(|folder| folder.file_name().into_string().unwrap()))
 }
 
 // `plugins/AGENTS.md`: every Plugin ships a logo.
