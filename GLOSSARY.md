@@ -179,8 +179,12 @@ The wide image that stands for an Episode: a frame from it.
 _Avoid_: thumbnail, thumb, screenshot
 
 **Title Logo**:
-The image of a Movie's or Show's title, lettered as its artwork letters it, shown in place of the title's text.
+The image of a Movie's or Show's title, lettered as its artwork letters it, shown in place of the title's text. It comes from the artwork lists of its Library's title sources.
 _Avoid_: logo, title treatment, clearlogo, wordmark
+
+**Artwork list**:
+What a title source has for one title, of every kind, from which Artwork picks a Poster, Backdrop and Title Logo.
+_Avoid_: image list, artwork set, gallery
 
 **Custom Image**:
 An image an admin uploaded to show in place of the one the Server would otherwise show, such as a Movie's Poster or a Plugin's logo. Everyone sees it until it is removed, which brings the other back. A title's stays with the title, whatever happens to its files.
