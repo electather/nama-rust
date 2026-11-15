@@ -153,7 +153,7 @@ pub(crate) fn router(
             images: images.clone(),
         }))
         .add_service(Arc::new(PluginServiceHandler {
-            plugin_settings,
+            plugin_settings: plugin_settings.clone(),
             custom_images: custom_images.clone(),
             plugin_logos: plugin_logos.clone(),
         }))
@@ -161,7 +161,7 @@ pub(crate) fn router(
             libraries: Libraries::new(Arc::clone(&db)),
             scanner,
             browse,
-            contents: Contents::new(db),
+            contents: Contents::new(Arc::clone(&db)),
             images,
             title_sources: TitleSources::new(plugins.clone()),
             plugins,
@@ -173,6 +173,10 @@ pub(crate) fn router(
         .add_service(Arc::new(UserServiceHandler {
             users: users.clone(),
             connections,
+            plugin_settings,
+            custom_images: custom_images.clone(),
+            plugin_logos: plugin_logos.clone(),
+            db,
         }))
         .into_axum_router()
         .merge(artwork_router)
@@ -284,6 +288,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_LIST_PLUGIN_CONNECTIONS_SPEC.procedure,  Access::SignedIn),
     (proto::USER_SERVICE_START_PLUGIN_CONNECTION_SPEC.procedure,  Access::SignedIn),
     (proto::USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC.procedure, Access::SignedIn),
+    (proto::USER_SERVICE_LIST_PERSONAL_SETTINGS_SPEC.procedure,   Access::SignedIn),
+    (proto::USER_SERVICE_UPDATE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
+    (proto::USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC.procedure, REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),

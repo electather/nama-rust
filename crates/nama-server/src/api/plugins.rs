@@ -43,9 +43,9 @@ pub(super) struct PluginServiceHandler {
 }
 
 /// A Plugin's logo as clients fetch it.
-struct Logo {
+pub(super) struct Logo {
     /// Empty if it has none.
-    url: String,
+    pub(super) url: String,
     /// Whether it is a Custom Image.
     custom: bool,
 }
@@ -65,7 +65,7 @@ impl PluginService for PluginServiceHandler {
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let mut summaries = Vec::with_capacity(listed.len());
         for StoredPlugin { plugin, stored } in listed {
-            let logo = self.logo(&plugin, &custom).await;
+            let logo = logo(&self.plugin_logos, &plugin, &custom).await;
             summaries.push(plugin_summary_to_proto(plugin, stored.settings, logo));
         }
         Response::ok(ListPluginsResponse {
@@ -203,31 +203,34 @@ impl PluginServiceHandler {
     /// `stored` as `Plugin`, with its logo.
     async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
-        let logo = self.logo(&stored.plugin, &custom).await;
+        let logo = logo(&self.plugin_logos, &stored.plugin, &custom).await;
         Ok(plugin_to_proto(stored.plugin, stored.stored.settings, logo))
     }
+}
 
-    /// `plugin`'s logo: its Custom Image, among `custom`, else its Manifest's, which is stored
-    /// first if it isn't. Without a URL if the store fails, which is logged: the Plugin is still
-    /// listed.
-    async fn logo(&self, plugin: &Listed, custom: &Urls) -> Logo {
-        if let Some(url) = custom.of(&Slot::plugin(&plugin.id)) {
-            return Logo { url, custom: true };
-        }
-        let manifest_logo = plugin
-            .manifest
-            .as_ref()
-            .ok()
-            .and_then(|it| it.logo_svg.as_deref());
-        let url = match manifest_logo {
-            Some(svg) => self.plugin_logos.stored_url(&plugin.id, svg).await.unwrap_or_else(|err| {
+/// `plugin`'s logo: its Custom Image, among `custom`, else its Manifest's, which is stored in
+/// `plugin_logos` first if it isn't. Without a URL if the store fails, which is logged: the Plugin
+/// is still listed.
+pub(super) async fn logo(plugin_logos: &PluginLogos, plugin: &Listed, custom: &Urls) -> Logo {
+    if let Some(url) = custom.of(&Slot::plugin(&plugin.id)) {
+        return Logo { url, custom: true };
+    }
+    let manifest_logo = plugin
+        .manifest
+        .as_ref()
+        .ok()
+        .and_then(|it| it.logo_svg.as_deref());
+    let url = match manifest_logo {
+        Some(svg) => plugin_logos
+            .stored_url(&plugin.id, svg)
+            .await
+            .unwrap_or_else(|err| {
                 tracing::error!(plugin = %plugin.id, "could not store the Plugin's logo: {err}");
                 String::new()
             }),
-            None => String::new(),
-        };
-        Logo { url, custom: false }
-    }
+        None => String::new(),
+    };
+    Logo { url, custom: false }
 }
 
 /// The refusal of a Plugin change or settings check failing with `err`. A database failure is
@@ -346,7 +349,7 @@ impl From<EnableError> for ConnectError {
 
 /// The refusal of settings that don't fit their Plugin's schema, naming the one that doesn't as
 /// `settings.<key>`, the way `Plugin.settings` lists it.
-fn settings_refused(err: SettingsError) -> ConnectError {
+pub(super) fn settings_refused(err: SettingsError) -> ConnectError {
     let refused = match err {
         SettingsError::Missing(key) => refuse(
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
@@ -470,7 +473,7 @@ fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::Extens
 
 /// A setting with its `stored` value, as a client may see it: a secret's value, stored or
 /// default, never leaves the Server (see AGENTS.md, "Secrets stay out of storage and logs").
-fn setting_to_proto(
+pub(super) fn setting_to_proto(
     field: &SettingField,
     stored: Option<&settings::SettingValue>,
 ) -> proto::Setting {
@@ -492,7 +495,7 @@ fn setting_to_proto(
 }
 
 /// The settings a request gives, by key, leaving out those [`setting_value_from_proto`] does.
-fn settings_from_proto<'a>(
+pub(super) fn settings_from_proto<'a>(
     sent: impl IntoIterator<Item = (&'a String, &'a proto::SettingValue)>,
 ) -> BTreeMap<String, settings::SettingValue> {
     sent.into_iter()
@@ -554,7 +557,7 @@ fn setting_kind_to_proto(kind: settings::SettingKind) -> proto::SettingKind {
 
 /// The Connect error a client gets when the Plugins couldn't be listed, logged as
 /// [`database_failed`] logs.
-fn list_failed(err: ListError) -> ConnectError {
+pub(super) fn list_failed(err: ListError) -> ConnectError {
     match err {
         ListError::Read(err) => database_failed(err),
         err @ ListError::ReadInstalled(_) => {

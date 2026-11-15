@@ -4,6 +4,8 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Setting, SettingValue } from "./plugin_pb";
+import { file_nama_v1_plugin } from "./plugin_pb";
 import type { Device, Permission, User } from "./sign_in_pb";
 import { file_nama_v1_sign_in } from "./sign_in_pb";
 import type { Message, UnknownEnum } from "@bufbuild/protobuf";
@@ -12,7 +14,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/user.proto.
  */
 export const file_nama_v1_user: GenFile = /*@__PURE__*/
-  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiPwoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCUoECAMQBFIEcm9sZSIgChJDcmVhdGVVc2VyUmVzcG9uc2USCgoCaWQYASABKAMiEgoQTGlzdFVzZXJzUmVxdWVzdCIxChFMaXN0VXNlcnNSZXNwb25zZRIcCgV1c2VycxgBIAMoCzINLm5hbWEudjEuVXNlciJSChVTZXRQZXJtaXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIoCgtwZXJtaXNzaW9ucxgCIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiIYChZTZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIiQKEURlbGV0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSRGVsZXRlVXNlclJlc3BvbnNlIjYKEkxpc3REZXZpY2VzUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQFCCgoIX3VzZXJfaWQiNwoTTGlzdERldmljZXNSZXNwb25zZRIgCgdkZXZpY2VzGAEgAygLMg8ubmFtYS52MS5EZXZpY2UiSgoTUmV2b2tlRGV2aWNlUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQESEQoJZGV2aWNlX2lkGAIgASgDQgoKCF91c2VyX2lkIhYKFFJldm9rZURldmljZVJlc3BvbnNlIkUKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIUCgxuZXdfcGFzc3dvcmQYAiABKAlKBAgBEAJSEGN1cnJlbnRfcGFzc3dvcmQiGAoWQ2hhbmdlUGFzc3dvcmRSZXNwb25zZSI9ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEhQKDG5ld19wYXNzd29yZBgCIAEoCSIXChVSZXNldFBhc3N3b3JkUmVzcG9uc2UiHgocR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdCJJCh1HZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZRIoCgtwZXJtaXNzaW9ucxgBIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiJIChxTZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0EigKC3Blcm1pc3Npb25zGAEgAygOMhMubmFtYS52MS5QZXJtaXNzaW9uIh8KHVNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIh4KHExpc3RQbHVnaW5Db25uZWN0aW9uc1JlcXVlc3QiTwodTGlzdFBsdWdpbkNvbm5lY3Rpb25zUmVzcG9uc2USLgoLY29ubmVjdGlvbnMYASADKAsyGS5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb24iVAoQUGx1Z2luQ29ubmVjdGlvbhIRCglwbHVnaW5faWQYASABKAkSLQoFc3RhdGUYAiABKA4yHi5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb25TdGF0ZSIxChxTdGFydFBsdWdpbkNvbm5lY3Rpb25SZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSIsCh1TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZRILCgN1cmwYASABKAkiMgodRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlcXVlc3QSEQoJcGx1Z2luX2lkGAEgASgJIiAKHkRlbGV0ZVBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZSq3AQoVUGx1Z2luQ29ubmVjdGlvblN0YXRlEicKI1BMVUdJTl9DT05ORUNUSU9OX1NUQVRFX1VOU1BFQ0lGSUVEEAASKQolUExVR0lOX0NPTk5FQ1RJT05fU1RBVEVfTk9UX0NPTk5FQ1RFRBABEiMKH1BMVUdJTl9DT05ORUNUSU9OX1NUQVRFX1dBSVRJTkcQAhIlCiFQTFVHSU5fQ09OTkVDVElPTl9TVEFURV9DT05ORUNURUQQAzKfCQoLVXNlclNlcnZpY2USRQoKQ3JlYXRlVXNlchIaLm5hbWEudjEuQ3JlYXRlVXNlclJlcXVlc3QaGy5uYW1hLnYxLkNyZWF0ZVVzZXJSZXNwb25zZRJHCglMaXN0VXNlcnMSGS5uYW1hLnYxLkxpc3RVc2Vyc1JlcXVlc3QaGi5uYW1hLnYxLkxpc3RVc2Vyc1Jlc3BvbnNlIgOQAgESVgoOU2V0UGVybWlzc2lvbnMSHi5uYW1hLnYxLlNldFBlcm1pc3Npb25zUmVxdWVzdBofLm5hbWEudjEuU2V0UGVybWlzc2lvbnNSZXNwb25zZSIDkAICEkoKCkRlbGV0ZVVzZXISGi5uYW1hLnYxLkRlbGV0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5EZWxldGVVc2VyUmVzcG9uc2UiA5ACAhJNCgtMaXN0RGV2aWNlcxIbLm5hbWEudjEuTGlzdERldmljZXNSZXF1ZXN0GhwubmFtYS52MS5MaXN0RGV2aWNlc1Jlc3BvbnNlIgOQAgESSwoMUmV2b2tlRGV2aWNlEhwubmFtYS52MS5SZXZva2VEZXZpY2VSZXF1ZXN0Gh0ubmFtYS52MS5SZXZva2VEZXZpY2VSZXNwb25zZRJRCg5DaGFuZ2VQYXNzd29yZBIeLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXF1ZXN0Gh8ubmFtYS52MS5DaGFuZ2VQYXNzd29yZFJlc3BvbnNlEk4KDVJlc2V0UGFzc3dvcmQSHS5uYW1hLnYxLlJlc2V0UGFzc3dvcmRSZXF1ZXN0Gh4ubmFtYS52MS5SZXNldFBhc3N3b3JkUmVzcG9uc2USawoVR2V0RGVmYXVsdFBlcm1pc3Npb25zEiUubmFtYS52MS5HZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0GiYubmFtYS52MS5HZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZSIDkAIBEmsKFVNldERlZmF1bHRQZXJtaXNzaW9ucxIlLm5hbWEudjEuU2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdBomLm5hbWEudjEuU2V0RGVmYXVsdFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACAhJrChVMaXN0UGx1Z2luQ29ubmVjdGlvbnMSJS5uYW1hLnYxLkxpc3RQbHVnaW5Db25uZWN0aW9uc1JlcXVlc3QaJi5uYW1hLnYxLkxpc3RQbHVnaW5Db25uZWN0aW9uc1Jlc3BvbnNlIgOQAgESZgoVU3RhcnRQbHVnaW5Db25uZWN0aW9uEiUubmFtYS52MS5TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXF1ZXN0GiYubmFtYS52MS5TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZRJuChZEZWxldGVQbHVnaW5Db25uZWN0aW9uEiYubmFtYS52MS5EZWxldGVQbHVnaW5Db25uZWN0aW9uUmVxdWVzdBonLm5hbWEudjEuRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_sign_in]);
+  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiPwoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCUoECAMQBFIEcm9sZSIgChJDcmVhdGVVc2VyUmVzcG9uc2USCgoCaWQYASABKAMiEgoQTGlzdFVzZXJzUmVxdWVzdCIxChFMaXN0VXNlcnNSZXNwb25zZRIcCgV1c2VycxgBIAMoCzINLm5hbWEudjEuVXNlciJSChVTZXRQZXJtaXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIoCgtwZXJtaXNzaW9ucxgCIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiIYChZTZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIiQKEURlbGV0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSRGVsZXRlVXNlclJlc3BvbnNlIjYKEkxpc3REZXZpY2VzUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQFCCgoIX3VzZXJfaWQiNwoTTGlzdERldmljZXNSZXNwb25zZRIgCgdkZXZpY2VzGAEgAygLMg8ubmFtYS52MS5EZXZpY2UiSgoTUmV2b2tlRGV2aWNlUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQESEQoJZGV2aWNlX2lkGAIgASgDQgoKCF91c2VyX2lkIhYKFFJldm9rZURldmljZVJlc3BvbnNlIkUKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIUCgxuZXdfcGFzc3dvcmQYAiABKAlKBAgBEAJSEGN1cnJlbnRfcGFzc3dvcmQiGAoWQ2hhbmdlUGFzc3dvcmRSZXNwb25zZSI9ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEhQKDG5ld19wYXNzd29yZBgCIAEoCSIXChVSZXNldFBhc3N3b3JkUmVzcG9uc2UiHgocR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdCJJCh1HZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZRIoCgtwZXJtaXNzaW9ucxgBIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiJIChxTZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0EigKC3Blcm1pc3Npb25zGAEgAygOMhMubmFtYS52MS5QZXJtaXNzaW9uIh8KHVNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIh4KHExpc3RQbHVnaW5Db25uZWN0aW9uc1JlcXVlc3QiTwodTGlzdFBsdWdpbkNvbm5lY3Rpb25zUmVzcG9uc2USLgoLY29ubmVjdGlvbnMYASADKAsyGS5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb24iVAoQUGx1Z2luQ29ubmVjdGlvbhIRCglwbHVnaW5faWQYASABKAkSLQoFc3RhdGUYAiABKA4yHi5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb25TdGF0ZSIxChxTdGFydFBsdWdpbkNvbm5lY3Rpb25SZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSIsCh1TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZRILCgN1cmwYASABKAkiMgodRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlcXVlc3QSEQoJcGx1Z2luX2lkGAEgASgJIiAKHkRlbGV0ZVBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZSIdChtMaXN0UGVyc29uYWxTZXR0aW5nc1JlcXVlc3QiSgocTGlzdFBlcnNvbmFsU2V0dGluZ3NSZXNwb25zZRIqCgdwbHVnaW5zGAEgAygLMhkubmFtYS52MS5QZXJzb25hbFNldHRpbmdzImkKEFBlcnNvbmFsU2V0dGluZ3MSEQoJcGx1Z2luX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIbG9nb191cmwYAyABKAkSIgoIc2V0dGluZ3MYBCADKAsyEC5uYW1hLnYxLlNldHRpbmciwgEKHVVwZGF0ZVBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCRJGCghzZXR0aW5ncxgCIAMoCzI0Lm5hbWEudjEuVXBkYXRlUGVyc29uYWxTZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASJLCh5VcGRhdGVQZXJzb25hbFNldHRpbmdzUmVzcG9uc2USKQoGcGx1Z2luGAEgASgLMhkubmFtYS52MS5QZXJzb25hbFNldHRpbmdzIjIKHURlbGV0ZVBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSIgCh5EZWxldGVQZXJzb25hbFNldHRpbmdzUmVzcG9uc2UqtwEKFVBsdWdpbkNvbm5lY3Rpb25TdGF0ZRInCiNQTFVHSU5fQ09OTkVDVElPTl9TVEFURV9VTlNQRUNJRklFRBAAEikKJVBMVUdJTl9DT05ORUNUSU9OX1NUQVRFX05PVF9DT05ORUNURUQQARIjCh9QTFVHSU5fQ09OTkVDVElPTl9TVEFURV9XQUlUSU5HEAISJQohUExVR0lOX0NPTk5FQ1RJT05fU1RBVEVfQ09OTkVDVEVEEAMy6QsKC1VzZXJTZXJ2aWNlEkUKCkNyZWF0ZVVzZXISGi5uYW1hLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5DcmVhdGVVc2VyUmVzcG9uc2USRwoJTGlzdFVzZXJzEhkubmFtYS52MS5MaXN0VXNlcnNSZXF1ZXN0GhoubmFtYS52MS5MaXN0VXNlcnNSZXNwb25zZSIDkAIBElYKDlNldFBlcm1pc3Npb25zEh4ubmFtYS52MS5TZXRQZXJtaXNzaW9uc1JlcXVlc3QaHy5uYW1hLnYxLlNldFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACAhJKCgpEZWxldGVVc2VyEhoubmFtYS52MS5EZWxldGVVc2VyUmVxdWVzdBobLm5hbWEudjEuRGVsZXRlVXNlclJlc3BvbnNlIgOQAgISTQoLTGlzdERldmljZXMSGy5uYW1hLnYxLkxpc3REZXZpY2VzUmVxdWVzdBocLm5hbWEudjEuTGlzdERldmljZXNSZXNwb25zZSIDkAIBEksKDFJldm9rZURldmljZRIcLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVxdWVzdBodLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVzcG9uc2USUQoOQ2hhbmdlUGFzc3dvcmQSHi5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBofLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZRJOCg1SZXNldFBhc3N3b3JkEh0ubmFtYS52MS5SZXNldFBhc3N3b3JkUmVxdWVzdBoeLm5hbWEudjEuUmVzZXRQYXNzd29yZFJlc3BvbnNlEmsKFUdldERlZmF1bHRQZXJtaXNzaW9ucxIlLm5hbWEudjEuR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdBomLm5hbWEudjEuR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACARJrChVTZXREZWZhdWx0UGVybWlzc2lvbnMSJS5uYW1hLnYxLlNldERlZmF1bHRQZXJtaXNzaW9uc1JlcXVlc3QaJi5uYW1hLnYxLlNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIgOQAgISawoVTGlzdFBsdWdpbkNvbm5lY3Rpb25zEiUubmFtYS52MS5MaXN0UGx1Z2luQ29ubmVjdGlvbnNSZXF1ZXN0GiYubmFtYS52MS5MaXN0UGx1Z2luQ29ubmVjdGlvbnNSZXNwb25zZSIDkAIBEmYKFVN0YXJ0UGx1Z2luQ29ubmVjdGlvbhIlLm5hbWEudjEuU3RhcnRQbHVnaW5Db25uZWN0aW9uUmVxdWVzdBomLm5hbWEudjEuU3RhcnRQbHVnaW5Db25uZWN0aW9uUmVzcG9uc2USbgoWRGVsZXRlUGx1Z2luQ29ubmVjdGlvbhImLm5hbWEudjEuRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlcXVlc3QaJy5uYW1hLnYxLkRlbGV0ZVBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZSIDkAICEmgKFExpc3RQZXJzb25hbFNldHRpbmdzEiQubmFtYS52MS5MaXN0UGVyc29uYWxTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLkxpc3RQZXJzb25hbFNldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQZXJzb25hbFNldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQZXJzb25hbFNldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGVyc29uYWxTZXR0aW5nc1Jlc3BvbnNlIgOQAgISbgoWRGVsZXRlUGVyc29uYWxTZXR0aW5ncxImLm5hbWEudjEuRGVsZXRlUGVyc29uYWxTZXR0aW5nc1JlcXVlc3QaJy5uYW1hLnYxLkRlbGV0ZVBlcnNvbmFsU2V0dGluZ3NSZXNwb25zZSIDkAICYgZwcm90bzM", [file_nama_v1_plugin, file_nama_v1_sign_in]);
 
 /**
  * @generated from message nama.v1.CreateUserRequest
@@ -499,6 +501,159 @@ export const DeletePluginConnectionResponseSchema: GenMessage<DeletePluginConnec
   messageDesc(file_nama_v1_user, 26);
 
 /**
+ * @generated from message nama.v1.ListPersonalSettingsRequest
+ */
+export type ListPersonalSettingsRequest = Message<"nama.v1.ListPersonalSettingsRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.ListPersonalSettingsRequest.
+ * Use `create(ListPersonalSettingsRequestSchema)` to create a new message.
+ */
+export const ListPersonalSettingsRequestSchema: GenMessage<ListPersonalSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 27);
+
+/**
+ * @generated from message nama.v1.ListPersonalSettingsResponse
+ */
+export type ListPersonalSettingsResponse = Message<"nama.v1.ListPersonalSettingsResponse"> & {
+  /**
+   * One per enabled Plugin that declares Personal settings, sorted by Plugin id.
+   *
+   * @generated from field: repeated nama.v1.PersonalSettings plugins = 1;
+   */
+  plugins: PersonalSettings[];
+};
+
+/**
+ * Describes the message nama.v1.ListPersonalSettingsResponse.
+ * Use `create(ListPersonalSettingsResponseSchema)` to create a new message.
+ */
+export const ListPersonalSettingsResponseSchema: GenMessage<ListPersonalSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 28);
+
+/**
+ * One Plugin's Personal settings, with the caller's own values.
+ *
+ * @generated from message nama.v1.PersonalSettings
+ */
+export type PersonalSettings = Message<"nama.v1.PersonalSettings"> & {
+  /**
+   * The Plugin's id, such as `ntfy`.
+   *
+   * @generated from field: string plugin_id = 1;
+   */
+  pluginId: string;
+
+  /**
+   * The Plugin's name, from its Manifest.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * Where to fetch the Plugin's logo, or empty if it has none.
+   *
+   * @generated from field: string logo_url = 3;
+   */
+  logoUrl: string;
+
+  /**
+   * Each Personal setting the Manifest declares, in its order, with the caller's value. A
+   * secret's value is never set: see `Setting.secret_set`.
+   *
+   * @generated from field: repeated nama.v1.Setting settings = 4;
+   */
+  settings: Setting[];
+};
+
+/**
+ * Describes the message nama.v1.PersonalSettings.
+ * Use `create(PersonalSettingsSchema)` to create a new message.
+ */
+export const PersonalSettingsSchema: GenMessage<PersonalSettings> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 29);
+
+/**
+ * @generated from message nama.v1.UpdatePersonalSettingsRequest
+ */
+export type UpdatePersonalSettingsRequest = Message<"nama.v1.UpdatePersonalSettingsRequest"> & {
+  /**
+   * The Plugin's id, such as `ntfy`.
+   *
+   * @generated from field: string plugin_id = 1;
+   */
+  pluginId: string;
+
+  /**
+   * Every value the caller is to have, by key, replacing those they had but for a secret left out
+   * or blank.
+   *
+   * @generated from field: map<string, nama.v1.SettingValue> settings = 2;
+   */
+  settings: { [key: string]: SettingValue };
+};
+
+/**
+ * Describes the message nama.v1.UpdatePersonalSettingsRequest.
+ * Use `create(UpdatePersonalSettingsRequestSchema)` to create a new message.
+ */
+export const UpdatePersonalSettingsRequestSchema: GenMessage<UpdatePersonalSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 30);
+
+/**
+ * @generated from message nama.v1.UpdatePersonalSettingsResponse
+ */
+export type UpdatePersonalSettingsResponse = Message<"nama.v1.UpdatePersonalSettingsResponse"> & {
+  /**
+   * The Plugin's Personal settings as they are now.
+   *
+   * @generated from field: nama.v1.PersonalSettings plugin = 1;
+   */
+  plugin?: PersonalSettings | undefined;
+};
+
+/**
+ * Describes the message nama.v1.UpdatePersonalSettingsResponse.
+ * Use `create(UpdatePersonalSettingsResponseSchema)` to create a new message.
+ */
+export const UpdatePersonalSettingsResponseSchema: GenMessage<UpdatePersonalSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 31);
+
+/**
+ * @generated from message nama.v1.DeletePersonalSettingsRequest
+ */
+export type DeletePersonalSettingsRequest = Message<"nama.v1.DeletePersonalSettingsRequest"> & {
+  /**
+   * The Plugin's id, such as `ntfy`.
+   *
+   * @generated from field: string plugin_id = 1;
+   */
+  pluginId: string;
+};
+
+/**
+ * Describes the message nama.v1.DeletePersonalSettingsRequest.
+ * Use `create(DeletePersonalSettingsRequestSchema)` to create a new message.
+ */
+export const DeletePersonalSettingsRequestSchema: GenMessage<DeletePersonalSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 32);
+
+/**
+ * @generated from message nama.v1.DeletePersonalSettingsResponse
+ */
+export type DeletePersonalSettingsResponse = Message<"nama.v1.DeletePersonalSettingsResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.DeletePersonalSettingsResponse.
+ * Use `create(DeletePersonalSettingsResponseSchema)` to create a new message.
+ */
+export const DeletePersonalSettingsResponseSchema: GenMessage<DeletePersonalSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 33);
+
+/**
  * Where a User's Plugin Connection is.
  *
  * @generated from enum nama.v1.PluginConnectionState
@@ -545,8 +700,9 @@ export const PluginConnectionStateSchema: GenEnum<PluginConnectionState> = /*@__
   enumDesc(file_nama_v1_user, 0);
 
 /**
- * Managing the Server's Users, their Devices and Plugin Connections. Every RPC but `ListDevices`,
- * `RevokeDevice`, `ChangePassword` and the Plugin Connection ones needs `PERMISSION_MANAGE_USERS`,
+ * Managing the Server's Users, their Devices, Plugin Connections and Personal settings. Every RPC
+ * but `ListDevices`, `RevokeDevice`, `ChangePassword`, the Plugin Connection ones and the Personal
+ * settings ones needs `PERMISSION_MANAGE_USERS`,
  * and fails with `permission_denied` without it.
  * Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
  * User with it, grant it, put it in the default Permissions or create a User while they hold it, or
@@ -716,6 +872,44 @@ export const UserService: GenService<{
     methodKind: "unary";
     input: typeof DeletePluginConnectionRequestSchema;
     output: typeof DeletePluginConnectionResponseSchema;
+  },
+  /**
+   * Lists the caller's own Personal settings (ADR 0046): one entry per enabled Plugin whose
+   * Manifest declares any, sorted by Plugin id. Any signed-in User may list their own, and only
+   * their own. A secret's value is never sent, only whether it is set.
+   *
+   * @generated from rpc nama.v1.UserService.ListPersonalSettings
+   */
+  listPersonalSettings: {
+    methodKind: "unary";
+    input: typeof ListPersonalSettingsRequestSchema;
+    output: typeof ListPersonalSettingsResponseSchema;
+  },
+  /**
+   * Replaces the caller's own Personal settings for one Plugin. A secret left out or blank keeps
+   * its stored value, and a key the Plugin doesn't declare is ignored. Fails with
+   * `REFUSAL_REASON_PLUGIN_NOT_FOUND` for a Plugin that isn't enabled or declares no Personal
+   * settings, `REFUSAL_REASON_FIELD_REQUIRED` for a required one left out or blank, and
+   * `REFUSAL_REASON_SETTING_WRONG_KIND` for a value of the wrong kind, each naming the setting as
+   * `settings.<key>`.
+   *
+   * @generated from rpc nama.v1.UserService.UpdatePersonalSettings
+   */
+  updatePersonalSettings: {
+    methodKind: "unary";
+    input: typeof UpdatePersonalSettingsRequestSchema;
+    output: typeof UpdatePersonalSettingsResponseSchema;
+  },
+  /**
+   * Forgets the caller's own Personal settings for one Plugin. Forgetting what isn't set does
+   * nothing.
+   *
+   * @generated from rpc nama.v1.UserService.DeletePersonalSettings
+   */
+  deletePersonalSettings: {
+    methodKind: "unary";
+    input: typeof DeletePersonalSettingsRequestSchema;
+    output: typeof DeletePersonalSettingsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_user, 0);

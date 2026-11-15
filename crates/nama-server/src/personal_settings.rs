@@ -15,13 +15,6 @@ use crate::{
 };
 
 /// `user`'s Personal settings for `plugin`: each key's value and whether it is secret.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the client API that sets them comes in its own change"
-    )
-)]
 pub(crate) async fn get(
     db: &Database,
     user: i64,
@@ -44,13 +37,6 @@ pub(crate) async fn get(
 
 /// Replaces all of `user`'s Personal settings for `plugin` with `values`, each a key, its value and
 /// whether it is secret, in one write.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the client API that sets them comes in its own change"
-    )
-)]
 pub(crate) async fn replace(
     db: &Database,
     user: i64,
@@ -87,13 +73,6 @@ pub(crate) async fn replace(
 }
 
 /// Deletes all of `user`'s Personal settings for `plugin`.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the client API that sets them comes in its own change"
-    )
-)]
 pub(crate) async fn delete(db: &Database, user: i64, plugin: &PluginId) -> Result<(), sqlx::Error> {
     replace(db, user, plugin, Vec::new()).await
 }

@@ -125,7 +125,7 @@ const BROWSE: [&str; 9] = [
 ];
 
 /// Every other unary RPC that needs a session.
-const SIGNED_IN: [&str; 12] = [
+const SIGNED_IN: [&str; 15] = [
     SIGN_OUT,
     "/nama.v1.SignInService/WhoAmI",
     "/nama.v1.SignInService/Reauthenticate",
@@ -138,6 +138,9 @@ const SIGNED_IN: [&str; 12] = [
     "/nama.v1.UserService/ChangePassword",
     "/nama.v1.RequestService/ListRequests",
     "/nama.v1.RequestService/GetRequest",
+    "/nama.v1.UserService/ListPersonalSettings",
+    "/nama.v1.UserService/UpdatePersonalSettings",
+    "/nama.v1.UserService/DeletePersonalSettings",
 ];
 
 /// Each Permission some RPC needs, with every RPC that needs it: kept by hand, as a second

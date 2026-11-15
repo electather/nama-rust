@@ -343,6 +343,13 @@ pub mod __buffa {
         reg.register_json_any(super::__START_PLUGIN_CONNECTION_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_PLUGIN_CONNECTION_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_PLUGIN_CONNECTION_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_PERSONAL_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PERSONAL_SETTINGS_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PERSONAL_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DELETE_PERSONAL_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DELETE_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -1453,5 +1460,33 @@ pub use self::__buffa::view::DeletePluginConnectionRequestOwnedView;
 pub use self::__buffa::view::DeletePluginConnectionResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::DeletePluginConnectionResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPersonalSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPersonalSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPersonalSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPersonalSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePersonalSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePersonalSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePersonalSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePersonalSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePersonalSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePersonalSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePersonalSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePersonalSettingsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

@@ -1,27 +1,45 @@
-//! The Server's Users, their Devices and Plugin Connections: `nama.v1.UserService`.
+//! The Server's Users, their Devices, Plugin Connections and Personal settings:
+//! `nama.v1.UserService`.
+
+use std::{collections::BTreeMap, sync::Arc};
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
-use nama_plugin_api::PluginId;
+use nama_plugin_api::{
+    Manifest, PluginId,
+    settings::{SettingKind, SettingValue, Settings},
+};
 use nama_proto::nama::v1::{
     self as proto, ChangePasswordRequest, ChangePasswordResponse, CreateUserRequest,
-    CreateUserResponse, DeletePluginConnectionRequest, DeletePluginConnectionResponse,
-    DeleteUserRequest, DeleteUserResponse, GetDefaultPermissionsRequest,
-    GetDefaultPermissionsResponse, ListDevicesRequest, ListDevicesResponse,
-    ListPluginConnectionsRequest, ListPluginConnectionsResponse, ListUsersRequest,
-    ListUsersResponse, Permission, PluginConnection, PluginConnectionState, RefusalReason,
-    ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest, RevokeDeviceResponse,
-    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetPermissionsRequest,
-    SetPermissionsResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    CreateUserResponse, DeletePersonalSettingsRequest, DeletePersonalSettingsResponse,
+    DeletePluginConnectionRequest, DeletePluginConnectionResponse, DeleteUserRequest,
+    DeleteUserResponse, GetDefaultPermissionsRequest, GetDefaultPermissionsResponse,
+    ListDevicesRequest, ListDevicesResponse, ListPersonalSettingsRequest,
+    ListPersonalSettingsResponse, ListPluginConnectionsRequest, ListPluginConnectionsResponse,
+    ListUsersRequest, ListUsersResponse, Permission, PluginConnection, PluginConnectionState,
+    RefusalReason, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
+    RevokeDeviceResponse, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse,
+    SetPermissionsRequest, SetPermissionsResponse, StartPluginConnectionRequest,
+    StartPluginConnectionResponse, UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse,
     UserService,
 };
 
 use crate::{
     connections::{self, Connections},
+    db::Database,
+    images::PluginLogos,
+    library::custom_images::{CustomImages, Urls},
+    personal_settings,
+    plugin_settings::{PluginSettings, StoredPlugin},
+    plugins::Listed,
     users::{self, Caller, Permissions, Users},
 };
 
-use super::{caller, database_failed, permission_required, refuse, signed_out, unknown_enum_value};
+use super::{
+    caller, database_failed, permission_required,
+    plugins::{list_failed, logo, setting_to_proto, settings_from_proto, settings_refused},
+    refuse, signed_out, unknown_enum_value,
+};
 
 /// `nama.v1.UserService`: managing the Server's Users, their Devices and Plugin Connections. Needs
 /// `PERMISSION_MANAGE_USERS`, which [`require_access`](super::require_access) enforces, but for
@@ -30,6 +48,14 @@ use super::{caller, database_failed, permission_required, refuse, signed_out, un
 pub(super) struct UserServiceHandler {
     pub(super) users: Users,
     pub(super) connections: Connections,
+    /// The Plugins, whose Manifests declare the Personal settings.
+    pub(super) plugin_settings: PluginSettings,
+    /// The logos admins uploaded, shown in place of the Manifests'.
+    pub(super) custom_images: CustomImages,
+    /// The Manifests' logos, stored as their URLs are handed out.
+    pub(super) plugin_logos: PluginLogos,
+    /// Where the Personal settings are stored.
+    pub(super) db: Arc<Database>,
 }
 
 #[expect(
@@ -283,6 +309,184 @@ impl UserService for UserServiceHandler {
             .await
             .map_err(database_failed)?;
         Response::ok(DeletePluginConnectionResponse::default())
+    }
+
+    async fn list_personal_settings(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListPersonalSettingsRequest>,
+    ) -> ServiceResult<ListPersonalSettingsResponse> {
+        let user = caller(&ctx)?.user.id;
+        let listed = self.plugin_settings.list().await.map_err(list_failed)?;
+        let custom = self.custom_images.urls().await.map_err(database_failed)?;
+        let mut plugins = Vec::new();
+        for StoredPlugin { plugin, .. } in listed {
+            if let Some(manifest) = declaring(&plugin) {
+                plugins.push(
+                    self.personal_to_proto(user, &plugin, manifest, &custom)
+                        .await?,
+                );
+            }
+        }
+        Response::ok(ListPersonalSettingsResponse {
+            plugins,
+            ..Default::default()
+        })
+    }
+
+    async fn update_personal_settings(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, UpdatePersonalSettingsRequest>,
+    ) -> ServiceResult<UpdatePersonalSettingsResponse> {
+        let request = request.to_owned_message();
+        let user = caller(&ctx)?.user.id;
+        let id = PluginId::from(request.plugin_id);
+        let plugin = self
+            .plugin_settings
+            .get(&id)
+            .await
+            .map_err(database_failed)?
+            .map(|stored| stored.plugin);
+        let Some((plugin, manifest)) = plugin
+            .as_ref()
+            .and_then(|plugin| Some((plugin, declaring(plugin)?)))
+        else {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_PLUGIN_NOT_FOUND,
+                format!("no enabled Plugin {id} has Personal settings"),
+            )
+            .field("plugin_id")
+            .param("pluginId", &id)
+            .into());
+        };
+        let schema = &manifest.personal_settings;
+        let stored = self.stored(user, &id, manifest).await?;
+        let mut sent = settings_from_proto(&request.settings);
+        // A secret left out keeps its stored value, as a Plugin's own settings do; unknown keys
+        // fall out here.
+        let values: BTreeMap<String, SettingValue> = schema
+            .fields
+            .iter()
+            .filter_map(|field| {
+                let kept = || {
+                    let secret = field.kind == SettingKind::Secret;
+                    stored.get(&field.key).filter(|_| secret).cloned()
+                };
+                Some((field.key.clone(), sent.remove(&field.key).or_else(kept)?))
+            })
+            .collect();
+        Settings::new(values.clone())
+            .resolve(schema)
+            .map_err(settings_refused)?;
+        let rows = values
+            .into_iter()
+            .map(|(key, value)| {
+                let secret = schema
+                    .fields
+                    .iter()
+                    .any(|field| field.key == key && field.kind == SettingKind::Secret);
+                (key, personal_text(value), secret)
+            })
+            .collect();
+        personal_settings::replace(&self.db, user, &id, rows)
+            .await
+            .map_err(database_failed)?;
+        let custom = self.custom_images.urls().await.map_err(database_failed)?;
+        Response::ok(UpdatePersonalSettingsResponse {
+            plugin: self
+                .personal_to_proto(user, plugin, manifest, &custom)
+                .await?
+                .into(),
+            ..Default::default()
+        })
+    }
+
+    async fn delete_personal_settings(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, DeletePersonalSettingsRequest>,
+    ) -> ServiceResult<DeletePersonalSettingsResponse> {
+        let plugin = PluginId::from(request.plugin_id.to_owned());
+        personal_settings::delete(&self.db, caller(&ctx)?.user.id, &plugin)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(DeletePersonalSettingsResponse::default())
+    }
+}
+
+impl UserServiceHandler {
+    /// `user`'s stored Personal settings for the Plugin `id`, each read back as the kind
+    /// `manifest` declares it; one that no longer reads as its kind is left out.
+    async fn stored(
+        &self,
+        user: i64,
+        id: &PluginId,
+        manifest: &Manifest,
+    ) -> Result<BTreeMap<String, SettingValue>, ConnectError> {
+        let mut stored = personal_settings::get(&self.db, user, id)
+            .await
+            .map_err(database_failed)?;
+        Ok(manifest
+            .personal_settings
+            .fields
+            .iter()
+            .filter_map(|field| {
+                let (text, _) = stored.remove(&field.key)?;
+                Some((field.key.clone(), personal_value(field.kind, text)?))
+            })
+            .collect())
+    }
+
+    /// `plugin`'s Personal settings with `user`'s values, its logo among `custom` or its
+    /// Manifest's.
+    async fn personal_to_proto(
+        &self,
+        user: i64,
+        plugin: &Listed,
+        manifest: &Manifest,
+        custom: &Urls,
+    ) -> Result<proto::PersonalSettings, ConnectError> {
+        let stored = self.stored(user, &plugin.id, manifest).await?;
+        Ok(proto::PersonalSettings {
+            plugin_id: plugin.id.to_string(),
+            name: manifest.name.clone(),
+            logo_url: logo(&self.plugin_logos, plugin, custom).await.url,
+            settings: manifest
+                .personal_settings
+                .fields
+                .iter()
+                .map(|field| setting_to_proto(field, stored.get(&field.key)))
+                .collect(),
+            ..Default::default()
+        })
+    }
+}
+
+/// `plugin`'s Manifest if it is enabled and declares Personal settings.
+fn declaring(plugin: &Listed) -> Option<&Manifest> {
+    let manifest = plugin.manifest.as_ref().ok()?;
+    (plugin.enabled && !manifest.personal_settings.fields.is_empty()).then_some(manifest)
+}
+
+/// `value` as `personal_settings` stores it, as text the way a Plugin gets it in a
+/// `UserRecipient`: a bool as `true` or `false`, a number in decimal.
+fn personal_text(value: SettingValue) -> String {
+    match value {
+        SettingValue::Text(text) => text,
+        SettingValue::Bool(on) => on.to_string(),
+        SettingValue::Integer(number) => number.to_string(),
+    }
+}
+
+/// Stored `text` as a value of `kind`, the inverse of [`personal_text`].
+fn personal_value(kind: SettingKind, text: String) -> Option<SettingValue> {
+    match kind {
+        SettingKind::Bool => text.parse().ok().map(SettingValue::Bool),
+        SettingKind::Integer => text.parse().ok().map(SettingValue::Integer),
+        SettingKind::Text | SettingKind::Secret | SettingKind::Choice | SettingKind::Url => {
+            Some(SettingValue::Text(text))
+        }
     }
 }
 
