@@ -237,13 +237,6 @@ impl ExtensionPoints {
     /// Spawns `task` in the scope of the Plugin `plugin`'s current enablement, so disabling it
     /// cancels and joins the task before the Plugin is dropped (ADR 0047). Returns false, without
     /// running `task`, if the Plugin isn't enabled. Must be called within a Tokio runtime.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Requests' progress polling moves into a scope next"
-        )
-    )]
     pub(crate) fn spawn_in(
         &self,
         plugin: &PluginId,
