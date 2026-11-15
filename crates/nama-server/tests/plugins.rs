@@ -810,3 +810,47 @@ fn a_plugin_that_refuses_to_start_is_not_enabled_and_leaves_nothing_registered()
     assert_eq!(registry.enabled(), []);
     assert!(registry.providers::<dyn Fulfiller<Movies>>().is_empty());
 }
+
+/// A Built-in Plugin whose one Personal setting, `field`, is of the given kind.
+struct PersonalKind(&'static str, SettingKind);
+
+impl Plugin for PersonalKind {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            version: "0.0.0".to_owned(),
+            personal_settings: SettingsSchema {
+                fields: vec![SettingField {
+                    key: "field".to_owned(),
+                    label: "Field".to_owned(),
+                    description: String::new(),
+                    kind: self.1,
+                    required: false,
+                    default: None,
+                }],
+            },
+            ..Manifest::new(PluginId::from_static(self.0))
+        }
+    }
+
+    fn register(&self, _registrar: &mut Registrar) -> Result<(), PluginError> {
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_built_in_with_a_url_or_choice_personal_setting_is_refused_at_enable() {
+    let registry = Registry::new();
+    for (id, kind) in [("url", SettingKind::Url), ("choice", SettingKind::Choice)] {
+        let result = registry.enable(Arc::new(PersonalKind(id, kind)));
+
+        let Err(EnableError::Refused { plugin, reason }) = result else {
+            panic!("expected {id} to be refused, got {result:?}");
+        };
+        assert_eq!(plugin, PluginId::from_static(id));
+        assert!(
+            reason.starts_with("its Personal setting field is"),
+            "{reason}"
+        );
+        assert_eq!(registry.enabled(), []);
+    }
+}
