@@ -30,7 +30,7 @@ use crate::{
     connections,
     db::Database,
     playback,
-    plugins::{self, ExtensionPoints, Failure, ProviderError},
+    plugins::{self, ExtensionPoints, Failure, ProviderError, without_secrets},
     requests,
     server_settings::ServerUrl,
     users::{User, personal_settings},
@@ -249,12 +249,12 @@ async fn next_message(
 /// Hands `told`'s notification to `plugin`'s `notifier` for its channel, and for the Plugin
 /// Connection to `plugin` and the Personal settings for it of each User told about its event,
 /// [`DELIVERING_AT_ONCE`] at a time. A User with neither is skipped, and one the Notifier finds
-/// gone is disconnected (ADR 0021), or, for Personal settings, only logged (ADR 0046).
+/// gone is disconnected (ADR 0021), or, for Personal settings, has them deleted (ADR 0046).
 ///
 /// # Errors
 ///
 /// Each recipient that failed, with the Notifier's error, that User's secret Personal settings
-/// blanked. Reading Personal settings or reading or deleting Plugin Connections failing is logged,
+/// blanked. Reading or deleting Personal settings or Plugin Connections failing is logged,
 /// and the others still told.
 async fn deliver(
     db: Arc<Database>,
@@ -286,15 +286,14 @@ async fn deliver(
                     None
                 }
                 (Err(error), Some(user), Recipient::User(_)) if error.is::<RecipientGone>() => {
-                    // The User set these values themself; only they can change them.
-                    info!(%plugin, user, "a Notifier says a User's Personal settings reach nobody");
+                    forget_personal_settings(db, user, plugin).await;
                     None
                 }
                 (Err(error), user, _) => {
                     let theirs = user.and_then(|user| secrets.get(&user));
                     Some((
                         user,
-                        without(error.to_string(), theirs.map_or(&[], Vec::as_slice)),
+                        without_secrets(error.to_string(), theirs.map_or(&[], Vec::as_slice)),
                     ))
                 }
             }
@@ -364,19 +363,21 @@ fn personal_to_tell(
         .collect()
 }
 
-/// `message` with each of `secrets` blanked.
-fn without(mut message: String, secrets: &[String]) -> String {
-    for secret in secrets.iter().filter(|secret| !secret.is_empty()) {
-        message = message.replace(secret.as_str(), "…");
-    }
-    message
-}
-
 /// Deletes `user`'s Plugin Connection to `plugin`, `connection`, which its Notifier found gone.
 async fn disconnect(db: &Database, user: i64, plugin: &PluginId, connection: String) {
     match connections::forget(db, user, plugin, connection).await {
         Ok(()) => info!(%plugin, user, "disconnected a User the service says is gone"),
         Err(err) => error!(%plugin, user, "could not disconnect a User who is gone: {err}"),
+    }
+}
+
+/// Deletes `user`'s Personal settings for `plugin`, which its Notifier found reach nobody.
+async fn forget_personal_settings(db: &Database, user: i64, plugin: &PluginId) {
+    match personal_settings::delete(db, user, plugin).await {
+        Ok(()) => info!(%plugin, user, "deleted Personal settings the service says reach nobody"),
+        Err(err) => {
+            error!(%plugin, user, "could not delete Personal settings that reach nobody: {err}");
+        }
     }
 }
 

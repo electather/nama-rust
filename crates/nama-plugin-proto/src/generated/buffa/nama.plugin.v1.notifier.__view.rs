@@ -1400,8 +1400,9 @@ impl ::serde::Serialize for ChannelOwnedView {
 /// What an Installed Plugin's `deliver` export returns once the service answered.
 #[derive(Clone, Debug, Default)]
 pub struct DeliveredView<'a> {
-    /// The service says the recipient is gone, as Telegram does for a User who blocked the bot. The
-    /// Server then deletes that Plugin Connection. Never set for the channel.
+    /// The service says the recipient is gone, as Telegram does for a User who blocked the bot. For
+    /// a Connection the Kernel then deletes that Plugin Connection; for a `UserRecipient` it deletes
+    /// that User's Personal settings for the Plugin. Never set for the channel.
     ///
     /// Field 1: `recipient_gone`
     pub recipient_gone: bool,
@@ -1610,8 +1611,9 @@ impl DeliveredOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The service says the recipient is gone, as Telegram does for a User who blocked the bot. The
-    /// Server then deletes that Plugin Connection. Never set for the channel.
+    /// The service says the recipient is gone, as Telegram does for a User who blocked the bot. For
+    /// a Connection the Kernel then deletes that Plugin Connection; for a `UserRecipient` it deletes
+    /// that User's Personal settings for the Plugin. Never set for the channel.
     ///
     /// Field 1: `recipient_gone`
     #[must_use]

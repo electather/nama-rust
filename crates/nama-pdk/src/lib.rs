@@ -272,14 +272,15 @@ pub trait Notifier {
     ///
     /// # Errors
     ///
-    /// [`RecipientGone`] when the service says a [`Recipient::Connection`] is gone. Otherwise when
-    /// the service didn't take the notification: the Server logs the error's message and doesn't
-    /// retry.
+    /// [`RecipientGone`] when the service says the recipient is gone. Otherwise when the service
+    /// didn't take the notification: the Server logs the error's message and doesn't retry.
     fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error>;
 }
 
-/// The error a [`Notifier`] returns when the service says a [`Recipient::Connection`] is gone,
-/// such as a User who blocked the bot. The Server then deletes that Plugin Connection.
+/// The error a [`Notifier`] returns when the service says a recipient is gone, such as a User who
+/// blocked the bot or a deleted webhook. For a [`Recipient::Connection`] the Server then deletes
+/// that Plugin Connection; for a [`Recipient::User`] it deletes that User's Personal settings for
+/// the Plugin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecipientGone;
 

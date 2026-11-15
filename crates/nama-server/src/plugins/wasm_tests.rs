@@ -424,9 +424,9 @@ fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
             "its Manifest names nama.plugin.v1.TeleporterService, \
              an Extension Point this Server doesn't serve"
                 .to_owned(),
-            "it wants nama.plugin.v1.NotifierService ^2.0.0, and this Server serves 1.1.0"
+            "it wants nama.plugin.v1.NotifierService ^2.0.0, and this Server serves 1.2.0"
                 .to_owned(),
-            "it wants nama.plugin.v1.NotifierService one, and this Server serves 1.1.0".to_owned(),
+            "it wants nama.plugin.v1.NotifierService one, and this Server serves 1.2.0".to_owned(),
             r#"its movie_id_namespaces names "TMDB", which isn't a namespace"#.to_owned(),
             r#"its show_id_namespaces names "tv-db", which isn't a namespace"#.to_owned(),
             "its Manifest names nama.plugin.v1.ConnectorService, \

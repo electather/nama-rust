@@ -46,8 +46,10 @@ impl fmt::Debug for Recipient {
     }
 }
 
-/// The error a [`Notifier`] returns when the service says a [`Recipient::Connection`] is gone,
-/// such as a User who blocked the bot. The Kernel then deletes that Plugin Connection.
+/// The error a [`Notifier`] returns when the service says a recipient is gone, such as a User who
+/// blocked the bot or a deleted webhook. For a [`Recipient::Connection`] the Kernel then deletes
+/// that Plugin Connection; for a [`Recipient::User`] it deletes that User's Personal settings for
+/// the Plugin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecipientGone;
 
@@ -66,9 +68,8 @@ pub trait Notifier: Send + Sync + 'static {
     ///
     /// # Errors
     ///
-    /// [`RecipientGone`] when the service says a [`Recipient::Connection`] is gone. Otherwise when
-    /// the service didn't take the notification: the Kernel logs the reason, or the timeout, and
-    /// doesn't retry.
+    /// [`RecipientGone`] when the service says the recipient is gone. Otherwise when the service
+    /// didn't take the notification: the Kernel logs the reason, or the timeout, and doesn't retry.
     fn deliver<'a>(
         &'a self,
         notification: &'a Notification,

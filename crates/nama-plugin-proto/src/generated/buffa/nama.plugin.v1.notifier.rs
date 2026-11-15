@@ -850,8 +850,9 @@ pub const __CHANNEL_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::ty
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct Delivered {
-    /// The service says the recipient is gone, as Telegram does for a User who blocked the bot. The
-    /// Server then deletes that Plugin Connection. Never set for the channel.
+    /// The service says the recipient is gone, as Telegram does for a User who blocked the bot. For
+    /// a Connection the Kernel then deletes that Plugin Connection; for a `UserRecipient` it deletes
+    /// that User's Personal settings for the Plugin. Never set for the channel.
     ///
     /// Field 1: `recipient_gone`
     #[serde(

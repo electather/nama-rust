@@ -11,13 +11,13 @@ use std::{
 
 use nama_plugin_api::{
     BoxFuture, PluginError, PluginId,
-    notifier::{Notification, Notifier, Recipient},
+    notifier::{Notification, Notifier, Recipient, RecipientGone},
 };
 
 use super::{Filter, Viewer, deliver, event, users_to_tell};
 use crate::{
     db::Database,
-    plugins::ProviderError,
+    plugins::{ProviderError, without_secrets},
     users::{Permissions, User, personal_settings},
 };
 
@@ -239,12 +239,14 @@ fn other_request_events_pick_nobody() {
     }
 }
 
-/// A Notifier that keeps the Personal settings of each User it is handed, and fails for those
-/// whose `webhook` is [`FAILING_WEBHOOK`], naming it.
+/// A Notifier that keeps the Personal settings of each User it is handed, fails for those whose
+/// `webhook` is [`FAILING_WEBHOOK`], naming it, and finds those whose `webhook` is
+/// [`GONE_WEBHOOK`] gone.
 #[derive(Default)]
 struct KeepsUsers(Mutex<Vec<BTreeMap<String, String>>>);
 
 const FAILING_WEBHOOK: &str = "https://chat.example.com/hooks/secret-42";
+const GONE_WEBHOOK: &str = "https://chat.example.com/hooks/deleted";
 
 impl Notifier for KeepsUsers {
     fn deliver<'a>(
@@ -261,6 +263,7 @@ impl Notifier for KeepsUsers {
                 Some(webhook) if webhook == FAILING_WEBHOOK => {
                     Err(format!("{webhook} answered 500").into())
                 }
+                Some(webhook) if webhook == GONE_WEBHOOK => Err(RecipientGone.into()),
                 _ => Ok(()),
             }
         })
@@ -339,4 +342,58 @@ async fn a_request_event_reaches_each_told_user_with_their_own_personal_settings
     );
     assert!(failed.contains(&format!("User {grace}")), "{failed}");
     assert!(!failed.contains(FAILING_WEBHOOK), "{failed}");
+}
+
+#[tokio::test]
+async fn a_user_recipient_the_notifier_finds_gone_loses_their_personal_settings() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let plugin = PluginId::from_static("chat");
+    let mut ids = Vec::new();
+    for (name, url) in [
+        ("ada", GONE_WEBHOOK),
+        ("lin", "https://chat.example.com/hooks/lin"),
+    ] {
+        let id = insert_user(&db, name).await;
+        let values = vec![("webhook".to_owned(), url.to_owned(), true)];
+        personal_settings::replace(&db, id, &plugin, values)
+            .await
+            .unwrap();
+        ids.push(id);
+    }
+    let (ada, lin) = (ids[0], ids[1]);
+    let told = Arc::new((
+        moved_to(RequestState::Approved, &[ada, lin]),
+        Notification::default(),
+    ));
+
+    deliver(
+        Arc::clone(&db),
+        plugin.clone(),
+        Arc::new(KeepsUsers::default()),
+        told,
+    )
+    .await
+    .unwrap_or_else(|_| panic!("a gone recipient is no failure"));
+
+    assert!(
+        personal_settings::get(&db, ada, &plugin)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        !personal_settings::get(&db, lin, &plugin)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn an_empty_secret_leaves_a_message_alone() {
+    assert_eq!(
+        without_secrets("it failed".to_owned(), &[String::new()]),
+        "it failed"
+    );
 }

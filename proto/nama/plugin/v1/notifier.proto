@@ -55,7 +55,8 @@ message Channel {}
 
 // What an Installed Plugin's `deliver` export returns once the service answered.
 message Delivered {
-  // The service says the recipient is gone, as Telegram does for a User who blocked the bot. The
-  // Server then deletes that Plugin Connection. Never set for the channel.
+  // The service says the recipient is gone, as Telegram does for a User who blocked the bot. For
+  // a Connection the Kernel then deletes that Plugin Connection; for a `UserRecipient` it deletes
+  // that User's Personal settings for the Plugin. Never set for the channel.
   bool recipient_gone = 1;
 }

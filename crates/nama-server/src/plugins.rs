@@ -209,8 +209,9 @@ fn secret_values(schema: &SettingsSchema, settings: &Settings) -> Vec<String> {
 
 /// `message` with each of `secrets` blanked out, since a Plugin's error may quote one, such as in
 /// a URL it fetched.
-fn without_secrets(mut message: String, secrets: &[String]) -> String {
-    for secret in secrets {
+pub(crate) fn without_secrets(mut message: String, secrets: &[String]) -> String {
+    // An empty secret would blank the gap between every character.
+    for secret in secrets.iter().filter(|secret| !secret.is_empty()) {
         message = message.replace(secret.as_str(), "…");
     }
     message
