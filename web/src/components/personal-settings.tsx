@@ -55,12 +55,8 @@ function PluginCard({ plugin, listedAt }: { plugin: Personal; listedAt: number }
         })}
       >
         {plugin.settings.map((setting) => (
-          // ponytail: a choice setting stays locked, as only a Plugin's settings test offers choices.
-          <SettingInput
-            key={setting.key}
-            {...{ setting, error: errors[setting.key] }}
-            choices={undefined}
-          />
+          // No choices: the Kernel refuses a CHOICE Personal setting (ADR 0046).
+          <SettingInput key={setting.key} setting={setting} error={errors[setting.key]} />
         ))}
         <FormEnd
           action={update.isPending ? "Saving…" : "Save"}

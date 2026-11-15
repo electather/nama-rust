@@ -17,7 +17,8 @@ export function SettingInput({
   error,
 }: {
   setting: Setting;
-  choices: Choice[] | undefined;
+  /** A CHOICE setting's options, once a settings test offers them. Never for Personal settings. */
+  choices?: Choice[] | undefined;
   error: string | undefined;
 }) {
   if (setting.kind === SettingKind.BOOL) return <BoolInput setting={setting} />;
