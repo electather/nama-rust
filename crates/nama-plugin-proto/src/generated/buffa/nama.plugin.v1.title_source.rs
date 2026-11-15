@@ -3226,6 +3226,25 @@ pub struct Movie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub backdrop: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Its genres' names, in the source's language.
+    ///
+    /// Field 9: `genres`
+    #[serde(
+        rename = "genres",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub genres: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// Its Content Rating in the source's country, such as `R`. Unset rather than another
+    /// country's.
+    ///
+    /// Field 10: `content_rating`
+    #[serde(
+        rename = "contentRating",
+        alias = "content_rating",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub content_rating: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3241,6 +3260,8 @@ impl ::core::fmt::Debug for Movie {
             .field("runtime_minutes", &self.runtime_minutes)
             .field("poster", &self.poster)
             .field("backdrop", &self.backdrop)
+            .field("genres", &self.genres)
+            .field("content_rating", &self.content_rating)
             .finish()
     }
 }
@@ -3309,6 +3330,16 @@ impl Movie {
         self.backdrop = Some(value.into());
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::content_rating`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_content_rating(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.content_rating = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Movie);
 impl ::buffa::MessageName for Movie {
@@ -3359,6 +3390,12 @@ impl ::buffa::Message for Movie {
         if let Some(ref v) = self.backdrop {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3397,6 +3434,12 @@ impl ::buffa::Message for Movie {
         }
         if let Some(ref v) = self.backdrop {
             ::buffa::types::put_string_field(8u32, v, buf);
+        }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(9u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(10u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3497,6 +3540,29 @@ impl ::buffa::Message for Movie {
                     buf,
                 )?;
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.genres.push(__elem);
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .content_rating
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3513,6 +3579,8 @@ impl ::buffa::Message for Movie {
         self.runtime_minutes = ::core::option::Option::None;
         self.poster = ::core::option::Option::None;
         self.backdrop = ::core::option::Option::None;
+        self.genres.clear();
+        self.content_rating = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3616,6 +3684,24 @@ pub struct Show {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub seasons: ::buffa::alloc::vec::Vec<u32>,
+    /// As `Movie.genres`.
+    ///
+    /// Field 9: `genres`
+    #[serde(
+        rename = "genres",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub genres: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// As `Movie.content_rating`, such as `TV-MA`.
+    ///
+    /// Field 10: `content_rating`
+    #[serde(
+        rename = "contentRating",
+        alias = "content_rating",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub content_rating: ::core::option::Option<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3631,6 +3717,8 @@ impl ::core::fmt::Debug for Show {
             .field("poster", &self.poster)
             .field("backdrop", &self.backdrop)
             .field("seasons", &self.seasons)
+            .field("genres", &self.genres)
+            .field("content_rating", &self.content_rating)
             .finish()
     }
 }
@@ -3692,6 +3780,16 @@ impl Show {
         self.backdrop = Some(value.into());
         self
     }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::content_rating`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_content_rating(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.content_rating = Some(value.into());
+        self
+    }
 }
 ::buffa::impl_default_instance!(Show);
 impl ::buffa::MessageName for Show {
@@ -3747,6 +3845,12 @@ impl ::buffa::Message for Show {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        for v in &self.genres {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.content_rating {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3793,6 +3897,12 @@ impl ::buffa::Message for Show {
             for &v in &self.seasons {
                 ::buffa::types::encode_uint32(v, buf);
             }
+        }
+        for v in &self.genres {
+            ::buffa::types::put_string_field(9u32, v, buf);
+        }
+        if let Some(ref v) = self.content_rating {
+            ::buffa::types::put_string_field(10u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3924,6 +4034,29 @@ impl ::buffa::Message for Show {
                     );
                 }
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.genres.push(__elem);
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .content_rating
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3940,6 +4073,8 @@ impl ::buffa::Message for Show {
         self.poster = ::core::option::Option::None;
         self.backdrop = ::core::option::Option::None;
         self.seasons.clear();
+        self.genres.clear();
+        self.content_rating = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

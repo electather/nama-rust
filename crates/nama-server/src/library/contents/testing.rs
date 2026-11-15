@@ -11,7 +11,6 @@ use super::{
 use crate::{
     db::Database,
     library::libraries::{Kind, Libraries},
-    matching::METADATA_VERSION,
     scanner::PARSER_VERSION,
 };
 
@@ -146,19 +145,21 @@ impl Contents {
             .unwrap();
     }
 
-    /// Marks the Matches of the Library `library` as stored by the metadata version before the
-    /// current one, without the Stills that version added, as before a version bump.
+    /// Marks the Matches of the Library `library` as stored before Matches had a metadata
+    /// version, without what the versions since added, as before a version bump.
     pub(crate) async fn stored_by_older_metadata(&self, library: i64) {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "UPDATE item_matches SET metadata_version = ? - 1, still = NULL
+                        "UPDATE item_matches
+                         SET metadata_version = 0, still = NULL, genres = NULL,
+                             content_rating = NULL, show_poster = NULL, show_poster_plugin = NULL,
+                             show_overview = NULL, show_first_air_date = NULL
                          WHERE item_id IN (SELECT library_items.id FROM library_items
                                            JOIN library_files
                                              ON library_files.id = library_items.file_id
                                            WHERE library_files.library_id = ?)",
-                        METADATA_VERSION,
                         library
                     )
                     .execute(&mut **tx)

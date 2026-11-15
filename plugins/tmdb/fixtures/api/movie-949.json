@@ -17,5 +17,10 @@
   "video": false,
   "vote_average": 7.9,
   "vote_count": 7400,
-  "external_ids": {"imdb_id": "tt0113277", "wikidata_id": "Q190908", "facebook_id": null, "instagram_id": null, "twitter_id": null}
+  "external_ids": {"imdb_id": "tt0113277", "wikidata_id": "Q190908", "facebook_id": null, "instagram_id": null, "twitter_id": null},
+  "release_dates": {
+    "results": [
+      {"iso_3166_1": "DE", "release_dates": [{"certification": "16", "descriptors": [], "iso_639_1": "", "note": "", "release_date": "1996-02-29T00:00:00.000Z", "type": 3}]}
+    ]
+  }
 }

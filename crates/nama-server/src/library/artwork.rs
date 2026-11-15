@@ -1,4 +1,5 @@
-//! Posters, Backdrops and Stills, downloaded when a Match is made and kept in the image store.
+//! Posters, Backdrops, Stills and Title Logos, downloaded when a Match is made and kept in the image
+//! store.
 //!
 //! A Match stores its title's images as paths the metadata Provider handed out, along with the
 //! Plugin whose Provider that was. Once a Match is stored, its images are downloaded through that
@@ -239,7 +240,8 @@ impl Artwork {
         let key = key(dir, plugin.as_str(), path);
         // The lock isn't held across the download: a sweep waiting on a slow Provider would hold
         // up the scan that runs it, and every image request queued behind the sweep. A sweep
-        // meanwhile can't delete what isn't stored yet.
+        // meanwhile can't delete what isn't stored yet. Two downloads of one image racing here
+        // store it once, as `ImageStore::write` keeps the first.
         // ponytail: an image downloaded while its Match is corrected stays until the next sweep.
         {
             let sweeping = self.sweeping.read().await;

@@ -70,6 +70,10 @@ pub(crate) struct Movie {
     pub(crate) poster: Option<String>,
     /// The backdrop, as a path for the title source's `image`.
     pub(crate) backdrop: Option<String>,
+    /// Its genres' names, in the source's language.
+    pub(crate) genres: Vec<String>,
+    /// Its Content Rating in the source's country, such as `R`.
+    pub(crate) content_rating: Option<String>,
 }
 
 /// A Show's details.
@@ -91,6 +95,10 @@ pub(crate) struct Show {
     pub(crate) backdrop: Option<String>,
     /// The numbers of its Seasons, in order. Season 0 holds specials.
     pub(crate) seasons: Vec<u32>,
+    /// As [`Movie::genres`].
+    pub(crate) genres: Vec<String>,
+    /// As [`Movie::content_rating`], such as `TV-MA`.
+    pub(crate) content_rating: Option<String>,
 }
 
 /// One Season of a Show, with its Episodes.
@@ -249,6 +257,8 @@ pub(super) fn movie(movie: wire::Movie) -> Result<Movie, MetadataError> {
         runtime_minutes: movie.runtime_minutes,
         poster: movie.poster,
         backdrop: movie.backdrop,
+        genres: movie.genres,
+        content_rating: movie.content_rating,
     })
 }
 
@@ -262,6 +272,8 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
         poster: show.poster,
         backdrop: show.backdrop,
         seasons: show.seasons,
+        genres: show.genres,
+        content_rating: show.content_rating,
     })
 }
 

@@ -184,10 +184,14 @@ pub enum RefusalReason {
     /// `invalid_argument`: the language named isn't an ISO 639 code. `field` is
     /// `subtitle.language` or `audio.language`. Params: `language`.
     REFUSAL_REASON_UNKNOWN_LANGUAGE = 64i32,
+    /// `invalid_argument`: a Subtitle Preference for forced-only subtitles asks for them only over
+    /// audio in another language, but forced-only Tracks are for audio in their own. `field` is
+    /// `subtitle.foreign_audio_only`.
+    REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL = 65i32,
     /// `failed_precondition`: the Plugin itself refused to start with its stored settings, such as a
     /// key its service turned down, so it stays disabled. The message says why in the Plugin's words.
     /// `field` is `id`. Params: `pluginId`, `reason`.
-    REFUSAL_REASON_PLUGIN_REFUSED_TO_START = 65i32,
+    REFUSAL_REASON_PLUGIN_REFUSED_TO_START = 66i32,
     /// `invalid_argument`: a title's id has a namespace that isn't lowercase ASCII letters and
     /// digits, or an empty value. `field` names the id.
     REFUSAL_REASON_TITLE_ID_MALFORMED = 70i32,
@@ -398,6 +402,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNKNOWN_LANGUAGE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const UnknownLanguage: Self = Self::REFUSAL_REASON_UNKNOWN_LANGUAGE;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ForeignAudioOnlyNotFull: Self = Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const PluginRefusedToStart: Self = Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START;
@@ -643,6 +650,11 @@ impl ::buffa::Enumeration for RefusalReason {
             64i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_LANGUAGE),
             65i32 => {
                 ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL,
+                )
+            }
+            66i32 => {
+                ::core::option::Option::Some(
                     Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
                 )
             }
@@ -781,6 +793,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_TRACK_NOT_FOUND => "REFUSAL_REASON_TRACK_NOT_FOUND",
             Self::REFUSAL_REASON_FOLDER_READ_ONLY => "REFUSAL_REASON_FOLDER_READ_ONLY",
             Self::REFUSAL_REASON_UNKNOWN_LANGUAGE => "REFUSAL_REASON_UNKNOWN_LANGUAGE",
+            Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL => {
+                "REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL"
+            }
             Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START => {
                 "REFUSAL_REASON_PLUGIN_REFUSED_TO_START"
             }
@@ -1005,6 +1020,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_UNKNOWN_LANGUAGE" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_LANGUAGE)
             }
+            "REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL,
+                )
+            }
             "REFUSAL_REASON_PLUGIN_REFUSED_TO_START" => {
                 ::core::option::Option::Some(
                     Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
@@ -1092,6 +1112,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_TRACK_NOT_FOUND,
             Self::REFUSAL_REASON_FOLDER_READ_ONLY,
             Self::REFUSAL_REASON_UNKNOWN_LANGUAGE,
+            Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL,
             Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
             Self::REFUSAL_REASON_TITLE_ID_MALFORMED,
             Self::REFUSAL_REASON_TITLE_NOT_FOUND,

@@ -403,7 +403,11 @@ pub(crate) async fn plan(
         Err(probing::Error::Database(err)) => return Err(err.into()),
     };
     let audio = audio_asked(audio, probe.as_ref(), &decoding);
-    let (subtitle, shown_subtitle) = subtitles_asked(subtitle, probe.as_ref(), &decoding);
+    let (subtitle, subtitle_preference) = match subtitle {
+        AskedSubtitle::BurnIn(place) => (Some(place), None),
+        AskedSubtitle::None => (None, None),
+        AskedSubtitle::Preferred(preferred) => (None, preferred),
+    };
     let mut facts = Facts {
         version,
         probe,
@@ -419,7 +423,8 @@ pub(crate) async fn plan(
             Network::Remote(settings.remote_limit)
         },
         subtitle,
-        shown_subtitle,
+        shown_subtitle: None,
+        subtitle_preference,
         hardware_choice: settings.hardware,
         dropped: BTreeSet::new(),
     };
@@ -447,27 +452,48 @@ fn audio_asked(asked: AskedAudio, probe: Option<&Probe>, device: &DeviceDecoding
     }
 }
 
-/// The subtitle Track `asked` asks to burn in and the one it asks the Device to show, each by its
-/// place in `probe`'s Tracks: a Track the Server chose by the User's Subtitle Preference is shown
-/// by the Device if it can, since that is no input to the plan (ADR 0033), and burned in if not.
-fn subtitles_asked(
-    asked: AskedSubtitle,
-    probe: Option<&Probe>,
-    device: &DeviceDecoding,
+/// The subtitle Track the User's Subtitle Preference `preferred` asks to burn in and the one it
+/// asks the Device to show, each by its place in the Version's Tracks, over the audio the plan for
+/// `facts` plays: a Track it matches is shown by the Device if it can, since that is no input to
+/// the plan (ADR 0033), and burned in if not.
+fn preferred_subtitles(
+    facts: &Facts,
+    preferred: &Preferred<SubtitlePreference>,
 ) -> (Option<usize>, Option<usize>) {
-    match asked {
-        AskedSubtitle::BurnIn(place) => (Some(place), None),
-        AskedSubtitle::None | AskedSubtitle::Preferred(None) => (None, None),
-        AskedSubtitle::Preferred(Some(preferred)) => {
-            let Some(probe) = probe else {
-                return (None, None);
-            };
-            let place = preferred_subtitle(&preferred, probe, device);
-            match place.and_then(|place| probe.tracks.get(place)) {
-                Some(track) if shown_as(device, probe, track).is_some() => (None, place),
-                _ => (place, None),
+    let Some(probe) = &facts.probe else {
+        return (None, None);
+    };
+    let audio = played_audio_place(facts).and_then(|place| probe.tracks.get(place));
+    let preferred = over_audio(preferred, audio.and_then(|track| track.language.as_deref()));
+    let place = preferred_subtitle(&preferred, probe, &facts.device);
+    match place.and_then(|place| probe.tracks.get(place)) {
+        Some(track) if shown_as(&facts.device, probe, track).is_some() => (None, place),
+        _ => (place, None),
+    }
+}
+
+/// What `preferred` wants over audio in `audio_language`: if it wants full subtitles only over
+/// audio in another language and the audio is in theirs, that language's forced-only Track
+/// (ADR 0035). Audio with no language, or a tag that isn't ISO 639, is in another.
+fn over_audio(
+    preferred: &Preferred<SubtitlePreference>,
+    audio_language: Option<&str>,
+) -> Preferred<SubtitlePreference> {
+    match &preferred.preference {
+        SubtitlePreference::Like(wanted)
+            if preferred.foreign_audio_only
+                && audio_language.is_some()
+                && same_language(audio_language, wanted.language.as_deref()) =>
+        {
+            Preferred {
+                preference: SubtitlePreference::Like(Description {
+                    forced: true,
+                    ..wanted.clone()
+                }),
+                ..preferred.clone()
             }
         }
+        SubtitlePreference::Off | SubtitlePreference::Like(_) => preferred.clone(),
     }
 }
 
@@ -559,6 +585,9 @@ struct Facts {
     /// The text subtitle Track the Server chose by the User's Subtitle Preference for the Device
     /// to show itself, by its place in the Version's Tracks, if it chose one.
     shown_subtitle: Option<usize>,
+    /// The User's Subtitle Preference the Server chooses `subtitle` or `shown_subtitle` by, which
+    /// [`build`] matches once it knows the audio the plan plays.
+    subtitle_preference: Option<Preferred<SubtitlePreference>>,
     /// What the admin chose for Transcodes to run on.
     hardware_choice: HardwareChoice,
     /// The User's choices the plan doesn't honour, as [`build`] found.
@@ -620,6 +649,10 @@ const CHOICE_STEPS: [(Choice, Step); 4] = [
 /// `facts.dropped` and the steps run again without it, since what the earlier steps see, such as
 /// the audio the Device must decode, may change with it.
 fn build(facts: &mut Facts) -> Plan {
+    // Matched here, not before, since a dropped audio choice changes the audio it's matched over.
+    if let Some(preferred) = &facts.subtitle_preference {
+        (facts.subtitle, facts.shown_subtitle) = preferred_subtitles(facts, preferred);
+    }
     let candidates = candidates(facts);
     let candidates = candidates.as_ref();
     let mut reasons = vec![];

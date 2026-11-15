@@ -24,13 +24,18 @@ use nama_plugin_tmdb::{
 
 /// The title source the Plugin registers when enabled with `api_key`, talking to `fake`.
 fn provider(fake: &FakeTmdb, api_key: &str) -> Arc<dyn TitleSource> {
+    provider_with(fake, &[("api_key", api_key)])
+}
+
+/// The title source the Plugin registers when enabled with `settings`, talking to `fake`.
+fn provider_with(fake: &FakeTmdb, settings: &[(&str, &str)]) -> Arc<dyn TitleSource> {
     let plugin = Tmdb::with_endpoints(fake.endpoints());
-    let settings = Settings::new(BTreeMap::from([(
-        "api_key".to_owned(),
-        SettingValue::Text(api_key.to_owned()),
-    )]))
-    .resolve(&plugin.manifest().settings)
-    .unwrap();
+    let settings = (settings.iter())
+        .map(|&(key, value)| (key.to_owned(), SettingValue::Text(value.to_owned())))
+        .collect::<BTreeMap<_, _>>();
+    let settings = Settings::new(settings)
+        .resolve(&plugin.manifest().settings)
+        .unwrap();
     let mut registrar = Registrar::with_settings(settings);
     plugin.register(&mut registrar).unwrap();
     let registrations = registrar.into_registrations();
@@ -219,6 +224,59 @@ async fn a_movie_has_its_details_imdb_id_and_artwork() {
     assert_eq!(
         movie.backdrop.as_deref(),
         Some("/AmR3JG1VQVxU8TfAvljUhfSFUOx.jpg")
+    );
+}
+
+#[tokio::test]
+async fn a_movie_has_its_genres_and_its_rating_in_the_settings_country() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let movie = tmdb.movie(&asked(&ExternalId::tmdb(348))).await.unwrap();
+    let movie = movie.movie.unwrap();
+
+    assert_eq!(movie.genres, ["Horror", "Science Fiction"]);
+    // Its first US release has no certification.
+    assert_eq!(movie.content_rating.as_deref(), Some("R"));
+}
+
+#[tokio::test]
+async fn a_show_has_its_genres_and_content_rating_in_the_settings_country() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    let show = tmdb.show(&asked(&ExternalId::tmdb(70523))).await.unwrap();
+    let show = show.show.unwrap();
+
+    assert_eq!(show.genres, ["Crime", "Drama", "Mystery"]);
+    assert_eq!(show.content_rating.as_deref(), Some("TV-MA"));
+}
+
+#[tokio::test]
+async fn a_title_with_no_rating_in_the_settings_country_has_no_content_rating() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider(&fake, API_KEY);
+
+    // Heat is rated only in Germany.
+    let heat = tmdb.movie(&asked(&ExternalId::tmdb(949))).await.unwrap();
+
+    assert_eq!(heat.movie.unwrap().content_rating, None);
+}
+
+#[tokio::test]
+async fn a_language_setting_naming_no_country_gives_no_content_rating() {
+    let fake = FakeTmdb::start().await;
+    let tmdb = provider_with(&fake, &[("api_key", API_KEY), ("language", "en")]);
+
+    let alien = tmdb.movie(&asked(&ExternalId::tmdb(348))).await.unwrap();
+    let dark = tmdb.show(&asked(&ExternalId::tmdb(70523))).await.unwrap();
+
+    assert_eq!(
+        (
+            alien.movie.unwrap().content_rating,
+            dark.show.unwrap().content_rating
+        ),
+        (None, None)
     );
 }
 

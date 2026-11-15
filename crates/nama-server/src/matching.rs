@@ -74,8 +74,9 @@ use crate::{
 
 /// The version of what a Match stores from the metadata Provider, stored with each Match. See the
 /// crate's `AGENTS.md` for when to bump it. Version 2 adds artwork picked across the Library's
-/// sources, Title Logos among it.
-pub(crate) const METADATA_VERSION: i64 = 2;
+/// sources, Title Logos among it; version 3 genres, Content Ratings and a Show's own Poster,
+/// overview and first air date.
+pub(crate) const METADATA_VERSION: i64 = 3;
 
 /// What one pass of Matching decided.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -268,6 +269,12 @@ impl Metadata {
                 .or_else(|| ImageRef::of(plugin, show.backdrop.as_ref())),
             logo: picked.logo.clone(),
             still: episode.still.clone(),
+            genres: show.genres.clone(),
+            content_rating: show.content_rating.clone(),
+            show_poster: (picked.poster.clone())
+                .or_else(|| ImageRef::of(plugin, show.poster.as_ref())),
+            show_overview: show.overview.clone(),
+            show_first_air_date: show.first_air_date.clone(),
         }
     }
 }

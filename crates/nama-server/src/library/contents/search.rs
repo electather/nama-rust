@@ -39,7 +39,8 @@ pub(crate) struct FoundShow {
     /// Every id the Match of its first Episode found gives it.
     pub(crate) ids: ExternalIds,
     pub(crate) title: String,
-    /// As [`show_poster`] picks it, from the Seasons of the Show's Episodes the search found.
+    /// As [`show_poster`] picks it, from the Match and the Seasons of the Show's Episodes the
+    /// search found.
     pub(crate) poster: Option<ImageRef>,
 }
 
@@ -123,7 +124,8 @@ impl Contents {
                         + r#"'show') AS "show_ids?: String", item_matches.title AS "title!",
                               item_matches.show_title, item_matches.release_date,
                               item_matches.poster, item_matches.poster_plugin,
-                              libraries.title_sources
+                              item_matches.show_poster, item_matches.show_poster_plugin,
+                              item_matches.metadata_version, libraries.title_sources
                        FROM title_search
                        JOIN item_matches ON item_matches.item_id = title_search.rowid
                        JOIN library_items ON library_items.id = item_matches.item_id
@@ -156,6 +158,9 @@ struct SearchRow {
     release_date: Option<String>,
     poster: Option<String>,
     poster_plugin: Option<String>,
+    show_poster: Option<String>,
+    show_poster_plugin: Option<String>,
+    metadata_version: i64,
     /// The Library's, as `libraries` stores them.
     title_sources: String,
 }
@@ -211,7 +216,11 @@ fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
             id: id.clone(),
             ids: row.show_ids(),
             title: title.clone(),
-            poster: show_poster(seasons),
+            poster: show_poster(
+                ImageRef::stored(row.show_poster.clone(), row.show_poster_plugin.clone()),
+                row.metadata_version,
+                seasons,
+            ),
         });
     }
     shows

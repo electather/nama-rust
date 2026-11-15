@@ -216,10 +216,14 @@ enum RefusalReason {
   // `invalid_argument`: the language named isn't an ISO 639 code. `field` is
   // `subtitle.language` or `audio.language`. Params: `language`.
   REFUSAL_REASON_UNKNOWN_LANGUAGE = 64;
+  // `invalid_argument`: a Subtitle Preference for forced-only subtitles asks for them only over
+  // audio in another language, but forced-only Tracks are for audio in their own. `field` is
+  // `subtitle.foreign_audio_only`.
+  REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL = 65;
   // `failed_precondition`: the Plugin itself refused to start with its stored settings, such as a
   // key its service turned down, so it stays disabled. The message says why in the Plugin's words.
   // `field` is `id`. Params: `pluginId`, `reason`.
-  REFUSAL_REASON_PLUGIN_REFUSED_TO_START = 65;
+  REFUSAL_REASON_PLUGIN_REFUSED_TO_START = 66;
   // `invalid_argument`: a title's id has a namespace that isn't lowercase ASCII letters and
   // digits, or an empty value. `field` names the id.
   REFUSAL_REASON_TITLE_ID_MALFORMED = 70;

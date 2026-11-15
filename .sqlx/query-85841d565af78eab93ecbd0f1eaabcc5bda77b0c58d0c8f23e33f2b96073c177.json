@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT scope = ? AS \"users_own!: bool\", off AS \"off: bool\", language,\n                      forced AS \"forced: bool\", sdh AS \"sdh: bool\", title\n               FROM track_preferences\n               WHERE user_id = ? AND kind = ? AND ((scope = ? AND title_id = ?) OR scope = ?)\n               ORDER BY scope = ?\n               LIMIT 1",
+  "query": "SELECT scope = ? AS \"users_own!: bool\", off AS \"off: bool\", language,\n                      forced AS \"forced: bool\", sdh AS \"sdh: bool\", title,\n                      foreign_audio_only AS \"foreign_audio_only: bool\"\n               FROM track_preferences\n               WHERE user_id = ? AND kind = ? AND ((scope = ? AND title_id = ?) OR scope = ?)\n               ORDER BY scope = ?\n               LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -63,6 +63,17 @@
             "name": "title"
           }
         }
+      },
+      {
+        "name": "foreign_audio_only: bool",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "foreign_audio_only"
+          }
+        }
       }
     ],
     "parameters": {
@@ -74,8 +85,9 @@
       true,
       false,
       false,
-      true
+      true,
+      false
     ]
   },
-  "hash": "2b4203a65747b1e603d814562a81eabc8a3e39017007011c626cb067d2ed09de"
+  "hash": "85841d565af78eab93ecbd0f1eaabcc5bda77b0c58d0c8f23e33f2b96073c177"
 }

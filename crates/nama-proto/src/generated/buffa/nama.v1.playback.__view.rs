@@ -1941,6 +1941,12 @@ pub struct UsersSubtitlePreferenceView<'a> {
     ///
     /// Field 2: `kind`
     pub kind: ::buffa::EnumValue<super::super::SubtitleKind>,
+    /// Whether full subtitles start only over audio in another language; over audio in `language`, a
+    /// forced-only Track in it starts instead, if there is one. Ignored when `language` is unset, and
+    /// refused with `SUBTITLE_KIND_FORCED`.
+    ///
+    /// Field 3: `foreign_audio_only`
+    pub foreign_audio_only: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UsersSubtitlePreferenceView<'a> {
@@ -1989,6 +1995,13 @@ impl<'a> ::buffa::MessageView<'a> for UsersSubtitlePreferenceView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.foreign_audio_only = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2019,6 +2032,7 @@ impl<'a> ::buffa::MessageView<'a> for UsersSubtitlePreferenceView<'a> {
         ::core::result::Result::Ok(super::super::UsersSubtitlePreference {
             language: self.language.map(|s| s.to_string()),
             kind: self.kind,
+            foreign_audio_only: self.foreign_audio_only,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2039,6 +2053,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UsersSubtitlePreferenceView<'a> {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if self.foreign_audio_only {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2058,6 +2075,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UsersSubtitlePreferenceView<'a> {
             if val != 0 {
                 ::buffa::types::put_int32_field(2u32, val, buf);
             }
+        }
+        if self.foreign_audio_only {
+            ::buffa::types::put_bool_field(3u32, self.foreign_audio_only, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2085,6 +2105,9 @@ impl<'__a> ::serde::Serialize for UsersSubtitlePreferenceView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.kind) {
             __map.serialize_entry("kind", &self.kind)?;
+        }
+        if self.foreign_audio_only {
+            __map.serialize_entry("foreignAudioOnly", &self.foreign_audio_only)?;
         }
         __map.end()
     }
@@ -2194,6 +2217,15 @@ impl UsersSubtitlePreferenceOwnedView {
     #[must_use]
     pub fn kind(&self) -> ::buffa::EnumValue<super::super::SubtitleKind> {
         self.0.reborrow().kind
+    }
+    /// Whether full subtitles start only over audio in another language; over audio in `language`, a
+    /// forced-only Track in it starts instead, if there is one. Ignored when `language` is unset, and
+    /// refused with `SUBTITLE_KIND_FORCED`.
+    ///
+    /// Field 3: `foreign_audio_only`
+    #[must_use]
+    pub fn foreign_audio_only(&self) -> bool {
+        self.0.reborrow().foreign_audio_only
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<UsersSubtitlePreferenceView<'static>>>

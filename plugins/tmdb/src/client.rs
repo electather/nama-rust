@@ -138,6 +138,25 @@ impl Client {
             .await
     }
 
+    /// The details of the Movie or Show at `path`, with `ratings`, the field its ratings by
+    /// country are appended as.
+    async fn title_details<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        ratings: &str,
+    ) -> Result<Option<T>, MetadataError> {
+        let append = format!("external_ids,{ratings}");
+        self.api(path, &[("append_to_response", append.as_str())])
+            .await
+    }
+
+    /// The country part of the Language setting, `US` of `en-US` or `TW` of `zh-Hant-TW`, whose
+    /// Content Ratings count, if it names one.
+    fn country(&self) -> Option<&str> {
+        // A region subtag is the two-letter one after the language (RFC 5646).
+        (self.language.split('-').skip(1)).find(|subtag| subtag.len() == 2)
+    }
+
     /// GETs `url`, returning the content type and body of a successful response, or `None` for
     /// one TMDB doesn't have.
     async fn get(&self, url: Url) -> Result<Option<(Option<String>, Bytes)>, MetadataError> {
@@ -268,9 +287,11 @@ impl TitleSource for Client {
                     });
                 }
             };
-            let movie: Option<MovieDetails> = self.details(&format!("/movie/{id}")).await?;
+            let movie: Option<MovieDetails> = self
+                .title_details(&format!("/movie/{id}"), "release_dates")
+                .await?;
             Ok(MovieAnswer {
-                movie: movie.map(Into::into).into(),
+                movie: movie.map(|movie| movie.into_movie(self.country())).into(),
                 ..Default::default()
             })
         })
@@ -291,9 +312,11 @@ impl TitleSource for Client {
                     });
                 }
             };
-            let show: Option<ShowDetails> = self.details(&format!("/tv/{id}")).await?;
+            let show: Option<ShowDetails> = self
+                .title_details(&format!("/tv/{id}"), "content_ratings")
+                .await?;
             Ok(ShowAnswer {
-                show: show.map(Into::into).into(),
+                show: show.map(|show| show.into_show(self.country())).into(),
                 ..Default::default()
             })
         })

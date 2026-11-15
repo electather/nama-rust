@@ -11,18 +11,30 @@ use super::{
     },
     library_with_movie, matched_episodes, show_poster,
 };
+use crate::matching::METADATA_VERSION;
 
 #[test]
-fn a_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
+fn an_unrefreshed_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
     let specials_and_first = [(0, Some("/specials.jpg")), (1, Some("/1.jpg"))];
     let first_without = [(2, Some("/2.jpg")), (1, None)];
     let specials_alone = [(0, Some("/specials.jpg"))];
     let none: [(i64, Option<&str>); 2] = [(0, None), (1, None)];
 
-    assert_eq!(show_poster(specials_and_first), Some("/1.jpg"));
-    assert_eq!(show_poster(first_without), Some("/2.jpg"));
-    assert_eq!(show_poster(specials_alone), Some("/specials.jpg"));
-    assert_eq!(show_poster(none), None);
+    assert_eq!(show_poster(None, 0, specials_and_first), Some("/1.jpg"));
+    assert_eq!(show_poster(None, 0, first_without), Some("/2.jpg"));
+    assert_eq!(show_poster(None, 0, specials_alone), Some("/specials.jpg"));
+    assert_eq!(show_poster(None, 0, none), None);
+}
+
+#[test]
+fn a_refreshed_show_without_its_own_poster_has_none_not_a_seasons() {
+    let seasons = [(1, Some("/1.jpg"))];
+
+    assert_eq!(show_poster(None, METADATA_VERSION, seasons), None);
+    assert_eq!(
+        show_poster(Some("/own.jpg"), METADATA_VERSION, seasons),
+        Some("/own.jpg")
+    );
 }
 
 fn imdb(value: &str) -> ExternalId {

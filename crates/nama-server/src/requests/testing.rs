@@ -320,6 +320,11 @@ pub(super) fn matched(ids: ExternalIds, show_ids: ExternalIds) -> Decided {
         backdrop: None,
         logo: None,
         still: None,
+        genres: Vec::new(),
+        content_rating: None,
+        show_poster: None,
+        show_overview: None,
+        show_first_air_date: None,
     }))
 }
 

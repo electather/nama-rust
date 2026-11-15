@@ -43,6 +43,7 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
 - **0.3.0 (unreleased)**: `NotifierService` 1.2.0: for a `UserRecipient` that answers `recipient_gone`, the Kernel deletes that User's Personal settings for the Plugin.
   The Manifest adds `permissions` and `tick_every_seconds`, and `automation.proto` adds the Automation lane's messages, `Permission`, `KernelAnswer` and `AutomationService` 1.0.0.
   `MovieFulfillerService` and `ShowFulfillerService` 1.1.0 add `retry_after_seconds` to `Fulfilled`, `StoppedMonitoring` and `Unfollowed`: a Fulfiller that can't act yet asks the Kernel to ask again after that many seconds.
+  `TitleSourceService` 1.2.0 adds `genres` and `content_rating` to `Movie` and `Show`.
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 
 ## Title ids

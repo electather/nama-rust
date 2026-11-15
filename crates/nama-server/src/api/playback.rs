@@ -20,7 +20,7 @@ use crate::{
     },
     probing::{self, Probing},
     server_settings::PlaybackSettings,
-    track_preferences::{self, Description, KeptFor, SubtitlePreference, TrackPreferences},
+    track_preferences::{self, Description, Preferred, SubtitlePreference, TrackPreferences},
     tracks::{TrackKind, track_to_proto},
 };
 
@@ -220,9 +220,9 @@ impl PlaybackService for PlaybackServiceHandler {
             .subtitle
             .into_option()
             .unwrap_or_default();
-        let preference = users_subtitle_from_proto(wanted)?;
+        let (preference, foreign_audio_only) = users_subtitle_from_proto(wanted)?;
         (self.preferences)
-            .keep_subtitle(user, KeptFor::USERS_OWN, preference)
+            .keep_users_subtitle(user, preference, foreign_audio_only)
             .await
             .map_err(database_failed)?;
         Response::ok(SetSubtitlePreferenceResponse::default())
@@ -246,10 +246,17 @@ impl PlaybackService for PlaybackServiceHandler {
     }
 }
 
-/// The User's own Subtitle Preference `preference`, `None` being one never set, as the API sends
+/// The User's own Subtitle Preference `preferred`, `None` being one never set, as the API sends
 /// it.
-fn users_subtitle_to_proto(preference: Option<SubtitlePreference>) -> UsersSubtitlePreference {
-    let Some(SubtitlePreference::Like(description)) = preference else {
+fn users_subtitle_to_proto(
+    preferred: Option<Preferred<SubtitlePreference>>,
+) -> UsersSubtitlePreference {
+    let Some(Preferred {
+        preference: SubtitlePreference::Like(description),
+        foreign_audio_only,
+        ..
+    }) = preferred
+    else {
         return UsersSubtitlePreference::default();
     };
     let kind = match (description.forced, description.sdh) {
@@ -260,17 +267,19 @@ fn users_subtitle_to_proto(preference: Option<SubtitlePreference>) -> UsersSubti
     UsersSubtitlePreference {
         language: description.language,
         kind: kind.into(),
+        foreign_audio_only,
         ..Default::default()
     }
 }
 
-/// The User's own Subtitle Preference `wanted` names, refusing a language that isn't ISO 639 or a
-/// kind this Server doesn't know.
+/// The User's own Subtitle Preference `wanted` names, and whether it wants it only over audio in
+/// another language, refusing a language that isn't ISO 639, a kind this Server doesn't know, or
+/// forced-only subtitles only over audio in another language.
 fn users_subtitle_from_proto(
     wanted: UsersSubtitlePreference,
-) -> Result<SubtitlePreference, ConnectError> {
+) -> Result<(SubtitlePreference, bool), ConnectError> {
     let Some(language) = wanted.language else {
-        return Ok(SubtitlePreference::Off);
+        return Ok((SubtitlePreference::Off, false));
     };
     let language = checked_language(&language, "subtitle.language")?;
     let (forced, sdh) = match wanted.kind {
@@ -284,12 +293,22 @@ fn users_subtitle_from_proto(
             ));
         }
     };
-    Ok(SubtitlePreference::Like(Description {
+    if forced && wanted.foreign_audio_only {
+        return Err(refuse(
+            RefusalReason::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL,
+            "forced-only subtitles can't start only over audio in another language: they're for \
+             audio in their own",
+        )
+        .field("subtitle.foreign_audio_only")
+        .into());
+    }
+    let preference = SubtitlePreference::Like(Description {
         language: Some(language),
         forced,
         sdh,
         title: None,
-    }))
+    });
+    Ok((preference, wanted.foreign_audio_only))
 }
 
 /// The language a User's own Preference names in the request field `field`, in lower case,

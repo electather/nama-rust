@@ -94,6 +94,7 @@ function movieCard(libraryId: string, movie: Movie): Card {
       url: movie.backdropUrl,
       thumbhash: movie.backdropThumbhash,
       title: movie.title,
+      logoUrl: movie.titleLogoUrl,
       detail: timeLeft(movie.watchState),
       watchState: movie.watchState,
     },
@@ -118,6 +119,7 @@ function episodeCard(libraryId: string, { show, episode }: ContinueWatchingEpiso
         url: show.backdropUrl,
         thumbhash: show.backdropThumbhash,
         title: show.title,
+        logoUrl: show.titleLogoUrl,
         detail: metadataLine(
           episodeName(episode.seasonNumber, episode.episodeNumber, "short"),
           timeLeft(episode.watchState),

@@ -552,6 +552,11 @@ impl Metadata {
             backdrop,
             logo: None,
             still: None,
+            genres: movie.genres,
+            content_rating: movie.content_rating,
+            show_poster: None,
+            show_overview: None,
+            show_first_air_date: None,
         }
     }
 }

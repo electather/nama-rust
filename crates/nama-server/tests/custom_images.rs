@@ -24,8 +24,8 @@ use nama_proto::nama::v1::{
     BrowseServiceClient, ContinueWatchingEntry, LibraryKind, LibraryServiceClient,
     ListContinueWatchingRequest, ListEpisodesRequest, ListLibrariesRequest, LookUpMovieRequest,
     LookUpShowRequest, ReportProgressRequest, RequestServiceClient, SearchLibrariesRequest,
-    SearchMoviesRequest, SearchShowsRequest, SetMatchRequest, Show, WatchStateServiceClient,
-    continue_watching_entry::MovieOrEpisode,
+    SearchMoviesRequest, SearchShowsRequest, SetMatchRequest, Show, ShowInLibrary,
+    WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
 };
 use server::tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, THE_OFFICE};
 
@@ -82,6 +82,20 @@ impl Fixture {
             .unwrap()
             .into_owned()
             .entries
+    }
+
+    /// Dark, as a search for it finds it.
+    async fn search_dark(&self) -> ShowInLibrary {
+        let found = self
+            .browse
+            .search_libraries(SearchLibrariesRequest {
+                query: "dark".to_owned(),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_owned();
+        found.shows[0].clone()
     }
 
     fn requests(&self) -> RequestServiceClient<HttpClient> {
@@ -259,7 +273,7 @@ async fn the_same_movie_in_two_libraries_shows_the_one_custom_image_in_both() {
 }
 
 #[tokio::test]
-async fn a_seasons_custom_poster_shows_on_the_season_and_for_its_episode_in_continue_watching() {
+async fn a_seasons_custom_poster_shows_on_the_season_and_not_as_its_shows() {
     let fx = Fixture::dark().await;
 
     let uploaded = fx
@@ -273,10 +287,19 @@ async fn a_seasons_custom_poster_shows_on_the_season_and_for_its_episode_in_cont
     let dark = fx.get_dark().await;
     let season = &dark.seasons[0];
     assert!(season.custom_poster);
-    let poster = season.poster_url.clone().unwrap();
+    let poster = season.poster_url.as_deref().unwrap();
     assert!(poster.starts_with("/media/custom-images/show/tmdb-70523/season/1/poster/"));
+    let show = dark.show.as_option().unwrap();
     let started = fx.continue_watching_dark().await;
-    assert_eq!(show_of(&started[0]).unwrap().poster_url, Some(poster));
+    let dark_poster = Some("/media/artwork/tmdb/%2FapbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg");
+    assert_eq!(
+        (show.poster_url.as_deref(), show.custom_poster),
+        (dark_poster, false)
+    );
+    assert_eq!(
+        show_of(&started[0]).unwrap().poster_url.as_deref(),
+        dark_poster
+    );
 }
 
 #[tokio::test]
@@ -294,6 +317,8 @@ async fn a_shows_custom_poster_shows_in_continue_watching_and_on_a_request_for_i
     let poster = show.poster_url;
     let started = fx.continue_watching_dark().await;
     assert_eq!(show_of(&started[0]).unwrap().poster_url, poster);
+    let found = fx.search_dark().await;
+    assert_eq!(found.poster_url, poster);
     let looked_up = fx
         .requests()
         .look_up_show(LookUpShowRequest {

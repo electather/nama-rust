@@ -14,7 +14,7 @@ use nama_proto::nama::v1::{
 use crate::{
     browse::{self, Browse, Episode, Movie, Show, Started, Version},
     library::artwork,
-    library::contents::{FoundEpisode, FoundMovie, FoundShow, ImageRef, show_poster},
+    library::contents::{FoundEpisode, FoundMovie, FoundShow, ImageRef},
     library::custom_images::{Role, Slot},
     library::libraries::Kind,
     library::watch_states::WatchState,
@@ -261,7 +261,9 @@ fn movie_to_proto(
     let poster_url = custom_poster.or_else(|| movie.poster.map(artwork_url));
     let backdrop_url = custom_backdrop.or_else(|| movie.backdrop.map(artwork_url));
     proto::Movie {
-        logo_url: movie.logo.map(artwork_url),
+        title_logo_url: movie.logo.map(artwork_url),
+        genres: movie.genres,
+        content_rating: movie.content_rating,
         custom_poster: poster_is_custom,
         custom_backdrop: backdrop_is_custom,
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
@@ -324,25 +326,17 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
 }
 
 /// A Show as clients see it, without its Seasons, with its images as URLs on this Server and their
-/// thumbhashes, and its Custom Images in `images` in place of the downloaded ones. Without a
-/// Poster of its own, it has its first Season's.
+/// thumbhashes, and its Custom Images in `images` in place of the downloaded ones.
 fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
+    let artwork_url = |image: &ImageRef| artwork::url(image.plugin.as_str(), &image.path);
     let custom_poster =
         (images.custom).of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Poster));
     let custom_backdrop =
         (images.custom).of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Backdrop));
     let (poster_is_custom, backdrop_is_custom) =
         (custom_poster.is_some(), custom_backdrop.is_some());
-    let season_posters: Vec<_> = (show.seasons.keys())
-        .filter_map(|&number| Some((number, season_poster(show, number, images).0?)))
-        .collect();
-    let downloaded_backdrop =
-        (show.backdrop.as_ref()).map(|image| artwork::url(image.plugin.as_str(), &image.path));
-    let poster_url = custom_poster.or_else(|| {
-        let posters = (season_posters.iter()).map(|(n, url)| (*n, Some(url.as_str())));
-        show_poster(posters).map(str::to_owned)
-    });
-    let backdrop_url = custom_backdrop.or(downloaded_backdrop);
+    let poster_url = custom_poster.or_else(|| show.poster().map(artwork_url));
+    let backdrop_url = custom_backdrop.or_else(|| show.backdrop.as_ref().map(artwork_url));
     proto::Show {
         id: external_id_to_proto(&show.id).into(),
         title: show.title.clone(),
@@ -352,8 +346,11 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         backdrop_thumbhash: images.thumbhash(backdrop_url.as_deref()),
         poster_url,
         backdrop_url,
-        logo_url: (show.logo.as_ref())
-            .map(|image| artwork::url(image.plugin.as_str(), &image.path)),
+        title_logo_url: show.logo.as_ref().map(artwork_url),
+        genres: show.genres.clone(),
+        content_rating: show.content_rating.clone(),
+        overview: show.overview.clone(),
+        first_air_date: show.first_air_date.clone(),
         ..Default::default()
     }
 }
@@ -516,19 +513,27 @@ mod tests {
             poster: None,
             backdrop: None,
             logo: Some(logo()),
+            genres: Vec::new(),
+            content_rating: None,
             versions: Vec::new(),
         };
         let show = Show {
             id: id.clone(),
             ids: ExternalIds::from_iter([id]),
             title: "Alien".to_owned(),
+            own_poster: None,
+            metadata_version: 0,
             backdrop: None,
             logo: Some(logo()),
+            overview: None,
+            first_air_date: None,
+            genres: Vec::new(),
+            content_rating: None,
             seasons: BTreeMap::new(),
         };
         let url = Some(artwork::url("fanart", "/logo.png"));
 
-        assert_eq!(movie_to_proto(movie, None, &images).logo_url, url);
-        assert_eq!(show_to_proto(&show, &images).logo_url, url);
+        assert_eq!(movie_to_proto(movie, None, &images).title_logo_url, url);
+        assert_eq!(show_to_proto(&show, &images).title_logo_url, url);
     }
 }

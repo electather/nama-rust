@@ -54,7 +54,7 @@ async fn a_library_listing_fanart_after_tmdb_gets_fanarts_title_logo_for_a_movie
 {
     let (server, _fanart, heat) = heat_searching(&["tmdb", "fanart"]).await;
 
-    let logo = heat.logo_url.expect("Heat has no Title Logo");
+    let logo = heat.title_logo_url.expect("Heat has no Title Logo");
     assert!(logo.starts_with("/media/artwork/fanart/"), "{logo}");
     let fetched = http::fetch(&server, &logo, Some(&server.admin_token)).await;
     assert_eq!(fetched.status, 200);
@@ -65,5 +65,5 @@ async fn a_library_listing_fanart_after_tmdb_gets_fanarts_title_logo_for_a_movie
 async fn a_library_searching_tmdb_alone_has_no_title_logo_for_a_movie_tmdb_has_none_for() {
     let (_server, _fanart, heat) = heat_searching(&["tmdb"]).await;
 
-    assert_eq!(heat.logo_url, None);
+    assert_eq!(heat.title_logo_url, None);
 }

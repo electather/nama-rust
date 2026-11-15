@@ -1,4 +1,4 @@
-import { useSuspenseQuery } from "@connectrpc/connect-query";
+import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query";
 import { Link, createFileRoute, notFound } from "@tanstack/react-router";
 
 import { BackdropGrid, Still } from "@/components/backdrop-card";
@@ -6,10 +6,11 @@ import { DeleteEpisode, DeleteFromShow } from "@/components/delete-from-show";
 import { EditImages, showImages } from "@/components/edit-images";
 import { posterLink } from "@/components/poster";
 import { NotFound } from "@/components/route-error";
+import { ShowIntro } from "@/components/show-intro";
 import { TitlePage } from "@/components/title-page";
 import { MarkPlayedMenu } from "@/components/mark-played-menu";
-import { PlayedIconButton, WatchedBar } from "@/components/watch-state";
 // oxlint-disable-next-line import/max-dependencies -- the page puts together a Show's Seasons, Episodes, Watch State and what an admin may change
+import { PlayedIconButton, WatchedBar } from "@/components/watch-state";
 import { BrowseService, type Episode, type Season } from "@/gen/nama/v1/browse_pb";
 import {
   type DeletedSearch,
@@ -47,7 +48,17 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showI
       seasons[0];
     if (!season) throw notFound();
     const episodes = { ...show, seasonNumber: season.number };
-    await queryOrNotFound(context, BrowseService.method.listEpisodes, episodes);
+    const { queryClient, transport } = context;
+    await Promise.all([
+      queryOrNotFound(context, BrowseService.method.listEpisodes, episodes),
+      // Only for Resume, so a failure leaves the page without it rather than failing it.
+      queryClient
+        .query({
+          ...createQueryOptions(BrowseService.method.listContinueWatching, {}, { transport }),
+          staleTime: "static",
+        })
+        .catch(() => null),
+    ]);
     return episodes;
   },
   notFoundComponent: NotFound,
@@ -65,10 +76,12 @@ function Show() {
   return (
     <TitlePage
       title={data.show.title}
+      logoUrl={data.show.titleLogoUrl}
       backdropUrl={data.show.backdropUrl}
       backdropThumbhash={data.show.backdropThumbhash}
     >
-      <div className="flex items-start gap-2">
+      <ShowIntro {...show} show={data.show} />
+      <div className="mt-8 flex items-start gap-2">
         <Seasons seasons={data.seasons} current={seasonNumber} />
         <MarkPlayedMenu
           {...show}

@@ -35,6 +35,29 @@ async fn a_failed_write_leaves_nothing_behind() {
 }
 
 #[tokio::test]
+async fn writing_a_stored_key_again_keeps_the_first_file_and_its_etag() {
+    let data = tempfile::tempdir().unwrap();
+    let store = store_in(&data).await;
+    let get = || Request::get("/").body(Body::empty()).unwrap();
+    store.write(KEY, b"\xff\xd8first").await.unwrap();
+    let first = store.serve(KEY, "image/jpeg", None, get()).await.unwrap();
+    let etag = first.headers()[header::ETAG].clone();
+
+    store.write(KEY, b"\xff\xd8second!").await.unwrap();
+
+    let mut again = get();
+    again.headers_mut().insert(header::IF_NONE_MATCH, etag);
+    let response = store.serve(KEY, "image/jpeg", None, again).await.unwrap();
+    assert_eq!(response.status(), 304);
+    let folder = data.path().join("artwork/tmdb");
+    assert_eq!(
+        std::fs::read(folder.join("%2Fposter.jpg")).unwrap(),
+        b"\xff\xd8first"
+    );
+    assert_eq!(std::fs::read_dir(folder).unwrap().count(), 1);
+}
+
+#[tokio::test]
 async fn deleting_an_image_twice_leaves_none_stored() {
     let data = tempfile::tempdir().unwrap();
     let store = store_in(&data).await;

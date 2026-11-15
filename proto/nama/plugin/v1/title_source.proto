@@ -218,6 +218,11 @@ message Movie {
   optional string poster = 7;
   // The backdrop, as a path for the `title_image` export.
   optional string backdrop = 8;
+  // Its genres' names, in the source's language.
+  repeated string genres = 9;
+  // Its Content Rating in the source's country, such as `R`. Unset rather than another
+  // country's.
+  optional string content_rating = 10;
 }
 
 // A Show's details.
@@ -238,6 +243,10 @@ message Show {
   optional string backdrop = 7;
   // The numbers of its Seasons, in order. Season 0 holds specials.
   repeated uint32 seasons = 8;
+  // As `Movie.genres`.
+  repeated string genres = 9;
+  // As `Movie.content_rating`, such as `TV-MA`.
+  optional string content_rating = 10;
 }
 
 // One Season of a Show, with its Episodes.

@@ -79,7 +79,7 @@ function SubtitlesForm({ saved }: { saved: UsersSubtitlePreference | undefined }
     <form
       className="mt-4 flex flex-col gap-5"
       onSubmit={onSubmitted((typed) => {
-        const subtitle = wanted(language, formText(typed, "kind"));
+        const subtitle = wanted(language, typed);
         setUnlisted(subtitle === undefined);
         if (subtitle !== undefined) save.mutate({ subtitle });
       })}
@@ -92,14 +92,7 @@ function SubtitlesForm({ saved }: { saved: UsersSubtitlePreference | undefined }
         error={field.error}
         onChange={field.onChange}
       />
-      {!isNone(language, OFF) && (
-        <Choices
-          legend="Which subtitles"
-          name="kind"
-          choices={kinds.map(([kind, label]) => [String(kind), label])}
-          chosen={savedKind(saved)}
-        />
-      )}
+      {!isNone(language, OFF) && <WhichSubtitles saved={saved} />}
       <FormEnd
         action="Save subtitles"
         variant="ghost"
@@ -108,6 +101,36 @@ function SubtitlesForm({ saved }: { saved: UsersSubtitlePreference | undefined }
         refusal={field.formError}
       />
     </form>
+  );
+}
+
+/**
+ * Which subtitles in the language picked a User wants, starting at the ones `saved` wants, and
+ * whether only over audio in another language, which forced-only subtitles are for anyway.
+ */
+function WhichSubtitles({ saved }: { saved: UsersSubtitlePreference | undefined }) {
+  const [kind, setKind] = useState(savedKind(saved) ?? String(SubtitleKind.FULL));
+  return (
+    <>
+      <Choices
+        legend="Which subtitles"
+        name="kind"
+        choices={kinds.map(([each, label]) => [String(each), label])}
+        chosen={kind}
+        onChoose={setKind}
+      />
+      {kindOf(kind) !== SubtitleKind.FORCED && (
+        <label className="flex items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            name="foreignAudioOnly"
+            defaultChecked={saved?.foreignAudioOnly}
+            className="size-4 accent-foreground"
+          />
+          Only when the audio is in another language
+        </label>
+      )}
+    </>
   );
 }
 
@@ -229,13 +252,15 @@ function comparable(text: string) {
 }
 
 /**
- * The Subtitle Preference the language `typed` and the kind chosen as `kind` ask for, `undefined`
- * for a language not on the list.
+ * The Subtitle Preference the language `typed` and the rest of the form `chosen` ask for,
+ * `undefined` for a language not on the list. The switch is off unless shown and checked.
  */
-function wanted(typed: string, kind: string) {
+function wanted(typed: string, chosen: FormData) {
   if (isNone(typed, OFF)) return {};
   const language = languageCode(typed);
-  return language === undefined ? undefined : { language, kind: kindOf(kind) };
+  const kind = kindOf(formText(chosen, "kind"));
+  const foreignAudioOnly = chosen.has("foreignAudioOnly");
+  return language === undefined ? undefined : { language, kind, foreignAudioOnly };
 }
 
 /** The Audio Preference the language `typed` asks for, `undefined` for a language not on the list. */

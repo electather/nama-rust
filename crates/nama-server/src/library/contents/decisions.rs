@@ -99,10 +99,16 @@ pub(crate) struct Metadata {
     pub(crate) runtime_minutes: Option<u32>,
     pub(crate) poster: Option<ImageRef>,
     pub(crate) backdrop: Option<ImageRef>,
-    /// The Title Logo; for an Episode, its Show's.
+    /// The Title Logo; for an Episode, its Show's, as are `genres` and `content_rating`.
     pub(crate) logo: Option<ImageRef>,
     /// For an Episode, its Still, from the Match's [`plugin`](Self::plugin).
     pub(crate) still: Option<String>,
+    pub(crate) genres: Vec<String>,
+    pub(crate) content_rating: Option<String>,
+    /// For an Episode, its Show's own Poster, as `poster` holds its Season's.
+    pub(crate) show_poster: Option<ImageRef>,
+    pub(crate) show_overview: Option<String>,
+    pub(crate) show_first_air_date: Option<String>,
 }
 
 /// An image a Match stores: a path the title source of `plugin` serves.
@@ -312,9 +318,10 @@ pub(super) async fn insert_decisions(
             "INSERT OR REPLACE INTO item_matches (
                  item_id, state, plugin, title, original_title, show_title,
                  overview, release_date, runtime_minutes, poster, poster_plugin, backdrop,
-                 backdrop_plugin, logo, logo_plugin, still, unmatched_reason, tied_titles,
-                 metadata_version, decided_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                 backdrop_plugin, logo, logo_plugin, still, genres, content_rating, show_poster,
+                 show_poster_plugin, show_overview, show_first_air_date, unmatched_reason,
+                 tied_titles, metadata_version, decided_at)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
@@ -332,6 +339,12 @@ pub(super) async fn insert_decisions(
             row.metadata.logo.map(|image| image.path),
             row.metadata.logo.map(|image| image.plugin),
             row.metadata.still,
+            row.metadata.genres,
+            row.metadata.content_rating,
+            row.metadata.show_poster.map(|image| image.path),
+            row.metadata.show_poster.map(|image| image.plugin),
+            row.metadata.show_overview,
+            row.metadata.show_first_air_date,
             row.unmatched_reason,
             row.tied_titles,
             METADATA_VERSION,
@@ -452,6 +465,12 @@ struct MetadataColumns<'a> {
     backdrop: Option<ImageColumns<'a>>,
     logo: Option<ImageColumns<'a>>,
     still: Option<&'a str>,
+    /// A JSON array of their names, which `genres` in the parent module reads.
+    genres: Option<String>,
+    content_rating: Option<&'a str>,
+    show_poster: Option<ImageColumns<'a>>,
+    show_overview: Option<&'a str>,
+    show_first_air_date: Option<&'a str>,
 }
 
 /// An [`ImageRef`] as the columns of `item_matches` that store it.
@@ -503,6 +522,11 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     backdrop: metadata.backdrop.as_ref().map(ImageColumns::from),
                     logo: metadata.logo.as_ref().map(ImageColumns::from),
                     still: metadata.still.as_deref(),
+                    genres: Some(serde_json::Value::from(metadata.genres.clone()).to_string()),
+                    content_rating: metadata.content_rating.as_deref(),
+                    show_poster: metadata.show_poster.as_ref().map(ImageColumns::from),
+                    show_overview: metadata.show_overview.as_deref(),
+                    show_first_air_date: metadata.show_first_air_date.as_deref(),
                 },
                 unmatched_reason: None,
                 tied_titles: None,

@@ -86,6 +86,11 @@ fn office_episode(tmdb: i64, title: &str) -> Decided {
         backdrop: None,
         logo: None,
         still: None,
+        genres: Vec::new(),
+        content_rating: None,
+        show_poster: None,
+        show_overview: None,
+        show_first_air_date: None,
     }))
 }
 

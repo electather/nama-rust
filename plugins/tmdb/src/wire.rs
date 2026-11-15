@@ -105,7 +105,7 @@ impl WireIds {
     }
 }
 
-/// `/movie/{id}?append_to_response=external_ids`.
+/// `/movie/{id}?append_to_response=external_ids,release_dates`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MovieDetails {
     id: i64,
@@ -119,27 +119,38 @@ pub(crate) struct MovieDetails {
     imdb_id: Option<String>,
     #[serde(default)]
     external_ids: WireIds,
+    #[serde(default)]
+    genres: Vec<Genre>,
+    #[serde(default)]
+    release_dates: ReleaseDates,
 }
 
-impl From<MovieDetails> for Movie {
-    fn from(movie: MovieDetails) -> Self {
-        let mut wire = movie.external_ids;
-        wire.imdb_id = present(wire.imdb_id).or(movie.imdb_id);
-        Self {
-            ids: wire.with_tmdb(movie.id),
-            title: movie.title,
-            original_title: present(movie.original_title),
-            overview: present(movie.overview),
-            release_date: present(movie.release_date),
-            runtime_minutes: movie.runtime.filter(|&minutes| minutes > 0),
-            poster: present(movie.poster_path),
-            backdrop: present(movie.backdrop_path),
+impl MovieDetails {
+    /// The Movie, with its Content Rating in `country`.
+    pub(crate) fn into_movie(self, country: Option<&str>) -> Movie {
+        let mut wire = self.external_ids;
+        wire.imdb_id = present(wire.imdb_id).or(self.imdb_id);
+        let releases = in_country(self.release_dates.results, country, |it| &it.iso_3166_1);
+        Movie {
+            ids: wire.with_tmdb(self.id),
+            title: self.title,
+            original_title: present(self.original_title),
+            overview: present(self.overview),
+            release_date: present(self.release_date),
+            runtime_minutes: self.runtime.filter(|&minutes| minutes > 0),
+            poster: present(self.poster_path),
+            backdrop: present(self.backdrop_path),
+            genres: genre_names(self.genres),
+            content_rating: releases.and_then(|releases| {
+                (releases.release_dates.into_iter())
+                    .find_map(|release| present(release.certification))
+            }),
             ..Default::default()
         }
     }
 }
 
-/// `/tv/{id}?append_to_response=external_ids`.
+/// `/tv/{id}?append_to_response=external_ids,content_ratings`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ShowDetails {
     id: i64,
@@ -153,6 +164,10 @@ pub(crate) struct ShowDetails {
     seasons: Vec<SeasonSummary>,
     #[serde(default)]
     external_ids: WireIds,
+    #[serde(default)]
+    genres: Vec<Genre>,
+    #[serde(default)]
+    content_ratings: ContentRatings,
 }
 
 #[derive(Debug, Deserialize)]
@@ -160,20 +175,72 @@ struct SeasonSummary {
     season_number: u32,
 }
 
-impl From<ShowDetails> for Show {
-    fn from(show: ShowDetails) -> Self {
-        Self {
-            ids: show.external_ids.with_tmdb(show.id),
-            title: show.name,
-            original_title: present(show.original_name),
-            overview: present(show.overview),
-            first_air_date: present(show.first_air_date),
-            poster: present(show.poster_path),
-            backdrop: present(show.backdrop_path),
-            seasons: show.seasons.iter().map(|s| s.season_number).collect(),
+impl ShowDetails {
+    /// The Show, with its Content Rating in `country`.
+    pub(crate) fn into_show(self, country: Option<&str>) -> Show {
+        let rated = in_country(self.content_ratings.results, country, |it| &it.iso_3166_1);
+        Show {
+            ids: self.external_ids.with_tmdb(self.id),
+            title: self.name,
+            original_title: present(self.original_name),
+            overview: present(self.overview),
+            first_air_date: present(self.first_air_date),
+            poster: present(self.poster_path),
+            backdrop: present(self.backdrop_path),
+            seasons: self.seasons.iter().map(|s| s.season_number).collect(),
+            genres: genre_names(self.genres),
+            content_rating: rated.and_then(|rated| present(rated.rating)),
             ..Default::default()
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct Genre {
+    name: String,
+}
+
+fn genre_names(genres: Vec<Genre>) -> Vec<String> {
+    genres.into_iter().map(|genre| genre.name).collect()
+}
+
+/// `release_dates`, appended to a Movie's details: its releases by country.
+#[derive(Debug, Default, Deserialize)]
+struct ReleaseDates {
+    #[serde(default)]
+    results: Vec<CountryReleases>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CountryReleases {
+    iso_3166_1: String,
+    #[serde(default)]
+    release_dates: Vec<Release>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Release {
+    certification: Option<String>,
+}
+
+/// `content_ratings`, appended to a Show's details: its rating by country.
+#[derive(Debug, Default, Deserialize)]
+struct ContentRatings {
+    #[serde(default)]
+    results: Vec<CountryRating>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CountryRating {
+    iso_3166_1: String,
+    rating: Option<String>,
+}
+
+/// The entry for `country` among `entries`, each of which `code` gives the ISO 3166-1 code of.
+/// `None` without a country: never another country's.
+fn in_country<T>(entries: Vec<T>, country: Option<&str>, code: fn(&T) -> &str) -> Option<T> {
+    let country = country?;
+    (entries.into_iter()).find(|entry| code(entry).eq_ignore_ascii_case(country))
 }
 
 /// `/tv/{id}/season/{n}?append_to_response=external_ids`.
