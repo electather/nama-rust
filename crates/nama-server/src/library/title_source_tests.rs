@@ -7,11 +7,11 @@ use nama_plugin_api::{
         SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer,
         TitleAsked, TitleId,
     },
-    metadata::{ExternalId, MetadataError, TitleSource},
+    metadata::{ExternalId, MetadataError, TitleMethod, TitleSource},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 
-use super::{Source, TitleSources, Unanswered};
+use super::{METHODS, Source, TitleSources, Unanswered};
 use crate::plugins::{Failure, Registry};
 
 /// A title source that answers every question with the error `.0` makes, or with the title unset
@@ -398,6 +398,7 @@ fn source(namespace: &'static str) -> Source {
         plugin: PluginId::from_static(namespace),
         namespace: namespace.to_owned(),
         looks_up,
+        answers: METHODS.to_vec(),
     }
 }
 
@@ -422,8 +423,8 @@ async fn sources_come_in_provider_order_or_in_the_order_given() {
     assert_eq!(reordered.sources().await, [source("bb"), source("aa")]);
     let restricted = metadata.in_order(order(&["bb", "cc"]));
     assert_eq!(restricted.sources().await, [source("bb")]);
-    assert!(restricted.serves("bb").await);
-    assert!(!restricted.serves("aa").await);
+    assert!(restricted.serves("bb", TitleMethod::Movie).await);
+    assert!(!restricted.serves("aa", TitleMethod::Movie).await);
 }
 
 #[tokio::test]
@@ -441,8 +442,8 @@ async fn a_source_serves_the_namespaces_it_looks_up_by_but_not_malformed_ones() 
     let metadata = TitleSources::new(plugins.extension_points());
 
     assert_eq!(metadata.sources().await[0].looks_up, ["imdb"]);
-    assert!(metadata.serves("imdb").await);
-    assert!(!metadata.serves("tvdb").await);
+    assert!(metadata.serves("imdb", TitleMethod::Show).await);
+    assert!(!metadata.serves("tvdb", TitleMethod::Show).await);
 }
 
 #[tokio::test]
@@ -620,4 +621,89 @@ async fn a_season_is_asked_only_of_the_source_given() {
 
     assert_eq!(season.number, 2);
     assert_eq!(asked(&sources_asked), ["bb"]);
+}
+
+/// A title source like fanart.tv's: it keeps titles under `fanart`, looks them up by `tmdb` and
+/// answers only the artwork list, recording any other method asked of it.
+struct ArtworkOnly(Asked);
+
+impl TitleSource for ArtworkOnly {
+    fn namespace(&self) -> &'static str {
+        "fanart"
+    }
+
+    fn lookup_namespaces(&self) -> Vec<String> {
+        vec!["tmdb".to_owned()]
+    }
+
+    fn search<'a>(
+        &'a self,
+        _query: &'a SearchQuery,
+    ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push("search");
+        Box::pin(async { Err(MetadataError::Unsupported) })
+    }
+
+    fn movie<'a>(
+        &'a self,
+        _asked: &'a TitleAsked,
+    ) -> BoxFuture<'a, Result<MovieAnswer, MetadataError>> {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push("movie");
+        Box::pin(async { Err(MetadataError::Unsupported) })
+    }
+
+    fn answers(&self, method: TitleMethod) -> bool {
+        method == TitleMethod::Artwork
+    }
+}
+
+/// The Plugin `fanart` serving an [`ArtworkOnly`].
+struct ArtworkOnlyPlugin(Asked);
+
+impl Plugin for ArtworkOnlyPlugin {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            version: "0.0.0".to_owned(),
+            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
+            ..Manifest::new(PluginId::from_static("fanart"))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        let source = ArtworkOnly(Arc::clone(&self.0));
+        registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(source));
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_source_answering_only_artwork_is_never_asked_for_a_title_or_a_search() {
+    let plugins = Registry::new();
+    let asked = Asked::default();
+    plugins
+        .enable(Arc::new(ArtworkOnlyPlugin(Arc::clone(&asked))))
+        .unwrap();
+    let metadata = TitleSources::new(plugins.extension_points());
+    let tmdb = ExternalId::tmdb(603);
+
+    let movie = metadata.movie_by(&tmdb).await.unwrap_err();
+    let search = metadata.search_in_turn(&query()).await.unwrap_err();
+
+    assert_eq!(movie, Unanswered::Unavailable);
+    assert_eq!(search, Unanswered::Unavailable);
+    assert!(!metadata.serves("tmdb", TitleMethod::Movie).await);
+    assert!(metadata.serves("tmdb", TitleMethod::Artwork).await);
+    assert!(metadata.unserved(&tmdb, TitleMethod::Movie).await);
+    assert!(
+        asked
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_empty()
+    );
 }

@@ -6,11 +6,11 @@ use nama_plugin_api::{
         Candidate, Movie, MovieAnswer, SearchQuery, SearchResults, Season, SeasonAnswer,
         SeasonAsked, Show, ShowAnswer, TitleAsked, TitleId,
     },
-    metadata::{ExternalId, ExternalIds, MetadataError, TitleSource},
+    metadata::{ExternalId, ExternalIds, MetadataError, TitleMethod, TitleSource},
 };
 use tokio_util::sync::CancellationToken;
 
-use super::{season, show};
+use super::{movie, season, show};
 use crate::{
     db::Database,
     events::EventBus,
@@ -443,4 +443,119 @@ async fn a_source_neither_keeping_nor_looking_up_a_hint_is_never_asked() {
         Miss::Unmatched(Some(UnmatchedReason::UnknownIdHint))
     );
     assert_eq!(asked(&sources_asked), ["bb show bb-1"]);
+}
+
+/// A title source like fanart.tv's: it keeps titles under `fanart`, looks them up by `tmdb` and
+/// answers only the artwork list, logging any search or Movie asked of it.
+struct ArtworkOnly(Asked);
+
+impl TitleSource for ArtworkOnly {
+    fn namespace(&self) -> &'static str {
+        "fanart"
+    }
+
+    fn lookup_namespaces(&self) -> Vec<String> {
+        vec!["tmdb".to_owned()]
+    }
+
+    fn search<'a>(
+        &'a self,
+        _query: &'a SearchQuery,
+    ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
+        let mut log = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        log.push("fanart search".to_owned());
+        Box::pin(async { Err(MetadataError::Unsupported) })
+    }
+
+    fn movie<'a>(
+        &'a self,
+        _asked: &'a TitleAsked,
+    ) -> BoxFuture<'a, Result<MovieAnswer, MetadataError>> {
+        let mut log = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        log.push("fanart movie".to_owned());
+        Box::pin(async { Err(MetadataError::Unsupported) })
+    }
+
+    fn answers(&self, method: TitleMethod) -> bool {
+        method == TitleMethod::Artwork
+    }
+}
+
+struct ArtworkOnlyPlugin(Asked);
+
+impl Plugin for ArtworkOnlyPlugin {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            version: "0.0.0".to_owned(),
+            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
+            ..Manifest::new(PluginId::from_static("fanart"))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        let source = ArtworkOnly(Arc::clone(&self.0));
+        registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(source));
+        Ok(())
+    }
+}
+
+/// The fanart-like [`ArtworkOnly`] source, with a `tmdb` source that has everything if `tmdb`.
+fn fanart(tmdb: bool) -> (TitleSources, Asked) {
+    let plugins = Registry::new();
+    let asked = Asked::default();
+    plugins
+        .enable(Arc::new(ArtworkOnlyPlugin(Arc::clone(&asked))))
+        .unwrap();
+    if tmdb {
+        let plugin = FakePlugin("tmdb", Answers::Has, Answers::Has, Arc::clone(&asked), &[]);
+        plugins.enable(Arc::new(plugin)).unwrap();
+    }
+    (TitleSources::new(plugins.extension_points()), asked)
+}
+
+/// The Movie `Dark`, pinned to `pin`.
+fn dark_movie(pin: Option<ExternalId>) -> TitleKey {
+    let item = Item::Movie {
+        title: "Dark".to_owned(),
+        year: None,
+        hint: None,
+    };
+    TitleKey {
+        name: item.name(),
+        pin: pin.map(Pin::Title),
+    }
+}
+
+#[tokio::test]
+async fn a_tmdb_pin_only_an_artwork_source_looks_up_stays_unserved() {
+    let (metadata, sources_asked) = fanart(false);
+
+    let pinned = movie(&metadata, &dark_movie(Some(ExternalId::tmdb(603))))
+        .await
+        .unwrap_err();
+
+    assert_eq!(pinned, Miss::Unserved);
+    assert_eq!(asked(&sources_asked), Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn a_tmdb_pin_goes_to_tmdb_beside_an_artwork_source() {
+    let (metadata, sources_asked) = fanart(true);
+
+    let found = movie(&metadata, &dark_movie(Some(ExternalId::tmdb(1))))
+        .await
+        .unwrap();
+
+    assert_eq!(found.plugin, PluginId::from_static("tmdb"));
+    assert_eq!(asked(&sources_asked), ["tmdb movie tmdb-1"]);
+}
+
+#[tokio::test]
+async fn a_search_never_asks_an_artwork_source() {
+    let (metadata, sources_asked) = fanart(true);
+
+    let found = movie(&metadata, &dark_movie(None)).await.unwrap();
+
+    assert_eq!(found.plugin, PluginId::from_static("tmdb"));
+    assert_eq!(asked(&sources_asked), ["tmdb search", "tmdb movie tmdb-1"]);
 }

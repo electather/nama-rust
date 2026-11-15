@@ -1,6 +1,9 @@
 //! Looking titles up in the metadata source for Requests, as a viewer sees them.
 
-use nama_plugin_api::{PluginId, metadata::ExternalId};
+use nama_plugin_api::{
+    PluginId,
+    metadata::{ExternalId, TitleMethod},
+};
 use nama_proto::nama::v1::{FollowedShow, FoundSeason, Request, RequestState, RequestedQuality};
 use sqlx::SqliteConnection;
 
@@ -144,19 +147,13 @@ impl Requests {
     /// The Show `asked`, from the title source keeping titles under its namespace, else the first
     /// one looking them up by it to have it, with that source.
     pub(super) async fn show(&self, asked: &ExternalId) -> Result<(Source, Show), Error> {
-        if self.unserved(asked).await {
+        if self.metadata.unserved(asked, TitleMethod::Show).await {
             return Err(Error::NoSuchShow(asked.clone()));
         }
         self.metadata
             .show_by(asked)
             .await
             .map_err(|err| looking_up(err, Error::NoSuchShow(asked.clone())))
-    }
-
-    /// Whether title sources are enabled but none keeps or looks titles up by `id`'s namespace, so
-    /// none could have the title; with none enabled, fetching answers Unavailable instead.
-    async fn unserved(&self, id: &ExternalId) -> bool {
-        !self.metadata.serves(id.namespace()).await && !self.metadata.sources().await.is_empty()
     }
 
     /// The Season `number` of `show`, which `source` gave when asked by `asked`, from that source
@@ -212,7 +209,7 @@ impl Requests {
     /// looking them up by it to have it, failing with [`Error::NoSuchMovie`] or
     /// [`Error::Unavailable`] as [`looking_up`] maps it.
     pub(super) async fn fetch(&self, id: &ExternalId) -> Result<Metadata, Error> {
-        if self.unserved(id).await {
+        if self.metadata.unserved(id, TitleMethod::Movie).await {
             return Err(Error::NoSuchMovie(id.clone()));
         }
         self.metadata

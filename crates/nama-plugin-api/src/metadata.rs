@@ -97,6 +97,32 @@ pub trait TitleSource: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
         unsupported()
     }
+
+    /// Whether this source serves `method`. The Kernel asks a source only for the methods it
+    /// answers; a Built-in that leaves a method out may keep the default, which costs one
+    /// [`MetadataError::Unsupported`] answer.
+    fn answers(&self, _method: TitleMethod) -> bool {
+        true
+    }
+}
+
+/// A [`TitleSource`] method the Kernel may ask, for [`TitleSource::answers`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitleMethod {
+    /// [`TitleSource::search`].
+    Search,
+    /// [`TitleSource::movie`].
+    Movie,
+    /// [`TitleSource::show`].
+    Show,
+    /// [`TitleSource::season`].
+    Season,
+    /// [`TitleSource::episode`].
+    Episode,
+    /// [`TitleSource::image`].
+    Image,
+    /// [`TitleSource::artwork`].
+    Artwork,
 }
 
 /// The answer of a [`TitleSource`] method its source left out.

@@ -8,7 +8,7 @@ use nama_plugin_api::{
         ArtworkAnswer, ArtworkAsked, EpisodeAnswer, EpisodeAsked, ImageAnswer, ImageAsked,
         MovieAnswer, SearchQuery, SearchResults, SeasonAnswer, SeasonAsked, ShowAnswer, TitleAsked,
     },
-    metadata::{MetadataError, TitleSource},
+    metadata::{MetadataError, TitleMethod, TitleSource},
 };
 
 use super::{
@@ -94,6 +94,18 @@ impl TitleSource for Running {
         asked: &'a ArtworkAsked,
     ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
         self.ask(&TITLE_ARTWORK, asked)
+    }
+
+    fn answers(&self, method: TitleMethod) -> bool {
+        self.serves(match method {
+            TitleMethod::Search => &TITLE_SEARCH,
+            TitleMethod::Movie => &TITLE_MOVIE,
+            TitleMethod::Show => &TITLE_SHOW,
+            TitleMethod::Season => &TITLE_SEASON,
+            TitleMethod::Episode => &TITLE_EPISODE,
+            TitleMethod::Image => &TITLE_IMAGE,
+            TitleMethod::Artwork => &TITLE_ARTWORK,
+        })
     }
 }
 

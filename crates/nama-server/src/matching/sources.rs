@@ -114,7 +114,7 @@ fn merged(asked: &ExternalId, known: ExternalIds, answered: &ExternalIds) -> Ext
 /// its namespace, or else the search result that fits it.
 async fn find(metadata: &TitleSources, kind: TitleKind, key: &TitleKey) -> Result<Found, Miss> {
     match &key.pin {
-        Some(Pin::Title(id)) if metadata.serves(id.namespace()).await => {
+        Some(Pin::Title(id)) if metadata.serves(id.namespace(), kind.method()).await => {
             return Ok(Found::id(id.clone(), false));
         }
         // A pin waits for a source looking up its namespace rather than Matching another title.
@@ -125,7 +125,7 @@ async fn find(metadata: &TitleSources, kind: TitleKind, key: &TitleKey) -> Resul
     if let Some(hint) = &key.name.hint {
         // A curly tag such as `{x264-GROUP}` parses as an ID Hint no source looks up by, so the
         // item is searched for as if it had none.
-        if metadata.serves(hint.namespace()).await {
+        if metadata.serves(hint.namespace(), kind.method()).await {
             return Ok(Found::id(hint.clone(), true));
         }
     }

@@ -8,7 +8,7 @@ use std::{future::Future, sync::Arc};
 use nama_plugin_api::{
     PluginId,
     contract::{self as wire, ImageAsked, SeasonAsked, TitleAsked},
-    metadata::{ExternalId, ExternalIds, MetadataError, TitleSource},
+    metadata::{ExternalId, ExternalIds, MetadataError, TitleMethod, TitleSource},
 };
 
 mod titles;
@@ -43,7 +43,8 @@ pub(crate) struct TitleSources {
     order: Option<Vec<String>>,
 }
 
-/// An enabled title source, the namespace it keeps titles under and the others it looks them up by.
+/// An enabled title source, the namespace it keeps titles under, the others it looks them up by
+/// and the methods it answers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Source {
     /// The Plugin serving it.
@@ -52,7 +53,20 @@ pub(crate) struct Source {
     pub(crate) namespace: String,
     /// The well-formed namespaces besides `namespace` it looks titles up by.
     pub(crate) looks_up: Vec<String>,
+    /// The methods it answers; the routing methods ask it nothing else.
+    pub(crate) answers: Vec<TitleMethod>,
 }
+
+/// Every [`TitleMethod`], for reading which a source answers.
+const METHODS: [TitleMethod; 7] = [
+    TitleMethod::Search,
+    TitleMethod::Movie,
+    TitleMethod::Show,
+    TitleMethod::Season,
+    TitleMethod::Episode,
+    TitleMethod::Image,
+    TitleMethod::Artwork,
+];
 
 impl TitleSources {
     pub(crate) const fn new(plugins: ExtensionPoints) -> Self {
@@ -124,10 +138,11 @@ impl TitleSources {
                 .plugins
                 .ask(&plugin, |source: Arc<dyn TitleSource>| async move {
                     let namespace = source.namespace().to_owned();
-                    Ok::<_, MetadataError>((namespace, source.lookup_namespaces()))
+                    let answers = METHODS.into_iter().filter(|&m| source.answers(m)).collect();
+                    Ok::<_, MetadataError>((namespace, source.lookup_namespaces(), answers))
                 })
                 .await;
-            let Ok((_, (namespace, mut looks_up))) = meaning(answered) else {
+            let Ok((_, (namespace, mut looks_up, answers))) = meaning(answered) else {
                 continue;
             };
             if !well_formed(&namespace) {
@@ -139,6 +154,7 @@ impl TitleSources {
                 plugin,
                 namespace,
                 looks_up,
+                answers,
             });
         }
         if let Some(order) = &self.order {
@@ -148,10 +164,18 @@ impl TitleSources {
         sources
     }
 
-    /// Whether some source the routing methods ask keeps titles under `namespace`, such as an ID
-    /// Hint's, or looks them up by it.
-    pub(crate) async fn serves(&self, namespace: &str) -> bool {
-        !self.by_namespace(namespace).await.is_empty()
+    /// Whether some source the routing methods ask answers `method` and keeps titles under
+    /// `namespace`, such as an ID Hint's, or looks them up by it.
+    pub(crate) async fn serves(&self, namespace: &str, method: TitleMethod) -> bool {
+        !self.by_namespace(namespace, method).await.is_empty()
+    }
+
+    /// Whether title sources are enabled but none answering `method` keeps or looks titles up by
+    /// `id`'s namespace, so none could have the title; with none enabled, fetching answers
+    /// [`Unanswered::Unavailable`] instead.
+    pub(crate) async fn unserved(&self, id: &ExternalId, method: TitleMethod) -> bool {
+        let sources = self.sources().await;
+        !sources.is_empty() && routed(sources, id.namespace(), method).is_empty()
     }
 
     /// The titles the first source in order to find any finds for `query`, best fit first, with
@@ -162,7 +186,8 @@ impl TitleSources {
         &self,
         query: &SearchQuery,
     ) -> Result<(Source, Vec<Candidate>), Unanswered> {
-        let sources = self.sources().await;
+        let mut sources = self.sources().await;
+        sources.retain(|source| source.answers.contains(&TitleMethod::Search));
         let query = &titles::search_query(query);
         self.first_answer(sources, Vec::is_empty, |metadata| async move {
             candidates(metadata.search(query).await?)
@@ -175,7 +200,7 @@ impl TitleSources {
     /// source. Fails as [`TitleSources::search_in_turn`] does, so with no such source it is
     /// [`Unanswered::Unavailable`].
     pub(crate) async fn movie_by(&self, id: &ExternalId) -> Result<(Source, Metadata), Unanswered> {
-        let sources = self.by_namespace(id.namespace()).await;
+        let sources = self.by_namespace(id.namespace(), TitleMethod::Movie).await;
         let asked = &asked(id);
         let (source, movie) = self
             .first_answer(
@@ -193,7 +218,7 @@ impl TitleSources {
 
     /// The Show with the id `id`, routed as [`TitleSources::movie_by`] routes a Movie.
     pub(crate) async fn show_by(&self, id: &ExternalId) -> Result<(Source, Show), Unanswered> {
-        let sources = self.by_namespace(id.namespace()).await;
+        let sources = self.by_namespace(id.namespace(), TitleMethod::Show).await;
         let asked = &asked(id);
         self.first_answer(
             sources,
@@ -228,15 +253,10 @@ impl TitleSources {
         meaning(answered).map(|(_, season)| season)
     }
 
-    /// The sources keeping titles under `namespace`, then those looking them up by it, each in
-    /// order; never one that does neither.
-    async fn by_namespace(&self, namespace: &str) -> Vec<Source> {
-        let mut sources = self.sources().await;
-        sources.retain(|source| {
-            source.namespace == namespace || source.looks_up.iter().any(|n| n == namespace)
-        });
-        sources.sort_by_key(|source| source.namespace != namespace);
-        sources
+    /// The sources answering `method` that keep titles under `namespace`, then those looking them
+    /// up by it, each in order; never one that does neither.
+    async fn by_namespace(&self, namespace: &str, method: TitleMethod) -> Vec<Source> {
+        routed(self.sources().await, namespace, method)
     }
 
     /// The first answer of `sources`, asked in turn, that isn't `empty`. Not found, or an empty
@@ -278,6 +298,26 @@ impl TitleSources {
         };
         meaning(answered)
     }
+}
+
+impl TitleKind {
+    /// The method that fetches a title of this kind by its id.
+    pub(crate) const fn method(self) -> TitleMethod {
+        match self {
+            Self::Movie => TitleMethod::Movie,
+            Self::Show => TitleMethod::Show,
+        }
+    }
+}
+
+/// Those of `sources` [`TitleSources::by_namespace`] asks, in the order it asks them.
+fn routed(mut sources: Vec<Source>, namespace: &str, method: TitleMethod) -> Vec<Source> {
+    sources.retain(|source| {
+        source.answers.contains(&method)
+            && (source.namespace == namespace || source.looks_up.iter().any(|n| n == namespace))
+    });
+    sources.sort_by_key(|source| source.namespace != namespace);
+    sources
 }
 
 /// The namespace check `ExternalId::new` makes, with a stand-in value.

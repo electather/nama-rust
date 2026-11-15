@@ -5,7 +5,7 @@ use nama_plugin_api::{
         ArtworkAsked, EpisodeAsked, ImageAsked, SearchQuery, SeasonAsked, TitleAsked, TitleId,
         TitleKind,
     },
-    metadata::{ExternalId, MetadataError, TitleSource},
+    metadata::{ExternalId, MetadataError, TitleMethod, TitleSource},
     settings::{SettingValue, Settings},
 };
 
@@ -186,5 +186,7 @@ async fn a_title_source_exporting_only_artwork_and_image_loads_and_is_asked_for_
 
     assert!(checked.is_ok(), "{checked:?}");
     assert!(running.serves(&TITLE_ARTWORK));
+    assert!(running.answers(TitleMethod::Artwork));
+    assert!(!running.answers(TitleMethod::Movie));
     assert!(failed.contains("title_artwork"), "{failed}");
 }
