@@ -5,11 +5,12 @@ import { DefaultQualities } from "@/components/default-qualities";
 import { DeviceList, yourDevicesQuery } from "@/components/device-list";
 import { ImageSettingsForm, imageSettingsQuery } from "@/components/image-settings";
 import { Page } from "@/components/page";
+import { PersonalSettings } from "@/components/personal-settings";
 import { PluginConnections } from "@/components/plugin-connections";
 import { ServerUrl, serverSettingsQuery } from "@/components/server-url";
 import { TrackPreferences, trackPreferencesQuery } from "@/components/track-preferences";
-import { Permission } from "@/gen/nama/v1/sign_in_pb";
 // oxlint-disable-next-line import/max-dependencies -- Settings puts together a section per thing a User sets, from their password to the Server's own
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { may } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_member/settings")({
@@ -49,6 +50,7 @@ function Settings() {
       <TrackPreferences />
       {may(signedIn.user, Permission.CHOOSE_QUALITY) && <DefaultQualities />}
       <PluginConnections />
+      <PersonalSettings />
       {may(signedIn.user, Permission.MANAGE_SETTINGS) && (
         <section aria-labelledby="server" className="mt-12 max-w-md">
           <h2 id="server" className="font-medium">
