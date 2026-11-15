@@ -3,12 +3,7 @@
 //! Requests the Server tells them of (ADR 0021). The Server builds it for wasm32 and bundles it in
 //! its binary.
 
-use nama_pdk::{
-    Notification,
-    nama_plugin_proto::nama::plugin::v1::{
-        Request, RequestState, event::Event, request::MovieOrSeason,
-    },
-};
+use nama_pdk::Notification;
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -271,119 +266,10 @@ mod exports {
 /// What to post about `notification`, in the Glossary's words, then the link to its Request if
 /// the Server gives one, or `None` for what the channel isn't told.
 fn message(notification: &Notification) -> Option<String> {
-    let text = what_happened(notification)?;
+    let text = nama_pdk::what_happened(notification)?;
     Some(match &notification.request_url {
         Some(link) => format!("{text}\n{link}"),
         None => text,
-    })
-}
-
-/// What happened, or `None` for what the channel isn't told: an event that isn't about a Request,
-/// and a state this Plugin doesn't know.
-fn what_happened(notification: &Notification) -> Option<String> {
-    let request = notification.request.as_option()?;
-    let title = title(request);
-    let name = |user_id: i64| {
-        request
-            .requesters
-            .iter()
-            .find(|requester| requester.user_id == user_id)
-            .map_or("Someone", |requester| requester.name.as_str())
-    };
-    Some(match notification.event.as_option()?.event.as_ref()? {
-        Event::RequestCreated(_) => {
-            let asker = request
-                .requesters
-                .first()
-                .map_or("someone", |requester| requester.name.as_str());
-            format!(
-                "New Request: {title}, from {asker}, is {}.",
-                state(request)?
-            )
-        }
-        Event::RequesterAdded(added) => format!("{} also asked for {title}.", name(added.user_id)),
-        Event::RequestStateChanged(_) => {
-            let reason = request
-                .failure_reason
-                .as_ref()
-                .or(request.decline_reason.as_ref());
-            let reason = reason.map_or_else(String::new, |reason| format!(" Reason: {reason}"));
-            let quality = approved_at(request);
-            format!("{title} is now {}{quality}.{reason}", state(request)?)
-        }
-        Event::RequestCancelled(cancelled) => match &cancelled.deleted_by {
-            Some(by) => format!("{by} deleted {title}, so its Request was cancelled."),
-            None => format!("The Request for {title} was cancelled."),
-        },
-        Event::RequesterRemoved(removed) => format!(
-            "{} withdrew from the Request for {title}.",
-            name(removed.user_id)
-        ),
-        Event::RequestWithdrawn(_) => format!("The Request for {title} was withdrawn."),
-        Event::ScanStarted(_)
-        | Event::ScanProgress(_)
-        | Event::ScanFinished(_)
-        | Event::LibraryItemAdded(_)
-        | Event::LibraryItemRemoved(_)
-        | Event::ItemMatched(_)
-        | Event::MatchingFinished(_)
-        | Event::ProbingFinished(_)
-        | Event::PlaybackStarted(_)
-        | Event::PlaybackEnded(_)
-        | Event::PlaybackChanged(_) => return None,
-    })
-}
-
-/// What `request` asks for, with the year it came out if known: `Dune (2021)` or
-/// `Dark Season 2 (2019)`.
-fn title(request: &Request) -> String {
-    let (title, date) = match &request.movie_or_season {
-        Some(MovieOrSeason::Movie(movie)) => (movie.title.clone(), movie.release_date.as_deref()),
-        Some(MovieOrSeason::Season(season)) => (
-            format!("{} Season {}", season.show_title, season.season_number),
-            season.air_date.as_deref(),
-        ),
-        // The Server sets one on every Request it sends.
-        None => (String::new(), None),
-    };
-    // Dates are `YYYY-MM-DD`.
-    match date.and_then(|date| date.get(..4)) {
-        Some(year) => format!("{title} ({year})"),
-        None => title,
-    }
-}
-
-/// What an Approved `request` is downloaded at, and who last changed that from what, such as
-/// ` at HD, changed from 4K by Sam`, or nothing if it has no Quality or isn't Approved.
-fn approved_at(request: &Request) -> String {
-    let Some(quality) = request.quality.as_option() else {
-        return String::new();
-    };
-    if request.state != RequestState::REQUEST_STATE_APPROVED {
-        return String::new();
-    }
-    let Some(change) = request.quality_change.as_option() else {
-        return format!(" at {}", quality.name);
-    };
-    let from = change
-        .previous_name
-        .as_ref()
-        .map_or_else(String::new, |previous| format!(" from {previous}"));
-    let by = change.changed_by.as_deref().unwrap_or("a Request manager");
-    format!(" at {}, changed{from} by {by}", quality.name)
-}
-
-/// The Glossary's name for `request`'s state.
-fn state(request: &Request) -> Option<&'static str> {
-    Some(match request.state.as_known()? {
-        RequestState::REQUEST_STATE_PENDING => "Pending",
-        RequestState::REQUEST_STATE_APPROVED => "Approved",
-        RequestState::REQUEST_STATE_DECLINED => "Declined",
-        RequestState::REQUEST_STATE_PROCESSING => "Processing",
-        RequestState::REQUEST_STATE_PARTIALLY_AVAILABLE => "Partially Available",
-        RequestState::REQUEST_STATE_AVAILABLE => "Available",
-        RequestState::REQUEST_STATE_FAILED => "Failed",
-        RequestState::REQUEST_STATE_UNSPECIFIED => return None,
     })
 }
 
@@ -392,8 +278,7 @@ mod tests {
     use nama_pdk::{
         Notification,
         nama_plugin_proto::nama::plugin::v1::{
-            Event, QualityChange, Request, RequestCancelled, RequestState, RequestStateChanged,
-            RequestedMovie, RequestedQuality, RequestedSeason, Requester, RequesterAdded, event,
+            Event, Request, RequestState, RequestStateChanged, RequestedMovie, Requester,
         },
     };
 
@@ -422,118 +307,6 @@ mod tests {
         }
     }
 
-    fn notify(event: impl Into<Option<event::Event>>, request: Request) -> Option<String> {
-        let event = Event {
-            event: event.into(),
-            ..Event::default()
-        };
-        message(&Notification {
-            event: event.into(),
-            request: request.into(),
-            ..Notification::default()
-        })
-    }
-
-    #[test]
-    fn a_failed_request_says_why() {
-        let request = Request {
-            failure_reason: Some("Radarr didn't answer".to_owned()),
-            ..dune(RequestState::REQUEST_STATE_FAILED)
-        };
-
-        let posted = notify(RequestStateChanged::default(), request);
-
-        assert_eq!(
-            posted.as_deref(),
-            Some("Dune (2021) is now Failed. Reason: Radarr didn't answer")
-        );
-    }
-
-    /// Dune Approved at `name`.
-    fn dune_approved_at(name: &str) -> Request {
-        Request {
-            quality: RequestedQuality {
-                name: name.to_owned(),
-                ..RequestedQuality::default()
-            }
-            .into(),
-            ..dune(RequestState::REQUEST_STATE_APPROVED)
-        }
-    }
-
-    #[test]
-    fn an_approved_request_names_its_quality_and_who_changed_it_from_what() {
-        let changed = Request {
-            quality_change: QualityChange {
-                changed_by: Some("Sam".to_owned()),
-                previous_name: Some("4K".to_owned()),
-                ..QualityChange::default()
-            }
-            .into(),
-            ..dune_approved_at("HD")
-        };
-
-        let unchanged = notify(RequestStateChanged::default(), dune_approved_at("HD"));
-        let changed = notify(RequestStateChanged::default(), changed);
-
-        assert_eq!(
-            unchanged.as_deref(),
-            Some("Dune (2021) is now Approved at HD.")
-        );
-        assert_eq!(
-            changed.as_deref(),
-            Some("Dune (2021) is now Approved at HD, changed from 4K by Sam.")
-        );
-    }
-
-    #[test]
-    fn a_quality_changed_from_none_by_a_deleted_user_says_a_request_manager_changed_it() {
-        let request = Request {
-            quality_change: QualityChange::default().into(),
-            ..dune_approved_at("HD")
-        };
-
-        let posted = notify(RequestStateChanged::default(), request);
-
-        assert_eq!(
-            posted.as_deref(),
-            Some("Dune (2021) is now Approved at HD, changed by a Request manager.")
-        );
-    }
-
-    #[test]
-    fn a_season_is_named_by_its_show_and_number() {
-        let request = Request {
-            movie_or_season: RequestedSeason {
-                show_title: "Dark".to_owned(),
-                season_number: 2,
-                air_date: Some("2019-06-21".to_owned()),
-                ..RequestedSeason::default()
-            }
-            .into(),
-            ..dune(RequestState::REQUEST_STATE_PARTIALLY_AVAILABLE)
-        };
-
-        let posted = notify(RequestStateChanged::default(), request);
-
-        assert_eq!(
-            posted.as_deref(),
-            Some("Dark Season 2 (2019) is now Partially Available.")
-        );
-    }
-
-    #[test]
-    fn a_requester_joining_is_named() {
-        let added = RequesterAdded {
-            user_id: 2,
-            ..RequesterAdded::default()
-        };
-
-        let posted = notify(added, dune(RequestState::REQUEST_STATE_PENDING));
-
-        assert_eq!(posted.as_deref(), Some("Ada also asked for Dune (2021)."));
-    }
-
     #[test]
     fn a_message_ends_with_the_link_to_the_request_the_server_gives() {
         let notification = Notification {
@@ -555,33 +328,6 @@ mod tests {
                 "Dune (2021) is now Pending.\n\
                  https://nama.example.com/requests/7"
             )
-        );
-    }
-
-    #[test]
-    fn a_cancelled_request_is_posted() {
-        let request = dune(RequestState::REQUEST_STATE_PROCESSING);
-
-        let cancelled = notify(RequestCancelled::default(), request);
-
-        assert_eq!(
-            cancelled.as_deref(),
-            Some("The Request for Dune (2021) was cancelled.")
-        );
-    }
-
-    #[test]
-    fn a_request_deleting_cancelled_names_who_deleted_it() {
-        let deleted = RequestCancelled {
-            deleted_by: Some("Grace".to_owned()),
-            ..Default::default()
-        };
-
-        let posted = notify(deleted, dune(RequestState::REQUEST_STATE_PROCESSING));
-
-        assert_eq!(
-            posted.as_deref(),
-            Some("Grace deleted Dune (2021), so its Request was cancelled.")
         );
     }
 }

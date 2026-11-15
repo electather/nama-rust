@@ -22,6 +22,11 @@ pub use nama_plugin_proto::{
     services,
 };
 
+mod notification_text;
+
+/// What a notification says happened, in the Glossary's words, or `None` for what isn't told.
+pub use notification_text::what_happened;
+
 use extism_pdk::{Error, FromBytesOwned, HttpRequest, HttpResponse, ToBytes, ToMemory};
 use nama_plugin_proto::nama::plugin::v1::{Choice, SettingChoices};
 
