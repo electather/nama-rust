@@ -21,6 +21,7 @@ use crate::{
     plugins::{ExtensionPoints, Failure, ProviderError},
     rate_limits::Attempt,
 };
+pub(crate) mod personal_settings;
 
 /// How many characters a User's or Device's name may have, once trimmed.
 pub(crate) const NAME_LENGTH: RangeInclusive<usize> = 1..=64;

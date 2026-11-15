@@ -17,9 +17,8 @@ use nama_plugin_api::{
 use super::{Filter, Viewer, deliver, event, users_to_tell};
 use crate::{
     db::Database,
-    personal_settings,
     plugins::ProviderError,
-    users::{Permissions, User},
+    users::{Permissions, User, personal_settings},
 };
 
 fn user(id: i64, permissions: Permissions) -> User {

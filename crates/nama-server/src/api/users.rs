@@ -29,10 +29,9 @@ use crate::{
     db::Database,
     images::PluginLogos,
     library::custom_images::{CustomImages, Urls},
-    personal_settings,
     plugin_settings::{PluginSettings, StoredPlugin},
     plugins::Listed,
-    users::{self, Caller, Permissions, Users},
+    users::{self, Caller, Permissions, Users, personal_settings},
 };
 
 use super::{

@@ -29,11 +29,11 @@ use tracing::{error, info};
 use crate::{
     connections,
     db::Database,
-    personal_settings, playback,
+    playback,
     plugins::{self, ExtensionPoints, Failure, ProviderError},
     requests,
     server_settings::ServerUrl,
-    users::User,
+    users::{User, personal_settings},
 };
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
