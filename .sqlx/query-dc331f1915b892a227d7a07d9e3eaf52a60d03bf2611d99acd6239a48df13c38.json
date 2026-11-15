@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT user_id, kind, title_id, position_ms, duration_ms,\n                      played AS \"played: bool\", updated_at\n               FROM watch_states\n               ORDER BY user_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "title_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "title_id"
+          }
+        }
+      },
+      {
+        "name": "position_ms",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "position_ms"
+          }
+        }
+      },
+      {
+        "name": "duration_ms",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "played: bool",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "played"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "dc331f1915b892a227d7a07d9e3eaf52a60d03bf2611d99acd6239a48df13c38"
+}

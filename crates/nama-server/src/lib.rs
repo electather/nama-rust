@@ -117,10 +117,7 @@ pub fn serve(
     let artwork = Artwork::new(images.clone(), points.clone());
     let plugin_logos = PluginLogos::new(images.clone());
     let custom_images = CustomImages::new(Arc::clone(&db), images);
-    let automation = Automation::new(Arc::clone(&db));
-    points.serve_kernel(Arc::new(move |plugin, granted| {
-        automation.kernel(plugin, granted)
-    }));
+    let automation_points = points.clone();
     let scanner = Scanner::new(
         Arc::clone(&db),
         points,
@@ -131,6 +128,7 @@ pub fn serve(
         Some(running.clone()),
         Some(requests.clone()),
     );
+    let automation = Automation::serve(Arc::clone(&db), scanner.clone(), automation_points);
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
     let load_settings = load_settings(settings.clone());
     let app = api::router(
@@ -184,6 +182,8 @@ pub fn serve(
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
         plugins.shutdown().await;
+        // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
+        drop(automation);
         served
     }
 }

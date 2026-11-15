@@ -192,6 +192,37 @@ impl WatchStates {
         Ok(titles.iter().map(|title| states.remove(title)).collect())
     }
 
+    /// Every User's Watch State of each of `titles`, in the same order, by User id.
+    // ponytail: reads every Watch State even for one title; query by id if that gets big.
+    pub(crate) async fn of_every_user(
+        &self,
+        titles: &[MovieOrEpisode],
+    ) -> Result<Vec<Vec<(i64, WatchState)>>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"SELECT user_id, kind, title_id, position_ms, duration_ms,
+                      played AS "played: bool", updated_at
+               FROM watch_states
+               ORDER BY user_id"#
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        let mut states: HashMap<MovieOrEpisode, Vec<(i64, WatchState)>> = HashMap::new();
+        for row in rows {
+            let state = WatchState {
+                position_ms: row.position_ms,
+                duration_ms: row.duration_ms,
+                played: row.played,
+                updated_at: row.updated_at,
+            };
+            let title = MovieOrEpisode::stored(&row.kind, row.title_id);
+            states.entry(title).or_default().push((row.user_id, state));
+        }
+        Ok(titles
+            .iter()
+            .map(|title| states.get(title).cloned().unwrap_or_default())
+            .collect())
+    }
+
     /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
     /// played, with their Watch State, most recent first. Ones changed in the same second come in
     /// a fixed order, by kind and id, so the list doesn't shuffle between calls.
