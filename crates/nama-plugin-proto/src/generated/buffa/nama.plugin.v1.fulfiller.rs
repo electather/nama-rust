@@ -218,6 +218,18 @@ pub struct Fulfilled {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub profile_name: ::buffa::alloc::string::String,
+    /// Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+    /// with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+    /// enabled. When set, the message's other fields are ignored.
+    ///
+    /// Field 4: `retry_after_seconds`
+    #[serde(
+        rename = "retryAfterSeconds",
+        alias = "retry_after_seconds",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub retry_after_seconds: ::core::option::Option<u32>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -228,6 +240,7 @@ impl ::core::fmt::Debug for Fulfilled {
             .field("reference", &self.reference)
             .field("profile_id", &self.profile_id)
             .field("profile_name", &self.profile_name)
+            .field("retry_after_seconds", &self.retry_after_seconds)
             .finish()
     }
 }
@@ -237,6 +250,15 @@ impl Fulfilled {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Fulfilled";
+}
+impl Fulfilled {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::retry_after_seconds`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_retry_after_seconds(mut self, value: u32) -> Self {
+        self.retry_after_seconds = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(Fulfilled);
 impl ::buffa::MessageName for Fulfilled {
@@ -267,6 +289,9 @@ impl ::buffa::Message for Fulfilled {
         if !self.profile_name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.profile_name) as u64;
         }
+        if let Some(v) = self.retry_after_seconds {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -285,6 +310,9 @@ impl ::buffa::Message for Fulfilled {
         }
         if !self.profile_name.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.profile_name, buf);
+        }
+        if let Some(v) = self.retry_after_seconds {
+            ::buffa::types::put_uint32_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -320,6 +348,15 @@ impl ::buffa::Message for Fulfilled {
                 )?;
                 ::buffa::types::merge_string(&mut self.profile_name, buf)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.retry_after_seconds = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -331,6 +368,7 @@ impl ::buffa::Message for Fulfilled {
         self.reference.clear();
         self.profile_id.clear();
         self.profile_name.clear();
+        self.retry_after_seconds = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2150,19 +2188,33 @@ pub const __EPISODE_NUMBER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
     from_json: ::buffa::type_registry::any_from_json::<EpisodeNumber>,
     is_wkt: false,
 };
-/// What an Installed Plugin's `stop_monitoring` export returns. Empty, so it encodes to nothing and
-/// an export returning nothing returns it.
+/// What an Installed Plugin's `stop_monitoring` export returns. Empty unless it asks to be asked
+/// again, so an export returning nothing returns it.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct StoppedMonitoring {
+    /// Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+    /// with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+    /// enabled. When set, the message's other fields are ignored.
+    ///
+    /// Field 1: `retry_after_seconds`
+    #[serde(
+        rename = "retryAfterSeconds",
+        alias = "retry_after_seconds",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub retry_after_seconds: ::core::option::Option<u32>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for StoppedMonitoring {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("StoppedMonitoring").finish()
+        f.debug_struct("StoppedMonitoring")
+            .field("retry_after_seconds", &self.retry_after_seconds)
+            .finish()
     }
 }
 impl StoppedMonitoring {
@@ -2171,6 +2223,15 @@ impl StoppedMonitoring {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.StoppedMonitoring";
+}
+impl StoppedMonitoring {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::retry_after_seconds`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_retry_after_seconds(mut self, value: u32) -> Self {
+        self.retry_after_seconds = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(StoppedMonitoring);
 impl ::buffa::MessageName for StoppedMonitoring {
@@ -2192,6 +2253,9 @@ impl ::buffa::Message for StoppedMonitoring {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if let Some(v) = self.retry_after_seconds {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2202,6 +2266,9 @@ impl ::buffa::Message for StoppedMonitoring {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if let Some(v) = self.retry_after_seconds {
+            ::buffa::types::put_uint32_field(1u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -2215,6 +2282,15 @@ impl ::buffa::Message for StoppedMonitoring {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.retry_after_seconds = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2223,6 +2299,7 @@ impl ::buffa::Message for StoppedMonitoring {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
+        self.retry_after_seconds = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2255,18 +2332,33 @@ pub const __STOPPED_MONITORING_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = 
     from_json: ::buffa::type_registry::any_from_json::<StoppedMonitoring>,
     is_wkt: false,
 };
-/// What an Installed Plugin's `unfollow` export returns. Empty, as `StoppedMonitoring` is.
+/// What an Installed Plugin's `unfollow` export returns. Empty unless it asks to be asked again, as
+/// `StoppedMonitoring` is.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct Unfollowed {
+    /// Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+    /// with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+    /// enabled. When set, the message's other fields are ignored.
+    ///
+    /// Field 1: `retry_after_seconds`
+    #[serde(
+        rename = "retryAfterSeconds",
+        alias = "retry_after_seconds",
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub retry_after_seconds: ::core::option::Option<u32>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for Unfollowed {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("Unfollowed").finish()
+        f.debug_struct("Unfollowed")
+            .field("retry_after_seconds", &self.retry_after_seconds)
+            .finish()
     }
 }
 impl Unfollowed {
@@ -2275,6 +2367,15 @@ impl Unfollowed {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Unfollowed";
+}
+impl Unfollowed {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::retry_after_seconds`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_retry_after_seconds(mut self, value: u32) -> Self {
+        self.retry_after_seconds = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(Unfollowed);
 impl ::buffa::MessageName for Unfollowed {
@@ -2296,6 +2397,9 @@ impl ::buffa::Message for Unfollowed {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if let Some(v) = self.retry_after_seconds {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2306,6 +2410,9 @@ impl ::buffa::Message for Unfollowed {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if let Some(v) = self.retry_after_seconds {
+            ::buffa::types::put_uint32_field(1u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -2319,6 +2426,15 @@ impl ::buffa::Message for Unfollowed {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.retry_after_seconds = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2327,6 +2443,7 @@ impl ::buffa::Message for Unfollowed {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
+        self.retry_after_seconds = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

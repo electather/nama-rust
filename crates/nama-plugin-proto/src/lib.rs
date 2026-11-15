@@ -56,8 +56,8 @@ pub mod services {
 /// Each service in [`services`] with its version, which a Manifest's `Point.version` requirement
 /// is matched against. `AGENTS.md` says when one changes.
 pub const SERVICES: &[(&str, &str)] = &[
-    (services::MOVIE_FULFILLER, "1.0.0"),
-    (services::SHOW_FULFILLER, "1.0.0"),
+    (services::MOVIE_FULFILLER, "1.1.0"),
+    (services::SHOW_FULFILLER, "1.1.0"),
     (services::NOTIFIER, "1.2.0"),
     (services::CONNECTOR, "1.0.0"),
     (services::EVENT_OBSERVER, "1.0.0"),

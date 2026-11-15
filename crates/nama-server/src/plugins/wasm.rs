@@ -10,6 +10,7 @@ use std::{
         Arc,
         atomic::{AtomicU32, Ordering},
     },
+    time::Duration,
 };
 
 use buffa::{DecodeError, Message};
@@ -17,7 +18,7 @@ use extism::CompiledPlugin;
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, Registrar,
     connector::{ConnectionStarted, Connector},
-    fulfiller::{Download, Fulfiller, Request},
+    fulfiller::{Download, Fulfiller, Request, TryAgainIn},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
     points::{Events, ObservedEvents},
     settings::{Choice, Choices, SettingKind, Settings, SettingsCheck},
@@ -43,6 +44,10 @@ mod listing;
 mod load;
 mod services;
 mod title_source;
+
+#[cfg(test)]
+#[path = "wasm/fulfiller_tests.rs"]
+mod fulfiller_tests;
 
 pub(crate) use listing::read;
 use load::{CALL_TIMEOUT, MEMORY_MAX_PAGES, allowed_hosts, compile, extism_config};
@@ -367,7 +372,13 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        Box::pin(self.call_method(Kind::FULFILL, request))
+        Box::pin(async move {
+            let fulfilled: Fulfilled = self.call_method(Kind::FULFILL, request).await?;
+            match try_again(fulfilled.retry_after_seconds) {
+                Some(wait) => Err(wait.into()),
+                None => Ok(fulfilled),
+            }
+        })
     }
 
     fn unfollow<'a>(&'a self, request: &'a Request) -> BoxFuture<'a, Result<(), PluginError>> {
@@ -376,9 +387,8 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
             return Box::pin(async { Ok(()) });
         };
         Box::pin(async move {
-            self.call_method::<_, Unfollowed>(unfollow, request)
-                .await
-                .map(drop)
+            let unfollowed: Unfollowed = self.call_method(unfollow, request).await?;
+            try_again(unfollowed.retry_after_seconds).map_or(Ok(()), |wait| Err(wait.into()))
         })
     }
 
@@ -390,9 +400,8 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
             return Box::pin(async { Ok(()) });
         }
         Box::pin(async move {
-            self.call_method::<_, StoppedMonitoring>(Kind::STOP_MONITORING, title)
-                .await
-                .map(drop)
+            let stopped: StoppedMonitoring = self.call_method(Kind::STOP_MONITORING, title).await?;
+            try_again(stopped.retry_after_seconds).map_or(Ok(()), |wait| Err(wait.into()))
         })
     }
 
@@ -413,6 +422,11 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
                 .collect())
         })
     }
+}
+
+/// A Fulfiller's ask to be asked again, clamped to 1..=300 seconds as `fulfiller.proto` says.
+fn try_again(retry_after_seconds: Option<u32>) -> Option<TryAgainIn> {
+    retry_after_seconds.map(|seconds| TryAgainIn(Duration::from_secs(seconds.clamp(1, 300).into())))
 }
 
 fn delivery(notification: &Notification, recipient: &Recipient) -> Delivery {

@@ -99,6 +99,8 @@ fn manifest() -> Manifest {
 
 Asked for a title by an id in a namespace it can't look titles up by, a title source answers with `unsupported_id` set, never a failure: the Server then asks the next source, while a failure means the source couldn't answer and is worth trying again.
 
+A Fulfiller whose service can't act yet, such as Sonarr still adding a Show, returns `nama_pdk::TryAgainIn(duration)` from `fulfill`, `unfollow` or `stop_monitoring` rather than waiting: `fulfiller!` answers with `retry_after_seconds` set, and the Server asks again with the same input after that long, clamped to 1 to 300 seconds, while the Plugin stays enabled.
+
 A Notifier is handed each notification with its `Recipient`: `Channel`, the channel in its settings; `Connection`, one User's Plugin Connection, which its Connector found; or `User`, one User who set its Personal settings, with their values (section 5). A Notifier that finds a recipient it can't serve, such as `User` without Personal settings, fails rather than tell the wrong people.
 
 ## 5. Settings

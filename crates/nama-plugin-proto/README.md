@@ -21,6 +21,7 @@ A Manifest's `settings` are Plugin-wide: an admin sets them once. Its `personal_
 The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move together: their version in `Cargo.toml` changes with each release, separately from `CONTRACT_VERSION` and the service versions in `SERVICES`.
 
 - **0.3.0 (unreleased)**: `NotifierService` 1.2.0: for a `UserRecipient` that answers `recipient_gone`, the Kernel deletes that User's Personal settings for the Plugin.
+  `MovieFulfillerService` and `ShowFulfillerService` 1.1.0 add `retry_after_seconds` to `Fulfilled`, `StoppedMonitoring` and `Unfollowed`: a Fulfiller that can't act yet asks the Kernel to ask again after that many seconds.
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 
 ## Title ids

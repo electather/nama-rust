@@ -7,7 +7,7 @@
 #[doc = include_str!("../README.md")]
 struct ReadmeExamples;
 
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, time::Duration};
 
 pub use extism_pdk::{self, FnResult, plugin_fn};
 pub use nama_plugin_proto::{
@@ -151,9 +151,11 @@ pub trait Fulfiller {
     ///
     /// # Errors
     ///
-    /// When the service didn't take the Request, such as when it is unreachable or doesn't know
-    /// the title or the quality profile `request` names, or the Plugin can't follow a Show it was
-    /// asked to. The error's message is the reason the Request shows as Failed.
+    /// [`TryAgainIn`] when the service can't take it yet, such as Sonarr still adding the Show:
+    /// the Server asks again with the same Request after that long. Otherwise when the service
+    /// didn't take the Request, such as when it is unreachable or doesn't know the title or the
+    /// quality profile `request` names, or the Plugin can't follow a Show it was asked to. The
+    /// error's message is the reason the Request shows as Failed.
     fn fulfill(request: Request) -> Result<Fulfilled, Error>;
 
     /// Stops following the Show `request` is a Season of, as a hand-off asked it to, since its
@@ -161,7 +163,8 @@ pub trait Fulfiller {
     ///
     /// # Errors
     ///
-    /// When the service couldn't be told. The Server logs the error's message.
+    /// [`TryAgainIn`] when the service can't be told yet: the Server asks again after that long.
+    /// Otherwise when the service couldn't be told. The Server logs the error's message.
     fn unfollow(_request: Request) -> Result<(), Error> {
         Ok(())
     }
@@ -172,8 +175,9 @@ pub trait Fulfiller {
     ///
     /// # Errors
     ///
-    /// When the service couldn't be told. The delete goes ahead, and the person deleting is told
-    /// the service may download the title again.
+    /// [`TryAgainIn`] when the service can't be told yet: the Server asks again after that long.
+    /// Otherwise when the service couldn't be told. The delete goes ahead, and the person deleting
+    /// is told the service may download the title again.
     fn stop_monitoring(_title: StopMonitoring) -> Result<(), Error> {
         Ok(())
     }
@@ -187,34 +191,90 @@ pub trait Fulfiller {
     fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error>;
 }
 
+/// The error a [`Fulfiller`] returns from `fulfill`, `unfollow` or `stop_monitoring` when the
+/// service can't act yet, such as Sonarr still adding a Show: the Server asks again with the same
+/// input after this long, clamped to 1 to 300 seconds, while the Plugin stays enabled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TryAgainIn(pub Duration);
+
+impl fmt::Display for TryAgainIn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "try again in {} seconds", self.0.as_secs())
+    }
+}
+
+impl std::error::Error for TryAgainIn {}
+
+impl TryAgainIn {
+    /// The `retry_after_seconds` a [`fulfiller!`] export answers for `error`: its whole seconds
+    /// if it is a [`TryAgainIn`], saturating at `u32::MAX`, or `None` for any other error.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn seconds_in(error: &Error) -> Option<u32> {
+        error
+            .downcast_ref::<Self>()
+            .map(|Self(wait)| u32::try_from(wait.as_secs()).unwrap_or(u32::MAX))
+    }
+}
+
 /// Exports a [`Fulfiller`] as the Plugin's `fulfill`, `unfollow`, `stop_monitoring` and `progress`,
-/// taking and returning the `nama.plugin.v1` messages the Server exchanges with them.
+/// taking and returning the `nama.plugin.v1` messages the Server exchanges with them. A
+/// [`TryAgainIn`] error from the first three becomes their answer's `retry_after_seconds`.
 #[macro_export]
 macro_rules! fulfiller {
     ($fulfiller:ty) => {
         const _: () = {
             // `plugin_fn` expands to paths starting with `extism_pdk`.
             use $crate::{
-                Buffa, FnResult, Fulfiller, Request, StopMonitoring, extism_pdk,
+                Buffa, FnResult, Fulfiller, Request, StopMonitoring, TryAgainIn, extism_pdk,
                 nama_plugin_proto::nama::plugin::v1::{
-                    Downloads, Fulfilled, Progress, ProgressAsked,
+                    Downloads, Fulfilled, Progress, ProgressAsked, StoppedMonitoring, Unfollowed,
                 },
                 plugin_fn,
             };
 
             #[plugin_fn]
             pub fn fulfill(Buffa(request): Buffa<Request>) -> FnResult<Buffa<Fulfilled>> {
-                Ok(Buffa(<$fulfiller as Fulfiller>::fulfill(request)?))
+                match <$fulfiller as Fulfiller>::fulfill(request) {
+                    Ok(fulfilled) => Ok(Buffa(fulfilled)),
+                    Err(error) => match TryAgainIn::seconds_in(&error) {
+                        Some(seconds) => Ok(Buffa(Fulfilled {
+                            retry_after_seconds: Some(seconds),
+                            ..Fulfilled::default()
+                        })),
+                        None => Err(error.into()),
+                    },
+                }
             }
 
             #[plugin_fn]
-            pub fn unfollow(Buffa(request): Buffa<Request>) -> FnResult<()> {
-                Ok(<$fulfiller as Fulfiller>::unfollow(request)?)
+            pub fn unfollow(Buffa(request): Buffa<Request>) -> FnResult<Buffa<Unfollowed>> {
+                match <$fulfiller as Fulfiller>::unfollow(request) {
+                    Ok(()) => Ok(Buffa(Unfollowed::default())),
+                    Err(error) => match TryAgainIn::seconds_in(&error) {
+                        Some(seconds) => Ok(Buffa(Unfollowed {
+                            retry_after_seconds: Some(seconds),
+                            ..Unfollowed::default()
+                        })),
+                        None => Err(error.into()),
+                    },
+                }
             }
 
             #[plugin_fn]
-            pub fn stop_monitoring(Buffa(title): Buffa<StopMonitoring>) -> FnResult<()> {
-                Ok(<$fulfiller as Fulfiller>::stop_monitoring(title)?)
+            pub fn stop_monitoring(
+                Buffa(title): Buffa<StopMonitoring>,
+            ) -> FnResult<Buffa<StoppedMonitoring>> {
+                match <$fulfiller as Fulfiller>::stop_monitoring(title) {
+                    Ok(()) => Ok(Buffa(StoppedMonitoring::default())),
+                    Err(error) => match TryAgainIn::seconds_in(&error) {
+                        Some(seconds) => Ok(Buffa(StoppedMonitoring {
+                            retry_after_seconds: Some(seconds),
+                            ..StoppedMonitoring::default()
+                        })),
+                        None => Err(error.into()),
+                    },
+                }
             }
 
             #[plugin_fn]
@@ -710,7 +770,7 @@ pub fn now() -> std::time::SystemTime {
         }
         // Milliseconds since the Unix epoch; the Server's clock is never before it.
         let millis = u64::try_from(nama_now()).unwrap_or_default();
-        std::time::UNIX_EPOCH + std::time::Duration::from_millis(millis)
+        std::time::UNIX_EPOCH + Duration::from_millis(millis)
     }
     #[cfg(not(target_arch = "wasm32"))]
     std::time::SystemTime::now()

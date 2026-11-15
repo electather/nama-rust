@@ -45,6 +45,10 @@ message Fulfilled {
   string profile_id = 2;
   // The service's name for that profile, such as Radarr's `HD-1080p`.
   string profile_name = 3;
+  // Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+  // with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+  // enabled. When set, the message's other fields are ignored.
+  optional uint32 retry_after_seconds = 4;
 }
 
 // What an Installed Plugin's `progress` export is asked about: the references its Fulfiller gave
@@ -143,9 +147,20 @@ message EpisodeNumber {
   uint32 episode_number = 2;
 }
 
-// What an Installed Plugin's `stop_monitoring` export returns. Empty, so it encodes to nothing and
-// an export returning nothing returns it.
-message StoppedMonitoring {}
+// What an Installed Plugin's `stop_monitoring` export returns. Empty unless it asks to be asked
+// again, so an export returning nothing returns it.
+message StoppedMonitoring {
+  // Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+  // with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+  // enabled. When set, the message's other fields are ignored.
+  optional uint32 retry_after_seconds = 1;
+}
 
-// What an Installed Plugin's `unfollow` export returns. Empty, as `StoppedMonitoring` is.
-message Unfollowed {}
+// What an Installed Plugin's `unfollow` export returns. Empty unless it asks to be asked again, as
+// `StoppedMonitoring` is.
+message Unfollowed {
+  // Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+  // with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+  // enabled. When set, the message's other fields are ignored.
+  optional uint32 retry_after_seconds = 1;
+}

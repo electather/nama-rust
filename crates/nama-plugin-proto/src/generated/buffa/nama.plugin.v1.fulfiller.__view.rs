@@ -20,6 +20,12 @@ pub struct FulfilledView<'a> {
     ///
     /// Field 3: `profile_name`
     pub profile_name: &'a str,
+    /// Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+    /// with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+    /// enabled. When set, the message's other fields are ignored.
+    ///
+    /// Field 4: `retry_after_seconds`
+    pub retry_after_seconds: ::core::option::Option<u32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for FulfilledView<'a> {
@@ -73,6 +79,15 @@ impl<'a> ::buffa::MessageView<'a> for FulfilledView<'a> {
                 )?;
                 view.profile_name = ::buffa::types::borrow_str(&mut cur)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.retry_after_seconds = Some(
+                    ::buffa::types::decode_uint32(&mut cur)?,
+                );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -98,6 +113,7 @@ impl<'a> ::buffa::MessageView<'a> for FulfilledView<'a> {
             reference: self.reference.to_string(),
             profile_id: self.profile_id.to_string(),
             profile_name: self.profile_name.to_string(),
+            retry_after_seconds: self.retry_after_seconds,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -118,6 +134,9 @@ impl<'a> ::buffa::ViewEncode<'a> for FulfilledView<'a> {
         if !self.profile_name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.profile_name) as u64;
         }
+        if let Some(v) = self.retry_after_seconds {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -137,6 +156,9 @@ impl<'a> ::buffa::ViewEncode<'a> for FulfilledView<'a> {
         }
         if !self.profile_name.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.profile_name, buf);
+        }
+        if let Some(v) = self.retry_after_seconds {
+            ::buffa::types::put_uint32_field(4u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -167,6 +189,13 @@ impl<'__a> ::serde::Serialize for FulfilledView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.profile_name) {
             __map.serialize_entry("profileName", self.profile_name)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.retry_after_seconds {
+            __map
+                .serialize_entry(
+                    "retryAfterSeconds",
+                    &::buffa::json_helpers::ProtoJson(&__v),
+                )?;
         }
         __map.end()
     }
@@ -281,6 +310,15 @@ impl FulfilledOwnedView {
     #[must_use]
     pub fn profile_name(&self) -> &'_ str {
         self.0.reborrow().profile_name
+    }
+    /// Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+    /// with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+    /// enabled. When set, the message's other fields are ignored.
+    ///
+    /// Field 4: `retry_after_seconds`
+    #[must_use]
+    pub fn retry_after_seconds(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().retry_after_seconds
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<FulfilledView<'static>>>
@@ -3261,10 +3299,16 @@ impl ::serde::Serialize for EpisodeNumberOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What an Installed Plugin's `stop_monitoring` export returns. Empty, so it encodes to nothing and
-/// an export returning nothing returns it.
+/// What an Installed Plugin's `stop_monitoring` export returns. Empty unless it asks to be asked
+/// again, so an export returning nothing returns it.
 #[derive(Clone, Debug, Default)]
 pub struct StoppedMonitoringView<'a> {
+    /// Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+    /// with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+    /// enabled. When set, the message's other fields are ignored.
+    ///
+    /// Field 1: `retry_after_seconds`
+    pub retry_after_seconds: ::core::option::Option<u32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for StoppedMonitoringView<'a> {
@@ -3297,6 +3341,15 @@ impl<'a> ::buffa::MessageView<'a> for StoppedMonitoringView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.retry_after_seconds = Some(
+                    ::buffa::types::decode_uint32(&mut cur)?,
+                );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3319,6 +3372,7 @@ impl<'a> ::buffa::MessageView<'a> for StoppedMonitoringView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::StoppedMonitoring {
+            retry_after_seconds: self.retry_after_seconds,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3330,6 +3384,9 @@ impl<'a> ::buffa::ViewEncode<'a> for StoppedMonitoringView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if let Some(v) = self.retry_after_seconds {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3341,6 +3398,9 @@ impl<'a> ::buffa::ViewEncode<'a> for StoppedMonitoringView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if let Some(v) = self.retry_after_seconds {
+            ::buffa::types::put_uint32_field(1u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -3362,6 +3422,13 @@ impl<'__a> ::serde::Serialize for StoppedMonitoringView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if let ::core::option::Option::Some(__v) = self.retry_after_seconds {
+            __map
+                .serialize_entry(
+                    "retryAfterSeconds",
+                    &::buffa::json_helpers::ProtoJson(&__v),
+                )?;
+        }
         __map.end()
     }
 }
@@ -3457,6 +3524,15 @@ impl StoppedMonitoringOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+    /// with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+    /// enabled. When set, the message's other fields are ignored.
+    ///
+    /// Field 1: `retry_after_seconds`
+    #[must_use]
+    pub fn retry_after_seconds(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().retry_after_seconds
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<StoppedMonitoringView<'static>>>
 for StoppedMonitoringOwnedView {
@@ -3488,9 +3564,16 @@ impl ::serde::Serialize for StoppedMonitoringOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What an Installed Plugin's `unfollow` export returns. Empty, as `StoppedMonitoring` is.
+/// What an Installed Plugin's `unfollow` export returns. Empty unless it asks to be asked again, as
+/// `StoppedMonitoring` is.
 #[derive(Clone, Debug, Default)]
 pub struct UnfollowedView<'a> {
+    /// Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+    /// with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+    /// enabled. When set, the message's other fields are ignored.
+    ///
+    /// Field 1: `retry_after_seconds`
+    pub retry_after_seconds: ::core::option::Option<u32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UnfollowedView<'a> {
@@ -3523,6 +3606,15 @@ impl<'a> ::buffa::MessageView<'a> for UnfollowedView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.retry_after_seconds = Some(
+                    ::buffa::types::decode_uint32(&mut cur)?,
+                );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3545,6 +3637,7 @@ impl<'a> ::buffa::MessageView<'a> for UnfollowedView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::Unfollowed {
+            retry_after_seconds: self.retry_after_seconds,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3556,6 +3649,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UnfollowedView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if let Some(v) = self.retry_after_seconds {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3567,6 +3663,9 @@ impl<'a> ::buffa::ViewEncode<'a> for UnfollowedView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if let Some(v) = self.retry_after_seconds {
+            ::buffa::types::put_uint32_field(1u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -3588,6 +3687,13 @@ impl<'__a> ::serde::Serialize for UnfollowedView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if let ::core::option::Option::Some(__v) = self.retry_after_seconds {
+            __map
+                .serialize_entry(
+                    "retryAfterSeconds",
+                    &::buffa::json_helpers::ProtoJson(&__v),
+                )?;
+        }
         __map.end()
     }
 }
@@ -3678,6 +3784,15 @@ impl UnfollowedOwnedView {
     #[must_use]
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
+    }
+    /// Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+    /// with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+    /// enabled. When set, the message's other fields are ignored.
+    ///
+    /// Field 1: `retry_after_seconds`
+    #[must_use]
+    pub fn retry_after_seconds(&self) -> ::core::option::Option<u32> {
+        self.0.reborrow().retry_after_seconds
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<UnfollowedView<'static>>>
