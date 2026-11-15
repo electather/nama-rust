@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.library_id AS library,\n                              library_items.kind AS \"kind: ItemKind\", library_items.season,\n                              library_items.episode, item_matches.plugin AS \"plugin!\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'show') AS \"show_ids?: String\", item_matches.title AS \"title!\",\n                              item_matches.show_title, item_matches.release_date,\n                              item_matches.poster, item_matches.poster_plugin,\n                              libraries.title_sources\n                       FROM title_search\n                       JOIN item_matches ON item_matches.item_id = title_search.rowid\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       JOIN libraries ON libraries.id = library_files.library_id\n                       WHERE title_search MATCH ?\n                       ORDER BY title_search.rank",
+  "query": "SELECT library_files.library_id AS library,\n                              library_items.kind AS \"kind: ItemKind\", library_items.season,\n                              library_items.episode, (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'show') AS \"show_ids?: String\", item_matches.title AS \"title!\",\n                              item_matches.show_title, item_matches.release_date,\n                              item_matches.poster, item_matches.poster_plugin,\n                              libraries.title_sources\n                       FROM title_search\n                       JOIN item_matches ON item_matches.item_id = title_search.rowid\n                       JOIN library_items ON library_items.id = item_matches.item_id\n                       JOIN library_files ON library_files.id = library_items.file_id\n                       JOIN libraries ON libraries.id = library_files.library_id\n                       WHERE title_search MATCH ?\n                       ORDER BY title_search.rank",
   "describe": {
     "columns": [
       {
@@ -48,31 +48,20 @@
         }
       },
       {
-        "name": "plugin!",
-        "ordinal": 4,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "item_matches",
-            "name": "plugin"
-          }
-        }
-      },
-      {
         "name": "ids?: String",
-        "ordinal": 5,
+        "ordinal": 4,
         "type_info": "Text",
         "origin": "Expression"
       },
       {
         "name": "show_ids?: String",
-        "ordinal": 6,
+        "ordinal": 5,
         "type_info": "Text",
         "origin": "Expression"
       },
       {
         "name": "title!",
-        "ordinal": 7,
+        "ordinal": 6,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -83,7 +72,7 @@
       },
       {
         "name": "show_title",
-        "ordinal": 8,
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -94,7 +83,7 @@
       },
       {
         "name": "release_date",
-        "ordinal": 9,
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -105,7 +94,7 @@
       },
       {
         "name": "poster",
-        "ordinal": 10,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -116,7 +105,7 @@
       },
       {
         "name": "poster_plugin",
-        "ordinal": 11,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -127,7 +116,7 @@
       },
       {
         "name": "title_sources",
-        "ordinal": 12,
+        "ordinal": 11,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -152,9 +141,8 @@
       true,
       true,
       true,
-      true,
       false
     ]
   },
-  "hash": "1a343c2fd04e7a802d1ab1b1aca83e9babeb20bcf67057174cf56a22996528da"
+  "hash": "371a886d59eb17a3c98eb971f1ab50ad4930eb003989f5b3d965e8c94d141e7e"
 }

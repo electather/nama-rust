@@ -38,11 +38,9 @@ pub(crate) struct FoundShow {
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Episode found gives it.
     pub(crate) ids: ExternalIds,
-    /// The Plugin whose metadata Provider made the Match, which the poster's path is for.
-    pub(crate) plugin: String,
     pub(crate) title: String,
     /// As [`show_poster`] picks it, from the Seasons of the Show's Episodes the search found.
-    pub(crate) poster: Option<String>,
+    pub(crate) poster: Option<ImageRef>,
 }
 
 /// An Episode a search found, with what browsing needs to find it: its Show and Season.
@@ -118,7 +116,7 @@ impl Contents {
                     SearchRow,
                     r#"SELECT library_files.library_id AS library,
                               library_items.kind AS "kind: ItemKind", library_items.season,
-                              library_items.episode, item_matches.plugin AS "plugin!", "#
+                              library_items.episode, "#
                         + $ids
                         + r#"'title') AS "ids?: String", "#
                         + $ids
@@ -149,7 +147,6 @@ struct SearchRow {
     season: Option<i64>,
     /// Set for an Episode.
     episode: Option<i64>,
-    plugin: String,
     /// As [`ids_sql`] gives them.
     ids: Option<String>,
     /// As [`ids_sql`] gives them.
@@ -205,14 +202,16 @@ fn found_shows(rows: Vec<SearchRow>) -> Vec<FoundShow> {
         // ponytail: rescans every row per Show found; group rows by Show once searches get slow.
         let seasons = (rows.iter())
             .filter(|(other_id, other)| other.library == row.library && other_id == id)
-            .filter_map(|(_, other)| Some((other.season?, other.poster.as_deref())));
+            .filter_map(|(_, other)| {
+                let poster = ImageRef::stored(other.poster.clone(), other.poster_plugin.clone());
+                Some((other.season?, poster))
+            });
         shows.push(FoundShow {
             library: row.library,
             id: id.clone(),
             ids: row.show_ids(),
-            plugin: row.plugin.clone(),
             title: title.clone(),
-            poster: show_poster(seasons).map(str::to_owned),
+            poster: show_poster(seasons),
         });
     }
     shows

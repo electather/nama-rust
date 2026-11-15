@@ -97,8 +97,6 @@ pub(crate) struct Show<V = Version> {
     pub(crate) id: ExternalId,
     /// Every Show id that Match gives it.
     pub(crate) ids: ExternalIds,
-    /// The Plugin whose metadata Provider made the Match, which the Season posters are for.
-    pub(crate) plugin: String,
     pub(crate) title: String,
     pub(crate) backdrop: Option<ImageRef>,
     pub(crate) logo: Option<ImageRef>,
@@ -109,9 +107,7 @@ pub(crate) struct Show<V = Version> {
 /// The poster of the lowest-numbered Season after the Specials (Season 0) that has one, or else
 /// the Specials'. A Match stores each Episode's Season poster and none of the Show's own.
 /// `seasons` are Season numbers with their posters, in any order.
-pub(crate) fn show_poster<'a>(
-    seasons: impl IntoIterator<Item = (i64, Option<&'a str>)>,
-) -> Option<&'a str> {
+pub(crate) fn show_poster<P>(seasons: impl IntoIterator<Item = (i64, Option<P>)>) -> Option<P> {
     (seasons.into_iter())
         .filter_map(|(number, poster)| Some((number, poster?)))
         .min_by_key(|&(number, _)| (number == 0, number))
@@ -141,7 +137,6 @@ impl<V> Show<V> {
         Show {
             id: self.id,
             ids: self.ids,
-            plugin: self.plugin,
             title: self.title,
             backdrop: self.backdrop,
             logo: self.logo,
@@ -154,7 +149,7 @@ impl<V> Show<V> {
 #[derive(Debug, Clone)]
 pub(crate) struct Season<V = Version> {
     /// The poster the Match of its first Episode stores.
-    pub(crate) poster: Option<String>,
+    pub(crate) poster: Option<ImageRef>,
     /// By episode number.
     pub(crate) episodes: Vec<Episode<V>>,
 }
@@ -459,8 +454,9 @@ impl Contents {
                         + r#"'show') AS "show_ids?: String",
                               item_matches.title AS "title!",
                               item_matches.show_title AS "show_title!",
-                              overview, release_date, runtime_minutes, poster, backdrop,
-                              backdrop_plugin, logo, logo_plugin, still, libraries.title_sources
+                              overview, release_date, runtime_minutes, poster, poster_plugin,
+                              backdrop, backdrop_plugin, logo, logo_plugin, still,
+                              libraries.title_sources
                        FROM item_matches
                        JOIN library_items ON library_items.id = item_matches.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
@@ -489,14 +485,13 @@ impl Contents {
             let show = shows.entry(show_id.clone()).or_insert_with(|| Show {
                 id: show_id,
                 ids: show_ids,
-                plugin: row.plugin.clone(),
                 title: row.show_title,
                 backdrop: ImageRef::stored(row.backdrop, row.backdrop_plugin),
                 logo: ImageRef::stored(row.logo, row.logo_plugin),
                 seasons: BTreeMap::new(),
             });
             let season = show.seasons.entry(row.season).or_insert_with(|| Season {
-                poster: row.poster,
+                poster: ImageRef::stored(row.poster, row.poster_plugin),
                 episodes: Vec::new(),
             });
             let version = version(

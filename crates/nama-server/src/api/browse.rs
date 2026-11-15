@@ -216,7 +216,7 @@ fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::Movie
 }
 
 fn found_show_to_proto(show: FoundShow, images: &ShownImages) -> proto::ShowInLibrary {
-    let downloaded = show.poster.map(|path| artwork::url(&show.plugin, &path));
+    let downloaded = (show.poster).map(|image| artwork::url(image.plugin.as_str(), &image.path));
     let poster_url = (images.custom)
         .of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Poster))
         .or(downloaded);
@@ -365,9 +365,9 @@ fn season_poster(show: &Show, number: i64, images: &ShownImages) -> (Option<Stri
     {
         return (Some(url), true);
     }
-    let downloaded = (show.seasons.get(&number)).and_then(|season| season.poster.as_deref());
+    let downloaded = (show.seasons.get(&number)).and_then(|season| season.poster.as_ref());
     (
-        downloaded.map(|path| artwork::url(&show.plugin, path)),
+        downloaded.map(|image| artwork::url(image.plugin.as_str(), &image.path)),
         false,
     )
 }
@@ -521,7 +521,6 @@ mod tests {
         let show = Show {
             id: id.clone(),
             ids: ExternalIds::from_iter([id]),
-            plugin: "tmdb".to_owned(),
             title: "Alien".to_owned(),
             backdrop: None,
             logo: Some(logo()),

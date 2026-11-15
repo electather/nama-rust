@@ -17,7 +17,7 @@ fn a_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
     let specials_and_first = [(0, Some("/specials.jpg")), (1, Some("/1.jpg"))];
     let first_without = [(2, Some("/2.jpg")), (1, None)];
     let specials_alone = [(0, Some("/specials.jpg"))];
-    let none = [(0, None), (1, None)];
+    let none: [(i64, Option<&str>); 2] = [(0, None), (1, None)];
 
     assert_eq!(show_poster(specials_and_first), Some("/1.jpg"));
     assert_eq!(show_poster(first_without), Some("/2.jpg"));
@@ -421,4 +421,37 @@ async fn a_title_logo_is_stored_read_back_and_kept() {
             .await
             .unwrap()
     );
+}
+
+#[tokio::test]
+async fn a_seasons_poster_keeps_the_plugin_it_was_stored_under() {
+    let fx = Fixture::new().await;
+    let path = "/media/Firefly/Season 01/Firefly - S01E02.mkv";
+    let episode = Item::Episode {
+        show: "Firefly".to_owned(),
+        year: None,
+        hint: None,
+        season: 1,
+        episode: 2,
+    };
+    fx.store(path, 10, episode).await;
+    let item = fx.item(path).await;
+    let poster = ImageRef {
+        plugin: PluginId::from_static("fanart"),
+        path: "/season-1.jpg".to_owned(),
+    };
+    let metadata = super::super::Metadata {
+        ids: ExternalIds::from_iter([ExternalId::tmdb(1001)]),
+        show_ids: ExternalIds::from_iter([ExternalId::tmdb(1437)]),
+        poster: Some(poster.clone()),
+        ..tmdb_movie(0, "The Train Job")
+    };
+    fx.contents
+        .record(vec![(item, Decided::Matched(Box::new(metadata)))])
+        .await
+        .unwrap();
+
+    let shows = fx.contents.shows(fx.library).await.unwrap();
+    assert_eq!(shows[0].seasons[&1].episodes[0].plugin, "tmdb");
+    assert_eq!(shows[0].seasons[&1].poster, Some(poster));
 }
