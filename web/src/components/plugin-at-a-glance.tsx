@@ -5,7 +5,12 @@ import { Activity, Bell, Film, KeyRound, Link, Puzzle, ScanSearch, Server, Tv } 
 
 import { ChangeImage, type ImageRules } from "@/components/edit-images";
 import type { Shown } from "@/components/state-label";
-import { ExtensionPoint, PluginService, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
+import {
+  ExtensionPoint,
+  PluginPermission,
+  PluginService,
+  type PluginSummary,
+} from "@/gen/nama/v1/plugin_pb";
 import { pluginName } from "@/lib/plugins";
 
 /** Each Extension Point in plain words, with the icon the web picks for it. */
@@ -36,6 +41,40 @@ export function ExtensionPoints({ extensionPoints }: { extensionPoints: Extensio
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Each Plugin Permission in plain words, with what granting it lets the Plugin do. */
+export const pluginPermissions: Partial<
+  Record<PluginPermission, { label: string; about: string }>
+> = {
+  [PluginPermission.STORE]: {
+    label: "Keep its own data",
+    about: "It keeps notes in the Server, such as which titles it has already looked at.",
+  },
+  [PluginPermission.READ_LIBRARIES]: {
+    label: "Read Libraries",
+    about: "It sees every Library and the Movies and Episodes in it.",
+  },
+  [PluginPermission.READ_WATCH_STATES]: {
+    label: "Read Watch State",
+    about: "It sees what every User has watched, and when.",
+  },
+  [PluginPermission.DELETE_MEDIA]: {
+    label: "Delete media",
+    about: "It can delete Movies and Episodes, with their files on disk, for good.",
+  },
+};
+
+/**
+ * The Plugin Permissions an Admin granted the Plugin, if any, as a line of a wrapping flex row.
+ * One from a newer Server than this app knows is left out.
+ */
+export function GrantedPermissions({ granted }: { granted: PluginPermission[] }) {
+  const labels = granted.flatMap((permission) => pluginPermissions[permission]?.label ?? []);
+  if (labels.length === 0) return null;
+  return (
+    <p className="w-full text-sm text-pretty text-muted-foreground">Granted: {labels.join(", ")}</p>
   );
 }
 
