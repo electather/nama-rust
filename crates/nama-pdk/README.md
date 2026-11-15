@@ -66,6 +66,7 @@ Each point has a trait and a macro that exports it. The trait docs in [`src/lib.
 | `NOTIFIER` | `Notifier`, `notifier!` | `deliver` | |
 | `CONNECTOR` | `Connector`, `connector!` | `start_connection`, `poll_connection` | |
 | `TITLE_SOURCE` | `TitleSource`, `title_source!` | | `search`, `movie`, `show`, `season`, `episode`, `image`, `artwork` |
+| `AUTOMATION` | `Automation`, `automation!` | `tick` | |
 
 A trait's optional methods have defaults, and its macro exports them all, except `title_source!`, which exports only the methods it lists, since the Server asks nothing of a title source that lacks the export:
 
@@ -134,21 +135,59 @@ fn topic(recipient: &Recipient) -> Option<&str> {
 }
 ```
 
-## 6. HTTP
+## 6. Automation
+
+An Automation Plugin asks the Kernel rather than being asked. The Kernel calls its `tick` every `tick_every_seconds` its Manifest sets, and during any of its calls it may call the Kernel's functions in `nama_pdk::kernel`: its own Store (`store_get`, `store_put`, `store_delete`, each for the Plugin alone or for one User), `libraries`, `titles` and `watch_states` to read, and `delete_media` to delete a title's media files as an Admin's delete does. Each function needs a Plugin Permission, which the Manifest requests in `permissions` and the Admin grants when enabling the Plugin. Every Kernel function may be refused: one whose Permission the Admin didn't grant fails with the Kernel's reason, in plain words, as its error. The functions and their Permissions are listed in [`automation.proto`](../../proto/nama/plugin/v1/automation.proto).
+
+```rust,no_run
+use nama_pdk::{
+    Automation, Buffa, FnResult, Manifest, Permission, Tick, extism_pdk, extism_pdk::Error,
+    kernel, plugin_fn, services,
+};
+
+#[plugin_fn]
+pub fn manifest() -> FnResult<Buffa<Manifest>> {
+    Ok(Buffa(Manifest {
+        name: "Counter".to_owned(),
+        description: "Counts its ticks.".to_owned(),
+        points: vec![nama_pdk::point(services::AUTOMATION)],
+        permissions: vec![Permission::PERMISSION_STORE.into()],
+        tick_every_seconds: 3600,
+        ..nama_pdk::manifest("counter", env!("CARGO_PKG_VERSION"))
+    }))
+}
+
+struct Counter;
+
+impl Automation for Counter {
+    fn tick(_tick: Tick) -> Result<(), Error> {
+        let count = kernel::store_get("ticks", None)?
+            .and_then(|bytes| bytes.try_into().ok())
+            .map_or(0, u64::from_le_bytes);
+        kernel::store_put("ticks", None, &(count + 1).to_le_bytes())
+    }
+}
+
+nama_pdk::automation!(Counter);
+```
+
+Off wasm32, as in a Plugin's unit tests, every Kernel function fails, since there is no Kernel to call.
+
+## 7. HTTP
 
 Send requests with `nama_pdk::http_request`, which works like `extism_pdk::http::request` but takes the error the call fails with when nothing answers. Which hosts a Plugin may reach (`allowed_hosts` and its URL settings' hosts) is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Read the time with `nama_pdk::now`, never `SystemTime::now()`.
 
 Plugins are not given HTTP response headers today: a response carries its status and body only. A later stage may add them, so don't build on either.
 
-## 7. The call budget
+## 8. The call budget
 
 Each call has a memory and a time limit, and three crashes in a row disable the Plugin; the numbers and what counts as a crash are in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Keep each call short: hand work to the outside service and report on it later, as a Fulfiller's `progress` does.
 
-## 8. Errors
+## 9. Errors
 
 An export's error is its message to people. `manifest()`'s gets the Plugin refused and `check_settings()`'s is shown to the admin testing, and the trait docs' `# Errors` say where each point's goes, such as `fulfill`'s, which becomes the reason a Request shows as Failed. Write it as a sentence an admin can act on. A panic reaches the Server with its message, not as a bare trap.
 
-## 9. Building and installing
+## 10. Building and installing
 
 ```sh
 rustup target add wasm32-unknown-unknown

@@ -22,7 +22,13 @@ pub use nama_plugin_proto::{
     services,
 };
 
+mod automation;
 mod notification_text;
+
+pub use automation::{
+    Automation, Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind,
+    TitleWatchStates, WatchState, kernel,
+};
 
 /// What a notification says happened, in the Glossary's words, or `None` for what isn't told.
 pub use notification_text::what_happened;
