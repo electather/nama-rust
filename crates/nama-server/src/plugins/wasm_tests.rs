@@ -531,8 +531,15 @@ fn every_bundled_plugin_declares_its_settings_kinds_and_defaults() {
         ),
     ];
 
+    let ntfy = [(
+        "server_url",
+        SettingKind::Url,
+        Some(text("https://ntfy.sh")),
+    )];
+
     let expected = |file: &str| match file {
         "fanart.wasm" => &fanart[..],
+        "ntfy.wasm" => &ntfy[..],
         "radarr.wasm" | "sonarr.wasm" => &servarr[..],
         "telegram.wasm" => &telegram[..],
         "tvdb.wasm" => &tvdb[..],
