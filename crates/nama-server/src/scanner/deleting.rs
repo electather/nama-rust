@@ -1,23 +1,93 @@
 //! Deleting media from disk: each Version's file, its sidecars, and the folders that leaves empty,
 //! never a Library's own folder or one above it (ADR 0038). Blocks, so call it from
-//! `spawn_blocking`.
+//! `spawn_blocking`. Also asking a Fulfiller again to stop monitoring what a delete took, when it
+//! said to try again.
 
 use std::{
     collections::BTreeSet,
     ffi::OsStr,
     fs, io,
     path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
 };
 
-use nama_plugin_api::fulfiller::stop_monitoring::Title;
+use nama_plugin_api::{
+    PluginError, PluginId,
+    fulfiller::{Fulfiller, StopMonitoring, TryAgainIn, stop_monitoring::Title},
+};
 use nama_proto::nama::v1::Request;
 
 use super::is_video;
 use crate::{
     library::contents::{Episode, Version},
     library::libraries::Library,
+    plugins::{ExtensionPoints, Failure, ProviderError},
     requests::RequestTitle,
 };
+
+/// How many times in a row a Fulfiller that says to try again is asked again to stop monitoring a
+/// deleted title, before the Kernel gives up.
+// ponytail: a fixed cap, so one that always says to try again isn't asked forever; make it the
+// Fulfiller's to say if a service needs longer.
+const RETRIES: u32 = 10;
+
+/// A Fulfiller's error, whose kind is how long it said to wait when it said to try again.
+pub(super) struct Retryable(pub(super) PluginError);
+
+impl ProviderError<Option<Duration>> for Retryable {
+    fn failure(self) -> Failure<Option<Duration>> {
+        Failure {
+            kind: self.0.downcast_ref::<TryAgainIn>().map(|wait| wait.0),
+            message: self.0.to_string(),
+        }
+    }
+}
+
+/// A deleted title the Plugin `plugin`'s Fulfiller said to ask it again to stop monitoring:
+/// `title`, which the log calls `name`.
+pub(super) struct StopAgain {
+    pub(super) plugin: PluginId,
+    pub(super) title: StopMonitoring,
+    pub(super) name: String,
+}
+
+impl StopAgain {
+    /// Asks the Fulfiller of `K` again after `wait`, as it said to, the `retry`th time in a row.
+    /// Waits in the Plugin's scope in `plugins`, so disabling it ends the wait at once (ADR 0047),
+    /// and logs giving up.
+    pub(super) fn after<K: 'static>(self, plugins: &ExtensionPoints, wait: Duration, retry: u32) {
+        let points = plugins.clone();
+        let plugin = self.plugin.clone();
+        // Not spawned if the Plugin was disabled meanwhile, which leaves nothing to tell.
+        plugins.spawn_in(&plugin, async move {
+            tokio::time::sleep(wait).await;
+            let title = &self.title;
+            let stop = |fulfiller: Arc<dyn Fulfiller<K>>| async move {
+                fulfiller.stop_monitoring(title).await.map_err(Retryable)
+            };
+            let answer = points.ask(&self.plugin, stop).await;
+            let reason = match answer.map(|answer| answer.result) {
+                Some(Ok(())) => return,
+                Some(Err(Failure {
+                    kind: Some(again), ..
+                })) if retry < RETRIES => {
+                    self.after::<K>(&points, again, retry + 1);
+                    return;
+                }
+                Some(Err(failure)) => failure.message,
+                None => "it panicked or was disabled".to_owned(),
+            };
+            tracing::warn!(
+                plugin = %self.plugin,
+                title = self.name,
+                reason,
+                retry,
+                "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
+            );
+        });
+    }
+}
 
 /// Versions of one title of a Library, which a delete removes, with the title, for its log.
 #[derive(Debug)]
@@ -237,16 +307,34 @@ fn remove_empty_folders(folder: &Path, root: &Path, kept: &[&Path]) {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, io, path::Path};
+    use std::{
+        collections::HashMap,
+        fs, io,
+        path::Path,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+        time::Duration,
+    };
 
-    use nama_plugin_api::metadata::ExternalId;
+    use nama_plugin_api::{
+        BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+        contract,
+        fulfiller::{
+            Download, Fulfilled, Fulfiller, MovieDeleted, Movies, StopMonitoring, TryAgainIn,
+        },
+        metadata::ExternalId,
+    };
     use tempfile::TempDir;
 
     use super::{Doomed, delete, each_file, preview};
     use crate::{
         library::contents::{Stored, Version},
         library::libraries::{Kind, Library},
+        plugins::Registry,
         requests::RequestTitle,
+        scanner::tests::Fixture as Scanned,
     };
 
     /// A Library over a scratch folder.
@@ -457,5 +545,94 @@ mod tests {
         doomed.requested = vec![(1, season(1)), (2, season(1)), (3, season(2))];
 
         assert_eq!(doomed.request_titles(&[1, 2]), [season(1)]);
+    }
+
+    /// How long [`Busy`] says to wait.
+    const WAIT: Duration = Duration::from_millis(10);
+
+    /// The Plugin `busy`, whose Fulfiller of Movies says to try again in [`WAIT`] the first time
+    /// it is asked to stop monitoring a title, counting each time it is asked.
+    #[derive(Default)]
+    struct Busy(AtomicUsize);
+
+    impl Fulfiller<Movies> for Busy {
+        fn fulfill<'a>(
+            &'a self,
+            _request: &'a contract::Request,
+        ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+            Box::pin(async { Err("not asked here".into()) })
+        }
+
+        fn stop_monitoring<'a>(
+            &'a self,
+            _title: &'a StopMonitoring,
+        ) -> BoxFuture<'a, Result<(), PluginError>> {
+            let stopped = if self.0.fetch_add(1, Ordering::SeqCst) == 0 {
+                Err(TryAgainIn(WAIT).into())
+            } else {
+                Ok(())
+            };
+            Box::pin(async { stopped })
+        }
+
+        fn progress<'a>(
+            &'a self,
+            _references: &'a [String],
+        ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+            Box::pin(async { Ok(HashMap::new()) })
+        }
+    }
+
+    /// The Plugin providing `.0`.
+    struct BusyPlugin(Arc<Busy>);
+
+    impl Plugin for BusyPlugin {
+        fn manifest(&self) -> Manifest {
+            Manifest {
+                version: "0.0.0".to_owned(),
+                extension_points: vec![PointKey::provide::<dyn Fulfiller<Movies>>()],
+                ..Manifest::new(PluginId::from_static("busy"))
+            }
+        }
+
+        fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+            registrar
+                .provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::<Busy>::clone(&self.0));
+            Ok(())
+        }
+    }
+
+    /// Returns once `busy` was asked twice.
+    async fn asked_twice(busy: &Busy) {
+        while busy.0.load(Ordering::SeqCst) < 2 {
+            tokio::time::sleep(WAIT).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn a_delete_whose_fulfiller_says_to_try_again_still_deletes_and_asks_again_later() {
+        let busy = Arc::new(Busy::default());
+        let plugins = Registry::new();
+        plugins
+            .enable(Arc::new(BusyPlugin(Arc::clone(&busy))))
+            .unwrap();
+        let media = Scanned::with_plugins(Kind::Movies, plugins.extension_points()).await;
+        media.write("Alien (1979)/Alien (1979).mkv", 10);
+        media.scan().await;
+        let doomed = Doomed {
+            to_unmonitor: Some(MovieDeleted::default().into()),
+            ..media.doomed().await
+        };
+
+        let deleted = media.scanner.delete_media(doomed, "ada".to_owned()).await;
+        let asked_by_delete = busy.0.load(Ordering::SeqCst);
+        let asked_again = tokio::time::timeout(Duration::from_secs(5), asked_twice(&busy)).await;
+
+        let deleted = deleted.unwrap();
+        assert_eq!(deleted.fulfillers_not_told, [""; 0]);
+        assert!(!media.path("Alien (1979)").exists());
+        assert_eq!(asked_by_delete, 1);
+        asked_again.expect("it was never asked again");
+        assert_eq!(busy.0.load(Ordering::SeqCst), 2);
     }
 }

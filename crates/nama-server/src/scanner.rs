@@ -61,7 +61,7 @@ use crate::{
     library::libraries::{self, Kind, Libraries, Library},
     matching::{self, Matcher, count},
     playback::running::RunningPlans,
-    plugins::ExtensionPoints,
+    plugins::{ExtensionPoints, Failure},
     probing::Probing,
     requests::{self, RequestTitle, Requests},
 };
@@ -437,7 +437,7 @@ impl Scanner {
 
     /// Asks each enabled Fulfiller of `doomed`'s Library's kind to stop monitoring what it takes.
     /// Returns the name of each that couldn't be told, failing or panicking, which isn't asked
-    /// again.
+    /// again. One that says to try again is asked again later, in its scope (ADR 0047).
     async fn stop_monitoring(&self, doomed: &Doomed) -> Vec<String> {
         let Some(title) = doomed.to_unmonitor.clone() else {
             return Vec::new();
@@ -465,7 +465,8 @@ impl Scanner {
             if let Some(needs) = requests::unmet(&*fulfiller, namespaces) {
                 return Ok(Err(needs));
             }
-            fulfiller.stop_monitoring(title).await.map(Ok)
+            let stopped = fulfiller.stop_monitoring(title).await;
+            stopped.map(Ok).map_err(deleting::Retryable)
         };
         let plugins = &self.inner.plugins;
         let mut not_told = Vec::new();
@@ -474,6 +475,18 @@ impl Scanner {
             // `None`: it panicked, which disabled it, or was disabled meanwhile.
             let reason = match answer.map(|answer| answer.result) {
                 Some(Ok(Ok(()))) => continue,
+                Some(Err(Failure {
+                    kind: Some(wait), ..
+                })) => {
+                    let (title, name) = (title.clone(), name.to_owned());
+                    let again = deleting::StopAgain {
+                        plugin,
+                        title,
+                        name,
+                    };
+                    again.after::<K>(plugins, wait, 1);
+                    continue;
+                }
                 Some(Ok(Err(needs))) => requests::missing(&plugin, kind, &needs),
                 Some(Err(failure)) => failure.message,
                 None => "it panicked or was disabled".to_owned(),
@@ -835,8 +848,8 @@ mod tests {
 
     /// A database, a Library of `kind` backed by one scratch folder, and a scanner publishing on
     /// a bus whose subscribers lag once [`BUFFERED`] events behind.
-    struct Fixture {
-        scanner: Scanner,
+    pub(super) struct Fixture {
+        pub(super) scanner: Scanner,
         /// What the scanner tells a scan finished, if anything probes.
         probing: Option<Probing>,
         db: Arc<Database>,
@@ -851,16 +864,25 @@ mod tests {
     impl Fixture {
         /// With nothing probing.
         async fn new(kind: Kind) -> Self {
-            Self::with_probing(kind, None).await
+            Self::with_probing(kind, None, ExtensionPoints::default()).await
+        }
+
+        /// With nothing probing, and `plugins` as the Plugins the scanner asks.
+        pub(super) async fn with_plugins(kind: Kind, plugins: ExtensionPoints) -> Self {
+            Self::with_probing(kind, None, plugins).await
         }
 
         /// Probing with `ffmpeg`.
         #[cfg(unix)]
         async fn with_ffmpeg(kind: Kind, ffmpeg: Ffmpeg) -> Self {
-            Self::with_probing(kind, Some(ffmpeg)).await
+            Self::with_probing(kind, Some(ffmpeg), ExtensionPoints::default()).await
         }
 
-        async fn with_probing(kind: Kind, ffmpeg: Option<Ffmpeg>) -> Self {
+        async fn with_probing(
+            kind: Kind,
+            ffmpeg: Option<Ffmpeg>,
+            plugins: ExtensionPoints,
+        ) -> Self {
             let data = tempfile::tempdir().unwrap();
             let media = tempfile::tempdir().unwrap();
             let root = media.path().canonicalize().unwrap().join("library");
@@ -884,7 +906,7 @@ mod tests {
             Self {
                 scanner: Scanner::new(
                     Arc::clone(&db),
-                    ExtensionPoints::default(),
+                    plugins,
                     Artwork::new(images.clone(), ExtensionPoints::default()),
                     CustomImages::new(Arc::clone(&db), images),
                     events.clone(),
@@ -907,22 +929,22 @@ mod tests {
             }
         }
 
-        fn write(&self, relative: &str, size: usize) {
+        pub(super) fn write(&self, relative: &str, size: usize) {
             let path = self.root.join(relative);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, vec![0_u8; size]).unwrap();
         }
 
-        fn path(&self, relative: &str) -> PathBuf {
+        pub(super) fn path(&self, relative: &str) -> PathBuf {
             self.root.join(relative)
         }
 
-        async fn scan(&self) -> Summary {
+        pub(super) async fn scan(&self) -> Summary {
             self.scanner.scan(self.library).await.unwrap()
         }
 
         /// Every stored file of the Library, as one title to delete.
-        async fn doomed(&self) -> Doomed {
+        pub(super) async fn doomed(&self) -> Doomed {
             let stored = self.contents.stored(self.library).await.unwrap();
             Doomed {
                 library: self

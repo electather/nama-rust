@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_plugin_api::{
-    BoxFuture, PluginError, contract,
+    BoxFuture, PluginError, PluginId, contract,
     fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
 };
 use nama_proto::nama::v1::{RefusalReason, Request, RequestState};
@@ -12,7 +12,10 @@ use super::Claim;
 use crate::plugins::Registry;
 use crate::requests::Requests;
 use crate::requests::asking::{WantedSeasons, ask_seasons};
-use crate::requests::testing::{ADA, NOTHING, ada, approved_for, approved_on, come_up, dark, took};
+use crate::requests::testing::{
+    ADA, FulfillerPlugin, NOTHING, TRY_AGAIN_IN, TriesAgain, ada, approved_for, approved_on,
+    come_up, dark, read, took,
+};
 use crate::users::Permissions;
 
 #[test]
@@ -369,4 +372,61 @@ async fn a_show_with_an_id_its_fulfiller_needs_is_unfollowed() {
     requests.hand_off.unfollow(&asked[0]).await;
 
     assert_eq!(*needing.unfollowed.lock().unwrap(), [asked[0].id]);
+}
+
+/// The id of the one Request [`approved_for`] opens in a new database.
+const FIRST: i64 = 1;
+
+/// The [`FIRST`] Request once it is no longer Approved.
+async fn moved_on(requests: &Requests) -> Request {
+    loop {
+        let request = read(&requests.db, FIRST).await;
+        if request.state != RequestState::Approved {
+            return request;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
+#[tokio::test]
+async fn a_request_its_fulfiller_says_to_try_again_is_handed_off_again_later() {
+    let busy = TriesAgain::new(1);
+    let (_data, requests) = approved_for(&[949], Arc::<TriesAgain>::clone(&busy)).await;
+    // After opening the database, whose pool times out by the clock.
+    tokio::time::pause();
+
+    come_up(&requests, "gated").await;
+    let asked_by_come_up = busy.asked();
+    tokio::time::advance(TRY_AGAIN_IN).await;
+    // Real time again: the hand-off reads and writes SQLite, which a paused clock would race.
+    tokio::time::resume();
+    let handed_again = tokio::time::timeout(Duration::from_secs(5), moved_on(&requests)).await;
+
+    assert_eq!(asked_by_come_up, 1);
+    // Handed off again only if it stayed Approved, not Failed.
+    let handed_again = handed_again.expect("it was never handed off again");
+    assert_eq!(handed_again.state, RequestState::Processing);
+    assert_eq!(busy.asked(), 2);
+}
+
+#[tokio::test]
+async fn disabling_the_fulfiller_before_it_is_asked_again_leaves_the_request_waiting() {
+    let plugins = Registry::new();
+    let busy = TriesAgain::new(1);
+    let fulfiller: Arc<dyn Fulfiller<Movies>> = Arc::<TriesAgain>::clone(&busy);
+    let (_data, requests) = approved_on(&plugins, &[949], Arc::clone(&fulfiller)).await;
+    tokio::time::pause();
+    come_up(&requests, "gated").await;
+
+    assert!(plugins.disable(&PluginId::from_static("gated")).await);
+    // Enabled again, so a retry that outlived the disable would find a Fulfiller to hand off to.
+    plugins
+        .enable(Arc::new(FulfillerPlugin("gated", fulfiller)))
+        .unwrap();
+    tokio::time::sleep(TRY_AGAIN_IN * 2).await;
+    let request = read(&requests.db, FIRST).await;
+    tokio::time::resume();
+
+    assert_eq!(request.state, RequestState::Approved);
+    assert_eq!(busy.asked(), 1);
 }

@@ -9,6 +9,7 @@ Requests and Followed Shows: Users asking for what isn't on the Server (ADR 0012
 - **Private modules.** The area's files are private modules; neighbours import only what `requests.rs` re-exports, and `qualities` is the one module they address by name (`requests::qualities`). Items inside default to `pub(super)`.
 - **Shared SQL is a literal.** SQL that several queries share is a string literal a macro hands to each query (`state.rs`, `progress.rs`, `asked.rs`), since sqlx reads a query from literals alone. One saying whether a Request or Followed Show is open must match its index. `hand_off.rs` holds no SQL.
 - **Polling a Fulfiller runs in its scope.** `progress.rs` asks it inside `ExtensionPoints::spawn_in`, so disabling it ends the call at once (ADR 0047).
+- **A Fulfiller's try-again is retried in its scope.** `hand_off.rs` leaves the Request Approved and hands it off again after the wait, inside `ExtensionPoints::spawn_in`, up to 10 times in a row before failing it (ADR 0047).
 - **Unit tests.** Each file's unit tests sit in its `*_tests.rs` beside it and share `testing.rs`.
 
 ### Neighbours

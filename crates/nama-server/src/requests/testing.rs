@@ -2,14 +2,17 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
 use futures_util::{Stream, StreamExt};
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, contract,
-    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
+    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows, TryAgainIn},
     metadata::{ExternalId, ExternalIds},
     settings::{SettingValue, Settings},
 };
@@ -175,6 +178,49 @@ impl Fulfiller<Movies> for NeverAnswers {
     ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
         self.0.notify_one();
         Box::pin(std::future::pending())
+    }
+}
+
+/// How long [`TriesAgain`] says to wait.
+pub(super) const TRY_AGAIN_IN: Duration = Duration::from_secs(30);
+
+/// A Fulfiller of Movies that says to try again in [`TRY_AGAIN_IN`] the first `busy` times it is
+/// handed a Request, then takes it, counting each time it is handed one.
+pub(super) struct TriesAgain {
+    busy: usize,
+    asked: AtomicUsize,
+}
+
+impl TriesAgain {
+    pub(super) fn new(busy: usize) -> Arc<Self> {
+        Arc::new(Self {
+            busy,
+            asked: AtomicUsize::new(0),
+        })
+    }
+
+    /// How many times it was handed a Request.
+    pub(super) fn asked(&self) -> usize {
+        self.asked.load(Ordering::SeqCst)
+    }
+}
+
+impl Fulfiller<Movies> for TriesAgain {
+    fn fulfill<'a>(
+        &'a self,
+        _request: &'a contract::Request,
+    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+        if self.asked.fetch_add(1, Ordering::SeqCst) < self.busy {
+            return Box::pin(async { Err(TryAgainIn(TRY_AGAIN_IN).into()) });
+        }
+        took("taken".to_owned())
+    }
+
+    fn progress<'a>(
+        &'a self,
+        _references: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+        Box::pin(async { Ok(HashMap::new()) })
     }
 }
 
