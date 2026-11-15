@@ -18,8 +18,8 @@ use crate::{
     db::Database,
     events::{EventBus, Filter, event},
     images::ImageStore,
-    library::artwork::Artwork,
-    library::contents::{Change, Contents, Decided, FileItem, Item, Recorded, Show},
+    library::artwork::{Artwork, Picked},
+    library::contents::{Change, Contents, Decided, FileItem, ImageRef, Item, Recorded, Show},
     library::custom_images::CustomImages,
     library::libraries::{Kind, Libraries},
     plugins::{ExtensionPoints, Registry},
@@ -1115,4 +1115,74 @@ async fn a_match_set_while_no_metadata_provider_is_enabled_is_unavailable() {
         matches!(result, Err(ManualError::Unavailable)),
         "{result:?}"
     );
+}
+
+fn picked_poster(path: Option<&str>) -> Picked {
+    let fanart = PluginId::from_static("fanart");
+    let poster = path.and_then(|path| ImageRef::of(&fanart, Some(&path.to_owned())));
+    Picked {
+        poster,
+        ..Picked::default()
+    }
+}
+
+fn episode_artwork(season_poster: Option<&str>, picked: Option<&str>) -> super::Metadata {
+    use crate::library::title_source::{Episode, Season, Show as SourceShow};
+    let show = SourceShow {
+        ids: ExternalIds::default(),
+        title: "Severance".into(),
+        original_title: None,
+        overview: None,
+        first_air_date: None,
+        poster: Some("/show.jpg".into()),
+        backdrop: Some("/show-backdrop.jpg".into()),
+        seasons: vec![1],
+    };
+    let episode = Episode {
+        ids: ExternalIds::default(),
+        season: 1,
+        number: 1,
+        title: "Good News About Hell".into(),
+        overview: None,
+        air_date: None,
+        runtime_minutes: None,
+        still: None,
+    };
+    let season = Season {
+        ids: ExternalIds::default(),
+        number: 1,
+        title: "Season 1".into(),
+        overview: None,
+        air_date: None,
+        poster: season_poster.map(Into::into),
+        episodes: Vec::new(),
+    };
+    let tmdb = &PluginId::from_static("tmdb");
+    super::Metadata::episode(tmdb, (&show, &picked_poster(picked)), &season, &episode)
+}
+
+#[test]
+fn an_episode_keeps_its_season_poster_over_the_picked_show_poster() {
+    let poster = episode_artwork(Some("/season.jpg"), Some("/picked.jpg")).poster;
+    assert_eq!(poster.unwrap().path, "/season.jpg");
+}
+
+#[test]
+fn an_episode_without_a_season_poster_takes_the_picked_show_poster() {
+    let poster = episode_artwork(None, Some("/picked.jpg")).poster;
+    assert_eq!(poster, picked_poster(Some("/picked.jpg")).poster);
+}
+
+#[test]
+fn an_episode_with_no_season_or_picked_poster_takes_the_show_poster() {
+    let poster = episode_artwork(None, None).poster;
+    assert_eq!(poster.unwrap().path, "/show.jpg");
+}
+
+#[test]
+fn a_shows_picked_poster_wins_over_its_own_and_keeps_its_own_backdrop() {
+    let own = episode_artwork(None, None);
+    let picked = picked_poster(Some("/picked.jpg"));
+    let with = own.clone().with_picked(&picked);
+    assert_eq!((with.poster, with.backdrop), (picked.poster, own.backdrop));
 }
