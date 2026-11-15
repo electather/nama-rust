@@ -531,6 +531,12 @@ fn every_bundled_plugin_declares_its_settings_kinds_and_defaults() {
         ),
     ];
 
+    let discord = [(
+        "api_url",
+        SettingKind::Url,
+        Some(text("https://discord.com")),
+    )];
+
     let ntfy = [(
         "server_url",
         SettingKind::Url,
@@ -538,6 +544,7 @@ fn every_bundled_plugin_declares_its_settings_kinds_and_defaults() {
     )];
 
     let expected = |file: &str| match file {
+        "discord.wasm" => &discord[..],
         "fanart.wasm" => &fanart[..],
         "ntfy.wasm" => &ntfy[..],
         "radarr.wasm" | "sonarr.wasm" => &servarr[..],
