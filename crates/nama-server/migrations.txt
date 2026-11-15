@@ -64,3 +64,4 @@
 0066_match_image_plugins.sql
 0067_match_logo.sql
 0068_personal_settings.sql
+0069_plugin_store.sql

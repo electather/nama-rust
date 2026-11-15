@@ -237,13 +237,6 @@ impl ExtensionPoints {
     /// Sets what makes the Kernel's functions each enabled Plugin calls, given its id and the
     /// Permissions granted it. Startup calls it once, when the Kernel's parts exist; until then
     /// every Kernel function answers `refused`. A later call is ignored.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "startup serves the Kernel's functions in a later change"
-        )
-    )]
     pub(crate) fn serve_kernel(&self, make: MakeKernel) {
         if self
             .read(|state| Arc::clone(&state.kernel))

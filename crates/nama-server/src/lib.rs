@@ -1,6 +1,7 @@
 //! The Nama Server as a library, so its pieces can be tested on their own.
 
 mod api;
+mod automation;
 pub use library::artwork;
 mod browse;
 pub mod codes;
@@ -36,6 +37,7 @@ use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::net::TcpListener;
 
 use crate::{
+    automation::Automation,
     codes::SetupCode,
     config::Config,
     db::Database,
@@ -115,6 +117,10 @@ pub fn serve(
     let artwork = Artwork::new(images.clone(), points.clone());
     let plugin_logos = PluginLogos::new(images.clone());
     let custom_images = CustomImages::new(Arc::clone(&db), images);
+    let automation = Automation::new(Arc::clone(&db));
+    points.serve_kernel(Arc::new(move |plugin, granted| {
+        automation.kernel(plugin, granted)
+    }));
     let scanner = Scanner::new(
         Arc::clone(&db),
         points,
