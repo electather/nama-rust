@@ -1,15 +1,20 @@
 //! The Registry: which Plugins are enabled, and enabling, disabling and listing them.
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     convert::Infallible,
     fmt,
     ops::Deref,
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use nama_plugin_api::{
-    Manifest, Plugin, PluginId, PointKey, Priority, Registrar, Registration,
+    BoxFuture, Manifest, Plugin, PluginId, PointKey, Priority, Registrar, Registration,
+    automation::{
+        DeleteAsked, DeleteStarted, Kernel, Libraries, LibrariesAsked, Permission, Refused,
+        StoreEntry, StoreKey, StoreValue, Stored, Titles, TitlesAsked, WatchStates,
+        WatchStatesAsked,
+    },
     fulfiller::{Fulfiller, Movies, Shows},
     settings::{Choices, SettingKind, Settings, SettingsSchema},
 };
@@ -51,12 +56,19 @@ pub(super) struct State {
     pub(super) known: BTreeMap<PluginId, Described>,
     /// Where [`Registry::crashed`] sends the Installed Plugins it disables for crashing.
     pub(super) crashed: Option<mpsc::UnboundedSender<PluginId>>,
+    /// What makes the Kernel's functions for a Plugin and the Permissions granted it, once startup
+    /// sets it with [`ExtensionPoints::serve_kernel`].
+    pub(super) kernel: Arc<OnceLock<MakeKernel>>,
     /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
     #[cfg(feature = "testing")]
     pub(super) as_installed: Vec<fn() -> Arc<dyn Plugin>>,
 }
 
 pub(super) type Make = Arc<dyn Fn() -> Arc<dyn Plugin> + Send + Sync>;
+
+/// What makes the Kernel's functions for a Plugin, given its id and the Permissions granted it.
+pub(crate) type MakeKernel =
+    Arc<dyn Fn(PluginId, HashSet<Permission>) -> Arc<dyn Kernel> + Send + Sync>;
 
 /// A Plugin the Server has, with what it said about itself when the Server read it, so listing
 /// runs no Plugin code.
@@ -127,6 +139,17 @@ impl Registry {
         plugin: Arc<dyn Plugin>,
         settings: Settings,
     ) -> Result<(), EnableError> {
+        self.enable_granting(plugin, settings, HashSet::new())
+    }
+
+    /// [`Registry::enable_with_settings`], granting the Plugin those of `granted` its Manifest
+    /// requests.
+    fn enable_granting(
+        &self,
+        plugin: Arc<dyn Plugin>,
+        settings: Settings,
+        granted: HashSet<Permission>,
+    ) -> Result<(), EnableError> {
         // Everything a Plugin does here (its `manifest`, `register` and `Drop`) is Plugin code, so
         // a panic in any of it is contained.
         let manifest = match contain_sync(|| plugin.manifest()) {
@@ -137,12 +160,14 @@ impl Registry {
                 return Err(EnableError::ManifestPanicked { message });
             }
         };
-        contain_sync(|| self.enable_as(&manifest, plugin, settings)).unwrap_or_else(|message| {
-            Err(EnableError::Panicked {
-                plugin: manifest.id,
-                message,
-            })
-        })
+        contain_sync(|| self.enable_as(&manifest, plugin, settings, granted)).unwrap_or_else(
+            |message| {
+                Err(EnableError::Panicked {
+                    plugin: manifest.id,
+                    message,
+                })
+            },
+        )
     }
 
     /// Enables the Plugin `id` that [`Registry::plugins`] lists with `settings`, as
@@ -153,6 +178,20 @@ impl Registry {
     /// If no Plugin has the id, the Server refused it, or as [`Registry::enable_with_settings`]
     /// fails, such as the Plugin refusing to start.
     pub fn enable_by_id(&self, id: &PluginId, settings: Settings) -> Result<(), EnableError> {
+        self.enable_by_id_granting(id, settings, HashSet::new())
+    }
+
+    /// [`Registry::enable_by_id`], granting the Plugin those of `granted` its Manifest requests.
+    ///
+    /// # Errors
+    ///
+    /// As [`Registry::enable_by_id`].
+    pub fn enable_by_id_granting(
+        &self,
+        id: &PluginId,
+        settings: Settings,
+        granted: HashSet<Permission>,
+    ) -> Result<(), EnableError> {
         let make = self
             .read(|state| {
                 let known = state.known.get(id)?;
@@ -173,7 +212,7 @@ impl Registry {
             plugin: id.clone(),
             message,
         })?;
-        self.enable_with_settings(plugin, settings)
+        self.enable_granting(plugin, settings, granted)
     }
 
     /// Enables `plugin`, whose Manifest is `manifest`. Plugin code runs here, so only call it from
@@ -183,6 +222,7 @@ impl Registry {
         manifest: &Manifest,
         plugin: Arc<dyn Plugin>,
         settings: Settings,
+        granted: HashSet<Permission>,
     ) -> Result<(), EnableError> {
         let id = &manifest.id;
         if self.read(|state| state.plugins.contains_key(id)) {
@@ -197,7 +237,8 @@ impl Registry {
                 error,
             })?;
         let secrets: Arc<[String]> = secret_values(schema, &settings).into();
-        let mut registrar = Registrar::with_settings(settings);
+        let mut registrar =
+            Registrar::with_settings(settings).with_kernel(self.kernel_for(manifest, granted));
         // The error and the half-filled registrar are Plugin values, dropped here inside the
         // containment the caller runs this in.
         if let Err(err) = plugin.register(&mut registrar) {
@@ -268,6 +309,17 @@ impl Registry {
         }
         info!(plugin = %id, version = %manifest.version, registrations = count, "enabled plugin");
         Ok(())
+    }
+
+    /// The Kernel's functions for an enablement of `manifest`'s Plugin, granted those of `granted`
+    /// its Manifest requests.
+    fn kernel_for(&self, manifest: &Manifest, mut granted: HashSet<Permission>) -> Arc<dyn Kernel> {
+        granted.retain(|permission| manifest.permissions.contains(permission));
+        Arc::new(EnabledKernel {
+            slot: self.read(|state| Arc::clone(&state.kernel)),
+            plugin: manifest.id.clone(),
+            granted,
+        })
     }
 
     /// Disables the Plugin `id` and removes everything it registered, then cancels its scope and
@@ -434,6 +486,64 @@ impl Registry {
         let (sender, receiver) = mpsc::unbounded_channel();
         self.write(|state| state.crashed = Some(sender));
         receiver
+    }
+}
+
+/// The Kernel's functions as one enablement of a Plugin calls them: those
+/// [`ExtensionPoints::serve_kernel`] makes for it, found at call time, since Plugins are enabled
+/// before startup can make them.
+struct EnabledKernel {
+    slot: Arc<OnceLock<MakeKernel>>,
+    plugin: PluginId,
+    granted: HashSet<Permission>,
+}
+
+impl EnabledKernel {
+    fn resolve(&self) -> Result<Arc<dyn Kernel>, Refused> {
+        let make = self
+            .slot
+            .get()
+            .ok_or_else(|| Refused("the Server isn't serving yet".to_owned()))?;
+        Ok(make(self.plugin.clone(), self.granted.clone()))
+    }
+}
+
+impl Kernel for EnabledKernel {
+    fn store_get<'a>(&'a self, key: &'a StoreKey) -> BoxFuture<'a, Result<StoreValue, Refused>> {
+        Box::pin(async move { self.resolve()?.store_get(key).await })
+    }
+
+    fn store_put<'a>(&'a self, entry: &'a StoreEntry) -> BoxFuture<'a, Result<Stored, Refused>> {
+        Box::pin(async move { self.resolve()?.store_put(entry).await })
+    }
+
+    fn store_delete<'a>(&'a self, key: &'a StoreKey) -> BoxFuture<'a, Result<Stored, Refused>> {
+        Box::pin(async move { self.resolve()?.store_delete(key).await })
+    }
+
+    fn list_libraries<'a>(
+        &'a self,
+        asked: &'a LibrariesAsked,
+    ) -> BoxFuture<'a, Result<Libraries, Refused>> {
+        Box::pin(async move { self.resolve()?.list_libraries(asked).await })
+    }
+
+    fn list_titles<'a>(&'a self, asked: &'a TitlesAsked) -> BoxFuture<'a, Result<Titles, Refused>> {
+        Box::pin(async move { self.resolve()?.list_titles(asked).await })
+    }
+
+    fn list_watch_states<'a>(
+        &'a self,
+        asked: &'a WatchStatesAsked,
+    ) -> BoxFuture<'a, Result<WatchStates, Refused>> {
+        Box::pin(async move { self.resolve()?.list_watch_states(asked).await })
+    }
+
+    fn delete_media<'a>(
+        &'a self,
+        asked: &'a DeleteAsked,
+    ) -> BoxFuture<'a, Result<DeleteStarted, Refused>> {
+        Box::pin(async move { self.resolve()?.delete_media(asked).await })
     }
 }
 

@@ -43,7 +43,8 @@ mod exports {
     // and Notifier behave, a profile its check offers, and how its check fails, its Personal
     // settings, a `handle` and a `token`, and its logo. With the `unexported-connector` feature it
     // names a Connector it doesn't export, with `contract-0-1` it wants Plugin contract 0.1, with
-    // `empty-points` it names no Extension Points, and with `panic` it panics instead.
+    // `empty-points` it names no Extension Points, with `automation` it ticks every minute and
+    // requests the Store and Library Permissions, and with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -104,6 +105,16 @@ mod exports {
         #[cfg(feature = "empty-points")]
         let manifest = Manifest {
             points: Vec::new(),
+            ..manifest
+        };
+        #[cfg(feature = "automation")]
+        let manifest = Manifest {
+            points: [manifest.points, vec![nama_pdk::point(services::AUTOMATION)]].concat(),
+            permissions: vec![
+                nama_pdk::Permission::PERMISSION_STORE.into(),
+                nama_pdk::Permission::PERMISSION_READ_LIBRARIES.into(),
+            ],
+            tick_every_seconds: 60,
             ..manifest
         };
         #[cfg(feature = "contract-0-1")]
@@ -283,4 +294,24 @@ mod exports {
             }
         }
     }
+
+    /// An Automation whose tick keeps a value in its Store, reads it back and lists the
+    /// Libraries, failing with the Kernel's words when it refuses any of them.
+    #[cfg(feature = "automation")]
+    struct TestAutomation;
+
+    #[cfg(feature = "automation")]
+    impl nama_pdk::Automation for TestAutomation {
+        fn tick(_tick: nama_pdk::Tick) -> Result<(), Error> {
+            nama_pdk::kernel::store_put("ticked", None, b"yes")?;
+            let kept = nama_pdk::kernel::store_get("ticked", None)?;
+            extism_pdk::info!("test-plugin's Store keeps {kept:?}");
+            let libraries = nama_pdk::kernel::libraries()?;
+            extism_pdk::info!("test-plugin sees {} Libraries", libraries.len());
+            Ok(())
+        }
+    }
+
+    #[cfg(feature = "automation")]
+    nama_pdk::automation!(TestAutomation);
 }

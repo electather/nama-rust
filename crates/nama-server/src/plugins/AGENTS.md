@@ -6,6 +6,7 @@ The Registry, how the Kernel calls Plugins at Extension Points, and the Built-in
 - **A Kernel task that calls one Plugin repeatedly runs in its scope.** Start it with `ExtensionPoints::spawn_in`, so disabling, re-enabling or shutdown cancels and joins it before the Plugin is dropped (ADR 0047). `Registry::disable` waits for that join, so a caller inside the Plugin's own call or scope uses `disable_now`.
 - **The Kernel can't tell a Built-in from an Installed Plugin.** An Installed Plugin runs through Extism behind the same `Plugin` trait (`wasm.rs`); only listing and saving a crash tell the two kinds apart.
 - **Private modules.** The area's files are private modules; neighbours import only what `plugins.rs` re-exports, and items inside default to `pub(super)`. `wasm.rs` and `wasm/` hold everything Extism.
+- **The Kernel's functions are table rows.** Each `nama` import an Installed Plugin calls is one row of `FUNCTIONS` in `wasm/automation.rs`, which only decodes, calls `nama_plugin_api::automation::Kernel` and encodes. Whether the Plugin may call it, its Permission check, is the `automation` area's, not this one's.
 - **What the Kernel gives an Installed Plugin is contract.** The limits on a call, the `nama` functions and how settings and HTTP reach it (`wasm/load.rs`) follow `crates/nama-plugin-proto/AGENTS.md`.
 
 ### Neighbours

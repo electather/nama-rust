@@ -39,6 +39,7 @@ use tracing::warn;
 
 use super::{CheckTimedOut, registry::Make, secret_values, without_secrets};
 
+mod automation;
 mod bundled;
 mod contract;
 mod listing;
@@ -51,7 +52,9 @@ mod title_source;
 mod fulfiller_tests;
 
 pub(crate) use listing::read;
-use load::{CALL_TIMEOUT, MEMORY_MAX_PAGES, allowed_hosts, compile, extism_config};
+use load::{
+    CALL_TIMEOUT, MEMORY_MAX_PAGES, allowed_hosts, compile, compile_with_kernel, extism_config,
+};
 use services::{
     CHECK_SETTINGS, DELIVER, OBSERVE_EVENTS, POINTS, POLL_CONNECTION, Point, START_CONNECTION, TICK,
 };
@@ -291,8 +294,14 @@ impl Plugin for Installed {
         let schema = &self.manifest.settings;
         let hosts = allowed_hosts(&self.package, schema, settings);
         let config = extism_config(schema, settings);
-        let compiled = compile(&self.wasm, &self.cache_config, hosts, config)
-            .map_err(|err| format!("could not compile it with its settings: {err:#}"))?;
+        let compiled = compile_with_kernel(
+            &self.wasm,
+            &self.cache_config,
+            hosts,
+            config,
+            registrar.kernel(),
+        )
+        .map_err(|err| format!("could not compile it with its settings: {err:#}"))?;
         let running = Running {
             package: Arc::clone(&self.package),
             compiled: Arc::new(compiled),

@@ -13,7 +13,7 @@ use tracing::{error, info, warn};
 
 use super::{
     Answer, ProviderError, contain, contain_sync, formatted,
-    registry::{Enabled, Entry, State},
+    registry::{Enabled, Entry, MakeKernel, State},
 };
 /// How the Kernel calls the Plugins enabled in a [`Registry`](super::Registry): observing,
 /// asking Providers and who provides a capability. It can't enable, disable or list Plugins; only a
@@ -232,6 +232,26 @@ impl ExtensionPoints {
                 .unwrap_or(usize::MAX)
         });
         entries
+    }
+
+    /// Sets what makes the Kernel's functions each enabled Plugin calls, given its id and the
+    /// Permissions granted it. Startup calls it once, when the Kernel's parts exist; until then
+    /// every Kernel function answers `refused`. A later call is ignored.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "startup serves the Kernel's functions in a later change"
+        )
+    )]
+    pub(crate) fn serve_kernel(&self, make: MakeKernel) {
+        if self
+            .read(|state| Arc::clone(&state.kernel))
+            .set(make)
+            .is_err()
+        {
+            warn!("the Kernel's functions were already served; keeping the first");
+        }
     }
 
     /// Spawns `task` in the scope of the Plugin `plugin`'s current enablement, so disabling it

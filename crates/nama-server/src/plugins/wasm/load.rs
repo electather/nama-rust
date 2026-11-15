@@ -15,15 +15,18 @@ use buffa::{
 use extism::{CompiledPlugin, CurrentPlugin, PluginBuilder, UserData, Val, ValType, Wasm};
 use nama_plugin_api::{
     Manifest, PluginId,
+    automation::Kernel,
     metadata::{ExternalId, InvalidId},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use nama_plugin_proto::{CONTRACT_VERSION, nama::plugin::v1 as wire, services};
 use semver::{Version, VersionReq};
+use tokio::runtime::Handle;
 use tracing::error;
 
 use super::{
     Installed, Point, Refused,
+    automation::{FUNCTIONS, Reach, import},
     bundled::BUNDLED,
     check_exports, contract, points,
     services::{CHECK_SETTINGS, known_exports},
@@ -225,24 +228,53 @@ fn manifest(package: &mut wire::Manifest, points: &[&Point]) -> Result<Manifest,
     }
 }
 
-// Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
-/// Compiles `wasm`, letting it send HTTP requests to `hosts`, read `config` and call [`now`].
+/// [`compile_with_kernel`] for no enablement, so the Kernel's functions answer `refused`.
 pub(super) fn compile(
     wasm: &[u8],
     cache_config: &Path,
     hosts: Vec<String>,
     config: Vec<(String, String)>,
 ) -> Result<CompiledPlugin, extism::Error> {
+    compile_with_kernel(wasm, cache_config, hosts, config, None)
+}
+
+// Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
+/// Compiles `wasm`, letting it send HTTP requests to `hosts`, read `config`, call [`now`] and call
+/// the Kernel's functions, which reach `kernel` on the runtime this is called on.
+pub(super) fn compile_with_kernel(
+    wasm: &[u8],
+    cache_config: &Path,
+    hosts: Vec<String>,
+    config: Vec<(String, String)>,
+    kernel: Option<Arc<dyn Kernel>>,
+) -> Result<CompiledPlugin, extism::Error> {
     let manifest = extism::Manifest::new([Wasm::data(wasm.to_vec())])
         .with_timeout(CALL_TIMEOUT)
         .with_memory_max(MEMORY_MAX_PAGES)
         .with_allowed_hosts(hosts.into_iter())
         .with_config(config.into_iter());
-    CompiledPlugin::new(
+    let reach = UserData::new(Reach {
+        kernel,
+        runtime: Handle::try_current().ok(),
+    });
+    // Every import is defined whether or not the Plugin may call it, so a Plugin importing them
+    // still instantiates to read its Manifest or check its settings.
+    let builder = FUNCTIONS.iter().fold(
         PluginBuilder::new(manifest)
             .with_cache_config(cache_config)
             .with_function_in_namespace("nama", "now", [], [ValType::I64], UserData::new(()), now),
-    )
+        |builder, function| {
+            builder.with_function_in_namespace(
+                "nama",
+                function.name,
+                [ValType::I64],
+                [ValType::I64],
+                reach.clone(),
+                import(function),
+            )
+        },
+    );
+    CompiledPlugin::new(builder)
 }
 
 /// `nama.now`, a Plugin's clock, since `SystemTime::now()` panics on wasm32-unknown-unknown:

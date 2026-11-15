@@ -22,6 +22,9 @@ contract-0-1 = []
 # Builds the Plugin naming no Extension Points, as one built before they became services reads,
 # so the Server refuses it.
 empty-points = []
+# Builds the Plugin naming the Automation Extension Point and requesting the Store and Library
+# Permissions; its tick calls the Kernel's functions.
+automation = []
 
 [dependencies]
 nama-pdk = { version = "0.2.0", path = "../nama-pdk" }
