@@ -257,33 +257,25 @@ fn setting<'a>(plugin: &'a Plugin, key: &str) -> &'a Setting {
 
 #[tokio::test]
 async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled() {
+    use PluginKind::{PLUGIN_KIND_BUILT_IN as BUILT_IN, PLUGIN_KIND_INSTALLED as INSTALLED};
     let listed = list_plugins_with(BTreeMap::new()).await;
-
-    let kinds: Vec<_> = listed
-        .summaries
-        .iter()
-        .map(|plugin| (plugin.id.as_str(), plugin.kind.as_known()))
-        .collect();
-    let built_in = Some(PluginKind::PLUGIN_KIND_BUILT_IN);
-    let installed = Some(PluginKind::PLUGIN_KIND_INSTALLED);
     // The folders under `plugins/` the Server bundles, by the rule in `plugins/AGENTS.md`.
-    let plugins = fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../../plugins")).unwrap();
-    let manifest = |dir: &fs::DirEntry| fs::read_to_string(dir.path().join("Cargo.toml"));
-    let rule = |toml: String| {
-        toml.contains(r#"crate-type = ["cdylib"]"#) && !toml.contains("\nbundled = false")
-    };
-    let folders = plugins
+    let bundled: Vec<_> = fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../../plugins"))
+        .unwrap()
         .flatten()
-        .filter(|dir| manifest(dir).is_ok_and(rule));
-    let bundled = Vec::from_iter(folders.map(|dir| dir.file_name().into_string().unwrap()));
-    let built_ins = ["local-auth", "log-events", test_choices::ID, "tmdb"].map(|id| (id, built_in));
-    let bundled_kinds = bundled.iter().map(|id| (id.as_str(), installed));
-    let mut expected: Vec<_> = built_ins.into_iter().chain(bundled_kinds).collect();
+        .filter_map(|dir| {
+            let toml = fs::read_to_string(dir.path().join("Cargo.toml")).ok()?;
+            (toml.contains(r#"crate-type = ["cdylib"]"#) && !toml.contains("\nbundled = false"))
+                .then(|| dir.file_name().into_string().unwrap())
+        })
+        .collect();
+    let mut expected = Vec::from_iter(bundled.iter().map(|id| (id.as_str(), Some(INSTALLED))));
+    let built_ins = ["local-auth", "log-events", test_choices::ID, "tmdb"];
+    expected.extend(built_ins.map(|id| (id, Some(BUILT_IN))));
     expected.sort_unstable_by_key(|(id, _)| *id);
-    assert_eq!(kinds, expected);
-    for plugin in &listed.summaries {
-        assert!(!plugin.version.is_empty(), "{plugin:?}");
-    }
+    let kinds = listed.summaries.iter().map(|p| (&*p.id, p.kind.as_known()));
+    assert_eq!(Vec::from_iter(kinds), expected);
+    assert!(listed.summaries.iter().all(|p| !p.version.is_empty()));
     assert!(plugin(&listed, "local-auth").enabled);
     // TMDB can't run without an API key, and an Installed Plugin starts disabled.
     assert!(!plugin(&listed, "tmdb").enabled);
