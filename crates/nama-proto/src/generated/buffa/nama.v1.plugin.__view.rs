@@ -1756,6 +1756,15 @@ pub struct EnablePluginRequestView<'a> {
     ///
     /// Field 1: `id`
     pub id: &'a str,
+    /// The Plugin Permissions the Admin grants it, replacing those granted before. Each must be one
+    /// its `requested_permissions` lists, or the call is refused with
+    /// `REFUSAL_REASON_UNKNOWN_ENUM_VALUE`. Empty grants none.
+    ///
+    /// Field 2: `granted_permissions`
+    pub granted_permissions: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::PluginPermission>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for EnablePluginRequestView<'a> {
@@ -1795,6 +1804,36 @@ impl<'a> ::buffa::MessageView<'a> for EnablePluginRequestView<'a> {
                 )?;
                 view.id = ::buffa::types::borrow_str(&mut cur)?;
             }
+            2u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.granted_permissions
+                        .reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.granted_permissions
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.granted_permissions
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -1824,6 +1863,7 @@ impl<'a> ::buffa::MessageView<'a> for EnablePluginRequestView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::EnablePluginRequest {
             id: self.id.to_string(),
+            granted_permissions: self.granted_permissions.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1838,6 +1878,14 @@ impl<'a> ::buffa::ViewEncode<'a> for EnablePluginRequestView<'a> {
         if !self.id.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
         }
+        if !self.granted_permissions.is_empty() {
+            let payload: u64 = self
+                .granted_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1851,6 +1899,17 @@ impl<'a> ::buffa::ViewEncode<'a> for EnablePluginRequestView<'a> {
         use ::buffa::Enumeration as _;
         if !self.id.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.id, buf);
+        }
+        if !self.granted_permissions.is_empty() {
+            let payload: u64 = self
+                .granted_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(2u32, payload, buf);
+            for v in &self.granted_permissions {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1875,6 +1934,13 @@ impl<'__a> ::serde::Serialize for EnablePluginRequestView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_empty_str(self.id) {
             __map.serialize_entry("id", self.id)?;
+        }
+        if !self.granted_permissions.is_empty() {
+            __map
+                .serialize_entry(
+                    "grantedPermissions",
+                    &::buffa::json_helpers::EnumSeqJson(&self.granted_permissions),
+                )?;
         }
         __map.end()
     }
@@ -1977,6 +2043,17 @@ impl EnablePluginRequestOwnedView {
     #[must_use]
     pub fn id(&self) -> &'_ str {
         self.0.reborrow().id
+    }
+    /// The Plugin Permissions the Admin grants it, replacing those granted before. Each must be one
+    /// its `requested_permissions` lists, or the call is refused with
+    /// `REFUSAL_REASON_UNKNOWN_ENUM_VALUE`. Empty grants none.
+    ///
+    /// Field 2: `granted_permissions`
+    #[must_use]
+    pub fn granted_permissions(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::PluginPermission>> {
+        &self.0.reborrow().granted_permissions
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<EnablePluginRequestView<'static>>>
@@ -5621,6 +5698,20 @@ pub struct PluginSummaryView<'a> {
     ///
     /// Field 12: `custom_logo`
     pub custom_logo: bool,
+    /// The Plugin Permissions it asks for, which an Admin grants some or all of in `EnablePlugin`.
+    ///
+    /// Field 13: `requested_permissions`
+    pub requested_permissions: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::PluginPermission>,
+    >,
+    /// The Plugin Permissions an Admin granted it, kept across restarts until it is enabled again.
+    ///
+    /// Field 14: `granted_permissions`
+    pub granted_permissions: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::PluginPermission>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
@@ -5755,6 +5846,66 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
                     );
                 }
             }
+            13u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.requested_permissions
+                        .reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.requested_permissions
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.requested_permissions
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            14u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.granted_permissions
+                        .reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.granted_permissions
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.granted_permissions
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -5788,6 +5939,8 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
             extension_points: self.extension_points.to_vec(),
             logo_url: self.logo_url.to_string(),
             custom_logo: self.custom_logo,
+            requested_permissions: self.requested_permissions.to_vec(),
+            granted_permissions: self.granted_permissions.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5841,6 +5994,22 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
         }
         if self.custom_logo {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.requested_permissions.is_empty() {
+            let payload: u64 = self
+                .requested_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.granted_permissions.is_empty() {
+            let payload: u64 = self
+                .granted_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -5896,6 +6065,28 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
         }
         if self.custom_logo {
             ::buffa::types::put_bool_field(12u32, self.custom_logo, buf);
+        }
+        if !self.requested_permissions.is_empty() {
+            let payload: u64 = self
+                .requested_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(13u32, payload, buf);
+            for v in &self.requested_permissions {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if !self.granted_permissions.is_empty() {
+            let payload: u64 = self
+                .granted_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(14u32, payload, buf);
+            for v in &self.granted_permissions {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5954,6 +6145,20 @@ impl<'__a> ::serde::Serialize for PluginSummaryView<'__a> {
         }
         if self.custom_logo {
             __map.serialize_entry("customLogo", &self.custom_logo)?;
+        }
+        if !self.requested_permissions.is_empty() {
+            __map
+                .serialize_entry(
+                    "requestedPermissions",
+                    &::buffa::json_helpers::EnumSeqJson(&self.requested_permissions),
+                )?;
+        }
+        if !self.granted_permissions.is_empty() {
+            __map
+                .serialize_entry(
+                    "grantedPermissions",
+                    &::buffa::json_helpers::EnumSeqJson(&self.granted_permissions),
+                )?;
         }
         __map.end()
     }
@@ -6130,6 +6335,24 @@ impl PluginSummaryOwnedView {
     #[must_use]
     pub fn custom_logo(&self) -> bool {
         self.0.reborrow().custom_logo
+    }
+    /// The Plugin Permissions it asks for, which an Admin grants some or all of in `EnablePlugin`.
+    ///
+    /// Field 13: `requested_permissions`
+    #[must_use]
+    pub fn requested_permissions(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::PluginPermission>> {
+        &self.0.reborrow().requested_permissions
+    }
+    /// The Plugin Permissions an Admin granted it, kept across restarts until it is enabled again.
+    ///
+    /// Field 14: `granted_permissions`
+    #[must_use]
+    pub fn granted_permissions(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::PluginPermission>> {
+        &self.0.reborrow().granted_permissions
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginSummaryView<'static>>>

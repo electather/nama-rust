@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin_id, granted_permissions FROM plugin_settings",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugin_settings",
+            "name": "plugin_id"
+          }
+        }
+      },
+      {
+        "name": "granted_permissions",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "plugin_settings",
+            "name": "granted_permissions"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "deb479d999c600e3207cdfa88a03e3cbf6bf4a99452c936074b709bde36d1eae"
+}

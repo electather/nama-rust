@@ -1,12 +1,13 @@
 //! The Server's Plugins and their settings: `nama.v1.PluginService`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::{
     Manifest, PluginId, PointKey,
     auth::Authenticator,
+    automation::Permission,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
     metadata::TitleSource,
@@ -64,9 +65,19 @@ impl PluginService for PluginServiceHandler {
         let listed = self.plugin_settings.list().await.map_err(list_failed)?;
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let mut summaries = Vec::with_capacity(listed.len());
-        for StoredPlugin { plugin, stored } in listed {
+        for StoredPlugin {
+            plugin,
+            stored,
+            granted,
+        } in listed
+        {
             let logo = logo(&self.plugin_logos, &plugin, &custom).await;
-            summaries.push(plugin_summary_to_proto(plugin, stored.settings, logo));
+            summaries.push(plugin_summary_to_proto(
+                plugin,
+                stored.settings,
+                &granted,
+                logo,
+            ));
         }
         Response::ok(ListPluginsResponse {
             summaries,
@@ -111,8 +122,13 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, EnablePluginRequest>,
     ) -> ServiceResult<EnablePluginResponse> {
         let id = PluginId::from(request.id.to_owned());
+        let granted = request
+            .granted_permissions
+            .iter()
+            .map(|&permission| permission_from_proto(permission))
+            .collect::<Result<HashSet<_>, _>>()?;
         self.plugin_settings
-            .enable(&id)
+            .enable_granting(&id, granted)
             .await
             .map_err(change_refused)?;
         Response::ok(EnablePluginResponse::default())
@@ -204,7 +220,12 @@ impl PluginServiceHandler {
     async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let logo = logo(&self.plugin_logos, &stored.plugin, &custom).await;
-        Ok(plugin_to_proto(stored.plugin, stored.stored.settings, logo))
+        Ok(plugin_to_proto(
+            stored.plugin,
+            stored.stored.settings,
+            &stored.granted,
+            logo,
+        ))
     }
 }
 
@@ -239,6 +260,17 @@ fn change_refused(err: ChangeError) -> ConnectError {
     match err {
         ChangeError::Unknown(id) => plugin_not_found(&id),
         ChangeError::Refused { plugin, reason } => EnableError::Refused { plugin, reason }.into(),
+        ChangeError::NotRequested { plugin, permission } => {
+            let name = permission_to_proto(permission).proto_name();
+            refuse(
+                RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
+                format!("{plugin} doesn't ask for the Plugin Permission {name}"),
+            )
+            .field(GRANTED_PERMISSIONS)
+            .param("pluginId", &plugin)
+            .param("permission", &name)
+            .into()
+        }
         ChangeError::InvalidSettings(error) => settings_refused(error),
         ChangeError::NotOffered { plugin, key, value } => {
             let message = format!("{value} isn't one of the choices for the setting {key}");
@@ -372,6 +404,7 @@ pub(super) fn settings_refused(err: SettingsError) -> ConnectError {
 fn plugin_summary_to_proto(
     plugin: Listed,
     stored: BTreeMap<String, settings::SettingValue>,
+    granted: &HashSet<Permission>,
     logo: Logo,
 ) -> proto::PluginSummary {
     let (manifest, refused_reason) = manifest_and_refusal(&plugin.id, plugin.manifest);
@@ -383,6 +416,8 @@ fn plugin_summary_to_proto(
     );
     proto::PluginSummary {
         settings_missing,
+        requested_permissions: permissions_to_proto(&manifest.permissions),
+        granted_permissions: permissions_to_proto(granted),
         extension_points: extension_points_to_proto(&manifest.extension_points),
         id: plugin.id.to_string(),
         name: manifest.name,
@@ -400,6 +435,7 @@ fn plugin_summary_to_proto(
 fn plugin_to_proto(
     plugin: Listed,
     stored: BTreeMap<String, settings::SettingValue>,
+    granted: &HashSet<Permission>,
     logo: Logo,
 ) -> proto::Plugin {
     // A refused Plugin has no settings schema, so it comes with none.
@@ -412,8 +448,55 @@ fn plugin_to_proto(
     proto::Plugin {
         checks_settings: plugin.checks_settings,
         settings,
-        summary: plugin_summary_to_proto(plugin, stored, logo).into(),
+        summary: plugin_summary_to_proto(plugin, stored, granted, logo).into(),
         ..Default::default()
+    }
+}
+
+/// The `EnablePluginRequest` field that grants Plugin Permissions.
+const GRANTED_PERMISSIONS: &str = "granted_permissions";
+
+/// `permissions` as the client API names them, in the order the enum lists them.
+fn permissions_to_proto<'a>(
+    permissions: impl IntoIterator<Item = &'a Permission>,
+) -> Vec<EnumValue<proto::PluginPermission>> {
+    let mut permissions: Vec<_> = permissions.into_iter().copied().collect();
+    permissions.sort_by_key(|&permission| permission as i32);
+    permissions
+        .into_iter()
+        .map(|permission| permission_to_proto(permission).into())
+        .collect()
+}
+
+/// `permission` as the client API names it. The client API has its own enum, since it imports
+/// nothing from the Plugin contract (ADR 0041).
+fn permission_to_proto(permission: Permission) -> proto::PluginPermission {
+    use proto::PluginPermission as Public;
+    match permission {
+        Permission::PERMISSION_UNSPECIFIED => Public::PLUGIN_PERMISSION_UNSPECIFIED,
+        Permission::PERMISSION_STORE => Public::PLUGIN_PERMISSION_STORE,
+        Permission::PERMISSION_READ_LIBRARIES => Public::PLUGIN_PERMISSION_READ_LIBRARIES,
+        Permission::PERMISSION_READ_WATCH_STATES => Public::PLUGIN_PERMISSION_READ_WATCH_STATES,
+        Permission::PERMISSION_DELETE_MEDIA => Public::PLUGIN_PERMISSION_DELETE_MEDIA,
+    }
+}
+
+/// The Plugin Permission a request names, or the refusal of one unset or unknown.
+fn permission_from_proto(
+    permission: EnumValue<proto::PluginPermission>,
+) -> Result<Permission, ConnectError> {
+    use proto::PluginPermission as Public;
+    match permission.as_known() {
+        Some(Public::PLUGIN_PERMISSION_STORE) => Ok(Permission::PERMISSION_STORE),
+        Some(Public::PLUGIN_PERMISSION_READ_LIBRARIES) => Ok(Permission::PERMISSION_READ_LIBRARIES),
+        Some(Public::PLUGIN_PERMISSION_READ_WATCH_STATES) => {
+            Ok(Permission::PERMISSION_READ_WATCH_STATES)
+        }
+        Some(Public::PLUGIN_PERMISSION_DELETE_MEDIA) => Ok(Permission::PERMISSION_DELETE_MEDIA),
+        Some(Public::PLUGIN_PERMISSION_UNSPECIFIED) | None => Err(super::unknown_enum_value(
+            GRANTED_PERMISSIONS,
+            "each granted Plugin Permission must be one this Server knows",
+        )),
     }
 }
 

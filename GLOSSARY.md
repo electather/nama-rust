@@ -140,6 +140,10 @@ _Avoid_: automation API, scripting, host functions
 The Kernel's call to an Automation Plugin on the schedule its Manifest sets, at most once a minute, carrying the Kernel's clock.
 _Avoid_: cron, timer, heartbeat, job
 
+**Plugin Permission**:
+One thing a Plugin may ask the Kernel for, such as reading Watch State or deleting media. Its Manifest requests some, and an Admin grants some or all of them when enabling it; the grants survive restarts. Not a User's Permission: it says what the Plugin itself may do, whoever it acts for (ADR 0049).
+_Avoid_: scope, capability, Permission (alone, which is a User's)
+
 **Plugin Store**:
 The key and value entries the Kernel keeps for one Plugin, each the Plugin's alone or scoped to one User, read and written through the Automation lane.
 _Avoid_: plugin database, KV, cache, plugin state

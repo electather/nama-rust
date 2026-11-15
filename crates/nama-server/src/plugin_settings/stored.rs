@@ -1,8 +1,8 @@
 //! The Plugin settings as the database stores them, in `plugin_settings` and `schema_meta`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
-use nama_plugin_api::settings::SettingValue;
+use nama_plugin_api::{automation::Permission, settings::SettingValue};
 
 use crate::{config::PluginConfig, db::Database};
 
@@ -42,6 +42,24 @@ pub async fn stored(db: &Database) -> Result<Option<BTreeMap<String, PluginConfi
         })
         .collect::<Result<_, _>>()
         .map(Some)
+}
+
+/// The Plugin Permissions an Admin granted each stored Plugin, by Plugin id (ADR 0049).
+///
+/// # Errors
+///
+/// If the database can't be read, or holds grants that aren't a JSON array of Permission names.
+pub async fn grants(db: &Database) -> Result<BTreeMap<String, HashSet<Permission>>, sqlx::Error> {
+    let rows = sqlx::query!("SELECT plugin_id, granted_permissions FROM plugin_settings")
+        .fetch_all(db.reader())
+        .await?;
+    rows.into_iter()
+        .map(|row| {
+            let granted = serde_json::from_str(&row.granted_permissions)
+                .map_err(|err| sqlx::Error::Decode(err.into()))?;
+            Ok((row.plugin_id, granted))
+        })
+        .collect()
 }
 
 /// Stores `plugins`, read from the config's `[plugins.*]` tables, as each Plugin's settings, and
@@ -124,6 +142,36 @@ pub(super) async fn set_enabled(
                  ON CONFLICT (plugin_id) DO UPDATE SET enabled = excluded.enabled",
                 plugin_id,
                 enabled
+            )
+            .execute(&mut **tx)
+            .await?;
+            Ok(())
+        })
+    })
+    .await
+}
+
+/// Saves the Plugin `plugin_id` as enabled with `granted` as its Plugin Permissions, replacing
+/// those granted before and keeping its stored settings.
+pub(super) async fn set_enabled_granting(
+    db: &Database,
+    plugin_id: &str,
+    granted: &HashSet<Permission>,
+) -> Result<(), sqlx::Error> {
+    let plugin_id = plugin_id.to_owned();
+    let mut names: Vec<_> = granted.iter().collect();
+    // Sorted so the same grants always read the same in the database.
+    names.sort_by_key(|permission| **permission as i32);
+    let names = serde_json::to_string(&names).map_err(|err| sqlx::Error::Encode(err.into()))?;
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query!(
+                "INSERT INTO plugin_settings (plugin_id, enabled, settings, granted_permissions)
+                 VALUES (?, TRUE, '{}', ?)
+                 ON CONFLICT (plugin_id) DO UPDATE
+                 SET enabled = excluded.enabled, granted_permissions = excluded.granted_permissions",
+                plugin_id,
+                names
             )
             .execute(&mut **tx)
             .await?;

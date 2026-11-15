@@ -65,3 +65,4 @@
 0067_match_logo.sql
 0068_personal_settings.sql
 0069_plugin_store.sql
+0070_plugin_permissions.sql

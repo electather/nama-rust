@@ -3,11 +3,16 @@
 //! on the database is the only store. [`PluginSettings::start`] enables the Plugins stored as on,
 //! and every later change to one goes through [`PluginSettings`] (the crate's `AGENTS.md`).
 
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use nama_plugin_api::{
     Manifest, PluginId,
     auth::Authenticator,
+    automation::Permission,
     settings::{Choices, SettingKind, SettingValue, Settings, SettingsError, SettingsSchema},
 };
 use nama_proto::nama::v1::{PluginKind, Quality};
@@ -31,8 +36,11 @@ use crate::{
 
 mod stored;
 
-pub use stored::stored;
-use stored::{import, save, set_enabled};
+pub use stored::{grants, stored};
+use stored::{import, save, set_enabled, set_enabled_granting};
+
+/// The Plugin Permissions granted each stored Plugin, by Plugin id.
+type Grants = BTreeMap<String, HashSet<Permission>>;
 
 /// The Server's Plugins, started with what the database stores for each.
 ///
@@ -67,6 +75,8 @@ pub struct StoredPlugin {
     pub plugin: Listed,
     /// What is stored for it, or for one never stored, what it starts as.
     pub stored: PluginConfig,
+    /// The Plugin Permissions an Admin granted it, kept beside its settings (ADR 0049).
+    pub granted: HashSet<Permission>,
 }
 
 /// Why the Server couldn't start its Plugins.
@@ -106,6 +116,14 @@ pub enum ChangeError {
         plugin: PluginId,
         /// Why the Server refused it.
         reason: String,
+    },
+    /// A Plugin Permission granted that the Plugin's Manifest doesn't request.
+    #[error("{plugin} doesn't ask for the Plugin Permission {}", permission_name(*.permission))]
+    NotRequested {
+        /// The Plugin.
+        plugin: PluginId,
+        /// The Plugin Permission.
+        permission: Permission,
     },
     /// The settings don't fit the Plugin's schema.
     #[error("the settings don't fit the plugin: {0}")]
@@ -172,6 +190,7 @@ impl PluginSettings {
         config: &Config,
     ) -> Result<Self, StartError> {
         let stored = stored(&db).await.map_err(StartError::Read)?;
+        let grants = grants(&db).await.map_err(StartError::Read)?;
         let in_config: Vec<&str> = config.plugins.ids().collect();
         let importing = stored.is_none();
         let settings = match stored {
@@ -204,7 +223,7 @@ impl PluginSettings {
         // Blocking: reading an Installed Plugin compiles it, and so does enabling it.
         let settings = task::spawn_blocking(move || {
             starting.registry.load_installed(&starting.data_dir);
-            starting.enable_stored(&settings);
+            starting.enable_stored(&settings, &grants);
             settings
         })
         .await
@@ -273,7 +292,7 @@ impl PluginSettings {
 
     /// Enables each Plugin the registry knows that `settings` store as enabled, or that starts
     /// enabled if they store nothing for it.
-    fn enable_stored(&self, settings: &BTreeMap<String, PluginConfig>) {
+    fn enable_stored(&self, settings: &BTreeMap<String, PluginConfig>, grants: &Grants) {
         let mut known = self.registry.plugins();
         for id in settings.keys() {
             if !known.iter().any(|plugin| plugin.id.as_str() == id) {
@@ -292,9 +311,10 @@ impl PluginSettings {
                 info!(plugin = %id, "plugin disabled in its settings");
                 continue;
             }
+            let granted = grants.get(id.as_str()).cloned().unwrap_or_default();
             match self
                 .registry
-                .enable_by_id(&id, Settings::new(config.settings))
+                .enable_by_id_granting(&id, Settings::new(config.settings), granted)
             {
                 Ok(()) => self.queue_came_up(&id),
                 Err(err) => log_not_enabled(&id, &err),
@@ -391,7 +411,14 @@ impl PluginSettings {
         let (this, id) = (self.clone(), id.clone());
         detached(async move {
             let _changing = this.lock().await;
-            let (manifest, StoredPlugin { plugin, stored }) = this.listed(&id).await?;
+            let (
+                manifest,
+                StoredPlugin {
+                    plugin,
+                    stored,
+                    granted,
+                },
+            ) = this.listed(&id).await?;
             let settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
             Settings::new(settings.clone())
                 .resolve(&manifest.settings)
@@ -401,7 +428,7 @@ impl PluginSettings {
             this.check_choices(&manifest, &settings).await?;
             save(&this.db, id.as_str(), stored.enabled, &settings).await?;
             if stored.enabled {
-                this.enable_again(&id, &settings).await;
+                this.enable_again(&id, &settings, &granted).await;
             }
             let enabled = this.registry.enabled().contains(&id);
             Ok(StoredPlugin {
@@ -410,32 +437,71 @@ impl PluginSettings {
                     enabled: stored.enabled,
                     settings,
                 },
+                granted,
             })
         })
         .await
     }
 
-    /// Enables the Plugin `id` with its stored settings, then saves it as enabled, so a refused
-    /// enable saves nothing (ADR 0028). Enabling one already running saves it again, which is how
-    /// a retry fixes a save that failed.
+    /// [`PluginSettings::enable_granting`] with no Plugin Permissions.
     ///
     /// # Errors
     ///
-    /// If no Plugin has the id or the Server refused it, it can't be enabled, or the database can't
-    /// be read or written. Should the save fail, the Plugin stays enabled until a restart.
+    /// As [`PluginSettings::enable_granting`].
     pub async fn enable(&self, id: &PluginId) -> Result<(), ChangeError> {
+        self.enable_granting(id, HashSet::new()).await
+    }
+
+    /// Enables the Plugin `id` with its stored settings, granted the Plugin Permissions `granted`
+    /// in place of those granted before, then saves it as enabled with them, so a refused enable
+    /// saves nothing (ADR 0028, 0049). One already running with other grants is enabled again with
+    /// these. Enabling one already running saves it again, which is how a retry fixes a save that
+    /// failed.
+    ///
+    /// # Errors
+    ///
+    /// If no Plugin has the id or the Server refused it, `granted` names a Permission its Manifest
+    /// doesn't request, it can't be enabled, or the database can't be read or written. Should the
+    /// save fail, the Plugin stays enabled until a restart.
+    pub async fn enable_granting(
+        &self,
+        id: &PluginId,
+        granted: HashSet<Permission>,
+    ) -> Result<(), ChangeError> {
         let (this, id) = (self.clone(), id.clone());
         detached(async move {
             let _changing = this.lock().await;
-            let (_, StoredPlugin { stored, .. }) = this.listed(&id).await?;
-            match this
-                .registry
-                .enable_by_id(&id, Settings::new(stored.settings))
+            let (
+                manifest,
+                StoredPlugin {
+                    stored,
+                    granted: before,
+                    ..
+                },
+            ) = this.listed(&id).await?;
+            if let Some(&permission) = granted
+                .iter()
+                .find(|permission| !manifest.permissions.contains(permission))
             {
+                return Err(ChangeError::NotRequested {
+                    plugin: id,
+                    permission,
+                });
+            }
+            if before != granted && this.registry.enabled().contains(&id) {
+                // Disabled first, as `enable_again` does, so nothing it registered with its old
+                // grants stays.
+                this.registry.disable(&id).await;
+            }
+            match this.registry.enable_by_id_granting(
+                &id,
+                Settings::new(stored.settings),
+                granted.clone(),
+            ) {
                 Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
                 Err(err) => return Err(ChangeError::Enable(err)),
             }
-            set_enabled(&this.db, id.as_str(), true).await?;
+            set_enabled_granting(&this.db, id.as_str(), &granted).await?;
             // Queued even if it was running, so enabling it again retries a failed hand-off.
             this.queue_came_up(&id);
             Ok(())
@@ -469,15 +535,21 @@ impl PluginSettings {
         .await
     }
 
-    /// Enables the Plugin `id` again with `settings`, even if it isn't running, such as TMDB left
+    /// Enables the Plugin `id` again with `settings` and the Plugin Permissions `granted`, even if it isn't running, such as TMDB left
     /// disabled without its key. Disabled first, so nothing it registered with its old settings
     /// stays; a failure is logged, since its settings are saved and a restart retries them.
-    async fn enable_again(&self, id: &PluginId, settings: &BTreeMap<String, SettingValue>) {
+    async fn enable_again(
+        &self,
+        id: &PluginId,
+        settings: &BTreeMap<String, SettingValue>,
+        granted: &HashSet<Permission>,
+    ) {
         self.registry.disable(id).await;
-        match self
-            .registry
-            .enable_by_id(id, Settings::new(settings.clone()))
-        {
+        match self.registry.enable_by_id_granting(
+            id,
+            Settings::new(settings.clone()),
+            granted.clone(),
+        ) {
             Ok(()) => self.queue_came_up(id),
             Err(err) => {
                 error!(plugin = %id, "could not enable the plugin with its new settings: {err}");
@@ -615,8 +687,9 @@ impl PluginSettings {
         self.changing.lock().await
     }
 
-    async fn stored(&self) -> Result<BTreeMap<String, PluginConfig>, sqlx::Error> {
-        Ok(stored(&self.db).await?.unwrap_or_default())
+    async fn stored(&self) -> Result<(BTreeMap<String, PluginConfig>, Grants), sqlx::Error> {
+        let settings = stored(&self.db).await?.unwrap_or_default();
+        Ok((settings, grants(&self.db).await?))
     }
 }
 
@@ -660,11 +733,24 @@ fn lock_ignoring_poison<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard
 }
 
 /// `plugin` with what `stored` holds for it, taken out of `stored`.
-fn with_stored(plugin: Listed, stored: &mut BTreeMap<String, PluginConfig>) -> StoredPlugin {
-    let stored = stored
+fn with_stored(
+    plugin: Listed,
+    (settings, grants): &mut (BTreeMap<String, PluginConfig>, Grants),
+) -> StoredPlugin {
+    let stored = settings
         .remove(plugin.id.as_str())
         .unwrap_or_else(|| never_stored(plugin.kind));
-    StoredPlugin { plugin, stored }
+    let granted = grants.remove(plugin.id.as_str()).unwrap_or_default();
+    StoredPlugin {
+        plugin,
+        stored,
+        granted,
+    }
+}
+
+/// `permission`'s name, such as `PERMISSION_STORE`.
+fn permission_name(permission: Permission) -> &'static str {
+    buffa::Enumeration::proto_name(&permission)
 }
 
 /// What a Plugin of `kind` with nothing stored starts as: no settings, and enabled only if it is
