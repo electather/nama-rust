@@ -1,6 +1,6 @@
 use nama_plugin_proto::{
     CONTRACT_VERSION,
-    nama::plugin::v1::{Manifest, Point, SettingField},
+    nama::plugin::v1::{Manifest, Point, SettingField, SettingKind},
     services,
 };
 
@@ -104,4 +104,57 @@ fn title_namespace_is_ignored_unless_the_manifest_names_a_title_source() {
     let judged = judge(&mut notifier, &["deliver"]).map(|manifest| manifest.id.to_string());
 
     assert_eq!(judged.ok().as_deref(), Some("tvdb"));
+}
+
+fn personal(key: &str, kind: SettingKind) -> SettingField {
+    SettingField {
+        key: key.to_owned(),
+        kind: kind.into(),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn personal_settings_a_user_could_widen_hosts_by_or_whose_keys_clash_are_refused() {
+    let judged = |personal_settings: Vec<SettingField>| {
+        let mut package = Manifest {
+            settings: vec![personal("server", SettingKind::SETTING_KIND_TEXT)],
+            personal_settings,
+            ..title_source("ntfy")
+        };
+        judge(&mut package, &[])
+            .err()
+            .map(|refused| refused.to_string())
+    };
+
+    let refusals = [
+        vec![personal("webhook", SettingKind::SETTING_KIND_URL)],
+        vec![personal("language", SettingKind::SETTING_KIND_CHOICE)],
+        vec![
+            personal("topic", SettingKind::SETTING_KIND_TEXT),
+            personal("topic", SettingKind::SETTING_KIND_SECRET),
+        ],
+        vec![personal("server", SettingKind::SETTING_KIND_TEXT)],
+    ]
+    .map(judged);
+    let taken = judged(vec![
+        personal("topic", SettingKind::SETTING_KIND_TEXT),
+        personal("token", SettingKind::SETTING_KIND_SECRET),
+        personal("quiet", SettingKind::SETTING_KIND_BOOL),
+        personal("priority", SettingKind::SETTING_KIND_INTEGER),
+    ]);
+
+    assert_eq!(
+        refusals,
+        [
+            "its Personal setting webhook is Url, and a Personal setting may only be Text, \
+             Secret, Bool or Integer",
+            "its Personal setting language is Choice, and a Personal setting may only be Text, \
+             Secret, Bool or Integer",
+            "its Personal setting topic repeats a key",
+            "its Personal setting server has a Plugin setting's key",
+        ]
+        .map(|refusal| Some(refusal.to_owned()))
+    );
+    assert_eq!(taken, None);
 }

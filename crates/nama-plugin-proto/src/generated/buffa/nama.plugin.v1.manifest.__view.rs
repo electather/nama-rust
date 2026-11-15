@@ -86,6 +86,18 @@ pub struct ManifestView<'a> {
     ///
     /// Field 15: `title_lookup_namespaces`
     pub title_lookup_namespaces: ::buffa::RepeatedView<'a, &'a str>,
+    /// The Personal settings the Plugin takes: settings each User sets for themself, such as a
+    /// topic to be notified on, in the order a form shows them. Only the TEXT, SECRET, BOOL and
+    /// INTEGER kinds: a Server refuses a Plugin with a URL or CHOICE one, since a User's value must
+    /// not widen the hosts a Plugin reaches, or with a key that repeats or that `settings` also
+    /// names. The Kernel hands their values to the Plugin only in a call for that User, such as a
+    /// `Delivery` to `UserRecipient`. Plugin-wide settings stay in `settings`.
+    ///
+    /// Field 16: `personal_settings`
+    pub personal_settings: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::SettingFieldView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
@@ -249,6 +261,26 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                 )?;
                 view.title_lookup_namespaces.push(__elem);
             }
+            16u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::SettingFieldView,
+                    >(),
+                )?;
+                view.personal_settings
+                    .push(
+                        <super::super::__buffa::view::SettingFieldView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -304,6 +336,11 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
+            personal_settings: self
+                .personal_settings
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -366,6 +403,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         for v in &self.title_lookup_namespaces {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.personal_settings {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -425,6 +470,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
         }
         for v in &self.title_lookup_namespaces {
             ::buffa::types::put_string_field(15u32, v, buf);
+        }
+        for v in &self.personal_settings {
+            ::buffa::types::put_len_delimited_header(
+                16u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -489,6 +542,9 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
                     "titleLookupNamespaces",
                     &*self.title_lookup_namespaces,
                 )?;
+        }
+        if !self.personal_settings.is_empty() {
+            __map.serialize_entry("personalSettings", &*self.personal_settings)?;
         }
         __map.end()
     }
@@ -693,6 +749,20 @@ impl ManifestOwnedView {
     #[must_use]
     pub fn title_lookup_namespaces(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().title_lookup_namespaces
+    }
+    /// The Personal settings the Plugin takes: settings each User sets for themself, such as a
+    /// topic to be notified on, in the order a form shows them. Only the TEXT, SECRET, BOOL and
+    /// INTEGER kinds: a Server refuses a Plugin with a URL or CHOICE one, since a User's value must
+    /// not widen the hosts a Plugin reaches, or with a key that repeats or that `settings` also
+    /// names. The Kernel hands their values to the Plugin only in a call for that User, such as a
+    /// `Delivery` to `UserRecipient`. Plugin-wide settings stay in `settings`.
+    ///
+    /// Field 16: `personal_settings`
+    #[must_use]
+    pub fn personal_settings(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::SettingFieldView<'_>> {
+        &self.0.reborrow().personal_settings
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ManifestView<'static>>>

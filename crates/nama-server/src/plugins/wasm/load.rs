@@ -28,7 +28,7 @@ use super::{
     check_exports, contract, points,
     services::{CHECK_SETTINGS, known_exports},
 };
-use crate::plugins::{contain_sync, kept_logo};
+use crate::plugins::{contain_sync, kept_logo, registry::personal_settings_refusal};
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
@@ -189,17 +189,23 @@ pub(super) fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<M
 /// taken out, so the package kept with the Plugin never holds one the Server dropped.
 fn manifest(package: &mut wire::Manifest, points: &[&Point]) -> Result<Manifest, Refused> {
     let settings = settings_schema(package)?;
+    let personal_settings = schema(&package.personal_settings)?;
     let id = PluginId::from(package.id.clone());
     let logo_svg = kept_logo(&id, &mem::take(&mut package.logo_svg));
-    Ok(Manifest {
+    let manifest = Manifest {
         id,
         name: package.name.clone(),
         description: package.description.clone(),
         version: package.version.clone(),
         settings,
+        personal_settings,
         extension_points: points.iter().map(|point| (point.key)()).collect(),
         logo_svg,
-    })
+    };
+    match personal_settings_refusal(&manifest) {
+        Some(reason) => Err(Refused::PersonalSettings(reason)),
+        None => Ok(manifest),
+    }
 }
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
@@ -353,8 +359,12 @@ fn is_namespace(namespace: &str) -> bool {
 }
 
 pub(super) fn settings_schema(package: &wire::Manifest) -> Result<SettingsSchema, Refused> {
-    let fields = package
-        .settings
+    schema(&package.settings)
+}
+
+/// `fields` as the Kernel reads them, or why it refuses the Plugin they are from.
+fn schema(fields: &[wire::SettingField]) -> Result<SettingsSchema, Refused> {
+    let fields = fields
         .iter()
         .map(|field| {
             let kind = field

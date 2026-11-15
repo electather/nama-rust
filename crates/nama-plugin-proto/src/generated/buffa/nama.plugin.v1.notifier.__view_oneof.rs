@@ -12,5 +12,10 @@ pub mod delivery {
             >,
         ),
         Connection(&'a str),
+        User(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::UserRecipientView<'a>,
+            >,
+        ),
     }
 }

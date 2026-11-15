@@ -28,6 +28,7 @@ impl Plugin for LogEvents {
                     .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
+            personal_settings: SettingsSchema::default(),
             extension_points: vec![
                 PointKey::observe::<ServerStarted>(),
                 PointKey::observe::<Events>(),

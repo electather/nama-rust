@@ -98,6 +98,8 @@ fn manifest() -> Manifest {
 
 Asked for a title by an id in a namespace it can't look titles up by, a title source answers with `unsupported_id` set, never a failure: the Server then asks the next source, while a failure means the source couldn't answer and is worth trying again.
 
+A Notifier is handed each notification with its `Recipient`: `Channel`, the channel in its settings; `Connection`, one User's Plugin Connection, which its Connector found; or `User`, one User who set its Personal settings, with their values (section 5). A Notifier that finds a recipient it can't serve, such as `User` without Personal settings, fails rather than tell the wrong people.
+
 ## 5. Settings
 
 The Manifest's `settings` lists what an admin fills in, each a `SettingField` of a `SettingKind`. A Plugin reads a setting with `extism_pdk::config::get(key)`, as text; what it holds when is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin).
@@ -111,6 +113,20 @@ use nama_pdk::{Buffa, CheckedSettings, FnResult, extism_pdk, plugin_fn};
 pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
     let profiles = [("1", "HD"), ("4", "Ultra HD")];
     Ok(Buffa(nama_pdk::checked_settings([("profile", profiles)])))
+}
+```
+
+Settings each User sets for themself, such as a topic to be notified on, are Personal settings: the Manifest lists them in `personal_settings`, of the Text, Secret, Bool or Integer kind only, since a User's value must not widen the hosts the Plugin reaches, and with keys `settings` doesn't use. They are never in the config. A Notifier reads one User's values from `Recipient::User`, as text:
+
+```rust
+use nama_pdk::Recipient;
+
+/// The topic a User set, for a notification sent to them.
+fn topic(recipient: &Recipient) -> Option<&str> {
+    match recipient {
+        Recipient::User(user) => user.personal_settings.get("topic").map(String::as_str),
+        Recipient::Channel(_) | Recipient::Connection(_) => None,
+    }
 }
 ```
 

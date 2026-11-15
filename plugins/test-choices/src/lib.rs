@@ -77,6 +77,7 @@ impl Plugin for TestChoices {
                     .to_owned(),
             version: "0.0.0".to_owned(),
             settings,
+            personal_settings: SettingsSchema::default(),
             extension_points: vec![
                 PointKey::provide::<dyn Fulfiller<Movies>>(),
                 PointKey::provide::<dyn Fulfiller<Shows>>(),

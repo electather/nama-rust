@@ -40,6 +40,7 @@ impl Plugin for LocalAuth {
             description: "Lets Users sign in with a password.".to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
+            personal_settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Authenticator>()],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
         }

@@ -31,16 +31,19 @@ mod exports {
     /// The setting that picks what its Notifier does: `post`, `error`, `loop` or `panic`.
     const NOTIFIER: &str = "notifier";
 
+    /// The Personal setting naming whom a User's notifications go to.
+    const HANDLE: &str = "handle";
+
     /// The setting that makes its settings check fail with its text, or hoard 256 MiB, loop
     /// forever or panic for `hoard`, `loop` or `panic`.
     const FAIL_WITH: &str = "fail_with";
 
     // Says who the Plugin is, that it observes Events, fulfills Movie Requests and notifies, and
     // its settings: a URL whose host it may reach, one it requests, how its Observer, Fulfiller
-    // and Notifier behave, a profile its check offers, and how its check fails, and its logo. With
-    // the `unexported-connector` feature it names a Connector it doesn't export, with `contract-0-1`
-    // it wants Plugin contract 0.1, with `empty-points` it names no Extension Points, and with
-    // `panic` it panics instead.
+    // and Notifier behave, a profile its check offers, and how its check fails, its Personal
+    // settings, a `handle` and a `token`, and its logo. With the `unexported-connector` feature it
+    // names a Connector it doesn't export, with `contract-0-1` it wants Plugin contract 0.1, with
+    // `empty-points` it names no Extension Points, and with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -78,6 +81,13 @@ mod exports {
                     ),
                     setting("profile", SettingKind::SETTING_KIND_CHOICE),
                     setting(FAIL_WITH, SettingKind::SETTING_KIND_TEXT),
+                ],
+                personal_settings: vec![
+                    SettingField {
+                        required: true,
+                        ..setting(HANDLE, SettingKind::SETTING_KIND_TEXT)
+                    },
+                    setting("token", SettingKind::SETTING_KIND_SECRET),
                 ],
                 logo_svg: include_str!("../logo.svg").to_owned(),
                 ..nama_pdk::manifest("test-plugin", env!("CARGO_PKG_VERSION"))
@@ -208,32 +218,43 @@ mod exports {
 
     nama_pdk::fulfiller!(TestFulfiller);
 
-    /// A Notifier that, as its `notifier` setting says, posts each notification for its channel,
-    /// encoded as protobuf, to its `url` setting's URL if it has one, fails, loops forever or
-    /// panics.
+    /// A Notifier that, as its `notifier` setting says, posts each notification for its channel
+    /// or for a User, encoded as protobuf, to its `url` setting's URL if it has one, fails, loops
+    /// forever or panics. A User's post names their `handle` in a `Recipient` header.
     struct TestNotifier;
 
     impl Notifier for TestNotifier {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
-            let Recipient::Channel(_) = recipient else {
-                return Ok(());
+            let target = match recipient {
+                Recipient::Channel(_) => None,
+                Recipient::User(user) => Some(
+                    user.personal_settings
+                        .get(HANDLE)
+                        .cloned()
+                        .ok_or_else(|| Error::msg("the User set no handle"))?,
+                ),
+                Recipient::Connection(_) => return Ok(()),
             };
             match config::get(NOTIFIER)?.as_deref() {
                 Some("error") => Err(Error::msg("the test Plugin's Notifier was set to error")),
                 Some("loop") => loop_forever(),
                 #[expect(clippy::panic, reason = "it panics on purpose")]
                 Some("panic") => panic!("the test Plugin's Notifier was set to panic"),
-                _ => post(notification),
+                _ => post(notification, target.as_deref()),
             }
         }
     }
 
     nama_pdk::notifier!(TestNotifier);
 
-    /// Posts `notification`, encoded as protobuf, to its `url` setting's URL, if it has one.
-    fn post(notification: Notification) -> Result<(), Error> {
+    /// Posts `notification`, encoded as protobuf, to its `url` setting's URL, if it has one,
+    /// naming `target` in a `Recipient` header if there is one.
+    fn post(notification: Notification, target: Option<&str>) -> Result<(), Error> {
         if let Some(url) = config::get("url")? {
-            let request = HttpRequest::new(&url).with_method("POST");
+            let mut request = HttpRequest::new(&url).with_method("POST");
+            if let Some(target) = target {
+                request = request.with_header("Recipient", target);
+            }
             http::request(&request, Some(Buffa(notification)))?;
         }
         Ok(())

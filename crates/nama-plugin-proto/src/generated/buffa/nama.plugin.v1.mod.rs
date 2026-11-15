@@ -105,6 +105,7 @@ pub mod __buffa {
         reg.register_json_any(super::__CHOICE_JSON_ANY);
         reg.register_json_any(super::__NOTIFICATION_JSON_ANY);
         reg.register_json_any(super::__DELIVERY_JSON_ANY);
+        reg.register_json_any(super::__USER_RECIPIENT_JSON_ANY);
         reg.register_json_any(super::__CHANNEL_JSON_ANY);
         reg.register_json_any(super::__DELIVERED_JSON_ANY);
         reg.register_json_any(super::__SEARCH_QUERY_JSON_ANY);
@@ -341,6 +342,10 @@ pub use self::__buffa::view::NotificationOwnedView;
 pub use self::__buffa::view::DeliveryView;
 #[doc(inline)]
 pub use self::__buffa::view::DeliveryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserRecipientView;
+#[doc(inline)]
+pub use self::__buffa::view::UserRecipientOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ChannelView;
 #[doc(inline)]

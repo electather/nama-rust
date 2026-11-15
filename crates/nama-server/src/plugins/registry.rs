@@ -186,6 +186,7 @@ impl Registry {
         if self.read(|state| state.plugins.contains_key(id)) {
             return Err(EnableError::AlreadyEnabled(id.clone()));
         }
+        check_personal_settings(manifest)?;
         let schema = &manifest.settings;
         let settings = settings
             .resolve(schema)
@@ -445,6 +446,50 @@ impl State {
             })
         })
     }
+}
+
+/// Why the Kernel can't take `manifest`'s Personal settings, if it can't (ADR 0046): one of a
+/// kind a User's value could widen the hosts the Plugin reaches by, or with a key that repeats or
+/// that a Plugin-wide setting also has.
+pub(super) fn personal_settings_refusal(manifest: &Manifest) -> Option<String> {
+    let personal = &manifest.personal_settings.fields;
+    personal.iter().enumerate().find_map(|(index, field)| {
+        let key = &field.key;
+        if matches!(field.kind, SettingKind::Url | SettingKind::Choice) {
+            Some(format!(
+                "its Personal setting {key} is {:?}, and a Personal setting may only be Text, \
+                 Secret, Bool or Integer",
+                field.kind
+            ))
+        } else if personal
+            .iter()
+            .take(index)
+            .any(|earlier| earlier.key == *key)
+        {
+            Some(format!("its Personal setting {key} repeats a key"))
+        } else if manifest
+            .settings
+            .fields
+            .iter()
+            .any(|setting| setting.key == *key)
+        {
+            Some(format!(
+                "its Personal setting {key} has a Plugin setting's key"
+            ))
+        } else {
+            None
+        }
+    })
+}
+
+/// Refuses `manifest` if [`personal_settings_refusal`] says why.
+fn check_personal_settings(manifest: &Manifest) -> Result<(), EnableError> {
+    personal_settings_refusal(manifest).map_or(Ok(()), |reason| {
+        Err(EnableError::Refused {
+            plugin: manifest.id.clone(),
+            reason,
+        })
+    })
 }
 
 /// `schema` with its Choice settings optional, since checking the settings is how an admin finds

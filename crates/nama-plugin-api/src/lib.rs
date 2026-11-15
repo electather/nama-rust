@@ -91,6 +91,10 @@ pub struct Manifest {
     /// The settings the Plugin takes, so an admin UI can render a form for them. The Kernel
     /// enables the Plugin only with settings that fit it.
     pub settings: SettingsSchema,
+    /// The Personal settings the Plugin takes: settings each User sets for themself, such as a
+    /// topic to be notified on (ADR 0046). The Kernel hands one User's values to the Plugin only
+    /// in a call for that User, such as a [`notifier::Recipient::User`].
+    pub personal_settings: SettingsSchema,
     /// The Extension Points the Plugin takes part at, such as
     /// [`PointKey::provide::<dyn Notifier>()`](notifier::Notifier), so an admin sees what it does
     /// before it is enabled. The Kernel refuses to enable a Plugin whose
@@ -113,6 +117,7 @@ impl Manifest {
             description: String::new(),
             version: String::new(),
             settings: SettingsSchema::default(),
+            personal_settings: SettingsSchema::default(),
             extension_points: Vec::new(),
             logo_svg: None,
         }

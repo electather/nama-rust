@@ -10,6 +10,7 @@ pub mod delivery {
     pub enum Recipient {
         Channel(::buffa::alloc::boxed::Box<super::super::super::Channel>),
         Connection(::buffa::alloc::string::String),
+        User(::buffa::alloc::boxed::Box<super::super::super::UserRecipient>),
     }
     impl ::buffa::Oneof for Recipient {}
     impl From<super::super::super::Channel> for Recipient {
@@ -19,6 +20,16 @@ pub mod delivery {
     }
     impl From<super::super::super::Channel> for ::core::option::Option<Recipient> {
         fn from(v: super::super::super::Channel) -> Self {
+            Self::Some(Recipient::from(v))
+        }
+    }
+    impl From<super::super::super::UserRecipient> for Recipient {
+        fn from(v: super::super::super::UserRecipient) -> Self {
+            Self::User(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::UserRecipient> for ::core::option::Option<Recipient> {
+        fn from(v: super::super::super::UserRecipient) -> Self {
             Self::Some(Recipient::from(v))
         }
     }
@@ -35,6 +46,9 @@ pub mod delivery {
                 }
                 Self::Connection(v) => {
                     map.serialize_entry("connection", v)?;
+                }
+                Self::User(v) => {
+                    map.serialize_entry("user", &**v)?;
                 }
             }
             map.end()

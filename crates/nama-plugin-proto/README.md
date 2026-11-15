@@ -10,11 +10,17 @@ Each Extension Point an Installed Plugin can serve is a service of the contract,
 
 `nama.plugin.v1.TitleSourceService`, in [`title_source.proto`](../../proto/nama/plugin/v1/title_source.proto), is a title source the Kernel searches and fetches Movies and Shows from to Match a Library's files. Every one of its exports (`title_search`, `title_movie`, `title_show`, `title_season`, `title_episode`, `title_image` and `title_artwork`) is optional: the Kernel asks a source only for the ones it has. Its Manifest names in `title_namespace` the id namespace it keeps titles under, such as `tvdb`, and in `title_lookup_namespaces` any others it can look a title up by, such as `imdb`; the Kernel refuses one naming the service without a well-formed namespace in the first, or with a malformed one in the second. Asked by an id in a namespace it can't use, a source answers with `unsupported_id` set, and the Kernel asks the next source.
 
+`nama.plugin.v1.NotifierService`, in [`notifier.proto`](../../proto/nama/plugin/v1/notifier.proto), delivers notifications about Requests. A `Delivery` goes to the Plugin's own channel, to one User's Plugin Connection, or, for a Plugin whose Manifest declares `personal_settings`, to a `UserRecipient`: a User who set the Plugin's Personal settings, with their values, such as their own webhook or topic.
+
+## Personal settings
+
+A Manifest's `settings` are Plugin-wide: an admin sets them once. Its `personal_settings` (ADR 0046) are settings each User sets for themself. Only the TEXT, SECRET, BOOL and INTEGER kinds are allowed, since a User's value must not widen the hosts a Plugin reaches: the Kernel refuses a Plugin with a URL or CHOICE Personal setting, or with a key that repeats or that `settings` also names. A Plugin never finds them in its Extism config; the Kernel hands one User's values, as text, only in a call for that User, such as a `Delivery` to `UserRecipient`.
+
 ## Versions
 
 The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move together: their version in `Cargo.toml` changes with each release, separately from `CONTRACT_VERSION` and the service versions in `SERVICES`.
 
-- **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`.
+- **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 
 ## Title ids
 
@@ -29,7 +35,7 @@ The Server sets this up in [`crates/nama-server/src/plugins/wasm/load.rs`](../na
 - **A clock.** The function `now` in the Wasm import namespace `nama` takes no arguments and returns an `i64`: the milliseconds since the Unix epoch by the Server's clock. A Plugin needs it because `SystemTime::now()` panics on `wasm32-unknown-unknown`. Every call has it.
 - **128 MiB of memory and 5 seconds per call**, the memory counting the Plugin's own and what Extism keeps for it. A call past either limit fails. What that costs depends on the call: past one, `manifest()` gets the Plugin refused, and `check_settings()` fails that check.
 - **Three crashes in a row disable the Plugin.** Only an Extension Point's export crashes: when it runs past a limit or traps, not when it returns an error. Each Extension Point counts its own crashes, except that a Movie and a Show Fulfiller count as one.
-- **Settings as text.** `check_settings()` and the Extension Points' exports find each setting in the Extism config under its key, as text: a bool as `true` or `false`, a number in decimal. A setting holds what the admin set, or its Manifest default if the admin set nothing; one with neither is not in the config. `check_settings()` gets the settings being tested, which may be unsaved. `manifest()` gets no settings.
+- **Settings as text.** `check_settings()` and the Extension Points' exports find each setting in the Extism config under its key, as text: a bool as `true` or `false`, a number in decimal. A setting holds what the admin set, or its Manifest default if the admin set nothing; one with neither is not in the config. `check_settings()` gets the settings being tested, which may be unsaved. `manifest()` gets no settings. Personal settings are never in the config; see above.
 - **HTTP to named hosts only.** A Plugin may send HTTP requests only to the hosts its Manifest's `allowed_hosts` names and the host of each of its URL settings: the saved settings for an Extension Point's exports, the settings being tested for `check_settings()`. `manifest()` may send none.
 - **No HTTP response headers.** The Kernel doesn't pass a response's headers to the Plugin: `compile` leaves Extism's `with_http_response_headers` off.
 

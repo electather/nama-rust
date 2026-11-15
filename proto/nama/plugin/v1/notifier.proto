@@ -36,7 +36,18 @@ message Delivery {
     // The Plugin Connection of one User the Server tells, as the Plugin's Connector found it, such
     // as their Telegram chat id.
     string connection = 3;
+    // A User the Kernel tells who set this Plugin's Personal settings. Sent only to a Plugin
+    // whose Manifest declares `personal_settings`.
+    UserRecipient user = 4;
   }
+}
+
+// A User a `Delivery` is for, with the values they set for the Plugin's Personal settings.
+message UserRecipient {
+  // Each Personal setting the User set, under its key, as text as config values are: a bool as
+  // "true" or "false", a number in decimal. One the User didn't set, with no Manifest default, is
+  // not here.
+  map<string, string> personal_settings = 1;
 }
 
 // The Plugin's own channel, set in its settings.

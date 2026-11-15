@@ -27,7 +27,7 @@ use nama_plugin_proto::{
     nama::plugin::v1::{
         self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled, ConnectionStart,
         Delivered, Delivery, EventsObserved, Fulfilled, Progress, ProgressAsked, StopMonitoring,
-        StoppedMonitoring, Unfollowed,
+        StoppedMonitoring, Unfollowed, UserRecipient,
     },
 };
 use semver::{Version, VersionReq};
@@ -104,6 +104,9 @@ pub(super) enum Refused {
         service: &'static str,
         export: &'static str,
     },
+    // The reason starts "its Personal setting", as the registry words it for a Built-in.
+    #[error("{0}")]
+    PersonalSettings(String),
     #[error("its {field} names {namespace:?}, which isn't a namespace")]
     BadNamespace {
         field: &'static str,
@@ -423,6 +426,10 @@ impl Notifier for Running {
             Recipient::Connection(connection) => {
                 wire::delivery::Recipient::Connection(connection.clone())
             }
+            Recipient::User(settings) => wire::delivery::Recipient::from(UserRecipient {
+                personal_settings: settings.clone().into_iter().collect(),
+                ..Default::default()
+            }),
         };
         let delivery = Delivery {
             notification: Some(notification.clone()).into(),

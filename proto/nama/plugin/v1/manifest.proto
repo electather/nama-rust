@@ -61,6 +61,13 @@ message Manifest {
   // title up by, such as "imdb", each one or more of a-z and 0-9. A Server refuses a Plugin naming
   // a malformed one. Ignored unless `points` names `TitleSourceService`.
   repeated string title_lookup_namespaces = 15;
+  // The Personal settings the Plugin takes: settings each User sets for themself, such as a
+  // topic to be notified on, in the order a form shows them. Only the TEXT, SECRET, BOOL and
+  // INTEGER kinds: a Server refuses a Plugin with a URL or CHOICE one, since a User's value must
+  // not widen the hosts a Plugin reaches, or with a key that repeats or that `settings` also
+  // names. The Kernel hands their values to the Plugin only in a call for that User, such as a
+  // `Delivery` to `UserRecipient`. Plugin-wide settings stay in `settings`.
+  repeated SettingField personal_settings = 16;
 }
 
 // An Extension Point an Installed Plugin serves: a service of this package, whose rpcs name the

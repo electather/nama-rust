@@ -254,6 +254,12 @@ macro_rules! fulfiller {
 ///             Recipient::Channel(_) => Ok(()),
 ///             // Send it to the User whose Plugin Connection, such as a chat id, this is.
 ///             Recipient::Connection(_) => Ok(()),
+///             // Send it to a User by the values they set for the Manifest's `personal_settings`,
+///             // such as their own topic. A Plugin with no Personal settings fails here.
+///             Recipient::User(user) => {
+///                 let _topic = user.personal_settings.get("topic");
+///                 Ok(())
+///             }
 ///         }
 ///     }
 /// }

@@ -109,6 +109,11 @@ mod exports {
                     Err(error) if error.is::<Forbidden>() => Err(RecipientGone.into()),
                     sent => sent,
                 },
+                // Telegram declares no Personal settings, so a User sent this way has nothing to
+                // be reached by.
+                Recipient::User(_) => Err(Error::msg(
+                    "Telegram has no Personal settings, so it can't reach a User by them",
+                )),
             }
         }
     }
