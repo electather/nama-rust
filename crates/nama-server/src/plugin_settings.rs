@@ -225,7 +225,8 @@ impl PluginSettings {
     }
 
     /// Stops saving the Plugins disabled for crashing, once those that crashed before it are
-    /// saved. One that crashes after those are saved may run again after a restart.
+    /// saved, then cancels every enabled Plugin's scope and waits for its tasks (ADR 0047). One
+    /// that crashes after those are saved may run again after a restart.
     pub async fn shutdown(&self) {
         let Some(saving_crashed) = lock_ignoring_poison(&self.saving_crashed).take() else {
             return;
@@ -235,6 +236,7 @@ impl PluginSettings {
         if let Err(err) = saving_crashed.await {
             error!("saving the Plugins disabled for crashing panicked: {err}");
         }
+        self.registry.shutdown().await;
     }
 
     /// Saves each Plugin the registry disables for crashing as disabled, as an admin's disable is,
@@ -399,7 +401,7 @@ impl PluginSettings {
             this.check_choices(&manifest, &settings).await?;
             save(&this.db, id.as_str(), stored.enabled, &settings).await?;
             if stored.enabled {
-                this.enable_again(&id, &settings);
+                this.enable_again(&id, &settings).await;
             }
             let enabled = this.registry.enabled().contains(&id);
             Ok(StoredPlugin {
@@ -461,7 +463,7 @@ impl PluginSettings {
             // ponytail: an Installed Authenticator crashing since the check can leave none
             // running, as a crash can anyway; the next start then refuses until an admin enables
             // one.
-            this.registry.disable(&id);
+            this.registry.disable(&id).await;
             Ok(())
         })
         .await
@@ -470,8 +472,8 @@ impl PluginSettings {
     /// Enables the Plugin `id` again with `settings`, even if it isn't running, such as TMDB left
     /// disabled without its key. Disabled first, so nothing it registered with its old settings
     /// stays; a failure is logged, since its settings are saved and a restart retries them.
-    fn enable_again(&self, id: &PluginId, settings: &BTreeMap<String, SettingValue>) {
-        self.registry.disable(id);
+    async fn enable_again(&self, id: &PluginId, settings: &BTreeMap<String, SettingValue>) {
+        self.registry.disable(id).await;
         match self
             .registry
             .enable_by_id(id, Settings::new(settings.clone()))

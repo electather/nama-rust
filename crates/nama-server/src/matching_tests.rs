@@ -754,13 +754,13 @@ async fn a_match_the_provider_fails_to_refresh_stays_as_it_was_until_a_later_sca
     media.scan(shows).await;
     media.contents.stored_by_older_metadata(shows.id).await;
     let tmdb = PluginId::from_static("tmdb");
-    media.plugins.disable(&tmdb);
+    media.plugins.disable(&tmdb).await;
     media.enable_tmdb_rejecting();
 
     media.scan(shows).await;
     let failed = media.stills(shows).await;
     let outcome = media.outcomes(shows).await;
-    media.plugins.disable(&tmdb);
+    media.plugins.disable(&tmdb).await;
     media.scan(shows).await;
     let disabled = media.stills(shows).await;
     media.enable_tmdb();

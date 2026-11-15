@@ -234,18 +234,43 @@ impl ExtensionPoints {
         entries
     }
 
-    /// Disables the Plugin `id` if `check`, given the state and its enablement if it is enabled,
-    /// lets it, all under one lock. Returns whether it was enabled.
-    pub(super) fn disable_if<E>(
+    /// Spawns `task` in the scope of the Plugin `plugin`'s current enablement, so disabling it
+    /// cancels and joins the task before the Plugin is dropped (ADR 0047). Returns false, without
+    /// running `task`, if the Plugin isn't enabled. Must be called within a Tokio runtime.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Requests' progress polling moves into a scope next"
+        )
+    )]
+    pub(crate) fn spawn_in(
+        &self,
+        plugin: &PluginId,
+        task: impl Future<Output = ()> + Send + 'static,
+    ) -> bool {
+        // Under the lock, so a disable either finds the task in the scope it joins or removed the
+        // enablement before it was spawned.
+        self.read(|state| {
+            let Some(enabled) = state.plugins.get(plugin) else {
+                return false;
+            };
+            enabled.scope.spawn(task);
+            true
+        })
+    }
+
+    /// Removes the Plugin `id` and everything it registered if `check`, given the state and its
+    /// enablement if it is enabled, lets it, all under one lock. Returns what was removed, which
+    /// [`Removed::close`] or [`Removed::close_later`] drops.
+    pub(super) fn remove_if<E>(
         &self,
         id: &PluginId,
         check: impl FnOnce(&State, Option<&Enabled>) -> Result<(), E>,
-    ) -> Result<bool, E> {
-        // What is removed is dropped after the lock is released, since a Plugin's `Drop` is
-        // Plugin code.
-        let removed = self.write(|state| {
+    ) -> Result<Option<Removed>, E> {
+        self.write(|state| {
             check(state, state.plugins.get(id))?;
-            let Some(plugin) = state.plugins.remove(id) else {
+            let Some(enabled) = state.plugins.remove(id) else {
                 return Ok(None);
             };
             let mut handlers = Vec::new();
@@ -253,16 +278,11 @@ impl ExtensionPoints {
                 handlers.extend(entries.extract_if(.., |entry| entry.plugin == *id));
             }
             state.points.retain(|_, entries| !entries.is_empty());
-            Ok(Some((plugin, handlers)))
-        })?;
-        let was_enabled = removed.is_some();
-        if let Err(message) = contain_sync(|| drop(removed)) {
-            error!(plugin = %id, message, "plugin panicked while being dropped");
-        }
-        if was_enabled {
-            info!(plugin = %id, "disabled plugin");
-        }
-        Ok(was_enabled)
+            Ok(Some(Removed {
+                enabled,
+                _handlers: handlers,
+            }))
+        })
     }
 
     fn is_current(&self, entry: &Entry) -> bool {
@@ -280,13 +300,19 @@ impl ExtensionPoints {
     fn disable_after_panic(&self, entry: &Entry, point: &str, message: &str) {
         error!(plugin = %entry.plugin, point, message, "plugin crashed; disabling it");
         // A stale generation is no error: that enablement is already gone.
-        let disabled = self.disable_if(&entry.plugin, |_, enabled| {
-            if enabled.is_some_and(|enabled| enabled.generation == entry.generation) {
-                Ok(())
-            } else {
-                Err(())
-            }
-        });
+        let removed = self
+            .remove_if(&entry.plugin, |_, enabled| {
+                if enabled.is_some_and(|enabled| enabled.generation == entry.generation) {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            })
+            .ok()
+            .flatten();
+        let disabled = removed
+            .map(|removed| removed.close_later(&entry.plugin))
+            .is_some();
         // A Built-in Plugin is only disabled until a restart, since saving the last Authenticator
         // disabled would stop the Server starting.
         let crashed = self.read(|state| {
@@ -296,9 +322,7 @@ impl ExtensionPoints {
                 .is_some_and(|known| known.kind == PluginKind::PLUGIN_KIND_INSTALLED);
             state.crashed.clone().filter(|_| installed)
         });
-        if matches!(disabled, Ok(true))
-            && let Some(crashed) = crashed
-        {
+        if disabled && let Some(crashed) = crashed {
             // Nothing saves it once the Server stops serving.
             let _stopped = crashed.send(entry.plugin.clone());
         }
@@ -317,6 +341,41 @@ impl ExtensionPoints {
 
     pub(super) fn write<T>(&self, f: impl FnOnce(&mut State) -> T) -> T {
         f(&mut self.state.write().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
+/// What disabling a Plugin removed: its enablement and its handlers, kept until its scope is
+/// joined.
+pub(super) struct Removed {
+    enabled: Enabled,
+    // Held so the handlers are dropped with the Plugin, contained.
+    _handlers: Vec<Entry>,
+}
+
+impl Removed {
+    /// Cancels the scope and waits for its tasks, then drops the Plugin.
+    pub(super) async fn close(self, id: &PluginId) {
+        self.enabled.scope.clone().close().await;
+        self.dropped(id);
+    }
+
+    /// Cancels the scope at once, and joins it and drops the Plugin in the background.
+    pub(super) fn close_later(self, id: &PluginId) {
+        self.enabled.scope.cancel();
+        let id = id.clone();
+        match tokio::runtime::Handle::try_current() {
+            Ok(runtime) => drop(runtime.spawn(async move { self.close(&id).await })),
+            // Without a runtime no task was spawned in the scope, so there is nothing to join.
+            Err(_) => self.dropped(&id),
+        }
+    }
+
+    /// Drops the Plugin and its handlers, containing a panic in their `Drop`, which is Plugin code.
+    fn dropped(self, id: &PluginId) {
+        if let Err(message) = contain_sync(|| drop(self)) {
+            error!(plugin = %id, message, "plugin panicked while being dropped");
+        }
+        info!(plugin = %id, "disabled plugin");
     }
 }
 

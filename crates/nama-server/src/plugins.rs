@@ -5,6 +5,7 @@ mod builtin;
 mod contract;
 mod points;
 mod registry;
+mod scope;
 mod wasm;
 
 use std::{

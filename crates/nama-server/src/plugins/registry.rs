@@ -19,7 +19,7 @@ use tracing::{error, info};
 
 use super::{
     CheckError, CheckTimedOut, EnableError, ExtensionPoints, LastProvider, Listed,
-    SETTINGS_CHECK_TIMEOUT, contain, contain_sync, secret_values, without_secrets,
+    SETTINGS_CHECK_TIMEOUT, contain, contain_sync, scope::Scope, secret_values, without_secrets,
 };
 /// Every Plugin enabled on this Server and everything they registered.
 ///
@@ -75,6 +75,8 @@ pub(super) struct Enabled {
     /// Tells this enablement apart from earlier ones of the same Plugin, so a call that started
     /// before a disable can't reach or disable the Plugin enabled again since.
     pub(super) generation: u64,
+    /// The Kernel tasks started for this enablement, joined before the Plugin is dropped.
+    pub(super) scope: Scope,
 }
 
 #[derive(Clone)]
@@ -238,6 +240,7 @@ impl Registry {
                 Enabled {
                     _plugin: plugin,
                     generation,
+                    scope: Scope::default(),
                 },
             );
             for (index, registration) in registrations.into_iter().enumerate() {
@@ -267,15 +270,44 @@ impl Registry {
         Ok(())
     }
 
-    /// Disables the Plugin `id` and removes everything it registered. Returns whether it was
+    /// Disables the Plugin `id` and removes everything it registered, then cancels its scope and
+    /// waits for the tasks in it before dropping the Plugin (ADR 0047). Returns whether it was
     /// enabled.
+    ///
+    /// Never call it from inside the Plugin's own call or scope, which it would wait on forever;
+    /// [`Registry::disable_now`] is for that.
+    pub async fn disable(&self, id: &PluginId) -> bool {
+        let Ok(removed) = self.remove_if(id, |_, _| Ok::<_, Infallible>(()));
+        let Some(removed) = removed else {
+            return false;
+        };
+        removed.close(id).await;
+        true
+    }
+
+    /// Disables the Plugin `id` and cancels its scope at once, for a caller inside the Plugin's
+    /// own call or scope. Returns whether it was enabled. The tasks in its scope are joined and
+    /// the Plugin dropped in the background, after this returns.
     #[expect(
         clippy::must_use_candidate,
         reason = "callers often disable without caring whether the Plugin was enabled"
     )]
-    pub fn disable(&self, id: &PluginId) -> bool {
-        let Ok(was_enabled) = self.disable_if(id, |_, _| Ok::<_, Infallible>(()));
-        was_enabled
+    pub fn disable_now(&self, id: &PluginId) -> bool {
+        let Ok(removed) = self.remove_if(id, |_, _| Ok::<_, Infallible>(()));
+        removed.map(|removed| removed.close_later(id)).is_some()
+    }
+
+    /// Cancels every enabled Plugin's scope and waits for the tasks in each, for the Server
+    /// stopping. The Plugins stay enabled in memory.
+    pub async fn shutdown(&self) {
+        let scopes: Vec<Scope> = self.read(|state| {
+            state
+                .plugins
+                .values()
+                .map(|enabled| enabled.scope.clone())
+                .collect()
+        });
+        futures_util::future::join_all(scopes.into_iter().map(Scope::close)).await;
     }
 
     /// The refusal of disabling the Plugin `id` if no other enabled Plugin provides `T`, such as

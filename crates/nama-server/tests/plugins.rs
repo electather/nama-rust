@@ -107,7 +107,7 @@ async fn observers_are_told_events_until_their_plugin_is_disabled() {
     registry.notify::<Numbers>(1);
     assert_eq!(next(&mut rx).await, ("a", 1));
 
-    assert!(registry.disable(&PluginId::from_static("a")));
+    assert!(registry.disable(&PluginId::from_static("a")).await);
     assert_eq!(registry.enabled(), Vec::<PluginId>::new());
     registry.notify::<Numbers>(2);
     // A second, still enabled Plugin shows notify has run by the time its event arrives.
@@ -277,8 +277,8 @@ impl Drop for PanicOnDrop {
     }
 }
 
-#[test]
-fn a_plugin_that_panics_while_being_dropped_on_disable_is_still_disabled() {
+#[tokio::test]
+async fn a_plugin_that_panics_while_being_dropped_on_disable_is_still_disabled() {
     let registry = Registry::new();
     registry
         .enable(plugin("buggy", &[PointKey::observe::<Numbers>()], |r| {
@@ -286,7 +286,7 @@ fn a_plugin_that_panics_while_being_dropped_on_disable_is_still_disabled() {
         }))
         .unwrap();
 
-    assert!(registry.disable(&PluginId::from_static("buggy")));
+    assert!(registry.disable(&PluginId::from_static("buggy")).await);
     assert_eq!(registry.enabled(), Vec::<PluginId>::new());
 }
 
@@ -393,7 +393,7 @@ async fn providers_are_looked_up_by_trait_in_priority_order_unless_the_admin_set
     assert_eq!(greet(&registry).await, Some("hallo"));
 
     // Plugins the admin didn't rank follow in priority order.
-    registry.disable(&PluginId::from_static("de"));
+    registry.disable(&PluginId::from_static("de")).await;
     assert_eq!(greet(&registry).await, Some("bonjour"));
 
     // The admin's choice outlasts the Plugin being disabled and enabled again.
@@ -449,7 +449,7 @@ async fn an_observer_whose_plugin_is_disabled_before_the_event_reaches_it_is_not
 
     // The test runtime has one thread, so the delivery task can't run before the disable.
     registry.notify::<Numbers>(1);
-    registry.disable(&PluginId::from_static("gone"));
+    registry.disable(&PluginId::from_static("gone")).await;
 
     let forward_witness = Forward("witness", tx);
     registry
@@ -471,7 +471,7 @@ struct ReenableThenPanic(Registry);
 
 impl Greeter for ReenableThenPanic {
     fn greet(&self) -> &'static str {
-        self.0.disable(&PluginId::from_static("flaky"));
+        self.0.disable_now(&PluginId::from_static("flaky"));
         self.0
             .enable(greeter("flaky", Priority::DEFAULT, Greeting("fresh")))
             .expect("the fresh copy enables");
@@ -725,7 +725,7 @@ async fn an_answer_names_the_plugin_that_gave_it_and_that_plugin_can_be_asked_ag
 
     let first = registry.ask_first(greeting).await;
     let from_en = registry.ask(&en, greeting).await;
-    registry.disable(&en);
+    registry.disable(&en).await;
     let from_disabled = registry.ask(&en, greeting).await;
 
     assert_eq!(first, Some(greeted("fr", "bonjour")));
@@ -733,8 +733,8 @@ async fn an_answer_names_the_plugin_that_gave_it_and_that_plugin_can_be_asked_ag
     assert_eq!(from_disabled, None);
 }
 
-#[test]
-fn the_plugins_providing_a_capability_are_the_enabled_ones_that_provide_it() {
+#[tokio::test]
+async fn the_plugins_providing_a_capability_are_the_enabled_ones_that_provide_it() {
     let registry = Registry::new();
     registry
         .enable(greeter("en", Priority::DEFAULT, Greeting("hello")))
@@ -745,7 +745,7 @@ fn the_plugins_providing_a_capability_are_the_enabled_ones_that_provide_it() {
     registry
         .enable(failing("fetcher", || "unused".into()))
         .unwrap();
-    registry.disable(&PluginId::from_static("fr"));
+    registry.disable(&PluginId::from_static("fr")).await;
 
     assert_eq!(
         registry.providers::<dyn Greeter>(),

@@ -4025,7 +4025,10 @@ async fn a_disabled_notifier_is_handed_nothing() {
     let enabled = FakeNotifier::new(Delivery::Keeps);
     let disabled = FakeNotifier::new(Delivery::Keeps);
     let fixture = with_notifiers(&[("enabled", &enabled), ("disabled", &disabled)]).await;
-    fixture.plugins.disable(&PluginId::from_static("disabled"));
+    fixture
+        .plugins
+        .disable(&PluginId::from_static("disabled"))
+        .await;
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
 
     requests(as_ada).ask(HEAT).await;
