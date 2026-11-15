@@ -63,3 +63,4 @@
 0065_library_title_sources.sql
 0066_match_image_plugins.sql
 0067_match_logo.sql
+0068_personal_settings.sql

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO personal_settings (user_id, plugin_id, key, value, secret)\n                     VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "a810a71004cfb8d6113866a8d7f17af8693cfcdbae2fef3a65a0451136e13f5d"
+}

@@ -1,13 +1,16 @@
 //! The event bus: the Kernel publishes what happens on it, and it hands each event to every
 //! client subscribed through `EventService.Subscribe` and to every Observer at
 //! [`points::Events`], and each Request event to every [`Notifier`], for its channel and for the
-//! Plugin Connections of the Users told about it.
+//! Plugin Connections and Personal settings of the Users told about it.
 //!
 //! Publishing never waits for a subscriber. Each subscriber may fall up to [`BUFFERED`] events
 //! behind; past that its oldest unread events are dropped, and it is sent a `Lagged` in their
 //! place.
 
-use std::sync::Arc;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use futures_util::{Stream, StreamExt, future, stream};
 use nama_plugin_api::{
@@ -26,7 +29,7 @@ use tracing::{error, info};
 use crate::{
     connections,
     db::Database,
-    playback,
+    personal_settings, playback,
     plugins::{self, ExtensionPoints, Failure, ProviderError},
     requests,
     server_settings::ServerUrl,
@@ -243,14 +246,16 @@ async fn next_message(
     }
 }
 
-/// Hands `told`'s notification to `plugin`'s `notifier` for its channel and for the Plugin
-/// Connection to `plugin` of each User told about its event, [`DELIVERING_AT_ONCE`] at a time. A
-/// User with none is skipped, and one the Notifier finds gone is disconnected (ADR 0021).
+/// Hands `told`'s notification to `plugin`'s `notifier` for its channel, and for the Plugin
+/// Connection to `plugin` and the Personal settings for it of each User told about its event,
+/// [`DELIVERING_AT_ONCE`] at a time. A User with neither is skipped, and one the Notifier finds
+/// gone is disconnected (ADR 0021), or, for Personal settings, only logged (ADR 0046).
 ///
 /// # Errors
 ///
-/// Each recipient that failed, with the Notifier's error. Reading or deleting Plugin Connections
-/// failing is logged, and the others still told.
+/// Each recipient that failed, with the Notifier's error, that User's secret Personal settings
+/// blanked. Reading Personal settings or reading or deleting Plugin Connections failing is logged,
+/// and the others still told.
 async fn deliver(
     db: Arc<Database>,
     plugin: PluginId,
@@ -263,8 +268,13 @@ async fn deliver(
         Ok(connected) => recipients.extend(connections_to_tell(event, connected)),
         Err(err) => error!(%plugin, "could not read whom to message about a Request: {err}"),
     }
+    let mut secrets = HashMap::new();
+    match personal_settings::recipients(&db, &plugin).await {
+        Ok(personal) => recipients.extend(personal_to_tell(event, personal, &mut secrets)),
+        Err(err) => error!(%plugin, "could not read whose Personal settings to use: {err}"),
+    }
     let deliveries = recipients.into_iter().map(|(user, recipient)| {
-        let (db, plugin, notifier) = (&db, &plugin, &notifier);
+        let (db, plugin, notifier, secrets) = (&db, &plugin, &notifier, &secrets);
         async move {
             let delivered = deliver_to(notifier.as_ref(), notification, &recipient).await;
             match (delivered, user, recipient) {
@@ -275,7 +285,18 @@ async fn deliver(
                     disconnect(db, user, plugin, connection).await;
                     None
                 }
-                (Err(error), user, _) => Some((user, error)),
+                (Err(error), Some(user), Recipient::User(_)) if error.is::<RecipientGone>() => {
+                    // The User set these values themself; only they can change them.
+                    info!(%plugin, user, "a Notifier says a User's Personal settings reach nobody");
+                    None
+                }
+                (Err(error), user, _) => {
+                    let theirs = user.and_then(|user| secrets.get(&user));
+                    Some((
+                        user,
+                        without(error.to_string(), theirs.map_or(&[], Vec::as_slice)),
+                    ))
+                }
             }
         }
     });
@@ -292,7 +313,7 @@ async fn deliver(
 }
 
 /// The recipients a Notifier didn't reach, each with its error: a User by id, or the channel.
-struct Undelivered(Vec<(Option<i64>, PluginError)>);
+struct Undelivered(Vec<(Option<i64>, String)>);
 
 impl ProviderError<()> for Undelivered {
     fn failure(self) -> Failure {
@@ -322,6 +343,33 @@ fn connections_to_tell(
         .filter(|(user, _)| told.contains(&user.id))
         .map(|(user, connection)| (Some(user.id), Recipient::Connection(connection)))
         .collect()
+}
+
+/// The Personal settings of each of `personal` that [`users_to_tell`] picks for `event`, with the
+/// id of the User whose they are. Each picked User's secret values go in `secrets`.
+fn personal_to_tell(
+    event: &Event,
+    personal: Vec<(User, BTreeMap<String, String>, Vec<String>)>,
+    secrets: &mut HashMap<i64, Vec<String>>,
+) -> Vec<(Option<i64>, Recipient)> {
+    let users: Vec<User> = personal.iter().map(|(user, ..)| user.clone()).collect();
+    let told = users_to_tell(event, &users);
+    personal
+        .into_iter()
+        .filter(|(user, ..)| told.contains(&user.id))
+        .map(|(user, values, theirs)| {
+            secrets.insert(user.id, theirs);
+            (Some(user.id), Recipient::User(values))
+        })
+        .collect()
+}
+
+/// `message` with each of `secrets` blanked.
+fn without(mut message: String, secrets: &[String]) -> String {
+    for secret in secrets.iter().filter(|secret| !secret.is_empty()) {
+        message = message.replace(secret.as_str(), "…");
+    }
+    message
 }
 
 /// Deletes `user`'s Plugin Connection to `plugin`, `connection`, which its Notifier found gone.
@@ -517,231 +565,5 @@ pub(crate) fn event(happened: impl Into<event::Event>) -> Event {
 }
 
 #[cfg(test)]
-mod tests {
-    use nama_proto::nama::v1::{
-        Event, FollowedShow, FollowedShowCreated, LibraryItemAdded, Permission, Playback,
-        PlaybackStarted, Request, RequestCancelled, RequestCreated, RequestState,
-        RequestStateChanged, Requester, RequesterAdded,
-    };
-
-    use super::{Filter, Viewer, event, users_to_tell};
-    use crate::users::{Permissions, User};
-
-    fn user(id: i64, permissions: Permissions) -> User {
-        User {
-            id,
-            name: format!("User {id}"),
-            permissions,
-            created_at: 0,
-        }
-    }
-
-    /// Users 1 and 2 have a new User's Permissions, 3 has `MANAGE_REQUESTS` and 4 has `ADMIN`.
-    fn users() -> Vec<User> {
-        vec![
-            user(1, Permissions::NEW_USER),
-            user(2, Permissions::NEW_USER),
-            user(3, std::iter::once(Permission::ManageRequests).collect()),
-            user(4, Permissions::ADMIN),
-        ]
-    }
-
-    fn request(state: RequestState, requesters: &[i64]) -> Request {
-        Request {
-            state: state.into(),
-            requesters: requesters
-                .iter()
-                .map(|&user_id| Requester {
-                    user_id,
-                    ..Default::default()
-                })
-                .collect(),
-            ..Default::default()
-        }
-    }
-
-    fn created(state: RequestState, requesters: &[i64]) -> Event {
-        event(RequestCreated {
-            request: request(state, requesters).into(),
-            ..Default::default()
-        })
-    }
-
-    fn moved_to(state: RequestState, requesters: &[i64]) -> Event {
-        event(RequestStateChanged {
-            request: request(state, requesters).into(),
-            ..Default::default()
-        })
-    }
-
-    fn playback_of(user_id: i64) -> Event {
-        event(PlaybackStarted {
-            playback: Playback {
-                user_id,
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        })
-    }
-
-    #[test]
-    fn each_viewer_gets_the_events_and_paths_their_permissions_let_them_see() {
-        const REQUESTER: i64 = 3;
-        const PLAYER: i64 = 4;
-        let added = |path: &str| {
-            event(LibraryItemAdded {
-                library_id: 1,
-                item_id: 1,
-                path: path.to_owned(),
-                ..Default::default()
-            })
-        };
-        let (with_path, without_path) = (added("/media/Alien.mkv"), added(""));
-        let requested = created(RequestState::Pending, &[REQUESTER]);
-        let followed = event(FollowedShowCreated {
-            followed_show: FollowedShow {
-                requesters: request(RequestState::Pending, &[REQUESTER]).requesters,
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        });
-        let played = playback_of(PLAYER);
-        let requesting = || std::iter::once(Permission::Request).collect();
-        // Each viewer, and what they get of `with_path`, `requested`, `followed` and `played`.
-        let table = [
-            (
-                user(1, Permissions::ADMIN),
-                [
-                    Some(&with_path),
-                    Some(&requested),
-                    Some(&followed),
-                    Some(&played),
-                ],
-            ),
-            (
-                user(2, std::iter::once(Permission::ManageLibraries).collect()),
-                [Some(&with_path), None, None, None],
-            ),
-            (
-                user(REQUESTER, requesting()),
-                [Some(&without_path), Some(&requested), Some(&followed), None],
-            ),
-            (
-                user(PLAYER, requesting()),
-                [Some(&without_path), None, None, Some(&played)],
-            ),
-            (
-                user(5, requesting()),
-                [Some(&without_path), None, None, None],
-            ),
-        ];
-
-        for (subscriber, expected) in table {
-            let viewer = Viewer::of(&subscriber);
-            let got = [&with_path, &requested, &followed, &played]
-                .map(|published| viewer.sees(published.clone()));
-            assert_eq!(
-                got,
-                expected.map(Option::<&Event>::cloned),
-                "User {}",
-                subscriber.id
-            );
-        }
-    }
-
-    #[test]
-    fn naming_libraries_leaves_out_events_about_none() {
-        let about_a_library = Filter {
-            libraries: vec![5],
-            ..Default::default()
-        };
-
-        assert!(!about_a_library.lets_through(&playback_of(1)));
-    }
-
-    #[test]
-    fn approving_or_declining_a_request_picks_its_requesters_and_nobody_else() {
-        for state in [RequestState::Approved, RequestState::Declined] {
-            assert_eq!(
-                users_to_tell(&moved_to(state, &[2, 1]), &users()),
-                [2, 1],
-                "{state:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_request_failing_or_becoming_available_picks_its_requesters() {
-        for state in [
-            RequestState::Failed,
-            RequestState::PartiallyAvailable,
-            RequestState::Available,
-        ] {
-            assert_eq!(
-                users_to_tell(&moved_to(state, &[1]), &users()),
-                [1],
-                "{state:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_followed_shows_season_opening_available_picks_its_requesters() {
-        for state in [RequestState::PartiallyAvailable, RequestState::Available] {
-            assert_eq!(
-                users_to_tell(&created(state, &[1, 2]), &users()),
-                [1, 2],
-                "{state:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_new_pending_request_picks_every_user_with_manage_requests() {
-        let users = users();
-        assert_eq!(
-            users_to_tell(&created(RequestState::Pending, &[1]), &users),
-            [3, 4]
-        );
-        assert_eq!(
-            users_to_tell(&created(RequestState::Pending, &[3]), &users),
-            [3, 4],
-            "an asker with MANAGE_REQUESTS is told as one of them"
-        );
-    }
-
-    #[test]
-    fn a_request_deleting_media_cancelled_picks_its_requesters() {
-        let cancelled = event(RequestCancelled {
-            request: request(RequestState::Processing, &[2, 1]).into(),
-            deleted_by: Some("Grace".to_owned()),
-            ..Default::default()
-        });
-
-        assert_eq!(users_to_tell(&cancelled, &users()), [2, 1]);
-    }
-
-    #[test]
-    fn other_request_events_pick_nobody() {
-        let pending = request(RequestState::Pending, &[1, 2]);
-        let others = [
-            event(RequesterAdded {
-                request: pending.clone().into(),
-                user_id: 2,
-                ..Default::default()
-            }),
-            event(RequestCancelled {
-                request: pending.into(),
-                ..Default::default()
-            }),
-            // Opened Approved: its one Requester just asked for it.
-            created(RequestState::Approved, &[1]),
-            moved_to(RequestState::Processing, &[1]),
-        ];
-        for other in others {
-            assert!(users_to_tell(&other, &users()).is_empty(), "{other:?}");
-        }
-    }
-}
+#[path = "events_tests.rs"]
+mod tests;

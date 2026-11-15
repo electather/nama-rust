@@ -14,6 +14,7 @@ mod forwarded;
 pub mod images;
 mod library;
 mod matching;
+mod personal_settings;
 mod playback;
 pub mod plugin_settings;
 pub mod plugins;

@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT users.id AS \"id!\", users.display_username AS name,\n                  users.permissions AS \"permissions: Permissions\", users.created_at,\n                  personal_settings.key, personal_settings.value,\n                  personal_settings.secret AS \"secret: bool\"\n           FROM personal_settings JOIN users ON users.id = personal_settings.user_id\n           WHERE personal_settings.plugin_id = ?\n           ORDER BY users.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_username"
+          }
+        }
+      },
+      {
+        "name": "permissions: Permissions",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "permissions"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "key",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "personal_settings",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "value",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "personal_settings",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "name": "secret: bool",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "personal_settings",
+            "name": "secret"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "482e668d98a2666d1df8f957bde1fe94b502525d863cb83d95183f626805fd6b"
+}
