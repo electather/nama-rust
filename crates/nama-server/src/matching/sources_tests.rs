@@ -3,8 +3,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     contract::{
-        Candidate, Movie, MovieAnswer, SearchQuery, SearchResults, Season, SeasonAnswer,
-        SeasonAsked, Show, ShowAnswer, TitleAsked, TitleId,
+        Artwork as ListedArtwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Candidate, Movie,
+        MovieAnswer, SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, Show,
+        ShowAnswer, TitleAsked, TitleId,
     },
     metadata::{ExternalId, ExternalIds, MetadataError, TitleMethod, TitleSource},
 };
@@ -558,4 +559,188 @@ async fn a_search_never_asks_an_artwork_source() {
 
     assert_eq!(found.plugin, PluginId::from_static("tmdb"));
     assert_eq!(asked(&sources_asked), ["tmdb search", "tmdb movie tmdb-1"]);
+}
+
+/// A title source keeping titles under `.0` that lists `.2` as a title's artwork, each a kind, a
+/// path and a language. It searches and has the Movie `Dark`, with the poster `.1`, unless `.1`
+/// is `None`, when it only answers the artwork list and looks titles up by `aa`.
+#[derive(Clone, Copy)]
+struct Listing(
+    &'static str,
+    Option<&'static str>,
+    &'static [(ArtworkKind, &'static str, &'static str)],
+);
+
+impl TitleSource for Listing {
+    fn namespace(&self) -> &str {
+        self.0
+    }
+
+    fn lookup_namespaces(&self) -> Vec<String> {
+        vec!["aa".to_owned()]
+    }
+
+    fn search<'a>(
+        &'a self,
+        _query: &'a SearchQuery,
+    ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
+        let id = TitleId {
+            namespace: self.0.to_owned(),
+            value: "1".to_owned(),
+            ..Default::default()
+        };
+        let candidate = Candidate {
+            id: id.clone().into(),
+            ids: vec![id],
+            title: "Dark".to_owned(),
+            vote_count: 100,
+            ..Default::default()
+        };
+        let found = SearchResults {
+            candidates: vec![candidate],
+            ..Default::default()
+        };
+        Box::pin(async { Ok(found) })
+    }
+
+    fn movie<'a>(
+        &'a self,
+        asked: &'a TitleAsked,
+    ) -> BoxFuture<'a, Result<MovieAnswer, MetadataError>> {
+        let movie = Movie {
+            ids: asked.id.as_option().cloned().into_iter().collect(),
+            title: "Dark".to_owned(),
+            poster: self.1.map(str::to_owned),
+            ..Default::default()
+        };
+        let found = MovieAnswer {
+            movie: movie.into(),
+            ..Default::default()
+        };
+        Box::pin(async { Ok(found) })
+    }
+
+    fn artwork<'a>(
+        &'a self,
+        _asked: &'a ArtworkAsked,
+    ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
+        let artwork = (self.2.iter())
+            .map(|&(kind, path, language)| ListedArtwork {
+                kind: kind.into(),
+                path: path.to_owned(),
+                language: Some(language.to_owned()),
+                ..Default::default()
+            })
+            .collect();
+        let found = ArtworkAnswer {
+            artwork,
+            ..Default::default()
+        };
+        Box::pin(async { Ok(found) })
+    }
+
+    fn answers(&self, method: TitleMethod) -> bool {
+        self.1.is_some() || method == TitleMethod::Artwork
+    }
+}
+
+struct ListingPlugin(Listing);
+
+impl Plugin for ListingPlugin {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            version: "0.0.0".to_owned(),
+            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
+            ..Manifest::new(PluginId::from_static(self.0.0))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(self.0));
+        Ok(())
+    }
+}
+
+/// Each image, as its Plugin and path, that matching the Movie `Dark` in a Movies Library with
+/// the sources `[aa, bb]` stores.
+async fn images_matching_dark(aa: Listing, bb: Listing) -> Vec<(String, String)> {
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let library = fixture::movies_library(&db, media.path()).await;
+    Libraries::new(Arc::clone(&db))
+        .set_title_sources(library, vec!["aa".to_owned(), "bb".to_owned()])
+        .await
+        .unwrap();
+    let contents = Contents::new(Arc::clone(&db));
+    let file = Change::Store {
+        path: "/media/Dark.mkv".to_owned(),
+        size: 10,
+        modified_ns: 0,
+        items: vec![Item::Movie {
+            title: "Dark".to_owned(),
+            year: None,
+            hint: None,
+        }],
+    };
+    contents.apply(library, vec![file]).await.unwrap();
+    let plugins = Registry::new();
+    for source in [aa, bb] {
+        plugins.enable(Arc::new(ListingPlugin(source))).unwrap();
+    }
+    let images = ImageStore::new(data.path(), Arc::clone(&db));
+    let scanner = Scanner::new(
+        Arc::clone(&db),
+        plugins.extension_points(),
+        Artwork::new(images.clone(), plugins.extension_points()),
+        CustomImages::new(Arc::clone(&db), images),
+        EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
+        None,
+        None,
+        None,
+    );
+    let scan = scanner.lock(library).await;
+    scanner
+        .matcher()
+        .match_library(&scan, &CancellationToken::new())
+        .await
+        .unwrap();
+
+    let mut stored = contents.images(Some(library)).await.unwrap();
+    stored.sort();
+    stored
+}
+
+fn image(plugin: &str, path: &str) -> (String, String) {
+    (plugin.to_owned(), path.to_owned())
+}
+
+#[tokio::test]
+async fn a_logo_only_a_list_source_has_is_stored_with_its_plugin_beside_the_own_poster() {
+    let logo = &[(ArtworkKind::ARTWORK_KIND_LOGO, "/bb-logo.png", "en")];
+
+    let stored = images_matching_dark(
+        Listing("aa", Some("/aa-poster.jpg"), &[]),
+        Listing("bb", None, logo),
+    )
+    .await;
+
+    assert_eq!(
+        stored,
+        [image("aa", "/aa-poster.jpg"), image("bb", "/bb-logo.png")]
+    );
+}
+
+#[tokio::test]
+async fn an_en_poster_of_a_later_source_beats_another_language_of_the_first() {
+    let german = &[(ArtworkKind::ARTWORK_KIND_POSTER, "/aa-de.jpg", "de")];
+    let english = &[(ArtworkKind::ARTWORK_KIND_POSTER, "/bb-en.jpg", "en")];
+
+    let stored = images_matching_dark(
+        Listing("aa", Some("/aa-own.jpg"), german),
+        Listing("bb", None, english),
+    )
+    .await;
+
+    assert_eq!(stored, [image("bb", "/bb-en.jpg")]);
 }

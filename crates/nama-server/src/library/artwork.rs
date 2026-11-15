@@ -143,7 +143,6 @@ impl Artwork {
 
     /// The artwork picked from the lists every source in `sources` has for the title of `kind`
     /// with the ids `ids`, as [`pick`] picks it.
-    #[expect(dead_code, reason = "Matching stores what it picks in the next change")]
     pub(crate) async fn pick_for(
         &self,
         sources: &TitleSources,

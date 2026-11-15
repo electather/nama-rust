@@ -13,6 +13,9 @@
 //!   else is Unmatched. A Show's country tag, as in `The Office (UK)`, is left out of the search
 //!   and keeps only Shows from that country.
 //! - A Match keeps every id the sources asked gave for its title, the answering source's winning.
+//! - A Match stores the artwork Artwork picks from every ordered source's artwork list, each image
+//!   with the Plugin that listed it, and the answering source's own poster or backdrop where the
+//!   lists have none. An Episode takes its Season's own poster first.
 //! - An Episode Matches once its Show does and the Show's Season, fetched from the source that gave
 //!   the Show, lists it. Each Show is looked up once per pass, and each of its Seasons fetched
 //!   once. An Episode keeps its own ids and its Show's; Watch State keys Episodes by the Show's ids
@@ -59,7 +62,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     db::{Database, detached},
     events::{EventBus, event},
-    library::artwork::Artwork,
+    library::artwork::{Artwork, Picked},
     library::contents::{
         Contents, Decided, Decisions, ImageRef, Item, Metadata, Name, Named, Pin, UnmatchedReason,
     },
@@ -70,8 +73,9 @@ use crate::{
 };
 
 /// The version of what a Match stores from the metadata Provider, stored with each Match. See the
-/// crate's `AGENTS.md` for when to bump it.
-pub(crate) const METADATA_VERSION: i64 = 1;
+/// crate's `AGENTS.md` for when to bump it. Version 2 adds artwork picked across the Library's
+/// sources, Title Logos among it.
+pub(crate) const METADATA_VERSION: i64 = 2;
 
 /// What one pass of Matching decided.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -115,7 +119,7 @@ pub(crate) struct Matcher {
     /// Reads a Library's title source order.
     libraries: Libraries,
     metadata: TitleSources,
-    /// Downloads the images of the Matches set by hand.
+    /// Picks a Match's artwork, and downloads the images of the Matches set by hand.
     artwork: Artwork,
     events: EventBus,
     locks: ScanLocks,
@@ -229,7 +233,25 @@ impl ManualError {
 }
 
 impl Metadata {
-    fn episode(plugin: &PluginId, show: &Show, season: &Season, episode: &Episode) -> Self {
+    /// This title with the artwork `picked`, keeping its own poster or backdrop where none was.
+    fn with_picked(self, picked: &Picked) -> Self {
+        let picked = picked.clone();
+        Self {
+            poster: picked.poster.or(self.poster),
+            backdrop: picked.backdrop.or(self.backdrop),
+            logo: picked.logo.or(self.logo),
+            ..self
+        }
+    }
+
+    /// An Episode of `show`, with its Season's own poster, else the Show's `picked` artwork.
+    fn episode(
+        plugin: &PluginId,
+        (show, picked): (&Show, &Picked),
+        season: &Season,
+        episode: &Episode,
+    ) -> Self {
+        let poster = ImageRef::of(plugin, season.poster.as_ref());
         Self {
             plugin: plugin.clone(),
             ids: episode.ids.clone(),
@@ -240,9 +262,11 @@ impl Metadata {
             overview: episode.overview.clone(),
             release_date: episode.air_date.clone(),
             runtime_minutes: episode.runtime_minutes,
-            poster: ImageRef::of(plugin, season.poster.as_ref().or(show.poster.as_ref())),
-            backdrop: ImageRef::of(plugin, show.backdrop.as_ref()),
-            logo: None,
+            poster: (poster.or_else(|| picked.poster.clone()))
+                .or_else(|| ImageRef::of(plugin, show.poster.as_ref())),
+            backdrop: (picked.backdrop.clone())
+                .or_else(|| ImageRef::of(plugin, show.backdrop.as_ref())),
+            logo: picked.logo.clone(),
             still: episode.still.clone(),
         }
     }
@@ -278,6 +302,12 @@ impl Matcher {
         id: &ExternalId,
     ) -> Result<Summary, ManualError> {
         let (_scan, named) = self.lock_named_like(item).await?;
+        let ordered = match self.libraries.get(named.library).await {
+            Ok(found) => self.metadata.in_order(found.title_sources),
+            Err(libraries::Error::Database(err)) => return Err(err.into()),
+            // The only other failure of a read is the Library being gone since its items were read.
+            Err(_) => return Err(ManualError::NoSuchItem(item)),
+        };
         // No enabled source keeps or looks up the namespace, so none could have the title; with
         // no source at all, fetching answers Unavailable instead.
         if self.metadata.unserved(id, named.name.kind().method()).await {
@@ -288,6 +318,7 @@ impl Matcher {
                 let movie = sources::fetch_movie(&self.metadata, id, ExternalIds::default())
                     .await
                     .map_err(ManualError::looking_up(id))?;
+                let movie = self.picked_for(&ordered, movie).await;
                 named
                     .items
                     .iter()
@@ -303,7 +334,8 @@ impl Matcher {
                     .iter()
                     .filter_map(|(alike, what)| PendingEpisode::of(*alike, what))
                     .collect();
-                self.match_in_show(&show, &episodes).await
+                let picked = self.pick_show(&ordered, &show).await;
+                self.match_in_show(&show, &picked, &episodes).await
             }
         };
         if outcomes.any_undecided() {
@@ -354,7 +386,10 @@ impl Matcher {
                 summary.undecided += count(items.len());
                 continue;
             }
-            let outcome = sources::movie(&this.metadata, &key).await;
+            let outcome = match sources::movie(&this.metadata, &key).await {
+                Ok(movie) => Ok(self.picked_for(&this.metadata, movie).await),
+                Err(miss) => Err(miss),
+            };
             available = !matches!(outcome, Err(Miss::Undecided));
             let decided = items.into_iter().map(|item| (item, outcome.clone()));
             self.store(library, decided.collect(), &mut summary).await?;
@@ -372,7 +407,7 @@ impl Matcher {
             self.store(library, decided, &mut summary).await?;
         }
         if available {
-            available = self.refresh(library, cancel).await?;
+            available = self.refresh(library, &this.metadata, cancel).await?;
         }
         if summary != Summary::default() {
             tracing::info!(library, ?summary, "matched a Library");
@@ -403,8 +438,14 @@ impl Matcher {
 
     /// Fetches the titles of the Library `library`'s Matches stored at an older
     /// [`METADATA_VERSION`] again and stores what it gets, until `cancel` is cancelled. Returns
-    /// whether every Provider asked could answer.
-    async fn refresh(&self, library: i64, cancel: &CancellationToken) -> Result<bool, Error> {
+    /// whether every Provider asked could answer. Each title's artwork is picked again from
+    /// `ordered`, the Library's sources in its order, while the title comes only from its Plugin.
+    async fn refresh(
+        &self,
+        library: i64,
+        ordered: &TitleSources,
+        cancel: &CancellationToken,
+    ) -> Result<bool, Error> {
         let Outdated { movies, shows } = self.outdated(library).await?;
         // Once a Plugin fails (or is disabled or gone), asking it about its other titles would
         // only fail too, but another Plugin's Matches can still be fetched.
@@ -417,7 +458,7 @@ impl Matcher {
                 continue;
             }
             let movie = match self.only(plugin.clone()).metadata.movie(&id).await {
-                Ok(movie) => movie,
+                Ok(movie) => self.picked_for(ordered, movie).await,
                 Err(title_source::Unanswered::NotFound) => continue,
                 Err(title_source::Unanswered::Unavailable) => {
                     unavailable.insert(plugin);
@@ -444,7 +485,8 @@ impl Matcher {
                     continue;
                 }
             };
-            let found = only.match_in_show(&show, &episodes).await;
+            let picked = self.pick_show(ordered, &show).await;
+            let found = only.match_in_show(&show, &picked, &episodes).await;
             if found.any_undecided() {
                 unavailable.insert(plugin);
             }
@@ -471,6 +513,21 @@ impl Matcher {
             metadata: self.metadata.in_order(order),
             ..self.clone()
         }
+    }
+
+    /// `movie` with the artwork picked for it from `ordered`'s sources.
+    async fn picked_for(&self, ordered: &TitleSources, movie: Metadata) -> Metadata {
+        let picked = (self.artwork)
+            .pick_for(ordered, TitleKind::Movie, &movie.ids)
+            .await;
+        movie.with_picked(&picked)
+    }
+
+    /// The artwork picked for the Show `found` from `ordered`'s sources.
+    async fn pick_show(&self, ordered: &TitleSources, found: &FoundShow) -> Picked {
+        (self.artwork)
+            .pick_for(ordered, TitleKind::Show, &found.show.ids)
+            .await
     }
 
     /// This Matcher, asking only the Plugin `plugin`'s metadata Provider.
@@ -514,7 +571,10 @@ impl Matcher {
 
     async fn match_episodes(&self, key: &TitleKey, episodes: &[PendingEpisode]) -> Outcomes {
         match sources::show(&self.metadata, key).await {
-            Ok(show) => self.match_in_show(&show, episodes).await,
+            Ok(show) => {
+                let picked = self.pick_show(&self.metadata, &show).await;
+                self.match_in_show(&show, &picked, episodes).await
+            }
             Err(miss) => episodes
                 .iter()
                 .map(|e| (e.item, Err(miss.clone())))
@@ -522,7 +582,13 @@ impl Matcher {
         }
     }
 
-    async fn match_in_show(&self, found: &FoundShow, episodes: &[PendingEpisode]) -> Outcomes {
+    /// Matches `episodes` in the Show `found`, whose artwork is `picked`.
+    async fn match_in_show(
+        &self,
+        found: &FoundShow,
+        picked: &Picked,
+        episodes: &[PendingEpisode],
+    ) -> Outcomes {
         let FoundShow { source, id, show } = found;
         let mut by_season: BTreeMap<i64, Vec<&PendingEpisode>> = BTreeMap::new();
         for pending in episodes {
@@ -532,6 +598,9 @@ impl Matcher {
             items: Vec::with_capacity(episodes.len()),
             seasons: Vec::new(),
         };
+        let in_show = |season: &Season, episode: &Episode| {
+            Metadata::episode(&source.plugin, (show, picked), season, episode)
+        };
         for (number, in_season) in by_season {
             let season = sources::season(&self.metadata, found, number).await;
             outcomes.items.extend(in_season.into_iter().map(|pending| {
@@ -540,7 +609,7 @@ impl Matcher {
                         .episodes
                         .iter()
                         .find(|e| i64::from(e.number) == pending.episode)
-                        .map(|episode| Metadata::episode(&source.plugin, show, season, episode))
+                        .map(|episode| in_show(season, episode))
                         .ok_or(Miss::Unmatched(None)),
                     Err(miss) => Err(miss.clone()),
                 };
