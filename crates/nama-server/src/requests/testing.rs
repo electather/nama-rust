@@ -154,6 +154,30 @@ impl Fulfiller<Shows> for Asked {
     }
 }
 
+/// A Fulfiller of Movies that takes every Request as [`Asked`] does, but never says how one is
+/// progressing, notifying `.0` once it is asked.
+#[derive(Default)]
+pub(super) struct NeverAnswers(pub(super) tokio::sync::Notify);
+
+impl Fulfiller<Movies> for NeverAnswers {
+    fn fulfill<'a>(
+        &'a self,
+        request: &'a contract::Request,
+    ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
+        let ids = &told_movie(request).ids;
+        let tmdb = ids.iter().find(|id| id.namespace == "tmdb");
+        took(tmdb.expect("a TMDB id").value.clone())
+    }
+
+    fn progress<'a>(
+        &'a self,
+        _references: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, Vec<Download>>, PluginError>> {
+        self.0.notify_one();
+        Box::pin(std::future::pending())
+    }
+}
+
 /// A Fulfiller's answer that it took a Request, with `reference`.
 pub(super) fn took(reference: String) -> BoxFuture<'static, Result<Fulfilled, PluginError>> {
     Box::pin(async {

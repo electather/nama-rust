@@ -1,15 +1,18 @@
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use futures_util::StreamExt;
-use nama_plugin_api::fulfiller::{Fulfiller, Shows};
+use nama_plugin_api::{
+    PluginId,
+    fulfiller::{Fulfiller, Shows},
+};
 use nama_proto::nama::v1::{Request, RequestState, event::Event as Happened};
 
 use crate::requests::Requests;
 use crate::requests::asking::{WantedSeasons, ask_seasons};
 use crate::requests::testing::{
-    ADA, Asked, FulfillerPlugin, ada, ada_and_bob, approved_for, ask_as, come_up, dark,
-    dark_season, downloading, insert_in_each_state, match_dark_episodes, match_in_a_library,
-    next_happened, scan_dark,
+    ADA, Asked, FulfillerPlugin, NeverAnswers, ada, ada_and_bob, approved_for, approved_on, ask_as,
+    come_up, dark, dark_season, downloading, insert_in_each_state, match_dark_episodes,
+    match_in_a_library, next_happened, scan_dark,
 };
 use crate::{
     db::Database,
@@ -211,4 +214,27 @@ async fn a_handed_off_season_gets_progress_while_partially_available_but_not_onc
     assert_eq!(published_once_available.ok(), None);
     assert_eq!(available.state, RequestState::Available);
     assert_eq!(available.downloads, []);
+}
+
+#[tokio::test]
+async fn disabling_the_fulfiller_ends_a_poll_waiting_on_it_at_once() {
+    let plugins = Registry::new();
+    let never = Arc::new(NeverAnswers::default());
+    let fulfiller = Arc::clone(&never);
+    let (_data, requests) = approved_on(&plugins, &[949], fulfiller).await;
+    come_up(&requests, "gated").await;
+    let polling = requests.clone();
+    let poll = tokio::spawn(async move {
+        polling
+            .progress
+            .poll(Duration::from_secs(3600))
+            .await
+            .unwrap()
+    });
+    never.0.notified().await;
+
+    plugins.disable(&PluginId::from_static("gated")).await;
+    let polled = tokio::time::timeout(Duration::from_secs(5), poll).await;
+
+    assert!(polled.expect("the poll waited on").unwrap());
 }

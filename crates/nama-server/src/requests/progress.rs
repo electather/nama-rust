@@ -8,10 +8,13 @@ use std::{
     time::Duration,
 };
 
-use nama_plugin_api::fulfiller::{Fulfiller, Movies, Shows};
+use nama_plugin_api::fulfiller::{Download as Downloading, Fulfiller, Movies, Shows};
 use nama_proto::nama::v1::{Download, Request, RequestProgress, RequestState};
 use sqlx::SqliteConnection;
-use tokio::{sync::Notify, time::error::Elapsed};
+use tokio::{
+    sync::{Notify, oneshot},
+    time::error::Elapsed,
+};
 use tracing::{error, warn};
 
 use super::listing::load;
@@ -19,7 +22,7 @@ use super::lock;
 use crate::{
     db::Database,
     events::{EventBus, event},
-    plugins::{self, ExtensionPoints},
+    plugins::{self, ExtensionPoints, Failure},
 };
 
 /// Hands `$query!` the SQL for whether a Request's Fulfiller has it and it isn't Available yet,
@@ -146,18 +149,7 @@ impl Progress {
             .iter()
             .map(|request| request.reference.clone())
             .collect();
-        let references = references.as_slice();
-        let answered = self
-            .plugins
-            .ask_first(|fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
-                // Bounded, so a Fulfiller that never answers can't stop every later poll.
-                let asked = tokio::time::timeout(every, fulfiller.progress(references));
-                asked
-                    .await
-                    .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
-            })
-            .await;
-        let by_reference = match answered.map(|answer| answer.result) {
+        let by_reference = match self.ask_in_scope::<Kind>(references, every).await {
             Some(Ok(by_reference)) => by_reference,
             Some(Err(failure)) => {
                 warn!(
@@ -178,6 +170,46 @@ impl Progress {
                 )
             })
             .collect()
+    }
+
+    /// What `Kind`'s first ranked Fulfiller answers about `references`, asked in its scope so
+    /// disabling it ends the call at once (ADR 0047). `None` if there is none, or it was disabled
+    /// before it answered.
+    async fn ask_in_scope<Kind: 'static>(
+        &self,
+        references: Vec<String>,
+        every: Duration,
+    ) -> Option<Result<HashMap<String, Vec<Downloading>>, Failure>> {
+        // Only the first, unlike `ask_first`: one that panics is disabled, so the next round asks
+        // the next one.
+        let plugin = self
+            .plugins
+            .ranked::<dyn Fulfiller<Kind>>()
+            .into_iter()
+            .next()?;
+        let points = self.plugins.clone();
+        let (answer, answered) = oneshot::channel();
+        let asking = plugin.clone();
+        let spawned = self.plugins.spawn_in(&plugin, async move {
+            let references = references.as_slice();
+            let asked = points
+                .ask(&asking, |fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
+                    // Bounded, so a Fulfiller that never answers can't stop every later poll.
+                    let asked = tokio::time::timeout(every, fulfiller.progress(references));
+                    asked
+                        .await
+                        .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
+                })
+                .await;
+            // `poll` may have stopped waiting, and then nobody wants the answer.
+            let _: Result<(), _> = answer.send(asked.map(|asked| asked.result));
+        });
+        // A cancelled scope drops the sender, so this ends with no answer.
+        if spawned {
+            answered.await.ok().flatten()
+        } else {
+            None
+        }
     }
 
     /// Those of `polled`, what each Request its Fulfiller has is downloading now, that differ from

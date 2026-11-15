@@ -8,6 +8,7 @@ Requests and Followed Shows: Users asking for what isn't on the Server (ADR 0012
 - **One owner for title ids.** Only the Requests area reads or writes `request_title_ids` and `followed_show_ids`, tests included; `OWNED_TABLES` enforces it. A Request's and a Followed Show's Show ids come only from these tables or the title source.
 - **Private modules.** The area's files are private modules; neighbours import only what `requests.rs` re-exports, and `qualities` is the one module they address by name (`requests::qualities`). Items inside default to `pub(super)`.
 - **Shared SQL is a literal.** SQL that several queries share is a string literal a macro hands to each query (`state.rs`, `progress.rs`, `asked.rs`), since sqlx reads a query from literals alone. One saying whether a Request or Followed Show is open must match its index. `hand_off.rs` holds no SQL.
+- **Polling a Fulfiller runs in its scope.** `progress.rs` asks it inside `ExtensionPoints::spawn_in`, so disabling it ends the call at once (ADR 0047).
 - **Unit tests.** Each file's unit tests sit in its `*_tests.rs` beside it and share `testing.rs`.
 
 ### Neighbours
