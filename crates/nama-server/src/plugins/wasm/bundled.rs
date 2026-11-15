@@ -1,11 +1,6 @@
 //! The Installed Plugins the Server bundles.
+//!
+//! `BUNDLED` holds each one's `.wasm` by the name it is listed under if refused. `build.rs` builds
+//! them and writes it, from the folders under `plugins/` by the rule in `plugins/AGENTS.md`.
 
-/// The Installed Plugins bundled in the Server, each by the name it is listed under if refused.
-/// `build.rs` builds them.
-pub(super) const BUNDLED: &[(&str, &[u8])] = &[
-    ("fanart.wasm", include_bytes!(env!("FANART_WASM"))),
-    ("radarr.wasm", include_bytes!(env!("RADARR_WASM"))),
-    ("sonarr.wasm", include_bytes!(env!("SONARR_WASM"))),
-    ("telegram.wasm", include_bytes!(env!("TELEGRAM_WASM"))),
-    ("tvdb.wasm", include_bytes!(env!("TVDB_WASM"))),
-];
+include!(concat!(env!("OUT_DIR"), "/bundled.rs"));

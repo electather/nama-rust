@@ -8,7 +8,7 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, fs, sync::Arc};
 
 use buffa::Message;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
@@ -266,31 +266,32 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
         .collect();
     let built_in = Some(PluginKind::PLUGIN_KIND_BUILT_IN);
     let installed = Some(PluginKind::PLUGIN_KIND_INSTALLED);
-    assert_eq!(
-        kinds,
-        [
-            ("fanart", installed),
-            ("local-auth", built_in),
-            ("log-events", built_in),
-            ("radarr", installed),
-            ("sonarr", installed),
-            ("telegram", installed),
-            (test_choices::ID, built_in),
-            ("tmdb", built_in),
-            ("tvdb", installed)
-        ]
-    );
+    let bundled = bundled_plugin_folders();
+    let built_ins = ["local-auth", "log-events", test_choices::ID, "tmdb"].map(|id| (id, built_in));
+    let bundled_kinds = bundled.iter().map(|id| (id.as_str(), installed));
+    let mut expected: Vec<_> = built_ins.into_iter().chain(bundled_kinds).collect();
+    expected.sort_unstable_by_key(|(id, _)| *id);
+    assert_eq!(kinds, expected);
     for plugin in &listed.summaries {
         assert!(!plugin.version.is_empty(), "{plugin:?}");
     }
     assert!(plugin(&listed, "local-auth").enabled);
     // TMDB can't run without an API key, and an Installed Plugin starts disabled.
     assert!(!plugin(&listed, "tmdb").enabled);
-    assert!(!plugin(&listed, "radarr").enabled);
-    assert!(!plugin(&listed, "sonarr").enabled);
-    assert!(!plugin(&listed, "telegram").enabled);
-    assert!(!plugin(&listed, "tvdb").enabled);
-    assert!(!plugin(&listed, "fanart").enabled);
+    for id in &bundled {
+        assert!(!plugin(&listed, id).enabled, "{id}");
+    }
+}
+
+/// The folders under `plugins/` the Server bundles, by the rule in `plugins/AGENTS.md`.
+fn bundled_plugin_folders() -> Vec<String> {
+    let plugins = fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../../plugins")).unwrap();
+    let toml = |folder: &fs::DirEntry| fs::read_to_string(folder.path().join("Cargo.toml"));
+    let rule = |toml: String| {
+        toml.contains(r#"crate-type = ["cdylib"]"#) && !toml.contains("\nbundled = false")
+    };
+    let folders = plugins.flatten().filter(|dir| toml(dir).is_ok_and(rule));
+    Vec::from_iter(folders.map(|folder| folder.file_name().into_string().unwrap()))
 }
 
 // `plugins/AGENTS.md`: every Plugin ships a logo.

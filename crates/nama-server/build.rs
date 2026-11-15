@@ -1,8 +1,8 @@
 //! Build script for the Server.
 //!
-//! It builds the Installed Plugins the Server bundles (ADR 0003) for wasm32, and sets
-//! `<NAME>_WASM`, such as `RADARR_WASM`, to each one's `.wasm` for
-//! `src/plugins/wasm/bundled.rs` to embed.
+//! It builds the Installed Plugins the Server bundles (ADR 0003) for wasm32, and writes
+//! `bundled.rs` to `OUT_DIR` for `src/plugins/wasm/bundled.rs`: `BUNDLED`, each one's `.wasm` by
+//! its folder's name. Which folders those are is the rule in `plugins/AGENTS.md`.
 //!
 //! With the `web` feature, it also embeds the built web app so a release is one binary (ADR 0004).
 //! It writes `web_assets.rs` to `OUT_DIR` for `src/web.rs`: `SHELL`, the prerendered
@@ -17,10 +17,6 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
-
-/// The Installed Plugins the Server bundles, by their folder in `plugins/`. Each is the package
-/// `nama-plugin-<name>`.
-const BUNDLED: &[&str] = &["fanart", "radarr", "sonarr", "telegram", "tvdb"];
 
 fn main() -> Result<(), Box<dyn Error>> {
     // `sqlx::migrate!` embeds migrations/ at compile time; rebuild when it changes.
@@ -67,18 +63,42 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Builds the [`BUNDLED`] Plugins for wasm32 and sets `<NAME>_WASM` to each one's `.wasm`.
+/// The folders under `plugins/` the Server bundles, sorted, by the rule in `plugins/AGENTS.md`.
+fn bundled(plugins: &Path) -> Result<Vec<String>, Box<dyn Error>> {
+    let mut names = Vec::new();
+    for entry in fs::read_dir(plugins)? {
+        let path = entry?.path();
+        let Ok(manifest) = fs::read_to_string(path.join("Cargo.toml")) else {
+            continue;
+        };
+        // ponytail: a line scan, not a TOML parser; it misses these keys written any other way
+        // (spacing, inline tables). Parse with a toml crate if a manifest needs that.
+        let lines: Vec<_> = manifest.lines().map(str::trim).collect();
+        if lines.contains(&r#"crate-type = ["cdylib"]"#) && !lines.contains(&"bundled = false") {
+            let name = path.file_name().and_then(|name| name.to_str());
+            names.push(
+                name.ok_or_else(|| format!("{} isn't valid UTF-8", path.display()))?
+                    .to_owned(),
+            );
+        }
+    }
+    names.sort_unstable();
+    Ok(names)
+}
+
+/// Builds the [`bundled`] Plugins for wasm32 and writes `bundled.rs` to `OUT_DIR`, embedding each
+/// one's `.wasm`.
 fn build_bundled() -> Result<(), Box<dyn Error>> {
     let workspace = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("../..");
-    let sources = [
+    let names = bundled(&workspace.join("plugins"))?;
+    // `plugins` covers every Plugin's folder, the shared libraries among them, and a folder added.
+    for source in [
         "crates/nama-pdk",
         "crates/nama-plugin-proto",
-        "plugins/servarr",
+        "plugins",
         "Cargo.toml",
         "Cargo.lock",
-    ];
-    let plugins = BUNDLED.iter().map(|name| format!("plugins/{name}"));
-    for source in plugins.chain(sources.map(str::to_owned)) {
+    ] {
         println!(
             "cargo:rerun-if-changed={}",
             workspace.join(source).display()
@@ -87,10 +107,11 @@ fn build_bundled() -> Result<(), Box<dyn Error>> {
     // A target directory of its own: this build holds the lock on the Server's.
     // ponytail: one per OUT_DIR, so each profile and feature set builds them again; share one if
     // that gets slow.
-    let target_dir = PathBuf::from(env::var("OUT_DIR")?).join("plugins");
+    let out_dir = PathBuf::from(env::var("OUT_DIR")?);
+    let target_dir = out_dir.join("plugins");
     let mut cargo = Command::new(env::var("CARGO")?);
     cargo.args(["build", "--release", "--locked"]);
-    for name in BUNDLED {
+    for name in &names {
         cargo.args(["--package", &format!("nama-plugin-{name}")]);
     }
     let status = cargo
@@ -111,16 +132,21 @@ fn build_bundled() -> Result<(), Box<dyn Error>> {
                 .into(),
         );
     }
-    for name in BUNDLED {
+    let mut code = String::from("pub(super) const BUNDLED: &[(&str, &[u8])] = &[\n");
+    for name in &names {
         let wasm = target_dir.join(format!(
-            "wasm32-unknown-unknown/release/nama_plugin_{name}.wasm"
+            "wasm32-unknown-unknown/release/nama_plugin_{}.wasm",
+            name.replace('-', "_")
         ));
-        println!(
-            "cargo:rustc-env={}_WASM={}",
-            name.to_uppercase(),
+        writeln!(
+            code,
+            "    ({:?}, include_bytes!({:?})),",
+            format!("{name}.wasm"),
             utf8(&wasm)?
-        );
+        )?;
     }
+    code.push_str("];\n");
+    fs::write(out_dir.join("bundled.rs"), code)?;
     Ok(())
 }
 
