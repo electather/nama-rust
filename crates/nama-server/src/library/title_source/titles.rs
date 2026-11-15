@@ -42,7 +42,7 @@ pub(crate) struct Candidate {
     pub(crate) original_title: Option<String>,
     /// The year a Movie was released or a Show first aired.
     pub(crate) year: Option<i32>,
-    /// The poster's path, to pass to [`TitleSource::image`](super::TitleSource::image).
+    /// The poster's path, to pass to the title source's `image`.
     pub(crate) poster: Option<String>,
     /// The ISO 3166-1 alpha-2 codes of the countries a Show comes from. Empty where unknown, as
     /// for Movies.
@@ -66,9 +66,9 @@ pub(crate) struct Movie {
     pub(crate) release_date: Option<String>,
     /// How long it runs, in minutes.
     pub(crate) runtime_minutes: Option<u32>,
-    /// The poster, as a path for [`TitleSource::image`](super::TitleSource::image).
+    /// The poster, as a path for the title source's `image`.
     pub(crate) poster: Option<String>,
-    /// The backdrop, as a path for [`TitleSource::image`](super::TitleSource::image).
+    /// The backdrop, as a path for the title source's `image`.
     pub(crate) backdrop: Option<String>,
 }
 
@@ -85,9 +85,9 @@ pub(crate) struct Show {
     pub(crate) overview: Option<String>,
     /// When it first aired, as `YYYY-MM-DD`.
     pub(crate) first_air_date: Option<String>,
-    /// The poster, as a path for [`TitleSource::image`](super::TitleSource::image).
+    /// The poster, as a path for the title source's `image`.
     pub(crate) poster: Option<String>,
-    /// The backdrop, as a path for [`TitleSource::image`](super::TitleSource::image).
+    /// The backdrop, as a path for the title source's `image`.
     pub(crate) backdrop: Option<String>,
     /// The numbers of its Seasons, in order. Season 0 holds specials.
     pub(crate) seasons: Vec<u32>,
@@ -106,7 +106,7 @@ pub(crate) struct Season {
     pub(crate) overview: Option<String>,
     /// When it first aired, as `YYYY-MM-DD`.
     pub(crate) air_date: Option<String>,
-    /// The poster, as a path for [`TitleSource::image`](super::TitleSource::image).
+    /// The poster, as a path for the title source's `image`.
     pub(crate) poster: Option<String>,
     /// Its Episodes, in order.
     pub(crate) episodes: Vec<Episode>,
@@ -129,7 +129,7 @@ pub(crate) struct Episode {
     pub(crate) air_date: Option<String>,
     /// How long it runs, in minutes.
     pub(crate) runtime_minutes: Option<u32>,
-    /// A still from it, as a path for [`TitleSource::image`](super::TitleSource::image).
+    /// A still from it, as a path for the title source's `image`.
     pub(crate) still: Option<String>,
 }
 

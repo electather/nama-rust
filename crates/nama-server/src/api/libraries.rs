@@ -20,7 +20,7 @@ use crate::{
     library::contents::{Contents, Episode, NewestBackdrop},
     library::custom_images::{Role, Slot},
     library::libraries::{self, FolderProblem, Kind, Libraries, Library},
-    library::title_source::MetadataSource,
+    library::title_source::TitleSources,
     plugins::ExtensionPoints,
     scanner::{self, Deleted, Scanner},
 };
@@ -44,7 +44,7 @@ pub(super) struct LibraryServiceHandler {
     pub(super) contents: Contents,
     pub(super) images: ImageSources,
     /// Lists the title sources a Library may name.
-    pub(super) title_sources: MetadataSource,
+    pub(super) title_sources: TitleSources,
     /// Names the Plugins serving them.
     pub(super) plugins: ExtensionPoints,
 }

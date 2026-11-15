@@ -11,7 +11,7 @@ use nama_plugin_api::{
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 
-use super::{Error, MetadataSource, Source};
+use super::{Source, TitleSources, Unanswered};
 use crate::plugins::{Failure, Registry};
 
 /// A title source that answers every question with the error `.0` makes, or with the title unset
@@ -77,9 +77,6 @@ struct FailingPlugin(fn() -> Option<MetadataError>);
 impl Plugin for FailingPlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
-            id: PluginId::from_static("failing"),
-            name: String::new(),
-            description: String::new(),
             version: "0.0.0".to_owned(),
             settings: SettingsSchema {
                 fields: vec![SettingField {
@@ -92,7 +89,7 @@ impl Plugin for FailingPlugin {
                 }],
             },
             extension_points: vec![PointKey::provide::<dyn TitleSource>()],
-            logo_svg: None,
+            ..Manifest::new(PluginId::from_static("failing"))
         }
     }
 
@@ -104,12 +101,12 @@ impl Plugin for FailingPlugin {
 
 /// What asking for a Show, then for an image from the Plugin `failing`, fails with when its
 /// Provider fails with `failure`, or when there is no Provider.
-async fn asking(failure: Option<fn() -> Option<MetadataError>>) -> (Error, Error) {
+async fn asking(failure: Option<fn() -> Option<MetadataError>>) -> (Unanswered, Unanswered) {
     let plugins = Registry::new();
     if let Some(failure) = failure {
         plugins.enable(Arc::new(FailingPlugin(failure))).unwrap();
     }
-    let source = MetadataSource::new(plugins.extension_points());
+    let source = TitleSources::new(plugins.extension_points());
     let show = source.show_by(&ExternalId::tmdb(1399)).await.unwrap_err();
     let image = source
         .image(&PluginId::from_static("failing"), "/poster.jpg")
@@ -120,7 +117,10 @@ async fn asking(failure: Option<fn() -> Option<MetadataError>>) -> (Error, Error
 
 #[tokio::test]
 async fn without_a_provider_the_source_is_unavailable() {
-    assert_eq!(asking(None).await, (Error::Unavailable, Error::Unavailable));
+    assert_eq!(
+        asking(None).await,
+        (Unanswered::Unavailable, Unanswered::Unavailable)
+    );
 }
 
 #[tokio::test]
@@ -129,7 +129,7 @@ async fn a_title_the_provider_does_not_have_is_not_found() {
 
     assert_eq!(
         asking(Some(failure)).await,
-        (Error::NotFound, Error::NotFound)
+        (Unanswered::NotFound, Unanswered::NotFound)
     );
 }
 
@@ -139,7 +139,7 @@ async fn a_method_the_source_does_not_serve_is_not_found() {
 
     assert_eq!(
         asking(Some(failure)).await,
-        (Error::NotFound, Error::NotFound)
+        (Unanswered::NotFound, Unanswered::NotFound)
     );
 }
 
@@ -149,7 +149,7 @@ async fn a_provider_that_fails_is_unavailable() {
 
     assert_eq!(
         asking(Some(failure)).await,
-        (Error::Unavailable, Error::Unavailable)
+        (Unanswered::Unavailable, Unanswered::Unavailable)
     );
 }
 
@@ -175,7 +175,7 @@ async fn a_providers_failure_comes_without_its_plugins_secret_settings() {
         .unwrap();
 
     let blanked = Failure {
-        kind: Error::Unavailable,
+        kind: Unanswered::Unavailable,
         message: "GET /tv/1399?api_key=… failed".to_owned(),
     };
     assert_eq!(answer.result.unwrap_err(), blanked);
@@ -347,13 +347,9 @@ struct FakePlugin(
 impl Plugin for FakePlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
-            id: PluginId::from_static(self.0),
-            name: String::new(),
-            description: String::new(),
             version: "0.0.0".to_owned(),
-            settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn TitleSource>()],
-            logo_svg: None,
+            ..Manifest::new(PluginId::from_static(self.0))
         }
     }
 
@@ -371,7 +367,7 @@ impl Plugin for FakePlugin {
 
 /// Title sources under `aa` and `bb`, `aa` first in provider order and also looking titles up
 /// by `bb` ids, answering as given.
-fn two(aa: Answers, bb: Answers) -> (MetadataSource, Asked) {
+fn two(aa: Answers, bb: Answers) -> (TitleSources, Asked) {
     let plugins = Registry::new();
     let asked = Asked::default();
     let fake = |namespace, priority, answers, looks_up| {
@@ -384,7 +380,7 @@ fn two(aa: Answers, bb: Answers) -> (MetadataSource, Asked) {
     plugins
         .enable(fake("bb", Priority::DEFAULT, bb, &[]))
         .unwrap();
-    (MetadataSource::new(plugins.extension_points()), asked)
+    (TitleSources::new(plugins.extension_points()), asked)
 }
 
 fn asked(asked: &Asked) -> Vec<&'static str> {
@@ -442,7 +438,7 @@ async fn a_source_serves_the_namespaces_it_looks_up_by_but_not_malformed_ones() 
         looks_up,
     );
     plugins.enable(Arc::new(fake)).unwrap();
-    let metadata = MetadataSource::new(plugins.extension_points());
+    let metadata = TitleSources::new(plugins.extension_points());
 
     assert_eq!(metadata.sources().await[0].looks_up, ["imdb"]);
     assert!(metadata.serves("imdb").await);
@@ -456,7 +452,7 @@ async fn a_source_whose_namespace_is_not_well_formed_is_left_out() {
     let malformed = FakePlugin("bad-ns", Priority::DEFAULT, Answers::Has, asked, &[]);
     plugins.enable(Arc::new(malformed)).unwrap();
 
-    let metadata = MetadataSource::new(plugins.extension_points());
+    let metadata = TitleSources::new(plugins.extension_points());
     assert_eq!(metadata.sources().await, []);
 }
 
@@ -493,7 +489,7 @@ async fn a_failing_source_stops_the_search() {
 
     assert_eq!(
         metadata.search_in_turn(&query()).await.unwrap_err(),
-        Error::Unavailable
+        Unanswered::Unavailable
     );
     assert_eq!(asked(&sources_asked), ["aa"]);
 }
@@ -504,12 +500,12 @@ async fn a_search_no_source_answers_is_not_found_and_one_with_no_source_unavaila
 
     assert_eq!(
         metadata.search_in_turn(&query()).await.unwrap_err(),
-        Error::NotFound
+        Unanswered::NotFound
     );
     let none = metadata.in_order(order(&["cc"]));
     assert_eq!(
         none.search_in_turn(&query()).await.unwrap_err(),
-        Error::Unavailable
+        Unanswered::Unavailable
     );
 }
 
@@ -547,7 +543,7 @@ async fn a_source_answering_unsupported_id_passes_to_the_next() {
     let season = metadata.season_from(&source("bb"), &id, 1).await;
 
     assert_eq!((show_from, movie_from), (source("aa"), source("aa")));
-    assert_eq!(season.unwrap_err(), Error::NotFound);
+    assert_eq!(season.unwrap_err(), Unanswered::NotFound);
     assert_eq!(asked(&sources_asked), ["bb", "aa", "bb", "aa", "bb"]);
 }
 
@@ -572,10 +568,13 @@ async fn a_source_neither_keeping_nor_looking_up_an_id_is_never_asked() {
     let aa = ExternalId::new("aa", "1").unwrap();
     let cc = ExternalId::new("cc", "1").unwrap();
 
-    assert_eq!(metadata.show_by(&aa).await.unwrap_err(), Error::NotFound);
+    assert_eq!(
+        metadata.show_by(&aa).await.unwrap_err(),
+        Unanswered::NotFound
+    );
     assert_eq!(
         metadata.movie_by(&cc).await.unwrap_err(),
-        Error::Unavailable
+        Unanswered::Unavailable
     );
     assert_eq!(asked(&sources_asked), ["aa"]);
 }
@@ -585,7 +584,10 @@ async fn a_title_by_id_stops_at_a_failing_source() {
     let (metadata, sources_asked) = two(Answers::Has, Answers::Fails);
     let id = ExternalId::new("bb", "1").unwrap();
 
-    assert_eq!(metadata.show_by(&id).await.unwrap_err(), Error::Unavailable);
+    assert_eq!(
+        metadata.show_by(&id).await.unwrap_err(),
+        Unanswered::Unavailable
+    );
     assert_eq!(asked(&sources_asked), ["bb"]);
 }
 
@@ -600,7 +602,10 @@ async fn a_source_not_in_the_order_is_never_asked() {
         .await
         .unwrap_err();
 
-    assert_eq!((search, show), (Error::NotFound, Error::Unavailable));
+    assert_eq!(
+        (search, show),
+        (Unanswered::NotFound, Unanswered::Unavailable)
+    );
     assert_eq!(asked(&sources_asked), ["bb"]);
 }
 

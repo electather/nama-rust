@@ -18,7 +18,7 @@ use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 use crate::{
     db::Database, events::EventBus, library::contents::Contents,
-    library::title_source::MetadataSource, plugins::ExtensionPoints,
+    library::title_source::TitleSources, plugins::ExtensionPoints,
 };
 
 mod apply;
@@ -86,7 +86,7 @@ pub(crate) struct Requests {
     db: Arc<Database>,
     contents: Contents,
     /// Looks up what a new Request asks for: a Movie, or a Show's Seasons.
-    metadata: MetadataSource,
+    metadata: TitleSources,
     /// What [`Self::apply`] publishes the changes its writes make on.
     events: EventBus,
     /// Where the Fulfillers are.
@@ -108,7 +108,7 @@ impl Requests {
         let progress = Progress::new(Arc::clone(&db), events.clone(), plugins.clone());
         Self {
             contents: Contents::new(Arc::clone(&db)),
-            metadata: MetadataSource::new(plugins.clone()),
+            metadata: TitleSources::new(plugins.clone()),
             hand_off: HandOff::new(
                 Arc::clone(&db),
                 plugins.clone(),

@@ -28,7 +28,7 @@ use crate::{
     library::contents::Contents,
     library::custom_images::{self, CustomImages},
     library::libraries::Libraries,
-    library::title_source::{MetadataSource, TitleKind},
+    library::title_source::{TitleKind, TitleSources},
     playback::running::RunningPlans,
     plugin_settings::PluginSettings,
     probing::Probing,
@@ -129,7 +129,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: scanner.matcher().clone(),
-            metadata: MetadataSource::new(plugins.clone()),
+            metadata: TitleSources::new(plugins.clone()),
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
         }))
@@ -163,7 +163,7 @@ pub(crate) fn router(
             browse,
             contents: Contents::new(db),
             images,
-            title_sources: MetadataSource::new(plugins.clone()),
+            title_sources: TitleSources::new(plugins.clone()),
             plugins,
         }))
         .add_service(Arc::new(EventServiceHandler {

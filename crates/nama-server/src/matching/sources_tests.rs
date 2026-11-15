@@ -7,7 +7,6 @@ use nama_plugin_api::{
         SeasonAsked, Show, ShowAnswer, TitleAsked, TitleId,
     },
     metadata::{ExternalId, ExternalIds, MetadataError, TitleSource},
-    settings::SettingsSchema,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -20,7 +19,7 @@ use crate::{
     library::contents::{Change, Contents, Item, Pin, UnmatchedReason, fixture},
     library::custom_images::CustomImages,
     library::libraries::Libraries,
-    library::title_source::MetadataSource,
+    library::title_source::TitleSources,
     matching::{Miss, Summary, TitleKey},
     plugins::{ExtensionPoints, Registry},
     scanner::Scanner,
@@ -173,13 +172,9 @@ struct FakePlugin(
 impl Plugin for FakePlugin {
     fn manifest(&self) -> Manifest {
         Manifest {
-            id: PluginId::from_static(self.0),
-            name: String::new(),
-            description: String::new(),
             version: "0.0.0".to_owned(),
-            settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn TitleSource>()],
-            logo_svg: None,
+            ..Manifest::new(PluginId::from_static(self.0))
         }
     }
 
@@ -226,9 +221,9 @@ fn bb_aa() -> Vec<String> {
 }
 
 /// Title sources under `aa` and `bb`, asked in the order `[bb, aa]`, answering as given.
-fn bb_then_aa(aa: Answering, bb: Answering) -> (MetadataSource, Asked) {
+fn bb_then_aa(aa: Answering, bb: Answering) -> (TitleSources, Asked) {
     let (plugins, asked) = aa_and_bb(aa, bb);
-    let metadata = MetadataSource::new(plugins.extension_points());
+    let metadata = TitleSources::new(plugins.extension_points());
     (metadata.in_order(bb_aa()), asked)
 }
 
@@ -440,7 +435,7 @@ async fn an_imdb_hint_no_source_looks_up_by_is_searched_for_instead() {
 #[tokio::test]
 async fn a_source_neither_keeping_nor_looking_up_a_hint_is_never_asked() {
     let (plugins, sources_asked) = looking_up(HAS, (Answers::Has, Answers::NotFound), &[]);
-    let metadata = MetadataSource::new(plugins.extension_points()).in_order(bb_aa());
+    let metadata = TitleSources::new(plugins.extension_points()).in_order(bb_aa());
 
     // `bb` looks up `aa` ids but `aa` doesn't look up `bb` ones: a `bb` hint `bb` misses is blamed.
     assert_eq!(

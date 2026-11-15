@@ -33,7 +33,7 @@ use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
 use crate::{
     images::{Asked, ImageStore, Resize, file_name},
     library::contents::Contents,
-    library::title_source::{self, MetadataSource},
+    library::title_source::{self, TitleSources},
     plugins::ExtensionPoints,
     server_settings::ImageSettings,
 };
@@ -56,7 +56,7 @@ const MAX_OFFERED: usize = 10_000;
 #[derive(Debug, Clone)]
 pub struct Artwork {
     store: ImageStore,
-    metadata: MetadataSource,
+    metadata: TitleSources,
     /// The `(plugin, path)` of each image a search or lookup handed out since the Server started.
     offered: Arc<Mutex<HashSet<(String, String)>>>,
     /// Taken by each background download, across every clone.
@@ -87,7 +87,7 @@ impl Artwork {
     pub fn new(store: ImageStore, plugins: ExtensionPoints) -> Self {
         Self {
             store,
-            metadata: MetadataSource::new(plugins),
+            metadata: TitleSources::new(plugins),
             offered: Arc::default(),
             downloads: Arc::new(Semaphore::new(DOWNLOADS)),
             sweeping: Arc::default(),
@@ -225,8 +225,8 @@ impl Artwork {
             .image(plugin, path)
             .await
             .map_err(|err| match err {
-                title_source::Error::NotFound => Error::NotFound,
-                title_source::Error::Unavailable => Error::Unavailable(format!(
+                title_source::Unanswered::NotFound => Error::NotFound,
+                title_source::Unanswered::Unavailable => Error::Unavailable(format!(
                     "{plugin} isn't enabled, doesn't provide metadata, or failed"
                 )),
             })?;

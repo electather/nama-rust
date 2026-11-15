@@ -64,7 +64,7 @@ use crate::{
         Contents, Decided, Decisions, ImageRef, Item, Metadata, Name, Named, Pin, UnmatchedReason,
     },
     library::libraries::{self, Libraries},
-    library::title_source::{self, Episode, MetadataSource, Season, Show, Source, TitleKind},
+    library::title_source::{self, Episode, Season, Show, Source, TitleKind, TitleSources},
     plugins::ExtensionPoints,
     scanner::{ScanLock, ScanLocks},
 };
@@ -114,7 +114,7 @@ pub(crate) struct Matcher {
     contents: Contents,
     /// Reads a Library's title source order.
     libraries: Libraries,
-    metadata: MetadataSource,
+    metadata: TitleSources,
     /// Downloads the images of the Matches set by hand.
     artwork: Artwork,
     events: EventBus,
@@ -209,21 +209,21 @@ enum Miss {
     Unserved,
 }
 
-impl From<title_source::Error> for Miss {
-    fn from(err: title_source::Error) -> Self {
+impl From<title_source::Unanswered> for Miss {
+    fn from(err: title_source::Unanswered) -> Self {
         match err {
-            title_source::Error::NotFound => Self::Unmatched(None),
-            title_source::Error::Unavailable => Self::Undecided,
+            title_source::Unanswered::NotFound => Self::Unmatched(None),
+            title_source::Unanswered::Unavailable => Self::Undecided,
         }
     }
 }
 
 impl ManualError {
     /// Why looking up the title `id` by hand failed.
-    fn looking_up(id: &ExternalId) -> impl FnOnce(title_source::Error) -> Self {
+    fn looking_up(id: &ExternalId) -> impl FnOnce(title_source::Unanswered) -> Self {
         |err| match err {
-            title_source::Error::NotFound => Self::NoSuchTitle(id.clone()),
-            title_source::Error::Unavailable => Self::Unavailable,
+            title_source::Unanswered::NotFound => Self::NoSuchTitle(id.clone()),
+            title_source::Unanswered::Unavailable => Self::Unavailable,
         }
     }
 }
@@ -260,7 +260,7 @@ impl Matcher {
         Self {
             libraries: Libraries::new(Arc::clone(&db)),
             contents: Contents::new(db),
-            metadata: MetadataSource::new(plugins),
+            metadata: TitleSources::new(plugins),
             artwork,
             events,
             locks,
@@ -419,8 +419,8 @@ impl Matcher {
             }
             let movie = match self.only(plugin.clone()).metadata.movie(&id).await {
                 Ok(movie) => movie,
-                Err(title_source::Error::NotFound) => continue,
-                Err(title_source::Error::Unavailable) => {
+                Err(title_source::Unanswered::NotFound) => continue,
+                Err(title_source::Unanswered::Unavailable) => {
                     unavailable.insert(plugin);
                     continue;
                 }
@@ -439,8 +439,8 @@ impl Matcher {
             let show = match sources::fetch_show(&only.metadata, &id, ExternalIds::default()).await
             {
                 Ok(show) => show,
-                Err(title_source::Error::NotFound) => continue,
-                Err(title_source::Error::Unavailable) => {
+                Err(title_source::Unanswered::NotFound) => continue,
+                Err(title_source::Unanswered::Unavailable) => {
                     unavailable.insert(plugin);
                     continue;
                 }

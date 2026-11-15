@@ -10,7 +10,7 @@ use nama_proto::nama::v1::{
 use crate::{
     library::contents::{Contents, Item, TiedTitle, Unmatched, UnmatchedReason},
     library::libraries::Libraries,
-    library::title_source::{self, MetadataSource, SearchQuery},
+    library::title_source::{self, SearchQuery, TitleSources},
     matching::{ManualError, Matcher},
 };
 
@@ -20,7 +20,7 @@ use super::{database_failed, external_id_to_proto, refuse, required_id, title_ki
 /// [`require_access`](super::require_access) enforces.
 pub(super) struct MatchServiceHandler {
     pub(super) matcher: Matcher,
-    pub(super) metadata: MetadataSource,
+    pub(super) metadata: TitleSources,
     pub(super) contents: Contents,
     pub(super) libraries: Libraries,
 }
@@ -53,8 +53,10 @@ impl MatchService for MatchServiceHandler {
         // A Match search belongs to no Library, so it asks in Admin precedence.
         let candidates = match self.metadata.search_in_turn(&query).await {
             Ok((_, candidates)) => candidates,
-            Err(title_source::Error::NotFound) => Vec::new(),
-            Err(title_source::Error::Unavailable) => return Err(ManualError::Unavailable.into()),
+            Err(title_source::Unanswered::NotFound) => Vec::new(),
+            Err(title_source::Unanswered::Unavailable) => {
+                return Err(ManualError::Unavailable.into());
+            }
         };
         Response::ok(SearchMetadataResponse {
             candidates: candidates

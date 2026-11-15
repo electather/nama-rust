@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     library::contents::{Metadata, Name, Pin, TiedTitle, UnmatchedReason},
-    library::title_source::{self, Candidate, MetadataSource, SearchQuery, Season, TitleKind},
+    library::title_source::{self, Candidate, SearchQuery, Season, TitleKind, TitleSources},
     scanner::country_tag,
 };
 
@@ -35,7 +35,7 @@ impl Found {
     }
 
     /// `err`, from fetching this title, as a miss: blamed on the ID Hint if that named it.
-    fn missed(&self, err: title_source::Error) -> Miss {
+    fn missed(&self, err: title_source::Unanswered) -> Miss {
         match Miss::from(err) {
             Miss::Unmatched(None) if self.from_hint => {
                 Miss::Unmatched(Some(UnmatchedReason::UnknownIdHint))
@@ -46,7 +46,7 @@ impl Found {
 }
 
 /// The Movie `key` names, from `metadata`'s sources in their order.
-pub(super) async fn movie(metadata: &MetadataSource, key: &TitleKey) -> Result<Metadata, Miss> {
+pub(super) async fn movie(metadata: &TitleSources, key: &TitleKey) -> Result<Metadata, Miss> {
     let found = find(metadata, TitleKind::Movie, key).await?;
     fetch_movie(metadata, &found.id, found.ids.clone())
         .await
@@ -54,7 +54,7 @@ pub(super) async fn movie(metadata: &MetadataSource, key: &TitleKey) -> Result<M
 }
 
 /// The Show `key` names, from `metadata`'s sources in their order.
-pub(super) async fn show(metadata: &MetadataSource, key: &TitleKey) -> Result<FoundShow, Miss> {
+pub(super) async fn show(metadata: &TitleSources, key: &TitleKey) -> Result<FoundShow, Miss> {
     let found = find(metadata, TitleKind::Show, key).await?;
     fetch_show(metadata, &found.id, found.ids.clone())
         .await
@@ -64,10 +64,10 @@ pub(super) async fn show(metadata: &MetadataSource, key: &TitleKey) -> Result<Fo
 /// The Movie with the id `id`, from the source keeping its namespace or else the first looking it
 /// up to have it, with every id `known` for it.
 pub(super) async fn fetch_movie(
-    metadata: &MetadataSource,
+    metadata: &TitleSources,
     id: &ExternalId,
     known: ExternalIds,
-) -> Result<Metadata, title_source::Error> {
+) -> Result<Metadata, title_source::Unanswered> {
     let (_, mut movie) = metadata.movie_by(id).await?;
     movie.ids = merged(id, known, &movie.ids);
     Ok(movie)
@@ -76,10 +76,10 @@ pub(super) async fn fetch_movie(
 /// The Show with the id `id`, routed as [`fetch_movie`] routes a Movie, and the id its Seasons are
 /// fetched by from the source that gave it: its id in that source's namespace, else `id`.
 pub(super) async fn fetch_show(
-    metadata: &MetadataSource,
+    metadata: &TitleSources,
     id: &ExternalId,
     known: ExternalIds,
-) -> Result<FoundShow, title_source::Error> {
+) -> Result<FoundShow, title_source::Unanswered> {
     let (source, mut show) = metadata.show_by(id).await?;
     show.ids = merged(id, known, &show.ids);
     let id = show
@@ -91,7 +91,7 @@ pub(super) async fn fetch_show(
 
 /// The Season `number` of the Show `show`, from the source that gave the Show.
 pub(super) async fn season(
-    metadata: &MetadataSource,
+    metadata: &TitleSources,
     show: &FoundShow,
     number: i64,
 ) -> Result<Season, Miss> {
@@ -112,7 +112,7 @@ fn merged(asked: &ExternalId, known: ExternalIds, answered: &ExternalIds) -> Ext
 
 /// The title `key` names: what an admin pinned, its ID Hint where a source looks titles up by
 /// its namespace, or else the search result that fits it.
-async fn find(metadata: &MetadataSource, kind: TitleKind, key: &TitleKey) -> Result<Found, Miss> {
+async fn find(metadata: &TitleSources, kind: TitleKind, key: &TitleKey) -> Result<Found, Miss> {
     match &key.pin {
         Some(Pin::Title(id)) if metadata.serves(id.namespace()).await => {
             return Ok(Found::id(id.clone(), false));
@@ -134,7 +134,7 @@ async fn find(metadata: &MetadataSource, kind: TitleKind, key: &TitleKey) -> Res
 
 /// The search result that fits `name` confidently and unambiguously, from the first source to
 /// find any.
-async fn search(metadata: &MetadataSource, kind: TitleKind, name: &Name) -> Result<Found, Miss> {
+async fn search(metadata: &TitleSources, kind: TitleKind, name: &Name) -> Result<Found, Miss> {
     let year = name.year.and_then(|year| i32::try_from(year).ok());
     let (title, country) = match (kind, country_tag(&name.title)) {
         (TitleKind::Show, Some((title, country))) => (title, Some(country)),
@@ -183,14 +183,14 @@ async fn search(metadata: &MetadataSource, kind: TitleKind, name: &Name) -> Resu
 /// What the first source to find any finds for `query`, keeping only titles from `country` if
 /// given; nothing when no source finds any.
 async fn searched(
-    metadata: &MetadataSource,
+    metadata: &TitleSources,
     query: &SearchQuery,
     country: Option<&str>,
 ) -> Result<Vec<Candidate>, Miss> {
     let mut candidates = match metadata.search_in_turn(query).await {
         Ok((_, candidates)) => candidates,
-        Err(title_source::Error::NotFound) => Vec::new(),
-        Err(title_source::Error::Unavailable) => return Err(Miss::Undecided),
+        Err(title_source::Unanswered::NotFound) => Vec::new(),
+        Err(title_source::Unanswered::Unavailable) => return Err(Miss::Undecided),
     };
     if let Some(country) = country {
         candidates.retain(|candidate| candidate.origin_country.iter().any(|c| c == country));

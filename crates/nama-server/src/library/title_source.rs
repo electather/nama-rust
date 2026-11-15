@@ -1,6 +1,6 @@
 //! Asking the title sources for titles and images, and what their failures mean: no title source
-//! enabled, or one that failed, is [`Error::Unavailable`]; a title or image it doesn't have, an id
-//! it can't look titles up by, or a method it doesn't serve, is [`Error::NotFound`]. It alone asks
+//! enabled, or one that failed, is [`Unanswered::Unavailable`]; a title or image it doesn't have, an id
+//! it can't look titles up by, or a method it doesn't serve, is [`Unanswered::NotFound`]. It alone asks
 //! (see `src/library/AGENTS.md`).
 
 use std::{future::Future, sync::Arc};
@@ -20,22 +20,22 @@ use crate::{
     plugins::{Answer, ExtensionPoints, Failure, ProviderError},
 };
 
-/// Why the metadata Provider gave no answer.
+/// Why the title source gave no answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-pub(crate) enum Error {
+pub(crate) enum Unanswered {
     /// It has no such title, Season or image, or can't look titles up by the id asked for.
     #[error("the metadata Provider has no such title, Season or image")]
     NotFound,
-    /// No metadata Provider is enabled, or it failed. Worth asking again later.
+    /// No title source is enabled, or it failed. Worth asking again later.
     #[error("no metadata Provider could answer")]
     Unavailable,
 }
 
-/// The metadata Providers among [`ExtensionPoints`]: a Movie asked through the one that comes
+/// The title sources among [`ExtensionPoints`]: a Movie asked through the one that comes
 /// first, or only through one Plugin's; everything else, through the routing methods, in turn by
 /// namespace.
 #[derive(Debug, Clone)]
-pub(crate) struct MetadataSource {
+pub(crate) struct TitleSources {
     plugins: ExtensionPoints,
     only: Option<PluginId>,
     /// The namespaces of the sources the routing methods ask, in the order they ask them; every
@@ -54,7 +54,7 @@ pub(crate) struct Source {
     pub(crate) looks_up: Vec<String>,
 }
 
-impl MetadataSource {
+impl TitleSources {
     pub(crate) const fn new(plugins: ExtensionPoints) -> Self {
         Self {
             plugins,
@@ -64,7 +64,7 @@ impl MetadataSource {
     }
 
     /// The same Providers, asked only through the Plugin `plugin`'s, which is
-    /// [`Error::Unavailable`] while it isn't enabled.
+    /// [`Unanswered::Unavailable`] while it isn't enabled.
     pub(crate) fn only(&self, plugin: PluginId) -> Self {
         Self {
             plugins: self.plugins.clone(),
@@ -74,7 +74,7 @@ impl MetadataSource {
     }
 
     /// The metadata of the Movie with the id `id`.
-    pub(crate) async fn movie(&self, id: &ExternalId) -> Result<Metadata, Error> {
+    pub(crate) async fn movie(&self, id: &ExternalId) -> Result<Metadata, Unanswered> {
         let asked = &asked(id);
         let (plugin, movie) = self
             .ask(|metadata| async move {
@@ -86,7 +86,7 @@ impl MetadataSource {
     }
 
     /// The image at `path` from the Plugin `plugin`'s Provider, which handed the path out.
-    pub(crate) async fn image(&self, plugin: &PluginId, path: &str) -> Result<Image, Error> {
+    pub(crate) async fn image(&self, plugin: &PluginId, path: &str) -> Result<Image, Unanswered> {
         let asked = &ImageAsked {
             path: path.to_owned(),
             ..Default::default()
@@ -156,12 +156,12 @@ impl MetadataSource {
 
     /// The titles the first source in order to find any finds for `query`, best fit first, with
     /// that source. A source that has none, or doesn't search, passes to the next; one that fails
-    /// stops the search as [`Error::Unavailable`], so a source being down never changes which
+    /// stops the search as [`Unanswered::Unavailable`], so a source being down never changes which
     /// source Matches.
     pub(crate) async fn search_in_turn(
         &self,
         query: &SearchQuery,
-    ) -> Result<(Source, Vec<Candidate>), Error> {
+    ) -> Result<(Source, Vec<Candidate>), Unanswered> {
         let sources = self.sources().await;
         let query = &titles::search_query(query);
         self.first_answer(sources, Vec::is_empty, |metadata| async move {
@@ -172,9 +172,9 @@ impl MetadataSource {
 
     /// The metadata of the Movie with the id `id`, from the source keeping titles under its
     /// namespace, or else the first one in order looking them up by it to have it, with that
-    /// source. Fails as [`MetadataSource::search_in_turn`] does, so with no such source it is
-    /// [`Error::Unavailable`].
-    pub(crate) async fn movie_by(&self, id: &ExternalId) -> Result<(Source, Metadata), Error> {
+    /// source. Fails as [`TitleSources::search_in_turn`] does, so with no such source it is
+    /// [`Unanswered::Unavailable`].
+    pub(crate) async fn movie_by(&self, id: &ExternalId) -> Result<(Source, Metadata), Unanswered> {
         let sources = self.by_namespace(id.namespace()).await;
         let asked = &asked(id);
         let (source, movie) = self
@@ -191,8 +191,8 @@ impl MetadataSource {
         Ok((source, metadata))
     }
 
-    /// The Show with the id `id`, routed as [`MetadataSource::movie_by`] routes a Movie.
-    pub(crate) async fn show_by(&self, id: &ExternalId) -> Result<(Source, Show), Error> {
+    /// The Show with the id `id`, routed as [`TitleSources::movie_by`] routes a Movie.
+    pub(crate) async fn show_by(&self, id: &ExternalId) -> Result<(Source, Show), Unanswered> {
         let sources = self.by_namespace(id.namespace()).await;
         let asked = &asked(id);
         self.first_answer(
@@ -213,7 +213,7 @@ impl MetadataSource {
         source: &Source,
         show: &ExternalId,
         number: u32,
-    ) -> Result<Season, Error> {
+    ) -> Result<Season, Unanswered> {
         let asked = &season_asked(show, number);
         let answered = self
             .plugins
@@ -240,35 +240,35 @@ impl MetadataSource {
     }
 
     /// The first answer of `sources`, asked in turn, that isn't `empty`. Not found, or an empty
-    /// answer, passes to the next source; a failure stops. [`Error::NotFound`] when every source
-    /// passed, [`Error::Unavailable`] when there was none.
+    /// answer, passes to the next source; a failure stops. [`Unanswered::NotFound`] when every source
+    /// passed, [`Unanswered::Unavailable`] when there was none.
     async fn first_answer<R, F>(
         &self,
         sources: Vec<Source>,
         empty: impl Fn(&R) -> bool,
         call: impl Fn(Arc<dyn TitleSource>) -> F,
-    ) -> Result<(Source, R), Error>
+    ) -> Result<(Source, R), Unanswered>
     where
         F: Future<Output = Result<R, Refusal>>,
     {
         if sources.is_empty() {
             tracing::debug!("no title source could be asked");
-            return Err(Error::Unavailable);
+            return Err(Unanswered::Unavailable);
         }
         for source in sources {
             match meaning(self.plugins.ask(&source.plugin, &call).await) {
                 Ok((_, answer)) if !empty(&answer) => return Ok((source, answer)),
-                Ok(_) | Err(Error::NotFound) => {}
-                Err(Error::Unavailable) => return Err(Error::Unavailable),
+                Ok(_) | Err(Unanswered::NotFound) => {}
+                Err(Unanswered::Unavailable) => return Err(Unanswered::Unavailable),
             }
         }
-        Err(Error::NotFound)
+        Err(Unanswered::NotFound)
     }
 
     async fn ask<R, F>(
         &self,
         call: impl Fn(Arc<dyn TitleSource>) -> F,
-    ) -> Result<(PluginId, R), Error>
+    ) -> Result<(PluginId, R), Unanswered>
     where
         F: Future<Output = Result<R, Refusal>>,
     {
@@ -314,16 +314,16 @@ impl From<MetadataError> for Refusal {
     }
 }
 
-impl ProviderError<Error> for Refusal {
-    fn failure(self) -> Failure<Error> {
+impl ProviderError<Unanswered> for Refusal {
+    fn failure(self) -> Failure<Unanswered> {
         match self {
             Self::Refused(error) => error.failure(),
             Self::UnsupportedId => Failure {
-                kind: Error::NotFound,
+                kind: Unanswered::NotFound,
                 message: "the title source can't look titles up by that id".to_owned(),
             },
             Self::Unset => Failure {
-                kind: Error::NotFound,
+                kind: Unanswered::NotFound,
                 message: "the title source has no such title".to_owned(),
             },
         }
@@ -358,11 +358,11 @@ fn candidates(found: wire::SearchResults) -> Result<Vec<Candidate>, Refusal> {
     Ok(found.collect::<Result<_, _>>()?)
 }
 
-impl ProviderError<Error> for MetadataError {
-    fn failure(self) -> Failure<Error> {
+impl ProviderError<Unanswered> for MetadataError {
+    fn failure(self) -> Failure<Unanswered> {
         let kind = match self {
-            Self::Unsupported => Error::NotFound,
-            Self::Failed(_) => Error::Unavailable,
+            Self::Unsupported => Unanswered::NotFound,
+            Self::Failed(_) => Unanswered::Unavailable,
         };
         Failure {
             kind,
@@ -373,7 +373,7 @@ impl ProviderError<Error> for MetadataError {
 
 /// The answer in `answered`, or what its failure means; `answered` is `None` when no Provider
 /// could be asked.
-fn meaning<R>(answered: Option<Answer<R, Error>>) -> Result<(PluginId, R), Error> {
+fn meaning<R>(answered: Option<Answer<R, Unanswered>>) -> Result<(PluginId, R), Unanswered> {
     match answered {
         Some(Answer {
             plugin,
@@ -383,14 +383,14 @@ fn meaning<R>(answered: Option<Answer<R, Error>>) -> Result<(PluginId, R), Error
             plugin,
             result: Err(failure),
         }) => {
-            if failure.kind == Error::Unavailable {
+            if failure.kind == Unanswered::Unavailable {
                 tracing::warn!(%plugin, error = failure.message, "the metadata provider failed");
             }
             Err(failure.kind)
         }
         None => {
             tracing::debug!("no metadata provider could be asked");
-            Err(Error::Unavailable)
+            Err(Unanswered::Unavailable)
         }
     }
 }

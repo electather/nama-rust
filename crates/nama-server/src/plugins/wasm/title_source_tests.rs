@@ -23,7 +23,7 @@ use super::super::{
     services::TITLE_ARTWORK,
 };
 use crate::{
-    library::title_source::{Error, MetadataSource},
+    library::title_source::{TitleSources, Unanswered},
     plugins::Registry,
 };
 
@@ -124,7 +124,7 @@ async fn tvdb_asked_by_a_tmdb_id_answers_unsupported_id_which_is_not_found() {
 
     let answer = running.show(&asked).await.unwrap();
     // Routing never asks TVDB by a tmdb id, so the Kernel asks it directly, as for a Season.
-    let kernel = MetadataSource::new(plugins.extension_points());
+    let kernel = TitleSources::new(plugins.extension_points());
     let tvdb_source = kernel.sources().await.remove(0);
     let through_kernel = kernel
         .season_from(&tvdb_source, &ExternalId::tmdb(1399), 1)
@@ -135,7 +135,7 @@ async fn tvdb_asked_by_a_tmdb_id_answers_unsupported_id_which_is_not_found() {
         "{answer:?}"
     );
     assert_eq!(running.lookup_namespaces(), Vec::<String>::new());
-    assert_eq!(through_kernel.unwrap_err(), Error::NotFound);
+    assert_eq!(through_kernel.unwrap_err(), Unanswered::NotFound);
 }
 
 #[tokio::test]

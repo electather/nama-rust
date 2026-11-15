@@ -96,8 +96,8 @@ impl Requests {
         };
         let (source, candidates) = match self.metadata.search_in_turn(&query).await {
             Ok(found) => found,
-            Err(title_source::Error::NotFound) => return Ok(Vec::new()),
-            Err(title_source::Error::Unavailable) => return Err(Error::Unavailable),
+            Err(title_source::Unanswered::NotFound) => return Ok(Vec::new()),
+            Err(title_source::Unanswered::Unavailable) => return Err(Error::Unavailable),
         };
         Ok(candidates
             .into_iter()
@@ -168,7 +168,7 @@ impl Requests {
         asked: &ExternalId,
         show: &Show,
         number: u32,
-    ) -> Result<Season, title_source::Error> {
+    ) -> Result<Season, title_source::Unanswered> {
         let id = show
             .ids
             .get(&source.namespace)
@@ -278,9 +278,9 @@ impl Requests {
 }
 
 /// `err` from looking a title up, which is `missing` if the metadata source doesn't have it.
-pub(super) fn looking_up(err: title_source::Error, missing: Error) -> Error {
+pub(super) fn looking_up(err: title_source::Unanswered, missing: Error) -> Error {
     match err {
-        title_source::Error::NotFound => missing,
-        title_source::Error::Unavailable => Error::Unavailable,
+        title_source::Unanswered::NotFound => missing,
+        title_source::Unanswered::Unavailable => Error::Unavailable,
     }
 }
