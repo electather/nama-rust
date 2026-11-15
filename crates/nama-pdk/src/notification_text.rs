@@ -7,8 +7,8 @@ use crate::{
     },
 };
 
-/// What happened, or `None` for what the channel isn't told: an event that isn't about a Request,
-/// and a state this Plugin doesn't know.
+/// What happened, or `None` for what a Notifier doesn't tell: an event that isn't about a Request,
+/// or a state this nama-pdk doesn't know.
 pub fn what_happened(notification: &Notification) -> Option<String> {
     let request = notification.request.as_option()?;
     let title = title(request);
