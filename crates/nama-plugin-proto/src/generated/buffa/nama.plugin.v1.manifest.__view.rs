@@ -98,6 +98,19 @@ pub struct ManifestView<'a> {
         'a,
         super::super::__buffa::view::SettingFieldView<'a>,
     >,
+    /// The Plugin Permissions it requests. The Admin grants some or all when enabling it, and only
+    /// the Kernel functions the granted ones cover answer.
+    ///
+    /// Field 17: `permissions`
+    pub permissions: ::buffa::RepeatedView<
+        'a,
+        ::buffa::EnumValue<super::super::Permission>,
+    >,
+    /// How often the Kernel calls the Plugin's `tick` export, in seconds, at least 60. Required when
+    /// `points` names `AutomationService`, and a Server refuses one below 60 then. Ignored otherwise.
+    ///
+    /// Field 18: `tick_every_seconds`
+    pub tick_every_seconds: u32,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
@@ -178,6 +191,13 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.title_namespace = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.tick_every_seconds = ::buffa::types::decode_uint32(&mut cur)?;
             }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -281,6 +301,35 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                         )?,
                     );
             }
+            17u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    view.permissions.reserve(::buffa::encoding::count_varints(payload));
+                    let mut pcur: &[u8] = payload;
+                    while !pcur.is_empty() {
+                        view.permissions
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut pcur)?,
+                                ),
+                            );
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.permissions
+                        .push(
+                            ::buffa::EnumValue::from(
+                                ::buffa::types::decode_int32(&mut cur)?,
+                            ),
+                        );
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -341,6 +390,8 @@ impl<'a> ::buffa::MessageView<'a> for ManifestView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            permissions: self.permissions.to_vec(),
+            tick_every_seconds: self.tick_every_seconds,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -411,6 +462,19 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.permissions.is_empty() {
+            let payload: u64 = self
+                .permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 2u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if self.tick_every_seconds != 0u32 {
+            size
+                += 2u64
+                    + ::buffa::types::uint32_encoded_len(self.tick_every_seconds) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -479,6 +543,20 @@ impl<'a> ::buffa::ViewEncode<'a> for ManifestView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        if !self.permissions.is_empty() {
+            let payload: u64 = self
+                .permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(17u32, payload, buf);
+            for v in &self.permissions {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if self.tick_every_seconds != 0u32 {
+            ::buffa::types::put_uint32_field(18u32, self.tick_every_seconds, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -545,6 +623,20 @@ impl<'__a> ::serde::Serialize for ManifestView<'__a> {
         }
         if !self.personal_settings.is_empty() {
             __map.serialize_entry("personalSettings", &*self.personal_settings)?;
+        }
+        if !self.permissions.is_empty() {
+            __map
+                .serialize_entry(
+                    "permissions",
+                    &::buffa::json_helpers::EnumSeqJson(&self.permissions),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.tick_every_seconds) {
+            __map
+                .serialize_entry(
+                    "tickEverySeconds",
+                    &::buffa::json_helpers::ProtoJson(&self.tick_every_seconds),
+                )?;
         }
         __map.end()
     }
@@ -763,6 +855,24 @@ impl ManifestOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::SettingFieldView<'_>> {
         &self.0.reborrow().personal_settings
+    }
+    /// The Plugin Permissions it requests. The Admin grants some or all when enabling it, and only
+    /// the Kernel functions the granted ones cover answer.
+    ///
+    /// Field 17: `permissions`
+    #[must_use]
+    pub fn permissions(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::Permission>> {
+        &self.0.reborrow().permissions
+    }
+    /// How often the Kernel calls the Plugin's `tick` export, in seconds, at least 60. Required when
+    /// `points` names `AutomationService`, and a Server refuses one below 60 then. Ignored otherwise.
+    ///
+    /// Field 18: `tick_every_seconds`
+    #[must_use]
+    pub fn tick_every_seconds(&self) -> u32 {
+        self.0.reborrow().tick_every_seconds
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ManifestView<'static>>>

@@ -16,11 +16,30 @@ Each Extension Point an Installed Plugin can serve is a service of the contract,
 
 A Manifest's `settings` are Plugin-wide: an admin sets them once. Its `personal_settings` (ADR 0046) are settings each User sets for themself. Only the TEXT, SECRET, BOOL and INTEGER kinds are allowed, since a User's value must not widen the hosts a Plugin reaches: the Kernel refuses a Plugin with a URL or CHOICE Personal setting, or with a key that repeats or that `settings` also names. A Plugin never finds them in its Extism config; the Kernel hands one User's values, as text, only in a call for that User, such as a `Delivery` to `UserRecipient`.
 
+## The Automation lane
+
+In the Automation lane a Plugin asks the Kernel. [`automation.proto`](../../proto/nama/plugin/v1/automation.proto) holds its messages. On a Plugin's scheduled tick, every `Manifest.tick_every_seconds` (at least 60, and required when `points` names `AutomationService`), the Kernel hands it a `Tick` carrying the Kernel's clock as `now_ms`, which the Plugin uses rather than its own; the Plugin answers `Ticked`.
+
+During any of its calls, a Plugin whose `points` name `AutomationService` may call the Kernel's functions in the Wasm import namespace `nama`. Each takes its request message, encoded, and returns a `KernelAnswer`: `answer` holds the function's response, encoded, and `refused` says in plain words why the Kernel refused, such as a Permission not granted. Each function needs a Plugin `Permission`, which the Manifest requests in `permissions` and the Admin grants when enabling the Plugin:
+
+| Function | Takes | Answers | Permission |
+| --- | --- | --- | --- |
+| `store_get` | `StoreKey` | `StoreValue` | `PERMISSION_STORE` |
+| `store_put` | `StoreEntry` | `Stored` | `PERMISSION_STORE` |
+| `store_delete` | `StoreKey` | `Stored` | `PERMISSION_STORE` |
+| `list_libraries` | `LibrariesAsked` | `Libraries` | `PERMISSION_READ_LIBRARIES` |
+| `list_titles` | `TitlesAsked` | `Titles` | `PERMISSION_READ_LIBRARIES` |
+| `list_watch_states` | `WatchStatesAsked` | `WatchStates` | `PERMISSION_READ_WATCH_STATES` |
+| `delete_media` | `DeleteAsked` | `DeleteStarted` | `PERMISSION_DELETE_MEDIA` |
+
+The Store keeps bytes per Plugin under a key of up to 256 bytes, with a value of up to 64 KiB; an entry with `user_id` set belongs to that User. A `TitleRef` names a Movie or an Episode in a Library by the `TitleId` its Watch State is kept by. `DeleteStarted` means the Kernel checked the delete and it goes on in the background.
+
 ## Versions
 
 The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move together: their version in `Cargo.toml` changes with each release, separately from `CONTRACT_VERSION` and the service versions in `SERVICES`.
 
 - **0.3.0 (unreleased)**: `NotifierService` 1.2.0: for a `UserRecipient` that answers `recipient_gone`, the Kernel deletes that User's Personal settings for the Plugin.
+  The Manifest adds `permissions` and `tick_every_seconds`, and `automation.proto` adds the Automation lane's messages, `Permission` and `KernelAnswer`.
   `MovieFulfillerService` and `ShowFulfillerService` 1.1.0 add `retry_after_seconds` to `Fulfilled`, `StoppedMonitoring` and `Unfollowed`: a Fulfiller that can't act yet asks the Kernel to ask again after that many seconds.
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 

@@ -4,6 +4,8 @@ syntax = "proto3";
 // `.wasm` file whose exports take and return these, encoded as protobuf.
 package nama.plugin.v1;
 
+import "nama/plugin/v1/automation.proto";
+
 // What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
 // `manifest()` export, which takes no input.
 //
@@ -68,6 +70,12 @@ message Manifest {
   // names. The Kernel hands their values to the Plugin only in a call for that User, such as a
   // `Delivery` to `UserRecipient`. Plugin-wide settings stay in `settings`.
   repeated SettingField personal_settings = 16;
+  // The Plugin Permissions it requests. The Admin grants some or all when enabling it, and only
+  // the Kernel functions the granted ones cover answer.
+  repeated Permission permissions = 17;
+  // How often the Kernel calls the Plugin's `tick` export, in seconds, at least 60. Required when
+  // `points` names `AutomationService`, and a Server refuses one below 60 then. Ignored otherwise.
+  uint32 tick_every_seconds = 18;
 }
 
 // An Extension Point an Installed Plugin serves: a service of this package, whose rpcs name the
