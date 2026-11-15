@@ -43,6 +43,8 @@ impl Plugin for LocalAuth {
             personal_settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Authenticator>()],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
+            permissions: Vec::new(),
+            tick_every: None,
         }
     }
 

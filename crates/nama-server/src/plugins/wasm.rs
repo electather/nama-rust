@@ -17,6 +17,7 @@ use buffa::{DecodeError, Message};
 use extism::CompiledPlugin;
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, Registrar,
+    automation::{Automation, Tick},
     connector::{ConnectionStarted, Connector},
     fulfiller::{Download, Fulfiller, Request, TryAgainIn},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
@@ -28,7 +29,7 @@ use nama_plugin_proto::{
     nama::plugin::v1::{
         self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled, ConnectionStart,
         Delivered, Delivery, EventsObserved, Fulfilled, Progress, ProgressAsked, StopMonitoring,
-        StoppedMonitoring, Unfollowed, UserRecipient,
+        StoppedMonitoring, Ticked, Unfollowed, UserRecipient,
     },
 };
 use semver::{Version, VersionReq};
@@ -52,7 +53,7 @@ mod fulfiller_tests;
 pub(crate) use listing::read;
 use load::{CALL_TIMEOUT, MEMORY_MAX_PAGES, allowed_hosts, compile, extism_config};
 use services::{
-    CHECK_SETTINGS, DELIVER, OBSERVE_EVENTS, POINTS, POLL_CONNECTION, Point, START_CONNECTION,
+    CHECK_SETTINGS, DELIVER, OBSERVE_EVENTS, POINTS, POLL_CONNECTION, Point, START_CONNECTION, TICK,
 };
 
 /// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
@@ -112,6 +113,14 @@ pub(super) enum Refused {
     // The reason starts "its Personal setting", as the registry words it for a Built-in.
     #[error("{0}")]
     PersonalSettings(String),
+    #[error("its Manifest requests the Permission {0}, which this Server doesn't know")]
+    UnknownPermission(String),
+    #[error(
+        "its Manifest names {}, and ticks every {seconds} seconds, under the minimum of {}",
+        nama_plugin_proto::services::AUTOMATION,
+        load::MIN_TICK_EVERY.as_secs()
+    )]
+    TickTooOften { seconds: u32 },
     #[error("its {field} names {namespace:?}, which isn't a namespace")]
     BadNamespace {
         field: &'static str,
@@ -499,6 +508,15 @@ impl Observer<Events> for Running {
                 self.call_method::<_, EventsObserved>(&OBSERVE_EVENTS, event)
                     .await,
             );
+        })
+    }
+}
+
+impl Automation for Running {
+    fn tick<'a>(&'a self, tick: &'a Tick) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async move {
+            self.call_method::<_, Ticked>(&TICK, tick).await?;
+            Ok(())
         })
     }
 }

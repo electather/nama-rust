@@ -19,6 +19,17 @@ import "nama/plugin/v1/request.proto";
 //   list_titles:       TitlesAsked      -> Titles         PERMISSION_READ_LIBRARIES
 //   list_watch_states: WatchStatesAsked -> WatchStates    PERMISSION_READ_WATCH_STATES
 //   delete_media:      DeleteAsked      -> DeleteStarted  PERMISSION_DELETE_MEDIA
+//
+// The functions are documented here rather than declared as a service: they are not an Extension
+// Point, and no Manifest names them. They are versioned with `AutomationService`.
+
+// The Extension Point for an Automation Plugin, served through the WASM export the rpc names.
+service AutomationService {
+  // The `tick` export: the Plugin's scheduled tick. Required. The Kernel calls it every
+  // `Manifest.tick_every_seconds`.
+  // Fully qualified: inside the service, a bare `Tick` names this rpc.
+  rpc Tick(.nama.plugin.v1.Tick) returns (Ticked);
+}
 
 // What the Kernel hands a Plugin on its scheduled tick, every `Manifest.tick_every_seconds`.
 message Tick {

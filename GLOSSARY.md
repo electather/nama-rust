@@ -132,6 +132,18 @@ _Avoid_: integration, link, account
 A setting a Plugin's Manifest declares for each User to set for themself, such as their ntfy topic or Discord webhook. The Admin sets the Plugin's own settings; only the User sees their Personal settings, and a Plugin gets them only in a call for that User (ADR 0046).
 _Avoid_: user setting (confused with Settings preferences)
 
+**Automation lane**:
+Where a Plugin asks the Kernel rather than the Kernel asking it: the Kernel sends it Event batches and its Tick, and during those calls it calls the Kernel's few functions, each gated by a Plugin Permission the Admin granted, such as reading Watch State or deleting a title's media (ADR 0048).
+_Avoid_: automation API, scripting, host functions
+
+**Tick**:
+The Kernel's call to an Automation Plugin on the schedule its Manifest sets, at most once a minute, carrying the Kernel's clock.
+_Avoid_: cron, timer, heartbeat, job
+
+**Plugin Store**:
+The key and value entries the Kernel keeps for one Plugin, each the Plugin's alone or scoped to one User, read and written through the Automation lane.
+_Avoid_: plugin database, KV, cache, plugin state
+
 ## Media
 
 **Library**:

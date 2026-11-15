@@ -18,7 +18,7 @@ A Manifest's `settings` are Plugin-wide: an admin sets them once. Its `personal_
 
 ## The Automation lane
 
-In the Automation lane a Plugin asks the Kernel. [`automation.proto`](../../proto/nama/plugin/v1/automation.proto) holds its messages. On a Plugin's scheduled tick, every `Manifest.tick_every_seconds` (at least 60, and required when `points` names `AutomationService`), the Kernel hands it a `Tick` carrying the Kernel's clock as `now_ms`, which the Plugin uses rather than its own; the Plugin answers `Ticked`.
+In the Automation lane a Plugin asks the Kernel (ADR [0048](../../docs/adr/0048-plugins-automate-through-a-kernel-service.md)). [`automation.proto`](../../proto/nama/plugin/v1/automation.proto) holds its messages and `nama.plugin.v1.AutomationService`, whose one rpc, `Tick`, calls the required `tick` export. On a Plugin's scheduled tick, every `Manifest.tick_every_seconds` (at least 60, and required when `points` names `AutomationService`), the Kernel hands it a `Tick` carrying the Kernel's clock as `now_ms`, which the Plugin uses rather than its own; the Plugin answers `Ticked`. A tick that fails is logged and counted toward the crashes in a row, as an Observer's is. The Kernel refuses a Manifest requesting a `Permission` it doesn't know, or `PERMISSION_UNSPECIFIED`.
 
 During any of its calls, a Plugin whose `points` name `AutomationService` may call the Kernel's functions in the Wasm import namespace `nama`. Each takes its request message, encoded, and returns a `KernelAnswer`: `answer` holds the function's response, encoded, and `refused` says in plain words why the Kernel refused, such as a Permission not granted. Each function needs a Plugin `Permission`, which the Manifest requests in `permissions` and the Admin grants when enabling the Plugin:
 
@@ -32,6 +32,8 @@ During any of its calls, a Plugin whose `points` name `AutomationService` may ca
 | `list_watch_states` | `WatchStatesAsked` | `WatchStates` | `PERMISSION_READ_WATCH_STATES` |
 | `delete_media` | `DeleteAsked` | `DeleteStarted` | `PERMISSION_DELETE_MEDIA` |
 
+The functions are not a service of their own: they are not an Extension Point and no Manifest names them, so they are versioned with `AutomationService`.
+
 The Store keeps bytes per Plugin under a key of up to 256 bytes, with a value of up to 64 KiB; an entry with `user_id` set belongs to that User. A `TitleRef` names a Movie or an Episode in a Library by the `TitleId` its Watch State is kept by. `DeleteStarted` means the Kernel checked the delete and it goes on in the background.
 
 ## Versions
@@ -39,7 +41,7 @@ The Store keeps bytes per Plugin under a key of up to 256 bytes, with a value of
 The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move together: their version in `Cargo.toml` changes with each release, separately from `CONTRACT_VERSION` and the service versions in `SERVICES`.
 
 - **0.3.0 (unreleased)**: `NotifierService` 1.2.0: for a `UserRecipient` that answers `recipient_gone`, the Kernel deletes that User's Personal settings for the Plugin.
-  The Manifest adds `permissions` and `tick_every_seconds`, and `automation.proto` adds the Automation lane's messages, `Permission` and `KernelAnswer`.
+  The Manifest adds `permissions` and `tick_every_seconds`, and `automation.proto` adds the Automation lane's messages, `Permission`, `KernelAnswer` and `AutomationService` 1.0.0.
   `MovieFulfillerService` and `ShowFulfillerService` 1.1.0 add `retry_after_seconds` to `Fulfilled`, `StoppedMonitoring` and `Unfollowed`: a Fulfiller that can't act yet asks the Kernel to ask again after that many seconds.
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 

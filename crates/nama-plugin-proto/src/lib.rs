@@ -51,6 +51,9 @@ pub mod services {
     pub const EVENT_OBSERVER: &str = "nama.plugin.v1.EventObserverService";
     /// A title source, which the Kernel searches and fetches Movies and Shows from.
     pub const TITLE_SOURCE: &str = "nama.plugin.v1.TitleSourceService";
+    /// An Automation Plugin, which the Kernel ticks on a schedule and which may call the Kernel's
+    /// functions; those are versioned with it.
+    pub const AUTOMATION: &str = "nama.plugin.v1.AutomationService";
 }
 
 /// Each service in [`services`] with its version, which a Manifest's `Point.version` requirement
@@ -62,4 +65,5 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::CONNECTOR, "1.0.0"),
     (services::EVENT_OBSERVER, "1.0.0"),
     (services::TITLE_SOURCE, "1.1.0"),
+    (services::AUTOMATION, "1.0.0"),
 ];

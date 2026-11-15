@@ -6,6 +6,7 @@ use std::sync::{Arc, atomic::Ordering};
 use buffa::Message;
 use nama_plugin_api::{
     PluginError, PointKey, Priority, Registrar,
+    automation::Automation,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
     metadata::TitleSource,
@@ -117,6 +118,10 @@ pub(super) const TITLE_EPISODE: Method =
 pub(super) const TITLE_IMAGE: Method = optional(services::TITLE_SOURCE, "Image", "title_image");
 pub(super) const TITLE_ARTWORK: Method =
     optional(services::TITLE_SOURCE, "Artwork", "title_artwork");
+pub(super) const TICK: Method = Method {
+    failure: Failure::Observer,
+    ..provider(services::AUTOMATION, "Tick", "tick")
+};
 
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[
@@ -183,6 +188,15 @@ pub(super) const POINTS: &[Point] = &[
         key: PointKey::provide::<dyn TitleSource>,
         register: |registrar, running| {
             registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        service: services::AUTOMATION,
+        crash_group: services::AUTOMATION,
+        methods: &[TICK],
+        key: PointKey::provide::<dyn Automation>,
+        register: |registrar, running| {
+            registrar.provide::<dyn Automation>(Priority::DEFAULT, Arc::new(running));
         },
     },
 ];

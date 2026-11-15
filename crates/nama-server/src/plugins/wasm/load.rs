@@ -41,6 +41,9 @@ pub(super) const CALL_TIMEOUT: Duration = Duration::from_secs(5);
 // ponytail: one cap for all; let a Manifest ask for more once a Plugin needs it.
 pub(super) const MEMORY_MAX_PAGES: u32 = 2048;
 
+/// The shortest a Plugin's `tick_every_seconds` may be, so no Plugin keeps the Kernel busy.
+pub(super) const MIN_TICK_EVERY: Duration = Duration::from_secs(60);
+
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";
 
@@ -181,6 +184,7 @@ pub(super) fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<M
         return Err(Refused::NoPoints);
     }
     check_title_namespace(package, &points)?;
+    check_tick_every(package, &points)?;
     check_exports(&points, |export| exported.contains(&export))?;
     manifest(package, &points)
 }
@@ -190,6 +194,16 @@ pub(super) fn judge(package: &mut wire::Manifest, exported: &[&str]) -> Result<M
 fn manifest(package: &mut wire::Manifest, points: &[&Point]) -> Result<Manifest, Refused> {
     let settings = settings_schema(package)?;
     let personal_settings = schema(&package.personal_settings)?;
+    let permissions = package
+        .permissions
+        .iter()
+        .map(|permission| {
+            permission
+                .as_known()
+                .filter(|known| *known != wire::Permission::PERMISSION_UNSPECIFIED)
+                .ok_or_else(|| Refused::UnknownPermission(permission.to_string()))
+        })
+        .collect::<Result<_, _>>()?;
     let id = PluginId::from(package.id.clone());
     let logo_svg = kept_logo(&id, &mem::take(&mut package.logo_svg));
     let manifest = Manifest {
@@ -201,6 +215,9 @@ fn manifest(package: &mut wire::Manifest, points: &[&Point]) -> Result<Manifest,
         personal_settings,
         extension_points: points.iter().map(|point| (point.key)()).collect(),
         logo_svg,
+        permissions,
+        tick_every: names(points, services::AUTOMATION)
+            .then(|| Duration::from_secs(package.tick_every_seconds.into())),
     };
     match personal_settings_refusal(&manifest) {
         Some(reason) => Err(Refused::PersonalSettings(reason)),
@@ -347,6 +364,24 @@ fn check_title_namespace(package: &wire::Manifest, points: &[&Point]) -> Result<
         });
     }
     Ok(())
+}
+
+/// Checks that a Manifest naming `AutomationService` among `points` ticks no more often than
+/// [`MIN_TICK_EVERY`]; one that names no tick, 0, ticks too often too.
+fn check_tick_every(package: &wire::Manifest, points: &[&Point]) -> Result<(), Refused> {
+    if names(points, services::AUTOMATION)
+        && u64::from(package.tick_every_seconds) < MIN_TICK_EVERY.as_secs()
+    {
+        return Err(Refused::TickTooOften {
+            seconds: package.tick_every_seconds,
+        });
+    }
+    Ok(())
+}
+
+/// Whether `points` include `service`'s.
+fn names(points: &[&Point], service: &str) -> bool {
+    points.iter().any(|point| point.service == service)
 }
 
 /// Whether `namespace` is one by `ExternalId`'s rule. Empty isn't.

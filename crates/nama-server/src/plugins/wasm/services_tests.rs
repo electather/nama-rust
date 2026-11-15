@@ -10,7 +10,7 @@ use super::{
         compile,
         load::{load, write_cache_config},
     },
-    OBSERVE_EVENTS, POINTS,
+    Failure, Method, OBSERVE_EVENTS, POINTS,
 };
 
 #[test]
@@ -27,6 +27,24 @@ fn a_title_sources_artwork_list_is_an_optional_row_calling_title_artwork() {
 
     assert_eq!(artwork.export, "title_artwork");
     assert!(artwork.optional);
+}
+
+#[test]
+fn a_tick_is_a_required_row_whose_failure_is_logged_not_shown() {
+    let automation = POINTS
+        .iter()
+        .find(|point| point.service == services::AUTOMATION)
+        .unwrap();
+
+    assert!(matches!(
+        automation.methods,
+        [Method {
+            export: "tick",
+            optional: false,
+            failure: Failure::Observer,
+            ..
+        }]
+    ));
 }
 
 #[test]

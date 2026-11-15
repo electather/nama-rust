@@ -14,6 +14,7 @@
 //! Everything registered there belongs to that Plugin, so disabling the Plugin removes all of it.
 
 pub mod auth;
+pub mod automation;
 pub mod connector;
 pub mod fulfiller;
 mod ids;
@@ -34,9 +35,13 @@ use std::{
     future::Future,
     pin::Pin,
     sync::Arc,
+    time::Duration,
 };
 
-use crate::settings::{Settings, SettingsCheck, SettingsSchema};
+use crate::{
+    automation::{Kernel, Permission},
+    settings::{Settings, SettingsCheck, SettingsSchema},
+};
 
 /// A boxed future that can move between threads, as Extension Point handlers return.
 ///
@@ -104,6 +109,11 @@ pub struct Manifest {
     /// Kernel drops one over 64 KiB, with a DOCTYPE, or that isn't SVG, logging why; the Plugin
     /// is otherwise as it would be.
     pub logo_svg: Option<String>,
+    /// The Plugin Permissions it requests, which the Admin grants some or all of when enabling
+    /// it; each [`Kernel`] function needs one.
+    pub permissions: Vec<Permission>,
+    /// How often the Kernel ticks its [`Automation`](automation::Automation), if it provides one.
+    pub tick_every: Option<Duration>,
 }
 
 impl Manifest {
@@ -120,6 +130,8 @@ impl Manifest {
             personal_settings: SettingsSchema::default(),
             extension_points: Vec::new(),
             logo_svg: None,
+            permissions: Vec::new(),
+            tick_every: None,
         }
     }
 }
@@ -303,10 +315,21 @@ impl fmt::Debug for Registration {
 }
 
 /// Collects what one Plugin registers while it is being enabled.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Registrar {
     settings: Settings,
     registrations: Vec<Registration>,
+    kernel: Option<Arc<dyn Kernel>>,
+}
+
+impl fmt::Debug for Registrar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Registrar")
+            .field("settings", &self.settings)
+            .field("registrations", &self.registrations)
+            .field("kernel", &self.kernel.is_some())
+            .finish()
+    }
 }
 
 impl Registrar {
@@ -321,8 +344,25 @@ impl Registrar {
     pub fn with_settings(settings: Settings) -> Self {
         Self {
             settings,
-            registrations: Vec::new(),
+            ..Self::default()
         }
+    }
+
+    /// Hands the Plugin `kernel`, the functions an Automation Plugin may call. Only the Kernel
+    /// calls it, when enabling a Plugin.
+    #[must_use]
+    pub fn with_kernel(self, kernel: Arc<dyn Kernel>) -> Self {
+        Self {
+            kernel: Some(kernel),
+            ..self
+        }
+    }
+
+    /// The functions the Plugin may call on the Kernel, if it is handed them; `None` for a Plugin
+    /// that provides no [`Automation`](automation::Automation).
+    #[must_use]
+    pub fn kernel(&self) -> Option<Arc<dyn Kernel>> {
+        self.kernel.clone()
     }
 
     /// The settings the Plugin is being enabled with, checked against its
