@@ -6,6 +6,7 @@ mod contract;
 mod points;
 mod registry;
 mod scope;
+mod tick;
 mod wasm;
 
 use std::{

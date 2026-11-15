@@ -24,7 +24,8 @@ use tracing::{error, info};
 
 use super::{
     CheckError, CheckTimedOut, EnableError, ExtensionPoints, LastProvider, Listed,
-    SETTINGS_CHECK_TIMEOUT, contain, contain_sync, scope::Scope, secret_values, without_secrets,
+    SETTINGS_CHECK_TIMEOUT, contain, contain_sync, scope::Scope, secret_values, tick,
+    without_secrets,
 };
 /// Every Plugin enabled on this Server and everything they registered.
 ///
@@ -281,7 +282,7 @@ impl Registry {
                 Enabled {
                     _plugin: plugin,
                     generation,
-                    scope: Scope::default(),
+                    scope: tick::scope(&self.points, manifest, &registrations),
                 },
             );
             for (index, registration) in registrations.into_iter().enumerate() {
