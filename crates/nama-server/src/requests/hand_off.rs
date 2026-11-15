@@ -12,8 +12,8 @@ use std::{
 };
 
 use nama_plugin_api::{
-    PluginError, PluginId,
-    fulfiller::{Fulfilled, Fulfiller, Movies, Shows, TryAgainIn},
+    PluginId,
+    fulfiller::{Fulfilled, Fulfiller, Movies, Shows},
 };
 use nama_proto::nama::v1::{ExternalId, Request, RequestState, request::MovieOrSeason};
 use tokio::sync::{Notify, mpsc::UnboundedReceiver};
@@ -24,14 +24,8 @@ use super::listing::{load, load_one};
 use super::{Error, Requests, lock};
 use crate::{
     db::{BoxFuture, Database, detached},
-    plugins::{self, Answer, ExtensionPoints, Failure, ProviderError},
+    plugins::{self, Answer, ExtensionPoints, Failure, RETRIES, Retryable},
 };
-
-/// How many times in a row the Kernel asks a Fulfiller again after it said to try again, before
-/// it gives up.
-// ponytail: a fixed cap, so a Fulfiller that always says to try again can't keep a Request waiting
-// forever; make it the Fulfiller's to say if a service needs longer.
-const RETRIES: u32 = 10;
 
 /// What a Fulfiller answered to a hand-off, and how long it said to wait if it said to try again,
 /// when the answer is the failure the Request settles with once the Kernel gives up.
@@ -347,18 +341,6 @@ impl HandOff {
             tokio::time::sleep(wait).await;
             hand_off.unfollow_retried(&season, retried).await;
         });
-    }
-}
-
-/// A Fulfiller's error, whose kind is how long it said to wait when it said to try again.
-struct Retryable(PluginError);
-
-impl ProviderError<Option<Duration>> for Retryable {
-    fn failure(self) -> Failure<Option<Duration>> {
-        Failure {
-            kind: self.0.downcast_ref::<TryAgainIn>().map(|wait| wait.0),
-            message: self.0.to_string(),
-        }
     }
 }
 

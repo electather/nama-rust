@@ -5,6 +5,7 @@ mod builtin;
 mod contract;
 mod points;
 mod registry;
+mod retrying;
 mod scope;
 mod tick;
 mod wasm;
@@ -31,6 +32,7 @@ use crate::images::{MAX_SVG_BYTES, clean_svg};
 pub(crate) use contract::{download, notification, observed, request};
 pub use points::ExtensionPoints;
 pub use registry::Registry;
+pub(crate) use retrying::{RETRIES, Retryable};
 pub(crate) use wasm::read as read_installed;
 
 /// How long a Plugin's settings check may take before it counts as failed.

@@ -13,8 +13,8 @@ use std::{
 };
 
 use nama_plugin_api::{
-    PluginError, PluginId,
-    fulfiller::{Fulfiller, StopMonitoring, TryAgainIn, stop_monitoring::Title},
+    PluginId,
+    fulfiller::{Fulfiller, StopMonitoring, stop_monitoring::Title},
 };
 use nama_proto::nama::v1::Request;
 
@@ -22,27 +22,11 @@ use super::is_video;
 use crate::{
     library::contents::{Episode, Version},
     library::libraries::Library,
-    plugins::{ExtensionPoints, Failure, ProviderError},
+    plugins::{ExtensionPoints, Failure, RETRIES},
     requests::RequestTitle,
 };
 
-/// How many times in a row a Fulfiller that says to try again is asked again to stop monitoring a
-/// deleted title, before the Kernel gives up.
-// ponytail: a fixed cap, so one that always says to try again isn't asked forever; make it the
-// Fulfiller's to say if a service needs longer.
-const RETRIES: u32 = 10;
-
-/// A Fulfiller's error, whose kind is how long it said to wait when it said to try again.
-pub(super) struct Retryable(pub(super) PluginError);
-
-impl ProviderError<Option<Duration>> for Retryable {
-    fn failure(self) -> Failure<Option<Duration>> {
-        Failure {
-            kind: self.0.downcast_ref::<TryAgainIn>().map(|wait| wait.0),
-            message: self.0.to_string(),
-        }
-    }
-}
+pub(super) use crate::plugins::Retryable;
 
 /// A deleted title the Plugin `plugin`'s Fulfiller said to ask it again to stop monitoring:
 /// `title`, which the log calls `name`.
