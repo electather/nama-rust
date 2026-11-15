@@ -2066,7 +2066,7 @@ version = "0.1.0"
 
 [[package]]
 name = "nama-pdk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "buffa",
  "extism-pdk",
@@ -2075,7 +2075,7 @@ dependencies = [
 
 [[package]]
 name = "nama-plugin-api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "nama-plugin-proto",
  "serde",
@@ -2110,7 +2110,7 @@ dependencies = [
 
 [[package]]
 name = "nama-plugin-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "buffa",
  "serde",

@@ -23,7 +23,7 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-nama-pdk = "0.1.0"
+nama-pdk = "0.2.0"
 ```
 
 Depend on nothing else from Nama: the contract is all a Plugin may see.

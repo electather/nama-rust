@@ -1,6 +1,6 @@
 [package]
 name = "nama-plugin-proto"
-version = "0.1.0"
+version = "0.2.0"
 description = "Protobuf messages generated from the Nama Plugin contract in proto/nama/plugin/"
 license = "MIT OR Apache-2.0"
 edition.workspace = true

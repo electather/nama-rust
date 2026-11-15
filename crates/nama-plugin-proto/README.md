@@ -10,6 +10,12 @@ Each Extension Point an Installed Plugin can serve is a service of the contract,
 
 `nama.plugin.v1.TitleSourceService`, in [`title_source.proto`](../../proto/nama/plugin/v1/title_source.proto), is a title source the Kernel searches and fetches Movies and Shows from to Match a Library's files. Every one of its exports (`title_search`, `title_movie`, `title_show`, `title_season`, `title_episode`, `title_image` and `title_artwork`) is optional: the Kernel asks a source only for the ones it has. Its Manifest names in `title_namespace` the id namespace it keeps titles under, such as `tvdb`, and in `title_lookup_namespaces` any others it can look a title up by, such as `imdb`; the Kernel refuses one naming the service without a well-formed namespace in the first, or with a malformed one in the second. Asked by an id in a namespace it can't use, a source answers with `unsupported_id` set, and the Kernel asks the next source.
 
+## Versions
+
+The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move together: their version in `Cargo.toml` changes with each release, separately from `CONTRACT_VERSION` and the service versions in `SERVICES`.
+
+- **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`.
+
 ## Title ids
 
 A title's ids reach a Plugin as `repeated TitleId`, each a namespace and a value, defined in [`proto/nama/plugin/v1/request.proto`](../../proto/nama/plugin/v1/request.proto) (ADR [0042](../../docs/adr/0042-a-titles-id-is-a-namespace-and-a-value.md)). A namespace is one or more of a-z and 0-9; a value is never empty. A title has at most one id per namespace, and any one of them identifies it. `tmdb`, `imdb` and `tvdb` are well known, and a Plugin may bring any other. The Kernel never interprets a value, so a Plugin that needs a number parses it itself. `nama_pdk::title_id` reads the value in one namespace.
