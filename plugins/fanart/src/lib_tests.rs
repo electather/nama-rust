@@ -1,5 +1,6 @@
 use nama_pdk::{
-    ArtworkAsked, TitleId, TitleKind, nama_plugin_proto::nama::plugin::v1::SettingKind, services,
+    ArtworkAnswer, ArtworkAsked, TitleId, TitleKind,
+    nama_plugin_proto::nama::plugin::v1::SettingKind, services,
 };
 
 use nama_pdk::ArtworkKind::{
@@ -7,7 +8,7 @@ use nama_pdk::ArtworkKind::{
     ARTWORK_KIND_POSTER, ARTWORK_KIND_THUMB,
 };
 
-use super::{MOVIE, SHOW, artwork, asset_path, lookup, manifest};
+use super::{MOVIE, SHOW, artwork, asset_path, lookup, manifest, unsupported_id};
 
 fn id(namespace: &str, value: &str) -> TitleId {
     TitleId {
@@ -180,6 +181,44 @@ fn a_foreign_namespace_or_kind_is_unsupported() {
     assert_eq!(looked_up(TITLE_KIND_MOVIE, "tvdb", "1"), None);
     assert_eq!(looked_up(TITLE_KIND_SHOW, "tmdb", "1"), None);
     assert_eq!(looked_up(TITLE_KIND_UNSPECIFIED, "tmdb", "1"), None);
+}
+
+// The export itself calls into the Extism runtime, so it can't link outside wasm32.
+#[test]
+fn an_id_fanart_cant_look_up_answers_unsupported_id_and_no_artwork() {
+    assert_eq!(
+        unsupported_id(),
+        ArtworkAnswer {
+            unsupported_id: true,
+            artwork: vec![],
+            ..ArtworkAnswer::default()
+        }
+    );
+}
+
+#[test]
+fn a_malformed_item_or_list_is_skipped_and_the_rest_kept() {
+    let body = br#"{
+        "hdmovielogo": [
+            {"url": "https://assets.fanart.tv/fanart/movies/1/hdmovielogo/good.png", "lang": "en", "likes": "3"},
+            {"lang": "en", "likes": "5"},
+            {"url": "https://assets.fanart.tv/fanart/movies/1/hdmovielogo/bad.png", "likes": 9}
+        ],
+        "movielogo": "not a list"
+    }"#;
+
+    let artwork = artwork(MOVIE, body).unwrap();
+
+    let listed: Vec<_> = artwork
+        .iter()
+        .map(|art| (art.path.as_str(), art.votes))
+        .collect();
+    assert_eq!(listed, [("/fanart/movies/1/hdmovielogo/good.png", Some(3))]);
+}
+
+#[test]
+fn an_answer_that_isnt_an_object_fails() {
+    artwork(MOVIE, b"[]").unwrap_err();
 }
 
 #[test]

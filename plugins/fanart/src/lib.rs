@@ -100,10 +100,7 @@ struct Fanart;
 impl TitleSource for Fanart {
     fn artwork(asked: ArtworkAsked) -> Result<ArtworkAnswer, Error> {
         let Some((path, lists)) = lookup(&asked)? else {
-            return Ok(ArtworkAnswer {
-                unsupported_id: true,
-                ..ArtworkAnswer::default()
-            });
+            return Ok(unsupported_id());
         };
         let mut url = format!(
             "{}/{path}?api_key={}",
@@ -204,6 +201,14 @@ fn lookup(asked: &ArtworkAsked) -> Result<Option<(String, &'static [List])>, Err
     Ok(found.map(|(section, lists)| (format!("{section}/{}", encoded(&id.value)), lists)))
 }
 
+/// What the `artwork` export answers when [`lookup`] can't look the title up.
+fn unsupported_id() -> ArtworkAnswer {
+    ArtworkAnswer {
+        unsupported_id: true,
+        ..ArtworkAnswer::default()
+    }
+}
+
 /// One image in a fanart.tv list.
 #[derive(Deserialize)]
 struct Listed {
@@ -215,17 +220,20 @@ struct Listed {
 }
 
 /// The artwork in fanart.tv's answer `body`, in the order of `lists`.
+///
+/// # Errors
+/// If `body` isn't a JSON object.
 fn artwork(lists: &[List], body: &[u8]) -> Result<Vec<Artwork>, Error> {
     let answer: json::Map<String, json::Value> =
         json::from_slice(body).map_err(|err| unexpected(&err))?;
     let mut artwork = Vec::new();
     for &(field, kind, size) in lists {
-        let Some(listed) = answer.get(field) else {
+        // One malformed list or item is skipped, so the rest of the answer still serves.
+        let Some(listed) = answer.get(field).and_then(json::Value::as_array) else {
             continue;
         };
-        let listed: Vec<Listed> =
-            json::from_value(listed.clone()).map_err(|err| unexpected(&err))?;
-        artwork.extend(listed.into_iter().filter_map(|image| {
+        artwork.extend(listed.iter().filter_map(|image| {
+            let image: Listed = json::from_value(image.clone()).ok()?;
             Some(Artwork {
                 kind: kind.into(),
                 path: asset_path(&image.url)?,
