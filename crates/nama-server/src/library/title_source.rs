@@ -26,10 +26,10 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub(crate) enum Unanswered {
     /// It has no such title, Season or image, or can't look titles up by the id asked for.
-    #[error("the metadata Provider has no such title, Season or image")]
+    #[error("the title source has no such title, Season or image")]
     NotFound,
     /// No title source is enabled, or it failed. Worth asking again later.
-    #[error("no metadata Provider could answer")]
+    #[error("no title source could answer")]
     Unavailable,
 }
 
@@ -86,7 +86,7 @@ impl TitleSources {
         }
     }
 
-    /// The same Providers, asked only through the Plugin `plugin`'s, which is
+    /// The same title sources, asked only through the Plugin `plugin`'s, which is
     /// [`Unanswered::Unavailable`] while it isn't enabled.
     pub(crate) fn only(&self, plugin: PluginId) -> Self {
         Self {
@@ -108,7 +108,7 @@ impl TitleSources {
         Ok(Metadata::movie(plugin, movie))
     }
 
-    /// The image at `path` from the Plugin `plugin`'s Provider, which handed the path out.
+    /// The image at `path` from the Plugin `plugin`'s title source, which handed the path out.
     pub(crate) async fn image(&self, plugin: &PluginId, path: &str) -> Result<Image, Unanswered> {
         let asked = &ImageAsked {
             path: path.to_owned(),
@@ -488,7 +488,7 @@ impl ProviderError<Unanswered> for MetadataError {
     }
 }
 
-/// The answer in `answered`, or what its failure means; `answered` is `None` when no Provider
+/// The answer in `answered`, or what its failure means; `answered` is `None` when no title source
 /// could be asked.
 fn meaning<R>(answered: Option<Answer<R, Unanswered>>) -> Result<(PluginId, R), Unanswered> {
     match answered {
@@ -501,12 +501,12 @@ fn meaning<R>(answered: Option<Answer<R, Unanswered>>) -> Result<(PluginId, R), 
             result: Err(failure),
         }) => {
             if failure.kind == Unanswered::Unavailable {
-                tracing::warn!(%plugin, error = failure.message, "the metadata provider failed");
+                tracing::warn!(%plugin, error = failure.message, "the title source failed");
             }
             Err(failure.kind)
         }
         None => {
-            tracing::debug!("no metadata provider could be asked");
+            tracing::debug!("no title source could be asked");
             Err(Unanswered::Unavailable)
         }
     }
