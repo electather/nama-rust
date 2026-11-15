@@ -183,7 +183,17 @@ impl Fixture {
         let fx = Self::dark().await;
         let sonarr = FakeSonarr::start().await;
         sonarr.enable_on(&fx.server).await;
-        fx.server.admin_requests().follow(DARK).await;
+        let requests = fx.server.admin_requests();
+        requests.follow(DARK).await;
+        // A Season handed off while Sonarr refreshes the Show another one added goes on a retry.
+        let handed_off = async {
+            while !requests.list_in(RequestState::Approved).await.0.is_empty() {
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(15), handed_off)
+            .await
+            .unwrap();
         sonarr.finish_refreshes().await;
         (fx, sonarr)
     }

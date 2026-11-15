@@ -13,7 +13,7 @@ mod exports {
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
-        StopMonitoring, TitleId,
+        StopMonitoring, TitleId, TryAgainIn,
         extism_pdk::{self, Error},
         nama_plugin_proto::nama::plugin::v1::{
             EpisodeNumbers, RequestedSeason, request::MovieOrSeason, show_deleted::Deleted,
@@ -24,9 +24,8 @@ mod exports {
     use nama_servarr::{QualityProfile, Queued, Servarr};
     use serde::{Deserialize, Serialize};
 
-    /// How long a hand-off waits for Sonarr to finish adding its Show, well inside the 5 s a call
-    /// may take.
-    const ADD_WAIT: Duration = Duration::from_secs(2);
+    /// How long the Kernel waits before asking again while Sonarr refreshes a Show.
+    const REFRESH_RETRY: Duration = Duration::from_secs(5);
 
     /// The code Sonarr gives when it refuses to add a Show because it already has it.
     const SERIES_EXISTS: &str = "SeriesExistsValidator";
@@ -69,7 +68,7 @@ mod exports {
             let Some(show) = had else {
                 return Ok(fulfilled(tvdb_id, season_number, asked, profiles));
             };
-            sonarr.wait_until_added(show.id)?;
+            sonarr.not_refreshing(show.id)?;
             if request.followed_show_id.is_some() {
                 sonarr.monitor_new_seasons(show.id, true)?;
             }
@@ -85,7 +84,7 @@ mod exports {
                 return Ok(());
             };
             // A refresh saves the whole Show as it read it, so would undo the change too.
-            sonarr.wait_until_added(show.id)?;
+            sonarr.not_refreshing(show.id)?;
             sonarr.monitor_new_seasons(show.id, false)
         }
 
@@ -101,7 +100,7 @@ mod exports {
                 return Ok(());
             };
             // A refresh saves the whole Show as it read it, so would undo the change too.
-            sonarr.wait_until_added(show.id)?;
+            sonarr.not_refreshing(show.id)?;
             let episodes: Vec<Episode> =
                 sonarr.api.get(&format!("episode?seriesId={}", show.id))?;
             let (seasons, episodes) = match show_deleted.deleted {
@@ -226,17 +225,14 @@ mod exports {
             self.api.add("series", new_show, SERIES_EXISTS)
         }
 
-        /// Returns once Sonarr has no refresh of the Show `show_id` queued or running, or fails
-        /// after [`ADD_WAIT`]. A refresh reads the Show's Seasons, fetches it from
-        /// TVDB, then saves the Seasons as it read them, so a Season monitored meanwhile is
-        /// dropped. Sonarr starts one as it adds a Show, so a Season handed off right after
+        /// Fails with [`TryAgainIn`] while Sonarr has a refresh of the Show `show_id` queued or
+        /// running, so the Kernel asks again later. A refresh reads the Show's Seasons, fetches
+        /// it from TVDB, then saves the Seasons as it read them, so a Season monitored meanwhile
+        /// is dropped. Sonarr starts one as it adds a Show, so a Season handed off right after
         /// another one added its Show would be.
-        fn wait_until_added(&self, show_id: i64) -> Result<(), Error> {
-            let start = nama_pdk::now();
-            while self.refreshing(show_id)? {
-                // A clock that steps back counts as no time passed.
-                let waited = nama_pdk::now().duration_since(start).unwrap_or_default();
-                (waited < ADD_WAIT).then_some(()).ok_or_else(still_adding)?;
+        fn not_refreshing(&self, show_id: i64) -> Result<(), Error> {
+            if self.refreshing(show_id)? {
+                return Err(TryAgainIn(REFRESH_RETRY).into());
             }
             Ok(())
         }
@@ -359,14 +355,6 @@ mod exports {
     /// Sonarr's `monitorNewItems` for a Show whose new Seasons it monitors if `monitored`.
     fn new_items(monitored: bool) -> &'static str {
         if monitored { "all" } else { "none" }
-    }
-
-    /// Why a Season Request fails when Sonarr takes too long adding its Show.
-    fn still_adding() -> Error {
-        Error::msg(
-            "Sonarr was still adding the Show, so it would have forgotten this Season. \
-             Retry in a minute.",
-        )
     }
 
     /// What an entry in Sonarr's queue is for: one Episode of a Season.

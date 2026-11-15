@@ -53,8 +53,12 @@ struct Fake {
     shows: Mutex<Vec<Value>>,
     /// Whether the next list of its Shows by TVDB id answers as if it didn't have them.
     stale_find: AtomicBool,
-    /// Whether the refreshes it starts as it adds a Show never finish.
+    /// Whether the refreshes it starts as it adds a Show wait for [`FakeSonarr::release_refreshes`].
     hold_refreshes: AtomicBool,
+    /// The refreshes held so far, as the index of their command, their Show's id and its Seasons.
+    held: Mutex<Vec<(usize, i64, Value)>>,
+    /// Each call to its own routes, as `GET /api/v3/series`, in order.
+    calls: Mutex<Vec<String>>,
     /// The commands it queued, as `GET /api/v3/command` lists them.
     commands: Mutex<Vec<Value>>,
     /// The ids of the Shows whose refresh after their add finished, and so have Episodes.
@@ -86,9 +90,25 @@ impl FakeSonarr {
         self.state.stale_find.store(true, Ordering::Relaxed);
     }
 
-    /// Makes the refreshes it starts as it adds a Show from now on never finish.
+    /// Makes the refreshes it starts as it adds a Show from now on wait for
+    /// [`Self::release_refreshes`].
     pub(crate) fn hold_refreshes(&self) {
         self.state.hold_refreshes.store(true, Ordering::Relaxed);
+    }
+
+    /// Finishes each held refresh at once, and stops holding them.
+    pub(crate) fn release_refreshes(&self) {
+        self.state.hold_refreshes.store(false, Ordering::Relaxed);
+        let held = std::mem::take(&mut *lock(&self.state.held));
+        for (command, id, seasons) in held {
+            finish_refresh(&self.state, command, id, seasons);
+        }
+    }
+
+    /// Each call to its own routes so far, as `GET /api/v3/series`, in order. The routes it
+    /// shares with the fake Radarr, such as the queue, aren't in it.
+    pub(crate) fn calls(&self) -> Vec<String> {
+        lock(&self.state.calls).clone()
     }
 
     /// Returns once every refresh it started has finished, as Seasons' monitoring settles.
@@ -161,6 +181,7 @@ async fn answer(State(fake): State<Arc<Fake>>, method: Method, uri: Uri, body: B
         .unwrap_or_default();
     let body: Value = serde_json::from_slice(&body).unwrap_or_default();
     let param = |key: &str| query.get(key).map_or("", String::as_str);
+    lock(&fake.calls).push(format!("{method} {}", uri.path()));
     match (method, uri.path()) {
         (Method::GET, "/api/v3/series") => find(&fake, param("tvdbId")),
         (Method::GET, "/api/v3/series/lookup") => look_up(param("term")),
@@ -260,19 +281,25 @@ fn refresh(fake: &Arc<Fake>, id: i64, seasons: Value) {
         "id": command + 1,
     }));
     if fake.hold_refreshes.load(Ordering::Relaxed) {
+        lock(&fake.held).push((command, id, seasons));
         return;
     }
     let fake = Arc::clone(fake);
     tokio::spawn(async move {
         tokio::time::sleep(REFRESH).await;
-        if let Some(show) = lock(&fake.shows).iter_mut().find(|show| show["id"] == id) {
-            show["seasons"] = seasons;
-        }
-        lock(&fake.refreshed).push(id);
-        if let Some(Value::Object(fields)) = lock(&fake.commands).get_mut(command) {
-            fields.insert("status".to_owned(), json!("completed"));
-        }
+        finish_refresh(&fake, command, id, seasons);
     });
+}
+
+/// Finishes the refresh queued as command `command`, saving the Show `id`'s Seasons as `seasons`.
+fn finish_refresh(fake: &Fake, command: usize, id: i64, seasons: Value) {
+    if let Some(show) = lock(&fake.shows).iter_mut().find(|show| show["id"] == id) {
+        show["seasons"] = seasons;
+    }
+    lock(&fake.refreshed).push(id);
+    if let Some(Value::Object(fields)) = lock(&fake.commands).get_mut(command) {
+        fields.insert("status".to_owned(), json!("completed"));
+    }
 }
 
 /// As Sonarr's series editor does for `monitorNewItems`, the one field the Plugin edits: sets it on

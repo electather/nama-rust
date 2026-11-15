@@ -15,12 +15,14 @@ mod servarr;
 #[path = "support/server.rs"]
 mod server;
 
+use std::time::Duration;
+
 use connectrpc::ErrorCode;
 use fake_sonarr::{API_KEY as SONARR_KEY, FakeSonarr};
 use nama_plugin_api::fulfiller::Shows;
 use nama_proto::nama::v1::{
-    CancelFollowedShowRequest, Download, DownloadStatus, EventType, RefusalReason, Request,
-    RequestState, event,
+    CancelFollowedShowRequest, DisablePluginRequest, Download, DownloadStatus, EventType,
+    RefusalReason, Request, RequestState, event,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -130,6 +132,41 @@ impl Fixture {
         asked
     }
 
+    /// Each of `asked` once its hand-off took it, as a hand-off Sonarr said to retry does later.
+    async fn handed_off(&self, asked: Vec<Request>) -> Vec<Request> {
+        let mut handed = Vec::new();
+        for request in asked {
+            handed.push(self.until_state(request.id, RequestState::Processing).await);
+        }
+        handed
+    }
+
+    /// Returns once the fake Sonarr was called more than `count` times, failing after 15 s.
+    async fn sonarr_calls_after(&self, count: usize) {
+        let called = async {
+            while self.sonarr.calls().len() <= count {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(15), called)
+            .await
+            .unwrap();
+    }
+
+    /// The Request `id` once it is in `state`, failing after 15 s.
+    async fn until_state(&self, id: i64, state: RequestState) -> Request {
+        let requests = self.server.admin_requests();
+        let settled = async {
+            while requests.get(id).await.state != state {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(15), settled)
+            .await
+            .unwrap();
+        requests.get(id).await
+    }
+
     /// Subscribes as the Admin to the progress of every Request.
     async fn subscribe_to_progress(&self) -> Subscription {
         subscribe(
@@ -190,7 +227,10 @@ async fn asking_for_seasons_of_a_show_sonarr_lacks_adds_it_with_only_those_seaso
  {
     let fixture = Fixture::with_sonarr_enabled().await;
 
-    let asked = fixture.ask_approved(DARK, &[1, 3]).await;
+    // Season 3's hand-off finds Sonarr refreshing the Show Season 1's added, so goes on a retry.
+    let asked = fixture
+        .handed_off(fixture.ask_approved(DARK, &[1, 3]).await)
+        .await;
     fixture.sonarr.finish_refreshes().await;
 
     assert_eq!(states(&asked), [Some(RequestState::Processing); 2]);
@@ -212,7 +252,10 @@ async fn asking_for_seasons_of_a_show_sonarr_lacks_adds_it_with_only_those_seaso
 async fn a_later_season_request_adds_its_season_to_the_monitored_ones_without_changing_the_others()
 {
     let fixture = Fixture::with_sonarr_enabled().await;
-    fixture.ask_approved(DARK, &[1, 3]).await;
+    fixture
+        .handed_off(fixture.ask_approved(DARK, &[1, 3]).await)
+        .await;
+    fixture.sonarr.finish_refreshes().await;
 
     let asked = fixture.ask_approved(DARK, &[2]).await;
     fixture.sonarr.finish_refreshes().await;
@@ -226,6 +269,7 @@ async fn a_later_season_request_adds_its_season_to_the_monitored_ones_without_ch
 async fn a_show_another_hand_off_added_meanwhile_gets_the_season_monitored_rather_than_failing() {
     let fixture = Fixture::with_sonarr_enabled().await;
     fixture.ask_approved(DARK, &[1]).await;
+    fixture.sonarr.finish_refreshes().await;
     fixture.sonarr.answer_next_find_stale();
 
     let asked = fixture.ask_approved(DARK, &[3]).await;
@@ -236,24 +280,80 @@ async fn a_show_another_hand_off_added_meanwhile_gets_the_season_monitored_rathe
     assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 3]);
 }
 
+/// What Sonarr is asked each time a hand-off finds it still refreshing the Show.
+const RETRY_CALLS: [&str; 2] = ["GET /api/v3/series", "GET /api/v3/command"];
+
+/// What Sonarr is asked as a hand-off of a Season of a Show it has and isn't refreshing.
+const HAND_OFF_CALLS: [&str; 6] = [
+    "GET /api/v3/series",
+    "GET /api/v3/command",
+    "POST /api/v3/seasonpass",
+    "GET /api/v3/episode",
+    "PUT /api/v3/episode/monitor",
+    "POST /api/v3/command",
+];
+
 #[tokio::test]
-async fn a_season_handed_off_while_sonarr_is_still_adding_its_show_fails_in_plain_words() {
+async fn a_season_handed_off_while_sonarr_refreshes_its_show_waits_approved_and_goes_processing_once_it_is_done()
+ {
     let fixture = Fixture::with_sonarr_enabled().await;
     fixture.sonarr.hold_refreshes();
 
     let asked = fixture.ask_approved(DARK, &[1, 3]).await;
+    let before = fixture.sonarr.calls().len();
+    // The Kernel asks again once while Sonarr still refreshes.
+    fixture.sonarr_calls_after(before + 1).await;
+    let waiting = fixture.server.admin_requests().get(asked[1].id).await;
+    fixture.sonarr.release_refreshes();
+    let handed = fixture
+        .until_state(asked[1].id, RequestState::Processing)
+        .await;
 
     assert_eq!(
         states(&asked),
-        [Some(RequestState::Processing), Some(RequestState::Failed)]
+        [Some(RequestState::Processing), Some(RequestState::Approved)]
     );
-    assert_eq!(
-        asked[1].failure_reason.as_deref(),
-        Some(
-            "Sonarr was still adding the Show, so it would have forgotten this Season. \
-             Retry in a minute."
-        )
+    assert_eq!(waiting.state, RequestState::Approved);
+    let calls = fixture.sonarr.calls().split_off(before);
+    let (retries, hand_off) = calls.split_at(calls.len().saturating_sub(HAND_OFF_CALLS.len()));
+    assert_eq!(hand_off, HAND_OFF_CALLS);
+    assert!(
+        !retries.is_empty(),
+        "the Kernel didn't ask again while Sonarr refreshed"
     );
+    assert!(
+        retries
+            .chunks(RETRY_CALLS.len())
+            .all(|retry| retry == RETRY_CALLS),
+        "Sonarr was asked more than the retries: {retries:?}"
+    );
+    assert_eq!(handed.state, RequestState::Processing);
+    assert_eq!(fixture.sonarr.monitored_seasons(DARK_TVDB), [1, 3]);
+}
+
+#[tokio::test]
+async fn disabling_sonarr_while_a_season_waits_for_its_refresh_leaves_it_approved_and_asks_sonarr_nothing_more()
+ {
+    let fixture = Fixture::with_sonarr_enabled().await;
+    fixture.sonarr.hold_refreshes();
+    let asked = fixture.ask_approved(DARK, &[1, 3]).await;
+
+    fixture
+        .plugins()
+        .disable_plugin(DisablePluginRequest {
+            id: "sonarr".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let (calls, queue_calls) = (fixture.sonarr.calls(), fixture.sonarr.queue_calls());
+    // Past when the hand-off would have asked again.
+    tokio::time::sleep(Duration::from_secs(6)).await;
+
+    let waiting = fixture.server.admin_requests().get(asked[1].id).await;
+    assert_eq!(waiting.state, RequestState::Approved);
+    assert_eq!(fixture.sonarr.calls(), calls);
+    assert_eq!(fixture.sonarr.queue_calls(), queue_calls);
 }
 
 #[tokio::test]
@@ -410,6 +510,7 @@ async fn asking_for_a_whole_show_sonarr_lacks_adds_it_with_new_seasons_monitored
     let fixture = Fixture::with_sonarr_enabled().await;
 
     let (_, asked) = fixture.follow_approved(DARK).await;
+    let asked = fixture.handed_off(asked).await;
     fixture.sonarr.finish_refreshes().await;
 
     assert_eq!(states(&asked), [Some(RequestState::Processing); 3]);
@@ -436,7 +537,8 @@ async fn asking_for_a_whole_show_sonarr_has_for_one_season_turns_on_its_new_seas
 #[tokio::test]
 async fn cancelling_a_followed_show_turns_off_sonarrs_new_season_monitoring() {
     let fixture = Fixture::with_sonarr_enabled().await;
-    let (followed, _) = fixture.follow_approved(DARK).await;
+    let (followed, asked) = fixture.follow_approved(DARK).await;
+    fixture.handed_off(asked).await;
     fixture.sonarr.finish_refreshes().await;
 
     fixture.cancel_followed(followed).await;
