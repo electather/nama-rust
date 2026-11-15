@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     contract::{
-        Candidate, EpisodeAnswer, EpisodeAsked, ImageAnswer, ImageAsked, Movie, MovieAnswer,
-        SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer,
-        TitleAsked, TitleId,
+        Artwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Candidate, EpisodeAnswer, EpisodeAsked,
+        ImageAnswer, ImageAsked, Movie, MovieAnswer, SearchQuery, SearchResults, Season,
+        SeasonAnswer, SeasonAsked, Show, ShowAnswer, TitleAsked, TitleId,
     },
     metadata::{ExternalId, MetadataError, TitleMethod, TitleSource},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
@@ -193,6 +193,8 @@ enum Answers {
     UnsupportedId,
     Unsupported,
     Fails,
+    /// As [`Answers::Has`], but without serving [`TitleMethod::Artwork`].
+    NoArtwork,
 }
 
 /// The namespaces of the sources asked for a title or Season, in the order they were asked.
@@ -218,7 +220,7 @@ impl Fake {
             .unwrap_or_else(PoisonError::into_inner)
             .push(self.namespace);
         match self.answers {
-            Answers::Has | Answers::Empty => Ok(found(vec![self.id()])),
+            Answers::Has | Answers::Empty | Answers::NoArtwork => Ok(found(vec![self.id()])),
             Answers::NotFound | Answers::UnsupportedId => Ok(T::default()),
             Answers::Unsupported => Err(MetadataError::Unsupported),
             Answers::Fails => Err(MetadataError::Failed("unreachable".into())),
@@ -332,6 +334,35 @@ impl TitleSource for Fake {
             ..found
         });
         Box::pin(async { found })
+    }
+
+    /// One poster, whose path names the id it was asked by.
+    fn artwork<'a>(
+        &'a self,
+        asked: &'a ArtworkAsked,
+    ) -> BoxFuture<'a, Result<ArtworkAnswer, MetadataError>> {
+        let empty = matches!(self.answers, Answers::Empty);
+        let found = self.answer(|_| {
+            let id = asked.id.as_option().cloned().unwrap_or_default();
+            let poster = Artwork {
+                kind: ArtworkKind::ARTWORK_KIND_POSTER.into(),
+                path: format!("/{}-{}.jpg", id.namespace, id.value),
+                ..Default::default()
+            };
+            ArtworkAnswer {
+                artwork: if empty { vec![] } else { vec![poster] },
+                ..Default::default()
+            }
+        });
+        let found = found.map(|found| ArtworkAnswer {
+            unsupported_id: self.unsupported_id(),
+            ..found
+        });
+        Box::pin(async { found })
+    }
+
+    fn answers(&self, method: TitleMethod) -> bool {
+        !(method == TitleMethod::Artwork && matches!(self.answers, Answers::NoArtwork))
     }
 }
 
@@ -706,4 +737,58 @@ async fn a_source_answering_only_artwork_is_never_asked_for_a_title_or_a_search(
             .unwrap_or_else(PoisonError::into_inner)
             .is_empty()
     );
+}
+
+/// Each image [`TitleSources::artwork_lists`] lists, as `namespace:path`.
+async fn artwork_from(metadata: &TitleSources, ids: &[(&str, &str)]) -> Vec<String> {
+    let ids = (ids.iter())
+        .map(|&(namespace, value)| ExternalId::new(namespace, value).unwrap())
+        .collect();
+    let lists = metadata.artwork_lists(super::TitleKind::Movie, &ids).await;
+    (lists.into_iter())
+        .flat_map(|(source, list)| {
+            list.into_iter()
+                .map(move |art| format!("{}:{}", source.namespace, art.path))
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn artwork_is_never_asked_of_a_source_that_does_not_answer_it() {
+    let (metadata, sources_asked) = two(Answers::NoArtwork, Answers::Has);
+
+    let lists = artwork_from(&metadata, &[("aa", "1"), ("bb", "1")]).await;
+
+    assert_eq!(lists, ["bb:/bb-1.jpg"]);
+    assert_eq!(asked(&sources_asked), ["bb"]);
+}
+
+#[tokio::test]
+async fn artwork_is_asked_by_a_lookup_namespace_id_when_the_title_lacks_the_sources_own() {
+    let (metadata, sources_asked) = two(Answers::Has, Answers::Has);
+
+    let by_bb = artwork_from(&metadata, &[("bb", "7")]).await;
+    let by_neither = artwork_from(&metadata, &[("cc", "7")]).await;
+
+    assert_eq!(by_bb, ["aa:/bb-7.jpg", "bb:/bb-7.jpg"]);
+    assert_eq!(by_neither, Vec::<String>::new());
+    assert_eq!(asked(&sources_asked), ["aa", "bb"]);
+}
+
+#[tokio::test]
+async fn a_source_with_no_artwork_list_gives_no_entry_while_the_others_answer() {
+    for nothing in [
+        Answers::UnsupportedId,
+        Answers::Fails,
+        Answers::NotFound,
+        Answers::Empty,
+        Answers::Unsupported,
+    ] {
+        let (metadata, sources_asked) = two(nothing, Answers::Has);
+
+        let lists = artwork_from(&metadata, &[("aa", "1"), ("bb", "1")]).await;
+
+        assert_eq!(lists, ["bb:/bb-1.jpg"]);
+        assert_eq!(asked(&sources_asked), ["aa", "bb"]);
+    }
 }

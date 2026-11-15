@@ -9,6 +9,7 @@ What a Library holds: its contents, its settings (`libraries.rs`), asking its ti
 - **A title's preferred id follows its Library's order.** Contents reads name a Movie or Show by `primary_id` in the order of the Library's `title_sources`, read in the same query; only what belongs to no Library, such as a Request, uses `DEFAULT_ORDER`.
 - **Test helpers.** `contents/fixture.rs` is the one in-file fixture other areas' tests build on; `contents/testing.rs` holds what tests read back.
 - **One owner for asking the title sources.** Only `title_source.rs` (`TitleSources`) calls a `TitleSource` and decides what its failures mean. Matching, Requests, Artwork and handlers ask it and read its `Unanswered`.
+- **Artwork picks from every list.** Artwork picks from every ordered source's artwork list (ADR 0045, written later this stage), by language, then source order, then rating.
 - **One owner for Custom Images.** Only `custom_images.rs` reads or writes `custom_images`, tests included, and keys a title's by its external id, never an Item or file, and a Plugin's by the Plugin's id (ADR 0036). A Library's goes with the Library. Browse, Requests, Libraries and Plugins ask it for the URLs to show in place of downloaded images and Manifests' logos.
 - **One owner for Watch State.** Only `watch_states.rs` reads or writes `watch_states`, tests included, and keys it by a Movie's or Episode's external id, never an Item or file (ADR 0013). Browse works out which Movie or Episodes a Version or a marked title stands for and asks `WatchStates`.
 

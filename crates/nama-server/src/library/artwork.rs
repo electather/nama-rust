@@ -14,6 +14,7 @@
 //! copy resized to one of [`crate::images::WIDTHS`] while an admin leaves resizing on (ADR 0039).
 
 use std::{
+    cmp::Ordering,
     collections::{HashMap, HashSet},
     io,
     path::Path,
@@ -27,13 +28,13 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use nama_plugin_api::PluginId;
+use nama_plugin_api::{PluginId, metadata::ExternalIds};
 use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
 
 use crate::{
     images::{Asked, ImageStore, Resize, file_name},
-    library::contents::Contents,
-    library::title_source::{self, TitleSources},
+    library::contents::{Contents, ImageRef},
+    library::title_source::{self, ArtworkKind, Source, TitleKind, TitleSources},
     plugins::ExtensionPoints,
     server_settings::ImageSettings,
 };
@@ -51,6 +52,21 @@ const DOWNLOADS: usize = 2;
 
 /// How many offered images are remembered before [`Artwork::offer`] forgets them all.
 const MAX_OFFERED: usize = 10_000;
+
+/// The language whose artwork is picked first.
+// ponytail: fixed until a User's language is asked for; then the User's, where one is asked for.
+const LANGUAGE: &str = "en";
+
+/// The images [`Artwork::pick_for`] picks for a title, each with the Plugin whose source listed it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Picked {
+    /// Its poster.
+    pub(crate) poster: Option<ImageRef>,
+    /// Its backdrop.
+    pub(crate) backdrop: Option<ImageRef>,
+    /// Its Title Logo.
+    pub(crate) logo: Option<ImageRef>,
+}
 
 /// Stored images, fetched from metadata Providers on first use.
 #[derive(Debug, Clone)]
@@ -123,6 +139,18 @@ impl Artwork {
             );
         }
         Ok(by_url)
+    }
+
+    /// The artwork picked from the lists every source in `sources` has for the title of `kind`
+    /// with the ids `ids`, as [`pick`] picks it.
+    #[expect(dead_code, reason = "Matching stores what it picks in the next change")]
+    pub(crate) async fn pick_for(
+        &self,
+        sources: &TitleSources,
+        kind: TitleKind,
+        ids: &ExternalIds,
+    ) -> Picked {
+        pick(&sources.artwork_lists(kind, ids).await, LANGUAGE)
     }
 
     fn was_offered(&self, plugin: &str, path: &str) -> bool {
@@ -250,6 +278,48 @@ impl Artwork {
             .store
             .serve(&key(dir, plugin, path), content_type(path), resize, request)
             .await?)
+    }
+}
+
+/// An image of an artwork list, with its source and that source's place in the order.
+type Ranked<'a> = (usize, &'a Source, &'a title_source::Artwork);
+
+/// The best image of each kind in `lists`, which come in the sources' order. Images rank by their
+/// language: `language` first, then none, then any other; then by their source's place in the
+/// order; then by higher rating, then more votes; then by their place in their source's list.
+fn pick(lists: &[(Source, Vec<title_source::Artwork>)], language: &str) -> Picked {
+    let language_rank = |art: &title_source::Artwork| match art.language.as_deref() {
+        Some(lang) if lang.eq_ignore_ascii_case(language) => 0,
+        None => 1,
+        Some(_) => 2,
+    };
+    let rank = |(a_place, _, a): &Ranked<'_>, (b_place, _, b): &Ranked<'_>| -> Ordering {
+        let rating = |art: &title_source::Artwork| art.rating.unwrap_or(f64::NEG_INFINITY);
+        (language_rank(a).cmp(&language_rank(b)))
+            .then(a_place.cmp(b_place))
+            .then(rating(b).total_cmp(&rating(a)))
+            .then(b.votes.unwrap_or(0).cmp(&a.votes.unwrap_or(0)))
+    };
+    let best = |kind: ArtworkKind| {
+        let of_kind = lists
+            .iter()
+            .enumerate()
+            .flat_map(|(place, (source, list))| {
+                list.iter()
+                    .filter(move |art| art.kind == kind)
+                    .map(move |art| (place, source, art))
+            });
+        // `min_by` keeps the first of equals, which is the earlier in its source's list.
+        let (_, source, art) = of_kind.min_by(rank)?;
+        Some(ImageRef {
+            plugin: source.plugin.clone(),
+            path: art.path.clone(),
+        })
+    };
+    Picked {
+        poster: best(ArtworkKind::Poster),
+        backdrop: best(ArtworkKind::Backdrop),
+        logo: best(ArtworkKind::Logo),
     }
 }
 

@@ -133,6 +133,34 @@ pub(crate) struct Episode {
     pub(crate) still: Option<String>,
 }
 
+/// What a piece of a title's artwork is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ArtworkKind {
+    /// A poster, portrait.
+    Poster,
+    /// A backdrop, landscape and full screen.
+    Backdrop,
+    /// The Title Logo.
+    Logo,
+    /// Any kind the Kernel doesn't show yet, such as clear art, a banner, a thumb or disc art.
+    Other,
+}
+
+/// One image of a title's artwork list.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Artwork {
+    /// What kind of artwork it is.
+    pub(crate) kind: ArtworkKind,
+    /// Its path, for the title source's `image`.
+    pub(crate) path: String,
+    /// The ISO 639-1 code of the language of its text, `None` for an image without text.
+    pub(crate) language: Option<String>,
+    /// The source's own score for it, higher being better; always finite.
+    pub(crate) rating: Option<f64>,
+    /// How many people rated it.
+    pub(crate) votes: Option<u32>,
+}
+
 /// An image's bytes.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Image {
@@ -153,15 +181,19 @@ impl fmt::Debug for Image {
 
 /// `query` as the contract asks it.
 pub(super) fn search_query(query: &SearchQuery) -> wire::SearchQuery {
-    let kind = match query.kind {
-        TitleKind::Movie => wire::TitleKind::TITLE_KIND_MOVIE,
-        TitleKind::Show => wire::TitleKind::TITLE_KIND_SHOW,
-    };
     wire::SearchQuery {
-        kind: kind.into(),
+        kind: title_kind(query.kind).into(),
         title: query.title.clone(),
         year: query.year,
         ..Default::default()
+    }
+}
+
+/// `kind` as the contract carries it.
+pub(super) const fn title_kind(kind: TitleKind) -> wire::TitleKind {
+    match kind {
+        TitleKind::Movie => wire::TitleKind::TITLE_KIND_MOVIE,
+        TitleKind::Show => wire::TitleKind::TITLE_KIND_SHOW,
     }
 }
 
@@ -260,6 +292,36 @@ pub(super) fn episode(episode: wire::Episode) -> Result<Episode, MetadataError> 
         runtime_minutes: episode.runtime_minutes,
         still: episode.still,
     })
+}
+
+/// The Kernel's twins of an artwork list. One malformed item, with no path or kind, is dropped
+/// alone, so it never costs the source the rest of its list.
+pub(super) fn artwork(list: Vec<wire::Artwork>) -> Vec<Artwork> {
+    use wire::ArtworkKind as Wire;
+    let item = |art: wire::Artwork| {
+        let kind = match art.kind.as_known()? {
+            Wire::ARTWORK_KIND_POSTER => ArtworkKind::Poster,
+            Wire::ARTWORK_KIND_BACKDROP => ArtworkKind::Backdrop,
+            Wire::ARTWORK_KIND_LOGO => ArtworkKind::Logo,
+            Wire::ARTWORK_KIND_CLEAR_ART
+            | Wire::ARTWORK_KIND_BANNER
+            | Wire::ARTWORK_KIND_THUMB
+            | Wire::ARTWORK_KIND_DISC => ArtworkKind::Other,
+            Wire::ARTWORK_KIND_UNSPECIFIED => return None,
+        };
+        if art.path.is_empty() {
+            return None;
+        }
+        Some(Artwork {
+            kind,
+            path: art.path,
+            language: art.language,
+            // A NaN would outrank every rating when ranked.
+            rating: art.rating.filter(|rating| rating.is_finite()),
+            votes: art.votes,
+        })
+    };
+    list.into_iter().filter_map(item).collect()
 }
 
 pub(super) fn image(image: wire::Image) -> Image {

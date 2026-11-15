@@ -7,13 +7,15 @@ use std::{future::Future, sync::Arc};
 
 use nama_plugin_api::{
     PluginId,
-    contract::{self as wire, ImageAsked, SeasonAsked, TitleAsked},
+    contract::{self as wire, ArtworkAsked, ImageAsked, SeasonAsked, TitleAsked},
     metadata::{ExternalId, ExternalIds, MetadataError, TitleMethod, TitleSource},
 };
 
 mod titles;
 
-pub(crate) use titles::{Candidate, Episode, Image, Movie, SearchQuery, Season, Show, TitleKind};
+pub(crate) use titles::{
+    Artwork, ArtworkKind, Candidate, Episode, Image, Movie, SearchQuery, Season, Show, TitleKind,
+};
 
 use crate::{
     library::contents::{ImageRef, Metadata},
@@ -253,6 +255,54 @@ impl TitleSources {
         meaning(answered).map(|(_, season)| season)
     }
 
+    /// The artwork list of each source in order that answers [`TitleMethod::Artwork`] and has a
+    /// list for the title of `kind` with the ids `ids`, asked by the title's id in the source's own
+    /// namespace, or else in the first namespace it looks titles up by that the title has an id in.
+    /// A source with no such id isn't asked; one that fails is logged and left out, so artwork
+    /// never leaves a title undecided.
+    pub(crate) async fn artwork_lists(
+        &self,
+        kind: TitleKind,
+        ids: &ExternalIds,
+    ) -> Vec<(Source, Vec<Artwork>)> {
+        let mut lists = Vec::new();
+        for source in self.sources().await {
+            if !source.answers.contains(&TitleMethod::Artwork) {
+                continue;
+            }
+            let id = (ids.get(&source.namespace)).or_else(|| {
+                source
+                    .looks_up
+                    .iter()
+                    .find_map(|namespace| ids.get(namespace))
+            });
+            let Some(id) = id else {
+                continue;
+            };
+            let asked = &ArtworkAsked {
+                kind: titles::title_kind(kind).into(),
+                id: titles::title_id(&id).into(),
+                ..Default::default()
+            };
+            let answered = self
+                .plugins
+                .ask(
+                    &source.plugin,
+                    |metadata: Arc<dyn TitleSource>| async move {
+                        artwork(metadata.artwork(asked).await?)
+                    },
+                )
+                .await;
+            // `meaning` logs a failure, without the Plugin's secrets.
+            if let Ok((_, list)) = meaning(answered)
+                && !list.is_empty()
+            {
+                lists.push((source, list));
+            }
+        }
+        lists
+    }
+
     /// The sources answering `method` that keep titles under `namespace`, then those looking them
     /// up by it, each in order; never one that does neither.
     async fn by_namespace(&self, namespace: &str, method: TitleMethod) -> Vec<Source> {
@@ -396,6 +446,14 @@ fn title<W, T>(
 fn candidates(found: wire::SearchResults) -> Result<Vec<Candidate>, Refusal> {
     let found = found.candidates.into_iter().map(titles::candidate);
     Ok(found.collect::<Result<_, _>>()?)
+}
+
+/// The Kernel's twin of an artwork list, unless the source answered `unsupported_id`.
+fn artwork(found: wire::ArtworkAnswer) -> Result<Vec<Artwork>, Refusal> {
+    if found.unsupported_id {
+        return Err(Refusal::UnsupportedId);
+    }
+    Ok(titles::artwork(found.artwork))
 }
 
 impl ProviderError<Unanswered> for MetadataError {

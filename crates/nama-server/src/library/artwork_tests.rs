@@ -8,12 +8,23 @@ use std::{
 };
 
 use axum::{Router, body::Body, extract::Request, http::header};
-use nama_plugin_api::settings::{SettingValue, Settings};
+use nama_plugin_api::{
+    PluginId,
+    settings::{SettingValue, Settings},
+};
 use nama_plugin_tmdb::{Endpoints, Tmdb, testing::API_KEY};
 use tempfile::TempDir;
 
-use super::Artwork;
-use crate::{db::Database, images::ImageStore, library::contents::Contents, plugins::Registry};
+use super::{Artwork, Picked, pick};
+use crate::{
+    db::Database,
+    images::ImageStore,
+    library::{
+        contents::{Contents, ImageRef},
+        title_source::{self, ArtworkKind, Source},
+    },
+    plugins::Registry,
+};
 
 /// How many image requests are running, and the most that ever were.
 #[derive(Default)]
@@ -107,4 +118,137 @@ async fn an_svg_is_never_served_as_an_image() {
     let headers = response.headers();
     assert_eq!(headers[header::CONTENT_TYPE], "application/octet-stream");
     assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+}
+
+/// The source of the Plugin `plugin`.
+fn source(plugin: &'static str) -> Source {
+    Source {
+        plugin: PluginId::from_static(plugin),
+        namespace: plugin.to_owned(),
+        looks_up: Vec::new(),
+        answers: Vec::new(),
+    }
+}
+
+/// A poster at `path`, in `language`, rated `rating` by `votes` people.
+fn poster(
+    path: &str,
+    language: Option<&str>,
+    rating: Option<f64>,
+    votes: Option<u32>,
+) -> title_source::Artwork {
+    title_source::Artwork {
+        kind: ArtworkKind::Poster,
+        path: path.to_owned(),
+        language: language.map(str::to_owned),
+        rating,
+        votes,
+    }
+}
+
+/// The path of the poster [`pick`] picks from `lists`, in English.
+fn picked_poster(lists: &[(Source, Vec<title_source::Artwork>)]) -> Option<String> {
+    pick(lists, "en").poster.map(|poster| poster.path)
+}
+
+#[test]
+fn the_language_asked_for_beats_the_source_order() {
+    let lists = [
+        (
+            source("tmdb"),
+            vec![poster("/fr.jpg", Some("fr"), Some(9.0), None)],
+        ),
+        (
+            source("fanart"),
+            vec![poster("/en.jpg", Some("en"), None, None)],
+        ),
+    ];
+    let textless = [
+        (
+            source("tmdb"),
+            vec![poster("/fr.jpg", Some("fr"), None, None)],
+        ),
+        (
+            source("fanart"),
+            vec![poster("/none.jpg", None, None, None)],
+        ),
+    ];
+
+    assert_eq!(picked_poster(&lists).as_deref(), Some("/en.jpg"));
+    assert_eq!(picked_poster(&textless).as_deref(), Some("/none.jpg"));
+}
+
+#[test]
+fn the_source_order_beats_the_rating() {
+    let lists = [
+        (
+            source("tmdb"),
+            vec![poster("/low.jpg", Some("en"), Some(1.0), None)],
+        ),
+        (
+            source("fanart"),
+            vec![poster("/high.jpg", Some("en"), Some(9.0), None)],
+        ),
+    ];
+
+    assert_eq!(picked_poster(&lists).as_deref(), Some("/low.jpg"));
+}
+
+#[test]
+fn the_rating_then_the_votes_then_the_sources_own_order_decide() {
+    let rated = [(
+        source("tmdb"),
+        vec![
+            poster("/unrated.jpg", Some("en"), None, Some(90)),
+            poster("/low.jpg", Some("en"), Some(5.0), Some(90)),
+            poster("/high.jpg", Some("en"), Some(8.0), Some(1)),
+        ],
+    )];
+    let voted = [(
+        source("tmdb"),
+        vec![
+            poster("/few.jpg", Some("en"), Some(8.0), Some(1)),
+            poster("/many.jpg", Some("en"), Some(8.0), Some(40)),
+            poster("/many-too.jpg", Some("en"), Some(8.0), Some(40)),
+        ],
+    )];
+
+    assert_eq!(picked_poster(&rated).as_deref(), Some("/high.jpg"));
+    assert_eq!(picked_poster(&voted).as_deref(), Some("/many.jpg"));
+}
+
+#[test]
+fn each_kind_is_picked_from_its_own_sources_list_and_names_its_plugin() {
+    let logo = title_source::Artwork {
+        kind: ArtworkKind::Logo,
+        ..poster("/logo.png", Some("en"), None, None)
+    };
+    let clear_art = title_source::Artwork {
+        kind: ArtworkKind::Other,
+        ..poster("/clear.png", Some("en"), None, None)
+    };
+    let lists = [
+        (
+            source("tmdb"),
+            vec![poster("/poster.jpg", None, None, None)],
+        ),
+        (source("fanart"), vec![logo, clear_art]),
+    ];
+
+    let picked = pick(&lists, "en");
+
+    let image = |plugin, path: &str| {
+        Some(ImageRef {
+            plugin: PluginId::from_static(plugin),
+            path: path.to_owned(),
+        })
+    };
+    assert_eq!(
+        picked,
+        Picked {
+            poster: image("tmdb", "/poster.jpg"),
+            backdrop: None,
+            logo: image("fanart", "/logo.png"),
+        }
+    );
 }

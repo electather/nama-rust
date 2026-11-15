@@ -3,7 +3,10 @@ use nama_plugin_api::{
     metadata::{ExternalId, MetadataError},
 };
 
-use super::{SearchQuery, TitleKind, candidate, episode, search_query, season, show};
+use super::{
+    Artwork, ArtworkKind, SearchQuery, TitleKind, artwork, candidate, episode, search_query,
+    season, show,
+};
 
 fn id(namespace: &str, value: &str) -> wire::TitleId {
     wire::TitleId {
@@ -126,4 +129,44 @@ fn a_search_asks_for_its_kind() {
         Some(wire::TitleKind::TITLE_KIND_SHOW)
     );
     assert_eq!((asked.title.as_str(), asked.year), ("Breaking Bad", None));
+}
+
+#[test]
+fn an_artwork_list_drops_only_its_malformed_items() {
+    let art = |kind: wire::ArtworkKind, path: &str| wire::Artwork {
+        kind: kind.into(),
+        path: path.to_owned(),
+        language: Some("en".to_owned()),
+        width: Some(1000),
+        rating: Some(5.5),
+        votes: Some(3),
+        ..Default::default()
+    };
+    let unrated = wire::Artwork {
+        rating: Some(f64::NAN),
+        ..art(wire::ArtworkKind::ARTWORK_KIND_BANNER, "/banner.png")
+    };
+    let list = vec![
+        art(wire::ArtworkKind::ARTWORK_KIND_LOGO, "/logo.png"),
+        art(wire::ArtworkKind::ARTWORK_KIND_POSTER, ""),
+        art(wire::ArtworkKind::ARTWORK_KIND_UNSPECIFIED, "/what.png"),
+        unrated,
+    ];
+
+    let kernels = artwork(list);
+
+    let logo = Artwork {
+        kind: ArtworkKind::Logo,
+        path: "/logo.png".to_owned(),
+        language: Some("en".to_owned()),
+        rating: Some(5.5),
+        votes: Some(3),
+    };
+    let banner = Artwork {
+        kind: ArtworkKind::Other,
+        path: "/banner.png".to_owned(),
+        rating: None,
+        ..logo.clone()
+    };
+    assert_eq!(kernels, [logo, banner]);
 }
