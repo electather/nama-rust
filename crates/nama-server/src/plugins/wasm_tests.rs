@@ -7,7 +7,7 @@ use nama_plugin_api::{
     fulfiller::{
         Fulfiller, MovieDeleted, Movies, Shows, StopMonitoring, TitleId, stop_monitoring::Title,
     },
-    notifier::Notifier,
+    notifier::{Notification, Notifier, Recipient},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
 };
 use nama_plugin_proto::{
@@ -19,7 +19,7 @@ use nama_plugin_proto::{
 use super::{
     Running, allowed_hosts,
     bundled::BUNDLED,
-    check_exports, compile, extism_config, is_crash,
+    check_exports, compile, delivery, extism_config, is_crash,
     load::{check_allowed_hosts, decode, judge, load, settings_schema, write_cache_config},
     points,
     services::POINTS,
@@ -733,4 +733,40 @@ fn register_says_when_the_package_wont_compile_with_its_settings() {
         err.starts_with("could not compile it with its settings"),
         "{err}"
     );
+}
+
+fn notification() -> Notification {
+    Notification {
+        request_url: Some("https://nama.lan/requests/1".to_owned()),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_user_recipient_carries_exactly_their_personal_settings() {
+    let settings = [("topic", "alerts"), ("webhook", "https://discord.lan/hook")]
+        .map(|(key, value)| (key.to_owned(), value.to_owned()));
+    let sent = delivery(&notification(), &Recipient::User(settings.clone().into()));
+
+    assert_eq!(sent.notification.as_option(), Some(&notification()));
+    let Some(wire::delivery::Recipient::User(user)) = sent.recipient else {
+        panic!("not a User recipient: {:?}", sent.recipient);
+    };
+    let mut got: Vec<_> = user.personal_settings.into_iter().collect();
+    got.sort();
+    assert_eq!(got, settings);
+}
+
+#[test]
+fn a_connection_or_channel_recipient_keeps_its_kind() {
+    let connection = delivery(&notification(), &Recipient::Connection("42".to_owned()));
+    assert_eq!(
+        connection.recipient,
+        Some(wire::delivery::Recipient::Connection("42".to_owned()))
+    );
+    let channel = delivery(&notification(), &Recipient::Channel);
+    assert!(matches!(
+        channel.recipient,
+        Some(wire::delivery::Recipient::Channel(_))
+    ));
 }

@@ -415,27 +415,31 @@ impl<Kind: contract::FulfillerKind + 'static> Fulfiller<Kind> for Running {
     }
 }
 
+fn delivery(notification: &Notification, recipient: &Recipient) -> Delivery {
+    let recipient = match recipient {
+        Recipient::Channel => wire::delivery::Recipient::from(Channel::default()),
+        Recipient::Connection(connection) => {
+            wire::delivery::Recipient::Connection(connection.clone())
+        }
+        Recipient::User(settings) => wire::delivery::Recipient::from(UserRecipient {
+            personal_settings: settings.clone().into_iter().collect(),
+            ..Default::default()
+        }),
+    };
+    Delivery {
+        notification: Some(notification.clone()).into(),
+        recipient: Some(recipient),
+        ..Default::default()
+    }
+}
+
 impl Notifier for Running {
     fn deliver<'a>(
         &'a self,
         notification: &'a Notification,
         recipient: &'a Recipient,
     ) -> BoxFuture<'a, Result<(), PluginError>> {
-        let recipient = match recipient {
-            Recipient::Channel => wire::delivery::Recipient::from(Channel::default()),
-            Recipient::Connection(connection) => {
-                wire::delivery::Recipient::Connection(connection.clone())
-            }
-            Recipient::User(settings) => wire::delivery::Recipient::from(UserRecipient {
-                personal_settings: settings.clone().into_iter().collect(),
-                ..Default::default()
-            }),
-        };
-        let delivery = Delivery {
-            notification: Some(notification.clone()).into(),
-            recipient: Some(recipient),
-            ..Default::default()
-        };
+        let delivery = delivery(notification, recipient);
         Box::pin(async move {
             let delivered: Delivered = self.call_method(&DELIVER, &delivery).await?;
             if delivered.recipient_gone {
