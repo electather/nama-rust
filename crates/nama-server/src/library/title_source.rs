@@ -186,7 +186,9 @@ impl TitleSources {
     }
 
     /// Whether some source the routing methods ask answers `method` and keeps titles under
-    /// `namespace`, such as an ID Hint's, or looks them up by it.
+    /// `namespace`, such as an ID Hint's, or looks them up by it. Matching routes with
+    /// [`TitleSources::by_namespace`] and keeps the route, so only tests ask this.
+    #[cfg(test)]
     pub(crate) async fn serves(&self, namespace: &str, method: TitleMethod) -> bool {
         !self.by_namespace(namespace, method).await.is_empty()
     }
@@ -222,6 +224,16 @@ impl TitleSources {
     /// [`Unanswered::Unavailable`].
     pub(crate) async fn movie_by(&self, id: &ExternalId) -> Result<(Source, Metadata), Unanswered> {
         let sources = self.by_namespace(id.namespace(), TitleMethod::Movie).await;
+        self.movie_from(sources, id).await
+    }
+
+    /// The Movie with the id `id`, as [`TitleSources::movie_by`] fetches it, from `sources` already
+    /// routed by [`TitleSources::by_namespace`].
+    pub(crate) async fn movie_from(
+        &self,
+        sources: Vec<Source>,
+        id: &ExternalId,
+    ) -> Result<(Source, Metadata), Unanswered> {
         let asked = &asked(id);
         let (source, movie) = self
             .first_answer(
@@ -240,6 +252,16 @@ impl TitleSources {
     /// The Show with the id `id`, routed as [`TitleSources::movie_by`] routes a Movie.
     pub(crate) async fn show_by(&self, id: &ExternalId) -> Result<(Source, Show), Unanswered> {
         let sources = self.by_namespace(id.namespace(), TitleMethod::Show).await;
+        self.show_from(sources, id).await
+    }
+
+    /// The Show with the id `id`, as [`TitleSources::show_by`] fetches it, from `sources` already
+    /// routed by [`TitleSources::by_namespace`].
+    pub(crate) async fn show_from(
+        &self,
+        sources: Vec<Source>,
+        id: &ExternalId,
+    ) -> Result<(Source, Show), Unanswered> {
         let asked = &asked(id);
         self.first_answer(
             sources,
@@ -324,7 +346,7 @@ impl TitleSources {
 
     /// The sources answering `method` that keep titles under `namespace`, then those looking them
     /// up by it, each in order; never one that does neither.
-    async fn by_namespace(&self, namespace: &str, method: TitleMethod) -> Vec<Source> {
+    pub(crate) async fn by_namespace(&self, namespace: &str, method: TitleMethod) -> Vec<Source> {
         routed(self.sources().await, namespace, method)
     }
 

@@ -10,7 +10,9 @@ use super::{
 };
 use crate::{
     library::contents::{Metadata, Name, Pin, TiedTitle, UnmatchedReason},
-    library::title_source::{self, Candidate, SearchQuery, Season, TitleKind, TitleSources},
+    library::title_source::{
+        self, Candidate, SearchQuery, Season, Source, TitleKind, TitleSources,
+    },
     scanner::country_tag,
 };
 
@@ -23,14 +25,29 @@ struct Found {
     ids: ExternalIds,
     /// Whether `id` is the item's ID Hint, which a miss is then blamed on.
     from_hint: bool,
+    /// The sources `id` routes to, when finding it already asked; else routed when fetched.
+    routed: Option<Vec<Source>>,
 }
 
 impl Found {
-    fn id(id: ExternalId, from_hint: bool) -> Self {
+    fn id(id: ExternalId, from_hint: bool, routed: Vec<Source>) -> Self {
         Self {
             id,
             ids: ExternalIds::default(),
             from_hint,
+            routed: Some(routed),
+        }
+    }
+
+    /// The sources to fetch this title of `kind` from.
+    async fn route(&mut self, metadata: &TitleSources, kind: TitleKind) -> Vec<Source> {
+        match self.routed.take() {
+            Some(routed) => routed,
+            None => {
+                metadata
+                    .by_namespace(self.id.namespace(), kind.method())
+                    .await
+            }
         }
     }
 
@@ -47,16 +64,18 @@ impl Found {
 
 /// The Movie `key` names, from `metadata`'s sources in their order.
 pub(super) async fn movie(metadata: &TitleSources, key: &TitleKey) -> Result<Metadata, Miss> {
-    let found = find(metadata, TitleKind::Movie, key).await?;
-    fetch_movie(metadata, &found.id, found.ids.clone())
+    let mut found = find(metadata, TitleKind::Movie, key).await?;
+    let routed = found.route(metadata, TitleKind::Movie).await;
+    movie_from(metadata, routed, &found.id, found.ids.clone())
         .await
         .map_err(|err| found.missed(err))
 }
 
 /// The Show `key` names, from `metadata`'s sources in their order.
 pub(super) async fn show(metadata: &TitleSources, key: &TitleKey) -> Result<FoundShow, Miss> {
-    let found = find(metadata, TitleKind::Show, key).await?;
-    fetch_show(metadata, &found.id, found.ids.clone())
+    let mut found = find(metadata, TitleKind::Show, key).await?;
+    let routed = found.route(metadata, TitleKind::Show).await;
+    show_from(metadata, routed, &found.id, found.ids.clone())
         .await
         .map_err(|err| found.missed(err))
 }
@@ -68,7 +87,20 @@ pub(super) async fn fetch_movie(
     id: &ExternalId,
     known: ExternalIds,
 ) -> Result<Metadata, title_source::Unanswered> {
-    let (_, mut movie) = metadata.movie_by(id).await?;
+    let routed = metadata
+        .by_namespace(id.namespace(), TitleKind::Movie.method())
+        .await;
+    movie_from(metadata, routed, id, known).await
+}
+
+/// [`fetch_movie`] from the sources `routed` to.
+async fn movie_from(
+    metadata: &TitleSources,
+    routed: Vec<Source>,
+    id: &ExternalId,
+    known: ExternalIds,
+) -> Result<Metadata, title_source::Unanswered> {
+    let (_, mut movie) = metadata.movie_from(routed, id).await?;
     movie.ids = merged(id, known, &movie.ids);
     Ok(movie)
 }
@@ -80,7 +112,20 @@ pub(super) async fn fetch_show(
     id: &ExternalId,
     known: ExternalIds,
 ) -> Result<FoundShow, title_source::Unanswered> {
-    let (source, mut show) = metadata.show_by(id).await?;
+    let routed = metadata
+        .by_namespace(id.namespace(), TitleKind::Show.method())
+        .await;
+    show_from(metadata, routed, id, known).await
+}
+
+/// [`fetch_show`] from the sources `routed` to.
+async fn show_from(
+    metadata: &TitleSources,
+    routed: Vec<Source>,
+    id: &ExternalId,
+    known: ExternalIds,
+) -> Result<FoundShow, title_source::Unanswered> {
+    let (source, mut show) = metadata.show_from(routed, id).await?;
     show.ids = merged(id, known, &show.ids);
     let id = show
         .ids
@@ -114,19 +159,23 @@ fn merged(asked: &ExternalId, known: ExternalIds, answered: &ExternalIds) -> Ext
 /// its namespace, or else the search result that fits it.
 async fn find(metadata: &TitleSources, kind: TitleKind, key: &TitleKey) -> Result<Found, Miss> {
     match &key.pin {
-        Some(Pin::Title(id)) if metadata.serves(id.namespace(), kind.method()).await => {
-            return Ok(Found::id(id.clone(), false));
+        Some(Pin::Title(id)) => {
+            let routed = metadata.by_namespace(id.namespace(), kind.method()).await;
+            // A pin waits for a source looking up its namespace rather than Matching another title.
+            if routed.is_empty() {
+                return Err(Miss::Unserved);
+            }
+            return Ok(Found::id(id.clone(), false, routed));
         }
-        // A pin waits for a source looking up its namespace rather than Matching another title.
-        Some(Pin::Title(_)) => return Err(Miss::Unserved),
         Some(Pin::Unmatched) => return Err(Miss::Unmatched(None)),
         None => {}
     }
     if let Some(hint) = &key.name.hint {
         // A curly tag such as `{x264-GROUP}` parses as an ID Hint no source looks up by, so the
         // item is searched for as if it had none.
-        if metadata.serves(hint.namespace(), kind.method()).await {
-            return Ok(Found::id(hint.clone(), true));
+        let routed = metadata.by_namespace(hint.namespace(), kind.method()).await;
+        if !routed.is_empty() {
+            return Ok(Found::id(hint.clone(), true, routed));
         }
     }
     search(metadata, kind, &key.name).await
@@ -165,6 +214,7 @@ async fn search(metadata: &TitleSources, kind: TitleKind, name: &Name) -> Result
                 id,
                 ids,
                 from_hint: false,
+                routed: None,
             })
         }
         Decision::Ambiguous(tied) => {

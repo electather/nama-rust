@@ -35,7 +35,8 @@ enum Answers {
     Fails,
 }
 
-/// What the sources were asked, as `namespace method id`, in the order asked.
+/// What the sources were asked, as `namespace method id`, in the order asked; a source asked its
+/// namespace logs `namespace namespace`, which only [`namespaces_asked`] reads.
 type Asked = Arc<Mutex<Vec<String>>>;
 
 /// A title source keeping titles under `namespace`, as the Plugin of that id, and looking them up
@@ -80,6 +81,8 @@ fn named(id: &TitleId) -> String {
 
 impl TitleSource for Fake {
     fn namespace(&self) -> &str {
+        let mut log = self.asked.lock().unwrap_or_else(PoisonError::into_inner);
+        log.push(format!("{} namespace", self.namespace));
         self.namespace
     }
 
@@ -231,7 +234,20 @@ fn bb_then_aa(aa: Answering, bb: Answering) -> (TitleSources, Asked) {
 const HAS: Answering = (Answers::Has, Answers::Has);
 
 fn asked(asked: &Asked) -> Vec<String> {
-    asked.lock().unwrap_or_else(PoisonError::into_inner).clone()
+    let log = asked.lock().unwrap_or_else(PoisonError::into_inner);
+    (log.iter())
+        .filter(|line| !line.ends_with(" namespace"))
+        .cloned()
+        .collect()
+}
+
+/// The sources asked their namespace, once per ask, in the order asked.
+fn namespaces_asked(asked: &Asked) -> Vec<String> {
+    let log = asked.lock().unwrap_or_else(PoisonError::into_inner);
+    (log.iter())
+        .filter_map(|line| line.strip_suffix(" namespace"))
+        .map(str::to_owned)
+        .collect()
 }
 
 /// The Show `Dark`, its folder naming `hint`.
@@ -743,4 +759,17 @@ async fn an_en_poster_of_a_later_source_beats_another_language_of_the_first() {
     .await;
 
     assert_eq!(stored, [image("bb", "/bb-en.jpg")]);
+}
+
+#[tokio::test]
+async fn matching_a_pinned_movie_asks_each_source_its_namespace_once() {
+    let (metadata, sources_asked) = bb_then_aa(HAS, HAS);
+    sources_asked
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
+
+    movie(&metadata, &dark_movie(Some(id("aa")))).await.unwrap();
+
+    assert_eq!(namespaces_asked(&sources_asked), ["aa", "bb"]);
 }
