@@ -2083,8 +2083,8 @@ pub const __DOWNLOAD_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::t
     from_json: ::buffa::type_registry::any_from_json::<Download>,
     is_wkt: false,
 };
-/// Users asking for a whole Show: its Seasons now and any that come out later, approved once. A
-/// Show has at most one open Followed Show: one that isn't Declined.
+/// Users asking for a whole Show: its numbered Seasons now and any that come out later, approved
+/// once. A Show has at most one open Followed Show: one that isn't Declined.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

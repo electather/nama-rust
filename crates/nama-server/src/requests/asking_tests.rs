@@ -19,8 +19,8 @@ use crate::requests::deciding::{cancel, decline};
 use crate::requests::listing::load_one;
 use crate::requests::testing::{
     ADA, Asked, BOB, DARK, NOTHING, ada, ada_and_bob, approved_on, ask_each, ask_for, asked_movie,
-    asked_season, dark, enable_tmdb, fulfilled, handed_off, happened, match_in_a_library, movie,
-    requests_on, settled,
+    asked_season, dark, dark_with_seasons, enable_tmdb, fulfilled, handed_off, happened,
+    match_in_a_library, movie, requests_on, settled,
 };
 use crate::requests::{Error, qualities};
 use crate::users::Permissions;
@@ -487,4 +487,22 @@ async fn following_a_show_fetches_it_from_its_keeping_source_not_the_first_ranke
 
     assert_eq!(sources_asked(&asked), FROM_BB);
     assert_eq!(seasons.len(), 1);
+}
+
+#[tokio::test]
+async fn asking_for_specials_on_their_own_opens_a_request_for_season_0() {
+    let (_data, db) = ada_and_bob().await;
+    let specials = dark_with_seasons([0]);
+
+    let asked = db
+        .write(|tx| Box::pin(ask_seasons(tx, ADA, specials, RequestState::Pending)))
+        .await
+        .unwrap();
+
+    let seasons: Vec<_> = asked
+        .value
+        .iter()
+        .map(|request| asked_season(request).season_number)
+        .collect();
+    assert_eq!(seasons, [0]);
 }

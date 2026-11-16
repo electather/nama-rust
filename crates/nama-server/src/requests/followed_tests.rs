@@ -2,15 +2,17 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::RequestState;
 
 use super::{
-    approved_followed_show, cancel_followed, decide_followed, open_followed_show, withdraw_followed,
+    approved_followed_show, cancel_followed, covers, decide_followed, open_followed_show,
+    withdraw_followed,
 };
+use crate::db::Database;
 use crate::requests::Error;
 use crate::requests::apply::Applied;
 use crate::requests::asking::WantedSeasons;
 use crate::requests::listing::load;
 use crate::requests::testing::{
-    ADA, BOB, DARK, NOTHING, ada_and_bob, asked_season, breaking_bad, dark, follow_as, handed_off,
-    happened, match_episodes, said, scan, season_ids,
+    ADA, BOB, DARK, NOTHING, ada_and_bob, asked_season, breaking_bad, dark, dark_with_seasons,
+    follow_as, handed_off, happened, match_episodes, said, scan, season_ids,
 };
 
 /// The id of the Season Request whose Show `applied` stops following, if any.
@@ -56,6 +58,65 @@ async fn following_a_show_asks_for_each_season_and_hands_them_off_only_if_approv
     for followed in [pending, joined, approved] {
         assert_eq!(unfollowed(&followed), None);
     }
+}
+
+/// Whether the Followed Show `id` covers each of the Seasons `numbers`.
+async fn covered(db: &Database, id: i64, numbers: &'static [u32]) -> Vec<bool> {
+    db.write(move |tx| {
+        Box::pin(async move {
+            let mut covered = Vec::new();
+            for &season in numbers {
+                covered.push(covers(tx, id, season).await?);
+            }
+            Ok::<_, sqlx::Error>(covered)
+        })
+    })
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn following_a_show_asks_for_its_numbered_seasons_and_covers_up_to_the_latest() {
+    let (_data, db) = ada_and_bob().await;
+
+    let followed = follow_as(&db, ADA, dark_with_seasons(0..=3), RequestState::Pending).await;
+
+    let (followed, requests) = followed.value;
+    let asked: Vec<_> = requests
+        .iter()
+        .map(|request| asked_season(request).season_number)
+        .collect();
+    assert_eq!(asked, [1, 2, 3]);
+    assert_eq!(covered(&db, followed.id, &[3, 4]).await, [true, false]);
+}
+
+#[tokio::test]
+async fn following_a_show_with_only_specials_asks_for_nothing_until_season_1_comes_out() {
+    let (_data, db) = ada_and_bob().await;
+
+    let followed = follow_as(&db, ADA, dark_with_seasons([0]), RequestState::Approved).await;
+    let (followed, requests) = followed.value;
+    let covered_before = covered(&db, followed.id, &[0, 1]).await;
+    match_episodes(&db, ExternalId::tmdb(DARK), 1, &[1, 2]).await;
+    let scanned = scan(&db, ExternalId::tmdb(DARK), &[1]).await;
+
+    assert!(requests.is_empty(), "{requests:?}");
+    assert_eq!(covered_before, [true, false]);
+    assert_eq!(said(&scanned), [("created", RequestState::Available)]);
+}
+
+#[tokio::test]
+async fn joining_a_followed_show_opened_before_its_show_had_seasons_covers_its_specials() {
+    let (_data, db) = ada_and_bob().await;
+
+    let opened = follow_as(&db, ADA, dark_with_seasons([]), RequestState::Approved).await;
+    let joined = follow_as(&db, BOB, dark_with_seasons([0]), RequestState::Approved).await;
+
+    assert!(joined.value.1.is_empty(), "{:?}", joined.value.1);
+    assert_eq!(
+        covered(&db, opened.value.0.id, &[0, 1]).await,
+        [true, false]
+    );
 }
 
 #[tokio::test]

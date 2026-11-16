@@ -655,6 +655,14 @@ pub(super) fn dark_season(number: u32) -> SourceSeason {
     }
 }
 
+/// Dark with the Seasons `numbers`, each as [`dark_season`] gives it.
+pub(super) fn dark_with_seasons(numbers: impl IntoIterator<Item = u32>) -> WantedSeasons {
+    WantedSeasons {
+        seasons: numbers.into_iter().map(dark_season).collect(),
+        ..dark()
+    }
+}
+
 /// A new Library Matches a file to each of `episodes` of Season `season` of Dark, as a scan
 /// does, without Requests hearing of the Season yet: [`scan_dark`] tells them.
 pub(super) async fn match_dark_episodes(db: &Arc<Database>, season: i64, episodes: &[i64]) {

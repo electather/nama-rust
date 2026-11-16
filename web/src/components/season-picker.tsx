@@ -12,11 +12,11 @@ import { seasonName, yearOf } from "@/lib/browse";
 
 /**
  * `show`'s Seasons, each with where it is on its way to the Server, to pick and Request in one go,
- * or the Whole Show, which covers them and later ones too. The signed-in User `you` may pick a
- * Season that's neither in a Library nor already theirs, or the Whole Show unless they follow it:
- * picking one someone else Requested joins its Request. Seasons download at the Show's Quality
- * once it has one; until then, Requesting them or the Whole Show asks which, when the User may
- * choose.
+ * or the Whole Show, which covers the numbered ones and later ones too. The signed-in User `you`
+ * may pick a Season that's neither in a Library nor already theirs, or the Whole Show unless they
+ * follow it: picking one someone else Requested joins its Request. Seasons download at the Show's
+ * Quality once it has one; until then, Requesting them or the Whole Show asks which, when the User
+ * may choose.
  */
 export function SeasonPicker({ show, you }: { show: FoundShow; you: bigint | undefined }) {
   const { whole, setWhole, asking, busy, submit, picker } = useAskForShow(show);
@@ -107,7 +107,7 @@ function WholeShowChoice({
     <Choice
       name="whole"
       label="Whole Show"
-      description="Every Season, and new ones as they come out"
+      description="Every numbered Season, and new ones as they come out"
       {...choice}
     >
       {followedShow && <RequestStateLabel state={followedShow.state} />}
