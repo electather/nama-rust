@@ -11,11 +11,12 @@ mod local_disk;
 mod plugin_logos;
 mod resized;
 mod serving;
+mod switch;
 
 use std::{
     io::{self, Write as _},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex, PoisonError, RwLock},
 };
 
 use axum::{body::Body, http::StatusCode};
@@ -27,21 +28,43 @@ use sha2::{Digest as _, Sha256};
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt as _;
 
-pub(crate) use blobs::Blobs;
-#[expect(
-    unused_imports,
-    reason = "for the blob store Plugin's adapter, which bounds the objects it moves by it"
-)]
-pub(crate) use blobs::MAX_BYTES;
+pub(crate) use blobs::{Blobs, MAX_BYTES};
 use local_disk::LocalDisk;
 pub(crate) use plugin_logos::{PluginLogos, router as plugin_logos_router};
 use resized::{Copied, Format, ResizeThread};
+pub(crate) use switch::Switching;
+#[cfg_attr(
+    not(test),
+    expect(unused_imports, reason = "the API wires it in: bs-switch-api")
+)]
+pub(crate) use switch::{Persist, SwitchRefused};
 
 use crate::{db::Database, server_settings::ImageSettings};
 
 /// The widths an image is resized to, smallest first: those the web app's Poster grid and
 /// Backdrops are shown at, at one to three device pixels per CSS pixel. Any other is refused.
 pub const WIDTHS: [u32; 7] = [320, 480, 640, 960, 1280, 1920, 2560];
+
+/// Where the images Matches store are kept.
+pub(crate) const KEPT_ARTWORK_DIR: &str = "artwork";
+
+/// Where the images only a Movie or Show search or lookup offered are kept.
+pub(crate) const OFFERED_ARTWORK_DIR: &str = "artwork-cache";
+
+/// Where Custom Images are kept.
+pub(crate) const CUSTOM_IMAGES_DIR: &str = "custom-images";
+
+/// Where the Plugins' Manifest logos are kept, one folder per Plugin.
+pub(crate) const PLUGIN_LOGOS_DIR: &str = "plugin-logos";
+
+/// The first part of every original's key: what a switch to another store copies. Offered
+/// artwork is among them, since it is served from the store too.
+pub(crate) const ORIGINAL_DIRS: &[&str] = &[
+    KEPT_ARTWORK_DIR,
+    OFFERED_ARTWORK_DIR,
+    CUSTOM_IMAGES_DIR,
+    PLUGIN_LOGOS_DIR,
+];
 
 /// The folder in the data directory resized copies are kept in (`AGENTS.md`).
 const RESIZED_DIR: &str = "resized";
@@ -106,13 +129,19 @@ pub struct ImageStore {
     dir: PathBuf,
     db: Arc<Database>,
     resizer: ResizeThread,
-    store: Arc<dyn Blobs>,
+    /// The store the originals are kept in, or while a switch runs one that mirrors writes into
+    /// the next (`switch.rs`).
+    store: Arc<RwLock<Arc<dyn Blobs>>>,
+    /// The running or last failed switch to another store.
+    switching: Arc<Mutex<Option<Switching>>>,
     /// Held from fetching an original to resize until its copy is made, so one original at a time
     /// is held in memory for it, and a request that waited behind the one making its copy finds
     /// it rather than fetching the original again.
     resizing: Arc<tokio::sync::Mutex<()>>,
     /// Held from finding a key missing until it is stored: two writes of one key would otherwise
-    /// both store it, and the second, replacing the first, changes its `ETag` (#793).
+    /// both store it, and the second, replacing the first, changes its `ETag` (#793). Every write
+    /// and delete takes the store under it, so a switch holding them all knows none is left
+    /// writing only to the old store.
     writing: Arc<[tokio::sync::Mutex<()>; WRITE_LOCKS]>,
 }
 
@@ -160,7 +189,8 @@ impl ImageStore {
             dir: data_dir.to_owned(),
             db,
             resizer: ResizeThread::start(),
-            store,
+            store: Arc::new(RwLock::new(store)),
+            switching: Arc::default(),
             resizing: Arc::default(),
             writing: Arc::new(std::array::from_fn(|_| tokio::sync::Mutex::default())),
         }
@@ -168,7 +198,7 @@ impl ImageStore {
 
     /// The store the originals are kept in. Every call to it goes through here.
     fn blobs(&self) -> Arc<dyn Blobs> {
-        Arc::clone(&self.store)
+        Arc::clone(&self.store.read().unwrap_or_else(PoisonError::into_inner))
     }
 
     /// The lock a write of `key` holds (see `writing`).
@@ -190,8 +220,9 @@ impl ImageStore {
     ///
     /// If the file can't be written.
     pub async fn write(&self, key: &[&str], bytes: &[u8]) -> io::Result<()> {
-        let (blobs, key) = (self.blobs(), row_key(key));
+        let key = row_key(key);
         let _writing = self.write_lock(&key).lock().await;
+        let blobs = self.blobs();
         if blobs.exists(&key).await? {
             return Ok(());
         }
@@ -232,8 +263,9 @@ impl ImageStore {
         })
         .await
         .map_err(io::Error::from)??;
-        let (blobs, key) = (self.blobs(), row_key(&[dir, &[version.as_str()]].concat()));
+        let key = row_key(&[dir, &[version.as_str()]].concat());
         let _writing = self.write_lock(&key).lock().await;
+        let blobs = self.blobs();
         if !blobs.exists(&key).await? {
             blobs.put_file(&key, partial).await?;
         }
@@ -303,7 +335,11 @@ impl ImageStore {
     /// If the file or its copies are there but can't be deleted, or the thumbhash can't be.
     pub async fn delete(&self, key: &[&str]) -> io::Result<()> {
         self.forget_thumbhashes(key).await?;
-        self.blobs().delete(&row_key(key)).await?;
+        let row = row_key(key);
+        {
+            let _writing = self.write_lock(&row).lock().await;
+            self.blobs().delete(&row).await?;
+        }
         self.delete_copies(key).await
     }
 
@@ -314,9 +350,9 @@ impl ImageStore {
     /// If an image or the copies are there but can't be deleted, or the thumbhashes can't be.
     pub async fn delete_dir(&self, key: &[&str]) -> io::Result<()> {
         self.forget_thumbhashes(key).await?;
-        let blobs = self.blobs();
-        for stored in blobs.list(&format!("{}/", row_key(key))).await? {
-            blobs.delete(&stored).await?;
+        for stored in self.blobs().list(&format!("{}/", row_key(key))).await? {
+            let _writing = self.write_lock(&stored).lock().await;
+            self.blobs().delete(&stored).await?;
         }
         self.delete_copies(key).await
     }

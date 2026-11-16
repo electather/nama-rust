@@ -13,10 +13,7 @@ use axum::{
 };
 use nama_plugin_api::PluginId;
 
-use crate::images::{ImageStore, SVG, version_of};
-
-/// Where the store keeps them, under the data directory, one folder per Plugin.
-const DIR: &str = "plugin-logos";
+use crate::images::{ImageStore, PLUGIN_LOGOS_DIR as DIR, SVG, version_of};
 
 /// The Manifests' logos.
 #[derive(Debug, Clone)]

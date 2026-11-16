@@ -32,13 +32,15 @@ use sqlx::SqliteConnection;
 
 use crate::{
     db::Database,
-    images::{Asked, ImageStore, Received, Resize, SVG, UploadError, percent_decode},
+    images::{
+        Asked, CUSTOM_IMAGES_DIR, ImageStore, Received, Resize, SVG, UploadError, percent_decode,
+    },
     library::contents::parse_hint,
     server_settings::ImageSettings,
 };
 
 /// Where the store keeps them, under the data directory.
-const DIR: &str = "custom-images";
+const DIR: &str = CUSTOM_IMAGES_DIR;
 
 /// The Custom Images of titles.
 #[derive(Debug, Clone)]

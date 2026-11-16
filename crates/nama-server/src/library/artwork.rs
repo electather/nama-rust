@@ -33,7 +33,7 @@ use nama_plugin_api::{PluginId, metadata::ExternalIds};
 use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
 
 use crate::{
-    images::{Asked, ImageStore, Resize, file_name},
+    images::{Asked, ImageStore, KEPT_ARTWORK_DIR, OFFERED_ARTWORK_DIR, Resize, file_name},
     library::contents::{Contents, ImageRef},
     library::title_source::{self, ArtworkKind, Source, TitleKind, TitleSources},
     plugins::ExtensionPoints,
@@ -41,11 +41,11 @@ use crate::{
 };
 
 /// Where the images Matches store are kept.
-const KEPT_DIR: &str = "artwork";
+const KEPT_DIR: &str = KEPT_ARTWORK_DIR;
 
 /// Where the images only a search or lookup offered are kept, until someone deletes them.
 // ponytail: nothing empties it; bound it like the resized copies' cache if it grows too big.
-const OFFERED_DIR: &str = "artwork-cache";
+const OFFERED_DIR: &str = OFFERED_ARTWORK_DIR;
 
 /// How many images are downloaded in the background at once. Each crosses from the title source as
 /// one whole value, so this also bounds the memory downloads take on a 1 GiB machine.
