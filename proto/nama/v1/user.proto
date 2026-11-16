@@ -302,7 +302,9 @@ message ListNotificationPreferencesResponse {
 
 // Whether a User gets one kind of Request notification.
 message NotificationPreference {
+  // The kind of Request notification.
   NotificationKind kind = 1;
+  // Whether the User gets it: true until they turn it off.
   bool on = 2;
 }
 
@@ -328,6 +330,7 @@ enum NotificationKind {
 }
 
 message SetNotificationPreferenceRequest {
+  // The kind of Request notification to turn on or off.
   NotificationKind kind = 1;
   // Whether the caller gets `kind` from now on.
   bool on = 2;

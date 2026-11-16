@@ -692,11 +692,15 @@ export const ListNotificationPreferencesResponseSchema: GenMessage<ListNotificat
  */
 export type NotificationPreference = Message<"nama.v1.NotificationPreference"> & {
   /**
+   * The kind of Request notification.
+   *
    * @generated from field: nama.v1.NotificationKind kind = 1;
    */
   kind: NotificationKind;
 
   /**
+   * Whether the User gets it: true until they turn it off.
+   *
    * @generated from field: bool on = 2;
    */
   on: boolean;
@@ -714,6 +718,8 @@ export const NotificationPreferenceSchema: GenMessage<NotificationPreference> = 
  */
 export type SetNotificationPreferenceRequest = Message<"nama.v1.SetNotificationPreferenceRequest"> & {
   /**
+   * The kind of Request notification to turn on or off.
+   *
    * @generated from field: nama.v1.NotificationKind kind = 1;
    */
   kind: NotificationKind;

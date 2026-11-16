@@ -18,7 +18,10 @@ use super::{Filter, Viewer, deliver, event, users_to_tell};
 use crate::{
     db::Database,
     plugins::{ProviderError, without_secrets},
-    users::{Permissions, User, personal_settings_of, replace_personal_settings, set_notification},
+    users::{
+        Permissions, User, personal_settings_of, replace_personal_settings,
+        set_notification_preference,
+    },
 };
 
 fn user(id: i64, permissions: Permissions) -> User {
@@ -404,7 +407,7 @@ async fn a_user_who_turned_a_kind_off_is_not_told_it_and_the_channel_still_is() 
         ids.push(id);
     }
     let (ada, lin) = (ids[0], ids[1]);
-    set_notification(&db, ada, NotificationKind::Approved, false)
+    set_notification_preference(&db, ada, NotificationKind::Approved, false)
         .await
         .unwrap();
     let notifier = Arc::new(KeepsRecipients::default());

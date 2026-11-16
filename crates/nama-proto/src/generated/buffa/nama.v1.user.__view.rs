@@ -9730,8 +9730,12 @@ impl ::serde::Serialize for ListNotificationPreferencesResponseOwnedView {
 /// Whether a User gets one kind of Request notification.
 #[derive(Clone, Debug, Default)]
 pub struct NotificationPreferenceView<'a> {
+    /// The kind of Request notification.
+    ///
     /// Field 1: `kind`
     pub kind: ::buffa::EnumValue<super::super::NotificationKind>,
+    /// Whether the User gets it: true until they turn it off.
+    ///
     /// Field 2: `on`
     pub on: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
@@ -9974,11 +9978,15 @@ impl NotificationPreferenceOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// The kind of Request notification.
+    ///
     /// Field 1: `kind`
     #[must_use]
     pub fn kind(&self) -> ::buffa::EnumValue<super::super::NotificationKind> {
         self.0.reborrow().kind
     }
+    /// Whether the User gets it: true until they turn it off.
+    ///
     /// Field 2: `on`
     #[must_use]
     pub fn on(&self) -> bool {
@@ -10017,6 +10025,8 @@ impl ::serde::Serialize for NotificationPreferenceOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct SetNotificationPreferenceRequestView<'a> {
+    /// The kind of Request notification to turn on or off.
+    ///
     /// Field 1: `kind`
     pub kind: ::buffa::EnumValue<super::super::NotificationKind>,
     /// Whether the caller gets `kind` from now on.
@@ -10265,6 +10275,8 @@ impl SetNotificationPreferenceRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// The kind of Request notification to turn on or off.
+    ///
     /// Field 1: `kind`
     #[must_use]
     pub fn kind(&self) -> ::buffa::EnumValue<super::super::NotificationKind> {

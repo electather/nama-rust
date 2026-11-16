@@ -5193,6 +5193,8 @@ pub const __LIST_NOTIFICATION_PREFERENCES_RESPONSE_JSON_ANY: ::buffa::type_regis
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct NotificationPreference {
+    /// The kind of Request notification.
+    ///
     /// Field 1: `kind`
     #[serde(
         rename = "kind",
@@ -5200,6 +5202,8 @@ pub struct NotificationPreference {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub kind: ::buffa::EnumValue<NotificationKind>,
+    /// Whether the User gets it: true until they turn it off.
+    ///
     /// Field 2: `on`
     #[serde(
         rename = "on",
@@ -5347,6 +5351,8 @@ pub const __NOTIFICATION_PREFERENCE_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct SetNotificationPreferenceRequest {
+    /// The kind of Request notification to turn on or off.
+    ///
     /// Field 1: `kind`
     #[serde(
         rename = "kind",

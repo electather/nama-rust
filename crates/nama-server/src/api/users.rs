@@ -3,7 +3,7 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use buffa::{EnumValue, Enumeration};
+use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::{
     Manifest, PluginId,
@@ -35,7 +35,8 @@ use crate::{
     plugins::Listed,
     users::{
         self, Caller, Permissions, Users, delete_personal_settings, notifications_turned_off,
-        personal_settings_of, replace_personal_settings, set_notification,
+        offered_notification_kinds, personal_settings_of, replace_personal_settings,
+        set_notification_preference,
     },
 };
 
@@ -417,14 +418,8 @@ impl UserService for UserServiceHandler {
         let turned_off = notifications_turned_off(&self.db, user.id)
             .await
             .map_err(database_failed)?;
-        let manages_requests = user.permissions.allow(Permission::ManageRequests);
-        let preferences = NotificationKind::values()
-            .iter()
-            .filter(|&&kind| {
-                kind != NotificationKind::Unspecified
-                    && (kind != NotificationKind::NewPending || manages_requests)
-            })
-            .map(|&kind| NotificationPreference {
+        let preferences = offered_notification_kinds(user.permissions)
+            .map(|kind| NotificationPreference {
                 kind: kind.into(),
                 on: !turned_off.contains(&kind),
                 ..Default::default()
@@ -451,7 +446,7 @@ impl UserService for UserServiceHandler {
             }
             EnumValue::Known(kind) => kind,
         };
-        set_notification(&self.db, caller(&ctx)?.user.id, kind, request.on)
+        set_notification_preference(&self.db, caller(&ctx)?.user.id, kind, request.on)
             .await
             .map_err(database_failed)?;
         Response::ok(SetNotificationPreferenceResponse::default())

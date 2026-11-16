@@ -530,9 +530,7 @@ pub(crate) fn users_to_tell(
     users: &[User],
     turned_off: &[(i64, NotificationKind)],
 ) -> Vec<i64> {
-    let (Some(kind), Some((_, About::Request(request)))) =
-        (notification_kind(event), classify(event))
-    else {
+    let Some((kind, request)) = notification_kind(event) else {
         return Vec::new();
     };
     let candidates = if kind == NotificationKind::NewPending {
@@ -550,14 +548,15 @@ pub(crate) fn users_to_tell(
         .collect()
 }
 
-/// The kind of personal notification `event` makes, if any: a Request approved, declined, Failed,
-/// Partially Available or Available, cancelled by deleting media it waited on, or new and Pending.
-fn notification_kind(event: &Event) -> Option<NotificationKind> {
+/// The kind of personal notification `event` makes, if any, with its Request: a Request approved,
+/// declined, Failed, Partially Available or Available, cancelled by deleting media it waited on,
+/// or new and Pending.
+fn notification_kind(event: &Event) -> Option<(NotificationKind, &Request)> {
     use RequestState as S;
     use event::Event as E;
     match event.event.as_ref() {
         Some(E::RequestCreated(created)) if created.request.state == S::Pending => {
-            Some(NotificationKind::NewPending)
+            Some((NotificationKind::NewPending, &created.request))
         }
         // A scan opens a Followed Show's new Season already (Partially) Available. One opened
         // Approved tells nobody: its one Requester just asked for it.
@@ -567,11 +566,15 @@ fn notification_kind(event: &Event) -> Option<NotificationKind> {
                 Some(S::PartiallyAvailable | S::Available)
             ) =>
         {
-            moved_to_kind(created.request.state.as_known()?)
+            let kind = moved_to_kind(created.request.state.as_known()?)?;
+            Some((kind, &created.request))
         }
-        Some(E::RequestStateChanged(changed)) => moved_to_kind(changed.request.state.as_known()?),
+        Some(E::RequestStateChanged(changed)) => {
+            let kind = moved_to_kind(changed.request.state.as_known()?)?;
+            Some((kind, &changed.request))
+        }
         Some(E::RequestCancelled(cancelled)) if cancelled.deleted_by.is_some() => {
-            Some(NotificationKind::CancelledByDeletion)
+            Some((NotificationKind::CancelledByDeletion, &cancelled.request))
         }
         _ => None,
     }

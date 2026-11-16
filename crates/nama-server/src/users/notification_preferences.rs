@@ -2,9 +2,22 @@
 //! Notifier. A User gets every kind until they turn it off, so a new User has nothing stored.
 
 use buffa::Enumeration;
-use nama_proto::nama::v1::NotificationKind;
+use nama_proto::nama::v1::{NotificationKind, Permission};
 
-use crate::db::Database;
+use crate::{db::Database, users::Permissions};
+
+/// Each kind a User holding `permissions` may get, in the order of its values: new Pending only
+/// with `PERMISSION_MANAGE_REQUESTS`, as `crate::events` tells it.
+pub(crate) fn offered(permissions: Permissions) -> impl Iterator<Item = NotificationKind> {
+    let manages_requests = permissions.allow(Permission::ManageRequests);
+    NotificationKind::values()
+        .iter()
+        .copied()
+        .filter(move |&kind| {
+            kind != NotificationKind::Unspecified
+                && (kind != NotificationKind::NewPending || manages_requests)
+        })
+}
 
 /// The kinds `user` turned off.
 pub(crate) async fn turned_off(
@@ -18,7 +31,7 @@ pub(crate) async fn turned_off(
 }
 
 /// Every User's turned-off kinds, by User id.
-// shortcut: reads the whole table, at most seven rows a User; filter by kind if Users number in
+// ponytail: reads the whole table, at most seven rows a User; filter by kind if Users number in
 // the thousands.
 pub(crate) async fn every_turned_off(
     db: &Database,
