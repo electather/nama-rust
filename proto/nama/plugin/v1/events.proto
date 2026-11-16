@@ -193,6 +193,9 @@ message Playback {
   int64 version_id = 3;
   // How the plan plays it.
   PlaybackMethod method = 4;
+  // The plan's id, the same in every event about that plan, which pairs its `PlaybackStarted`
+  // with its `PlaybackEnded`. Ids start again when the Server restarts.
+  uint64 plan_id = 5;
 }
 
 // How a Playback Plan plays a Version.

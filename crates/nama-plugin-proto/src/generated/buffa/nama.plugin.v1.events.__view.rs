@@ -7015,6 +7015,11 @@ pub struct PlaybackView<'a> {
     ///
     /// Field 4: `method`
     pub method: ::buffa::EnumValue<super::super::PlaybackMethod>,
+    /// The plan's id, the same in every event about that plan, which pairs its `PlaybackStarted`
+    /// with its `PlaybackEnded`. Ids start again when the Server restarts.
+    ///
+    /// Field 5: `plan_id`
+    pub plan_id: u64,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackView<'a> {
@@ -7077,6 +7082,13 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.plan_id = ::buffa::types::decode_uint64(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -7103,6 +7115,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackView<'a> {
             device_id: self.device_id,
             version_id: self.version_id,
             method: self.method,
+            plan_id: self.plan_id,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -7129,6 +7142,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackView<'a> {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if self.plan_id != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.plan_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7154,6 +7170,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackView<'a> {
             if val != 0 {
                 ::buffa::types::put_int32_field(4u32, val, buf);
             }
+        }
+        if self.plan_id != 0u64 {
+            ::buffa::types::put_uint64_field(5u32, self.plan_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7199,6 +7218,13 @@ impl<'__a> ::serde::Serialize for PlaybackView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.method) {
             __map.serialize_entry("method", &self.method)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u64(&self.plan_id) {
+            __map
+                .serialize_entry(
+                    "planId",
+                    &::buffa::json_helpers::ProtoJson(&self.plan_id),
+                )?;
         }
         __map.end()
     }
@@ -7316,6 +7342,14 @@ impl PlaybackOwnedView {
     #[must_use]
     pub fn method(&self) -> ::buffa::EnumValue<super::super::PlaybackMethod> {
         self.0.reborrow().method
+    }
+    /// The plan's id, the same in every event about that plan, which pairs its `PlaybackStarted`
+    /// with its `PlaybackEnded`. Ids start again when the Server restarts.
+    ///
+    /// Field 5: `plan_id`
+    #[must_use]
+    pub fn plan_id(&self) -> u64 {
+        self.0.reborrow().plan_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackView<'static>>>
