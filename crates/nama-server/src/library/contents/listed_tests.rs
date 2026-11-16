@@ -109,6 +109,20 @@ async fn a_page_names_a_movie_by_its_librarys_first_title_source() {
 }
 
 #[tokio::test]
+async fn a_page_names_a_movie_with_no_id_from_its_librarys_title_sources_by_its_first_namespace() {
+    let fx = Fixture::new().await;
+    let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
+    let ids = ExternalIds::from_iter([ExternalId::tvdb(1), imdb.clone()]);
+    matched_movie(&fx, "/media/Alien.mkv", "Alien", ids).await;
+
+    let page = page_ids(&fx, None, None).await;
+    let browsed = fx.contents.movies(fx.library).await.unwrap();
+
+    assert_eq!(page, [imdb]);
+    assert_eq!(page[0], browsed[0].id);
+}
+
+#[tokio::test]
 async fn a_page_of_episodes_gives_their_show_and_numbers_and_leaves_out_one_without_a_show_id() {
     let fx = Fixture::new().await;
     let dark = ExternalIds::from_iter([ExternalId::tmdb(70_523)]);

@@ -248,7 +248,12 @@ impl<V> Episode<V> {
 }
 
 impl Contents {
+    /// What the Version `version` is Matched to, each title by its id as browsing identifies it:
+    /// its Movie, or for a file of Episodes only the Show of its first Matched one, by season and
+    /// number. [`Contents::titles_in`] gives each Episode, with every id.
     pub(crate) async fn matched_to(&self, version: i64) -> Result<MatchedTo, sqlx::Error> {
+        // This query and `titles_in`'s must change together: it reads the same rows, adding only
+        // the Show's ids.
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
@@ -294,6 +299,8 @@ impl Contents {
     /// What the Version `version` is Matched to, as [`Contents::matched_to`] finds it, with every
     /// id of each title, so Watch State is found under any of them.
     pub(crate) async fn titles_in(&self, version: i64) -> Result<TitlesIn, sqlx::Error> {
+        // This query and `matched_to`'s must change together: it reads the same rows, leaving out
+        // only the Show's ids.
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
@@ -650,9 +657,10 @@ impl Contents {
             .collect();
         let asked = serde_json::Value::from(asked).to_string();
         // Where more than one Match has a named id, as Versions of one title or two titles sharing
-        // an id, the first in the order `movies` and `shows` list them keeps it: by title (an
-        // Episode's Show title, season and number first), then path. An Episode without a Show id
-        // is one `shows` leaves out.
+        // an id, the first row by the ORDER BY below keeps it: by Show title (a Movie has none),
+        // season and episode number, then the Match's own title, and only then path, so a title
+        // that sorts first keeps the id even where its path sorts last. An Episode without a Show
+        // id is left out, as `shows` leaves it out.
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(

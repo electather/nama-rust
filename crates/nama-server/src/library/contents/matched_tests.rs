@@ -546,6 +546,37 @@ async fn an_id_two_movies_share_gives_the_ids_of_the_first_by_title() {
 }
 
 #[tokio::test]
+async fn an_id_two_movies_share_goes_to_the_first_by_title_though_its_path_sorts_last() {
+    let fx = Fixture::new().await;
+    let shared = imdb("tt0078748");
+    let alien = "/media/Z/Alien.mkv";
+    let zulu = "/media/A/Zulu.mkv";
+    for (path, title, tmdb) in [(zulu, "Zulu", 14_433), (alien, "Alien", 348)] {
+        fx.store(path, 10, movie(title, 1979)).await;
+        let item = fx.item(path).await;
+        let metadata = super::super::Metadata {
+            ids: ExternalIds::from_iter([ExternalId::tmdb(tmdb), shared.clone()]),
+            ..tmdb_movie(tmdb, title)
+        };
+        fx.contents
+            .record(vec![(item, Decided::Matched(Box::new(metadata)))])
+            .await
+            .unwrap();
+    }
+
+    let found = (fx
+        .contents
+        .every_id(fx.library, ItemKind::Movie, std::slice::from_ref(&shared)))
+    .await
+    .unwrap();
+
+    assert_eq!(
+        found,
+        [ExternalIds::from_iter([ExternalId::tmdb(348), shared])]
+    );
+}
+
+#[tokio::test]
 async fn a_versions_titles_come_with_every_id_and_an_unmatched_episode_as_none() {
     let fx = Fixture::new().await;
     let alien_ids = ExternalIds::from_iter([ExternalId::tmdb(348), imdb("tt0078748")]);
