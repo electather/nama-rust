@@ -1,6 +1,7 @@
 //! Server configuration, layered from defaults, a TOML file and `NAMA_*` environment variables.
 
 use std::{
+    borrow::Cow,
     collections::BTreeMap,
     fmt,
     net::{IpAddr, SocketAddr},
@@ -14,6 +15,7 @@ use figment::{
     value::{Dict, Value},
 };
 use nama_plugin_api::settings::SettingValue;
+use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
 use serde::{Deserialize, Serialize};
 
 /// The config file read from the working directory when no file is named.
@@ -27,7 +29,13 @@ pub const ENV_PREFIX: &str = "NAMA_";
 pub const FILE_ENV: &str = "NAMA_CONFIG";
 
 /// Everything a Server needs to know before it starts.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+// Its doc comments are also `docs/nama.schema.json`'s descriptions, which editors show users.
+// `Config::load` always supplies every key, so `default` changes no loading: it makes each key
+// optional in the schema, with its default shown. The schema flags unknown keys; the Server
+// doesn't yet (#842).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default)]
+#[schemars(deny_unknown_fields)]
 pub struct Config {
     /// The Server's display name, which clients show to tell Servers apart.
     pub name: String,
@@ -36,22 +44,17 @@ pub struct Config {
     /// Directory where the Server keeps its database and other state.
     pub data_dir: PathBuf,
     /// The `[plugins.<id>]` tables in the file, imported into the database on the first start and
-    /// ignored after (`plugin_settings`).
-    #[serde(default)]
+    /// ignored after.
     pub plugins: PluginTables,
     /// Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` headers the Server believes
     /// (ADR 0018). Empty by default, so the headers are ignored.
-    #[serde(default)]
     pub trusted_proxies: Vec<IpRange>,
-    /// The ffmpeg to run, such as a container's own. `None`, the default, looks for it on `PATH`.
-    #[serde(default)]
+    /// The ffmpeg to run, such as a container's own. Unset, the default, looks for it on `PATH`.
     pub ffmpeg: Option<PathBuf>,
-    /// The ffprobe to run. `None`, the default, looks for it on `PATH`.
-    #[serde(default)]
+    /// The ffprobe to run. Unset, the default, looks for it on `PATH`.
     pub ffprobe: Option<PathBuf>,
     /// Whether the OS reports changes in Library folders so they're scanned soon after. On by
     /// default; off, folders are scanned every six hours and when asked.
-    #[serde(default = "enabled_by_default")]
     pub watch_folders: bool,
 }
 
@@ -62,6 +65,27 @@ pub struct Config {
 #[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PluginTables(BTreeMap<String, Dict>);
+
+// Each Plugin declares its own settings at runtime, so the schema checks only `enabled`.
+impl JsonSchema for PluginTables {
+    fn inline_schema() -> bool {
+        true
+    }
+
+    fn schema_name() -> Cow<'static, str> {
+        "PluginTables".into()
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        json_schema!({
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "properties": { "enabled": { "type": "boolean" } },
+            },
+        })
+    }
+}
 
 impl PluginTables {
     /// The Plugin ids the tables name.
@@ -160,8 +184,9 @@ impl Config {
 }
 
 /// An IP address, or a CIDR range such as `10.0.0.0/8`, written as such in the config.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(try_from = "String", into = "String")]
+#[schemars(inline)]
 pub struct IpRange {
     network: IpAddr,
     prefix_len: u8,

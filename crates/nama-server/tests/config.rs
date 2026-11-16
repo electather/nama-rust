@@ -4,11 +4,17 @@
     reason = "`figment::Jail` closures must return `figment::Result`, whose error is large; fine in tests"
 )]
 
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use figment::Jail;
 use nama_plugin_api::settings::SettingValue;
 use nama_server::config::{Config, PluginConfig};
+use schemars::generate::SchemaSettings;
+use serde_json::Value;
 
 #[test]
 fn defaults_apply_when_there_is_no_config_file_or_environment() {
@@ -260,4 +266,52 @@ fn a_trusted_proxy_that_isnt_an_ip_address_or_cidr_range_is_an_error() {
         Config::load(None).unwrap_err();
         Ok(())
     });
+}
+
+/// The schema of `nama.toml`, as draft-07 for Taplo's validator.
+fn schema() -> Value {
+    SchemaSettings::draft07()
+        .into_generator()
+        .into_root_schema_for::<Config>()
+        .to_value()
+}
+
+#[test]
+fn the_schema_requires_no_key_and_rejects_unknown_ones() {
+    let schema = schema();
+
+    assert_eq!(schema.get("required"), None);
+    assert_eq!(schema["additionalProperties"], false);
+    assert_eq!(schema["properties"]["watch_folders"]["type"], "boolean");
+    assert_eq!(
+        schema["properties"]["trusted_proxies"]["items"]["type"],
+        "string"
+    );
+    let plugin_table = &schema["properties"]["plugins"]["additionalProperties"];
+    assert_eq!(plugin_table["type"], "object");
+    assert_eq!(plugin_table["properties"]["enabled"]["type"], "boolean");
+    assert_eq!(plugin_table.get("required"), None);
+}
+
+#[test]
+fn the_committed_schema_matches_config() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/nama.schema.json");
+    let generated = schema();
+    // Compared parsed, since a Windows checkout may turn the file's line endings into CRLF.
+    let committed: Option<Value> = fs::read_to_string(&path)
+        .ok()
+        .and_then(|file| serde_json::from_str(&file).ok());
+
+    if committed.as_ref() != Some(&generated) {
+        // Rewritten so a local rerun passes ("Config schema", `crates/nama-server/AGENTS.md`).
+        fs::write(
+            &path,
+            serde_json::to_string_pretty(&generated).unwrap() + "\n",
+        )
+        .unwrap();
+        panic!(
+            "{} was out of date and is now regenerated; commit it",
+            path.display()
+        );
+    }
 }
