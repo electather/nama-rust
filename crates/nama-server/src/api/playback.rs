@@ -15,14 +15,14 @@ use crate::{
     ffmpeg::Abilities,
     playback::{
         self, Asked, AskedAudio, AskedSubtitle, DeviceDecoding, Method, NAMED_LIMITS, PickedLimit,
-        Planned, PlaybackLimit, StartedPlan, TrackKind, limit_to_proto, method_to_proto,
+        Planned, StartedPlan, TrackKind, limit_to_proto, method_to_proto,
         probing::{self, Probing},
         reason_to_proto,
         running::{RunningPlans, StartError},
         track_preferences::{self, Description, Preferred, SubtitlePreference, TrackPreferences},
         track_to_proto,
     },
-    server_settings::PlaybackSettings,
+    server_settings::{PlaybackLimit, PlaybackSettings},
 };
 
 use super::{caller, client_ip, database_failed, refuse, unknown_enum_value, version_not_found};

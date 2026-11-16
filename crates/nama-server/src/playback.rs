@@ -51,7 +51,7 @@ use crate::{
         Transcode, TranscodeAudio, VideoConversion, VideoLimit,
     },
     library::contents::Contents,
-    server_settings::{HardwareChoice, PlaybackValues},
+    server_settings::{HardwareChoice, PlaybackLimit, PlaybackValues},
     users::{Caller, User},
 };
 use probing::ProbeError;
@@ -75,44 +75,6 @@ impl Method {
             Self::DirectPlay => "Direct Play",
             Self::Remux => "Remux",
             Self::Transcode => "Transcode",
-        }
-    }
-}
-
-/// A Playback Limit below Original: the picture a Transcode fits the video in, and the bitrate it
-/// sends it at, which Users never see.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PlaybackLimit {
-    name: &'static str,
-    width: i64,
-    height: i64,
-    bits_per_second: u32,
-}
-
-impl PlaybackLimit {
-    pub(crate) const P1080: Self = Self::new("1080p", 1920, 1080, 8_000_000);
-    pub(crate) const P720: Self = Self::new("720p", 1280, 720, 4_000_000);
-    // 854 is 480 at 16:9, made even.
-    pub(crate) const P480: Self = Self::new("480p", 854, 480, 1_500_000);
-
-    const ALL: [Self; 3] = [Self::P1080, Self::P720, Self::P480];
-
-    /// What it's called, such as "720p", which is also how it's stored.
-    pub(crate) const fn name(self) -> &'static str {
-        self.name
-    }
-
-    /// The limit called `name`, if there is one.
-    pub(crate) fn named(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|limit| limit.name == name)
-    }
-
-    const fn new(name: &'static str, width: i64, height: i64, bits_per_second: u32) -> Self {
-        Self {
-            name,
-            width,
-            height,
-            bits_per_second,
         }
     }
 }

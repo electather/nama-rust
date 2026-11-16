@@ -19,13 +19,12 @@ use thiserror::Error;
 use crate::{
     db::{BoxFuture, Database},
     ffmpeg::{Accel, Hardware},
-    playback::PlaybackLimit,
 };
 
 mod playback;
 
 pub(crate) use playback::{
-    HardwareChoice, PickedGpu, PlaybackChange, PlaybackSettings, PlaybackValues,
+    HardwareChoice, PickedGpu, PlaybackChange, PlaybackLimit, PlaybackSettings, PlaybackValues,
 };
 
 /// How many MiB the resized copies of images take while no limit is set.

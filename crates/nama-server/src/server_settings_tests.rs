@@ -5,12 +5,12 @@ use std::{
 };
 
 use super::{
-    ChangeError, HardwareChoice, Invalid, PickedGpu, PlaybackChange, PlaybackValues, Settings,
-    Values,
+    ChangeError, HardwareChoice, Invalid, PickedGpu, PlaybackChange, PlaybackLimit, PlaybackValues,
+    Settings, Values,
 };
 #[cfg(unix)]
 use crate::ffmpeg::{Hardware, fake, find_gpus};
-use crate::{db::Database, ffmpeg::Accel, playback::PlaybackLimit};
+use crate::{db::Database, ffmpeg::Accel};
 
 const DEFAULT_FOLDER: &str = "/data/transcodes";
 
