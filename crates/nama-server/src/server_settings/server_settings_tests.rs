@@ -83,7 +83,7 @@ async fn a_stored_url_is_trimmed_used_for_links_and_read_again_after_a_restart()
 }
 
 #[tokio::test]
-async fn a_url_that_isnt_http_or_has_a_query_or_fragment_is_refused_and_changes_nothing() {
+async fn refusing_a_url_with_a_user_name_password_query_or_fragment_or_not_http_changes_nothing() {
     let (_data_dir, settings) = fresh().await;
     settings.set_url("https://nama.example.com").await.unwrap();
 
@@ -92,10 +92,25 @@ async fn a_url_that_isnt_http_or_has_a_query_or_fragment_is_refused_and_changes_
         "ftp://nama.example.com",
         "https://nama.example.com/?a=1",
         "https://nama.example.com/#top",
+        "https://user:pw@nama.example.com",
+        "https://user@nama.example.com",
+        "https://:pw@nama.example.com",
     ] {
         assert_eq!(invalid(settings.set_url(not_a_url).await), Invalid::NotAUrl);
     }
     assert_eq!(settings.now().url, "https://nama.example.com");
+}
+
+#[tokio::test]
+async fn a_url_with_an_at_sign_only_in_its_path_is_accepted() {
+    let (_data_dir, settings) = fresh().await;
+
+    let stored = settings
+        .set_url("https://nama.example.com/@home")
+        .await
+        .unwrap();
+
+    assert_eq!(stored, "https://nama.example.com/@home");
 }
 
 #[tokio::test]

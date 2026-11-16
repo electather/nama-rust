@@ -149,8 +149,8 @@ pub enum RefusalReason {
     /// itself, which is `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. The message says why. Params:
     /// `pluginId`, `reason` (in plain words, as `PluginSummary.refused_reason`).
     REFUSAL_REASON_PLUGIN_REFUSED = 52i32,
-    /// `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
-    /// where links are added to its end.
+    /// `invalid_argument`: the field isn't an http or https URL with a host, or has a user name,
+    /// password, query or fragment where links are added to its end.
     REFUSAL_REASON_NOT_A_URL = 53i32,
     /// `invalid_argument`: a Fulfiller's Qualities name the same profile twice, or two Qualities
     /// share a name, ignoring case. `field` names the second, such as `qualities[1].name`.
