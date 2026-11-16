@@ -202,6 +202,33 @@ async fn a_bad_device_name_is_refused_without_counting_as_a_guess() {
     attempt(&sign_in, "Ada", PASSWORD, now).await.unwrap();
 }
 
+#[tokio::test]
+async fn a_device_name_holding_an_invisible_character_is_refused() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let (sign_in, _) = sign_in_with_ada(data_dir.path()).await;
+    for name in ["Lap\ttop", "Laptop\u{200B}"] {
+        let refused = sign_in
+            .sign_in(
+                password("Ada", PASSWORD),
+                device(name, LAPTOP_IP),
+                Instant::now(),
+            )
+            .await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Users(users::Error::NameCharacter {
+                    field: "device_name",
+                    ..
+                }))
+            ),
+            "{name:?}: {:?}",
+            refused.map(|_| ())
+        );
+    }
+}
+
 /// Fails to set up from [`LAPTOP_IP`] with a wrong Setup Code `times` times at `now`.
 async fn fail_setup(sign_in: &SignIn, times: usize, now: Instant) {
     for _ in 0..times {
