@@ -87,7 +87,8 @@ pub(crate) struct Listed {
 pub struct Artwork {
     store: ImageStore,
     metadata: TitleSources,
-    /// The `(plugin, path)` of each image a search or lookup handed out since the Server started.
+    /// The `(plugin, path)` of each image a search, lookup or artwork list handed out since the
+    /// Server started.
     offered: Arc<Mutex<HashSet<(String, String)>>>,
     /// Taken by each background download, across every clone.
     downloads: Arc<Semaphore>,
