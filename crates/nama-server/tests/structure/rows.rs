@@ -144,7 +144,8 @@ fn tokens(code: &str) -> Vec<Token<'_>> {
 
 /// Every `crate::` path in `code`, text `code_only` has cleaned, with a `use` tree flattened to
 /// one path per leaf: `self` names its group's own path, an `as` alias is dropped and a glob
-/// ends in `*`.
+/// ends in `*`. A macro's `$crate::` path counts as a `crate::` one, since it names the same
+/// module.
 // ponytail: `super::` paths aren't read, so one climbing out of its area isn't seen; nothing
 // does that today.
 pub(super) fn crate_paths(code: &str) -> Vec<Import> {
@@ -152,8 +153,7 @@ pub(super) fn crate_paths(code: &str) -> Vec<Import> {
     let mut imports = Vec::new();
     let text = |at: usize| tokens.get(at).map(|token| token.text);
     for at in 0..tokens.len() {
-        let after_dollar = at.checked_sub(1).and_then(text) == Some("$");
-        if text(at) == Some("crate") && text(at + 1) == Some("::") && !after_dollar {
+        if text(at) == Some("crate") && text(at + 1) == Some("::") {
             let mut next = at + 2;
             use_tree(&tokens, &mut next, &[], &mut imports);
         }
@@ -219,13 +219,28 @@ fn place(rows: &[&[&str]], module: &str) -> Option<(usize, usize)> {
     })
 }
 
+/// An `ALLOWED_UPWARD` entry: who makes the call, the leading segments of the `crate::` path it
+/// names, and why.
+pub(super) type Allowed = (Importers, &'static [&'static str], &'static str);
+
+/// Whether `importers` takes in the file at `path`.
+fn covers(importers: &Importers, path: &str) -> bool {
+    match importers {
+        Importers::File(file) => *file == path,
+        Importers::TestCode => is_test_file(path),
+    }
+}
+
 /// Each of `imports`, the `crate::` paths of the file at `path`, that `rows` forbids and
-/// `allowed` doesn't let through, as `file:line: import (area, row N -> area, row M)`.
+/// `allowed` doesn't let through, as `file:line: import (area, row N -> area, row M)`, followed
+/// by each entry of `allowed` for this file and that area with its reason. Sets `used[i]` when
+/// `allowed[i]` lets an import through, for `stale_allowances`.
 pub(super) fn upward_calls(
     path: &str,
     imports: &[Import],
     rows: &[&[&str]],
-    allowed: &[(Importers, &[&str], &str)],
+    allowed: &[Allowed],
+    used: &mut [bool],
 ) -> Vec<String> {
     let Some(from) = area_of(path) else {
         return Vec::new();
@@ -246,25 +261,63 @@ pub(super) fn upward_calls(
             continue;
         };
         let down = to_row > from_row || (to_row == from_row && to_column > from_column);
-        let let_through = allowed.iter().any(|(importers, leading, _)| {
-            let covers = match importers {
-                Importers::File(file) => *file == path,
-                Importers::TestCode => is_test_file(path),
-            };
-            covers
+        if to == from || down {
+            continue;
+        }
+        let mut let_through = false;
+        for ((importers, leading, _), entry_used) in allowed.iter().zip(used.iter_mut()) {
+            if covers(importers, path)
                 && import.path.len() >= leading.len()
                 && leading.iter().zip(&import.path).all(|(a, b)| a == b)
-        });
-        if to != from && !down && !let_through {
+            {
+                let_through = true;
+                *entry_used = true;
+            }
+        }
+        if !let_through {
+            let notes: Vec<String> = allowed
+                .iter()
+                .filter(|(importers, leading, _)| {
+                    covers(importers, path) && leading.first().is_some_and(|first| *first == to)
+                })
+                .map(|(_, leading, reason)| {
+                    format!(
+                        "\n    allowed here only: crate::{} ({reason})",
+                        leading.join("::")
+                    )
+                })
+                .collect();
             problems.push(format!(
-                "{path}:{}: {shown} ({from}, row {} -> {to}, row {})",
+                "{path}:{}: {shown} ({from}, row {} -> {to}, row {}){}",
                 import.line,
                 from_row + 1,
-                to_row + 1
+                to_row + 1,
+                notes.concat()
             ));
         }
     }
     problems
+}
+
+/// Each entry of `allowed` that no import let through, by `used` from `upward_calls`, with its
+/// reason.
+pub(super) fn stale_allowances(allowed: &[Allowed], used: &[bool]) -> Vec<String> {
+    allowed
+        .iter()
+        .zip(used)
+        .filter(|(_, used)| !**used)
+        .map(|((importers, leading, reason), _)| {
+            let who = match importers {
+                Importers::File(file) => *file,
+                Importers::TestCode => "test code",
+            };
+            format!(
+                "ALLOWED_UPWARD lets {who} call crate::{}, but nothing does: remove the entry \
+                 ({reason})",
+                leading.join("::")
+            )
+        })
+        .collect()
 }
 
 #[test]
@@ -286,7 +339,8 @@ fn crate_paths_reads_nested_groups_aliases_self_and_code_paths_but_not_comments(
             "3:d::e::F",
             "3:d::e::G",
             "3:d::*",
-            "10:h::i"
+            "10:h::i",
+            "10:in_macro::X"
         ]
     );
 }
@@ -294,12 +348,25 @@ fn crate_paths_reads_nested_groups_aliases_self_and_code_paths_but_not_comments(
 #[test]
 fn upward_calls_fails_a_call_up_or_left_and_passes_the_rest() {
     let rows: &[&[&str]] = &[&["top"], &["left", "right"], &["bottom"]];
-    let allowed: &[(Importers, &[&str], &str)] = &[
-        (Importers::File("src/bottom/writes.rs"), &["left"], "why"),
-        (Importers::TestCode, &["top", "Builder"], "why"),
+    let allowed: &[Allowed] = &[
+        (
+            Importers::File("src/bottom/writes.rs"),
+            &["left", "make"],
+            "why writes",
+        ),
+        (Importers::TestCode, &["top", "Builder"], "why tests"),
+        (Importers::File("src/gone.rs"), &["top"], "why gone"),
     ];
-    let calls =
-        |path: &str, text: &str| upward_calls(path, &crate_paths(&code_only(text)), rows, allowed);
+    let mut used = vec![false; allowed.len()];
+    let mut calls = |path: &str, text: &str| {
+        upward_calls(
+            path,
+            &crate_paths(&code_only(text)),
+            rows,
+            allowed,
+            &mut used,
+        )
+    };
     assert_eq!(
         calls(
             "src/left/a.rs",
@@ -316,10 +383,16 @@ fn upward_calls_fails_a_call_up_or_left_and_passes_the_rest() {
         ["src/bottom/a.rs:1: crate::nowhere::X (nowhere has no row)"]
     );
     let none = Vec::<String>::new();
-    // An allowed module import, called through without `crate::` as decisions.rs does.
     assert_eq!(
-        calls("src/bottom/writes.rs", "use crate::{left};\nleft::make();"),
+        calls("src/bottom/writes.rs", "use crate::left::make;\nmake();"),
         none
+    );
+    assert_eq!(
+        calls("src/bottom/writes.rs", "use crate::left;\nleft::make();"),
+        [
+            "src/bottom/writes.rs:1: crate::left (bottom, row 3 -> left, row 2)\n    \
+             allowed here only: crate::left::make (why writes)"
+        ]
     );
     assert_eq!(calls("src/bottom/other.rs", "use crate::left;").len(), 1);
     assert_eq!(
@@ -332,7 +405,17 @@ fn upward_calls_fails_a_call_up_or_left_and_passes_the_rest() {
     );
     assert_eq!(
         calls("src/right_tests.rs", "use crate::top::Other;"),
-        ["src/right_tests.rs:1: crate::top::Other (right, row 2 -> top, row 1)"]
+        [
+            "src/right_tests.rs:1: crate::top::Other (right, row 2 -> top, row 1)\n    \
+             allowed here only: crate::top::Builder (why tests)"
+        ]
     );
     assert_eq!(calls("src/right.rs", "use crate::top::Builder;").len(), 1);
+    assert_eq!(
+        stale_allowances(allowed, &used),
+        [
+            "ALLOWED_UPWARD lets src/gone.rs call crate::top, but nothing does: remove the entry \
+          (why gone)"
+        ]
+    );
 }

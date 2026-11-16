@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use rows::{Importers, area_of, code_only, crate_paths, upward_calls};
+use rows::{Allowed, Importers, area_of, code_only, crate_paths, stale_allowances, upward_calls};
 
 /// The line count a file not in `CEILINGS` may reach.
 const MAX_LINES: usize = 800;
@@ -529,13 +529,16 @@ fn placement_problems_names_unplaced_twice_placed_and_gone_modules() {
 }
 
 /// The calls against `ROWS` that are allowed anyway: who makes them, the leading segments of
-/// the `crate::` path they name, and why.
-const ALLOWED_UPWARD: &[(Importers, &[&str], &str)] = &[
+/// the `crate::` path they name, and why. An entry no import uses fails.
+const ALLOWED_UPWARD: &[Allowed] = &[
     (
-        // decisions.rs imports the module and calls `requests::make_available` and
-        // `requests::make_seasons_available` through it, without `crate::`.
         Importers::File("src/library/contents/decisions.rs"),
-        &["requests"],
+        &["requests", "make_available"],
+        "ADR 0012: the Library makes Requests Available inside its own write",
+    ),
+    (
+        Importers::File("src/library/contents/decisions.rs"),
+        &["requests", "make_seasons_available"],
         "ADR 0012: the Library makes Requests Available inside its own write",
     ),
     (
@@ -550,14 +553,22 @@ fn no_file_calls_up_the_rows() {
     let files = rust_files();
     let mut imports = 0;
     let mut problems = Vec::new();
+    let mut used = vec![false; ALLOWED_UPWARD.len()];
     for file in files
         .iter()
         .filter(|file| area_of(&file.path).is_some_and(|area| !STARTUP.contains(&area)))
     {
         let paths = crate_paths(&code_only(&file.text));
         imports += paths.len();
-        problems.extend(upward_calls(&file.path, &paths, ROWS, ALLOWED_UPWARD));
+        problems.extend(upward_calls(
+            &file.path,
+            &paths,
+            ROWS,
+            ALLOWED_UPWARD,
+            &mut used,
+        ));
     }
+    problems.extend(stale_allowances(ALLOWED_UPWARD, &used));
     assert!(
         imports > 100,
         "read only {imports} crate:: paths: the parser is missing them"

@@ -22,10 +22,10 @@ Ten top-level files had no row. Each goes where its imports put it, so that no u
 
 Two calls are allowed against the order:
 
-- **ADR 0012's upward call.** The Library makes Requests Available inside its own write, so a scan's Match and the Request's state change land in one transaction. The allowance is keyed on one file, `src/library/contents/decisions.rs`, calling the `requests` module: it imports the module and calls `requests::make_available` and `requests::make_seasons_available` through it.
+- **ADR 0012's upward call.** The Library makes Requests Available inside its own write, so a scan's Match and the Request's state change land in one transaction. The allowance is keyed on one file, `src/library/contents/decisions.rs`, and two functions: it imports `requests::make_available` and `requests::make_seasons_available` by path, so any other call into `requests` from that file still fails.
 - **Tests may build a Scanner.** Unit tests (files named `*_tests.rs` or `testing.rs`) may build `scanner::Scanner`, since only `Scanner::new` makes `ScanLocks`, and a Matching or Requests test that needs a scan or a Matcher can't get one from a lower row.
 
-The other upward calls were cut, each with no behaviour change: `events` calling `requests` and `playback::visible_to`, `server_settings` using `playback::PlaybackLimit`, and the test-only `plugins/wasm/title_source_tests.rs` calling `library`. `tests/structure.rs` reads each source file's `crate::` paths, skipping comments and strings, and fails, naming the file, line and import, on every call the order forbids that its `ALLOWED_UPWARD` table, holding the two calls above, doesn't list.
+The other upward calls were cut, each with no behaviour change: `events` calling `requests` and `playback::visible_to`, `server_settings` using `playback::PlaybackLimit`, and the test-only `plugins/wasm/title_source_tests.rs` calling `library`. `tests/structure.rs` reads each source file's `crate::` paths, skipping comments and strings, and fails, naming the file, line and import, on every call the order forbids that its `ALLOWED_UPWARD` table, holding the two calls above, doesn't list. It reads a macro's `$crate::` paths the same way, prints with each failure the reason of every entry covering that file and area, and fails on an entry no import uses, so an allowance goes once its call does.
 
 ## Considered Options
 

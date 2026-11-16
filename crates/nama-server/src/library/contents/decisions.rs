@@ -16,7 +16,7 @@ use crate::{
     db::now,
     library::title_source::{Candidate, Season},
     library::versions::METADATA_VERSION,
-    requests,
+    requests::{make_available, make_seasons_available},
 };
 
 #[derive(Debug)]
@@ -423,8 +423,8 @@ pub(super) async fn insert_decisions(
             .await?;
         }
     }
-    let mut happened = requests::make_available(conn, movies).await?;
-    happened.extend(requests::make_seasons_available(conn, decided.seasons).await?);
+    let mut happened = make_available(conn, movies).await?;
+    happened.extend(make_seasons_available(conn, decided.seasons).await?);
     Ok(happened)
 }
 
