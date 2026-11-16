@@ -34,6 +34,7 @@ use crate::{
     requests::qualities,
 };
 
+mod put_back;
 mod stored;
 
 pub use stored::{grants, stored};
@@ -461,8 +462,10 @@ impl PluginSettings {
     /// # Errors
     ///
     /// If no Plugin has the id or the Server refused it, `granted` names a Permission its Manifest
-    /// doesn't request, it can't be enabled, or the database can't be read or written. Should the
-    /// save fail, the Plugin stays enabled until a restart.
+    /// doesn't request, it can't be enabled, or the database can't be read or written. When
+    /// enabling or saving fails, the Plugin is put back as it ran before: with the grants it had,
+    /// or not at all; should it not enable with those either, it is saved as disabled, so what
+    /// runs and what is stored agree whatever fails.
     pub async fn enable_granting(
         &self,
         id: &PluginId,
@@ -488,20 +491,34 @@ impl PluginSettings {
                     permission,
                 });
             }
-            if before != granted && this.registry.enabled().contains(&id) {
+            let ran_with = this.registry.enabled().contains(&id).then_some(&before);
+            let unchanged = ran_with == Some(&granted);
+            if !unchanged && ran_with.is_some() {
                 // Disabled first, as `enable_again` does, so nothing it registered with its old
                 // grants stays.
                 this.registry.disable(&id).await;
             }
             match this.registry.enable_by_id_granting(
                 &id,
-                Settings::new(stored.settings),
+                Settings::new(stored.settings.clone()),
                 granted.clone(),
             ) {
                 Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
-                Err(err) => return Err(ChangeError::Enable(err)),
+                Err(err) => {
+                    let err = ChangeError::Enable(err);
+                    this.put_back(&id, &stored.settings, ran_with, &err).await;
+                    return Err(err);
+                }
             }
-            set_enabled_granting(&this.db, id.as_str(), &granted).await?;
+            let saved = set_enabled_granting(&this.db, id.as_str(), &granted).await;
+            // Unchanged, it runs as before and as stored, unless an earlier save failed, which
+            // this retry then fixes.
+            if let Err(err) = &saved
+                && !unchanged
+            {
+                this.put_back(&id, &stored.settings, ran_with, err).await;
+            }
+            saved?;
             // Queued even if it was running, so enabling it again retries a failed hand-off.
             this.queue_came_up(&id);
             Ok(())
@@ -535,9 +552,10 @@ impl PluginSettings {
         .await
     }
 
-    /// Enables the Plugin `id` again with `settings` and the Plugin Permissions `granted`, even if it isn't running, such as TMDB left
-    /// disabled without its key. Disabled first, so nothing it registered with its old settings
-    /// stays; a failure is logged, since its settings are saved and a restart retries them.
+    /// Enables the Plugin `id` again with `settings` and the Plugin Permissions `granted`, even if
+    /// it isn't running, such as TMDB left disabled without its key. Disabled first, so nothing it
+    /// registered with its old settings stays; a failure is logged, since its settings are saved
+    /// and a restart retries them.
     async fn enable_again(
         &self,
         id: &PluginId,
