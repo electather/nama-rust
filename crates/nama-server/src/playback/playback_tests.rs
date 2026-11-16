@@ -1,10 +1,10 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, num::NonZeroU32};
 
 use nama_proto::nama::v1::{AudioCodec, Container, PlaybackReasonKind as Kind, VideoCodec};
 
 use super::{
     Candidates, DeviceDecoding, Facts, Fallback, Method, Network, Offers, PickedLimit, Plan,
-    Playing, Reason, build, narrowed, too_busy_to_play,
+    Playing, Reason, RunningTranscodes, build, narrowed, too_busy_to_play,
     tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
 };
 use crate::{
@@ -116,7 +116,8 @@ pub(super) fn in_container(container: &str, tracks: Option<Vec<Track>>) -> Facts
         },
         failed: BTreeSet::new(),
         audio: None,
-        transcodes_full: None,
+        running_transcodes: RunningTranscodes::default(),
+        max_transcodes: None,
         picked_limit: PickedLimit::Unpicked,
         network: Network::Local,
         subtitle: None,
@@ -441,8 +442,13 @@ fn after_a_failed_transcode(facts: &mut Facts) {
     facts.failed = BTreeSet::from([Method::Transcode]);
 }
 
-fn while_busy(facts: &mut Facts) {
-    facts.transcodes_full = Some(2);
+/// The admin let the Server run 2 Transcodes at once, and other Devices run 2.
+pub(super) fn while_busy(facts: &mut Facts) {
+    facts.max_transcodes = NonZeroU32::new(2);
+    facts.running_transcodes = RunningTranscodes {
+        all: 2,
+        cpu_bound: 0,
+    };
 }
 
 /// What a test changes in the facts it plans for.

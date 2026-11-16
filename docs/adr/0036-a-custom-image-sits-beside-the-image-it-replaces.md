@@ -13,5 +13,6 @@ An admin can upload a Custom Image for a Movie's, Show's or Season's Poster or B
 - An Unmatched Item can't have a Custom Image, as it has no Watch State.
 - Correcting a Match shows the new title's images. The old title's Custom Image waits with the old title.
 - Only an admin removes a title's Custom Image; its files leaving doesn't. A Library's goes with the Library. A Plugin's is kept under the Plugin's id when its Package is removed.
+- An upload is taken only for a title some Library has Matched, a Season with a Matched Episode, a Library or a Plugin the Server has. Keeping an image for something that left doesn't extend to taking a new one for it.
 - A Match that downloads its images again changes only the image underneath.
 - Everyone sees the same Custom Image. A User can't have their own.

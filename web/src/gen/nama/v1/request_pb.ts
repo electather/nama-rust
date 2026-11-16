@@ -280,8 +280,8 @@ export const DownloadSchema: GenMessage<Download> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 3);
 
 /**
- * Users asking for a whole Show: its Seasons now and any that come out later, approved once. A
- * Show has at most one open Followed Show: one that isn't Declined.
+ * Users asking for a whole Show: its numbered Seasons now and any that come out later, approved
+ * once. A Show has at most one open Followed Show: one that isn't Declined.
  *
  * @generated from message nama.v1.FollowedShow
  */
@@ -2074,15 +2074,15 @@ export const RequestService: GenService<{
     output: typeof ListShowQualitiesResponseSchema;
   },
   /**
-   * Asks for a whole Show for the caller: its Seasons now and any that come out later. Asks for
-   * each current Season not in a Library as `CreateSeasonRequests` does, skipping those in one,
-   * and joins the Show's open Followed Show or opens one: Approved if the caller has
+   * Asks for a whole Show for the caller: its numbered Seasons now and any that come out later.
+   * Asks for each current numbered Season not in a Library as `CreateSeasonRequests` does, skipping
+   * those in one, and joins the Show's open Followed Show or opens one: Approved if the caller has
    * `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs `PERMISSION_REQUEST_TV`. While the Followed
    * Show is Approved, a scan Matching Episodes of a Season that came out after it was opened opens
-   * a Request for its Requesters at the Show's Quality. A new Followed Show takes the Show's Quality
-   * if it has one, else one picked and refused as `CreateSeasonRequests` picks and refuses one;
-   * joining one keeps its Quality. Fails with `invalid_argument` if the title source has no Show
-   * with the id, and `unavailable` if no title source is enabled, or one failed.
+   * a Request for its Requesters at the Show's Quality. A new Followed Show takes the Show's
+   * Quality if it has one, else one picked and refused as `CreateSeasonRequests` picks and refuses
+   * one; joining one keeps its Quality. Fails with `invalid_argument` if the title source has no
+   * Show with the id, and `unavailable` if no title source is enabled, or one failed.
    *
    * @generated from rpc nama.v1.RequestService.CreateFollowedShow
    */

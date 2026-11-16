@@ -113,6 +113,11 @@ test.each([
     { reason: UnmatchedReason.NOT_IN_SHOW },
     "Its Show has no such Episode. Matching it to another Show may help.",
   ],
+  [
+    "an Item whose Match was cleared says so",
+    { reason: UnmatchedReason.CLEARED_BY_HAND },
+    "Unmatched by hand.",
+  ],
 ])("%s on Needs a Match", async (_, why, shown) => {
   const item = { itemId: 7n, path: "/srv/shows/The Office/S01E01.mkv", kind: TitleKind.SHOW };
   openApp(

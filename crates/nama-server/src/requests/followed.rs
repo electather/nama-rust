@@ -16,7 +16,7 @@ use sqlx::SqliteConnection;
 
 use super::apply::Applied;
 use super::asked::{self, Asked};
-use super::asking::{SeasonsToAsk, WantedSeasons, Way, kept_under, opening_state};
+use super::asking::{Asker, SeasonsToAsk, WantedSeasons, Way, kept_under, opening_state};
 use super::deciding::{decide, given_reason};
 use super::listing::{load_one, read_title_id};
 use super::quality::{NewQuality, change_followed_quality, quality_columns, stored_quality};
@@ -30,9 +30,10 @@ use crate::{
 
 impl Requests {
     /// Asks for the whole Show `show_id` for `asker`, kept under its id as a Request is
-    /// ([`kept_under`]): each current Season not in a Library as [`Self::create_seasons`] asks
-    /// for it, at the Quality it picks, and later ones through the Show's open Followed Show,
-    /// which `asker` joins or opens at that Quality, in the state their Season Requests open in.
+    /// ([`kept_under`]): each current numbered Season not in a Library as
+    /// [`Self::create_seasons`] asks for it, at the Quality it picks, and later ones through the
+    /// Show's open Followed Show, which `asker` joins or opens at that Quality, in the state their
+    /// Season Requests open in.
     /// Returns the Followed Show and the Season Requests in Season order.
     ///
     /// Refuses a `chosen` Quality as [`Self::create_seasons`] does.
@@ -174,14 +175,14 @@ pub(super) async fn followed_show_ids(
 }
 
 /// Whether the Followed Show `id` covers the Season `season`: it is numbered no later than the
-/// latest one the Followed Show asked for.
+/// latest one the Followed Show asked for or skipped.
 pub(super) async fn covers(
     conn: &mut SqliteConnection,
     id: i64,
     season: u32,
 ) -> Result<bool, sqlx::Error> {
-    // ponytail: a Season that came out but was skipped, such as a Season 0 added later, gets no
-    // Request from a scan; ask for it on its own.
+    // ponytail: a Season that came out but was skipped, such as one numbered before the latest
+    // that came out later, gets no Request from a scan; ask for it on its own.
     sqlx::query_scalar!(
         r#"SELECT EXISTS (SELECT 1 FROM followed_shows WHERE id = ? AND latest_season >= ?)
            AS "is!: bool""#,
@@ -193,8 +194,8 @@ pub(super) async fn covers(
 }
 
 /// Adds `user` as a Requester of the open Followed Show for `show`, opening one in `state` if there
-/// is none, then asks for each of its Seasons not in a Library by following it. Returns the
-/// Followed Show and the Season Requests, with the Followed Show's event first.
+/// is none, then asks for each of its numbered Seasons not in a Library by following it. Returns
+/// the Followed Show and the Season Requests, with the Followed Show's event first.
 pub(super) async fn follow(
     conn: &mut SqliteConnection,
     user: i64,
@@ -202,7 +203,7 @@ pub(super) async fn follow(
     state: RequestState,
 ) -> Result<Applied<(FollowedShow, Vec<Request>)>, Error> {
     let now = now();
-    let asking = SeasonsToAsk::read(conn, show).await?;
+    let mut asking = SeasonsToAsk::read(conn, show).await?;
     let already_open = open_followed_show_by_any(conn, &asking.show_ids).await?;
     let id = if let Some(id) = already_open {
         store_ids(conn, id, &asking.show_ids).await?;
@@ -231,6 +232,14 @@ pub(super) async fn follow(
         state,
         followed_show: &followed,
     };
+    // A Followed Show covers Specials (Season 0) without asking for them: a Fulfiller such as
+    // Sonarr numbers them by TVDB, so they rarely Match (#818). Covering them gives one joined
+    // before its Show listed Specials a `latest_season`, so a scan still asks for later Seasons.
+    let had_specials = asking.seasons.iter().any(|season| season.number == 0);
+    asking.seasons.retain(|season| season.number != 0);
+    if had_specials {
+        way.cover(conn, 0).await?;
+    }
     let seasons = asking.ask(conn, way).await?;
     happened.extend(seasons.events);
     Ok(Applied {

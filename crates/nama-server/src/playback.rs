@@ -29,6 +29,7 @@ mod tracks;
 
 pub(crate) use direct_play::router;
 pub(crate) use probing::{Error as ProbingError, Probing};
+use running::RunningTranscodes;
 pub(crate) use running::{RunningPlans, StartError, router as running_router, sweep_leftovers};
 pub(crate) use subtitles::Cache as SubtitleCache;
 pub(crate) use track_preferences::{
@@ -56,8 +57,8 @@ use codecs::{file_audio, is_audio, played_audio_place, played_by, played_tracks}
 use direct_play::direct_play_url;
 use limits::{fitted, limit_in_effect, network, on_local_network, picture, playback_limit};
 use steps::{
-    converting, default_max_transcodes, device_decoding, failed_on_device, fallback, remux,
-    server_busy, server_ffmpeg, too_busy_to_play, transcode, version_length, version_tracks,
+    converting, device_decoding, failed_on_device, fallback, remux, server_busy, server_ffmpeg,
+    too_busy_to_play, transcode, version_length, version_tracks,
 };
 
 /// How a plan plays a Version, the one the Server prefers first.
@@ -389,7 +390,8 @@ pub(crate) async fn plan(
         can_do: abilities.can_do().await,
         failed,
         audio,
-        transcodes_full: None,
+        running_transcodes: running.running_transcodes(caller.device.id),
+        max_transcodes: settings.max_transcodes,
         picked_limit: limit,
         network: if on_local_network(client) {
             Network::Local
@@ -402,9 +404,6 @@ pub(crate) async fn plan(
         hardware_choice: settings.hardware,
         dropped: BTreeSet::new(),
     };
-    let max_transcodes =
-        (settings.max_transcodes).map_or_else(|| default_max_transcodes(&facts), NonZeroU32::get);
-    facts.transcodes_full = running.transcodes_full(caller.device.id, max_transcodes);
     let plan = build(&mut facts);
     if plan.playing.is_none() {
         return match too_busy_to_play(facts) {
@@ -489,8 +488,11 @@ struct Facts {
     /// The audio Track the User chose, or the Server chose by their Audio Preference, by its place
     /// in the Version's Tracks, if one was.
     audio: Option<usize>,
-    /// The most Transcodes the Server may run at once, if other Devices already run that many.
-    transcodes_full: Option<u32>,
+    /// The Transcodes running, leaving out one of this Device's own, which the Transcode cap
+    /// counts.
+    running_transcodes: RunningTranscodes,
+    /// The most Transcodes the admin let the Server run at once, or `None` for the default.
+    max_transcodes: Option<NonZeroU32>,
     picked_limit: PickedLimit,
     network: Network,
     /// The subtitle Track the User chose to burn into the picture, or the Server chose by their

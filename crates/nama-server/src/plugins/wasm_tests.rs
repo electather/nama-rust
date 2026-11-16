@@ -220,7 +220,7 @@ fn a_default_of_another_kind_refuses_the_plugin() {
 
     assert_eq!(
         refused.err().map(|refused| refused.to_string()),
-        Some("its setting api_key's default isn't Bool".to_owned())
+        Some("its setting api_key's default isn't true or false".to_owned())
     );
 }
 
@@ -477,7 +477,7 @@ fn each_thing_a_manifest_can_get_wrong_refuses_it_saying_what() {
              and it has no start_connection export"
                 .to_owned(),
             "its setting count is of a kind this Server doesn't know".to_owned(),
-            "its setting count's default isn't Integer".to_owned(),
+            "its setting count's default isn't a whole number".to_owned(),
         ]
         .map(Some)
     );

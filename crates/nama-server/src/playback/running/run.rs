@@ -27,6 +27,8 @@ pub(super) type Run = dyn Fn(&Path, Keyframe) -> io::Result<Child> + Send + Sync
 pub(super) struct Runs {
     pub(super) run: Box<Run>,
     pub(super) fallback: Option<FallbackRun>,
+    /// Whether `run` works the CPU hard, which the default Transcode cap counts.
+    pub(super) cpu_bound: bool,
 }
 
 /// What a Transcode on hardware runs instead once a run there fails.
@@ -52,6 +54,8 @@ pub(super) struct Running {
     pub(super) fallback: Option<FallbackRun>,
     /// Whether a run on hardware failed, so `fallback` runs from then on.
     pub(super) fell_back: AtomicBool,
+    /// Whether it started working the CPU hard, which the default Transcode cap counts.
+    pub(super) started_cpu_bound: bool,
     /// Tells Observers how the plan plays now, once it fell back.
     pub(super) events: EventBus,
     /// As it started, for telling Observers how it plays once it fell back.
@@ -72,6 +76,11 @@ pub(super) struct FfmpegRun {
 }
 
 impl Running {
+    /// Whether it works the CPU hard now: it started so, or fell back to software.
+    pub(super) fn cpu_bound(&self) -> bool {
+        self.started_cpu_bound || self.fell_back.load(Ordering::Acquire)
+    }
+
     /// Stops the plan `id`'s ffmpeg and deletes its files.
     pub(super) async fn stop(&self, id: u64) {
         // Under the lock a restart takes, so none starts ffmpeg after this.

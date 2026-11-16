@@ -232,6 +232,7 @@ async fn a_restart_that_fails_leaves_the_next_request_to_start_ffmpeg_again() {
             Runs {
                 run: Box::new(second_fails),
                 fallback: None,
+                cpu_bound: false,
             },
         )
         .await
@@ -620,6 +621,7 @@ async fn a_fallback_starts_where_the_failed_run_stopped_writing_though_its_start
                         PlaybackReasonKind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
                     ),
                 }),
+                cpu_bound: false,
             },
         )
         .await
@@ -639,6 +641,10 @@ async fn a_fallback_starts_where_the_failed_run_stopped_writing_though_its_start
 // The fake ffmpegs are `false` and `sleep`.
 #[cfg(unix)]
 #[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one story: hardware fails, software resumes, events follow"
+)]
 async fn a_transcode_whose_hardware_fails_carries_on_in_software_and_says_so() {
     let data = tempfile::tempdir().unwrap();
     let db = database(data.path()).await;
@@ -680,14 +686,13 @@ async fn a_transcode_whose_hardware_fails_carries_on_in_software_and_says_so() {
                     run: Box::new(software),
                     reasons: software_reasons.clone(),
                 }),
+                cpu_bound: false,
             },
         )
         .await
         .unwrap();
     let plan = hls(&plans, id, 7);
-
     let later = tokio::spawn(async move { plan.segment(1).await });
-
     until_started(&starts, 2).await;
     tokio::time::sleep(POLL_EVERY * 3).await;
     assert_eq!(*lock(&starts), [("hardware", 0), ("software", 0)]);
