@@ -1,11 +1,11 @@
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 
 use nama_plugin_api::{
     contract::{
         ArtworkAsked, EpisodeAsked, ImageAsked, SearchQuery, SeasonAsked, TitleAsked, TitleId,
         TitleKind,
     },
-    metadata::{ExternalId, MetadataError, TitleMethod, TitleSource},
+    metadata::{MetadataError, TitleMethod, TitleSource},
     settings::{SettingValue, Settings},
 };
 
@@ -22,10 +22,7 @@ use super::super::{
     points,
     services::TITLE_ARTWORK,
 };
-use crate::{
-    library::title_source::{TitleSources, Unanswered},
-    plugins::Registry,
-};
+use crate::plugins::Registry;
 
 #[tokio::test]
 async fn a_title_source_without_its_exports_answers_unsupported_to_each_method() {
@@ -91,7 +88,7 @@ async fn a_title_source_without_its_exports_answers_unsupported_to_each_method()
 }
 
 #[tokio::test]
-async fn tvdb_asked_by_a_tmdb_id_answers_unsupported_id_which_is_not_found() {
+async fn tvdb_asked_by_a_tmdb_id_answers_unsupported_id_directly_and_through_its_point() {
     let data_dir = tempfile::tempdir().unwrap();
     let cache_config = write_cache_config(data_dir.path()).unwrap();
     let (_, wasm) = BUNDLED
@@ -122,20 +119,36 @@ async fn tvdb_asked_by_a_tmdb_id_answers_unsupported_id_which_is_not_found() {
         ..Default::default()
     };
 
+    let season = &SeasonAsked {
+        show: asked.id.clone(),
+        season: 1,
+        ..Default::default()
+    };
+
     let answer = running.show(&asked).await.unwrap();
-    // Routing never asks TVDB by a tmdb id, so the Kernel asks it directly, as for a Season.
-    let kernel = TitleSources::new(plugins.extension_points());
-    let tvdb_source = kernel.sources().await.remove(0);
-    let through_kernel = kernel
-        .season_from(&tvdb_source, &ExternalId::tmdb(1399), 1)
-        .await;
+    // Routing never asks TVDB by a tmdb id, so the Kernel asks it directly, as for a Season. That
+    // the Kernel takes this answer as not found is the library area's test.
+    let points = plugins.extension_points();
+    let tvdb_plugin = points.ranked::<dyn TitleSource>().remove(0);
+    let through_point = points
+        .ask(&tvdb_plugin, |source: Arc<dyn TitleSource>| async move {
+            let found = source.season(season).await;
+            found.map_err(Box::<dyn Error + Send + Sync>::from)
+        })
+        .await
+        .unwrap()
+        .result
+        .unwrap();
 
     assert!(
         answer.unsupported_id && answer.show.is_unset(),
         "{answer:?}"
     );
     assert_eq!(running.lookup_namespaces(), Vec::<String>::new());
-    assert_eq!(through_kernel.unwrap_err(), Unanswered::NotFound);
+    assert!(
+        through_point.unsupported_id && through_point.season.is_unset(),
+        "{through_point:?}"
+    );
 }
 
 #[tokio::test]
