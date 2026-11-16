@@ -54,7 +54,7 @@ enum RequestState {
 message RequestedMovie {
   reserved 1;
   reserved "tmdb_id";
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 2;
   // When it was released, as `YYYY-MM-DD`.
   optional string release_date = 3;
@@ -68,7 +68,7 @@ message RequestedSeason {
   reserved "show_tmdb_id", "show_imdb_id", "show_tvdb_id";
   // The Season's number within the Show. Season 0 holds specials.
   uint32 season_number = 2;
-  // The Show's title, in the metadata Provider's language.
+  // The Show's title, in its title source's language.
   string show_title = 3;
   // When the Season first aired, as `YYYY-MM-DD`.
   optional string air_date = 4;

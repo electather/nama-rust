@@ -3194,8 +3194,8 @@ pub const __SCAN_FINISHED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     from_json: ::buffa::type_registry::any_from_json::<ScanFinished>,
     is_wkt: false,
 };
-/// A scan's Matching decided what it could about the Library's Items. Sent even when no metadata
-/// Provider could answer, which leaves Items undecided; a scan that fails or is cancelled sends
+/// A scan's Matching decided what it could about the Library's Items. Sent even when no title
+/// source could answer, which leaves Items undecided; a scan that fails or is cancelled sends
 /// none. To wait for the one covering a `ScanLibrary` call, subscribe to events about the Library
 /// first, then make the call, then skip to the next `ScanStarted`: the first `MatchingFinished`
 /// after it covers the call.
@@ -3229,7 +3229,7 @@ pub struct MatchingFinished {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
     )]
     pub unmatched: u64,
-    /// Items Matching couldn't decide, because no metadata Provider is enabled or it failed. The next
+    /// Items Matching couldn't decide, because no title source is enabled or one failed. The next
     /// scan tries them again.
     ///
     /// Field 4: `undecided`

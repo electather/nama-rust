@@ -2740,8 +2740,8 @@ impl ::serde::Serialize for ScanFinishedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A scan's Matching decided what it could about the Library's Items. Sent even when no metadata
-/// Provider could answer, which leaves Items undecided; a scan that fails or is cancelled sends
+/// A scan's Matching decided what it could about the Library's Items. Sent even when no title
+/// source could answer, which leaves Items undecided; a scan that fails or is cancelled sends
 /// none.
 #[derive(Clone, Debug, Default)]
 pub struct MatchingFinishedView<'a> {

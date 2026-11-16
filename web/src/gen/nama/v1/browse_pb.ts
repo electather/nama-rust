@@ -31,7 +31,7 @@ export type Movie = Message<"nama.v1.Movie"> & {
   id?: ExternalId | undefined;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 2;
    */
@@ -502,7 +502,7 @@ export type Show = Message<"nama.v1.Show"> & {
   id?: ExternalId | undefined;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 2;
    */
@@ -660,7 +660,7 @@ export type Episode = Message<"nama.v1.Episode"> & {
   episodeNumber: number;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 4;
    */
@@ -700,7 +700,7 @@ export type Episode = Message<"nama.v1.Episode"> & {
   watchState?: WatchState | undefined;
 
   /**
-   * Its Still's URL on this Server. Unset if the metadata Provider has none.
+   * Its Still's URL on this Server. Unset if its title source has none.
    *
    * @generated from field: optional string still_url = 10;
    */

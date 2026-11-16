@@ -5014,7 +5014,7 @@ impl ::serde::Serialize for PreviewDeleteMediaResponseOwnedView {
 /// An open Request a delete would cancel, as its Requesters know it.
 #[derive(Clone, Debug, Default)]
 pub struct RequestToCancelView<'a> {
-    /// The Movie's title, or the Show's for a Season, in the metadata Provider's language.
+    /// The Movie's title, or the Show's for a Season, in its title source's language.
     ///
     /// Field 1: `title`
     pub title: &'a str,
@@ -5250,7 +5250,7 @@ impl RequestToCancelOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The Movie's title, or the Show's for a Season, in the metadata Provider's language.
+    /// The Movie's title, or the Show's for a Season, in its title source's language.
     ///
     /// Field 1: `title`
     #[must_use]
@@ -7904,7 +7904,7 @@ pub struct EpisodeTakenAlongView<'a> {
     pub season_number: u32,
     /// Field 2: `episode_number`
     pub episode_number: u32,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 3: `title`
     pub title: &'a str,
@@ -8170,7 +8170,7 @@ impl EpisodeTakenAlongOwnedView {
     pub fn episode_number(&self) -> u32 {
         self.0.reborrow().episode_number
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 3: `title`
     #[must_use]

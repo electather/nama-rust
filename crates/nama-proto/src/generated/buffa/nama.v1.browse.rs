@@ -330,7 +330,7 @@ pub struct Movie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -3180,7 +3180,7 @@ pub struct Show {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -3991,7 +3991,7 @@ pub struct Episode {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub episode_number: u32,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 4: `title`
     #[serde(
@@ -4043,7 +4043,7 @@ pub struct Episode {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub watch_state: ::buffa::MessageField<WatchState, ::buffa::Inline<WatchState>>,
-    /// Its Still's URL on this Server. Unset if the metadata Provider has none.
+    /// Its Still's URL on this Server. Unset if its title source has none.
     ///
     /// Field 10: `still_url`
     #[serde(

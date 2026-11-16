@@ -2869,7 +2869,7 @@ pub const __PREVIEW_DELETE_MEDIA_RESPONSE_JSON_ANY: ::buffa::type_registry::Json
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct RequestToCancel {
-    /// The Movie's title, or the Show's for a Season, in the metadata Provider's language.
+    /// The Movie's title, or the Show's for a Season, in its title source's language.
     ///
     /// Field 1: `title`
     #[serde(
@@ -4604,7 +4604,7 @@ pub struct EpisodeTakenAlong {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub episode_number: u32,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 3: `title`
     #[serde(

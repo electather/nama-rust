@@ -988,7 +988,7 @@ pub mod request {
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct RequestedMovie {
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -1207,7 +1207,7 @@ pub struct RequestedSeason {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub season_number: u32,
-    /// The Show's title, in the metadata Provider's language.
+    /// The Show's title, in its title source's language.
     ///
     /// Field 3: `show_title`
     #[serde(

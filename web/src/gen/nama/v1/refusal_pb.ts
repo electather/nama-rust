@@ -272,7 +272,7 @@ export const RefusalReason = {
   UNKNOWN_TITLE: 28,
 
   /**
-   * `unavailable`: no metadata Provider is enabled, or it failed.
+   * `unavailable`: no title source is enabled, or one failed.
    *
    * @generated from enum value: REFUSAL_REASON_NO_METADATA_PROVIDER = 29;
    */

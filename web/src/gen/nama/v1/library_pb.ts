@@ -468,7 +468,7 @@ export const PreviewDeleteMediaResponseSchema: GenMessage<PreviewDeleteMediaResp
  */
 export type RequestToCancel = Message<"nama.v1.RequestToCancel"> & {
   /**
-   * The Movie's title, or the Show's for a Season, in the metadata Provider's language.
+   * The Movie's title, or the Show's for a Season, in its title source's language.
    *
    * @generated from field: string title = 1;
    */
@@ -752,7 +752,7 @@ export type EpisodeTakenAlong = Message<"nama.v1.EpisodeTakenAlong"> & {
   episodeNumber: number;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 3;
    */

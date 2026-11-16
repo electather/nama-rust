@@ -2105,7 +2105,7 @@ pub struct FollowedShow {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The Show's title, in the metadata Provider's language, as it was when the Followed Show was
+    /// The Show's title, in its title source's language, as it was when the Followed Show was
     /// opened.
     ///
     /// Field 3: `show_title`
@@ -2480,7 +2480,7 @@ pub struct RequestedMovie {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub ids: ::buffa::alloc::vec::Vec<ExternalId>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -2740,7 +2740,7 @@ pub struct RequestedSeason {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub season_number: u32,
-    /// The Show's title, in the metadata Provider's language.
+    /// The Show's title, in its title source's language.
     ///
     /// Field 3: `show_title`
     #[serde(
@@ -9154,7 +9154,7 @@ pub struct MovieHit {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -9506,7 +9506,7 @@ pub struct FoundMovie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -9524,7 +9524,7 @@ pub struct FoundMovie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub year: ::core::option::Option<i32>,
-    /// What it is about, in the metadata Provider's language.
+    /// What it is about, in its title source's language.
     ///
     /// Field 4: `overview`
     #[serde(
@@ -10550,7 +10550,7 @@ pub struct ShowHit {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -10830,7 +10830,7 @@ pub struct FoundShow {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -10848,7 +10848,7 @@ pub struct FoundShow {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub year: ::core::option::Option<i32>,
-    /// What it is about, in the metadata Provider's language.
+    /// What it is about, in its title source's language.
     ///
     /// Field 4: `overview`
     #[serde(

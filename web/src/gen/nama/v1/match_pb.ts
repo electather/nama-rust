@@ -55,7 +55,7 @@ export type TitleCandidate = Message<"nama.v1.TitleCandidate"> & {
   id?: ExternalId | undefined;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 2;
    */
@@ -443,9 +443,9 @@ export const UnmatchedReasonSchema: GenEnum<UnmatchedReason> = /*@__PURE__*/
  */
 export const MatchService: GenService<{
   /**
-   * Searches the enabled metadata Provider for titles, best fit first. Fails with
+   * Searches the enabled title sources for titles, best fit first. Fails with
    * `invalid_argument` if the kind is unspecified or the title blank, and with `unavailable` if
-   * no metadata Provider is enabled or it failed.
+   * no title source is enabled or one failed.
    *
    * @generated from rpc nama.v1.MatchService.SearchMetadata
    */
@@ -460,7 +460,7 @@ export const MatchService: GenService<{
    * Show, and every Episode in the Library named as being in the same Show is Matched again
    * through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Fails with
    * `not_found` if there is no such item, with `invalid_argument` if the id is missing or names
-   * no title, and with `unavailable` if the metadata Provider can't answer, in which case nothing
+   * no title, and with `unavailable` if no title source can answer, in which case nothing
    * changes.
    *
    * @generated from rpc nama.v1.MatchService.SetMatch
@@ -484,7 +484,7 @@ export const MatchService: GenService<{
   },
   /**
    * Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
-   * those it hasn't Matched yet, such as when no metadata Provider was enabled. Items pinned
+   * those it hasn't Matched yet, such as when no title source was enabled. Items pinned
    * Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
    * Also lists the Library's files whose names didn't parse, which an Admin fixes by renaming.
    * Fails with `not_found` if there is no such Library.

@@ -74,7 +74,7 @@ pub enum RefusalReason {
     /// it. Params: `titleId`, as the message shows it (`tmdb-949`), and for a Season of a Show
     /// `seasonNumber`.
     REFUSAL_REASON_UNKNOWN_TITLE = 28i32,
-    /// `unavailable`: no metadata Provider is enabled, or it failed.
+    /// `unavailable`: no title source is enabled, or one failed.
     REFUSAL_REASON_NO_METADATA_PROVIDER = 29i32,
     /// `invalid_argument`: a User's or Device's name, trimmed, is too short or too long. Params:
     /// `minLength`, `maxLength`, in characters.

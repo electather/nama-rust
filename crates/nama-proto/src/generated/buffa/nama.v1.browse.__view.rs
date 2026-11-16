@@ -9,7 +9,7 @@ pub struct MovieView<'a> {
     ///
     /// Field 1: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     pub title: &'a str,
@@ -672,7 +672,7 @@ impl MovieOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[must_use]
@@ -4184,7 +4184,7 @@ pub struct ShowView<'a> {
     ///
     /// Field 1: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     pub title: &'a str,
@@ -4693,7 +4693,7 @@ impl ShowOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[must_use]
@@ -5154,7 +5154,7 @@ pub struct EpisodeView<'a> {
     pub season_number: u32,
     /// Field 3: `episode_number`
     pub episode_number: u32,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 4: `title`
     pub title: &'a str,
@@ -5181,7 +5181,7 @@ pub struct EpisodeView<'a> {
     pub watch_state: ::buffa::MessageFieldView<
         super::super::__buffa::view::WatchStateView<'a>,
     >,
-    /// Its Still's URL on this Server. Unset if the metadata Provider has none.
+    /// Its Still's URL on this Server. Unset if its title source has none.
     ///
     /// Field 10: `still_url`
     pub still_url: ::core::option::Option<&'a str>,
@@ -5691,7 +5691,7 @@ impl EpisodeOwnedView {
     pub fn episode_number(&self) -> u32 {
         self.0.reborrow().episode_number
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 4: `title`
     #[must_use]
@@ -5735,7 +5735,7 @@ impl EpisodeOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::WatchStateView<'_>> {
         &self.0.reborrow().watch_state
     }
-    /// Its Still's URL on this Server. Unset if the metadata Provider has none.
+    /// Its Still's URL on this Server. Unset if its title source has none.
     ///
     /// Field 10: `still_url`
     #[must_use]

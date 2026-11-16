@@ -15,7 +15,7 @@ service RequestService {
   // Approved if the caller has `PERMISSION_AUTO_APPROVE_MOVIE`, else Pending. Needs
   // `PERMISSION_REQUEST_MOVIE`. Fails with `failed_precondition` if a Library already has the
   // Movie, `invalid_argument` if the metadata source has no Movie with the id, and `unavailable`
-  // if no metadata Provider is enabled, or it failed. A new Request takes the Quality named in
+  // if no title source is enabled, or one failed. A new Request takes the Quality named in
   // `quality`, else the caller's default from `SetDefaultQuality` if they have
   // `PERMISSION_CHOOSE_QUALITY` and the list still has it, else the Movie Fulfiller's default;
   // joining one keeps its Quality. Naming a Quality without `PERMISSION_CHOOSE_QUALITY` is refused
@@ -47,7 +47,7 @@ service RequestService {
   // `PERMISSION_REQUEST_TV`. A Season is in a Library once it has aired and every one of its aired
   // Episodes is Matched, and asking for such a Season fails with `failed_precondition`. Fails with
   // `invalid_argument` if no Season is named or the metadata source has no such Show or Season,
-  // and `unavailable` if no metadata Provider is enabled, or it failed. A failure changes no
+  // and `unavailable` if no title source is enabled, or one failed. A failure changes no
   // Request. A new Request takes the Show's Quality (`FoundShow.quality`) if it has one, else one
   // picked as `CreateRequest` picks a Movie's, refusing a Quality as `CreateRequest` does, and one
   // other than the Show's with `REFUSAL_REASON_SHOW_HAS_QUALITY`.
@@ -65,7 +65,7 @@ service RequestService {
   // a Request for its Requesters at the Show's Quality. A new Followed Show takes the Show's Quality
   // if it has one, else one picked and refused as `CreateSeasonRequests` picks and refuses one;
   // joining one keeps its Quality. Fails with `invalid_argument` if the metadata source has no Show
-  // with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+  // with the id, and `unavailable` if no title source is enabled, or one failed.
   rpc CreateFollowedShow(CreateFollowedShowRequest) returns (CreateFollowedShowResponse);
   // Lists a page of the Requests and Followed Shows the caller may see, newest first: only those in
   // `state` if one is given. Each is filtered on its own, so a Season Request can be listed without
@@ -87,15 +87,15 @@ service RequestService {
   }
   // Searches the metadata source for Movies to ask for, best fit first. Unlike
   // `MatchService.SearchMetadata`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
-  // `invalid_argument` if the title is blank, and `unavailable` if no metadata Provider is
-  // enabled, or it failed.
+  // `invalid_argument` if the title is blank, and `unavailable` if no title source is
+  // enabled, or one failed.
   rpc SearchMovies(SearchMoviesRequest) returns (SearchMoviesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Returns one Movie from the metadata source, for its page when no Library has it. Needs
   // `PERMISSION_REQUEST_MOVIE`. Fails with `not_found` if no metadata source has a Movie with the
   // id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if no
-  // metadata Provider is enabled, or it failed.
+  // title source is enabled, or one failed.
   rpc LookUpMovie(LookUpMovieRequest) returns (LookUpMovieResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -107,7 +107,7 @@ service RequestService {
   // Returns one Show from the metadata source with each of its Seasons, for picking which to ask
   // for. Needs `PERMISSION_REQUEST_TV`. Fails with `not_found` if no metadata source has a Show
   // with the id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if
-  // no metadata Provider is enabled, or it failed.
+  // no title source is enabled, or one failed.
   rpc LookUpShow(LookUpShowRequest) returns (LookUpShowResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -290,7 +290,7 @@ message FollowedShow {
   int64 id = 1;
   // The id the Followed Show is kept under.
   ExternalId show_id = 9;
-  // The Show's title, in the metadata Provider's language, as it was when the Followed Show was
+  // The Show's title, in its title source's language, as it was when the Followed Show was
   // opened.
   string show_title = 3;
   // Pending, Approved or Declined.
@@ -319,7 +319,7 @@ message RequestedMovie {
   // Every id the metadata source gave for the Movie when the Request was opened, at most one per
   // namespace, `id` among them.
   repeated ExternalId ids = 5;
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 2;
   // When it was released, as `YYYY-MM-DD`.
   optional string release_date = 3;
@@ -337,7 +337,7 @@ message RequestedSeason {
   repeated ExternalId show_ids = 8;
   // The Season's number within the Show. Season 0 holds specials.
   uint32 season_number = 2;
-  // The Show's title, in the metadata Provider's language.
+  // The Show's title, in its title source's language.
   string show_title = 3;
   // When the Season first aired, as `YYYY-MM-DD`.
   optional string air_date = 4;
@@ -603,7 +603,7 @@ message MovieHit {
   reserved "tmdb_id";
   // The Movie's id in the metadata source.
   ExternalId id = 12;
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 2;
   // The year it was released, if known.
   optional int32 year = 3;
@@ -624,11 +624,11 @@ message FoundMovie {
   reserved "tmdb_id";
   // The Movie's id in the metadata source.
   ExternalId id = 12;
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 2;
   // The year it was released, if known.
   optional int32 year = 3;
-  // What it is about, in the metadata Provider's language.
+  // What it is about, in its title source's language.
   optional string overview = 4;
   optional uint32 runtime_minutes = 5;
   // The poster's URL on this Server: its Custom Image, if it has one.
@@ -673,7 +673,7 @@ message ShowHit {
   reserved "tmdb_id";
   // The Show's id in the metadata source.
   ExternalId id = 12;
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 2;
   // The year it first aired, if known.
   optional int32 year = 3;
@@ -689,11 +689,11 @@ message FoundShow {
   reserved "tmdb_id";
   // The Show's id in the metadata source.
   ExternalId id = 12;
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 2;
   // The year it first aired, if known.
   optional int32 year = 3;
-  // What it is about, in the metadata Provider's language.
+  // What it is about, in its title source's language.
   optional string overview = 4;
   // The poster's URL on this Server: its Custom Image, if it has one.
   optional string poster_url = 5;

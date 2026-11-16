@@ -9,9 +9,9 @@ package nama.v1;
 // of searching, so it holds when the file changes, or is renamed to a name that still says the same
 // title, year and ID hint, and new Episodes of a pinned Show Match the pinned Show.
 service MatchService {
-  // Searches the enabled metadata Provider for titles, best fit first. Fails with
+  // Searches the enabled title sources for titles, best fit first. Fails with
   // `invalid_argument` if the kind is unspecified or the title blank, and with `unavailable` if
-  // no metadata Provider is enabled or it failed.
+  // no title source is enabled or one failed.
   rpc SearchMetadata(SearchMetadataRequest) returns (SearchMetadataResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -20,7 +20,7 @@ service MatchService {
   // Show, and every Episode in the Library named as being in the same Show is Matched again
   // through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Fails with
   // `not_found` if there is no such item, with `invalid_argument` if the id is missing or names
-  // no title, and with `unavailable` if the metadata Provider can't answer, in which case nothing
+  // no title, and with `unavailable` if no title source can answer, in which case nothing
   // changes.
   rpc SetMatch(SetMatchRequest) returns (SetMatchResponse) {
     option idempotency_level = IDEMPOTENT;
@@ -32,7 +32,7 @@ service MatchService {
     option idempotency_level = IDEMPOTENT;
   }
   // Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
-  // those it hasn't Matched yet, such as when no metadata Provider was enabled. Items pinned
+  // those it hasn't Matched yet, such as when no title source was enabled. Items pinned
   // Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
   // Also lists the Library's files whose names didn't parse, which an Admin fixes by renaming.
   // Fails with `not_found` if there is no such Library.
@@ -63,7 +63,7 @@ message ExternalId {
 message TitleCandidate {
   // The id to pass to `SetMatch`.
   ExternalId id = 1;
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 2;
   // The title in its original language, if the metadata source has it.
   optional string original_title = 3;

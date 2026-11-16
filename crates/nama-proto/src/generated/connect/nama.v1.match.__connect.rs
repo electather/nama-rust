@@ -248,9 +248,9 @@ pub const MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC: ::connectrpc::Spec = ::connec
 /// example` doc.
 #[allow(clippy::type_complexity)]
 pub trait MatchService: Send + Sync + 'static {
-    /// Searches the enabled metadata Provider for titles, best fit first. Fails with
+    /// Searches the enabled title sources for titles, best fit first. Fails with
     /// `invalid_argument` if the kind is unspecified or the title blank, and with `unavailable` if
-    /// no metadata Provider is enabled or it failed.
+    /// no title source is enabled or one failed.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -278,7 +278,7 @@ pub trait MatchService: Send + Sync + 'static {
     /// Show, and every Episode in the Library named as being in the same Show is Matched again
     /// through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Fails with
     /// `not_found` if there is no such item, with `invalid_argument` if the id is missing or names
-    /// no title, and with `unavailable` if the metadata Provider can't answer, in which case nothing
+    /// no title, and with `unavailable` if no title source can answer, in which case nothing
     /// changes.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
@@ -328,7 +328,7 @@ pub trait MatchService: Send + Sync + 'static {
         >,
     > + Send;
     /// Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
-    /// those it hasn't Matched yet, such as when no metadata Provider was enabled. Items pinned
+    /// those it hasn't Matched yet, such as when no title source was enabled. Items pinned
     /// Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
     /// Also lists the Library's files whose names didn't parse, which an Admin fixes by renaming.
     /// Fails with `not_found` if there is no such Library.

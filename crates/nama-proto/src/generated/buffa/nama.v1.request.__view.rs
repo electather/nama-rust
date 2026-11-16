@@ -2022,7 +2022,7 @@ pub struct FollowedShowView<'a> {
     pub show_id: ::buffa::MessageFieldView<
         super::super::__buffa::view::ExternalIdView<'a>,
     >,
-    /// The Show's title, in the metadata Provider's language, as it was when the Followed Show was
+    /// The Show's title, in its title source's language, as it was when the Followed Show was
     /// opened.
     ///
     /// Field 3: `show_title`
@@ -2499,7 +2499,7 @@ impl FollowedShowOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().show_id
     }
-    /// The Show's title, in the metadata Provider's language, as it was when the Followed Show was
+    /// The Show's title, in its title source's language, as it was when the Followed Show was
     /// opened.
     ///
     /// Field 3: `show_title`
@@ -2596,7 +2596,7 @@ pub struct RequestedMovieView<'a> {
     ///
     /// Field 5: `ids`
     pub ids: ::buffa::RepeatedView<'a, super::super::__buffa::view::ExternalIdView<'a>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     pub title: &'a str,
@@ -2940,7 +2940,7 @@ impl RequestedMovieOwnedView {
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().ids
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[must_use]
@@ -3007,7 +3007,7 @@ pub struct RequestedSeasonView<'a> {
     ///
     /// Field 2: `season_number`
     pub season_number: u32,
-    /// The Show's title, in the metadata Provider's language.
+    /// The Show's title, in its title source's language.
     ///
     /// Field 3: `show_title`
     pub show_title: &'a str,
@@ -3379,7 +3379,7 @@ impl RequestedSeasonOwnedView {
     pub fn season_number(&self) -> u32 {
         self.0.reborrow().season_number
     }
-    /// The Show's title, in the metadata Provider's language.
+    /// The Show's title, in its title source's language.
     ///
     /// Field 3: `show_title`
     #[must_use]
@@ -15466,7 +15466,7 @@ pub struct MovieHitView<'a> {
     ///
     /// Field 12: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     pub title: &'a str,
@@ -15877,7 +15877,7 @@ impl MovieHitOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[must_use]
@@ -15960,7 +15960,7 @@ pub struct FoundMovieView<'a> {
     ///
     /// Field 12: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     pub title: &'a str,
@@ -15968,7 +15968,7 @@ pub struct FoundMovieView<'a> {
     ///
     /// Field 3: `year`
     pub year: ::core::option::Option<i32>,
-    /// What it is about, in the metadata Provider's language.
+    /// What it is about, in its title source's language.
     ///
     /// Field 4: `overview`
     pub overview: ::core::option::Option<&'a str>,
@@ -16463,7 +16463,7 @@ impl FoundMovieOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[must_use]
@@ -16477,7 +16477,7 @@ impl FoundMovieOwnedView {
     pub fn year(&self) -> ::core::option::Option<i32> {
         self.0.reborrow().year
     }
-    /// What it is about, in the metadata Provider's language.
+    /// What it is about, in its title source's language.
     ///
     /// Field 4: `overview`
     #[must_use]
@@ -17698,7 +17698,7 @@ pub struct ShowHitView<'a> {
     ///
     /// Field 12: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     pub title: &'a str,
@@ -18032,7 +18032,7 @@ impl ShowHitOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[must_use]
@@ -18098,7 +18098,7 @@ pub struct FoundShowView<'a> {
     ///
     /// Field 12: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     pub title: &'a str,
@@ -18106,7 +18106,7 @@ pub struct FoundShowView<'a> {
     ///
     /// Field 3: `year`
     pub year: ::core::option::Option<i32>,
-    /// What it is about, in the metadata Provider's language.
+    /// What it is about, in its title source's language.
     ///
     /// Field 4: `overview`
     pub overview: ::core::option::Option<&'a str>,
@@ -18669,7 +18669,7 @@ impl FoundShowOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[must_use]
@@ -18683,7 +18683,7 @@ impl FoundShowOwnedView {
     pub fn year(&self) -> ::core::option::Option<i32> {
         self.0.reborrow().year
     }
-    /// What it is about, in the metadata Provider's language.
+    /// What it is about, in its title source's language.
     ///
     /// Field 4: `overview`
     #[must_use]

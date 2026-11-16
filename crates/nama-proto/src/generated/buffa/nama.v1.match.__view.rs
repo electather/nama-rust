@@ -287,7 +287,7 @@ pub struct TitleCandidateView<'a> {
     ///
     /// Field 1: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     pub title: &'a str,
@@ -600,7 +600,7 @@ impl TitleCandidateOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[must_use]

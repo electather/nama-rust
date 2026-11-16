@@ -481,7 +481,7 @@ pub struct TitleCandidate {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(

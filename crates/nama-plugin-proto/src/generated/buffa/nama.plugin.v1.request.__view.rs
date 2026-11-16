@@ -753,7 +753,7 @@ impl ::serde::Serialize for RequestOwnedView {
 /// A Movie a Request asks for, as the metadata source gave it when the Request was opened.
 #[derive(Clone, Debug, Default)]
 pub struct RequestedMovieView<'a> {
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     pub title: &'a str,
@@ -1031,7 +1031,7 @@ impl RequestedMovieOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[must_use]
@@ -1092,7 +1092,7 @@ pub struct RequestedSeasonView<'a> {
     ///
     /// Field 2: `season_number`
     pub season_number: u32,
-    /// The Show's title, in the metadata Provider's language.
+    /// The Show's title, in its title source's language.
     ///
     /// Field 3: `show_title`
     pub show_title: &'a str,
@@ -1401,7 +1401,7 @@ impl RequestedSeasonOwnedView {
     pub fn season_number(&self) -> u32 {
         self.0.reborrow().season_number
     }
-    /// The Show's title, in the metadata Provider's language.
+    /// The Show's title, in its title source's language.
     ///
     /// Field 3: `show_title`
     #[must_use]

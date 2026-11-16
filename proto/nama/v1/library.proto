@@ -210,7 +210,7 @@ message PreviewDeleteMediaResponse {
 
 // An open Request a delete would cancel, as its Requesters know it.
 message RequestToCancel {
-  // The Movie's title, or the Show's for a Season, in the metadata Provider's language.
+  // The Movie's title, or the Show's for a Season, in its title source's language.
   string title = 1;
   // The Season's number. Unset for a Movie.
   optional uint32 season_number = 2;
@@ -291,7 +291,7 @@ message EpisodeToDelete {
 message EpisodeTakenAlong {
   uint32 season_number = 1;
   uint32 episode_number = 2;
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 3;
 }
 

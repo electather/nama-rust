@@ -365,8 +365,8 @@ export const ScanFinishedSchema: GenMessage<ScanFinished> = /*@__PURE__*/
   messageDesc(file_nama_v1_event, 6);
 
 /**
- * A scan's Matching decided what it could about the Library's Items. Sent even when no metadata
- * Provider could answer, which leaves Items undecided; a scan that fails or is cancelled sends
+ * A scan's Matching decided what it could about the Library's Items. Sent even when no title
+ * source could answer, which leaves Items undecided; a scan that fails or is cancelled sends
  * none. To wait for the one covering a `ScanLibrary` call, subscribe to events about the Library
  * first, then make the call, then skip to the next `ScanStarted`: the first `MatchingFinished`
  * after it covers the call.
@@ -394,7 +394,7 @@ export type MatchingFinished = Message<"nama.v1.MatchingFinished"> & {
   unmatched: bigint;
 
   /**
-   * Items Matching couldn't decide, because no metadata Provider is enabled or it failed. The next
+   * Items Matching couldn't decide, because no title source is enabled or one failed. The next
    * scan tries them again.
    *
    * @generated from field: uint64 undecided = 4;

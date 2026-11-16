@@ -299,7 +299,7 @@ export type FollowedShow = Message<"nama.v1.FollowedShow"> & {
   showId?: ExternalId | undefined;
 
   /**
-   * The Show's title, in the metadata Provider's language, as it was when the Followed Show was
+   * The Show's title, in its title source's language, as it was when the Followed Show was
    * opened.
    *
    * @generated from field: string show_title = 3;
@@ -376,7 +376,7 @@ export type RequestedMovie = Message<"nama.v1.RequestedMovie"> & {
   ids: ExternalId[];
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 2;
    */
@@ -427,7 +427,7 @@ export type RequestedSeason = Message<"nama.v1.RequestedSeason"> & {
   seasonNumber: number;
 
   /**
-   * The Show's title, in the metadata Provider's language.
+   * The Show's title, in its title source's language.
    *
    * @generated from field: string show_title = 3;
    */
@@ -1379,7 +1379,7 @@ export type MovieHit = Message<"nama.v1.MovieHit"> & {
   id?: ExternalId | undefined;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 2;
    */
@@ -1443,7 +1443,7 @@ export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
   id?: ExternalId | undefined;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 2;
    */
@@ -1457,7 +1457,7 @@ export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
   year?: number | undefined;
 
   /**
-   * What it is about, in the metadata Provider's language.
+   * What it is about, in its title source's language.
    *
    * @generated from field: optional string overview = 4;
    */
@@ -1606,7 +1606,7 @@ export type ShowHit = Message<"nama.v1.ShowHit"> & {
   id?: ExternalId | undefined;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 2;
    */
@@ -1655,7 +1655,7 @@ export type FoundShow = Message<"nama.v1.FoundShow"> & {
   id?: ExternalId | undefined;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 2;
    */
@@ -1669,7 +1669,7 @@ export type FoundShow = Message<"nama.v1.FoundShow"> & {
   year?: number | undefined;
 
   /**
-   * What it is about, in the metadata Provider's language.
+   * What it is about, in its title source's language.
    *
    * @generated from field: optional string overview = 4;
    */
@@ -1992,7 +1992,7 @@ export const RequestService: GenService<{
    * Approved if the caller has `PERMISSION_AUTO_APPROVE_MOVIE`, else Pending. Needs
    * `PERMISSION_REQUEST_MOVIE`. Fails with `failed_precondition` if a Library already has the
    * Movie, `invalid_argument` if the metadata source has no Movie with the id, and `unavailable`
-   * if no metadata Provider is enabled, or it failed. A new Request takes the Quality named in
+   * if no title source is enabled, or one failed. A new Request takes the Quality named in
    * `quality`, else the caller's default from `SetDefaultQuality` if they have
    * `PERMISSION_CHOOSE_QUALITY` and the list still has it, else the Movie Fulfiller's default;
    * joining one keeps its Quality. Naming a Quality without `PERMISSION_CHOOSE_QUALITY` is refused
@@ -2050,7 +2050,7 @@ export const RequestService: GenService<{
    * `PERMISSION_REQUEST_TV`. A Season is in a Library once it has aired and every one of its aired
    * Episodes is Matched, and asking for such a Season fails with `failed_precondition`. Fails with
    * `invalid_argument` if no Season is named or the metadata source has no such Show or Season,
-   * and `unavailable` if no metadata Provider is enabled, or it failed. A failure changes no
+   * and `unavailable` if no title source is enabled, or one failed. A failure changes no
    * Request. A new Request takes the Show's Quality (`FoundShow.quality`) if it has one, else one
    * picked as `CreateRequest` picks a Movie's, refusing a Quality as `CreateRequest` does, and one
    * other than the Show's with `REFUSAL_REASON_SHOW_HAS_QUALITY`.
@@ -2082,7 +2082,7 @@ export const RequestService: GenService<{
    * a Request for its Requesters at the Show's Quality. A new Followed Show takes the Show's Quality
    * if it has one, else one picked and refused as `CreateSeasonRequests` picks and refuses one;
    * joining one keeps its Quality. Fails with `invalid_argument` if the metadata source has no Show
-   * with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+   * with the id, and `unavailable` if no title source is enabled, or one failed.
    *
    * @generated from rpc nama.v1.RequestService.CreateFollowedShow
    */
@@ -2130,8 +2130,8 @@ export const RequestService: GenService<{
   /**
    * Searches the metadata source for Movies to ask for, best fit first. Unlike
    * `MatchService.SearchMetadata`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
-   * `invalid_argument` if the title is blank, and `unavailable` if no metadata Provider is
-   * enabled, or it failed.
+   * `invalid_argument` if the title is blank, and `unavailable` if no title source is
+   * enabled, or one failed.
    *
    * @generated from rpc nama.v1.RequestService.SearchMovies
    */
@@ -2144,7 +2144,7 @@ export const RequestService: GenService<{
    * Returns one Movie from the metadata source, for its page when no Library has it. Needs
    * `PERMISSION_REQUEST_MOVIE`. Fails with `not_found` if no metadata source has a Movie with the
    * id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if no
-   * metadata Provider is enabled, or it failed.
+   * title source is enabled, or one failed.
    *
    * @generated from rpc nama.v1.RequestService.LookUpMovie
    */
@@ -2168,7 +2168,7 @@ export const RequestService: GenService<{
    * Returns one Show from the metadata source with each of its Seasons, for picking which to ask
    * for. Needs `PERMISSION_REQUEST_TV`. Fails with `not_found` if no metadata source has a Show
    * with the id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if
-   * no metadata Provider is enabled, or it failed.
+   * no title source is enabled, or one failed.
    *
    * @generated from rpc nama.v1.RequestService.LookUpShow
    */

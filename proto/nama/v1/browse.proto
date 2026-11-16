@@ -64,7 +64,7 @@ message Movie {
   // The Movie's external id, which identifies it within the Library: its TMDB id if the Match
   // has one, or else its IMDb or TVDB id.
   ExternalId id = 1;
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 2;
   // The title in its original language, if the metadata source has it.
   optional string original_title = 3;
@@ -221,7 +221,7 @@ message Show {
   // The Show's external id, which identifies it within the Library: its TMDB id if the Matches
   // have one, or else its IMDb or TVDB id.
   ExternalId id = 1;
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 2;
   // Its poster's URL on this Server: its Custom Image if it has one, else its own, else (as
   // before the Server has fetched its own) its first Season's after the Specials.
@@ -267,7 +267,7 @@ message Episode {
   ExternalId id = 1;
   uint32 season_number = 2;
   uint32 episode_number = 3;
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 4;
   optional string overview = 5;
   // When it first aired, as `YYYY-MM-DD`.
@@ -279,7 +279,7 @@ message Episode {
   // The caller's progress through it, kept across all its Versions. Unset if they haven't
   // started it.
   WatchState watch_state = 9;
-  // Its Still's URL on this Server. Unset if the metadata Provider has none.
+  // Its Still's URL on this Server. Unset if its title source has none.
   optional string still_url = 10;
   // As `Movie.poster_thumbhash`, for the Still.
   optional bytes still_thumbhash = 11;

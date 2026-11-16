@@ -76,8 +76,8 @@ message ScanFinished {
   uint64 unchanged = 5;
 }
 
-// A scan's Matching decided what it could about the Library's Items. Sent even when no metadata
-// Provider could answer, which leaves Items undecided; a scan that fails or is cancelled sends
+// A scan's Matching decided what it could about the Library's Items. Sent even when no title
+// source could answer, which leaves Items undecided; a scan that fails or is cancelled sends
 // none.
 message MatchingFinished {
   int64 library_id = 1;

@@ -2126,8 +2126,8 @@ pub const __SCAN_FINISHED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     from_json: ::buffa::type_registry::any_from_json::<ScanFinished>,
     is_wkt: false,
 };
-/// A scan's Matching decided what it could about the Library's Items. Sent even when no metadata
-/// Provider could answer, which leaves Items undecided; a scan that fails or is cancelled sends
+/// A scan's Matching decided what it could about the Library's Items. Sent even when no title
+/// source could answer, which leaves Items undecided; a scan that fails or is cancelled sends
 /// none.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
