@@ -1,5 +1,5 @@
 import { type MessageInitShape, create } from "@bufbuild/protobuf";
-import { Code, ConnectError } from "@connectrpc/connect";
+import { Code } from "@connectrpc/connect";
 import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { type Dispatch, type SetStateAction, useCallback, useState } from "react";
@@ -14,10 +14,11 @@ import {
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import { isCode } from "@/lib/connect-errors";
 import { findDeviceDecoding } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
-import { refusalOf, serverMessage } from "@/lib/forms";
 // oxlint-disable-next-line import/max-dependencies -- the plan puts together the Device's decoding, Watch State and why the Server couldn't plan
+import { refusalOf, serverMessage } from "@/lib/forms";
 import { serverFailedToPlan } from "@/lib/playback-wording";
 import { toMs } from "@/lib/watch-state";
 
@@ -259,8 +260,7 @@ function usePlan(versionId: bigint, asking: Asking) {
         );
         return create(PlaybackPlanSchema, response.plan);
       } catch (error) {
-        if (ConnectError.from(error).code === Code.Internal)
-          return cantPlayPlan({ text: serverFailedToPlan });
+        if (isCode(error, Code.Internal)) return cantPlayPlan({ text: serverFailedToPlan });
         const { reason, params } = refusalOf(error);
         if (reason !== RefusalReason.SERVER_BUSY) throw error;
         return cantPlayPlan({

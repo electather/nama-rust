@@ -210,8 +210,8 @@ function BottomBar({
   );
 }
 
-// Longer than React holds a Suspense fallback (300 ms), so a quick plan, as most later ones are,
-// neither flashes this nor has it announced.
+// React keeps a Suspense fallback up for at least 300 ms, so without this wait a quick plan, as most
+// later ones are, would flash this and have it announced.
 const NOTICEABLE_WAIT_MS = 1000;
 
 /** The title bar, and once the wait is noticeable, that the Server is getting the Version ready. */
