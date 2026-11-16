@@ -210,7 +210,7 @@ fn a_transcode_converts_the_video_and_audio_from_its_cut_on() {
 }
 
 #[test]
-fn a_remux_seeks_halfway_back_to_the_keyframe_before_and_at_most_half_a_second() {
+fn a_remux_without_audio_seeks_halfway_back_to_the_keyframe_before_and_at_most_half_a_second() {
     let seek_from = |from| input_seek(&remux_args(Remux { audio: None }, from)).map(str::to_owned);
 
     assert_eq!(

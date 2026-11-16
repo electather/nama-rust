@@ -536,9 +536,10 @@ fn start_audio_at(command: &mut tokio::process::Command, start_ms: i64, converte
         command.arg("-af").arg(format!("atrim=start={start}"));
     } else {
         // Copied packets from before the input's `-ss` are kept under `-copyts` unless told.
-        // ponytail: this lands right only in a file that starts at 0, as Matroska and MP4 do; an
-        // MPEG-TS's copied audio can still start up to the video's back-off early. Trim it in the
-        // output's times, as above, if a Remux from MPEG-TS steps back.
+        // ponytail: ffmpeg drops them by the input's `-ss` without the file's start time, so this
+        // lands right only in a file that starts at 0. An MPEG-TS's copied audio can still start
+        // up to the video's back-off early, and before ffmpeg 8 a Matroska file starting at its
+        // AAC's priming, before 0, skips a frame. Pass the start Probing reads if either is heard.
         command.args(["-copypriorss:a", "0"]);
     }
 }

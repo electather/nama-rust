@@ -78,6 +78,34 @@ fn boxes<'a>(data: &'a [u8], name: &'a [u8; 4]) -> impl Iterator<Item = &'a [u8]
     })
 }
 
+/// What Probing reads of the file at `path`: when it starts, in milliseconds, and when each
+/// keyframe of its first video falls, in milliseconds from that start.
+// Not every 2 seconds from 0: before ffmpeg 8, ffprobe reads the test media as starting at its
+// AAC's priming, before 0, and ffmpeg 4.4 writes its video an AAC frame late.
+fn probe(ffmpeg: &Ffmpeg, path: &Path) -> (i64, Vec<i64>) {
+    let ffprobe = &ffmpeg.ffprobe.as_ref().unwrap().path;
+    let output = std::process::Command::new(ffprobe)
+        .args(["-v", "error", "-select_streams", "V:0", "-show_entries"])
+        .args(["packet=pts_time,flags:format=start_time", "-of", "csv=p=0"])
+        .arg(path)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let csv = String::from_utf8(output.stdout).unwrap();
+    // ffprobe prints seconds with six decimals, such as `-0.023000`.
+    let ms = |seconds: &str| seconds.replace('.', "").parse::<i64>().unwrap() / 1000;
+    let start = ms(csv.lines().find(|line| !line.contains(',')).unwrap());
+    let mut keyframes: Vec<i64> = csv
+        .lines()
+        .filter_map(|line| line.split_once(','))
+        .filter(|(_, flags)| flags.contains('K'))
+        .map(|(seconds, _)| ms(seconds) - start)
+        .collect();
+    // Packets come in decoding order.
+    keyframes.sort_unstable();
+    (start, keyframes)
+}
+
 /// Transcodes the file at `path` into `dir`, cut every 6 seconds of its 20, from cut `n`,
 /// until ffmpeg is done.
 async fn transcode(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, n: usize) {
@@ -296,19 +324,22 @@ async fn a_remux_started_at_a_keyframe_starts_its_audio_where_a_run_from_the_fir
     let work = tempfile::tempdir().unwrap();
     let file = work.path().join("alien.mkv");
     write_h264_with_5_1(&file, "aac").unwrap();
+    let (start_ms, keyframes) = probe(&ffmpeg, &file);
     let first = Keyframe {
         n: 0,
-        ms: 0,
+        ms: keyframes[0],
         previous_ms: None,
     };
     let third = Keyframe {
         n: 3,
-        ms: 6000,
-        previous_ms: Some(4000),
+        ms: keyframes[3],
+        previous_ms: Some(keyframes[2]),
     };
     // At 44100 units a second: copied within 2 ms, as a run's first file can round differently,
-    // and converted to AAC within its frame of 1024 samples, which can fall differently.
-    for (aac_channels, within) in [(None, 88), (Some(2), 1024)] {
+    // or a frame of 1024 samples from a file starting before 0 (`start_audio_at`), and converted
+    // to AAC within its frame, which can fall differently.
+    let copied_within = if start_ms < 0 { 1024 } else { 88 };
+    for (aac_channels, within) in [(None, copied_within), (Some(2), 1024)] {
         let run = |name: &str| work.path().join(format!("{name}-{aac_channels:?}"));
         let (whole, restarted) = (run("whole"), run("restarted"));
         remux(&ffmpeg, &file, &whole, first, aac_channels).await;
