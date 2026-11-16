@@ -317,6 +317,10 @@ async fn a_width_not_on_the_list_is_refused() {
     let reply = fetch_at(&fx, &poster, 641).await;
 
     assert_eq!(reply.status, 400);
+    assert_eq!(
+        reply.body,
+        b"width must be one of 320, 480, 640, 960, 1280, 1920, 2560"
+    );
 }
 
 #[tokio::test]

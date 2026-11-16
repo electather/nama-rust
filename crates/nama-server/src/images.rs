@@ -164,15 +164,22 @@ impl Asked {
     ///
     /// # Errors
     ///
-    /// 400 for a width not on [`WIDTHS`] while resizing is on.
-    pub(crate) fn resize(&self, images: &ImageSettings) -> Result<Option<Resize>, StatusCode> {
+    /// 400, with a text body naming [`WIDTHS`], for a width not on them while resizing is on.
+    pub(crate) fn resize(
+        &self,
+        images: &ImageSettings,
+    ) -> Result<Option<Resize>, (StatusCode, String)> {
         let (Some(width), Some(cache_limit)) = (self.width, images.resizing()) else {
             return Ok(None);
         };
-        WIDTHS
-            .contains(&width)
-            .then_some(Some(Resize { width, cache_limit }))
-            .ok_or(StatusCode::BAD_REQUEST)
+        if !WIDTHS.contains(&width) {
+            let widths = WIDTHS.map(|allowed| allowed.to_string()).join(", ");
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!("width must be one of {widths}"),
+            ));
+        }
+        Ok(Some(Resize { width, cache_limit }))
     }
 }
 
