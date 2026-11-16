@@ -568,9 +568,10 @@ async fn a_value_of_the_wrong_kind_is_refused_naming_it_and_nothing_changes() {
             ],
         )
         .await;
+    let message = updated.as_ref().err().and_then(|err| err.message.clone());
 
     let refusal = assert_refused(
-        updated.clone(),
+        updated,
         ErrorCode::InvalidArgument,
         RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
     );
@@ -580,7 +581,7 @@ async fn a_value_of_the_wrong_kind_is_refused_naming_it_and_nothing_changes() {
         Some("SETTING_KIND_TEXT")
     );
     assert_eq!(
-        updated.unwrap_err().message.as_deref(),
+        message.as_deref(),
         Some("the setting language must be text")
     );
     assert_eq!(started.stored().await, tmdb_with_key());
