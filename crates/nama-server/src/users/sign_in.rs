@@ -276,3 +276,7 @@ fn checked_device_name(name: String, user_agent: Option<&str>) -> Result<String,
 #[cfg(test)]
 #[path = "sign_in_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "setup_tests.rs"]
+mod setup_tests;
