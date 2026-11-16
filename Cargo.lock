@@ -2312,6 +2312,8 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "icu_normalizer",
+ "icu_properties",
  "image",
  "isolang",
  "jixel",

@@ -173,6 +173,19 @@ async fn a_name_another_user_has_in_a_different_case_is_taken() {
 }
 
 #[tokio::test]
+async fn a_name_another_user_has_composed_differently_or_in_a_different_case_is_taken() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Database::open(data_dir.path()).await.unwrap();
+    create_user(&db, "R\u{E9}my").await.unwrap();
+
+    for duplicate in ["Re\u{301}my", "RE\u{301}MY"] {
+        let duplicate = create_user(&db, duplicate).await;
+
+        assert!(matches!(duplicate, Err(Error::NameTaken)), "{duplicate:?}");
+    }
+}
+
+#[tokio::test]
 async fn demoting_two_admins_at_once_leaves_exactly_one() {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
@@ -441,6 +454,23 @@ async fn a_device_signed_in_with_a_password_records_its_method_ip_user_agent_and
         (before..=now()).contains(&authenticated_at),
         "{authenticated_at}"
     );
+}
+
+#[tokio::test]
+async fn a_name_signs_in_however_its_accents_are_composed() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let users = users_with_local_auth(data_dir.path()).await;
+    users.create(&admin(), "R\u{E9}my", PASSWORD).await.unwrap();
+    users
+        .create(&admin(), "Zoe\u{308}", PASSWORD)
+        .await
+        .unwrap();
+
+    for name in ["Re\u{301}my", "RE\u{301}MY", "Zo\u{EB}"] {
+        let signed_in = users.verify(&admitted(), name, PASSWORD).await;
+
+        assert!(signed_in.is_ok(), "{name}: {:?}", signed_in.err());
+    }
 }
 
 #[tokio::test]

@@ -562,6 +562,11 @@ impl From<users::Error> for ConnectError {
                     .param("minLength", users::NAME_LENGTH.start())
                     .param("maxLength", users::NAME_LENGTH.end())
             }
+            users::Error::NameCharacter {
+                field, character, ..
+            } => refuse(R::REFUSAL_REASON_NAME_CHARACTER, message)
+                .field(field)
+                .param("character", &format!("U+{:04X}", u32::from(character))),
             users::Error::PasswordRejected { field, .. } => {
                 refuse(R::REFUSAL_REASON_PASSWORD_REJECTED, message).field(field)
             }
