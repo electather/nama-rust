@@ -275,7 +275,7 @@ impl CustomImages {
 
     /// Whether the Server has the Movie, Show, Season or Plugin `subject`, as `has_plugin` says of
     /// a Plugin. A Library is always had here: the write that keeps its image checks it.
-    async fn has(&self, subject: &Subject, has_plugin: &HasPlugin) -> sqlx::Result<bool> {
+    async fn server_has(&self, subject: &Subject, has_plugin: &HasPlugin) -> sqlx::Result<bool> {
         let conn = &mut *self.db.reader().acquire().await?;
         Ok(match subject {
             Subject::Movie(id) => library_with_movie(conn, id).await?.is_some(),
@@ -476,7 +476,7 @@ async fn upload(
     };
     // Before the body is read, so a refusal costs no upload, and not in the write: a title that
     // leaves before it commits keeps its image, as one leaving after would (ADR 0036).
-    match custom_images.has(&subject, &has_plugin).await {
+    match custom_images.server_has(&subject, &has_plugin).await {
         Ok(true) => {}
         Ok(false) => {
             return (

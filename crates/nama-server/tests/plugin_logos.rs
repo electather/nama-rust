@@ -177,6 +177,21 @@ async fn a_logo_for_a_plugin_the_server_lacks_is_not_found_and_kept_nowhere() {
 }
 
 #[tokio::test]
+async fn a_logo_is_taken_for_a_listed_plugin_that_is_not_enabled() {
+    let fx = Fixture::start().await;
+    fx.package(Some(&test_plugin::build("")));
+    let listed = fx.listed("test-plugin").await.unwrap();
+
+    let uploaded = fx
+        .upload("/custom-images/plugin/test-plugin/logo", &png())
+        .await;
+
+    assert!(!listed.enabled);
+    assert_eq!(uploaded.status, 204);
+    assert!(fx.logo("test-plugin").await.1);
+}
+
+#[tokio::test]
 async fn an_svg_uploaded_as_a_plugins_logo_is_listed_and_served_without_its_script() {
     let fx = Fixture::start().await;
 
