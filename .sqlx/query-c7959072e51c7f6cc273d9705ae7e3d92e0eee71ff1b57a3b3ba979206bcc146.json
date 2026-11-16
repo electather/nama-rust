@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT user_id, kind, title_id, position_ms, duration_ms,\n                      played AS \"played: bool\", updated_at\n               FROM watch_states\n               ORDER BY user_id",
+  "query": "SELECT user_id, position_ms, duration_ms, played AS \"played: bool\", updated_at\n               FROM watch_states\n               WHERE kind = ? AND title_id IN (SELECT value FROM json_each(?))\n               ORDER BY user_id, updated_at DESC, title_id",
   "describe": {
     "columns": [
       {
@@ -15,30 +15,8 @@
         }
       },
       {
-        "name": "kind",
-        "ordinal": 1,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "watch_states",
-            "name": "kind"
-          }
-        }
-      },
-      {
-        "name": "title_id",
-        "ordinal": 2,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "watch_states",
-            "name": "title_id"
-          }
-        }
-      },
-      {
         "name": "position_ms",
-        "ordinal": 3,
+        "ordinal": 1,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -49,7 +27,7 @@
       },
       {
         "name": "duration_ms",
-        "ordinal": 4,
+        "ordinal": 2,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -60,7 +38,7 @@
       },
       {
         "name": "played: bool",
-        "ordinal": 5,
+        "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -71,7 +49,7 @@
       },
       {
         "name": "updated_at",
-        "ordinal": 6,
+        "ordinal": 4,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -82,11 +60,9 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 2
     },
     "nullable": [
-      false,
-      false,
       false,
       false,
       false,
@@ -94,5 +70,5 @@
       false
     ]
   },
-  "hash": "dc331f1915b892a227d7a07d9e3eaf52a60d03bf2611d99acd6239a48df13c38"
+  "hash": "c7959072e51c7f6cc273d9705ae7e3d92e0eee71ff1b57a3b3ba979206bcc146"
 }

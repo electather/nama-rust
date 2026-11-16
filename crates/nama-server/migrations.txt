@@ -70,3 +70,4 @@
 0070_plugin_permissions.sql
 0071_match_title_details_merged.sql
 0072_library_recognisers.sql
+0073_watch_states_by_title.sql

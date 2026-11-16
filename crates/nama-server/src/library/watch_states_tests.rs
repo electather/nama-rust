@@ -1,10 +1,10 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use super::{MovieOrEpisode, Progress, WatchStates};
+use super::{Kind, MovieOrEpisode, Progress, WatchStates};
 use crate::{
-    db::Database,
+    db::{self, Database},
     plugins::Registry,
     users::{Permissions, User, Users},
 };
@@ -14,6 +14,13 @@ const ALIEN_TMDB_ID: i64 = 348;
 /// Watch States on a database in a temp folder, and a User to keep them for.
 async fn watch_states(data: &tempfile::TempDir) -> (WatchStates, i64) {
     let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let watch_states = WatchStates::new(db);
+    let user = another_user(&watch_states, "Ada").await;
+    (watch_states, user)
+}
+
+/// Creates a User called `name` on the database of `watch_states`, and gives their id.
+async fn another_user(watch_states: &WatchStates, name: &str) -> i64 {
     let root = User {
         id: 0,
         name: "Root".to_owned(),
@@ -24,11 +31,10 @@ async fn watch_states(data: &tempfile::TempDir) -> (WatchStates, i64) {
     plugins
         .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
         .unwrap();
-    let user = Users::new(Arc::clone(&db), plugins.extension_points())
-        .create(&root, "Ada", "correct horse battery staple")
+    Users::new(Arc::clone(&watch_states.db), plugins.extension_points())
+        .create(&root, name, "correct horse battery staple")
         .await
-        .unwrap();
-    (WatchStates::new(db), user)
+        .unwrap()
 }
 
 fn alien() -> MovieOrEpisode {
@@ -83,6 +89,63 @@ async fn a_watch_state_kept_against_a_made_up_id_is_read_back() {
 
     let state = watch_states.of(user, &[akira]).await.unwrap()[0].unwrap();
     assert_eq!((state.position_ms, state.played), (1_000, false));
+}
+
+#[tokio::test]
+async fn every_users_watch_state_is_found_under_any_of_a_titles_ids_the_most_recent_kept() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, ada) = watch_states(&data).await;
+    let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
+    let tmdb = ExternalId::tmdb(ALIEN_TMDB_ID);
+    let halfway = Progress::new(1_000, 2_000).unwrap();
+    let near_the_end = Progress::new(1_950, 2_000).unwrap();
+    let report = |id: &ExternalId, progress| {
+        watch_states.report(ada, vec![Some(MovieOrEpisode::movie(id))], progress)
+    };
+    report(&imdb, halfway).await.unwrap();
+    // Later, under the other id, as after the Library's title source order changed. `imdb`
+    // sorts first, so only being more recent keeps `tmdb`'s.
+    db::advance_clock(Duration::from_secs(2));
+    report(&tmdb, near_the_end).await.unwrap();
+    let not_alien = MovieOrEpisode::movie(&ExternalId::tmdb(1));
+    let an_episode = MovieOrEpisode::episode(&imdb);
+    watch_states
+        .mark(ada, vec![not_alien, an_episode], true)
+        .await
+        .unwrap();
+
+    let ids = ExternalIds::from_iter([tmdb, imdb]);
+    let states = watch_states.of_every_user(Kind::Movie, &ids).await.unwrap();
+
+    let read: Vec<_> = (states.iter())
+        .map(|(user, state)| (*user, state.position_ms, state.played))
+        .collect();
+    assert_eq!(read, [(ada, 1_950, true)]);
+}
+
+#[tokio::test]
+async fn every_users_watch_state_of_a_title_comes_by_user() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, ada) = watch_states(&data).await;
+    let bo = another_user(&watch_states, "Bo").await;
+    let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
+    let halfway = Progress::new(1_000, 2_000).unwrap();
+    (watch_states.report(bo, vec![Some(alien())], halfway))
+        .await
+        .unwrap();
+    let under_imdb = MovieOrEpisode::movie(&imdb);
+    watch_states
+        .mark(ada, vec![under_imdb], true)
+        .await
+        .unwrap();
+
+    let ids = ExternalIds::from_iter([ExternalId::tmdb(ALIEN_TMDB_ID), imdb]);
+    let states = watch_states.of_every_user(Kind::Movie, &ids).await.unwrap();
+
+    let read: Vec<_> = (states.iter())
+        .map(|(user, state)| (*user, state.position_ms, state.played))
+        .collect();
+    assert_eq!(read, [(ada, 0, true), (bo, 1_000, false)]);
 }
 
 fn shares(position_ms: u64, duration_ms: u64, episodes: usize) -> Vec<Option<(i64, i64)>> {

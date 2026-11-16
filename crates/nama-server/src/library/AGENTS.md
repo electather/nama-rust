@@ -13,7 +13,7 @@ What a Library holds: its contents, its settings (`libraries.rs`), asking its ti
 - **One owner for asking the title sources.** Only `title_source.rs` (`TitleSources`) calls a `TitleSource` and decides what its failures mean. Matching, Requests, Artwork and handlers ask it and read its `Unanswered`.
 - **Artwork picks from every list.** Artwork picks from every ordered source's artwork list (ADR 0045, written later this stage), by language, then source order, then rating.
 - **One owner for Custom Images.** Only `custom_images.rs` reads or writes `custom_images`, tests included, and keys a title's by its external id, never an Item or file, and a Plugin's by the Plugin's id (ADR 0036). A Library's goes with the Library. Browse, Requests, Libraries and Plugins ask it for the URLs to show in place of downloaded images and Manifests' logos.
-- **One owner for Watch State.** Only `watch_states.rs` reads or writes `watch_states`, tests included, and keys it by a Movie's or Episode's external id, never an Item or file (ADR 0013). Browse works out which Movie or Episodes a Version or a marked title stands for and asks `WatchStates`.
+- **One owner for Watch State.** Only `watch_states.rs` reads or writes `watch_states`, tests included, and keys it by a Movie's or Episode's external id, never an Item or file (ADR 0013). Browse works out which Movie or Episodes a Version or a marked title stands for and asks `WatchStates`. Automation reads a title's Watch State under any of its ids (`of_every_user`); Browse's reads and writes still use the preferred id alone, deferred (ADR 0042).
 
 ### Neighbours
 

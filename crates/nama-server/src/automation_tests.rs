@@ -117,6 +117,15 @@ const LIES_TMDB_ID: i64 = 1_002;
 /// A Shows Library on `folder` holding one file, `Dark - S01E01-E02.mkv`, Matched to both
 /// Episodes, Secrets and Lies. Gives the Library's id and the file's path.
 async fn two_episodes_in_one_file(db: &Arc<Database>, folder: &Path) -> (i64, String) {
+    two_episodes_in_one_file_also_known_as(db, folder, |_tmdb| None).await
+}
+
+/// [`two_episodes_in_one_file`], with each Episode also given the id `also(its TMDB id)`.
+async fn two_episodes_in_one_file_also_known_as(
+    db: &Arc<Database>,
+    folder: &Path,
+    also: impl Fn(i64) -> Option<ExternalId>,
+) -> (i64, String) {
     let root = folder.canonicalize().unwrap();
     let library = (Libraries::new(Arc::clone(db)))
         .create(
@@ -146,7 +155,12 @@ async fn two_episodes_in_one_file(db: &Arc<Database>, folder: &Path) -> (i64, St
     };
     contents.apply(library, vec![file]).await.unwrap();
     let matched = |tmdb, title| {
+        let mut ids = ExternalIds::from_iter([ExternalId::tmdb(tmdb)]);
+        if let Some(also) = also(tmdb) {
+            ids.insert(also);
+        }
         Decided::Matched(Box::new(Metadata {
+            ids,
             show_ids: ExternalIds::from_iter([ExternalId::tmdb(70_523)]),
             show_title: Some("Dark".to_owned()),
             ..tmdb_movie(tmdb, title)
@@ -350,6 +364,65 @@ async fn list_watch_states_gives_each_users_watch_state_of_each_title() {
     assert_eq!(states, [(ada, false, 500, 1000), (bo, true, 0, 0)]);
     assert!(watched.states.iter().all(|state| state.updated_at_ms > 0));
     assert_eq!(unwatched.states, []);
+}
+
+/// The Users and what they did of each Watch State `listed` gives of its one title.
+fn users_played(listed: &nama_plugin_api::automation::WatchStates) -> Vec<(i64, bool)> {
+    let [title] = listed.titles.as_slice() else {
+        panic!("{listed:?}");
+    };
+    (title.states.iter())
+        .map(|state| (state.user_id, state.played))
+        .collect()
+}
+
+#[tokio::test]
+async fn list_watch_states_finds_a_movies_watch_state_kept_under_another_of_its_ids() {
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let [ada] = users(&db, ["Ada"]).await;
+    let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
+    let mut matched = tmdb_movie(ALIEN_TMDB_ID, "Alien");
+    matched.ids.insert(imdb.clone());
+    let alien = MatchedMovie::new(&db, media.path(), matched).await;
+    let under_imdb = MovieOrEpisode::movie(&imdb);
+    (WatchStates::new(Arc::clone(&db)).mark(ada, vec![under_imdb], true))
+        .await
+        .unwrap();
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_WATCH_STATES);
+
+    let asked = WatchStatesAsked {
+        titles: vec![movie_ref(alien.library, ALIEN_TMDB_ID)],
+        ..WatchStatesAsked::default()
+    };
+    let listed = kernel.list_watch_states(&asked).await.unwrap();
+
+    assert_eq!(users_played(&listed), [(ada, true)]);
+}
+
+#[tokio::test]
+async fn list_watch_states_finds_an_episodes_watch_state_kept_under_another_of_its_ids() {
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let [ada] = users(&db, ["Ada"]).await;
+    let imdb = |tmdb| ExternalId::new("imdb", format!("tt{tmdb}")).unwrap();
+    let (library, _path) =
+        two_episodes_in_one_file_also_known_as(&db, media.path(), |tmdb| Some(imdb(tmdb))).await;
+    let under_imdb = MovieOrEpisode::episode(&imdb(LIES_TMDB_ID));
+    (WatchStates::new(Arc::clone(&db)).mark(ada, vec![under_imdb], true))
+        .await
+        .unwrap();
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_WATCH_STATES);
+
+    let asked = WatchStatesAsked {
+        titles: vec![episode_ref(library, LIES_TMDB_ID)],
+        ..WatchStatesAsked::default()
+    };
+    let listed = kernel.list_watch_states(&asked).await.unwrap();
+
+    assert_eq!(users_played(&listed), [(ada, true)]);
 }
 
 #[tokio::test]

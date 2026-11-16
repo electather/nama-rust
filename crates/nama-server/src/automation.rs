@@ -4,7 +4,7 @@
 mod store;
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet, hash_map},
     sync::{Arc, Weak},
 };
 
@@ -18,7 +18,7 @@ use nama_plugin_api::{
         WatchStates, WatchStatesAsked,
     },
     fulfiller::TitleId,
-    metadata::ExternalId,
+    metadata::{ExternalId, ExternalIds},
 };
 use tracing::error;
 
@@ -28,7 +28,7 @@ use crate::{
     library::{
         contents::Contents,
         libraries::{self, Kind},
-        watch_states::{self, MovieOrEpisode},
+        watch_states,
     },
     plugins::ExtensionPoints,
     scanner::{self, Doomed, Scanner},
@@ -260,6 +260,52 @@ impl PluginKernel {
         })
     }
 
+    /// Each of `titles` as a Watch State kind and every id its Library's Match gives it, any of
+    /// which its Watch State may be kept under: the preferred id follows each Library's title
+    /// source order (ADR 0042). A title its Library doesn't have keeps only the id it is named by.
+    async fn every_id(
+        &self,
+        automation: &Automation,
+        titles: &[TitleRef],
+    ) -> Result<Vec<(watch_states::Kind, ExternalIds)>, KernelRefused> {
+        let contents = Contents::new(Arc::clone(&automation.db));
+        let read = |err| self.database_refused("reading the Library's titles", &err);
+        // Each Library's titles of one kind by every id they have, read once however many of its
+        // titles are asked about, so a tick paging a large Library finds each title in one lookup.
+        let mut libraries: HashMap<(i64, watch_states::Kind), ByEveryId> = HashMap::new();
+        let mut every_id = Vec::with_capacity(titles.len());
+        for title in titles {
+            let (kind, named) = titled(
+                title,
+                |id| (watch_states::Kind::Movie, id),
+                |id| (watch_states::Kind::Episode, id),
+            )?;
+            let library = match libraries.entry((title.library_id, kind)) {
+                hash_map::Entry::Occupied(library) => library.into_mut(),
+                hash_map::Entry::Vacant(entry) => entry.insert(by_every_id(match kind {
+                    watch_states::Kind::Movie => (contents.movies(title.library_id).await)
+                        .map_err(read)?
+                        .into_iter()
+                        .map(|movie| movie.ids)
+                        .collect(),
+                    watch_states::Kind::Episode => (contents.shows(title.library_id).await)
+                        .map_err(read)?
+                        .into_iter()
+                        .flat_map(|show| show.seasons.into_values())
+                        .flat_map(|season| season.episodes)
+                        .map(|episode| episode.ids)
+                        .collect(),
+                })),
+            };
+            let ids = library.get(&named).map_or_else(
+                || ExternalIds::from_iter([named]),
+                |ids| ExternalIds::clone(ids),
+            );
+            every_id.push((kind, ids));
+        }
+        Ok(every_id)
+    }
+
     /// Refuses a delete that would take along an Episode `also` doesn't name, naming each one.
     async fn check_taken_along(
         &self,
@@ -289,6 +335,21 @@ impl PluginKernel {
             named.join(", ")
         )))
     }
+}
+
+/// A Library's titles of one kind, each under every id it has.
+type ByEveryId = HashMap<ExternalId, Arc<ExternalIds>>;
+
+/// Indexes `titles` by every id each has; where two titles share an id, the first keeps it.
+fn by_every_id(titles: Vec<ExternalIds>) -> ByEveryId {
+    let mut by_id = HashMap::new();
+    for ids in titles {
+        let ids = Arc::new(ids);
+        for id in ids.iter() {
+            by_id.entry(id).or_insert_with(|| Arc::clone(&ids));
+        }
+    }
+    by_id
 }
 
 /// Whether `a` and `b` name the same title of the same Library.
@@ -461,19 +522,14 @@ impl Kernel for PluginKernel {
     ) -> BoxFuture<'a, Result<WatchStates, KernelRefused>> {
         Box::pin(async move {
             let automation = self.check(Method::ListWatchStates)?;
-            let titles = (asked.titles.iter())
-                .map(|title| {
-                    titled(
-                        title,
-                        |id| MovieOrEpisode::movie(&id),
-                        |id| MovieOrEpisode::episode(&id),
-                    )
-                })
-                .collect::<Result<Vec<_>, KernelRefused>>()?;
-            let states = watch_states::WatchStates::new(Arc::clone(&automation.db))
-                .of_every_user(&titles)
-                .await
-                .map_err(|err| self.database_refused("reading the Watch States", &err))?;
+            let titles = self.every_id(&automation, &asked.titles).await?;
+            let watch_states = watch_states::WatchStates::new(Arc::clone(&automation.db));
+            let mut states = Vec::with_capacity(titles.len());
+            for (kind, ids) in titles {
+                let of_title = (watch_states.of_every_user(kind, &ids).await)
+                    .map_err(|err| self.database_refused("reading the Watch States", &err))?;
+                states.push(of_title);
+            }
             Ok(WatchStates {
                 titles: (asked.titles.iter().zip(states))
                     .map(|(title, states)| TitleWatchStates {

@@ -201,6 +201,8 @@ pub(crate) struct Season<V = Version> {
 pub(crate) struct Episode<V = Version> {
     /// Which of the Match's ids identifies the Episode: see [`primary_id`](super::primary_id).
     pub(crate) id: ExternalId,
+    /// Every id the Match of its first Version gives it.
+    pub(crate) ids: ExternalIds,
     /// Its Season's number.
     pub(crate) season: i64,
     /// The episode number within its Season.
@@ -221,6 +223,7 @@ impl<V> Episode<V> {
     pub(crate) fn map_versions<W>(self, version: impl FnMut(V) -> W) -> Episode<W> {
         Episode {
             id: self.id,
+            ids: self.ids,
             season: self.season,
             number: self.number,
             title: self.title,
@@ -568,6 +571,7 @@ impl Contents {
                 Some(episode) if episode.id == id => episode.versions.push(version),
                 _ => season.episodes.push(Episode {
                     id,
+                    ids,
                     season: row.season,
                     number: row.episode,
                     title: row.title,

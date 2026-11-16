@@ -8,7 +8,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::SqliteConnection;
 
 use crate::db::{Database, now};
@@ -21,6 +21,23 @@ const EPISODE: &str = "episode";
 #[derive(Debug, Clone)]
 pub(crate) struct WatchStates {
     db: Arc<Database>,
+}
+
+/// Whether a Watch State is a Movie's or an Episode's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum Kind {
+    Movie,
+    Episode,
+}
+
+impl Kind {
+    /// Its `kind` in `watch_states`.
+    const fn stored(self) -> &'static str {
+        match self {
+            Self::Movie => MOVIE,
+            Self::Episode => EPISODE,
+        }
+    }
 }
 
 /// A Movie or Episode, by the external id its Watch State is kept against.
@@ -192,35 +209,42 @@ impl WatchStates {
         Ok(titles.iter().map(|title| states.remove(title)).collect())
     }
 
-    /// Every User's Watch State of each of `titles`, in the same order, by User id.
-    // ponytail: reads every Watch State even for one title; query by id if that gets big.
+    /// Every User's Watch State of one Movie or Episode, kept under any of its `ids`, by User
+    /// id. Where a User has one under more than one of them, as when a Library's title source
+    /// order changed, the most recently updated.
     pub(crate) async fn of_every_user(
         &self,
-        titles: &[MovieOrEpisode],
-    ) -> Result<Vec<Vec<(i64, WatchState)>>, sqlx::Error> {
+        kind: Kind,
+        ids: &ExternalIds,
+    ) -> Result<Vec<(i64, WatchState)>, sqlx::Error> {
+        let kind = kind.stored();
+        let ids: Vec<String> = ids.iter().map(|id| id.to_string()).collect();
+        let ids = serde_json::Value::from(ids).to_string();
+        // Same User first by most recent, so the first row of each User is the one kept.
         let rows = sqlx::query!(
-            r#"SELECT user_id, kind, title_id, position_ms, duration_ms,
-                      played AS "played: bool", updated_at
+            r#"SELECT user_id, position_ms, duration_ms, played AS "played: bool", updated_at
                FROM watch_states
-               ORDER BY user_id"#
+               WHERE kind = ? AND title_id IN (SELECT value FROM json_each(?))
+               ORDER BY user_id, updated_at DESC, title_id"#,
+            kind,
+            ids
         )
         .fetch_all(self.db.reader())
         .await?;
-        let mut states: HashMap<MovieOrEpisode, Vec<(i64, WatchState)>> = HashMap::new();
+        let mut states: Vec<(i64, WatchState)> = Vec::new();
         for row in rows {
+            if states.last().is_some_and(|&(user, _)| user == row.user_id) {
+                continue;
+            }
             let state = WatchState {
                 position_ms: row.position_ms,
                 duration_ms: row.duration_ms,
                 played: row.played,
                 updated_at: row.updated_at,
             };
-            let title = MovieOrEpisode::stored(&row.kind, row.title_id);
-            states.entry(title).or_default().push((row.user_id, state));
+            states.push((row.user_id, state));
         }
-        Ok(titles
-            .iter()
-            .map(|title| states.get(title).cloned().unwrap_or_default())
-            .collect())
+        Ok(states)
     }
 
     /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
