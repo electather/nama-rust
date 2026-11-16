@@ -120,6 +120,27 @@ impl Contents {
         .fetch_all(self.db.reader())
         .await
     }
+
+    /// Marks the Library `library`'s unparsed files as read by an older name parser, so its next
+    /// scan reads them again as a [`PARSER_VERSION`] bump does and asks its Recognisers about them.
+    /// Part of the write a scan starts with when the Library's Recognisers changed (ADR 0050).
+    pub(crate) async fn read_unparsed_again(
+        conn: &mut SqliteConnection,
+        library: i64,
+    ) -> Result<(), sqlx::Error> {
+        let older = PARSER_VERSION - 1;
+        sqlx::query!(
+            "UPDATE library_files SET parser_version = ?
+             WHERE library_id = ?
+               AND NOT EXISTS (SELECT 1 FROM library_items
+                               WHERE library_items.file_id = library_files.id)",
+            older,
+            library
+        )
+        .execute(conn)
+        .await?;
+        Ok(())
+    }
 }
 
 async fn apply(

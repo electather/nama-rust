@@ -16,7 +16,7 @@ use nama_proto::nama::v1::{
     ExternalId, GetLibraryRequest, LibraryKind, LibraryServiceClient, ListEpisodesRequest,
     ListLibrariesRequest, ListPluginsRequest, ListUnmatchedItemsRequest, MatchServiceClient,
     PluginServiceClient, RecogniserOrder, RefusalReason, UpdateLibraryRequest,
-    UpdateLibraryResponse,
+    UpdateLibraryResponse, event,
 };
 use refused::assert_refused;
 use server::{Library, TestServer, tmdb::DARK};
@@ -216,6 +216,52 @@ async fn a_recogniser_turns_an_absolute_numbered_file_into_the_episode_the_kerne
         .map(|episode| episode.episode_number)
         .collect();
     assert_eq!(holding, [2]);
+}
+
+#[tokio::test]
+async fn listing_a_recogniser_reads_files_left_unparsed_before_once() {
+    // A file the test Recogniser can't tell either, which stays unparsed.
+    let trailer = "Dark (2017)/Dark (2017) Trailer.mkv";
+    let server = with_recogniser().await;
+    let library = server
+        .create_library(LibraryKind::LIBRARY_KIND_SHOWS, &[ABSOLUTE, trailer])
+        .await;
+    server.scan_and_match(&library).await;
+    let before = unparsed(&server, &library).await;
+
+    // Updating the order queues a scan of its own; any scan from it on asks the Recognisers.
+    update_recognisers(&server, &library, Some(&[RECOGNISER]))
+        .await
+        .unwrap();
+    server.scan_and_match(&library).await;
+    let after = unparsed(&server, &library).await;
+    let episodes = dark_season_1(&server, &library).await;
+    // A scan asks the Recognisers only about the files it stores or reads again.
+    let again = server
+        .scan_until(library.id, |event| {
+            matches!(event, event::Event::ScanFinished(_))
+        })
+        .await;
+
+    assert_eq!(before, [library.path(ABSOLUTE), library.path(trailer)]);
+    assert_eq!(after, [library.path(trailer)]);
+    let holding: Vec<u32> = (episodes.iter())
+        .filter(|episode| !episode.versions.is_empty())
+        .map(|episode| episode.episode_number)
+        .collect();
+    assert_eq!(holding, [2]);
+    let read_again = again.last().and_then(|event| {
+        if let event::Event::ScanFinished(finished) = event {
+            Some((finished.updated, finished.unchanged))
+        } else {
+            None
+        }
+    });
+    assert_eq!(
+        read_again,
+        Some((0, 2)),
+        "a scan with nothing changed reads nothing again"
+    );
 }
 
 #[tokio::test]

@@ -155,3 +155,26 @@ async fn update_without_recognisers_keeps_them_and_with_none_clears_them() {
     assert_eq!(stored.recognisers, Vec::<String>::new());
     assert_eq!(stored.title_sources, order(&["tvdb"]));
 }
+
+#[tokio::test]
+async fn recording_the_recognisers_read_says_whether_they_changed_since_the_last_scan() {
+    let (_data, _media, libraries, folder) = setup().await;
+    let id = libraries
+        .create("Shows", Kind::Shows, vec![folder])
+        .await
+        .unwrap()
+        .id;
+    let record = |read: &'static str| {
+        (libraries.db).write(move |tx| Box::pin(Libraries::record_recognisers_read(tx, id, read)))
+    };
+
+    let none_yet = record("").await.unwrap();
+    let listed = record("a,b").await.unwrap();
+    let again = record("a,b").await.unwrap();
+    let reordered = record("b,a").await.unwrap();
+
+    assert_eq!(
+        (none_yet, listed, again, reordered),
+        (false, true, false, true)
+    );
+}

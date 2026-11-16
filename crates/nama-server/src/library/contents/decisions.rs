@@ -319,6 +319,34 @@ impl Contents {
             })
             .collect()
     }
+
+    /// Forgets what Matching left Unmatched in the Library `library`, so it decides those Items
+    /// again and asks the Library's Recognisers. An Item whose name an admin pinned keeps its
+    /// decision, and a Matched one its Match. Part of the write a scan starts with when the
+    /// Library's Recognisers changed (ADR 0050).
+    pub(crate) async fn forget_unmatched(
+        conn: &mut SqliteConnection,
+        library: i64,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "DELETE FROM item_matches
+             WHERE state = 'unmatched'
+               AND item_id IN (
+                   SELECT library_items.id FROM library_items
+                   JOIN library_files ON library_files.id = library_items.file_id
+                   WHERE library_files.library_id = ?
+                     AND NOT EXISTS (SELECT 1 FROM match_pins
+                                     WHERE match_pins.library_id = library_files.library_id
+                                       AND match_pins.kind = library_items.kind
+                                       AND match_pins.title = library_items.title
+                                       AND match_pins.year IS library_items.year
+                                       AND match_pins.hint IS library_items.hint))",
+            library
+        )
+        .execute(conn)
+        .await?;
+        Ok(())
+    }
 }
 
 /// Returns the events for the Requests the Matches make Available or Partially Available, made in

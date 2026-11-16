@@ -1,4 +1,10 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
@@ -8,7 +14,7 @@ use nama_plugin_api::{
 };
 use tokio_util::sync::CancellationToken;
 
-use super::{Planned, items, listed, recognise};
+use super::{super::tests::Fixture, Planned, items, listed, recognise};
 use crate::{
     library::contents::{Change, Item},
     library::libraries::Kind,
@@ -223,4 +229,63 @@ fn listed_keeps_the_librarys_order_of_enabled_recognisers_only() {
     let listed = listed(&plugins.extension_points(), &order);
 
     assert_eq!(listed, [PluginId::from_static("proposing")]);
+}
+
+/// A Recogniser that can't tell what any file is, counting the files it is asked about.
+#[derive(Clone, Default)]
+struct Counting(Arc<AtomicUsize>);
+
+impl Recogniser for Counting {
+    fn recognise_file<'a>(
+        &'a self,
+        _file: &'a FileToRecognise,
+    ) -> BoxFuture<'a, Result<FileRecognised, PluginError>> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Box::pin(std::future::ready(Ok(FileRecognised::default())))
+    }
+}
+
+impl Plugin for Counting {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            version: "0.0.0".to_owned(),
+            extension_points: vec![PointKey::provide::<dyn Recogniser>()],
+            ..Manifest::new(PluginId::from_static("counting"))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.provide::<dyn Recogniser>(Priority::DEFAULT, Arc::new(self.clone()));
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_scan_asks_newly_listed_recognisers_about_unparsed_files_once() {
+    let counting = Counting::default();
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(counting.clone())).unwrap();
+    let media = Fixture::with_plugins(Kind::Shows, plugins.extension_points()).await;
+    media.write("Show - 2.mkv", 1);
+    media.write("Show/Show - S01E01.mkv", 1);
+    media.scan().await;
+    let libraries = &media.scanner.inner.libraries;
+    let library = libraries.list().await.unwrap()[0].id;
+    let asked = || counting.0.load(Ordering::SeqCst);
+    let unlisted = asked();
+
+    libraries
+        .set_recognisers(library, vec!["counting".to_owned()])
+        .await
+        .unwrap();
+    let listed = media.scan().await;
+    let asked_listed = asked();
+    let again = media.scan().await;
+
+    assert_eq!(
+        (unlisted, listed.updated, asked_listed),
+        (0, 1, 1),
+        "listing it reads the unparsed file again"
+    );
+    assert_eq!((again.updated, asked()), (0, 1), "nothing changed since");
 }

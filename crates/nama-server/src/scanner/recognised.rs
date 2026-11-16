@@ -21,8 +21,9 @@ use tokio_util::sync::CancellationToken;
 
 use super::{Error, names::MAX_EPISODES_PER_FILE};
 use crate::{
-    library::contents::{Change, Item},
-    library::libraries::Kind,
+    db::Database,
+    library::contents::{Change, Contents, Item},
+    library::libraries::{Kind, Libraries, Library},
     plugins::ExtensionPoints,
 };
 
@@ -68,6 +69,30 @@ pub(super) async fn recognise(
         }
     }
     Ok(changes)
+}
+
+/// Has Contents read `library`'s unparsed files again and forget what Matching left Unmatched
+/// there if the Recognisers it lists that are enabled, in its order, aren't those its last scan
+/// started with, and records them, in one write (ADR 0050). A scan calls it under the Library's
+/// scan lock before it reads what is stored, so the files it marks are read in that scan.
+pub(super) async fn read_again_if_changed(
+    db: &Database,
+    plugins: &ExtensionPoints,
+    library: &Library,
+) -> Result<(), sqlx::Error> {
+    let listed = listed(plugins, &library.recognisers);
+    let read: Vec<&str> = listed.iter().map(PluginId::as_str).collect();
+    let (id, read) = (library.id, read.join(","));
+    db.write(move |tx| {
+        Box::pin(async move {
+            if Libraries::record_recognisers_read(tx, id, &read).await? {
+                Contents::read_unparsed_again(tx, id).await?;
+                Contents::forget_unmatched(tx, id).await?;
+            }
+            Ok(())
+        })
+    })
+    .await
 }
 
 /// Those of `order` that are enabled Recognisers, in its order.

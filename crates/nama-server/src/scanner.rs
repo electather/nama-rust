@@ -2,10 +2,11 @@
 //! names say they hold (see [`names`]).
 //!
 //! A rescan is incremental. A file whose size and modified time are what was stored is skipped,
-//! unless an older version of the name parser read it (ADR 0023); a new or changed file is parsed
-//! and stored; a stored file that's gone is removed, except under a folder that couldn't be read,
-//! so a drive that isn't mounted doesn't empty the Library. A renamed file is a file gone and a
-//! file found. Changes are written in batches of [`BATCH_SIZE`] (see the crate's `AGENTS.md`).
+//! unless an older version of the name parser read it (ADR 0023), or it is unparsed and the
+//! Library's enabled Recognisers changed since its last scan (ADR 0050); a new or changed file is
+//! parsed and stored; a stored file that's gone is removed, except under a folder that couldn't be
+//! read, so a drive that isn't mounted doesn't empty the Library. A renamed file is a file gone and
+//! a file found. Changes are written in batches of [`BATCH_SIZE`] (see the crate's `AGENTS.md`).
 //! Once the Server is serving, a Library is also scanned when its folders change (see [`watch`]).
 //!
 //! Files are only listed and their metadata read, never opened: sidecars such as `.nfo` files
@@ -33,7 +34,7 @@ mod recognised;
 mod watch;
 
 pub(crate) use deleting::{Deleted, Doomed};
-use recognised::{Planned, recognise};
+use recognised::{Planned, read_again_if_changed, recognise};
 
 use std::{
     collections::{HashMap, HashSet},
@@ -134,6 +135,8 @@ pub(crate) struct Scanner {
 
 #[derive(Debug)]
 struct Inner {
+    /// Where a scan starts by checking its Library's Recognisers (ADR 0050).
+    db: Arc<Database>,
     contents: Contents,
     /// Downloads the images Matches store, and deletes those none does.
     artwork: Artwork,
@@ -201,7 +204,8 @@ impl Scanner {
                 probing,
                 running,
                 requests,
-                contents: Contents::new(db),
+                contents: Contents::new(Arc::clone(&db)),
+                db,
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
                 queued: Mutex::default(),
@@ -520,6 +524,7 @@ impl Scanner {
         }
         let library = self.inner.libraries.get(id).await?;
         let scan_number = self.publish_started(id);
+        read_again_if_changed(&self.inner.db, &self.inner.plugins, &library).await?;
         let stored = self.inner.contents.stored(id).await?;
         let walking = cancel.clone();
         let found = tokio::task::spawn_blocking(move || walk(&library.folders, &walking)).await??;

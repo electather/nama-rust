@@ -261,6 +261,25 @@ impl Libraries {
     pub(crate) async fn delete(&self, id: i64) -> Result<(), Error> {
         self.db.write(move |tx| Box::pin(delete(tx, id))).await
     }
+
+    /// Records `read`, the ids of the enabled Recognisers the Library `id` lists, in its order and
+    /// joined with commas, as those its starting scan reads with, and returns whether they differ
+    /// from its last scan's. Part of the scan's write that reads its files again (ADR 0050).
+    pub(crate) async fn record_recognisers_read(
+        conn: &mut SqliteConnection,
+        id: i64,
+        read: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let changed = sqlx::query!(
+            "UPDATE libraries SET recognisers_read = ? WHERE id = ? AND recognisers_read IS NOT ?",
+            read,
+            id,
+            read,
+        )
+        .execute(conn)
+        .await?;
+        Ok(changed.rows_affected() > 0)
+    }
 }
 
 /// `name`, `folders` and `order` must already be checked; what `order` leaves empty keeps the

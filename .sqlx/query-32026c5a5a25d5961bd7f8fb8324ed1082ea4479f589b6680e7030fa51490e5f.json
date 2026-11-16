@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE library_files SET parser_version = ?\n             WHERE library_id = ?\n               AND NOT EXISTS (SELECT 1 FROM library_items\n                               WHERE library_items.file_id = library_files.id)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "32026c5a5a25d5961bd7f8fb8324ed1082ea4479f589b6680e7030fa51490e5f"
+}
