@@ -4,7 +4,7 @@ use std::{
     fs, io, mem,
     path::{Path, PathBuf},
     sync::Arc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::Duration,
 };
 
 use buffa::{
@@ -286,10 +286,7 @@ fn now(
     out: &mut [Val],
     _: UserData<()>,
 ) -> Result<(), extism::Error> {
-    let millis = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| since.as_millis());
-    out.fill(Val::I64(i64::try_from(millis).unwrap_or(i64::MAX)));
+    out.fill(Val::I64(crate::db::now_ms()));
     Ok(())
 }
 

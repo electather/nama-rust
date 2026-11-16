@@ -325,6 +325,17 @@ impl TestServer {
         self.tmdb = None;
     }
 
+    /// Moves the Server's clock, and so every Plugin's, ahead by `by`, as for a test that ages a
+    /// Watch State. The Admin's session lasts `DEVICE_LIFETIME`, 90 days, so stay under it, and do
+    /// what needs Recent Authentication before advancing, or sign in again.
+    #[expect(
+        clippy::unused_self,
+        reason = "the clock is process-wide, but a test moves it as this Server's"
+    )]
+    pub(crate) fn advance_clock(&self, by: Duration) {
+        nama_server::db::advance_clock(by);
+    }
+
     /// The Server's data directory, such as for its Installed Plugins.
     pub(crate) fn data_dir(&self) -> &Path {
         self.data_dir.path()

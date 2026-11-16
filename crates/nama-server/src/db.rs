@@ -12,6 +12,9 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(feature = "testing")]
+use std::sync::atomic::{AtomicI64, Ordering};
+
 use futures_util::FutureExt;
 use sqlx::{
     Connection, Sqlite, SqliteConnection, SqlitePool, Transaction,
@@ -303,11 +306,44 @@ async fn migrate(conn: &mut SqliteConnection) -> Result<Vec<i64>, MigrateError> 
         .collect())
 }
 
+/// How far [`advance_clock`] has moved the Server's clock, in milliseconds.
+#[cfg(feature = "testing")]
+static OFFSET_MS: AtomicI64 = AtomicI64::new(0);
+
+/// Moves the Server's clock, which [`now`], [`now_ms`] and so a Plugin's `nama.now` read, ahead by
+/// `by`. Testing only. Process-wide, which is safe because nextest runs each test in its own
+/// process.
+#[cfg(feature = "testing")]
+pub fn advance_clock(by: Duration) {
+    let by = i64::try_from(by.as_millis()).unwrap_or(i64::MAX);
+    OFFSET_MS.fetch_add(by, Ordering::Relaxed);
+}
+
+#[cfg(feature = "testing")]
+fn offset_ms() -> i64 {
+    OFFSET_MS.load(Ordering::Relaxed)
+}
+
+#[cfg(not(feature = "testing"))]
+const fn offset_ms() -> i64 {
+    0
+}
+
 /// Now, in seconds since the Unix epoch, as the database stores times.
 pub(crate) fn now() -> i64 {
+    now_ms().div_euclid(1000)
+}
+
+/// Now, in milliseconds since the Unix epoch.
+pub(crate) fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| {
-            i64::try_from(since.as_secs()).unwrap_or(i64::MAX)
+            i64::try_from(since.as_millis()).unwrap_or(i64::MAX)
         })
+        .saturating_add(offset_ms())
 }
+
+#[cfg(test)]
+#[path = "db_tests.rs"]
+mod tests;

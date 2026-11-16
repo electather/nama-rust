@@ -44,6 +44,7 @@
 - **One in-file fixture.** An in-file test that needs a Library with a Matched Movie builds it with `library::contents::fixture` and adds what else it needs on top, so a change to how a Match is stored touches one place.
 - **Fake programs.** Fake programs a test runs are written only through `ffmpeg::fake::script`. Writing one with `fs::write` can fail with "Text file busy" (#411).
 - **Unit tests sit beside their file.** `foo.rs`'s unit tests live in `foo_tests.rs` beside it, which `foo.rs` declares as `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`, so each test keeps its name. A file not moved yet keeps its `mod tests` inline until its area is regrouped.
+- **One clock.** Server code reads the time only through `db::now` or `db::now_ms`, which a Plugin's `nama.now` reads too, so a test moves every clock the Kernel or a Plugin sees with `db::advance_clock` (`testing` feature, process-wide; `TestServer::advance_clock` in `tests/support`).
 
 ### Structure
 
