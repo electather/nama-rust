@@ -1,10 +1,13 @@
-//! The images the Server keeps, as plain files in the data directory (ADR 0037).
+//! The images the Server keeps, in a `Blobs` store: by default `LocalDisk`, plain files in the
+//! data directory (ADR 0037).
 //!
 //! Only [`ImageStore`] reads or writes them (`AGENTS.md`). A key names an image by a few parts,
 //! each escaped to one file name, so no key reaches outside the store. Resized copies are kept
 //! apart, in a `resized` folder, and can be deleted at any time (ADR 0039). An image's thumbhash is
 //! kept in the database once it has been resized.
 
+mod blobs;
+mod local_disk;
 mod plugin_logos;
 mod resized;
 
@@ -29,6 +32,13 @@ use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt as _;
 use tower_http::services::ServeFile;
 
+pub(crate) use blobs::Blobs;
+#[expect(
+    unused_imports,
+    reason = "for the blob store Plugin's adapter, which bounds the objects it moves by it"
+)]
+pub(crate) use blobs::MAX_BYTES;
+use local_disk::LocalDisk;
 pub(crate) use plugin_logos::{PluginLogos, router as plugin_logos_router};
 use resized::{Copied, Format, ResizeThread};
 
@@ -40,6 +50,13 @@ pub const WIDTHS: [u32; 7] = [320, 480, 640, 960, 1280, 1920, 2560];
 
 /// The folder in the data directory resized copies are kept in (`AGENTS.md`).
 const RESIZED_DIR: &str = "resized";
+
+/// The folder in the data directory uploads are written to as they arrive. No image key starts
+/// with it, and it is on the data directory's filesystem, so `LocalDisk` can rename one into place.
+const UPLOADS_DIR: &str = "uploads";
+
+/// How many locks [`ImageStore::write`] spreads its keys over.
+const WRITE_LOCKS: usize = 16;
 
 /// The most bytes an uploaded image may have: 20 MiB.
 pub const MAX_UPLOAD_BYTES: u64 = 20 * 1024 * 1024;
@@ -94,6 +111,10 @@ pub struct ImageStore {
     dir: PathBuf,
     db: Arc<Database>,
     resizer: ResizeThread,
+    store: Arc<dyn Blobs>,
+    /// Held from finding a key missing until it is stored: two writes of one key would otherwise
+    /// both store it, and the second, replacing the first, changes its `ETag` (#793).
+    writing: Arc<[tokio::sync::Mutex<()>; WRITE_LOCKS]>,
 }
 
 /// A resized copy asked for.
@@ -135,7 +156,26 @@ impl ImageStore {
             dir: data_dir.to_owned(),
             db,
             resizer: ResizeThread::start(),
+            store: Arc::new(LocalDisk::new(data_dir)),
+            writing: Arc::new(std::array::from_fn(|_| tokio::sync::Mutex::default())),
         }
+    }
+
+    /// The store the originals are kept in. Every call to it goes through here.
+    fn blobs(&self) -> Arc<dyn Blobs> {
+        Arc::clone(&self.store)
+    }
+
+    /// The lock a write of `key` holds (see `writing`).
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "a remainder of `WRITE_LOCKS` is below the array's length"
+    )]
+    fn write_lock(&self, key: &str) -> &tokio::sync::Mutex<()> {
+        let hash = key.bytes().fold(0_usize, |hash, byte| {
+            hash.wrapping_mul(31).wrapping_add(usize::from(byte))
+        });
+        &self.writing[hash % WRITE_LOCKS]
     }
 
     /// Stores `bytes` as the image at `key`, so no reader ever sees part of it, keeping an image
@@ -145,8 +185,12 @@ impl ImageStore {
     ///
     /// If the file can't be written.
     pub async fn write(&self, key: &[&str], bytes: &[u8]) -> io::Result<()> {
-        let (path, bytes) = (self.path(key), bytes.to_vec());
-        tokio::task::spawn_blocking(move || write_unless_stored(&path, &bytes)).await?
+        let (blobs, key) = (self.blobs(), row_key(key));
+        let _writing = self.write_lock(&key).lock().await;
+        if blobs.exists(&key).await? {
+            return Ok(());
+        }
+        blobs.put(&key, bytes.to_vec()).await
     }
 
     /// Keeps `body`, a JPEG, PNG or WebP of at most [`MAX_UPLOAD_BYTES`] and [`MAX_PIXELS`], or
@@ -163,35 +207,35 @@ impl ImageStore {
         body: Body,
         svg_accepted: bool,
     ) -> Result<Received, UploadError> {
-        let dir = self.path(dir);
-        let partial = {
-            let dir = dir.clone();
-            tokio::task::spawn_blocking(move || {
-                std::fs::create_dir_all(&dir)?;
-                // Its name starts with `.`, which `file_name` never gives, so no key names it.
-                NamedTempFile::new_in(dir)
-            })
-            .await
-            .map_err(io::Error::from)??
-        };
+        let uploads = self.dir.join(UPLOADS_DIR);
+        let partial = tokio::task::spawn_blocking(move || {
+            std::fs::create_dir_all(&uploads)?;
+            // Its name starts with `.`, which `file_name` never gives, so no key names it.
+            NamedTempFile::new_in(uploads)
+        })
+        .await
+        .map_err(io::Error::from)??;
         let version = write_hashed(&partial, body).await?;
-        tokio::task::spawn_blocking(move || {
+        let (partial, content_type) = tokio::task::spawn_blocking(move || {
             let content_type = match content_type_of(partial.path()) {
                 Err(UploadError::NotAnImage) if svg_accepted => clean_svg_in(&partial)?,
                 other => other?,
             };
             // Synced before the rename, or a crash can leave a whole name over an empty file.
             partial.as_file().sync_all()?;
-            partial
-                .persist(dir.join(&version))
-                .map_err(io::Error::from)?;
-            Ok(Received {
-                version,
-                content_type,
-            })
+            Ok::<_, UploadError>((partial, content_type))
         })
         .await
-        .map_err(io::Error::from)?
+        .map_err(io::Error::from)??;
+        let (blobs, key) = (self.blobs(), row_key(&[dir, &[version.as_str()]].concat()));
+        let _writing = self.write_lock(&key).lock().await;
+        if !blobs.exists(&key).await? {
+            blobs.put_file(&key, partial).await?;
+        }
+        Ok(Received {
+            version,
+            content_type,
+        })
     }
 
     /// Whether an image is stored at `key`.
@@ -200,7 +244,7 @@ impl ImageStore {
     ///
     /// If the store can't be read.
     pub async fn contains(&self, key: &[&str]) -> io::Result<bool> {
-        tokio::fs::try_exists(self.path(key)).await
+        self.blobs().exists(&row_key(key)).await
     }
 
     /// The image at `key` as the answer to `request`, sent as `content_type`: 404 if none is
@@ -227,6 +271,8 @@ impl ImageStore {
         resize: Option<Resize>,
         request: Request,
     ) -> io::Result<Response> {
+        // Serving and resizing still read originals from the data directory, so they need the
+        // `LocalDisk` store until they go through `blobs` too.
         let Some(resize) = resize else {
             return serve_file(self.path(key), content_type, request).await;
         };
@@ -358,19 +404,21 @@ impl ImageStore {
     /// If the file or its copies are there but can't be deleted, or the thumbhash can't be.
     pub async fn delete(&self, key: &[&str]) -> io::Result<()> {
         self.forget_thumbhashes(key).await?;
-        unless_gone(tokio::fs::remove_file(self.path(key)).await)?;
+        self.blobs().delete(&row_key(key)).await?;
         self.delete_copies(key).await
     }
 
-    /// Deletes the folder at `key` and every image in it, if it is there, with their resized
-    /// copies and thumbhashes.
+    /// Deletes every image under `key`, with their resized copies and thumbhashes.
     ///
     /// # Errors
     ///
-    /// If the folder or the copies are there but can't be deleted, or the thumbhashes can't be.
+    /// If an image or the copies are there but can't be deleted, or the thumbhashes can't be.
     pub async fn delete_dir(&self, key: &[&str]) -> io::Result<()> {
         self.forget_thumbhashes(key).await?;
-        unless_gone(tokio::fs::remove_dir_all(self.path(key)).await)?;
+        let blobs = self.blobs();
+        for stored in blobs.list(&format!("{}/", row_key(key))).await? {
+            blobs.delete(&stored).await?;
+        }
         self.delete_copies(key).await
     }
 
@@ -408,8 +456,12 @@ impl ImageStore {
     ///
     /// If the store can't be read.
     pub async fn list(&self, dir: &str) -> io::Result<Vec<Vec<String>>> {
-        let (root, top) = (self.dir.clone(), self.path(&[dir]));
-        tokio::task::spawn_blocking(move || list_under(&root, &top)).await?
+        let stored = self.blobs().list(&format!("{}/", file_name(dir))).await?;
+        Ok(stored
+            .iter()
+            // Skips a name `file_name` doesn't give, such as one put there by hand.
+            .filter_map(|key| key.split('/').map(unescape).collect())
+            .collect())
     }
 
     fn path(&self, key: &[&str]) -> PathBuf {
@@ -621,16 +673,6 @@ fn write_now(path: &Path, bytes: &[u8]) -> io::Result<()> {
     Ok(())
 }
 
-/// [`ImageStore::write`], blocking the thread it runs on.
-fn write_unless_stored(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    match synced_beside(path, bytes)?.persist_noclobber(path) {
-        Ok(_file) => Ok(()),
-        // Something other than a file at `path`, such as a folder, isn't a stored image.
-        Err(err) if err.error.kind() == io::ErrorKind::AlreadyExists && path.is_file() => Ok(()),
-        Err(err) => Err(err.error),
-    }
-}
-
 /// A temporary file of `bytes` in `path`'s folder, synced to disk, to rename to `path`.
 fn synced_beside(path: &Path, bytes: &[u8]) -> io::Result<NamedTempFile> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
@@ -662,32 +704,6 @@ pub(crate) fn file_name(text: &str) -> String {
         }
     }
     name
-}
-
-/// [`ImageStore::list`] of the folder `top` in the store at `root`. Blocks, so call it from
-/// `spawn_blocking`.
-fn list_under(root: &Path, top: &Path) -> io::Result<Vec<Vec<String>>> {
-    let mut keys = Vec::new();
-    for entry in walkdir::WalkDir::new(top) {
-        match entry {
-            Ok(entry) if entry.file_type().is_file() => keys.extend(key_at(root, entry.path())),
-            Ok(_) => {}
-            // No such `top` yet, or a file deleted while listing.
-            Err(err) if err.io_error().map(io::Error::kind) == Some(io::ErrorKind::NotFound) => {}
-            Err(err) => return Err(err.into()),
-        }
-    }
-    Ok(keys)
-}
-
-/// The key of the image at `path` in the store at `root`, unless a name on the way isn't one
-/// [`file_name`] gives, such as a write's temporary file.
-fn key_at(root: &Path, path: &Path) -> Option<Vec<String>> {
-    let relative = path.strip_prefix(root).ok()?;
-    relative
-        .iter()
-        .map(|part| part.to_str().and_then(unescape))
-        .collect()
 }
 
 /// The text `name` is the [`file_name`] of, if it is one.
