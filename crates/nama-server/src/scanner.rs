@@ -29,9 +29,11 @@
 
 pub(crate) mod deleting;
 mod names;
+mod recognised;
 mod watch;
 
 pub(crate) use deleting::{Deleted, Doomed};
+use recognised::{Planned, recognise};
 
 use std::{
     collections::{HashMap, HashSet},
@@ -139,7 +141,8 @@ struct Inner {
     custom_images: CustomImages,
     libraries: Libraries,
     matcher: Matcher,
-    /// Asks Fulfillers to stop monitoring what a delete takes.
+    /// Asks Recognisers what a file the name parser can't read is, and Fulfillers to stop
+    /// monitoring what a delete takes.
     plugins: ExtensionPoints,
     events: EventBus,
     /// Told when a scan finishes and asked to clean subtitles, unless nothing probes.
@@ -520,7 +523,8 @@ impl Scanner {
             let read_only = found.read_only.clone();
             self.inner.libraries.set_read_only(id, read_only).await?;
         }
-        let (changes, summary) = plan(library.kind, stored, found);
+        let (planned, summary) = plan(library.kind, stored, found);
+        let changes = recognise(&self.inner.plugins, library.kind, planned, &cancel).await?;
         let files_total = count(changes.len());
         let mut files_done = 0;
         let mut changes = changes.into_iter();
@@ -723,12 +727,18 @@ fn nanos_since_epoch(time: SystemTime) -> i64 {
     }
 }
 
-fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<Change>, Summary) {
-    let mut changes = Vec::new();
+/// What a scan changes, given what was `stored` and what was `found`. A file the name parser
+/// makes no Item from is planned with none, and its path kept for Recognisers.
+fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<Planned>, Summary) {
+    let mut planned = Vec::new();
     let mut summary = Summary::default();
     // A file under two of the Library's folders, one inside the other, is found twice.
     let mut seen = HashSet::new();
-    let parse = |relative: &Path| names::parse(kind, relative).unwrap_or_default();
+    let parse = |relative: PathBuf| {
+        let items = names::parse(kind, &relative).unwrap_or_default();
+        let unread = items.is_empty().then_some(relative);
+        (items, unread)
+    };
     for file in found.files {
         if !seen.insert(file.path.clone()) {
             continue;
@@ -737,11 +747,13 @@ fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<
             Some(old) if old.size == file.size && old.modified_ns == file.modified_ns => {
                 if old.parser_version < PARSER_VERSION {
                     summary.updated += 1;
-                    changes.push(Change::Reparse {
+                    let (items, unread) = parse(file.relative);
+                    let change = Change::Reparse {
                         file: old.id,
-                        items: parse(&file.relative),
+                        items,
                         path: file.path,
-                    });
+                    };
+                    planned.push(Planned { change, unread });
                 } else {
                     summary.unchanged += 1;
                 }
@@ -750,12 +762,14 @@ fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<
             Some(_) => summary.updated += 1,
             None => summary.added += 1,
         }
-        changes.push(Change::Store {
-            items: parse(&file.relative),
+        let (items, unread) = parse(file.relative);
+        let change = Change::Store {
+            items,
             path: file.path,
             size: file.size,
             modified_ns: file.modified_ns,
-        });
+        };
+        planned.push(Planned { change, unread });
     }
     for (path, old) in stored {
         let path = Path::new(&path);
@@ -763,10 +777,14 @@ fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<
             summary.unchanged += 1;
         } else {
             summary.removed += 1;
-            changes.push(Change::Remove(old.id));
+            let change = Change::Remove(old.id);
+            planned.push(Planned {
+                change,
+                unread: None,
+            });
         }
     }
-    (changes, summary)
+    (planned, summary)
 }
 
 #[cfg(test)]

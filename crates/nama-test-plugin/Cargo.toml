@@ -25,6 +25,9 @@ empty-points = []
 # Builds the Plugin naming the Automation Extension Point and requesting the Store and Library
 # Permissions; its tick calls the Kernel's functions.
 automation = []
+# Builds the Plugin naming the Recogniser Extension Point and exporting `recognise_file`, which
+# reads `<Show> - <n>.<ext>`, or `<Show> (<year>) - <n>.<ext>`, as that Show's Season 1, Episode n.
+recogniser = []
 
 [dependencies]
 nama-pdk = { version = "0.2.0", path = "../nama-pdk" }

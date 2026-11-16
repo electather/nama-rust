@@ -44,7 +44,8 @@ mod exports {
     // settings, a `handle` and a `token`, and its logo. With the `unexported-connector` feature it
     // names a Connector it doesn't export, with `contract-0-1` it wants Plugin contract 0.1, with
     // `empty-points` it names no Extension Points, with `automation` it ticks every minute and
-    // requests the Store and Library Permissions, and with `panic` it panics instead.
+    // requests the Store and Library Permissions, with `recogniser` it recognises files, and with
+    // `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -115,6 +116,11 @@ mod exports {
                 nama_pdk::Permission::PERMISSION_READ_LIBRARIES.into(),
             ],
             tick_every_seconds: 60,
+            ..manifest
+        };
+        #[cfg(feature = "recogniser")]
+        let manifest = Manifest {
+            points: [manifest.points, vec![nama_pdk::point(services::RECOGNISER)]].concat(),
             ..manifest
         };
         #[cfg(feature = "contract-0-1")]
@@ -314,4 +320,47 @@ mod exports {
 
     #[cfg(feature = "automation")]
     nama_pdk::automation!(TestAutomation);
+
+    /// A Recogniser reading `<Show> - <n>.<ext>` as Episode n of the Show's Season 1, numbered
+    /// from the start of the Show as anime often is. A `(<year>)` ending the Show's name is the
+    /// year it first aired. It can't tell anything else.
+    #[cfg(feature = "recogniser")]
+    struct TestRecogniser;
+
+    #[cfg(feature = "recogniser")]
+    impl nama_pdk::Recogniser for TestRecogniser {
+        fn recognise_file(
+            file: nama_pdk::FileToRecognise,
+        ) -> Result<nama_pdk::FileRecognised, Error> {
+            let name = file.path.rsplit('/').next().unwrap_or_default();
+            let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
+            let Some((show, number)) = stem.rsplit_once(" - ") else {
+                return Ok(nama_pdk::FileRecognised::default());
+            };
+            let Ok(episode) = number.trim().parse() else {
+                return Ok(nama_pdk::FileRecognised::default());
+            };
+            let (show_title, show_year) = match show.trim_end().strip_suffix(')') {
+                Some(rest) => match rest.rsplit_once(" (") {
+                    Some((title, year)) => (title, year.parse().ok()),
+                    None => (show, None),
+                },
+                None => (show, None),
+            };
+            let episodes = nama_pdk::RecognisedEpisodes {
+                show_title: show_title.to_owned(),
+                show_year,
+                season: 1,
+                episodes: vec![episode],
+                ..nama_pdk::RecognisedEpisodes::default()
+            };
+            Ok(nama_pdk::FileRecognised {
+                recognised: Some(episodes.into()),
+                ..nama_pdk::FileRecognised::default()
+            })
+        }
+    }
+
+    #[cfg(feature = "recogniser")]
+    nama_pdk::recogniser!(TestRecogniser, [recognise_file]);
 }

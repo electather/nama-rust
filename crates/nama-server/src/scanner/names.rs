@@ -24,7 +24,7 @@ use regex::Regex;
 use crate::{library::contents::Item, library::libraries::Kind};
 
 /// The most Episodes one file can hold, so a typo like `S01E01-E900` isn't 900 Episodes.
-const MAX_EPISODES_PER_FILE: i64 = 20;
+pub(super) const MAX_EPISODES_PER_FILE: i64 = 20;
 
 /// An ID Hint in any bracket, as Plex (`{tmdb-123}`), Jellyfin (`[tvdbid-123]`), Sonarr and
 /// Radarr write them, `{namespace-value}` in any namespace, or a bare IMDb id.
