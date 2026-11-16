@@ -18,7 +18,8 @@ pub enum RefusalReason {
     REFUSAL_REASON_WRONG_NAME_OR_PASSWORD = 3i32,
     /// `unauthenticated`: the password given isn't the User's.
     REFUSAL_REASON_WRONG_PASSWORD = 4i32,
-    /// `unauthenticated`: the calling Device was signed out before its change was made.
+    /// `unauthenticated`: the calling Device was signed out before its change was made, or the
+    /// Device that approved a polled Sign-in Code was signed out or expired before the poll.
     REFUSAL_REASON_SIGNED_OUT = 5i32,
     /// `resource_exhausted`: too many attempts failed lately. Params: `retryAfterSeconds`, also sent
     /// as the `Retry-After` header.
@@ -35,7 +36,8 @@ pub enum RefusalReason {
     REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS = 11i32,
     /// `not_found`: no sign-in is waiting on the handle.
     REFUSAL_REASON_HANDLE_NOT_FOUND = 12i32,
-    /// `not_found`: no User has the ID, or none the caller may see.
+    /// `not_found`: no User has the ID, or none the caller may see, or the User who approved a polled
+    /// Sign-in Code was deleted before the poll.
     REFUSAL_REASON_USER_NOT_FOUND = 13i32,
     /// `already_exists`: another User already has the name, ignoring case.
     REFUSAL_REASON_USER_NAME_TAKEN = 14i32,
