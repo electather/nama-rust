@@ -68,6 +68,14 @@ service LibraryService {
   rpc ListTitleSources(ListTitleSourcesRequest) returns (ListTitleSourcesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Lists the Posters and Backdrops the enabled title sources' artwork lists have for a Movie or
+  // Show, best first, for an admin to pick one as its Custom Image: `PUT` to the image's
+  // `/custom-images/` path with `?artwork=` and the URL given here, and the Server downloads it
+  // through its title source. The lists are asked each call and never stored. Empty for a title
+  // no source lists artwork for. Fails with `invalid_argument` if the kind or id is missing.
+  rpc ListArtwork(ListArtworkRequest) returns (ListArtworkResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // The kind of media a Library holds. A Library holds exactly one kind.
@@ -315,6 +323,20 @@ message ListTitleSourcesRequest {}
 
 message ListTitleSourcesResponse {
   repeated TitleSource title_sources = 1;
+}
+
+message ListArtworkRequest {
+  // Whether the title is a Movie or a Show.
+  TitleKind kind = 1;
+  // The title's id, as Browse gave it.
+  ExternalId id = 2;
+}
+
+message ListArtworkResponse {
+  // The URLs on this Server of the Posters to pick from, best first.
+  repeated string poster_urls = 1;
+  // The URLs on this Server of the Backdrops to pick from, best first.
+  repeated string backdrop_urls = 2;
 }
 
 // An enabled title source, a Plugin that searches and describes titles.

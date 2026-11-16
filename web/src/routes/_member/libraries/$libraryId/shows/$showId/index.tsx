@@ -97,7 +97,7 @@ function Show() {
       <div className="mt-6 -ms-4 flex max-w-3xl flex-wrap gap-2 empty:hidden">
         <EditImages
           title={data.show.title}
-          images={showImages(
+          {...showImages(
             show.showId,
             data.show,
             data.seasons.find(({ number }) => number === seasonNumber),

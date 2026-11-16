@@ -29,11 +29,16 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use nama_plugin_api::{PluginId, metadata::ExternalIds};
+use nama_plugin_api::{
+    PluginId,
+    metadata::{ExternalId, ExternalIds},
+};
 use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
 
 use crate::{
-    images::{Asked, ImageStore, KEPT_ARTWORK_DIR, OFFERED_ARTWORK_DIR, Resize, file_name},
+    images::{
+        Asked, ImageStore, KEPT_ARTWORK_DIR, OFFERED_ARTWORK_DIR, Resize, file_name, percent_decode,
+    },
     library::contents::{Contents, ImageRef},
     library::title_source::{self, ArtworkKind, Source, TitleKind, TitleSources},
     plugins::ExtensionPoints,
@@ -67,6 +72,14 @@ pub(crate) struct Picked {
     pub(crate) backdrop: Option<ImageRef>,
     /// Its Title Logo.
     pub(crate) logo: Option<ImageRef>,
+}
+
+/// The Posters and Backdrops [`Artwork::listed`] offers for a title, each best first, at the URLs
+/// clients fetch them at.
+#[derive(Debug)]
+pub(crate) struct Listed {
+    pub(crate) posters: Vec<String>,
+    pub(crate) backdrops: Vec<String>,
 }
 
 /// Stored images, fetched from title sources on first use.
@@ -151,6 +164,41 @@ impl Artwork {
         ids: &ExternalIds,
     ) -> Picked {
         pick(&sources.artwork_lists(kind, ids).await, LANGUAGE)
+    }
+
+    /// The Posters and Backdrops every enabled source's artwork list has for the title of `kind`
+    /// with the id `id`, ranked as [`pick`] ranks them, each offered. Asked anew each call.
+    pub(crate) async fn listed(&self, kind: TitleKind, id: &ExternalId) -> Listed {
+        let lists = self
+            .metadata
+            .artwork_lists(kind, &ExternalIds::from_iter([id.clone()]))
+            .await;
+        let offered = |of_kind| {
+            (ranked(&lists, of_kind, LANGUAGE).into_iter())
+                .map(|(_, source, art)| self.offer(&source.plugin, &art.path))
+                .collect()
+        };
+        Listed {
+            posters: offered(ArtworkKind::Poster),
+            backdrops: offered(ArtworkKind::Backdrop),
+        }
+    }
+
+    /// The bytes of the image at `url`, which must be one [`Self::offer`] gave, fetched through
+    /// the title source that listed it: never from an address a client names.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::NotFound`] if `url` isn't an offered image or the source no longer has it, and
+    /// [`Error::Unavailable`] if the source can't be reached.
+    pub(super) async fn offered_bytes(&self, url: &str) -> Result<Vec<u8>, Error> {
+        let (plugin, path) = url
+            .strip_prefix("/media/artwork/")
+            .and_then(|rest| rest.split_once('/'))
+            .and_then(|(plugin, path)| Some((percent_decode(plugin)?, percent_decode(path)?)))
+            .filter(|(plugin, path)| self.was_offered(plugin, path))
+            .ok_or(Error::NotFound)?;
+        Ok(self.fetch(&PluginId::from(plugin), &path).await?.bytes)
     }
 
     fn was_offered(&self, plugin: &str, path: &str) -> bool {
@@ -249,8 +297,15 @@ impl Artwork {
                 return Ok(sweeping);
             }
         }
-        let image = self
-            .metadata
+        let image = self.fetch(plugin, path).await?;
+        let sweeping = self.sweeping.read().await;
+        self.store.write(&key, &image.bytes).await?;
+        Ok(sweeping)
+    }
+
+    /// The image at `path` from `plugin`'s title source, which handed the path out.
+    async fn fetch(&self, plugin: &PluginId, path: &str) -> Result<title_source::Image, Error> {
+        self.metadata
             .image(plugin, path)
             .await
             .map_err(|err| match err {
@@ -258,10 +313,7 @@ impl Artwork {
                 title_source::Unanswered::Unavailable => Error::Unavailable(format!(
                     "{plugin} isn't enabled, doesn't provide metadata, or failed"
                 )),
-            })?;
-        let sweeping = self.sweeping.read().await;
-        self.store.write(&key, &image.bytes).await?;
-        Ok(sweeping)
+            })
     }
 
     /// The image at `path` from `plugin`'s title source as the answer to `request`, stored first if
@@ -285,11 +337,32 @@ impl Artwork {
 /// An image of an artwork list, with its source and that source's place in the order.
 type Ranked<'a> = (usize, &'a Source, &'a title_source::Artwork);
 
-/// The best image of each kind in `lists`, which come in the sources' order. Images rank by their
-/// language: `language` first, then none, then any other, except Backdrops, which rank none
+/// The best image of each kind in `lists`, which come in the sources' order, as [`ranked`] ranks
+/// them.
+fn pick(lists: &[(Source, Vec<title_source::Artwork>)], language: &str) -> Picked {
+    let best = |kind| {
+        let (_, source, art) = ranked(lists, kind, language).into_iter().next()?;
+        Some(ImageRef {
+            plugin: source.plugin.clone(),
+            path: art.path.clone(),
+        })
+    };
+    Picked {
+        poster: best(ArtworkKind::Poster),
+        backdrop: best(ArtworkKind::Backdrop),
+        logo: best(ArtworkKind::Logo),
+    }
+}
+
+/// The images of `kind` in `lists`, which come in the sources' order, best first. Images rank by
+/// their language: `language` first, then none, then any other, except Backdrops, which rank none
 /// first, then `language`; then by their source's place in the order; then by higher rating,
 /// then more votes; then by their place in their source's list.
-fn pick(lists: &[(Source, Vec<title_source::Artwork>)], language: &str) -> Picked {
+fn ranked<'a>(
+    lists: &'a [(Source, Vec<title_source::Artwork>)],
+    kind: ArtworkKind,
+    language: &str,
+) -> Vec<Ranked<'a>> {
     // A Backdrop sits behind the app's own text, and title sources mark textless art by giving
     // it no language.
     let language_rank = |art: &title_source::Artwork| {
@@ -309,27 +382,18 @@ fn pick(lists: &[(Source, Vec<title_source::Artwork>)], language: &str) -> Picke
             .then(rating(b).total_cmp(&rating(a)))
             .then(b.votes.unwrap_or(0).cmp(&a.votes.unwrap_or(0)))
     };
-    let best = |kind: ArtworkKind| {
-        let of_kind = lists
-            .iter()
-            .enumerate()
-            .flat_map(|(place, (source, list))| {
-                list.iter()
-                    .filter(move |art| art.kind == kind)
-                    .map(move |art| (place, source, art))
-            });
-        // `min_by` keeps the first of equals, which is the earlier in its source's list.
-        let (_, source, art) = of_kind.min_by(rank)?;
-        Some(ImageRef {
-            plugin: source.plugin.clone(),
-            path: art.path.clone(),
+    let mut of_kind: Vec<Ranked<'a>> = lists
+        .iter()
+        .enumerate()
+        .flat_map(|(place, (source, list))| {
+            list.iter()
+                .filter(move |art| art.kind == kind)
+                .map(move |art| (place, source, art))
         })
-    };
-    Picked {
-        poster: best(ArtworkKind::Poster),
-        backdrop: best(ArtworkKind::Backdrop),
-        logo: best(ArtworkKind::Logo),
-    }
+        .collect();
+    // A stable sort keeps equals in their source's list order.
+    of_kind.sort_by(rank);
+    of_kind
 }
 
 /// Where the store keeps `plugin`'s image at `path` in `dir`. Under [`KEPT_DIR`] it is where images

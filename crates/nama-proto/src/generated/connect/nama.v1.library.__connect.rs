@@ -70,6 +70,14 @@ pub type OwnedListTitleSourcesRequestView = ::buffa::view::OwnedView<
 pub type OwnedListTitleSourcesResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListTitleSourcesResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListArtworkRequestView<'static>>`.
+pub type OwnedListArtworkRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListArtworkRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListArtworkResponseView<'static>>`.
+pub type OwnedListArtworkResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListArtworkResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateLibraryResponse>
 for crate::messages::nama::v1::__buffa::view::CreateLibraryResponseView<'_> {
     fn encode(
@@ -376,6 +384,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListArtworkResponse>
+for crate::messages::nama::v1::__buffa::view::ListArtworkResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListArtworkResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListArtworkResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const LIBRARY_SERVICE_SERVICE_NAME: &str = "nama.v1.LibraryService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateLibrary` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -429,6 +471,12 @@ pub const LIBRARY_SERVICE_DELETE_MEDIA_SPEC: ::connectrpc::Spec = ::connectrpc::
 /// Static [`Spec`](::connectrpc::Spec) for the `ListTitleSources` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const LIBRARY_SERVICE_LIST_TITLE_SOURCES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.LibraryService/ListTitleSources",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListArtwork` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LIBRARY_SERVICE_LIST_ARTWORK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.LibraryService/ListArtwork",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
@@ -717,6 +765,33 @@ pub trait LibraryService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::ListTitleSourcesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists the Posters and Backdrops the enabled title sources' artwork lists have for a Movie or
+    /// Show, best first, for an admin to pick one as its Custom Image: `PUT` to the image's
+    /// `/custom-images/` path with `?artwork=` and the URL given here, and the Server downloads it
+    /// through its title source. The lists are asked each call and never stored. Empty for a title
+    /// no source lists artwork for. Fails with `invalid_argument` if the kind or id is missing.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_artwork<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListArtworkRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListArtworkResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1013,6 +1088,35 @@ impl<S: LibraryService> LibraryServiceExt for S {
                 },
             )
             .with_spec(LIBRARY_SERVICE_LIST_TITLE_SOURCES_SPEC)
+            .route_view_idempotent(
+                LIBRARY_SERVICE_SERVICE_NAME,
+                "ListArtwork",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListArtworkRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListArtworkRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_artwork(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListArtworkResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LIBRARY_SERVICE_LIST_ARTWORK_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1119,6 +1223,12 @@ impl<T: LibraryService> ::connectrpc::Dispatcher for LibraryServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
                         .with_spec(LIBRARY_SERVICE_LIST_TITLE_SOURCES_SPEC),
+                )
+            }
+            "ListArtwork" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LIBRARY_SERVICE_LIST_ARTWORK_SPEC),
                 )
             }
             _ => None,
@@ -1326,6 +1436,26 @@ impl<T: LibraryService> ::connectrpc::Dispatcher for LibraryServiceServer<T> {
                         .encode::<
                             crate::messages::nama::v1::ListTitleSourcesResponse,
                         >(format)
+                })
+            }
+            "ListArtwork" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListArtworkRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListArtworkRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListArtworkRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_artwork(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::ListArtworkResponse>(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -1851,6 +1981,51 @@ where
                 &self.transport,
                 &self.config,
                 LIBRARY_SERVICE_LIST_TITLE_SOURCES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListArtwork RPC. Sends a request to /nama.v1.LibraryService/ListArtwork.
+    pub async fn list_artwork(
+        &self,
+        request: crate::messages::nama::v1::ListArtworkRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListArtworkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_artwork_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListArtwork RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_artwork_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListArtworkRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListArtworkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LIBRARY_SERVICE_LIST_ARTWORK_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

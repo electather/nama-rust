@@ -2,6 +2,7 @@ import { type QueryKey, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
 import { type ChangeEvent, useState } from "react";
 
+import { ArtworkChoices, type Choices } from "@/components/artwork-choices";
 import { Button, buttonVariants } from "@/components/ui/button";
 
 /** The most bytes the Server takes for an image: 20 MiB. */
@@ -18,12 +19,13 @@ export interface ImageRules {
 }
 
 /**
- * Upload and, for a Custom Image, Remove, for the image `image` names, and why the Server refused
- * either.
+ * Upload, a pick of `choices` if there are any, and, for a Custom Image, Remove, for the image
+ * `image` names, and why the Server refused any of them.
  */
 export function ChangeImage({
   image,
   rules,
+  choices,
 }: {
   image: {
     /** What it is, such as "Poster". */
@@ -34,8 +36,9 @@ export function ChangeImage({
     path: string;
   };
   rules: ImageRules;
+  choices?: Choices | undefined;
 }) {
-  const { upload, change, pending, error } = useChangeImage(image.path, rules);
+  const { upload, pick, change, pending, error } = useChangeImage(image.path, rules);
   return (
     <>
       <div className="mt-2 -ms-3 flex flex-wrap">
@@ -51,6 +54,9 @@ export function ChangeImage({
           </Button>
         )}
       </div>
+      {choices && (
+        <ArtworkChoices name={image.name} choices={choices} pending={pending} onPicked={pick} />
+      )}
       {error !== undefined && (
         <p role="alert" className="text-sm text-pretty text-destructive">
           {error}
@@ -108,11 +114,11 @@ function useChangeImage(path: string, { refusals, queryKey }: ImageRules) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
 
-  async function change(init: RequestInit) {
+  async function change(init: RequestInit, url = path) {
     setPending(true);
     setError(undefined);
     try {
-      const response = await fetch(path, init);
+      const response = await fetch(url, init);
       if (response.ok) {
         // The page reads its images from those queries, which now send the new URL.
         await queryClient.invalidateQueries({ queryKey });
@@ -132,5 +138,10 @@ function useChangeImage(path: string, { refusals, queryKey }: ImageRules) {
     else void change({ method: "PUT", body: file });
   }
 
-  return { upload, change, pending, error };
+  function pick(artwork: string) {
+    // The Server downloads it through its title source, so the request carries no body.
+    void change({ method: "PUT" }, `${path}?${new URLSearchParams({ artwork }).toString()}`);
+  }
+
+  return { upload, pick, change, pending, error };
 }

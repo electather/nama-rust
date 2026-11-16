@@ -219,7 +219,7 @@ What a title source has for one title, of every kind, from which Artwork picks a
 _Avoid_: image list, artwork set, gallery
 
 **Custom Image**:
-An image an admin uploaded to show in place of the one the Server would otherwise show, such as a Movie's Poster or a Plugin's logo. Everyone sees it until it is removed, which brings the other back. A title's stays with the title, whatever happens to its files.
+An image an admin uploaded, or picked from a title source's artwork list, to show in place of the one the Server would otherwise show, such as a Movie's Poster or a Plugin's logo. Everyone sees it until it is removed, which brings the other back. A title's stays with the title, whatever happens to its files.
 _Avoid_: override, variant, replacement
 
 **Match**:

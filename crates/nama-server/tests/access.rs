@@ -31,13 +31,14 @@ const DELETE_MEDIA: [&str; 2] = [
 ];
 
 /// Every RPC that manages Libraries or Matches, which needs `PERMISSION_MANAGE_LIBRARIES`.
-const MANAGE_LIBRARIES: [&str; 10] = [
+const MANAGE_LIBRARIES: [&str; 11] = [
     "/nama.v1.LibraryService/CreateLibrary",
     "/nama.v1.LibraryService/GetLibrary",
     "/nama.v1.LibraryService/UpdateLibrary",
     "/nama.v1.LibraryService/DeleteLibrary",
     "/nama.v1.LibraryService/ScanLibrary",
     "/nama.v1.LibraryService/ListTitleSources",
+    "/nama.v1.LibraryService/ListArtwork",
     "/nama.v1.MatchService/SearchTitles",
     "/nama.v1.MatchService/SetMatch",
     "/nama.v1.MatchService/ClearMatch",

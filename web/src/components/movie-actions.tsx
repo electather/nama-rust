@@ -41,7 +41,7 @@ export function MovieActions({
           setPlayed({ libraryId, target: { case: "movieId", value: movieId }, played });
         }}
       />
-      <EditImages title={movie.title} images={movieImages(movieId, movie)} />
+      <EditImages title={movie.title} {...movieImages(movieId, movie)} />
       {may(signedIn.user, Permission.DELETE_MEDIA) &&
         (readOnlyFolder === undefined ? (
           <DeleteMedia

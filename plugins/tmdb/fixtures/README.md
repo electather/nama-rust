@@ -20,10 +20,11 @@ have a Season still airing.
 `tv-900001.json` and its Season are made up: a Show with neither a TVDB nor an IMDb id, so tests
 have a Show a Fulfiller needing one cannot take.
 
-The images lists depart from TMDB on purpose: each is built so the artwork pick rule (English,
-then textless, then other languages, but textless first for backdrops; then rating) takes the
-title's own `poster_path` and `backdrop_path`, since those are the only images whose bytes are
-here. Heat has no logos. `wire_tests.rs` checks this; the picked logos' bytes are 1x1 PNGs.
+The images lists depart from TMDB on purpose: each is built so the artwork pick rule (English, then
+textless, then other languages, but textless first for backdrops; then rating) takes the title's
+own `poster_path` and `backdrop_path`, since those are the only images whose bytes are here,
+besides Alien's second English poster, which tests pick as a Custom Image. Heat has no logos.
+`wire_tests.rs` checks this; the picked logos' bytes are 1x1 PNGs.
 
 `movie-949.json` has no US release, so tests have a title with no rating in the Language
 setting's country.

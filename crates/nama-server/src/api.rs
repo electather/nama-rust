@@ -149,7 +149,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(RequestServiceHandler {
             requests,
-            artwork,
+            artwork: artwork.clone(),
             images: images.clone(),
         }))
         .add_service(Arc::new(PluginServiceHandler {
@@ -181,7 +181,7 @@ pub(crate) fn router(
         }))
         .into_axum_router()
         .merge(artwork_router)
-        .merge(custom_images_router(custom_images, image_settings))
+        .merge(custom_images_router(custom_images, artwork, image_settings))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
         .layer(middleware::from_fn(require_access))
@@ -257,6 +257,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::LIBRARY_SERVICE_PREVIEW_DELETE_MEDIA_SPEC.procedure,  DELETE_MEDIA),
     (proto::LIBRARY_SERVICE_DELETE_MEDIA_SPEC.procedure,          DELETE_MEDIA),
     (proto::LIBRARY_SERVICE_LIST_TITLE_SOURCES_SPEC.procedure,    MANAGE_LIBRARIES),
+    (proto::LIBRARY_SERVICE_LIST_ARTWORK_SPEC.procedure,         MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_SEARCH_TITLES_SPEC.procedure,           MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_SET_MATCH_SPEC.procedure,               MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_CLEAR_MATCH_SPEC.procedure,             MANAGE_LIBRARIES),
