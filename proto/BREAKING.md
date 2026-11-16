@@ -10,7 +10,7 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
-## 2026-11-16, #0
+## 2026-11-16, #833
 
 - `RPC_NO_DELETE`, `nama/v1/match.proto`: `MatchService.SearchMetadata`.
 - `MESSAGE_NO_DELETE`, `nama/v1/match.proto`: `SearchMetadataRequest` and `SearchMetadataResponse`.
@@ -19,7 +19,7 @@ CI counts those headings, so a break passes only with one more than main has: ed
 - The client API says title source, as `GLOSSARY.md` does, in place of metadata provider or source. `MatchService.SearchMetadata` is now `SearchTitles`, taking `SearchTitlesRequest` and answering `SearchTitlesResponse`, with the same fields. `EXTENSION_POINT_METADATA_PROVIDER` is now `EXTENSION_POINT_TITLE_SOURCE` and `REFUSAL_REASON_NO_METADATA_PROVIDER` is now `REFUSAL_REASON_NO_TITLE_SOURCE`, keeping their numbers, 6 and 29.
 - A client built before calls a search path the Server no longer serves. Over JSON, it drops `EXTENSION_POINT_TITLE_SOURCE` from a Plugin's extension points, because it doesn't know the new name. It still reads `REFUSAL_REASON_NO_TITLE_SOURCE` by its number, since refusal details are binary. It must regenerate and call `SearchTitles`. The web app is the only client.
 
-## 2026-11-13, #0
+## 2026-11-13, #833
 
 - `ONEOF_NO_DELETE`, `nama/v1/match.proto`: `ExternalId.id`.
 - Not reported by `buf breaking`: in `nama/v1/request.proto`, `RequestedMovie.tmdb_id` (1), `RequestedSeason.show_tmdb_id` (1), `show_imdb_id` (5) and `show_tvdb_id` (6), `FollowedShow.show_tmdb_id` (2), `CreateRequestRequest.movie_tmdb_id` (1), `CreateSeasonRequestsRequest.show_tmdb_id` (1) and `CreateFollowedShowRequest.show_tmdb_id` (1) are deleted with their numbers and names reserved.
