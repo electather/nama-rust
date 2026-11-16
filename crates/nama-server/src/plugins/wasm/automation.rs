@@ -12,6 +12,8 @@ use nama_plugin_api::{
 use nama_plugin_proto::nama::plugin::v1::{KernelAnswer, kernel_answer};
 use tokio::runtime::Handle;
 
+use super::calls::Calls;
+
 /// What a compiled Plugin's imports reach the Kernel through.
 #[derive(Clone, Default)]
 pub(super) struct Reach {
@@ -20,6 +22,9 @@ pub(super) struct Reach {
     pub(super) kernel: Option<Arc<dyn Kernel>>,
     /// The runtime the async Kernel runs on, captured when compiling.
     pub(super) runtime: Option<Handle>,
+    /// The calls running on the compiled Plugin, whose clock an import pauses while the Kernel
+    /// answers.
+    pub(super) calls: Calls,
 }
 
 /// One Kernel function: its import name and how it answers an encoded request.
@@ -112,6 +117,9 @@ pub(super) fn import(
             (_, _, None) => refused("the Kernel couldn't find the request in the Plugin's memory"),
             (Some(kernel), Some(runtime), Some(request)) => {
                 let request = plugin.memory_bytes(request)?.to_vec();
+                // The call is found by its instance's id rather than through Extism's host
+                // context, since a call made with one skips the check of the export's return code.
+                let _paused = reach.calls.pause(plugin.id().as_u128());
                 (function.answer)(&runtime, kernel.as_ref(), &request)
             }
         };

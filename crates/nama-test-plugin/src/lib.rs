@@ -302,13 +302,17 @@ mod exports {
     }
 
     /// An Automation whose tick keeps a value in its Store, reads it back and lists the
-    /// Libraries, failing with the Kernel's words when it refuses any of them.
+    /// Libraries, failing with the Kernel's words when it refuses any of them. With the
+    /// `looping-tick` feature its tick loops forever instead.
     #[cfg(feature = "automation")]
     struct TestAutomation;
 
     #[cfg(feature = "automation")]
     impl nama_pdk::Automation for TestAutomation {
         fn tick(_tick: nama_pdk::Tick) -> Result<(), Error> {
+            if cfg!(feature = "looping-tick") {
+                loop_forever();
+            }
             nama_pdk::kernel::store_put("ticked", None, b"yes")?;
             let kept = nama_pdk::kernel::store_get("ticked", None)?;
             extism_pdk::info!("test-plugin's Store keeps {kept:?}");

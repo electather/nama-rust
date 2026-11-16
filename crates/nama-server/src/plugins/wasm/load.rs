@@ -2,6 +2,7 @@
 
 use std::{
     fs, io, mem,
+    ops::Deref,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -28,6 +29,7 @@ use super::{
     Installed, Point, Refused,
     automation::{FUNCTIONS, Reach, import},
     bundled::BUNDLED,
+    calls::Calls,
     check_exports, contract, points,
     services::{CHECK_SETTINGS, known_exports},
 };
@@ -35,8 +37,14 @@ use crate::plugins::{contain_sync, kept_logo, registry::personal_settings_refusa
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
 /// How long one call into an Installed Plugin may run, so one that never returns can't hold up
-/// the start, its Observer's task or a settings check.
+/// the start, its Observer's task or a settings check. For an enabled Plugin it counts only the
+/// Plugin's own time, not the Kernel's answering its `nama` imports.
 pub(super) const CALL_TIMEOUT: Duration = Duration::from_secs(5);
+
+// Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
+/// How long a tick may run, of the Plugin's own time: longer than [`CALL_TIMEOUT`], since a tick
+/// may page through every title of a large Library and each title's Watch States.
+pub(super) const TICK_TIMEOUT: Duration = Duration::from_secs(60);
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
 /// How much memory one call into an Installed Plugin may use, in 64 KiB pages: the guest's own and
@@ -130,7 +138,8 @@ pub(super) fn load(wasm: Vec<u8>, cache_config: &Path) -> Result<Installed, Refu
     let (bytes, exported): (_, Vec<&'static str>) = contain_sync(|| {
         let compiled =
             compile(&wasm, cache_config, Vec::new(), Vec::new()).map_err(Refused::Load)?;
-        let mut plugin = extism::Plugin::new_from_compiled(&compiled).map_err(Refused::Manifest)?;
+        let mut plugin =
+            extism::Plugin::new_from_compiled(&compiled.plugin).map_err(Refused::Manifest)?;
         let bytes = plugin
             .call::<(), Vec<u8>>("manifest", ())
             .map_err(Refused::Manifest)?;
@@ -228,34 +237,78 @@ fn manifest(package: &mut wire::Manifest, points: &[&Point]) -> Result<Manifest,
     }
 }
 
-/// [`compile_with_kernel`] for no enablement, so the Kernel's functions answer `refused`.
+/// A compiled Installed Plugin, with the calls running on it.
+pub(super) struct Compiled {
+    pub(super) plugin: CompiledPlugin,
+    /// The calls running on [`Self::plugin`], which its `nama` imports pause the clock of.
+    pub(super) calls: Calls,
+}
+
+impl Deref for Compiled {
+    type Target = CompiledPlugin;
+
+    fn deref(&self) -> &CompiledPlugin {
+        &self.plugin
+    }
+}
+
+/// [`compile_with_kernel`] for no enablement, so the Kernel's functions answer `refused`. Its calls
+/// keep Extism's own [`CALL_TIMEOUT`], which `manifest()` and `check_settings()` run under:
+/// with no Kernel to wait for, all their time is the Plugin's.
 pub(super) fn compile(
     wasm: &[u8],
     cache_config: &Path,
     hosts: Vec<String>,
     config: Vec<(String, String)>,
-) -> Result<CompiledPlugin, extism::Error> {
-    compile_with_kernel(wasm, cache_config, hosts, config, None)
+) -> Result<Compiled, extism::Error> {
+    let calls = Calls::default();
+    let manifest = manifest_for(wasm, hosts, config).with_timeout(CALL_TIMEOUT);
+    let plugin = build(manifest, cache_config, None, calls.clone())?;
+    Ok(Compiled { plugin, calls })
 }
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
 /// Compiles `wasm`, letting it send HTTP requests to `hosts`, read `config`, call [`now`] and call
-/// the Kernel's functions, which reach `kernel` on the runtime this is called on.
+/// the Kernel's functions, which reach `kernel` on the runtime this is called on. Its calls run
+/// in `calls`, which limits each to its method's time, so Extism's own timeout is left off.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is a separate input of the compile, and every caller names them all"
+)]
 pub(super) fn compile_with_kernel(
     wasm: &[u8],
     cache_config: &Path,
     hosts: Vec<String>,
     config: Vec<(String, String)>,
     kernel: Option<Arc<dyn Kernel>>,
-) -> Result<CompiledPlugin, extism::Error> {
-    let manifest = extism::Manifest::new([Wasm::data(wasm.to_vec())])
-        .with_timeout(CALL_TIMEOUT)
+    calls: Calls,
+) -> Result<Compiled, extism::Error> {
+    let manifest = manifest_for(wasm, hosts, config);
+    let plugin = build(manifest, cache_config, kernel, calls.clone())?;
+    Ok(Compiled { plugin, calls })
+}
+
+fn manifest_for(
+    wasm: &[u8],
+    hosts: Vec<String>,
+    config: Vec<(String, String)>,
+) -> extism::Manifest {
+    extism::Manifest::new([Wasm::data(wasm.to_vec())])
         .with_memory_max(MEMORY_MAX_PAGES)
         .with_allowed_hosts(hosts.into_iter())
-        .with_config(config.into_iter());
+        .with_config(config.into_iter())
+}
+
+fn build(
+    manifest: extism::Manifest,
+    cache_config: &Path,
+    kernel: Option<Arc<dyn Kernel>>,
+    calls: Calls,
+) -> Result<CompiledPlugin, extism::Error> {
     let reach = UserData::new(Reach {
         kernel,
         runtime: Handle::try_current().ok(),
+        calls,
     });
     // Every import is defined whether or not the Plugin may call it, so a Plugin importing them
     // still instantiates to read its Manifest or check its settings.

@@ -14,7 +14,6 @@ use std::{
 };
 
 use buffa::{DecodeError, Message};
-use extism::CompiledPlugin;
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, Registrar,
     automation::{Automation, Tick},
@@ -41,6 +40,7 @@ use super::{CheckTimedOut, registry::Make, secret_values, without_secrets};
 
 mod automation;
 mod bundled;
+mod calls;
 mod contract;
 mod listing;
 mod load;
@@ -49,12 +49,16 @@ mod services;
 mod title_source;
 
 #[cfg(test)]
+#[path = "wasm/calls_tests.rs"]
+mod calls_tests;
+#[cfg(test)]
 #[path = "wasm/fulfiller_tests.rs"]
 mod fulfiller_tests;
 
 pub(crate) use listing::read;
 use load::{
-    CALL_TIMEOUT, MEMORY_MAX_PAGES, allowed_hosts, compile, compile_with_kernel, extism_config,
+    CALL_TIMEOUT, Compiled, MEMORY_MAX_PAGES, allowed_hosts, compile, compile_with_kernel,
+    extism_config,
 };
 use services::{
     CHECK_SETTINGS, DELIVER, OBSERVE_EVENTS, POINTS, POLL_CONNECTION, Point, START_CONNECTION, TICK,
@@ -149,12 +153,12 @@ pub(super) struct Installed {
     exports: Arc<BTreeSet<&'static str>>,
 }
 
-/// An enabled Installed Plugin, compiled once with its allowed hosts and settings. Each call into
-/// it gets a fresh instance, so one that traps or times out leaves nothing behind for the next.
+/// An enabled Installed Plugin, compiled with its allowed hosts and settings. Each call into it
+/// gets a fresh instance, so one that traps or times out leaves nothing behind for the next.
 #[derive(Clone)]
 struct Running {
     package: Arc<wire::Manifest>,
-    compiled: Arc<CompiledPlugin>,
+    compiled: Arc<Compiled>,
     /// The values of its secret settings, which the failures it logs mustn't show.
     secrets: Arc<[String]>,
     /// How many calls in a row crashed, counted apart for each of its points' `crash_group`s.
@@ -165,10 +169,21 @@ struct Running {
 }
 
 impl Running {
-    /// Calls the Plugin's export `name` with `input`, a protobuf message, on a fresh instance.
-    /// Blocks while the Plugin runs.
-    fn call(&self, name: &str, input: Vec<u8>) -> Result<Vec<u8>, extism::Error> {
-        extism::Plugin::new_from_compiled(&self.compiled)?.call(name, input)
+    /// Calls the Plugin's export `name` with `input`, a protobuf message, on a fresh instance,
+    /// failing it as a timeout past `limit` of the Plugin's own time. Blocks while the Plugin runs.
+    fn call(&self, name: &str, input: Vec<u8>, limit: Duration) -> Result<Vec<u8>, extism::Error> {
+        let compiled = &self.compiled;
+        compiled.calls.run(&compiled.plugin, name, input, limit)
+    }
+
+    /// Cancels every call running in the Plugin now, at any of its points; each fails as a
+    /// timeout.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "disabling a Plugin will cancel its running calls")
+    )]
+    pub(super) fn cancel_calls(&self) {
+        self.compiled.calls.cancel_all();
     }
 
     /// [`Self::call`] on a blocking thread. A panic there unwinds here, so the registry disables
@@ -177,9 +192,10 @@ impl Running {
         &self,
         name: &'static str,
         input: Vec<u8>,
+        limit: Duration,
     ) -> Result<Result<Vec<u8>, extism::Error>, task::JoinError> {
         let plugin = self.clone();
-        match task::spawn_blocking(move || plugin.call(name, input)).await {
+        match task::spawn_blocking(move || plugin.call(name, input, limit)).await {
             Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
             called => called,
         }
@@ -188,8 +204,13 @@ impl Running {
     /// [`Self::call_blocking`] for a Provider, whose caller gets why it failed, to log or show
     /// such as a Request's reason for being Failed: in the Plugin's own words, or that it crashed.
     /// Counts its crashes as [`Self::count_crash`] does.
-    async fn provide(&self, name: &'static str, input: Vec<u8>) -> Result<Vec<u8>, PluginError> {
-        let err = match self.call_blocking(name, input).await? {
+    async fn provide(
+        &self,
+        name: &'static str,
+        input: Vec<u8>,
+        limit: Duration,
+    ) -> Result<Vec<u8>, PluginError> {
+        let err = match self.call_blocking(name, input, limit).await? {
             Ok(output) => {
                 self.crashes.store(0, Ordering::Relaxed);
                 return Ok(output);
@@ -197,7 +218,7 @@ impl Running {
             Err(err) => err,
         };
         let cause = if is_timeout(&err) {
-            format!("it didn't answer within {CALL_TIMEOUT:?}")
+            format!("it didn't answer within {limit:?}")
         } else {
             failure_cause(&err)
         };
@@ -240,7 +261,7 @@ fn is_crash(err: &extism::Error) -> bool {
             .is_some_and(wasmtime::Error::is::<wasmtime::Trap>)
 }
 
-/// Whether a failed call ran past [`CALL_TIMEOUT`].
+/// Whether a failed call ran past its limit or was cancelled.
 fn is_timeout(err: &extism::Error) -> bool {
     // Extism (1.41) gives a timeout as a bare "timeout".
     err.to_string() == "timeout"
@@ -295,35 +316,52 @@ impl Plugin for Installed {
         let schema = &self.manifest.settings;
         let hosts = allowed_hosts(&self.package, schema, settings);
         let config = extism_config(schema, settings);
-        let compiled = compile_with_kernel(
-            &self.wasm,
-            &self.cache_config,
-            hosts,
-            config,
-            registrar.kernel(),
-        )
-        .map_err(|err| format!("could not compile it with its settings: {err:#}"))?;
-        let running = Running {
-            package: Arc::clone(&self.package),
-            compiled: Arc::new(compiled),
-            secrets: secret_values(schema, settings).into(),
-            crashes: Arc::default(),
-            exports: Arc::clone(&self.exports),
+        let kernel = registrar.kernel();
+        let calls = calls::Calls::default();
+        let compile = || {
+            let (hosts, config, kernel) = (hosts.clone(), config.clone(), kernel.clone());
+            compile_with_kernel(
+                &self.wasm,
+                &self.cache_config,
+                hosts,
+                config,
+                kernel,
+                calls.clone(),
+            )
+            .map(Arc::new)
+            .map_err(|err| format!("could not compile it with its settings: {err:#}"))
         };
+        let secrets: Arc<[String]> = secret_values(schema, settings).into();
         // The Kernel refuses a Plugin registering at a point its Manifest doesn't name, so read
         // them from the same list the Kernel checks.
         let declared = &self.manifest.extension_points;
         let mut crash_groups = BTreeMap::<_, Arc<AtomicU32>>::new();
+        // Extism ends a call, at its limit or cancelled, by bumping the epoch of the engine it
+        // runs on, which interrupts every call running on that engine, and each compile has one.
+        // So a point whose calls may run long gets a compile of its own: a tick ended at its limit
+        // doesn't end a delivery running beside it, nor a delivery's timeout the tick. The other
+        // points share one, as their calls are short.
+        let mut shared = None;
         for point in POINTS
             .iter()
             .filter(|point| declared.contains(&(point.key)()))
         {
+            let compiled = if point.runs_long() {
+                compile()?
+            } else if let Some(shared) = &shared {
+                Arc::clone(shared)
+            } else {
+                Arc::clone(shared.insert(compile()?))
+            };
             let crashes = Arc::clone(crash_groups.entry(point.crash_group).or_default());
             (point.register)(
                 registrar,
                 Running {
+                    package: Arc::clone(&self.package),
+                    compiled,
+                    secrets: Arc::clone(&secrets),
                     crashes,
-                    ..running.clone()
+                    exports: Arc::clone(&self.exports),
                 },
             );
         }
@@ -543,7 +581,7 @@ impl SettingsCheck for Installed {
             // URL settings are allowed for it and gone once it returns.
             let called = task::spawn_blocking(move || {
                 let compiled = compile(&wasm, &cache_config, hosts, config)?;
-                extism::Plugin::new_from_compiled(&compiled)?
+                extism::Plugin::new_from_compiled(&compiled.plugin)?
                     .call::<(), Vec<u8>>(CHECK_SETTINGS, ())
             })
             .await;

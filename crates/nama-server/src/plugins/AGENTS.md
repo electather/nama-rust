@@ -7,6 +7,7 @@ The Registry, how the Kernel calls Plugins at Extension Points, and the Built-in
 - **An Automation ticks at enable, then every `tick_every`** (`tick.rs`), in its Plugin's scope, so an Admin sees it act at once and disabling ends the loop.
 - **The Kernel can't tell a Built-in from an Installed Plugin.** An Installed Plugin runs through Extism behind the same `Plugin` trait (`wasm.rs`); only listing and saving a crash tell the two kinds apart.
 - **Private modules.** The area's files are private modules; neighbours import only what `plugins.rs` re-exports, and items inside default to `pub(super)`. `wasm.rs` and `wasm/` hold everything Extism.
+- **Each method has its own time limit.** Its row in `wasm/services.rs` carries it (`CALL_TIMEOUT`, or `TICK_TIMEOUT` for a tick), and the watchdog in `wasm/calls.rs` counts only the Plugin's own time against it: a `nama` import pauses the call's clock while the Kernel answers.
 - **The Kernel's functions are table rows.** Each `nama` import an Installed Plugin calls is one row of `FUNCTIONS` in `wasm/automation.rs`, which only decodes, calls `nama_plugin_api::automation::Kernel` and encodes. Whether the Plugin may call it, its Permission check, is the `automation` area's, not this one's.
 - **What the Kernel gives an Installed Plugin is contract.** The limits on a call, the `nama` functions and how settings and HTTP reach it (`wasm/load.rs`) follow `crates/nama-plugin-proto/AGENTS.md`.
 

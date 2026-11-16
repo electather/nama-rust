@@ -1,7 +1,10 @@
 //! The adapter between the Kernel's Extension Points and the Plugin contract's services: one row
 //! per service method, which the calls into an Installed Plugin and the checks at load both read.
 
-use std::sync::{Arc, atomic::Ordering};
+use std::{
+    sync::{Arc, atomic::Ordering},
+    time::Duration,
+};
 
 use buffa::Message;
 use nama_plugin_api::{
@@ -17,7 +20,10 @@ use nama_plugin_api::{
 use nama_plugin_proto::services;
 use tracing::warn;
 
-use super::{Running, failure_cause};
+use super::{
+    Running, failure_cause,
+    load::{CALL_TIMEOUT, TICK_TIMEOUT},
+};
 use crate::plugins::without_secrets;
 
 /// The export that checks a Plugin's settings, if it has one. No service's: a Plugin of any has it.
@@ -46,6 +52,9 @@ pub(super) struct Method {
     /// Whether a Plugin naming the service may lack the export: the Kernel then doesn't ask it.
     pub(super) optional: bool,
     pub(super) failure: Failure,
+    /// How long one call of it may run, of the Plugin's own time; past it the call fails as a
+    /// timeout, and counts as a crash.
+    pub(super) limit: Duration,
 }
 
 /// One Extension Point an Installed Plugin can take part at: a contract service and its methods.
@@ -65,6 +74,13 @@ impl Point {
     pub(super) fn required(&self) -> impl Iterator<Item = &'static Method> {
         self.methods.iter().filter(|method| !method.optional)
     }
+
+    /// Whether a call of one of its methods may run longer than [`CALL_TIMEOUT`].
+    pub(super) fn runs_long(&self) -> bool {
+        self.methods
+            .iter()
+            .any(|method| method.limit > CALL_TIMEOUT)
+    }
 }
 
 const fn provider(service: &'static str, name: &'static str, export: &'static str) -> Method {
@@ -74,6 +90,7 @@ const fn provider(service: &'static str, name: &'static str, export: &'static st
         export,
         optional: false,
         failure: Failure::Provider,
+        limit: CALL_TIMEOUT,
     }
 }
 
@@ -125,6 +142,7 @@ pub(super) const RECOGNISE_FILE: Method =
     optional(services::RECOGNISER, "RecogniseFile", "recognise_file");
 pub(super) const TICK: Method = Method {
     failure: Failure::Observer,
+    limit: TICK_TIMEOUT,
     ..provider(services::AUTOMATION, "Tick", "tick")
 };
 
@@ -240,8 +258,9 @@ impl Running {
     ) -> Result<Resp, PluginError> {
         let input = request.encode_to_vec();
         let output = match method.failure {
-            Failure::Provider => self.provide(method.export, input).await?,
-            Failure::Observer => match self.call_blocking(method.export, input).await {
+            Failure::Provider => self.provide(method.export, input, method.limit).await?,
+            Failure::Observer => match self.call_blocking(method.export, input, method.limit).await
+            {
                 Ok(Ok(output)) => {
                     self.crashes.store(0, Ordering::Relaxed);
                     output
