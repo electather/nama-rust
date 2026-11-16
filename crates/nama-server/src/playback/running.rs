@@ -30,33 +30,33 @@
 //! Deleting a Version ends its plans first and cuts off each response serving its file
 //! ([`RunningPlans::end_for_deleting`]): a file open for reading can still be read once it's
 //! deleted.
+//!
+//! [`SEGMENT_MS`]: timeline::SEGMENT_MS
+
+mod run;
+mod serving;
+mod sweeping;
+mod timeline;
 
 use std::{
     collections::HashMap,
-    fmt::{self, Write as _},
-    io,
-    ops::Range,
-    path::{Path, PathBuf},
-    process::Output,
+    fmt, io,
+    path::Path,
     sync::{
-        Arc, Mutex, PoisonError, Weak,
+        Arc, Mutex, PoisonError,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
 
-use axum::{
-    Router,
-    extract::{Path as UrlPath, Request, State},
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
-    routing::get,
-};
-use nama_proto::nama::v1::{
-    Playback, PlaybackChanged, PlaybackEnded, PlaybackReason, PlaybackStarted,
-};
-use tokio::{process::Child, task::JoinHandle};
+use nama_proto::nama::v1::{Playback, PlaybackEnded, PlaybackStarted};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
+
+use run::{FallbackRun, Run, Running, Runs};
+pub(crate) use serving::router;
+pub(crate) use sweeping::sweep_leftovers;
+use sweeping::tidy_plans;
+use timeline::Timeline;
 
 use super::{
     Method, Playing, StartedPlan, direct_play_url, method_to_proto,
@@ -66,7 +66,7 @@ use super::{
 };
 use crate::{
     events::{EventBus, event},
-    ffmpeg::{Ffmpeg, FromCut, Keyframe, Remux, Transcode, hls_init, hls_init_from},
+    ffmpeg::{Ffmpeg, FromCut, Keyframe, Remux, Transcode},
     library::contents::Contents,
     server_settings::PlaybackSettings,
     users::Caller,
@@ -74,9 +74,6 @@ use crate::{
 
 const PLAYLIST: &str = "index.m3u8";
 const INIT: &str = "init.mp4";
-
-/// How long segments aim to be, in milliseconds.
-const SEGMENT_MS: i64 = 6000;
 
 /// How far past the start of the last segment asked for ffmpeg writes before it stops, in
 /// milliseconds.
@@ -113,22 +110,6 @@ pub(crate) enum StartError {
     /// Only a Transcode would play it, and the Server runs as many as it may at once, this many.
     #[error("the Server is running as many Transcodes as it may at once, {0}")]
     Busy(u32),
-}
-
-/// Starts ffmpeg writing a plan's files, from a keyframe on, to the folder it's given.
-type Run = dyn Fn(&Path, Keyframe) -> io::Result<Child> + Send + Sync;
-
-/// What starts ffmpeg writing a plan's files: `run`, or once a run on hardware fails, `fallback`.
-struct Runs {
-    run: Box<Run>,
-    fallback: Option<FallbackRun>,
-}
-
-/// What a Transcode on hardware runs instead once a run there fails.
-struct FallbackRun {
-    run: Box<Run>,
-    /// Its plan's reasons from then on, which say why.
-    reasons: Vec<PlaybackReason>,
 }
 
 /// The playable plans, by id.
@@ -188,56 +169,6 @@ struct Plan {
     hls: Option<Arc<Running>>,
     /// When the plan was last asked for anything, which keeps it another [`STOP_UNUSED_AFTER`].
     last_used: Mutex<Instant>,
-}
-
-/// A plan's HLS files, and the ffmpeg writing them.
-struct Running {
-    id: u64,
-    /// How far ahead a request waits for ffmpeg, and so the Transcode cap leaves Remuxes out.
-    method: Method,
-    timeline: Timeline,
-    dir: PathBuf,
-    run: Box<Run>,
-    /// The last segment asked for, by number.
-    last_asked: AtomicUsize,
-    /// Whether the plan was stopped, so no ffmpeg is started again for requests still waiting.
-    closed: AtomicBool,
-    /// For a Transcode on hardware, what it runs once a run there fails.
-    fallback: Option<FallbackRun>,
-    /// Whether a run on hardware failed, so `fallback` runs from then on.
-    fell_back: AtomicBool,
-    /// Tells Observers how the plan plays now, once it fell back.
-    events: EventBus,
-    /// As it started, for telling Observers how it plays once it fell back.
-    playback: Playback,
-    /// The run of ffmpeg writing its files, and its task, which stops ffmpeg when aborted.
-    ffmpeg: tokio::sync::Mutex<Option<(Arc<FfmpegRun>, JoinHandle<()>)>>,
-}
-
-/// One run of ffmpeg, from one keyframe on.
-struct FfmpegRun {
-    /// The keyframe it started at, by number.
-    from: usize,
-    /// The first keyframe from `from` on it hadn't written, as last looked. A file behind it that's
-    /// gone since doesn't move it back.
-    written_to: AtomicUsize,
-    /// Whether ffmpeg has stopped, so a file not written yet never will be by this run.
-    stopped: AtomicBool,
-}
-
-/// Where a Version's keyframes fall, and the segments its playlist lists, made of them.
-struct Timeline {
-    /// When each keyframe falls, in milliseconds, in order.
-    keyframes: Vec<i64>,
-    segments: Vec<Segment>,
-}
-
-/// One segment a playlist lists.
-struct Segment {
-    /// The keyframe it starts at, by number.
-    first_keyframe: usize,
-    /// How long it lasts, in milliseconds.
-    ms: i64,
 }
 
 impl RunningPlans {
@@ -357,6 +288,8 @@ impl RunningPlans {
     /// plays on, converting what `transcode` says, and returns its id and its playlist's URL. Its
     /// segments are [`SEGMENT_MS`] each, as it forces a keyframe at each. Once a run on hardware
     /// fails, it goes on with `fallback`. `None` if there is no such Version.
+    ///
+    /// [`SEGMENT_MS`]: timeline::SEGMENT_MS
     async fn transcode(
         &self,
         playback: Playback,
@@ -617,512 +550,6 @@ fn playback(caller: &Caller, plan: &super::Plan) -> Playback {
 
 fn playlist_url(plan: u64) -> String {
     format!("/media/plans/{plan}/{PLAYLIST}")
-}
-
-/// Every [`TIDY_EVERY`], stops the plans unused for [`STOP_UNUSED_AFTER`] and deletes the running
-/// ones' files from well behind playback, until `inner` is dropped or `cancel` is cancelled.
-async fn tidy_plans(inner: Weak<Inner>, cancel: CancellationToken) {
-    // Not at once, so a test's plans aren't tidied at whatever point its task first runs.
-    let first = tokio::time::Instant::now() + TIDY_EVERY;
-    let mut every = tokio::time::interval_at(first, TIDY_EVERY);
-    loop {
-        // Only between rounds: a plan a round took out isn't in `shutdown`'s drain, so ending
-        // mid-round would leave its ffmpeg and files behind.
-        if cancel.run_until_cancelled(every.tick()).await.is_none() {
-            return;
-        }
-        let Some(inner) = inner.upgrade() else {
-            return;
-        };
-        let plans = RunningPlans { inner };
-        plans.stop_unused(STOP_UNUSED_AFTER).await;
-        plans.delete_behind_playback().await;
-    }
-}
-
-/// Deletes the plan folders an earlier run left in the segment folder in `settings` and the
-/// default. Runs before any plan starts, whose folder it would delete too.
-pub(crate) async fn sweep_leftovers(settings: &PlaybackSettings) {
-    for path in settings.leftover_paths() {
-        if let Err(err) = sweep(&path).await {
-            tracing::warn!(
-                "could not delete the segment files left in {}: {err}",
-                path.display()
-            );
-        }
-    }
-}
-
-/// Deletes the plan folders in `path`, going on past one it can't delete.
-async fn sweep(path: &Path) -> io::Result<()> {
-    let mut entries = match tokio::fs::read_dir(path).await {
-        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
-        entries => entries?,
-    };
-    while let Some(entry) = entries.next_entry().await? {
-        if entry.file_name().to_string_lossy().starts_with(PLAN_FOLDER)
-            && let Err(err) = tokio::fs::remove_dir_all(entry.path()).await
-        {
-            tracing::warn!("could not delete {}: {err}", entry.path().display());
-        }
-    }
-    Ok(())
-}
-
-impl Timeline {
-    /// A video with `keyframes`, in milliseconds, cut at the first keyframe at or after each
-    /// multiple of [`SEGMENT_MS`] past the last cut's multiple. No cut falls at or after
-    /// `duration_ms`, where the last segment ends, so none lasts 0 ms.
-    fn new(keyframes: Vec<i64>, duration_ms: i64) -> Self {
-        let mut segments = vec![];
-        let (mut first_keyframe, mut start, mut cut_after) = (0, 0, SEGMENT_MS);
-        for (n, &keyframe) in keyframes.iter().enumerate() {
-            if keyframe >= cut_after && keyframe < duration_ms {
-                let ms = keyframe - start;
-                segments.push(Segment { first_keyframe, ms });
-                (first_keyframe, start) = (n, keyframe);
-                cut_after += SEGMENT_MS;
-            }
-        }
-        let ms = duration_ms - start;
-        segments.push(Segment { first_keyframe, ms });
-        Self {
-            keyframes,
-            segments,
-        }
-    }
-
-    /// A Transcode of a video `duration_ms` long, with a keyframe forced at each multiple of
-    /// [`SEGMENT_MS`] before its end, so each is a segment's first.
-    fn transcoded(duration_ms: i64) -> Self {
-        let segments = (duration_ms + SEGMENT_MS - 1) / SEGMENT_MS;
-        Self::new((0..segments).map(|n| n * SEGMENT_MS).collect(), duration_ms)
-    }
-
-    /// The keyframes whose files segment `n` joins, by number.
-    fn keyframes_of(&self, n: usize) -> Range<usize> {
-        let first = self
-            .segments
-            .get(n)
-            .map_or(0, |segment| segment.first_keyframe);
-        let next = self.segments.get(n + 1);
-        first..next.map_or(self.keyframes.len(), |next| next.first_keyframe)
-    }
-
-    /// When keyframe `n` falls, in milliseconds, or the end of time for one past the last.
-    fn keyframe_ms(&self, n: usize) -> i64 {
-        self.keyframes.get(n).copied().unwrap_or(i64::MAX)
-    }
-
-    /// When segment `n` starts, in milliseconds.
-    fn segment_start_ms(&self, n: usize) -> i64 {
-        self.keyframe_ms(self.keyframes_of(n).start)
-    }
-
-    /// Keyframe `n`, for ffmpeg to start at.
-    fn keyframe(&self, n: usize) -> Keyframe {
-        let previous_ms = n
-            .checked_sub(1)
-            .and_then(|previous| self.keyframes.get(previous));
-        Keyframe {
-            n,
-            ms: self.keyframes.get(n).copied().unwrap_or_default(),
-            previous_ms: previous_ms.copied(),
-        }
-    }
-
-    /// The HLS playlist listing segments `0.m4s`, `1.m4s` and so on.
-    fn playlist(&self) -> String {
-        let longest = self.segments.iter().map(|segment| segment.ms).max();
-        let mut playlist = format!(
-            "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:{}\n#EXT-X-PLAYLIST-TYPE:VOD\n\
-             #EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-INDEPENDENT-SEGMENTS\n#EXT-X-MAP:URI=\"{INIT}\"\n",
-            // Whole seconds, rounded up, as HLS asks.
-            (longest.unwrap_or_default() + 999) / 1000,
-        );
-        for (n, Segment { ms, .. }) in self.segments.iter().enumerate() {
-            // Writing to a `String` never fails.
-            let _ = write!(
-                playlist,
-                "#EXTINF:{}.{:03},\n{n}.m4s\n",
-                ms / 1000,
-                ms % 1000
-            );
-        }
-        playlist.push_str("#EXT-X-ENDLIST\n");
-        playlist
-    }
-}
-
-impl Running {
-    /// Stops the plan `id`'s ffmpeg and deletes its files.
-    async fn stop(&self, id: u64) {
-        // Under the lock a restart takes, so none starts ffmpeg after this.
-        let mut ffmpeg = self.ffmpeg.lock().await;
-        self.closed.store(true, Ordering::Release);
-        if let Some((run, task)) = ffmpeg.take() {
-            task.abort();
-            // Awaited so ffmpeg is dropped, which kills it, before its folder is deleted.
-            let _: Result<(), _> = task.await;
-            run.stopped.store(true, Ordering::Release);
-        }
-        drop(ffmpeg);
-        if let Err(err) = tokio::fs::remove_dir_all(&self.dir).await {
-            tracing::warn!(plan = id, "could not delete {}: {err}", self.dir.display());
-        }
-    }
-
-    /// Deletes the files of keyframes ending more than `keep_behind_ms` before the start of the
-    /// last segment asked for, and the init files of every run but the current one. Files ahead
-    /// of it, and those the current run may still be writing, are kept.
-    async fn delete_behind(&self, keep_behind_ms: i64) -> io::Result<()> {
-        // Under the lock a restart takes, so the current run is the one whose init is kept.
-        let ffmpeg = self.ffmpeg.lock().await;
-        // `stop` takes the run under it, so a stopped plan has none.
-        let Some((run, _)) = ffmpeg.as_ref() else {
-            return Ok(());
-        };
-        // A running run's walk in `note_written` stops at the first file gone, so what it may
-        // write after it last looked is kept.
-        let still_writing_from = if run.stopped.load(Ordering::Acquire) {
-            usize::MAX
-        } else {
-            self.note_written(run).await
-        };
-        let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
-        let keep_from_ms = asked - keep_behind_ms;
-        let mut entries = tokio::fs::read_dir(&self.dir).await?;
-        while let Some(entry) = entries.next_entry().await? {
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            let behind = match keyframe_number(&name) {
-                Some(n) => {
-                    n < still_writing_from && self.timeline.keyframe_ms(n + 1) < keep_from_ms
-                }
-                None => hls_init_from(&name).is_some_and(|from| from != run.from),
-            };
-            // Going on past one, which Windows refuses while a request reads it.
-            if behind && let Err(err) = tokio::fs::remove_file(entry.path()).await {
-                tracing::warn!(
-                    plan = self.id,
-                    "could not delete {}: {err}",
-                    entry.path().display()
-                );
-            }
-        }
-        Ok(())
-    }
-
-    /// The number of the segment a request for `asked` gets, if the playlist lists it.
-    fn segment_number(&self, asked: &str) -> Option<usize> {
-        let n: usize = asked.strip_suffix(".m4s")?.parse().ok()?;
-        (n < self.timeline.segments.len()).then_some(n)
-    }
-
-    /// Segment `n`, its keyframes' files joined, once ffmpeg has written them, or `None` if it
-    /// stopped first.
-    // ponytail: a segment is read whole into memory; stream it if big Versions strain memory.
-    async fn segment(self: &Arc<Self>, n: usize) -> io::Result<Option<Vec<u8>>> {
-        self.last_asked.store(n, Ordering::Relaxed);
-        let mut segment = vec![];
-        for keyframe in self.timeline.keyframes_of(n) {
-            let Some(file) = self.keyframe_file(keyframe, n).await? else {
-                return Ok(None);
-            };
-            segment.extend(file);
-        }
-        Ok(Some(segment))
-    }
-
-    /// Keyframe `n`'s file, for segment `segment`, once ffmpeg has written it, or `None` if it
-    /// stopped first. One gone, even between being found written and read, is waited for as one
-    /// not written yet. ffmpeg writes each under another name and renames it once whole
-    /// (`-hls_flags temp_file`).
-    async fn keyframe_file(
-        self: &Arc<Self>,
-        n: usize,
-        segment: usize,
-    ) -> io::Result<Option<Vec<u8>>> {
-        loop {
-            if let Some(file) = self.read_keyframe(n).await? {
-                return Ok(Some(file));
-            }
-            if !self.will_write(n, segment).await? {
-                // It may have been written just before ffmpeg stopped.
-                return self.read_keyframe(n).await;
-            }
-            tokio::time::sleep(POLL_EVERY).await;
-        }
-    }
-
-    /// Keyframe `n`'s file, or `None` if it isn't there.
-    async fn read_keyframe(&self, n: usize) -> io::Result<Option<Vec<u8>>> {
-        match tokio::fs::read(self.keyframe_path(n)).await {
-            Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
-            read => read.map(Some),
-        }
-    }
-
-    /// The init segment, once the current run of ffmpeg has written it whole, as it has once it
-    /// wrote its first file, or `None` if it stopped first.
-    async fn init(&self) -> io::Result<Option<Vec<u8>>> {
-        loop {
-            let ffmpeg = self.ffmpeg.lock().await;
-            let Some((run, _)) = ffmpeg.as_ref() else {
-                return Ok(None);
-            };
-            // `stopped` first, as a run notes what it wrote last before it's marked so.
-            let stopped = run.stopped.load(Ordering::Acquire);
-            // Not whether its first file is there, which may be gone since.
-            if run.written_to.load(Ordering::Relaxed) > run.from {
-                // Read under the lock, as once a seek replaces this run a tick deletes its init.
-                return tokio::fs::read(self.dir.join(hls_init(run.from)))
-                    .await
-                    .map(Some);
-            }
-            drop(ffmpeg);
-            if stopped {
-                return Ok(None);
-            }
-            tokio::time::sleep(POLL_EVERY).await;
-        }
-    }
-
-    fn keyframe_path(&self, n: usize) -> PathBuf {
-        self.dir.join(format!("{n}.m4s"))
-    }
-
-    /// How far past what ffmpeg has written a file asked for can be and still be waited for, in
-    /// milliseconds. A software Transcode writes about as fast as it plays, so it waits only for
-    /// the segment ffmpeg is on and the next.
-    const fn wait_ahead_ms(&self) -> i64 {
-        match self.method {
-            Method::Remux | Method::DirectPlay => REMUX_WAIT_AHEAD_MS,
-            Method::Transcode => SEGMENT_MS,
-        }
-    }
-
-    /// Whether ffmpeg is on its way to keyframe `n`'s file, for segment `segment`, restarting it
-    /// there unless it's at most [`Self::wait_ahead_ms`] short of it. `false` once a run started
-    /// there has stopped without writing it, or once a later request asked for a segment more
-    /// than that away, so ffmpeg isn't started over and over.
-    async fn will_write(self: &Arc<Self>, n: usize, segment: usize) -> io::Result<bool> {
-        let mut ffmpeg = self.ffmpeg.lock().await;
-        if self.closed.load(Ordering::Acquire) {
-            return Ok(false);
-        }
-        // Under the lock, since a run started at a written file would write its init again.
-        if tokio::fs::try_exists(self.keyframe_path(n)).await? {
-            return Ok(true);
-        }
-        if let Some((run, task)) = &*ffmpeg {
-            let stopped = run.stopped.load(Ordering::Acquire);
-            let written_to = run.written_to.load(Ordering::Relaxed);
-            if stopped && run.from == n && written_to == n {
-                return Ok(false);
-            }
-            // One it wrote that's gone since is restarted at, as it won't write it again.
-            let short = (self.timeline.keyframe_ms(n))
-                .saturating_sub(self.timeline.keyframe_ms(written_to));
-            if !stopped && written_to <= n && short <= self.wait_ahead_ms() {
-                return Ok(true);
-            }
-            // A player fetching the next segment alongside this one mustn't leave it behind.
-            let last_asked = self.last_asked.load(Ordering::Relaxed);
-            let apart = (self.timeline.segment_start_ms(last_asked))
-                .abs_diff(self.timeline.segment_start_ms(segment));
-            if apart > self.wait_ahead_ms().unsigned_abs() {
-                return Ok(false);
-            }
-            task.abort();
-            // An aborted `watch` never notes what it wrote last or marks it stopped, and the
-            // restart below may fail, leaving it for `init`.
-            self.note_written(run).await;
-            run.stopped.store(true, Ordering::Release);
-        }
-        *ffmpeg = Some(self.run_from(n)?);
-        Ok(true)
-    }
-
-    /// How it plays now: as it started, with its fallback's reasons if it fell back.
-    fn playback_now(&self) -> Playback {
-        let mut playback = self.playback.clone();
-        if let Some(FallbackRun { reasons, .. }) =
-            (self.fallback.as_ref()).filter(|_| self.fell_back.load(Ordering::Acquire))
-        {
-            playback.reasons.clone_from(reasons);
-        }
-        playback
-    }
-
-    /// Starts ffmpeg writing this plan's files from keyframe `n` on.
-    fn run_from(self: &Arc<Self>, n: usize) -> io::Result<(Arc<FfmpegRun>, JoinHandle<()>)> {
-        let start = match &self.fallback {
-            Some(fallback) if self.fell_back.load(Ordering::Acquire) => &fallback.run,
-            _ => &self.run,
-        };
-        let ffmpeg = start(&self.dir, self.timeline.keyframe(n))?;
-        let run = Arc::new(FfmpegRun {
-            from: n,
-            written_to: AtomicUsize::new(n),
-            stopped: AtomicBool::new(false),
-        });
-        let task = tokio::spawn(Arc::clone(self).watch(ffmpeg, Arc::clone(&run)));
-        Ok((run, task))
-    }
-
-    /// Waits for `ffmpeg`, doing the run `run`, to stop, or stops it once it has written far
-    /// enough ahead, then logs why if it failed and marks it stopped.
-    async fn watch(self: Arc<Self>, ffmpeg: Child, run: Arc<FfmpegRun>) {
-        let failed = tokio::select! {
-            output = ffmpeg.wait_with_output() => log_failure(output, self.id),
-            // Dropping the child stops ffmpeg.
-            () = self.written_far_ahead(&run) => false,
-        };
-        // What it wrote since last looked, for its fallback, `will_write` and `init`, which reads
-        // it once marked stopped, so before.
-        self.note_written(&run).await;
-        if failed {
-            self.fall_back(&run).await;
-        }
-        run.stopped.store(true, Ordering::Release);
-    }
-
-    /// Once `run`, the plan's current run of ffmpeg, failed on hardware, starts its fallback from
-    /// the first file it hadn't written, and tells Observers so. Only the first failure does.
-    async fn fall_back(self: &Arc<Self>, run: &Arc<FfmpegRun>) {
-        if self.fallback.is_none() {
-            return;
-        }
-        // Before waiting for the lock, so a seek that restarts ffmpeg meanwhile, aborting this
-        // task, restarts it in software.
-        if self.fell_back.swap(true, Ordering::AcqRel) {
-            return;
-        }
-        tracing::warn!(
-            plan = self.id,
-            "hardware acceleration failed partway, so the rest Transcodes in software"
-        );
-        let changed = PlaybackChanged {
-            playback: self.playback_now().into(),
-            ..Default::default()
-        };
-        self.events.publish(vec![event(changed)]);
-        // Under the lock a restart takes, so it doesn't race a seek's.
-        let mut ffmpeg = self.ffmpeg.lock().await;
-        let current = (ffmpeg.as_ref()).is_some_and(|(current, _)| Arc::ptr_eq(current, run));
-        if !current || self.closed.load(Ordering::Acquire) {
-            return;
-        }
-        let from = run.written_to.load(Ordering::Relaxed);
-        if from < self.timeline.keyframes.len() {
-            run.stopped.store(true, Ordering::Release);
-            match self.run_from(from) {
-                // Replaces this task's own handle, which leaves it to finish.
-                Ok(fallback) => *ffmpeg = Some(fallback),
-                Err(err) => tracing::warn!(plan = self.id, "could not start ffmpeg again: {err}"),
-            }
-        }
-    }
-
-    /// Returns once `run` has written [`RUN_AHEAD_MS`] past the start of the last segment asked
-    /// for, or of where it started if later, keeping track of how far it has written meanwhile.
-    async fn written_far_ahead(&self, run: &FfmpegRun) {
-        loop {
-            tokio::time::sleep(POLL_EVERY).await;
-            let written_to = self.note_written(run).await;
-            let asked = (self.timeline).segment_start_ms(self.last_asked.load(Ordering::Relaxed));
-            // An earlier segment asked for just after a seek mustn't stop the run it started.
-            let asked = asked.max(self.timeline.keyframe_ms(run.from));
-            if self.timeline.keyframe_ms(written_to).saturating_sub(asked) >= RUN_AHEAD_MS {
-                return;
-            }
-        }
-    }
-
-    /// Notes in `run` how far it has written, and returns it. Walks on from where it last looked,
-    /// not from where it started, whose files may be gone since.
-    // A file deleted before it's looked at stops the walk there, so `delete_behind` keeps those.
-    async fn note_written(&self, run: &FfmpegRun) -> usize {
-        let mut written_to = run.written_to.load(Ordering::Relaxed);
-        while written_to < self.timeline.keyframes.len()
-            && tokio::fs::try_exists(self.keyframe_path(written_to))
-                .await
-                .unwrap_or_default()
-        {
-            written_to += 1;
-        }
-        // The most, as the tick may walk alongside `watch` and delete what the slower walk is on.
-        run.written_to
-            .fetch_max(written_to, Ordering::Relaxed)
-            .max(written_to)
-    }
-}
-
-/// The keyframe whose file is named `name`, if it's one.
-fn keyframe_number(name: &str) -> Option<usize> {
-    name.strip_suffix(".m4s")?.parse().ok()
-}
-
-/// Logs why ffmpeg, running for the plan `plan`, failed, if it did, and says whether it did.
-fn log_failure(output: io::Result<Output>, plan: u64) -> bool {
-    match output {
-        Ok(Output { status, .. }) if status.success() => false,
-        Ok(Output { status, stderr, .. }) => {
-            let stderr = String::from_utf8_lossy(&stderr);
-            tracing::warn!(plan, "ffmpeg failed ({status}): {}", stderr.trim());
-            true
-        }
-        Err(err) => {
-            tracing::warn!(plan, "could not wait for ffmpeg: {err}");
-            false
-        }
-    }
-}
-
-/// Serves `GET /media/plans/<id>/<file>`: the playlist and segments of the plan `id`, to the
-/// Device it belongs to, and 404 to any other. Whether the caller has a session is up to the
-/// layers the router is put behind.
-pub(crate) fn router(plans: RunningPlans) -> Router {
-    Router::new()
-        .route("/media/plans/{id}/{file}", get(serve))
-        .with_state(plans)
-}
-
-async fn serve(
-    State(plans): State<RunningPlans>,
-    UrlPath((id, file)): UrlPath<(u64, String)>,
-    request: Request,
-) -> Response {
-    let device = request
-        .extensions()
-        .get::<Caller>()
-        .map(|caller| caller.device.id);
-    let Some(plan) = device.and_then(|device| plans.ask(id, device)) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let Some(plan) = &plan.hls else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    if file == PLAYLIST {
-        let content_type = [(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")];
-        return (content_type, plan.timeline.playlist()).into_response();
-    }
-    let written = if file == INIT {
-        plan.init().await
-    } else if let Some(n) = plan.segment_number(&file) {
-        plan.segment(n).await
-    } else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    match written {
-        Ok(Some(body)) => ([(header::CONTENT_TYPE, "video/mp4")], body).into_response(),
-        Ok(None) => StatusCode::NOT_FOUND.into_response(),
-        Err(err) => {
-            tracing::error!(plan = id, "could not serve {file}: {err}");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
-    }
 }
 
 /// Locks `mutex`, which no code panics while holding.
