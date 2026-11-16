@@ -21,6 +21,8 @@ const KNIGHT_TMDB_ID: i64 = 224_372;
 const KNIGHT_PILOT_TMDB_ID: i64 = 5_000_001;
 const KNIGHT_SECOND_TMDB_ID: i64 = 5_000_002;
 const KNIGHT_SEASON_2_TMDB_ID: i64 = 5_000_003;
+const DARK_TMDB_ID: i64 = 70_523;
+const DARK_PILOT_TMDB_ID: i64 = 6_000_001;
 const KNIGHT_PILOT_TVDB_ID: i64 = 9_000_001;
 /// Alien's IMDb id, which its Match gives it besides its TMDB id.
 const ALIEN_IMDB_ID: &str = "tt0078748";
@@ -168,6 +170,14 @@ fn stereo() -> Track {
     }
 }
 
+/// A stereo Track whose language is `language`, so one file's Tracks differ from another's.
+fn stereo_in(language: &str) -> Track {
+    Track {
+        language: Some(language.to_owned()),
+        ..stereo()
+    }
+}
+
 fn probe_of(tracks: Vec<Track>) -> Probe {
     Probe {
         container: "matroska,webm".to_owned(),
@@ -197,13 +207,16 @@ async fn an_episode_has_the_same_tracks_however_it_is_reached() {
         ..tmdb_movie(KNIGHT_PILOT_TMDB_ID, "The Hedge Knight")
     };
     let path = format!("{root}/A Knight of the Seven Kingdoms/Season 01/S01E01.mkv");
-    store_matched(&db, library, path, pilot_file, matched).await;
+    let version = store_matched(&db, library, path, pilot_file, matched).await;
     let file = only_file(&db, library).await;
     Tracks::new(Arc::clone(&db))
         .store(file, probe_of(vec![stereo()]))
         .await
         .unwrap();
+    let user = ada(&db).await;
     let browse = Browse::new(db);
+    let halfway = Progress::new(1_000, 2_000).unwrap();
+    browse.report(user, version, halfway).await.unwrap();
     let (show, pilot) = (
         ExternalId::tmdb(KNIGHT_TMDB_ID),
         ExternalId::tmdb(KNIGHT_PILOT_TMDB_ID),
@@ -220,14 +233,71 @@ async fn an_episode_has_the_same_tracks_however_it_is_reached() {
         .unwrap()
         .episodes
         .remove(0);
-    let in_show = browse.show(library, &show).await.unwrap();
-    let in_show = in_show.episodes().next().unwrap().clone();
+    let Started::Episode {
+        episode: started, ..
+    } = browse.continue_watching(user).await.unwrap().remove(0)
+    else {
+        panic!("the pilot is an Episode");
+    };
 
-    let tracks = [listed, in_season, in_show].map(|episode| {
+    let tracks = [listed, in_season, started].map(|episode| {
         assert_eq!(episode.id, pilot);
         episode.versions[0].tracks.clone()
     });
     assert_eq!(tracks, [[stereo()], [stereo()], [stereo()]]);
+}
+
+#[tokio::test]
+async fn a_seasons_episodes_have_their_own_tracks_beside_another_shows() {
+    let data = tempfile::tempdir().unwrap();
+    let folder = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let (library, root) = library(&db, "Shows", LibraryKind::Shows, &folder).await;
+    let knight = format!("{root}/A Knight of the Seven Kingdoms/Season 01");
+    let pilot = (knight_episode(1, 1), knight_match(KNIGHT_PILOT_TMDB_ID));
+    store(&db, library, format!("{knight}/S01E01.mkv"), vec![pilot]).await;
+    let second = (knight_episode(1, 2), knight_match(KNIGHT_SECOND_TMDB_ID));
+    store(&db, library, format!("{knight}/S01E02.mkv"), vec![second]).await;
+    let dark_pilot = Item::Episode {
+        show: "Dark".to_owned(),
+        year: Some(2017),
+        hint: None,
+        season: 1,
+        episode: 1,
+    };
+    let dark = Metadata {
+        show_ids: ExternalIds::from_iter([ExternalId::tmdb(DARK_TMDB_ID)]),
+        show_title: Some("Dark".to_owned()),
+        ..tmdb_movie(DARK_PILOT_TMDB_ID, "Secrets")
+    };
+    let dark_path = format!("{root}/Dark/Season 01/S01E01.mkv");
+    store_matched(&db, library, dark_path, dark_pilot, dark).await;
+    let stored = Contents::new(Arc::clone(&db))
+        .stored(library)
+        .await
+        .unwrap();
+    // Each file's Tracks name its path, so an Episode given another file's shows it.
+    for (path, file) in stored {
+        Tracks::new(Arc::clone(&db))
+            .store(file, probe_of(vec![stereo_in(&path)]))
+            .await
+            .unwrap();
+    }
+    let browse = Browse::new(db);
+
+    let episodes = browse
+        .episodes(0, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), 1)
+        .await
+        .unwrap();
+
+    let tracks: Vec<_> = (episodes.into_iter())
+        .map(|(episode, _)| (episode.number, episode.versions[0].tracks.clone()))
+        .collect();
+    let of_file = |name: &str| vec![stereo_in(&format!("{knight}/{name}"))];
+    assert_eq!(
+        tracks,
+        [(1, of_file("S01E01.mkv")), (2, of_file("S01E02.mkv"))]
+    );
 }
 
 #[tokio::test]

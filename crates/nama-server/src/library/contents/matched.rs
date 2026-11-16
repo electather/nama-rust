@@ -164,36 +164,6 @@ impl<V> Show<V> {
     pub(crate) fn episodes(&self) -> impl Iterator<Item = &Episode<V>> {
         self.seasons.values().flat_map(|season| &season.episodes)
     }
-
-    /// The Show with each of its Episodes' Versions made into `version(it)`.
-    pub(crate) fn map_versions<W>(self, mut version: impl FnMut(V) -> W) -> Show<W> {
-        let seasons = (self.seasons.into_iter())
-            .map(|(number, season)| {
-                let episodes = (season.episodes.into_iter())
-                    .map(|episode| episode.map_versions(&mut version))
-                    .collect();
-                let season = Season {
-                    poster: season.poster,
-                    episodes,
-                };
-                (number, season)
-            })
-            .collect();
-        Show {
-            id: self.id,
-            ids: self.ids,
-            title: self.title,
-            own_poster: self.own_poster,
-            metadata_version: self.metadata_version,
-            backdrop: self.backdrop,
-            logo: self.logo,
-            overview: self.overview,
-            first_air_date: self.first_air_date,
-            genres: self.genres,
-            content_rating: self.content_rating,
-            seasons,
-        }
-    }
 }
 
 /// The Episodes of a Show's Season that some Items of a Library are Matched to.

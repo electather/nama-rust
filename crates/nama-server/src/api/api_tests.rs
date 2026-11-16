@@ -1,6 +1,8 @@
 use std::fs;
 
-use super::{ACCESS, Access};
+use connectrpc::ErrorCode;
+
+use super::{ACCESS, Access, database_failed};
 
 /// Every RPC `buf generate` wrote a stub for, by path, read from the generated code so a new
 /// RPC shows up here without anyone listing it.
@@ -52,4 +54,16 @@ fn media_needs_a_session() {
         Access::of("/media/versions/1"),
         Some(Access::SignedIn)
     ));
+}
+
+#[test]
+fn a_pool_timeout_is_unavailable_and_another_database_failure_internal() {
+    assert_eq!(
+        database_failed(sqlx::Error::PoolTimedOut).code,
+        ErrorCode::Unavailable
+    );
+    assert_eq!(
+        database_failed(sqlx::Error::RowNotFound).code,
+        ErrorCode::Internal
+    );
 }
