@@ -174,14 +174,19 @@ pub(crate) fn router(
         .add_service(Arc::new(UserServiceHandler {
             users: users.clone(),
             connections,
-            plugin_settings,
+            plugin_settings: plugin_settings.clone(),
             custom_images: custom_images.clone(),
             plugin_logos: plugin_logos.clone(),
             db,
         }))
         .into_axum_router()
         .merge(artwork_router)
-        .merge(custom_images_router(custom_images, artwork, image_settings))
+        .merge(custom_images_router(
+            custom_images,
+            artwork,
+            image_settings,
+            move |id| plugin_settings.has(id),
+        ))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
         .layer(middleware::from_fn(require_access))

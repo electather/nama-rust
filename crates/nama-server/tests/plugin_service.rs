@@ -568,6 +568,7 @@ async fn a_value_of_the_wrong_kind_is_refused_naming_it_and_nothing_changes() {
             ],
         )
         .await;
+    let message = updated.as_ref().err().and_then(|err| err.message.clone());
 
     let refusal = assert_refused(
         updated,
@@ -578,6 +579,10 @@ async fn a_value_of_the_wrong_kind_is_refused_naming_it_and_nothing_changes() {
     assert_eq!(
         refusal.params.get("settingKind").map(String::as_str),
         Some("SETTING_KIND_TEXT")
+    );
+    assert_eq!(
+        message.as_deref(),
+        Some("the setting language must be text")
     );
     assert_eq!(started.stored().await, tmdb_with_key());
 }
@@ -718,14 +723,17 @@ async fn enabling_a_plugin_with_a_setting_of_the_wrong_kind_is_refused_naming_it
     };
     let started = Started::with(&BTreeMap::from([("tmdb".to_owned(), tmdb)])).await;
 
+    let enabled = started.client().enable_plugin(enable("tmdb")).await;
+    let message = enabled.as_ref().err().and_then(|err| err.message.clone());
+
     let refusal = assert_refused(
-        started.client().enable_plugin(enable("tmdb")).await,
+        enabled,
         ErrorCode::InvalidArgument,
         RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
     );
-
     assert_eq!(refusal.field, "settings.api_key");
     assert_eq!(refusal.params["settingKind"], "SETTING_KIND_SECRET");
+    assert_eq!(message.as_deref(), Some("the setting api_key must be text"));
     assert!(!started.can_match());
 }
 

@@ -29,6 +29,9 @@ use nama_proto::nama::v1::{
 };
 use server::tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, THE_OFFICE};
 
+/// Its id hint Matches it to the US The Office, which a search alone ties with the UK one.
+const THE_OFFICE_PILOT: &str = "The Office {tmdb-2316}/Season 01/The Office - S01E01.mkv";
+
 /// Where Alien's Poster is uploaded to and removed from.
 fn alien_poster() -> String {
     format!("/custom-images/movie/tmdb-{ALIEN}/poster")
@@ -520,9 +523,9 @@ async fn a_custom_image_removed_and_uploaded_again_gets_its_thumbhash_back_once_
     assert!(movie.poster_thumbhash.is_some());
 }
 
-/// Values are text, not numbers, so a leading zero names another title.
+/// Values are text, not numbers, so a leading zero names another title, which no Library has.
 #[tokio::test]
-async fn a_custom_image_for_tmdb_0348_is_kept_apart_from_tmdb_348s() {
+async fn an_upload_for_tmdb_0348_is_not_found_and_leaves_tmdb_348s_poster_alone() {
     let fx = Fixture::alien().await;
     let downloaded = fx.alien_poster(fx.library).await;
 
@@ -533,8 +536,72 @@ async fn a_custom_image_for_tmdb_0348_is_kept_apart_from_tmdb_348s() {
         )
         .await;
 
-    assert_eq!(uploaded.status, 204);
+    assert_eq!(uploaded.status, 404);
     assert_eq!(fx.alien_poster(fx.library).await, downloaded);
+}
+
+#[tokio::test]
+async fn an_upload_for_a_title_no_library_has_is_not_found_and_kept_nowhere_but_removing_succeeds()
+{
+    let fx = Fixture::alien().await;
+    let over_20_mib = vec![0; 20 * 1024 * 1024 + 1];
+
+    for (path, bytes) in [
+        ("movie/tmdb-1/poster", image(ImageFormat::Png, 2, 3)),
+        ("movie/tmdb-1/backdrop", image(ImageFormat::Png, 3, 2)),
+        ("show/tmdb-1/poster", image(ImageFormat::Png, 2, 3)),
+        ("show/tmdb-1/backdrop", image(ImageFormat::Png, 3, 2)),
+        // Alien is a Movie, not a Show.
+        ("show/tmdb-348/poster", image(ImageFormat::Png, 2, 3)),
+        // Refused before its body is read, so not as too big.
+        ("movie/tmdb-1/poster", over_20_mib),
+    ] {
+        let path = format!("/custom-images/{path}");
+        let refused = fx.upload(&path, &bytes).await;
+
+        assert_eq!(refused.status, 404, "{path}");
+        assert_eq!(fx.remove(&path).await.status, 204, "{path}");
+    }
+    assert!(!fx.server.data_dir().join("custom-images").exists());
+}
+
+#[tokio::test]
+async fn an_upload_for_a_season_or_movie_a_shows_library_lacks_is_not_found() {
+    let fx = Fixture::dark().await;
+
+    for path in [
+        format!("show/tmdb-{DARK}/season/99/poster"),
+        format!("show/tmdb-{DARK}/season/2/poster"),
+        // Dark is a Show, not a Movie.
+        format!("movie/tmdb-{DARK}/poster"),
+    ] {
+        let refused = fx
+            .upload(
+                &format!("/custom-images/{path}"),
+                &image(ImageFormat::Png, 2, 3),
+            )
+            .await;
+
+        assert_eq!(refused.status, 404, "{path}");
+    }
+    assert!(!fx.server.data_dir().join("custom-images").exists());
+}
+
+#[tokio::test]
+async fn removing_a_custom_image_once_its_title_has_left_the_server_still_removes_it() {
+    let fx = Fixture::alien().await;
+    fx.upload(&alien_poster(), &image(ImageFormat::Png, 2, 3))
+        .await;
+    fs::remove_file(fx.folder.join(ALIEN_1080P)).unwrap();
+    fx.scan_and_match().await;
+
+    let removed = fx.remove(&alien_poster()).await;
+
+    assert_eq!(removed.status, 204);
+    let refused = fx
+        .upload(&alien_poster(), &image(ImageFormat::Png, 2, 3))
+        .await;
+    assert_eq!(refused.status, 404);
 }
 
 #[tokio::test]
@@ -641,6 +708,9 @@ async fn a_shows_and_seasons_custom_images_kept_under_its_tvdb_id_show_in_browse
 #[tokio::test]
 async fn a_custom_poster_kept_under_a_search_hits_id_shows_on_the_hit() {
     let fx = Fixture::alien().await;
+    let _shows = (fx.server)
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[THE_OFFICE_PILOT])
+        .await;
     for path in [
         format!("/custom-images/movie/tmdb-{ALIEN}/poster"),
         format!("/custom-images/show/tmdb-{THE_OFFICE}/poster"),

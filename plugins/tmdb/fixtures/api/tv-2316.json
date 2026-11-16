@@ -10,7 +10,7 @@
   ],
   "id": 2316,
   "name": "The Office",
-  "number_of_seasons": 1,
+  "number_of_seasons": 2,
   "origin_country": [
     "US"
   ],
@@ -27,6 +27,15 @@
       "overview": "",
       "poster_path": null,
       "season_number": 1
+    },
+    {
+      "air_date": "2006-09-21",
+      "episode_count": 1,
+      "id": 23163,
+      "name": "Season 3",
+      "overview": "",
+      "poster_path": null,
+      "season_number": 3
     }
   ],
   "status": "Ended",

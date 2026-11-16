@@ -133,6 +133,14 @@ async fn a_custom_poster_kept_under_another_id_of_a_tvdb_search_hit_shows_on_the
     let server = TestServer::builder().start().await;
     let tvdb = FakeTvdb::start().await;
     tvdb.enable_on(&server).await;
+    let library = server
+        .create_library_searching(
+            LibraryKind::LIBRARY_KIND_SHOWS,
+            &[SEVERANCE_S01E01],
+            &["tvdb"],
+        )
+        .await;
+    server.scan_and_match(&library).await;
     let path = "/custom-images/show/imdb-tt11280740/poster";
     let body = http_body_util::Full::new(Bytes::from(image(ImageFormat::Png, 2, 3)));
     let upload = Request::put(path).body(body).unwrap();

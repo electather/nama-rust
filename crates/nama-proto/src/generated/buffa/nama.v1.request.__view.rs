@@ -2010,8 +2010,8 @@ impl ::serde::Serialize for DownloadOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// Users asking for a whole Show: its Seasons now and any that come out later, approved once. A
-/// Show has at most one open Followed Show: one that isn't Declined.
+/// Users asking for a whole Show: its numbered Seasons now and any that come out later, approved
+/// once. A Show has at most one open Followed Show: one that isn't Declined.
 #[derive(Clone, Debug, Default)]
 pub struct FollowedShowView<'a> {
     /// Field 1: `id`

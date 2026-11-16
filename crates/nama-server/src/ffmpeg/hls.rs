@@ -191,6 +191,13 @@ pub(crate) struct VideoConversion {
     pub(crate) in_band_headers: bool,
 }
 
+impl VideoConversion {
+    /// Whether it works the CPU hard: it runs in software, or tone-maps there.
+    pub(crate) fn cpu_bound(&self) -> bool {
+        self.hardware.is_none() || self.tone_map == Some(ToneMapper::Software)
+    }
+}
+
 /// What tone-maps a Transcode's HDR to SDR.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ToneMapper {

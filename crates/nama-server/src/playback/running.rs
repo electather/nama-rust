@@ -112,6 +112,14 @@ pub(crate) enum StartError {
     Busy(u32),
 }
 
+/// The Transcodes running, as a Transcode cap counts them.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct RunningTranscodes {
+    pub(super) all: u32,
+    /// Those that work the CPU hard, which the default cap counts.
+    pub(super) cpu_bound: u32,
+}
+
 /// The playable plans, by id.
 #[derive(Clone)]
 pub(crate) struct RunningPlans {
@@ -202,19 +210,28 @@ impl RunningPlans {
         Self { inner }
     }
 
-    /// The most Transcodes the Server may run at once, `max`, if that many already run, leaving
-    /// out one of `device`'s own: the plan it asks for replaces the one it plays, which it stops
-    /// only once the new one plays.
+    /// The Transcodes running, leaving out one of `device`'s own: the plan it asks for replaces
+    /// the one it plays, which it stops only once the new one plays.
     // ponytail: the plan isn't kept until after probing, the folder and spawning ffmpeg, so every
     // Device planning in that window finds room and they can pass the cap together until
     // Transcodes end; reserve room under the plans' lock if that ever matters.
-    pub(crate) fn transcodes_full(&self, device: i64, max: u32) -> Option<u32> {
+    pub(super) fn running_transcodes(&self, device: i64) -> RunningTranscodes {
         let plans = lock(&self.inner.plans);
         let (own, others): (Vec<_>, Vec<_>) = (plans.values())
-            .filter(|plan| (plan.hls.as_ref()).is_some_and(|hls| hls.method == Method::Transcode))
-            .partition(|plan| plan.playback.device_id == device);
-        let running = others.len() + own.len().saturating_sub(1);
-        (u32::try_from(running).unwrap_or(u32::MAX) >= max).then_some(max)
+            .filter_map(|plan| {
+                let hls = (plan.hls.as_ref()).filter(|hls| hls.method == Method::Transcode)?;
+                Some((plan.playback.device_id, hls.cpu_bound()))
+            })
+            .partition(|(id, _)| *id == device);
+        let cpu_bound =
+            |transcodes: &[(i64, bool)]| transcodes.iter().filter(|(_, cpu)| *cpu).count();
+        let leaving_one_own_out = |of_own: usize, of_others: usize| {
+            u32::try_from(of_others + of_own.saturating_sub(1)).unwrap_or(u32::MAX)
+        };
+        RunningTranscodes {
+            all: leaving_one_own_out(own.len(), others.len()),
+            cpu_bound: leaving_one_own_out(cpu_bound(&own), cpu_bound(&others)),
+        }
     }
 
     /// Starts `plan` for `caller`'s Device, telling Observers so, and returns it with its id and
@@ -277,6 +294,7 @@ impl RunningPlans {
         let runs = Runs {
             run: Box::new(run),
             fallback: None,
+            cpu_bound: false,
         };
         let id = self
             .start_hls(playback, Method::Remux, timeline, runs)
@@ -324,6 +342,7 @@ impl RunningPlans {
             },
         );
         let runs = Runs {
+            cpu_bound: transcode.video.cpu_bound(),
             run: run(transcode),
             fallback,
         };
@@ -347,7 +366,11 @@ impl RunningPlans {
         playback: Playback,
         method: Method,
         timeline: Timeline,
-        Runs { run, fallback }: Runs,
+        Runs {
+            run,
+            fallback,
+            cpu_bound,
+        }: Runs,
     ) -> io::Result<u64> {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         let dir = self
@@ -373,6 +396,7 @@ impl RunningPlans {
             closed: AtomicBool::new(false),
             fallback,
             fell_back: AtomicBool::new(false),
+            started_cpu_bound: cpu_bound,
             events: self.inner.events.clone(),
             playback: playback.clone(),
             ffmpeg: tokio::sync::Mutex::default(),

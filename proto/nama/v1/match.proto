@@ -27,15 +27,16 @@ service MatchService {
   }
   // Removes an item's Match and pins it Unmatched, so automatic Matching leaves it so. Like
   // `SetMatch`, this applies to every item in the Library named the same way, and for an Episode
-  // to every Episode of its Show. Fails with `not_found` if there is no such item.
+  // to every Episode of its Show. `ListUnmatchedItems` then lists them with
+  // `UNMATCHED_REASON_CLEARED_BY_HAND`. Fails with `not_found` if there is no such item.
   rpc ClearMatch(ClearMatchRequest) returns (ClearMatchResponse) {
     option idempotency_level = IDEMPOTENT;
   }
-  // Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
-  // those it hasn't Matched yet, such as when no title source was enabled. Items pinned
-  // Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
-  // Also lists the Library's files whose names didn't parse, which an Admin fixes by renaming.
-  // Fails with `not_found` if there is no such Library.
+  // Lists the items of a Library that need a Match, by path: those Matching left Unmatched,
+  // those it hasn't Matched yet, such as when no title source was enabled, and those pinned
+  // Unmatched with `ClearMatch`, with `UNMATCHED_REASON_CLEARED_BY_HAND`. Also lists the
+  // Library's files whose names didn't parse, which an Admin fixes by renaming. Fails with
+  // `not_found` if there is no such Library.
   rpc ListUnmatchedItems(ListUnmatchedItemsRequest) returns (ListUnmatchedItemsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -138,17 +139,17 @@ message UnmatchedItem {
   optional int32 season = 6;
   // For an Episode, its number within the Season.
   optional int32 episode = 7;
-  // Why automatic Matching left the item Unmatched.
+  // Why the item is Unmatched.
   UnmatchedReason reason = 8;
   // For `UNMATCHED_REASON_AMBIGUOUS`, the titles that fit about as well as each other, best fit
   // first, to pass to `SetMatch`.
   repeated TitleCandidate tied_titles = 9;
 }
 
-// Why Matching left an item Unmatched, which says how to fix it.
+// Why an item is Unmatched, which says how to fix it.
 enum UnmatchedReason {
   // Matching hasn't decided about the item yet, or left it Unmatched for a reason it doesn't
-  // store, such as an Admin choosing to.
+  // store.
   UNMATCHED_REASON_UNSPECIFIED = 0;
   // More than one title fits about as well, so picking one of `tied_titles` fixes it.
   UNMATCHED_REASON_AMBIGUOUS = 1;
@@ -159,4 +160,6 @@ enum UnmatchedReason {
   // An Episode whose Show, found by Matching or picked by hand, has no such Season or Episode.
   // Matching it to another Show may fix it.
   UNMATCHED_REASON_NOT_IN_SHOW = 4;
+  // An admin cleared its Match with `ClearMatch`; `SetMatch` Matches it again.
+  UNMATCHED_REASON_CLEARED_BY_HAND = 5;
 }

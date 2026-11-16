@@ -4,7 +4,7 @@ use buffa::Enumeration;
 use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
 use super::{
-    Candidates, Facts, Fallback, Method, Playing, Reason, accel_to_proto, build,
+    Candidates, Facts, Fallback, Method, Playing, Reason, RunningTranscodes, accel_to_proto, build,
     choices::burn_in,
     codecs::{
         aac_channels, channels_of, converted_channels, hdr_name, played_hdr, played_tracks,
@@ -355,15 +355,19 @@ fn capitalised(text: &str) -> String {
     })
 }
 
-/// The most Transcodes the Server runs at once when the admin hasn't set it: no limit while they
-/// run on hardware, which a modest Server has room for, and 2 in software.
-pub(super) fn default_max_transcodes(facts: &Facts) -> u32 {
-    /// As many as a modest Server's CPU keeps up with.
-    const IN_SOFTWARE: u32 = 2;
-    if transcodes_on(facts).is_ok() {
-        u32::MAX
-    } else {
-        IN_SOFTWARE
+/// The most Transcodes that work the CPU hard the Server runs at once when the admin hasn't set a
+/// cap, as many as a modest Server's CPU keeps up with. Those fully on a GPU have no limit.
+const DEFAULT_MAX_CPU_BOUND: u32 = 2;
+
+/// The most Transcodes the Server may run at once, if the ones running leave no room for one
+/// converting `video`: an admin's cap counts every Transcode, the default only those on the CPU.
+fn transcodes_full(facts: &Facts, video: Option<&VideoConversion>) -> Option<u32> {
+    let running = facts.running_transcodes;
+    match facts.max_transcodes {
+        Some(max) => (running.all >= max.get()).then_some(max.get()),
+        None => (video.is_some_and(VideoConversion::cpu_bound)
+            && running.cpu_bound >= DEFAULT_MAX_CPU_BOUND)
+            .then_some(DEFAULT_MAX_CPU_BOUND),
     }
 }
 
@@ -407,8 +411,9 @@ pub(super) fn transcode(facts: &Facts, audio: Option<(usize, &Track)>) -> Transc
 }
 
 /// The step for how busy the Server is: no Transcode while other Devices run as many as it may.
-pub(super) fn server_busy(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
-    let busy = facts.transcodes_full.map(|max| {
+pub(super) fn server_busy(facts: &Facts, candidates: Option<&Candidates>) -> Vec<Reason> {
+    let video = candidates.map(|candidates| &candidates.transcode.video);
+    let busy = transcodes_full(facts, video).map(|max| {
         Reason::new(
             Kind::PLAYBACK_REASON_KIND_SERVER_BUSY,
             format!(
@@ -427,12 +432,20 @@ pub(super) fn server_busy(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> 
 /// is refused as busy rather than shown as unplayable, since trying again later may play it. Only
 /// what the Device needs counts: a choice that needs a Transcode is dropped first.
 pub(super) fn too_busy_to_play(facts: Facts) -> Option<u32> {
-    let max = facts.transcodes_full?;
+    let running_transcodes = facts.running_transcodes;
+    if running_transcodes == RunningTranscodes::default() {
+        return None;
+    }
     let mut not_busy = Facts {
-        transcodes_full: None,
+        running_transcodes: RunningTranscodes::default(),
         ..facts
     };
-    (build(&mut not_busy).method() == Some(Method::Transcode)).then_some(max)
+    let plan = build(&mut not_busy);
+    let Some(Playing::Transcode { transcode, .. }) = &plan.playing else {
+        return None;
+    };
+    not_busy.running_transcodes = running_transcodes;
+    transcodes_full(&not_busy, Some(&transcode.video))
 }
 
 /// The step for what just failed to play on the Device: it rules out each method that did, so

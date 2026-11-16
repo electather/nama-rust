@@ -138,6 +138,16 @@ impl Fixture {
             .into_owned())
     }
 
+    async fn clear_match(&self, item: i64) {
+        (self.matches)
+            .clear_match(ClearMatchRequest {
+                item_id: item,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
     /// The Library's items that need a Match, as `ListUnmatchedItems` lists them.
     async fn listed(&self) -> Vec<UnmatchedItem> {
         self.needs_a_match().await.items
@@ -678,23 +688,66 @@ async fn an_episode_not_matched_yet_is_listed_with_its_season_and_number() {
     );
 }
 
+/// Each listed item's id, reason and number of tied titles.
+fn reasons(listed: &[UnmatchedItem]) -> Vec<(i64, EnumValue<UnmatchedReason>, usize)> {
+    (listed.iter())
+        .map(|item| (item.item_id, item.reason, item.tied_titles.len()))
+        .collect()
+}
+
+const CLEARED_BY_HAND: UnmatchedReason = UnmatchedReason::UNMATCHED_REASON_CLEARED_BY_HAND;
+
 #[tokio::test]
-async fn an_item_pinned_unmatched_is_not_listed() {
+async fn an_item_whose_match_was_cleared_is_listed_as_cleared_by_hand() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
-    fx.write(HOME_MOVIES, VIDEO);
-    let item = fx.scan_and_match().await[HOME_MOVIES];
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    fx.write(alien, VIDEO);
+    let item = fx.scan_and_match().await[alien];
     let before = fx.listed().await;
 
-    fx.matches
-        .clear_match(ClearMatchRequest {
-            item_id: item,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    fx.clear_match(item).await;
 
-    assert_eq!(before.len(), 1);
+    assert_eq!(before, []);
+    assert_eq!(
+        reasons(&fx.listed().await),
+        [(item, CLEARED_BY_HAND.into(), 0)]
+    );
+}
+
+#[tokio::test]
+async fn a_cleared_item_matched_by_hand_is_matched_again_and_drops_off_the_list() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    fx.write(alien, VIDEO);
+    let item = fx.scan_and_match().await[alien];
+    fx.clear_match(item).await;
+
+    let response = fx.set_match(item, 348).await.unwrap();
+
+    assert_eq!((response.matched, response.unmatched), (1, 0));
+    assert_eq!(fx.movie_of(alien).await, Some(tmdb_id(348)));
     assert_eq!(fx.listed().await, []);
+}
+
+#[tokio::test]
+async fn clearing_an_episodes_match_lists_every_episode_of_its_show_as_cleared_by_hand() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
+    let pilot = "The Office/Season 01/The Office - S01E01.mkv";
+    let second = "The Office/Season 01/The Office - S01E02.mkv";
+    fx.write(pilot, VIDEO);
+    fx.write(second, VIDEO);
+    let items = fx.scan_and_match().await;
+    fx.set_match(items[pilot], 2316).await.unwrap();
+
+    fx.clear_match(items[pilot]).await;
+
+    assert_eq!(
+        reasons(&fx.listed().await),
+        [
+            (items[pilot], CLEARED_BY_HAND.into(), 0),
+            (items[second], CLEARED_BY_HAND.into(), 0)
+        ]
+    );
 }
 
 #[tokio::test]

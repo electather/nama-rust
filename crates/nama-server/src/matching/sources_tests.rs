@@ -32,12 +32,12 @@ async fn movie(metadata: &TitleSources, key: &TitleKey) -> Result<Metadata, Miss
 
 /// The Show `key` names, with no Recogniser enabled.
 async fn show(metadata: &TitleSources, key: &TitleKey) -> Result<FoundShow, Miss> {
-    super::show(metadata, &Recognisers::default(), key, &[]).await
+    super::show(metadata, &Recognisers::default(), key, &[], &[]).await
 }
 
 /// How a [`Fake`] title source answers a search, or a lookup by id.
 #[derive(Clone, Copy)]
-enum Answers {
+pub(super) enum Answers {
     Has,
     NotFound,
     Fails,
@@ -45,7 +45,7 @@ enum Answers {
 
 /// What the sources were asked, as `namespace method id`, in the order asked; a source asked its
 /// namespace logs `namespace namespace`, which only [`namespaces_asked`] reads.
-type Asked = Arc<Mutex<Vec<String>>>;
+pub(super) type Asked = Arc<Mutex<Vec<String>>>;
 
 /// A title source keeping titles under `namespace`, as the Plugin of that id, and looking them up
 /// by `looks_up`. Whatever it has is the Show `Dark`, its id `<namespace>-1`.
@@ -204,7 +204,7 @@ impl Plugin for FakePlugin {
 }
 
 /// How one fake source answers: its searches, then its lookups by id.
-type Answering = (Answers, Answers);
+pub(super) type Answering = (Answers, Answers);
 
 /// Title sources under `aa` and `bb`, `bb` also looking titles up by `aa` ids and `aa` by those
 /// in `aa_looks_up`, answering as given.
@@ -239,9 +239,9 @@ fn bb_then_aa(aa: Answering, bb: Answering) -> (TitleSources, Asked) {
     (metadata.in_order(bb_aa()), asked)
 }
 
-const HAS: Answering = (Answers::Has, Answers::Has);
+pub(super) const HAS: Answering = (Answers::Has, Answers::Has);
 
-fn asked(asked: &Asked) -> Vec<String> {
+pub(super) fn asked(asked: &Asked) -> Vec<String> {
     let log = asked.lock().unwrap_or_else(PoisonError::into_inner);
     (log.iter())
         .filter(|line| !line.ends_with(" namespace"))
@@ -259,7 +259,7 @@ fn namespaces_asked(asked: &Asked) -> Vec<String> {
 }
 
 /// The Show `Dark`, its folder naming `hint`.
-fn dark(hint: Option<ExternalId>) -> TitleKey {
+pub(super) fn dark(hint: Option<ExternalId>) -> TitleKey {
     let item = Item::Episode {
         show: "Dark".to_owned(),
         year: None,

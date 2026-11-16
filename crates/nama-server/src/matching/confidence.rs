@@ -5,7 +5,8 @@
 //! Matches only above [`THRESHOLD`], and only if every other candidate within [`MARGIN`] of it
 //! has at most a [`VOTE_RATIO`]th of its votes: two titles that fit about as well and are about
 //! as well known are ambiguous, and an ambiguous file stays Unmatched rather than risk the wrong
-//! Match.
+//! Match. Among Shows that tie, the one that alone has every Episode of the files Matches (see
+//! [`sources`](super::sources)).
 
 use nama_plugin_api::metadata::ExternalId;
 

@@ -96,7 +96,7 @@ pub(super) enum Refused {
     OutOfRange { wants: String },
     #[error("its setting {key} is of a kind this Server doesn't know")]
     UnknownSettingKind { key: String },
-    #[error("its setting {key}'s default isn't {kind:?}")]
+    #[error("its setting {key}'s default isn't {kind}")]
     DefaultWrongKind { key: String, kind: SettingKind },
     #[error("its allowed host {0} has a port, and allowed hosts are matched without one")]
     HostWithPort(String),

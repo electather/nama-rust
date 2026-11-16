@@ -3005,7 +3005,7 @@ pub struct UnmatchedItemView<'a> {
     ///
     /// Field 7: `episode`
     pub episode: ::core::option::Option<i32>,
-    /// Why automatic Matching left the item Unmatched.
+    /// Why the item is Unmatched.
     ///
     /// Field 8: `reason`
     pub reason: ::buffa::EnumValue<super::super::UnmatchedReason>,
@@ -3454,7 +3454,7 @@ impl UnmatchedItemOwnedView {
     pub fn episode(&self) -> ::core::option::Option<i32> {
         self.0.reborrow().episode
     }
-    /// Why automatic Matching left the item Unmatched.
+    /// Why the item is Unmatched.
     ///
     /// Field 8: `reason`
     #[must_use]

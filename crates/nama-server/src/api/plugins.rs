@@ -395,20 +395,15 @@ impl From<EnableError> for ConnectError {
 /// The refusal of settings that don't fit their Plugin's schema, naming the one that doesn't as
 /// `settings.<key>`, the way `Plugin.settings` lists it.
 pub(super) fn settings_refused(err: SettingsError) -> ConnectError {
+    let message = err.to_string();
     let refused = match err {
-        SettingsError::Missing(key) => refuse(
-            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-            format!("the setting {key} is required"),
-        )
-        .setting(&key),
+        SettingsError::Missing(key) => {
+            refuse(RefusalReason::REFUSAL_REASON_FIELD_REQUIRED, message).setting(&key)
+        }
         SettingsError::WrongKind { key, expected } => {
-            let kind = setting_kind_to_proto(expected).proto_name();
-            refuse(
-                RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
-                format!("the setting {key} must be {kind}"),
-            )
-            .setting(&key)
-            .param("settingKind", &kind)
+            refuse(RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND, message)
+                .setting(&key)
+                .param("settingKind", &setting_kind_to_proto(expected).proto_name())
         }
     };
     refused.into()
