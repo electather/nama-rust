@@ -7,10 +7,9 @@ Linking the Items a scan finds to titles from the Library's title sources, stori
 - **Asks title sources only through `TitleSources`** (`library::title_source`), and reads its `Unanswered`.
 - **Recognisers only propose; the Kernel decides** (ADR 0050). `recognisers.rs` asks them through `ExtensionPoints` after the search decides, and Matching fetches what one names from the title sources as it does an ID Hint's, then stores the Match or Unmatched decision itself. A failing Recogniser leaves the Item undecided, never Unmatched.
 - **Private modules.** The area's files are private modules; neighbours import only what `matching.rs` re-exports, and items inside default to `pub(super)`. Its unit tests share the fixture in `../matching_tests.rs`.
-- **Name parser version.** A change to how names are parsed or how Matching decides that could turn an Unmatched Item into a Match bumps `PARSER_VERSION` in `../library/versions.rs`, so the next scan parses stored files again and retries their automatic Unmatched decisions (ADR 0023). So does a change to what Matching stores about an automatic Unmatched decision, such as why it was made, so decisions stored before it get it.
 - **Metadata version.** A change to what a Match stores from the title sources bumps `METADATA_VERSION` in `../library/versions.rs`, so the next scan fetches every Matched title again by the ids its Match has and stores the new fields (ADR 0040).
 
 ### Neighbours
 
 - Uses: `db`, `events`, `library` (`contents`, `libraries`, `title_source`, `artwork`, `scan_locks`, `country_tags`, `versions`) and `plugins` (`ExtensionPoints`, `Answer`).
-- Used by: `scanner` (`Matcher`, `Summary`, `Error`, `count`) and the `api` part for matches (`Matcher`, `ManualError`).
+- Used by: `scanner` (`Matcher`, `Summary`, `Error`, `count`) and the `api` part for matches (`Matcher`, `ManualError`). The Name parser version rule, which covers how Matching decides, lives in `scanner`'s `AGENTS.md`.
