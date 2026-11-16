@@ -1,4 +1,5 @@
-import { create } from "@bufbuild/protobuf";
+import { type MessageInitShape, create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { type Dispatch, type SetStateAction, useCallback, useState } from "react";
@@ -9,12 +10,15 @@ import {
   type PlaybackPlan,
   PlaybackPlanSchema,
   PlaybackReasonKind,
+  type PlaybackReasonSchema,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { findDeviceDecoding } from "@/lib/device-decoding";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { refusalOf, serverMessage } from "@/lib/forms";
+// oxlint-disable-next-line import/max-dependencies -- the plan puts together the Device's decoding, Watch State and why the Server couldn't plan
+import { serverFailedToPlan } from "@/lib/playback-wording";
 import { toMs } from "@/lib/watch-state";
 
 /** What the player asks a plan for, beside the Version. */
@@ -218,7 +222,7 @@ function useSubtitleChoice(askFromHere: ReturnType<typeof asker>, plan: Playback
 
 /**
  * The plan for Version `versionId` as `asking` says, asked for once and never reused after. A
- * Server too busy to Transcode it gives a plan that can't play, saying so.
+ * Server too busy to Transcode it, or that fails to plan it, gives a plan that can't play, saying so.
  */
 function usePlan(versionId: bigint, asking: Asking) {
   const transport = useTransport();
@@ -255,9 +259,15 @@ function usePlan(versionId: bigint, asking: Asking) {
         );
         return create(PlaybackPlanSchema, response.plan);
       } catch (error) {
+        if (ConnectError.from(error).code === Code.Internal)
+          return cantPlayPlan({ text: serverFailedToPlan });
         const { reason, params } = refusalOf(error);
         if (reason !== RefusalReason.SERVER_BUSY) throw error;
-        return serverBusyPlan(params, serverMessage(error));
+        return cantPlayPlan({
+          kind: PlaybackReasonKind.SERVER_BUSY,
+          params,
+          text: serverMessage(error),
+        });
       }
     },
     staleTime: "static",
@@ -265,11 +275,9 @@ function usePlan(versionId: bigint, asking: Asking) {
   }).data;
 }
 
-/** A plan that can't play, as a Server too busy to Transcode gives. */
-function serverBusyPlan(params: Record<string, string>, text: string) {
-  return create(PlaybackPlanSchema, {
-    reasons: [{ kind: PlaybackReasonKind.SERVER_BUSY, params, text, decided: true }],
-  });
+/** A plan that can't play, for the one `reason`. */
+function cantPlayPlan(reason: MessageInitShape<typeof PlaybackReasonSchema>) {
+  return create(PlaybackPlanSchema, { reasons: [{ ...reason, decided: true }] });
 }
 
 /**

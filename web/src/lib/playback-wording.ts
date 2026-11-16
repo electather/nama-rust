@@ -49,6 +49,9 @@ export function hardwareName(api: HardwareAcceleration) {
   return hardwareNames.get(api) ?? `API ${api}`;
 }
 
+/** Why a Version can’t play when the Server failed to work out its plan. */
+export const serverFailedToPlan = "The Server couldn’t get it ready to play.";
+
 /** The texts of `reasons` that decided the plan, and of those that are only context. */
 export function wordReasons(reasons: PlaybackReason[]) {
   const worded = (decided: boolean) =>

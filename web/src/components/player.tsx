@@ -1,30 +1,28 @@
 import type { VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { Link, type LinkOptions } from "@tanstack/react-router";
-import { ArrowLeft, Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
-import { type PointerEvent, type ReactNode, type RefObject, useRef } from "react";
+import { ArrowLeft, Pause, Play } from "lucide-react";
+import {
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { DroppedChoice } from "@/components/dropped-choice";
+import { FullscreenButton, VolumeControls } from "@/components/player-controls";
 import { PlaybackInfo } from "@/components/playback-info";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { SubtitleTracks } from "@/components/subtitles-menu";
-import { TrackMenus } from "@/components/track-menus";
 // oxlint-disable-next-line import/max-dependencies -- the player puts together the video, its controls, Tracks, Watch State and playback info
+import { TrackMenus } from "@/components/track-menus";
 import { Slider } from "@/components/ui/slider";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
-import {
-  type Video,
-  clock,
-  setVolume,
-  toggleFullscreen,
-  toggleMute,
-  togglePlay,
-  useAwake,
-  useIsFullscreen,
-  useShortcuts,
-  useVideo,
-} from "@/lib/playback";
+import { type Video, clock, togglePlay, useAwake, useShortcuts, useVideo } from "@/lib/playback";
 import { usePlaybackPlan } from "@/lib/playback-plan";
 import { usePlaybackSource } from "@/lib/playback-source";
 import { wordReasons } from "@/lib/playback-wording";
@@ -46,9 +44,18 @@ export interface PlayerProps {
 /**
  * Plays a Version full screen with Nama's own controls, from where the Server's Playback Plan says,
  * asking for a new plan when the browser fails to play one, or says so plainly when it can't play
- * here.
+ * here. While the Server works a plan out, which the first time can take minutes, it says so.
  */
 export function Player(props: PlayerProps) {
+  // Above the plan's owner, so a later plan suspends it mounted and it keeps what it asked for.
+  return (
+    <Suspense fallback={<GettingReady title={props.title} back={props.back} />}>
+      <PlannedPlayer {...props} />
+    </Suspense>
+  );
+}
+
+function PlannedPlayer(props: PlayerProps) {
   const planned = usePlaybackPlan(props);
   const { plan } = planned;
   if (plan.url === "")
@@ -134,8 +141,8 @@ function TopBar({
 }: {
   title: string;
   back: LinkOptions;
-  playbackInfo: ReactNode;
-  notice: ReactNode;
+  playbackInfo?: ReactNode;
+  notice?: ReactNode;
 }) {
   return (
     <div className="bg-linear-to-b from-scrim pb-10">
@@ -203,55 +210,28 @@ function BottomBar({
   );
 }
 
-function VolumeControls({ video }: { video: Video }) {
-  const { volume, muted } = video.state;
-  const heard = muted ? 0 : volume;
-  return (
-    <>
-      <Button
-        variant="overlay"
-        size="icon"
-        aria-label={muted ? "Unmute" : "Mute"}
-        onClick={() => {
-          video.control(toggleMute);
-        }}
-      >
-        {heard === 0 ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
-      </Button>
-      {/* Phones set the volume with their own buttons. */}
-      <div className="hidden w-24 pe-2 sm:block">
-        <Slider
-          label="Volume"
-          valueText={`${Math.round(heard * 100)}%`}
-          value={heard}
-          max={1}
-          step={0.05}
-          onValueChange={(level) => {
-            video.control((element) => {
-              setVolume(element, level);
-            });
-          }}
-        />
-      </div>
-    </>
-  );
-}
+// Longer than React holds a Suspense fallback (300 ms), so a quick plan, as most later ones are,
+// neither flashes this nor has it announced.
+const NOTICEABLE_WAIT_MS = 1000;
 
-function FullscreenButton({ playerRef }: { playerRef: RefObject<HTMLDivElement | null> }) {
-  const isFullscreen = useIsFullscreen();
-  // ponytail: iPhones can't make a page full screen, only the video with its own controls.
-  if (!document.fullscreenEnabled) return null;
+/** The title bar, and once the wait is noticeable, that the Server is getting the Version ready. */
+function GettingReady({ title, back }: Pick<PlayerProps, "title" | "back">) {
+  const [noticeable, setNoticeable] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setNoticeable(true);
+    }, NOTICEABLE_WAIT_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, []);
   return (
-    <Button
-      variant="overlay"
-      size="icon"
-      aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
-      onClick={() => {
-        toggleFullscreen(playerRef.current);
-      }}
-    >
-      {isFullscreen ? <Minimize aria-hidden /> : <Maximize aria-hidden />}
-    </Button>
+    <div className="fixed inset-0 flex flex-col bg-background">
+      <TopBar title={title} back={back} />
+      {noticeable && (
+        <output className="m-auto px-6 text-muted-foreground">Getting this ready…</output>
+      )}
+    </div>
   );
 }
 
