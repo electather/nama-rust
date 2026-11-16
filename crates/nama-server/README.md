@@ -6,6 +6,14 @@ The Nama Server: owns Libraries, streams media and handles Requests. Its databas
 
 Every write goes through `Database::write` or `Database::write_then`, which hands it to the single writer task that owns the only writable connection. Never open another writable connection. Long jobs such as a scan write in small batches so other writes and reads aren't held up. `src/db.rs` explains why.
 
+## Editing `nama.toml`
+
+[`docs/nama.schema.json`](../../docs/nama.schema.json) describes every key in `nama.toml`. Make this the file's first line and an editor using Taplo, such as VS Code with Even Better TOML, completes keys, shows what each does and flags unknown keys and values of the wrong type:
+
+```toml
+#:schema https://raw.githubusercontent.com/electather/nama-rust/main/docs/nama.schema.json
+```
+
 ## Behind a reverse proxy
 
 A Server believes `X-Forwarded-For` and `X-Forwarded-Proto` only from the peers listed in `trusted_proxies` in `nama.toml` (ADR 0018). Each entry is an IP address or a CIDR range. The list is empty by default, so the headers are ignored: sign-in limits count each socket peer, and the session cookie is never `Secure`.

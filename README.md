@@ -28,12 +28,14 @@ A Server Matches the files in its Libraries to Movies and Shows using the built-
 Plugin settings live in the Server's database. On its first start, fresh or after upgrading, a Server imports any `[plugins.*]` tables from an existing `nama.toml` once, such as:
 
 ```toml
+#:schema https://raw.githubusercontent.com/electather/nama-rust/main/docs/nama.schema.json
+
 [plugins.tmdb]
 api_key = "your TMDB API key"
 # language = "en-US"   # the language titles, overviews and Title Logos are fetched in; its country picks the Content Rating
 ```
 
-After that it ignores those tables, and logs that it does, so editing them changes nothing.
+After that it ignores those tables, and logs that it does, so editing them changes nothing. The `#:schema` line lets an editor check the file ([`crates/nama-server/README.md`](crates/nama-server/README.md), "Editing `nama.toml`").
 
 ## Requests to Radarr and Sonarr
 
