@@ -22,6 +22,9 @@ const MAX_STORED: usize = 64 * 1024;
 /// The longest key the Kernel's Store keeps, in bytes.
 const MAX_KEY: usize = 256;
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
+/// How long after asking to delete a title the tick asks again if the title is still listed and
+/// due, since its delete, which runs in the background, must have failed.
+const ASK_AGAIN_AFTER_MS: i64 = DAY_MS;
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -126,7 +129,7 @@ fn tick(tick: &Tick) -> Result<(), Error> {
     )?;
     let mut refused = Vec::new();
     for library in named {
-        refused.extend(clean(library, &users, cutoff_ms)?);
+        refused.extend(clean(library, &users, cutoff_ms, tick.now_ms)?);
     }
     match refusal(&refused) {
         None => Ok(()),
@@ -134,8 +137,14 @@ fn tick(tick: &Tick) -> Result<(), Error> {
     }
 }
 
-/// Deletes the due titles of `library`, returning the Kernel's words for each delete it refused.
-fn clean(library: &Library, users: &[i64], cutoff_ms: i64) -> Result<Vec<String>, Error> {
+/// Deletes the due titles of `library` at `now_ms`, returning the Kernel's words for each delete it
+/// refused.
+fn clean(
+    library: &Library,
+    users: &[i64],
+    cutoff_ms: i64,
+    now_ms: i64,
+) -> Result<Vec<String>, Error> {
     let key = format!("deleting/{}", library.id);
     let recorded = decode(&kernel::store_get(&key, None)?.unwrap_or_default());
     let mut listed = HashSet::new();
@@ -159,21 +168,51 @@ fn clean(library: &Library, users: &[i64], cutoff_ms: i64) -> Result<Vec<String>
         }
         token = page.next_page_token;
     }
-    // A title no longer listed is gone, so its entry is no longer needed.
-    let still_listed: Vec<Key> = (recorded.iter())
-        .filter(|title| listed.contains(*title))
-        .cloned()
-        .collect();
-    let deleted = delete_due(
-        &due,
-        &still_listed.iter().cloned().collect(),
-        |title, also| kernel::delete_media(title.clone(), also),
-    );
-    let kept = encode(still_listed.into_iter().chain(deleted.recorded));
+    let asked = ask_due(recorded.clone(), &listed, &due, now_ms, |title, also| {
+        kernel::delete_media(title.clone(), also)
+    });
+    let kept = encode(asked.recorded.into_iter());
     if decode(&kept) != recorded {
         kernel::store_put(&key, None, &kept)?;
     }
-    Ok(deleted.refused)
+    Ok(asked.refused)
+}
+
+/// What [`ask_due`] did.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Asking {
+    /// The titles the Store keeps as asked to delete, the latest last.
+    recorded: Vec<Asked>,
+    /// The Kernel's words for each delete it refused.
+    refused: Vec<String>,
+}
+
+/// Deletes through [`delete_due`] each of `due` that `recorded` doesn't hold, after forgetting each
+/// title of `recorded` no longer `listed`, since it is gone, and each asked [`ASK_AGAIN_AFTER_MS`]
+/// or longer before `now_ms`, since its delete must have failed. The titles it asks are recorded
+/// as asked at `now_ms`.
+fn ask_due(
+    recorded: Vec<Asked>,
+    listed: &HashSet<Key>,
+    due: &[TitleRef],
+    now_ms: i64,
+    delete: impl FnMut(&TitleRef, &[TitleRef]) -> Result<Vec<TitleRef>, Error>,
+) -> Asking {
+    let waiting: Vec<Asked> = (recorded.into_iter())
+        .filter(|asked| {
+            listed.contains(&asked.title) && now_ms.saturating_sub(asked.at_ms) < ASK_AGAIN_AFTER_MS
+        })
+        .collect();
+    let considered = waiting.iter().map(|asked| asked.title.clone()).collect();
+    let deleted = delete_due(due, &considered, delete);
+    let now_asked = (deleted.recorded.into_iter()).map(|title| Asked {
+        title,
+        at_ms: now_ms,
+    });
+    Asking {
+        recorded: waiting.into_iter().chain(now_asked).collect(),
+        refused: deleted.refused,
+    }
 }
 
 /// The Library names `setting` lists, separated by commas, trimmed, leaving out empty ones.
@@ -348,11 +387,6 @@ impl Key {
         }
     }
 
-    /// The line the Store keeps it as: its kind, namespace and value, separated by tabs.
-    fn line(&self) -> String {
-        format!("{}\t{}\t{}\n", self.kind, self.namespace, self.value)
-    }
-
     /// The `TitleRef` it names in `library_id`.
     #[cfg(test)]
     fn title_ref(&self, library_id: i64) -> TitleRef {
@@ -370,10 +404,30 @@ impl Key {
     }
 }
 
-/// `titles` as a Store value, one line each, leaving out the first ones when they don't all fit,
+/// A title the tick asked the Kernel to delete, and when.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Asked {
+    title: Key,
+    at_ms: i64,
+}
+
+impl Asked {
+    /// The line the Store keeps it as: its title's kind, namespace and value, then when it was
+    /// asked, separated by tabs.
+    fn line(&self) -> String {
+        let Key {
+            kind,
+            namespace,
+            value,
+        } = &self.title;
+        format!("{kind}\t{namespace}\t{value}\t{}\n", self.at_ms)
+    }
+}
+
+/// `asked` as a Store value, one line each, leaving out the first ones when they don't all fit,
 /// since the latest are the ones whose deletes may still be going on.
-fn encode(titles: impl Iterator<Item = Key>) -> Vec<u8> {
-    let mut lines: Vec<String> = titles.map(|title| title.line()).collect();
+fn encode(asked: impl Iterator<Item = Asked>) -> Vec<u8> {
+    let mut lines: Vec<String> = asked.map(|asked| asked.line()).collect();
     let mut size = 0;
     let fitting = lines
         .iter()
@@ -389,8 +443,9 @@ fn encode(titles: impl Iterator<Item = Key>) -> Vec<u8> {
         .into_bytes()
 }
 
-/// The titles a Store value [`encode`] made holds, leaving out a line it can't read.
-fn decode(value: &[u8]) -> Vec<Key> {
+/// The titles a Store value [`encode`] made holds, leaving out a line it can't read, such as one
+/// of the earlier form without the time it was asked.
+fn decode(value: &[u8]) -> Vec<Asked> {
     (String::from_utf8_lossy(value).lines())
         .filter_map(|line| {
             let mut fields = line.split('\t');
@@ -399,7 +454,8 @@ fn decode(value: &[u8]) -> Vec<Key> {
                 namespace: fields.next()?.to_owned(),
                 value: fields.next()?.to_owned(),
             };
-            fields.next().is_none().then_some(title)
+            let at_ms = fields.next()?.parse().ok()?;
+            fields.next().is_none().then_some(Asked { title, at_ms })
         })
         .collect()
 }

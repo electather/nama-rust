@@ -10,8 +10,8 @@ use nama_pdk::{
 };
 
 use super::{
-    DAY_MS, Deleted, Key, MAX_STORED, cutoff_ms, days, decode, delete_due, encode, is_due,
-    library_names, manifest, named_libraries, refusal, remembered_ids, remembered_value,
+    Asked, DAY_MS, Deleted, Key, MAX_STORED, ask_due, cutoff_ms, days, decode, delete_due, encode,
+    is_due, library_names, manifest, named_libraries, refusal, remembered_ids, remembered_value,
 };
 
 const NOW_MS: i64 = 1_800_000_000_000;
@@ -232,16 +232,81 @@ fn the_refusal_counts_every_refused_delete_and_says_each_reason_once() {
     );
 }
 
+/// `title` as asked to delete at `at_ms`.
+fn asked(title: &str, at_ms: i64) -> Asked {
+    Asked {
+        title: episode(title),
+        at_ms,
+    }
+}
+
+const HOUR_MS: i64 = 60 * 60 * 1000;
+
+/// What [`ask_due`] does at `NOW_MS` with `recorded`, when the Library lists `listed` and `due`
+/// are due, with the values of the titles it asked to delete.
+fn ask_at_now(recorded: Vec<Asked>, listed: &[&str], due: &[&str]) -> (Vec<Asked>, Vec<String>) {
+    let kernel = kernel(Vec::new(), Vec::new());
+    let listed = listed.iter().map(|value| episode(value)).collect();
+
+    let asking = ask_due(recorded, &listed, &titles(due), NOW_MS, |title, also| {
+        kernel.delete(title, also)
+    });
+
+    assert!(asking.refused.is_empty(), "{asking:?}");
+    let delete_asked = kernel
+        .asked
+        .into_inner()
+        .into_iter()
+        .map(|(value, _)| value);
+    (asking.recorded, delete_asked.collect())
+}
+
+#[test]
+fn a_title_asked_a_day_ago_still_listed_and_due_is_asked_again() {
+    let (recorded, delete_asked) = ask_at_now(vec![asked("1", NOW_MS - DAY_MS)], &["1"], &["1"]);
+
+    assert_eq!(delete_asked, ["1"]);
+    assert_eq!(recorded, [asked("1", NOW_MS)]);
+}
+
+#[test]
+fn a_title_asked_an_hour_ago_still_listed_and_due_is_not_asked_again() {
+    let (recorded, delete_asked) = ask_at_now(vec![asked("1", NOW_MS - HOUR_MS)], &["1"], &["1"]);
+
+    assert_eq!(delete_asked, Vec::<String>::new());
+    assert_eq!(recorded, [asked("1", NOW_MS - HOUR_MS)]);
+}
+
+#[test]
+fn a_title_asked_a_day_ago_and_no_longer_due_is_forgotten_and_not_asked() {
+    let (recorded, delete_asked) = ask_at_now(vec![asked("1", NOW_MS - DAY_MS)], &["1"], &[]);
+
+    assert_eq!(delete_asked, Vec::<String>::new());
+    assert_eq!(recorded, []);
+}
+
+#[test]
+fn a_title_no_longer_listed_is_forgotten() {
+    let (recorded, _) = ask_at_now(vec![asked("1", NOW_MS - HOUR_MS)], &["2"], &["2"]);
+
+    assert_eq!(recorded, [asked("2", NOW_MS)]);
+}
+
 #[test]
 fn the_store_value_reads_back_what_was_written() {
-    let recorded = vec![episode("1"), episode("tt 2")];
+    let recorded = vec![asked("1", NOW_MS), asked("tt 2", NOW_MS - DAY_MS)];
 
     assert_eq!(decode(&encode(recorded.clone().into_iter())), recorded);
 }
 
 #[test]
+fn a_store_value_of_the_form_without_when_it_was_asked_reads_as_nothing_recorded() {
+    assert_eq!(decode(b"2\ttvdb\t1\n2\ttvdb\t2\n"), []);
+}
+
+#[test]
 fn a_store_value_too_large_keeps_the_latest_titles() {
-    let recorded: Vec<Key> = (0..10_000).map(|n| episode(&n.to_string())).collect();
+    let recorded: Vec<Asked> = (0..10_000).map(|n| asked(&n.to_string(), NOW_MS)).collect();
 
     let value = encode(recorded.clone().into_iter());
     let kept = decode(&value);

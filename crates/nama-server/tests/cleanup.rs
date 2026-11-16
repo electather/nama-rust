@@ -13,8 +13,8 @@ use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{
     BrowseServiceClient, EnablePluginRequest, ExternalId, LibraryKind, LibraryServiceClient,
     ListMoviesRequest, PluginPermission, PluginServiceClient, SetPlayedRequest, SettingValue,
-    UpdateLibraryRequest, UpdatePluginSettingsRequest, WatchStateServiceClient, set_played_request,
-    setting_value::Value,
+    UpdateLibraryRequest, UpdatePluginSettingsRequest, WatchStateServiceClient, event,
+    set_played_request, setting_value::Value,
 };
 use nama_server::plugins::Registry;
 use server::{
@@ -234,5 +234,54 @@ async fn a_movie_one_user_has_not_watched_is_kept() {
     server.tick(CLEANUP).await.unwrap();
 
     tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(movies(&server, &library).await, [ALIEN, DUNE]);
+}
+
+/// Sets the mode of the folder `folder` to `mode`.
+#[cfg(unix)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn set_mode(folder: &std::path::Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(folder, std::fs::Permissions::from_mode(mode)).unwrap();
+}
+
+/// A delete that failed in the background leaves the Movie listed, and a day later the Cleanup
+/// asks again. The Kernel refuses that second delete up front, since the Library's last scan found
+/// its folder read-only, so the tick says so. Unix only: Windows has no simple equivalent of
+/// taking away these permissions.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_delete_that_failed_is_asked_again_a_day_later() {
+    let (server, library) = alien_and_dune().await;
+    enable_cleanup(&server, &EVERY_PERMISSION).await;
+    mark_played(&server, &library, ALIEN).await;
+    past_the_limit(&server);
+    let alien_folder = library.folder().join("Alien (1979)");
+    set_mode(&alien_folder, 0o555);
+    if std::fs::File::create(alien_folder.join("probe")).is_ok() {
+        // Running as root, which writes anywhere; there's nothing to test.
+        set_mode(&alien_folder, 0o755);
+        return;
+    }
+
+    server.tick(CLEANUP).await.unwrap();
+    set_mode(library.folder(), 0o555);
+    (server.scan_until(library.id, |event| {
+        matches!(event, event::Event::ScanFinished(_))
+    }))
+    .await;
+    let same_day = server.tick(CLEANUP).await;
+    server.advance_clock(Duration::from_hours(24));
+    let a_day_later = server.tick(CLEANUP).await;
+    // So the scratch directory can be cleaned up.
+    set_mode(library.folder(), 0o755);
+    set_mode(&alien_folder, 0o755);
+
+    assert_eq!(same_day, Ok(()), "asked again before a day passed");
+    let refused = a_day_later.expect_err("a day later, the delete is asked again");
+    assert!(refused.contains("can't write to it"), "{refused}");
     assert_eq!(movies(&server, &library).await, [ALIEN, DUNE]);
 }
