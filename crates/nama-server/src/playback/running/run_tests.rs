@@ -122,6 +122,19 @@ async fn a_resumed_plan_runs_ffmpeg_once_from_the_first_keyframe_of_the_segment_
 
 #[cfg(unix)]
 #[tokio::test]
+async fn a_resumed_transcode_runs_ffmpeg_from_the_segment_resumed_in() {
+    let data = tempfile::tempdir().unwrap();
+    let plans = running_plans(data.path()).await;
+    let six_second_segments = Timeline::transcoded(1_000_000);
+
+    let (_, starts) =
+        start_method_writing_nothing(&plans, Method::Transcode, six_second_segments, 800_500).await;
+
+    assert_eq!(until_started(&starts, 1).await, [133]);
+}
+
+#[cfg(unix)]
+#[tokio::test]
 async fn the_init_segment_of_a_resumed_plan_is_served_once_ffmpeg_has_written_its_first_file() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;

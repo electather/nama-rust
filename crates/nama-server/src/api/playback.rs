@@ -81,7 +81,7 @@ impl PlaybackService for PlaybackServiceHandler {
             audio,
             subtitle,
             limit: picked_limit(request.playback_limit),
-            // One past `i64::MAX` is past the end of any Version, so plays from its last segment.
+            // Past `i64::MAX` is past the end of any Version, so it plays from its last segment.
             start_ms: i64::try_from(request.start_position_ms).unwrap_or(i64::MAX),
             client,
         };
