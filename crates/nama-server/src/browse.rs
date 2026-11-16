@@ -174,8 +174,8 @@ impl Browse {
     ) -> Result<Season, Error> {
         let library = self.library(library).await?;
         let season = self.titles(&library).await?.season(show, number)?;
-        let probes =
-            (self.probes(season.episodes.iter().flat_map(|episode| &episode.versions))).await?;
+        let files = season.episodes.iter().flat_map(|episode| &episode.versions);
+        let probes = self.probes(files).await?;
         let episodes = (season.episodes.into_iter())
             .map(|episode| episode.map_versions(with_tracks(&probes)))
             .collect();
@@ -205,7 +205,7 @@ impl Browse {
     }
 
     /// Every title of `library`, as [`Contents`] has it, without Tracks. Every finder reads
-    /// through here, then reads the Tracks of only what it answers with.
+    /// through here; one answering with Tracks reads them afterwards, of only what it answers with.
     // ponytail: whole-Library read (see AGENTS.md).
     async fn titles(&self, library: &Library) -> Result<Titles, Error> {
         Ok(match library.kind {
