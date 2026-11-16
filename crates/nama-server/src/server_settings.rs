@@ -441,5 +441,5 @@ impl ImageSettings {
 }
 
 #[cfg(test)]
-#[path = "server_settings_tests.rs"]
+#[path = "server_settings/server_settings_tests.rs"]
 mod tests;
