@@ -107,6 +107,11 @@ impl Calls {
         let clock = call.lock();
         match called {
             Err(_) if clock.cancelled == Some(Cancelled::Stopped) => Err(Interrupted.into()),
+            // A watchdog that wakes late lands here too: this call passed its own limit, but
+            // another call's timeout ended it before its watchdog marked it `AtLimit`. It then
+            // isn't counted as a crash, so a Plugin whose calls keep overrunning is disabled one
+            // overrun later. Accepted: the window is the watchdog's wake-up delay, the caller
+            // fails either way, and the other call's timeout was counted.
             Err(err) if clock.cancelled.is_none() && super::is_timeout(&err) => {
                 Err(Collateral.into())
             }

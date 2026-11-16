@@ -158,6 +158,16 @@ impl Kernel for Gate {
     }
 }
 
+/// Opens a [`Gate`] when dropped, so a test that fails while a call waits in it ends instead of
+/// hanging: the runtime's shutdown waits for that call's blocking thread.
+struct Release(Arc<Notify>);
+
+impl Drop for Release {
+    fn drop(&mut self) {
+        self.0.notify_one();
+    }
+}
+
 /// The test Plugin built with `features`, enabled as the Server enables it, with `kernel`.
 fn running(
     features: &str,
@@ -238,6 +248,7 @@ async fn a_call_another_calls_timeout_interrupts_fails_plainly_and_not_as_a_cras
         entered: Arc::clone(&entered),
         release: Arc::clone(&release),
     };
+    let release = Release(release);
     // One compile whose tick waits in the gate and whose Observer loops.
     let running = running_with(
         "automation",
@@ -263,7 +274,7 @@ async fn a_call_another_calls_timeout_interrupts_fails_plainly_and_not_as_a_cras
         .call_method::<_, EventsObserved>(&observe, &ObservedEvents::default())
         .await
         .unwrap_err();
-    release.notify_one();
+    drop(release);
     let interrupted = tokio::time::timeout(CALL_TIMEOUT, ticking)
         .await
         .expect("the tick ran on past the other call's timeout")
