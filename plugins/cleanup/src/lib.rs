@@ -19,6 +19,8 @@ const LIBRARIES: &str = "libraries";
 const PAGE_SIZE: u32 = 200;
 /// The largest value the Kernel's Store keeps.
 const MAX_STORED: usize = 64 * 1024;
+/// The longest key the Kernel's Store keeps, in bytes.
+const MAX_KEY: usize = 256;
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
@@ -86,7 +88,10 @@ fn manifest() -> Manifest {
             setting(
                 LIBRARIES,
                 "Libraries",
-                "The names of the Libraries to clean, separated by commas. Empty cleans none.",
+                "The names of the Libraries to clean, separated by commas. Empty cleans none. \
+                 Every Library with a listed name is cleaned. One renamed after a tick found it \
+                 is still cleaned under its old name, until the only Libraries with that name \
+                 are ones no tick found under it.",
                 SettingKind::SETTING_KIND_TEXT,
             ),
         ],
@@ -112,11 +117,16 @@ fn tick(tick: &Tick) -> Result<(), Error> {
     if users.is_empty() {
         return Ok(());
     }
+    let libraries = kernel::libraries()?;
+    let named = named_libraries(
+        &named,
+        &libraries,
+        |key| Ok(remembered_ids(kernel::store_get(key, None)?.as_deref())),
+        |key, ids| kernel::store_put(key, None, &remembered_value(ids)),
+    )?;
     let mut refused = Vec::new();
-    for library in kernel::libraries()? {
-        if named.contains(&library.name.as_str()) {
-            refused.extend(clean(&library, &users, cutoff_ms)?);
-        }
+    for library in named {
+        refused.extend(clean(library, &users, cutoff_ms)?);
     }
     match refusal(&refused) {
         None => Ok(()),
@@ -172,6 +182,61 @@ fn library_names(setting: &str) -> Vec<&str> {
         .map(str::trim)
         .filter(|name| !name.is_empty())
         .collect()
+}
+
+/// The Libraries `named` names among `libraries`, each once and in `libraries`' order,
+/// remembering through `put` the ids each name resolved to and reading them back through `get`.
+///
+/// Names aren't unique, so a name resolves to every Library that has it now. It also keeps the
+/// Libraries it last resolved to that still exist, since they were renamed, unless every Library
+/// that has it now is new to it: another Library took the name. A name too long for a Store key
+/// resolves by name only.
+fn named_libraries<'a>(
+    named: &[&str],
+    libraries: &'a [Library],
+    mut get: impl FnMut(&str) -> Result<Vec<i64>, Error>,
+    mut put: impl FnMut(&str, &[i64]) -> Result<(), Error>,
+) -> Result<Vec<&'a Library>, Error> {
+    let mut found = HashSet::new();
+    for name in named {
+        let key = Some(format!("library/{name}")).filter(|key| key.len() <= MAX_KEY);
+        let remembered = match &key {
+            Some(key) => get(key)?,
+            None => Vec::new(),
+        };
+        let by_name: Vec<i64> = (libraries.iter())
+            .filter(|library| library.name == *name)
+            .map(|library| library.id)
+            .collect();
+        let taken = !by_name.is_empty() && !by_name.iter().any(|id| remembered.contains(id));
+        let ids: Vec<i64> = (libraries.iter())
+            .map(|library| library.id)
+            .filter(|id| by_name.contains(id) || (!taken && remembered.contains(id)))
+            .collect();
+        if let Some(key) = &key
+            && !ids.is_empty()
+            && ids != remembered
+        {
+            put(key, &ids)?;
+        }
+        found.extend(ids);
+    }
+    Ok((libraries.iter())
+        .filter(|library| found.contains(&library.id))
+        .collect())
+}
+
+/// The Library ids a Store value [`remembered_value`] made holds, leaving out one it can't read.
+fn remembered_ids(value: Option<&[u8]>) -> Vec<i64> {
+    (String::from_utf8_lossy(value.unwrap_or_default()).split(','))
+        .filter_map(|id| id.parse().ok())
+        .collect()
+}
+
+/// `ids` as a Store value, separated by commas.
+fn remembered_value(ids: &[i64]) -> Vec<u8> {
+    let ids: Vec<String> = ids.iter().map(i64::to_string).collect();
+    ids.join(",").into_bytes()
 }
 
 /// The `days` setting as a number of days, at least 0. A failure names the setting.

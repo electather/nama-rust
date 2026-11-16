@@ -1,14 +1,17 @@
-use std::{cell::RefCell, collections::HashSet};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+};
 
 use nama_pdk::{
-    Manifest, Permission, TitleId, TitleRef, TitleRefKind, TitleWatchStates, WatchState,
+    Library, Manifest, Permission, TitleId, TitleRef, TitleRefKind, TitleWatchStates, WatchState,
     extism_pdk::Error,
     nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value},
 };
 
 use super::{
     DAY_MS, Deleted, Key, MAX_STORED, cutoff_ms, days, decode, delete_due, encode, is_due,
-    library_names, manifest, refusal,
+    library_names, manifest, named_libraries, refusal, remembered_ids, remembered_value,
 };
 
 const NOW_MS: i64 = 1_800_000_000_000;
@@ -246,6 +249,139 @@ fn a_store_value_too_large_keeps_the_latest_titles() {
     assert!(value.len() <= MAX_STORED);
     assert!(kept.len() < recorded.len());
     assert_eq!(kept, recorded[recorded.len() - kept.len()..]);
+}
+
+fn library(id: i64, name: &str) -> Library {
+    Library {
+        id,
+        name: name.to_owned(),
+        ..Library::default()
+    }
+}
+
+/// A fake Store, keeping what [`named_libraries`] remembers as the Kernel's Store would.
+#[derive(Default)]
+struct Store(RefCell<HashMap<String, Vec<u8>>>);
+
+impl Store {
+    /// The ids of the Libraries `named` cleans among `libraries`, remembering in this Store.
+    fn cleaned(&self, named: &[&str], libraries: &[Library]) -> Vec<i64> {
+        let found = named_libraries(
+            named,
+            libraries,
+            |key| Ok(remembered_ids(self.0.borrow().get(key).map(Vec::as_slice))),
+            |key, ids| {
+                (self.0.borrow_mut()).insert(key.to_owned(), remembered_value(ids));
+                Ok(())
+            },
+        )
+        .unwrap();
+        found.into_iter().map(|library| library.id).collect()
+    }
+}
+
+#[test]
+fn a_named_library_is_cleaned_and_others_are_not() {
+    let store = Store::default();
+
+    let cleaned = store.cleaned(&["Movies"], &[library(4, "Movies"), library(5, "Shows")]);
+
+    assert_eq!(cleaned, [4]);
+}
+
+#[test]
+fn a_renamed_library_is_still_cleaned_under_its_old_name() {
+    let store = Store::default();
+    store.cleaned(&["Movies"], &[library(4, "Movies")]);
+
+    let cleaned = store.cleaned(&["Movies"], &[library(4, "Films")]);
+
+    assert_eq!(cleaned, [4]);
+}
+
+#[test]
+fn a_name_a_new_library_takes_cleans_the_new_one() {
+    let store = Store::default();
+    store.cleaned(&["Movies"], &[library(4, "Movies")]);
+    store.cleaned(&["Movies"], &[library(4, "Films")]);
+
+    let taken = store.cleaned(&["Movies"], &[library(4, "Films"), library(7, "Movies")]);
+    let renamed_again = store.cleaned(&["Movies"], &[library(4, "Films"), library(7, "Kids")]);
+
+    assert_eq!(taken, [7]);
+    assert_eq!(renamed_again, [7]);
+}
+
+#[test]
+fn libraries_sharing_a_name_are_all_cleaned_and_still_are_after_one_is_renamed() {
+    let store = Store::default();
+    let cleaned = store.cleaned(&["Movies"], &[library(4, "Movies"), library(5, "Movies")]);
+
+    let renamed = store.cleaned(
+        &["Movies"],
+        &[library(4, "Movies"), library(5, "Movies 4K")],
+    );
+    let both_renamed = store.cleaned(&["Movies"], &[library(4, "Films"), library(5, "Movies 4K")]);
+
+    assert_eq!(cleaned, [4, 5]);
+    assert_eq!(renamed, [4, 5]);
+    assert_eq!(both_renamed, [4, 5]);
+}
+
+#[test]
+fn a_new_library_taking_a_shared_name_joins_the_ones_still_having_it() {
+    let store = Store::default();
+    store.cleaned(&["Movies"], &[library(4, "Movies"), library(5, "Movies")]);
+
+    let cleaned = store.cleaned(
+        &["Movies"],
+        &[
+            library(4, "Movies"),
+            library(5, "Films"),
+            library(7, "Movies"),
+        ],
+    );
+
+    assert_eq!(cleaned, [4, 5, 7]);
+}
+
+#[test]
+fn remembered_ids_read_back_what_was_put() {
+    assert_eq!(remembered_ids(Some(&remembered_value(&[4, 5]))), [4, 5]);
+    assert_eq!(remembered_ids(Some(b"4,x,5")), [4, 5]);
+    assert_eq!(remembered_ids(None), Vec::<i64>::new());
+}
+
+#[test]
+fn a_name_whose_library_is_deleted_cleans_nothing() {
+    let store = Store::default();
+    store.cleaned(&["Movies"], &[library(4, "Movies")]);
+
+    let cleaned = store.cleaned(&["Movies"], &[library(5, "Shows")]);
+
+    assert_eq!(cleaned, Vec::<i64>::new());
+}
+
+#[test]
+fn a_library_named_twice_is_cleaned_once() {
+    let store = Store::default();
+    store.cleaned(&["Movies"], &[library(4, "Movies")]);
+
+    let cleaned = store.cleaned(&["Movies", "Films"], &[library(4, "Films")]);
+
+    assert_eq!(cleaned, [4]);
+}
+
+#[test]
+fn a_name_too_long_for_a_store_key_is_matched_by_name_only() {
+    let store = Store::default();
+    let long = "M".repeat(300);
+    store.cleaned(&[&long], &[library(4, &long)]);
+
+    let renamed = store.cleaned(&[&long], &[library(4, "Films")]);
+
+    assert!(store.0.borrow().is_empty());
+    assert_eq!(renamed, Vec::<i64>::new());
 }
 
 #[test]

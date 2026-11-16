@@ -11,9 +11,10 @@ use std::time::Duration;
 use buffa::EnumValue;
 use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, EnablePluginRequest, ExternalId, LibraryKind, ListMoviesRequest,
-    PluginPermission, PluginServiceClient, SetPlayedRequest, SettingValue,
-    UpdatePluginSettingsRequest, WatchStateServiceClient, set_played_request, setting_value::Value,
+    BrowseServiceClient, EnablePluginRequest, ExternalId, LibraryKind, LibraryServiceClient,
+    ListMoviesRequest, PluginPermission, PluginServiceClient, SetPlayedRequest, SettingValue,
+    UpdateLibraryRequest, UpdatePluginSettingsRequest, WatchStateServiceClient, set_played_request,
+    setting_value::Value,
 };
 use nama_server::plugins::Registry;
 use server::{
@@ -148,6 +149,23 @@ async fn wait_for_movies(server: &TestServer, library: &Library, tmdb: &[i64]) {
     );
 }
 
+/// Renames `library` to `name`, as the Admin, keeping its folder.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn rename(server: &TestServer, library: &Library, name: &str) {
+    LibraryServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .update_library(UpdateLibraryRequest {
+            id: library.id,
+            name: name.to_owned(),
+            folders: vec![library.folder().to_str().unwrap().to_owned()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
 /// Moves the clock past the `days` setting, so a Movie played before is due.
 fn past_the_limit(server: &TestServer) {
     server.advance_clock(Duration::from_hours((DAYS + 1) * 24));
@@ -158,6 +176,22 @@ async fn a_movie_every_user_watched_past_the_limit_is_deleted_and_a_recent_one_k
     let (server, library) = alien_and_dune().await;
     enable_cleanup(&server, &EVERY_PERMISSION).await;
     mark_played(&server, &library, ALIEN).await;
+    past_the_limit(&server);
+    mark_played(&server, &library, DUNE).await;
+
+    server.tick(CLEANUP).await.unwrap();
+
+    wait_for_movies(&server, &library, &[DUNE]).await;
+}
+
+#[tokio::test]
+async fn a_library_renamed_after_a_tick_found_it_is_still_cleaned() {
+    let (server, library) = alien_and_dune().await;
+    enable_cleanup(&server, &EVERY_PERMISSION).await;
+    mark_played(&server, &library, ALIEN).await;
+    // Nothing is due yet; this tick finds the Library by the name the setting gives it.
+    server.tick(CLEANUP).await.unwrap();
+    rename(&server, &library, "Films").await;
     past_the_limit(&server);
     mark_played(&server, &library, DUNE).await;
 
