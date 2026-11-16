@@ -56,6 +56,10 @@ pub enum RefusalReason {
     /// `already_exists`: a folder already belongs to another Library. Params: `folder`, `library`
     /// (the other Library's name).
     REFUSAL_REASON_FOLDER_TAKEN = 21i32,
+    /// `failed_precondition`: a Library's folder is inside, or holds, a folder of another Library.
+    /// `field` is `folders`. Params: `folder`, `library` (the other Library's name) and
+    /// `libraryFolder` (its folder).
+    REFUSAL_REASON_FOLDER_OVERLAPS = 81i32,
     /// `invalid_argument`: the Library holds another kind of media. Params: `libraryKind`, the kind
     /// the call needs (`movies` or `shows`).
     REFUSAL_REASON_WRONG_LIBRARY_KIND = 22i32,
@@ -231,10 +235,6 @@ pub enum RefusalReason {
     /// deleting it, so the images stay where they are. The message says what failed. `field` is
     /// `plugin_id`. Params: `pluginId`, empty for local disk, and `reason`, in plain words.
     REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK = 79i32,
-    /// `failed_precondition`: a Library's folder is inside, or holds, a folder of another Library.
-    /// `field` is `folders`. Params: `folder`, `library` (the other Library's name) and
-    /// `libraryFolder` (its folder).
-    REFUSAL_REASON_FOLDER_OVERLAPS = 81i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -303,6 +303,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_TAKEN`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const FolderTaken: Self = Self::REFUSAL_REASON_FOLDER_TAKEN;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_OVERLAPS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FolderOverlaps: Self = Self::REFUSAL_REASON_FOLDER_OVERLAPS;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_WRONG_LIBRARY_KIND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const WrongLibraryKind: Self = Self::REFUSAL_REASON_WRONG_LIBRARY_KIND;
@@ -471,9 +474,6 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ImageStoreFailedCheck: Self = Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK;
-    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_OVERLAPS`]; `Debug` prints the variant name.
-    #[allow(non_upper_case_globals)]
-    pub const FolderOverlaps: Self = Self::REFUSAL_REASON_FOLDER_OVERLAPS;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -609,6 +609,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             20i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_LIBRARY_NOT_FOUND),
             21i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_TAKEN),
+            81i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_OVERLAPS),
             22i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_LIBRARY_KIND)
             }
@@ -739,7 +740,6 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
                 )
             }
-            81i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_OVERLAPS),
             _ => ::core::option::Option::None,
         }
     }
@@ -784,6 +784,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_LIBRARY_NOT_FOUND => "REFUSAL_REASON_LIBRARY_NOT_FOUND",
             Self::REFUSAL_REASON_FOLDER_TAKEN => "REFUSAL_REASON_FOLDER_TAKEN",
+            Self::REFUSAL_REASON_FOLDER_OVERLAPS => "REFUSAL_REASON_FOLDER_OVERLAPS",
             Self::REFUSAL_REASON_WRONG_LIBRARY_KIND => {
                 "REFUSAL_REASON_WRONG_LIBRARY_KIND"
             }
@@ -896,7 +897,6 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK => {
                 "REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK"
             }
-            Self::REFUSAL_REASON_FOLDER_OVERLAPS => "REFUSAL_REASON_FOLDER_OVERLAPS",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -970,6 +970,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             "REFUSAL_REASON_FOLDER_TAKEN" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_TAKEN)
+            }
+            "REFUSAL_REASON_FOLDER_OVERLAPS" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_OVERLAPS)
             }
             "REFUSAL_REASON_WRONG_LIBRARY_KIND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_LIBRARY_KIND)
@@ -1157,9 +1160,6 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
                 )
             }
-            "REFUSAL_REASON_FOLDER_OVERLAPS" => {
-                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_OVERLAPS)
-            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1187,6 +1187,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
             Self::REFUSAL_REASON_LIBRARY_NOT_FOUND,
             Self::REFUSAL_REASON_FOLDER_TAKEN,
+            Self::REFUSAL_REASON_FOLDER_OVERLAPS,
             Self::REFUSAL_REASON_WRONG_LIBRARY_KIND,
             Self::REFUSAL_REASON_NOTHING_MATCHED,
             Self::REFUSAL_REASON_SEASON_NOT_FOUND,
@@ -1243,7 +1244,6 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_IMAGE_STORE_IN_USE,
             Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING,
             Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
-            Self::REFUSAL_REASON_FOLDER_OVERLAPS,
         ]
     }
 }

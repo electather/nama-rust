@@ -435,15 +435,14 @@ async fn a_folder_inside_or_holding_another_librarys_is_refused_as_overlapping()
         .await
         .unwrap();
 
-    let creates = [("inside", &hamlet), ("holding", &media)];
-    for (case, folder) in creates {
-        let refused = fx
+    for (case, folder) in [("inside", &hamlet), ("holding", &media)] {
+        let created = fx
             .create("Hamlet", LibraryKind::LIBRARY_KIND_SHOWS, &[folder])
             .await;
-        assert_overlaps(refused, folder, &films, case);
+        assert_overlaps(created, folder, &films, case);
+        let updated = fx.update(shows.id, "Shows", &[&tv, folder]).await;
+        assert_overlaps(updated, folder, &films, case);
     }
-    let updated = fx.update(shows.id, "Shows", &[&tv, &hamlet]).await;
-    assert_overlaps(updated, &hamlet, &films, "an update");
     assert_eq!(
         fx.list().await,
         [movies.clone(), shows],
