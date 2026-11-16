@@ -276,7 +276,7 @@ pub(crate) struct Subtitle {
 }
 
 /// What a Device says it can decode, as it found out just now. The Server never stores it.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct DeviceDecoding {
     /// The containers it plays.
     pub(crate) containers: Vec<proto::Container>,
@@ -472,6 +472,7 @@ pub(crate) const fn method_to_proto(method: Option<Method>) -> proto::PlaybackMe
 }
 
 /// What a plan is based on.
+#[derive(Clone)]
 struct Facts {
     version: i64,
     /// What probing found in the Version, or `None` if it couldn't be probed.
@@ -547,7 +548,8 @@ const LASTING_STEPS: [Step; 4] = [
 /// The steps for what rules a method out only for now.
 const NOW_STEPS: [Step; 2] = [failed_on_device, server_busy];
 
-/// The steps for the User's choices, which narrow only while a method is left.
+/// The steps for the User's choices, each dropped where it leaves no method and the plan plays
+/// without it.
 const CHOICE_STEPS: [(Choice, Step); 4] = [
     (Choice::Audio, chosen_audio),
     (Choice::Limit, network),
@@ -557,7 +559,8 @@ const CHOICE_STEPS: [(Choice, Step); 4] = [
 
 /// The plan for `facts` that every step allows. A choice that would leave no method is added to
 /// `facts.dropped` and the steps run again without it, since what the earlier steps see, such as
-/// the audio the Device must decode, may change with it.
+/// the audio the Device must decode, may change with it. A choice is kept if the plan doesn't play
+/// without it either, so an unplayable plan says what was asked.
 fn build(facts: &mut Facts) -> Plan {
     // Matched here, not before, since a dropped audio choice changes the audio it's matched over.
     if let Some(preferred) = &facts.subtitle_preference {
@@ -578,9 +581,11 @@ fn build(facts: &mut Facts) -> Plan {
         let given = step(facts, candidates);
         let allows = allowed_by(&given);
         // A step allowing every method has no choice in effect to drop.
-        if allowed.is_disjoint(&allows) && allows != BTreeSet::from(Method::ALL) {
-            facts.dropped.insert(choice);
-            return build(facts);
+        if allowed.is_disjoint(&allows)
+            && allows != BTreeSet::from(Method::ALL)
+            && let Some(plan) = plan_without(choice, facts)
+        {
+            return plan;
         }
         allowed.retain(|method| allows.contains(method));
         reasons.extend(given);
@@ -602,11 +607,9 @@ fn build(facts: &mut Facts) -> Plan {
         *on_failure = fallback(facts, transcode, &reasons);
     }
     let audio = candidates.and_then(|candidates| candidates.audio);
+    // A burn-in still in effect rules out all but a Transcode, so it plays by one or not at all.
     let burned_in = facts.subtitle.filter(|_| {
-        matches!(
-            &playing,
-            Some(Playing::Transcode { transcode, .. }) if transcode.video.burn_in.is_some()
-        )
+        candidates.is_some_and(|candidates| candidates.transcode.video.burn_in.is_some())
     });
     let tracks = (facts.probe.as_ref())
         .map_or_default(|probe| played_by(playing.as_ref(), played_tracks(probe, audio)));
@@ -625,6 +628,17 @@ fn build(facts: &mut Facts) -> Plan {
         starting_subtitle: burned_in.or(facts.shown_subtitle),
         offers: offers(facts, &lasting),
     }
+}
+
+/// The plan for `facts` with `choice` dropped, if it plays, and only then drops it from `facts`.
+fn plan_without(choice: Choice, facts: &mut Facts) -> Option<Plan> {
+    let mut without = facts.clone();
+    without.dropped.insert(choice);
+    let plan = build(&mut without);
+    plan.playing.is_some().then(|| {
+        *facts = without;
+        plan
+    })
 }
 
 /// How the plan for `facts` plays by `method`, with what it converts, before its fallback is

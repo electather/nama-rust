@@ -642,6 +642,60 @@ fn a_device_without_hls_that_decodes_everything_direct_plays_or_nothing_whatever
 }
 
 #[test]
+fn an_unplayable_plan_keeps_the_choices_asked_and_drops_none() {
+    let p720 = Some(PlaybackLimit::P720);
+    let choices: [(&str, Change, _); 3] = [
+        (
+            "the second audio Track",
+            choosing_the_second_audio_track,
+            (Some(2), None, None),
+        ),
+        ("720p", picking_720p, (Some(1), p720, None)),
+        ("PGS", burning_in_pgs, (Some(1), None, Some(3))),
+    ];
+    for (chosen, choose, asked) in choices {
+        let mut facts = direct_played();
+        choose(&mut facts);
+        without_ffmpeg(&mut facts);
+        facts.failed = BTreeSet::from([Method::DirectPlay]);
+
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), None, "{chosen}");
+        assert_eq!((plan.audio, plan.limit, plan.burn_in), asked, "{chosen}");
+        let dropped = [
+            Kind::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED,
+            Kind::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED,
+            Kind::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED,
+        ];
+        assert!(
+            !kinds(&plan).iter().any(|kind| dropped.contains(kind)),
+            "{chosen}"
+        );
+    }
+}
+
+#[test]
+fn a_busy_server_refuses_a_device_that_needs_a_transcode_whatever_is_chosen() {
+    let choices: [(&str, Change); 3] = [
+        ("the second audio Track", choosing_the_second_audio_track),
+        ("720p", picking_720p),
+        ("PGS", burning_in_pgs),
+    ];
+    for (chosen, choose) in choices {
+        let mut facts = direct_played();
+        if let Some(probe) = &mut facts.probe {
+            probe.tracks[0] = video("hevc");
+        }
+        choose(&mut facts);
+        while_busy(&mut facts);
+
+        assert_eq!(build(&mut facts).method(), None, "{chosen}");
+        assert_eq!(too_busy_to_play(facts), Some(2), "{chosen}");
+    }
+}
+
+#[test]
 fn a_plan_offers_the_choices_its_lasting_facts_allow_whatever_is_busy_or_failed() {
     let everything = || Offers {
         audio: vec![1, 2],

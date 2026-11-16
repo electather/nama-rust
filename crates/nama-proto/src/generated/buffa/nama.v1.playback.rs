@@ -3803,7 +3803,9 @@ pub struct PlanPlaybackRequest {
     pub start_position_ms: u64,
     /// The audio Track the caller chose, by its place in the Version's `tracks`, counting from 0.
     /// Unset for the Server to choose by the User's Audio Preference, or else the one the Version
-    /// plays by default, which `PlaybackPlan.audio_track` then says.
+    /// plays by default, which `PlaybackPlan.audio_track` then says. A place that isn't an audio
+    /// Track, as when the Version changed since the caller saw it, plays the one the Version plays
+    /// by default, and gets no reason.
     ///
     /// Field 3: `audio_track`
     #[serde(
@@ -3817,7 +3819,8 @@ pub struct PlanPlaybackRequest {
     /// as PGS on a Device that doesn't list it, or an ASS or SSA one it doesn't draw, with its
     /// styling, which makes the plan a Transcode, by its place in the Version's `tracks`, counting
     /// from 0. Unset, with `no_subtitles` unset too, for the Server to choose by the User's Subtitle
-    /// Preference, which `PlaybackPlan.starting_subtitle` then says.
+    /// Preference, which `PlaybackPlan.starting_subtitle` then says. A place that isn't a subtitle
+    /// Track, or one the Device draws itself, is the same as `no_subtitles`, and gets no reason.
     ///
     /// Field 4: `subtitle_track`
     #[serde(
@@ -4831,8 +4834,10 @@ pub struct PlaybackPlan {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub tracks: ::buffa::alloc::vec::Vec<Track>,
-    /// The facts that shaped it, in the order the steps that found them ran. A step that changes
-    /// nothing gives none, so a Direct Play nothing stood in the way of has none.
+    /// The facts that shaped it, in the order the steps that found them ran. A step gives one only
+    /// when it rules a method out, changes what plays, drops a choice or assumes what it couldn't
+    /// know, so a Direct Play on a Server that can do everything has none; one on a busy Server, or
+    /// one without ffmpeg, says so as context (ADR 0034).
     ///
     /// Field 13: `reasons`
     #[serde(
@@ -4875,7 +4880,8 @@ pub struct PlaybackPlan {
     pub playback_limit: ::buffa::EnumValue<PlaybackLimit>,
     /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
     /// asked for or the Server chose, or else the one the Version plays by default. Unset when it has
-    /// no audio or its Tracks aren't known.
+    /// no audio or its Tracks aren't known. A plan that can't be played drops no choice, so it says
+    /// the one asked for.
     ///
     /// Field 8: `audio_track`
     #[serde(
@@ -4885,8 +4891,8 @@ pub struct PlaybackPlan {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub audio_track: ::core::option::Option<u32>,
-    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`. Unset
-    /// for none, as when the one asked for can't be burned in.
+    /// The subtitle Track it burns into the picture, by its place in the Version's `tracks`, or would
+    /// if it could be played. Unset for none, as when the one asked for can't be burned in.
     ///
     /// Field 9: `subtitle_track`
     #[serde(
