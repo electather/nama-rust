@@ -162,9 +162,7 @@ impl EventBus {
         filter: Filter,
     ) -> impl Stream<Item = SubscribeResponse> + Send + use<> {
         let receiver = self.sender.subscribe();
-        // ponytail: Permissions as the stream opened, like any request's, so one who loses
-        // `VIEW_REQUESTS` sees everyone's Request events until they resubscribe. End streams on a
-        // Permission change if that matters.
+        // Fixed for the stream's life: `api::events` ends it when its User's Permissions change.
         let viewer = Viewer::of(user);
         stream::unfold(
             (receiver, viewer, filter),
