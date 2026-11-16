@@ -102,6 +102,37 @@ impl Blobs for InMemory {
     }
 }
 
+/// A store that reads back other bytes than were written, as a misconfigured gateway might.
+#[derive(Debug, Default)]
+struct Garbling(InMemory);
+
+impl Blobs for Garbling {
+    fn put(&self, key: &str, bytes: Vec<u8>) -> BoxFuture<'_, io::Result<()>> {
+        self.0.put(key, bytes)
+    }
+
+    fn put_file(&self, key: &str, file: NamedTempFile) -> BoxFuture<'_, io::Result<()>> {
+        self.0.put_file(key, file)
+    }
+
+    fn get(&self, key: &str) -> BoxFuture<'_, io::Result<Option<Vec<u8>>>> {
+        let found = self.0.objects().get(key).map(|_| b"garbled".to_vec());
+        Box::pin(async { Ok(found) })
+    }
+
+    fn delete(&self, key: &str) -> BoxFuture<'_, io::Result<()>> {
+        self.0.delete(key)
+    }
+
+    fn list(&self, prefix: &str) -> BoxFuture<'_, io::Result<Vec<String>>> {
+        self.0.list(prefix)
+    }
+
+    fn exists(&self, key: &str) -> BoxFuture<'_, io::Result<bool>> {
+        self.0.exists(key)
+    }
+}
+
 const ORIGINALS: &[&str] = &[
     "artwork/tmdb/%2Fposter.jpg",
     "artwork-cache/tmdb/%2Foffered.jpg",
@@ -176,6 +207,20 @@ async fn a_store_that_fails_its_probe_is_refused_and_nothing_is_copied() {
     assert_eq!(store.switching(), None);
     store.write(&["artwork", "after"], b"x").await.unwrap();
     assert_eq!(target.keys(), Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn a_probe_that_reads_back_other_bytes_leaves_no_object_behind() {
+    let data = tempfile::tempdir().unwrap();
+    let old = Arc::new(InMemory::holding(ORIGINALS));
+    let store = store_over(&data, &old).await;
+    let target = Arc::new(Garbling::default());
+
+    let blobs: Arc<dyn Blobs> = Arc::<Garbling>::clone(&target);
+    let refused = store.switch_to(blobs, "next", saved()).await;
+
+    assert!(matches!(refused, Err(SwitchRefused::FailedProbe(_))));
+    assert_eq!(target.0.keys(), Vec::<String>::new());
 }
 
 #[tokio::test]

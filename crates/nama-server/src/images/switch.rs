@@ -201,11 +201,17 @@ async fn probe(target: &dyn Blobs) -> Result<(), String> {
         .put(PROBE_KEY, PROBE_BYTES.to_vec())
         .await
         .map_err(|err| format!("couldn't write to it: {err}"))?;
-    match target.get(PROBE_KEY).await {
-        Ok(Some(bytes)) if bytes == PROBE_BYTES => {}
-        Ok(Some(_)) => return Err("it gave back other bytes than were written".to_owned()),
-        Ok(None) => return Err("it lost an object just written".to_owned()),
-        Err(err) => return Err(format!("couldn't read from it: {err}")),
+    let read_back = match target.get(PROBE_KEY).await {
+        Ok(Some(bytes)) if bytes == PROBE_BYTES => Ok(()),
+        Ok(Some(_)) => Err("it gave back other bytes than were written".to_owned()),
+        Ok(None) => Err("it lost an object just written".to_owned()),
+        Err(err) => Err(format!("couldn't read from it: {err}")),
+    };
+    if let Err(failed) = read_back {
+        // The written object would otherwise stay in the refused store; a failed delete says no
+        // more than the read already did.
+        drop(target.delete(PROBE_KEY).await);
+        return Err(failed);
     }
     target
         .delete(PROBE_KEY)
