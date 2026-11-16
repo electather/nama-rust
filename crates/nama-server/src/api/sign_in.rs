@@ -153,13 +153,8 @@ impl SignInService for SignInServiceHandler {
     > + Send {
         let request = request.to_owned_message();
         let started = delivery(request.delivery).and_then(|delivery| {
-            let user_agent = user_agent(ctx.headers());
-            Ok(self.sign_in.start_code(
-                request.device_name,
-                user_agent.as_deref(),
-                delivery,
-                Instant::now(),
-            )?)
+            let device = new_device(request.device_name, &ctx)?;
+            Ok(self.sign_in.start_code(device, delivery, Instant::now())?)
         });
         future::ready(started.and_then(|started| {
             Response::ok(StartSignInCodeResponse {
@@ -305,17 +300,21 @@ fn hand_out_session<M>(
 /// `Retry-After`.
 impl From<Blocked> for ConnectError {
     fn from(blocked: Blocked) -> Self {
-        let retry_after_secs = blocked.retry_after_secs();
-        let headers = HeaderMap::from_iter([(RETRY_AFTER, HeaderValue::from(retry_after_secs))]);
-        Self::from(
-            refuse(
-                RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
-                blocked.to_string(),
-            )
-            .param("retryAfterSeconds", &retry_after_secs),
+        rate_limited(
+            RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
+            blocked.to_string(),
+            &blocked,
         )
-        .with_headers(headers)
     }
+}
+
+/// The Connect error refusing a request for `reason` until `blocked` lets it through, with the
+/// delay to wait in both `Retry-After` and the Refusal's `retryAfterSeconds`.
+fn rate_limited(reason: RefusalReason, message: String, blocked: &Blocked) -> ConnectError {
+    let retry_after_secs = blocked.retry_after_secs();
+    let headers = HeaderMap::from_iter([(RETRY_AFTER, HeaderValue::from(retry_after_secs))]);
+    ConnectError::from(refuse(reason, message).param("retryAfterSeconds", &retry_after_secs))
+        .with_headers(headers)
 }
 
 /// The Connect error a client gets for a Sign-in Code that couldn't be started, looked up,
@@ -351,6 +350,11 @@ impl From<SignInError> for ConnectError {
     fn from(err: SignInError) -> Self {
         match err {
             SignInError::Blocked(blocked) => blocked.into(),
+            SignInError::TooManyCodeStarts(ref blocked) => rate_limited(
+                RefusalReason::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS,
+                err.to_string(),
+                blocked,
+            ),
             SignInError::WrongSetupCode => refuse(
                 RefusalReason::REFUSAL_REASON_WRONG_SETUP_CODE,
                 err.to_string(),

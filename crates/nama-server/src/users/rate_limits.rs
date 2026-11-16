@@ -1,6 +1,8 @@
 //! Slowing down guesses at passwords, the Setup Code and Sign-in Codes, by refusing attempts after
 //! too many recent failures: Setup, signing in and Reauthenticate from one client IP or for one User
-//! name, and Sign-in Code lookups and approvals from one Device.
+//! name, and Sign-in Code lookups and approvals from one Device. Also refusing Sign-in Code starts
+//! from one client IP after too many recent ones, so one client can't fill the pool of waiting
+//! codes for everyone.
 //!
 //! Counts live in memory only. They expire as the window slides past them and a restart forgets
 //! them, so nobody is ever locked out for good.
@@ -27,6 +29,11 @@ const FAILURES_PER_IP: usize = 50;
 /// How many failed Sign-in Code lookups and approvals from one Device the window may hold before
 /// its lookups and approvals are refused.
 const FAILURES_PER_DEVICE: usize = 10;
+
+/// How many Sign-in Code starts from one client IP the window may hold before its starts are
+/// refused: far more than a household of Devices behind one NAT needs, each starting a fresh code
+/// when one expires.
+const STARTS_PER_IP: usize = 20;
 
 /// The recent failed Setup, signing in and Reauthenticate attempts, by client IP and by User name.
 #[derive(Debug, Default)]
@@ -138,6 +145,28 @@ impl SignInCodeLimits {
     fn lock(&self) -> MutexGuard<'_, Window<i64>> {
         // As for `SignInLimits`: every change leaves the counts consistent.
         self.failures.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// The recent Sign-in Code starts, by client IP. Kept apart from [`SignInLimits`], so starting
+/// codes and failing to sign in never use up each other's allowance.
+#[derive(Debug, Default)]
+pub(super) struct SignInCodeStartLimits {
+    starts: Mutex<Window<IpAddr>>,
+}
+
+impl SignInCodeStartLimits {
+    /// Lets a Sign-in Code start from `ip` at `now` through unless it started too many recently,
+    /// and counts it. A start is never un-counted: unlike a guess, it holds a waiting code whatever
+    /// happens next.
+    pub(super) fn admit(&self, ip: IpAddr, now: Instant) -> Result<(), Blocked> {
+        // As for `SignInLimits`: every change leaves the counts consistent.
+        let mut starts = self.starts.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(retry_after) = starts.wait(&ip, STARTS_PER_IP, now) {
+            return Err(Blocked { retry_after });
+        }
+        starts.record(ip, now);
+        Ok(())
     }
 }
 

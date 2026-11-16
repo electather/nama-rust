@@ -470,11 +470,30 @@ async fn ada_on_a_new_device(sign_in: &SignIn, now: Instant) -> Caller {
     attempt(sign_in, "Ada", PASSWORD, now).await.unwrap().caller
 }
 
-/// Starts a Sign-in Code at `now` for the Device "Living room TV", wanting a token.
+const TV_IP: &str = "198.51.100.9";
+
+/// Starts a Sign-in Code from [`TV_IP`] at `now` for the Device "Living room TV", wanting a token.
 fn start_code(sign_in: &SignIn, now: Instant) -> Started {
     sign_in
-        .start_code("Living room TV".to_owned(), None, Delivery::Token, now)
+        .start_code(device("Living room TV", TV_IP), Delivery::Token, now)
         .unwrap()
+}
+
+#[tokio::test]
+async fn a_code_start_refused_for_a_bad_device_name_isnt_counted() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let (sign_in, _) = fresh_sign_in(data_dir.path()).await;
+    let now = Instant::now();
+    let too_long = "D".repeat(65);
+    for _ in 0..20 {
+        let refused = sign_in.start_code(device(&too_long, TV_IP), Delivery::Token, now);
+        assert!(matches!(
+            refused,
+            Err(Error::Users(users::Error::NameLength { .. }))
+        ));
+    }
+
+    start_code(&sign_in, now);
 }
 
 #[tokio::test]
@@ -487,14 +506,19 @@ async fn a_code_started_without_a_name_is_named_after_the_devices_browser_and_os
     let ada = ada_on_a_new_device(&sign_in, now).await;
 
     let started = sign_in
-        .start_code(" ".to_owned(), Some(MAC_CHROME), Delivery::Token, now)
+        .start_code(
+            NewDevice {
+                user_agent: Some(MAC_CHROME.to_owned()),
+                ..device(" ", TV_IP)
+            },
+            Delivery::Token,
+            now,
+        )
         .unwrap();
     let device_name = sign_in.look_up_code(&ada, &started.code, now).unwrap();
 
     assert_eq!(device_name, "Chrome on macOS");
 }
-
-const TV_IP: &str = "198.51.100.9";
 
 /// Polls `handle` at `now` from the Device that started it.
 async fn poll_code(sign_in: &SignIn, handle: &str, now: Instant) -> Result<Polled, Error> {

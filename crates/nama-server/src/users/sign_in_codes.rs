@@ -22,9 +22,8 @@ const LIFETIME: Duration = Duration::from_mins(10);
 const CODE_LENGTH: usize = 8;
 
 /// The most sign-ins kept at once, expired ones included, so anonymous starts can't fill the
-/// Server's memory: a few tens of megabytes.
-// ponytail: one global cap, so a sustained flood of starts blocks everyone's; limit starts per
-// client if that happens.
+/// Server's memory: a few tens of megabytes. The limit on starts per client IP (`rate_limits.rs`)
+/// is the first defence against a flood; this cap is only the last.
 const MAX_PENDING: usize = 100_000;
 
 #[derive(Default)]
