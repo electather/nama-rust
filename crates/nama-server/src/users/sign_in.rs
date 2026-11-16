@@ -86,7 +86,8 @@ impl SignIn {
 
     /// Creates the first Admin, named `name` with `password`, for whoever gives `setup_code`, and
     /// signs `device` in as them, at `now`. Once the Server has Users every attempt is refused as
-    /// already set up, whatever code it gives, so the code can't be probed then.
+    /// already set up, whatever code it gives, so the code can't be probed then. Such a refusal
+    /// isn't counted toward the sign-in limit.
     #[expect(
         clippy::too_many_arguments,
         reason = "each is its own fact about the attempt, and a struct would only rename them"
@@ -101,11 +102,15 @@ impl SignIn {
     ) -> Result<SignedIn, Error> {
         let device = named(device)?;
         let attempt = self.limits.admit(device.ip_address, None, now)?;
-        // The Server only made no code because it started with Users.
-        let server_code = self.setup_code.as_ref().ok_or(users::Error::AlreadySetUp)?;
-        if self.users.any().await.map_err(users::Error::from)? {
-            return Err(users::Error::AlreadySetUp.into());
-        }
+        let server_code = match &self.setup_code {
+            Some(code) if !self.users.any().await.map_err(users::Error::from)? => code,
+            // No code means the Server started with Users. Whether a Server is set up is public
+            // (`ServerInfo`), so asking again is no guess.
+            _ => {
+                self.limits.succeeded(&attempt);
+                return Err(users::Error::AlreadySetUp.into());
+            }
+        };
         if !server_code.matches(setup_code) {
             return Err(Error::WrongSetupCode);
         }

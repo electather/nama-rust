@@ -89,8 +89,8 @@ impl SignInLimits {
         })
     }
 
-    /// Un-counts `attempt`, which succeeded. A successful sign-in also forgets every failure for
-    /// its name.
+    /// Un-counts `attempt`: it succeeded, or failed for a reason a guess can't get, such as Setup
+    /// on a Server already set up. A successful sign-in also forgets every failure for its name.
     pub(super) fn succeeded(&self, attempt: &Attempt) {
         let mut failures = self.lock();
         failures.by_ip.forget(&attempt.ip, attempt.at);

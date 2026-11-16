@@ -315,6 +315,40 @@ async fn setup_on_a_server_that_started_with_users_is_refused_as_already_set_up(
     );
 }
 
+/// Calls Setup from [`LAPTOP_IP`] with a wrong Setup Code 50 times at `now`, each refused as
+/// already set up.
+async fn refuse_setup_as_already_set_up(sign_in: &SignIn, now: Instant) {
+    for _ in 0..50 {
+        let refused = set_up(sign_in, "AAAA-AAAA-AAAA", "Grace", now).await;
+        assert!(
+            matches!(refused, Err(Error::Users(users::Error::AlreadySetUp))),
+            "{:?}",
+            refused.map(|_| ())
+        );
+    }
+}
+
+#[tokio::test]
+async fn setup_refused_as_already_set_up_does_not_count_toward_the_address_limit() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let (sign_in, _) = sign_in_with_ada(data_dir.path()).await;
+    let now = Instant::now();
+    refuse_setup_as_already_set_up(&sign_in, now).await;
+
+    attempt(&sign_in, "Ada", PASSWORD, now).await.unwrap();
+}
+
+#[tokio::test]
+async fn setup_on_a_server_that_started_with_users_does_not_count_toward_the_address_limit() {
+    let data_dir = tempfile::tempdir().unwrap();
+    drop(sign_in_with_ada(data_dir.path()).await);
+    let restarted = SignIn::new(local_auth_users(data_dir.path()).await, None);
+    let now = Instant::now();
+    refuse_setup_as_already_set_up(&restarted, now).await;
+
+    attempt(&restarted, "Ada", PASSWORD, now).await.unwrap();
+}
+
 #[tokio::test]
 async fn a_bad_admin_name_with_the_right_setup_code_is_refused_without_counting_as_a_guess() {
     let data_dir = tempfile::tempdir().unwrap();
