@@ -3,16 +3,10 @@
 ### Data
 
 - **One database writer.** Every write goes through `Database::write` or `Database::write_then` in `src/db.rs`, on the one writable SQLite connection. Long jobs such as a scan write in small batches.
-- **One owner for Tracks.** Only `src/tracks.rs` reads or writes `version_probes`, `tracks` and `probe_failures`, tests included. Browse attaches them to the Versions `Contents` reads.
-- **One owner for probing.** Only Probing (`src/probing.rs`, with its private `src/probing/ffprobe.rs`) runs ffprobe on stored files and decides what a probe failure means for trying it again (`ProbeFailure`); Tracks stores it.
 - **One owner for Server settings.** Only `src/server_settings.rs` reads or writes `server_settings`, tests included.
-- **One owner for Track Preferences.** Only `src/track_preferences.rs` reads or writes `track_preferences`, tests included, and decides what a Preference is kept for: the Show or Movie a Version is of, never an Item or file (ADR 0035).
 - **One owner for Plugin changes.** Outside tests, only `src/plugin_settings.rs` enables or disables a Plugin or saves its settings, under its one lock and in ADR 0028's order. The type enforces it: only Plugin settings and startup hold the `Registry`, and every other module holds its `ExtensionPoints`, which calls Plugins but can't enable, disable or list them. Handlers and tasks ask `PluginSettings`.
 - **Migration list.** A new migration's file name also goes as the last line of `migrations.txt`, so two PRs adding the same migration number conflict in git (#561); a test checks it.
 - **Query data.** After changing a `sqlx::query!` or anything in `migrations/`, regenerate `.sqlx/` at the workspace root and commit it (commands in `README.md`).
-- **Probe version.** A change to what probing reads from a file, or how, bumps `PROBE_VERSION` in `src/tracks.rs`, so the next pass after a scan probes every file again (ADR 0023's pattern).
-- **Probe failure version.** A change that may let ffprobe read files it lastingly failed on before, without changing what probing reads from a file that it could read, bumps `PROBE_FAILURE_VERSION` in `src/tracks.rs`, so the next pass tries again only those files.
-- **WebVTT version.** A change to the WebVTT a subtitle source makes bumps `WEBVTT_VERSION` in `src/playback/subtitles.rs`, so what the cache kept from before is made again.
 - **Whole-Library reads.** Browse reads a Library's whole contents even to find one title. Each such read is marked `// ponytail: whole-Library read`; query by id there once Libraries get big.
 
 ### Security
@@ -22,10 +16,6 @@
 - **One owner for who sees an Event.** Only `src/events.rs` decides which subscriber gets an Event and what of it; handlers pass the caller.
 - **Guessable requests go through `SignIn` (`src/sign_in.rs`).** It lets an attempt through before reading a User or a secret, and un-counts it the moment the secret checks out; a failure after that, or an input check before it, is no guess. Sign-in Codes count only an unknown or expired code.
 - **Forwarded headers from trusted proxies only.** Read where a request came from (client IP, HTTPS) from the `RequestSource` that `src/forwarded.rs` sets. It believes `X-Forwarded-*` only from a peer in `Config::trusted_proxies` (ADR 0018), since any client can set them.
-
-### Playback
-
-- **What a plan converts is worked out once.** Before the steps run, `candidates` in `src/playback.rs` works out what a Remux and a Transcode of the Version would convert, and the plan keeps the one it narrowed to in `Playing`, with the Version's length, which a Remux's or a Transcode's playlist lists, and, for a Transcode on hardware, what it falls back to in software and why. Its reasons, Tracks, events, playlist and ffmpeg arguments read that value; none asks the planning facts again what it converts, how long the Version is or what it falls back to.
 
 ### Tests
 

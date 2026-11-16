@@ -18,7 +18,7 @@ use crate::{
     library::custom_images::{Role, Slot},
     library::libraries::Kind,
     library::watch_states::WatchState,
-    tracks::track_to_proto,
+    playback::track_to_proto,
 };
 
 use super::{

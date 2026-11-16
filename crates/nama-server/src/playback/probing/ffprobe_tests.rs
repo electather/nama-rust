@@ -1,5 +1,5 @@
 use super::parse_probe;
-use crate::tracks::{BaseLayer, Hdr, Probe, Track, TrackKind};
+use crate::playback::tracks::{BaseLayer, Hdr, Probe, Track, TrackKind};
 
 /// Cut down from ffprobe 7.0's output for a Blu-ray remux with cover art.
 const BLU_RAY_REMUX: &str = r#"{

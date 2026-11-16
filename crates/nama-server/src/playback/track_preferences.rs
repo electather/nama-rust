@@ -2,7 +2,7 @@
 //! 0035): the Subtitle and Audio Preferences a User's pick keeps for a Show or Movie, and the
 //! User's own, set in Settings.
 //!
-//! [`TrackPreferences`] alone reads and writes `track_preferences` (`AGENTS.md`, "Data"). It keeps
+//! [`TrackPreferences`] alone reads and writes `track_preferences` (`AGENTS.md`). It keeps
 //! a pick's against a Show's or Movie's external id, as Watch State is kept (ADR 0013), so an
 //! Unmatched Item keeps none, and the User's own at the `user` scope.
 
@@ -10,10 +10,10 @@ use std::sync::Arc;
 
 use isolang::Language;
 
+use super::tracks::Track;
 use crate::{
     db::Database,
     library::contents::{Contents, MatchedTo},
-    tracks::Track,
 };
 
 // The `kind` of a Preference, part of its key.
@@ -79,7 +79,7 @@ pub(crate) struct KeptFor {
 
 impl KeptFor {
     /// Everything the User plays: their own Preference, set in Settings.
-    pub(crate) const USERS_OWN: Self = Self {
+    pub(super) const USERS_OWN: Self = Self {
         scope: USER,
         title_id: String::new(),
     };
@@ -380,7 +380,7 @@ pub(crate) fn is_language(code: &str) -> bool {
 
 /// Whether the language tags `a` and `b` name the same language, whichever ISO 639 code each
 /// uses, so `eng` is `en`. A Track with no language matches only another with none.
-pub(crate) fn same_language(a: Option<&str>, b: Option<&str>) -> bool {
+pub(super) fn same_language(a: Option<&str>, b: Option<&str>) -> bool {
     match (tagged(a), tagged(b)) {
         (None, None) => true,
         (Some(a), Some(b)) => match (language(a), language(b)) {

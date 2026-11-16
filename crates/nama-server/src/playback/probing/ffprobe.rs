@@ -1,5 +1,5 @@
 //! Running ffprobe on a stored file and reading what it prints, private to Probing
-//! (the crate's `AGENTS.md`, "One owner for probing").
+//! (the area's `AGENTS.md`, "One owner for probing").
 
 use std::{collections::HashMap, time::Duration};
 
@@ -8,7 +8,7 @@ use serde::Deserialize;
 use super::ProbeError;
 use crate::{
     ffmpeg::Ffmpeg,
-    tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
+    playback::tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
 };
 
 /// How long ffprobe may take over one file, such as one on a network share that stopped answering.

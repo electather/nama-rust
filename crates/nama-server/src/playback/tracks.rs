@@ -1,7 +1,7 @@
 //! Tracks: what ffprobe found inside each Version, the facts of its whole file, its video, audio
 //! and subtitle Tracks and the fonts it carries.
 //!
-//! [`Tracks`] owns `version_probes`, `tracks` and `probe_failures` (see the crate's `AGENTS.md`).
+//! [`Tracks`] owns `version_probes`, `tracks` and `probe_failures` (see the area's `AGENTS.md`).
 //! Their rows are keyed by Version id and go when the file goes; which files there are is for
 //! [`crate::library::contents::Contents`] to say.
 
@@ -18,22 +18,22 @@ use crate::{db::Database, ffmpeg::TEXT_SUBTITLES, library::contents::Stored};
 
 /// The version of how probing reads a file, stored with what it read like the name parser's
 /// (ADR 0023). A Version read by an older one is probed again; when to bump it is in `AGENTS.md`.
-pub(crate) const PROBE_VERSION: i64 = 8;
+pub(super) const PROBE_VERSION: i64 = 8;
 
 /// Like [`PROBE_VERSION`], but a Version ffprobe lastingly failed on at an older one is tried
 /// again, and those it read are left alone; when to bump it is in `AGENTS.md`. A
 /// [`PROBE_VERSION`] bump retries them too.
-pub(crate) const PROBE_FAILURE_VERSION: i64 = 1;
+pub(super) const PROBE_FAILURE_VERSION: i64 = 1;
 
 /// How many times in a row the probe pass tries a file that fails for a passing reason, such as a
 /// timeout, before it skips it like a lasting failure. A file that timed out once may well again,
 /// and each try can hold a probe slot for the whole timeout.
-pub(crate) const PROBE_ATTEMPTS: i64 = 3;
+pub(super) const PROBE_ATTEMPTS: i64 = 3;
 
-/// What a failure to probe a Version means for trying it again. Only `crate::probing` decides
+/// What a failure to probe a Version means for trying it again. Only `super::probing` decides
 /// which a failure is; Tracks stores the last two.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ProbeFailure {
+pub(super) enum ProbeFailure {
     /// It says nothing about the file and would fail the same on every other, as when ffprobe
     /// can't be run, so the pass stops and the next one tries them all.
     StopsPass,
@@ -48,7 +48,7 @@ pub(crate) enum ProbeFailure {
 
 /// Why ffprobe lastingly couldn't read a file, as `probe_failures.reason` stores it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LastingReason {
+pub(super) enum LastingReason {
     /// ffprobe read the file and refused it.
     Failed,
     /// ffprobe said something probing can't parse.
@@ -72,7 +72,7 @@ impl LastingReason {
 
 /// Why ffprobe couldn't read a file this time, as `probe_failures.reason` stores it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PassingReason {
+pub(super) enum PassingReason {
     /// ffprobe ran past its timeout, as on a slow or unmounted share or a busy disk.
     TimedOut,
 }
@@ -104,7 +104,7 @@ impl Probe {
     /// The place of the Track at `place` among the file's Tracks of its kind, counting from 0,
     /// which is how ffmpeg picks out an audio or subtitle stream. `None` if there's no Track there.
     /// A video Track's can fall short of ffmpeg's, since probing leaves out cover art.
-    pub(crate) fn ffmpeg_index(&self, place: usize) -> Option<usize> {
+    pub(super) fn ffmpeg_index(&self, place: usize) -> Option<usize> {
         let kind = discriminant(&self.tracks.get(place)?.kind);
         // Probing keeps every audio and subtitle stream, so ffmpeg's are these, in order.
         Some(
@@ -162,24 +162,24 @@ pub(crate) enum TrackKind {
 impl Track {
     /// Whether it's a text subtitle, such as SRT, which a browser shows as WebVTT, unlike an image
     /// one such as PGS.
-    pub(crate) fn is_text_subtitle(&self) -> bool {
+    pub(super) fn is_text_subtitle(&self) -> bool {
         matches!(self.kind, TrackKind::Subtitle { .. })
             && TEXT_SUBTITLES.contains(&self.codec.as_str())
     }
 
     /// Whether it's an ASS or SSA subtitle, whose styling only libass draws.
-    pub(crate) fn is_ass_subtitle(&self) -> bool {
+    pub(super) fn is_ass_subtitle(&self) -> bool {
         matches!(self.kind, TrackKind::Subtitle { .. })
             && matches!(self.codec.as_str(), "ass" | "ssa")
     }
 
     /// Whether it's a PGS subtitle, Blu-ray's image ones.
-    pub(crate) fn is_pgs_subtitle(&self) -> bool {
+    pub(super) fn is_pgs_subtitle(&self) -> bool {
         matches!(self.kind, TrackKind::Subtitle { .. }) && self.codec == "hdmv_pgs_subtitle"
     }
 
     /// Whether it's a VobSub subtitle, DVD's image ones.
-    pub(crate) fn is_vobsub_subtitle(&self) -> bool {
+    pub(super) fn is_vobsub_subtitle(&self) -> bool {
         matches!(self.kind, TrackKind::Subtitle { .. }) && self.codec == "dvd_subtitle"
     }
 }
@@ -208,7 +208,7 @@ pub(crate) enum BaseLayer {
 
 impl BaseLayer {
     /// How it's HDR, or `None` for SDR.
-    pub(crate) const fn hdr(self) -> Option<Hdr> {
+    pub(super) const fn hdr(self) -> Option<Hdr> {
         match self {
             Self::Hdr10 => Some(Hdr::Hdr10),
             Self::Hlg => Some(Hdr::Hlg),
@@ -232,7 +232,7 @@ impl Tracks {
     /// [`LastingReason`] or [`PROBE_ATTEMPTS`] times at the current [`PROBE_FAILURE_VERSION`], at
     /// the size and modified time `Contents` stores for the file now, which the probe pass skips.
     /// A failed one has no Tracks, so [`Self::of`] leaves it out.
-    pub(crate) async fn current(&self, files: &[Stored]) -> Result<HashSet<i64>, sqlx::Error> {
+    pub(super) async fn current(&self, files: &[Stored]) -> Result<HashSet<i64>, sqlx::Error> {
         let versions: Vec<i64> = files.iter().map(|file| file.id).collect();
         let versions = json_array(&versions);
         let lasting = json_array(&LastingReason::ALL.map(LastingReason::stored));
@@ -280,7 +280,7 @@ impl Tracks {
     /// next pass, until it has failed [`PROBE_ATTEMPTS`] times in a row. Forgets what probing found
     /// in it before, so Tracks read from what the file held then don't outlive it. A Version
     /// removed since, or a `failure` that says nothing about the file, stores and forgets nothing.
-    pub(crate) async fn store_failure(
+    pub(super) async fn store_failure(
         &self,
         version: Stored,
         failure: ProbeFailure,
@@ -336,7 +336,7 @@ impl Tracks {
 
     /// When each keyframe of the stored file `file`'s first video falls, in milliseconds, if
     /// they've been kept since it was last probed at `file`'s size and modified time.
-    pub(crate) async fn keyframes(&self, file: Stored) -> Result<Option<Vec<i64>>, sqlx::Error> {
+    pub(super) async fn keyframes(&self, file: Stored) -> Result<Option<Vec<i64>>, sqlx::Error> {
         let keyframes = sqlx::query_scalar!(
             "SELECT keyframes_ms FROM version_probes
              WHERE version_id = ? AND size = ? AND modified_ns = ?",
@@ -353,7 +353,7 @@ impl Tracks {
 
     /// Keeps `keyframes` as the Version `file`'s until it's next probed. A Version not last probed
     /// at `file`'s size and modified time keeps nothing, as they may be the old file's.
-    pub(crate) async fn store_keyframes(
+    pub(super) async fn store_keyframes(
         &self,
         file: Stored,
         keyframes: &[i64],
@@ -672,7 +672,7 @@ pub(crate) fn track_to_proto(track: &Track) -> proto::Track {
 }
 
 /// `hdr` as a video Track's `hdr` and `dolby_vision`.
-pub(crate) fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVision>) {
+pub(super) fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto::DolbyVision>) {
     match hdr {
         None => (proto::HdrFormat::HDR_FORMAT_UNSPECIFIED, None),
         Some(Hdr::Hdr10) => (proto::HdrFormat::HDR_FORMAT_HDR10, None),
@@ -704,7 +704,7 @@ pub(crate) fn hdr_to_proto(hdr: Option<Hdr>) -> (proto::HdrFormat, Option<proto:
 #[cfg(test)]
 impl Tracks {
     /// The probe version that read the Version `version`, if it has been probed.
-    pub(crate) async fn probe_version_of(&self, version: i64) -> Option<i64> {
+    pub(super) async fn probe_version_of(&self, version: i64) -> Option<i64> {
         sqlx::query_scalar!(
             "SELECT probe_version FROM version_probes WHERE version_id = ?",
             version
@@ -715,7 +715,7 @@ impl Tracks {
     }
 
     /// Why probing the Version `version` last failed, as stored, if it did.
-    pub(crate) async fn failure_reason_of(&self, version: i64) -> Option<String> {
+    pub(super) async fn failure_reason_of(&self, version: i64) -> Option<String> {
         sqlx::query_scalar!(
             "SELECT reason FROM probe_failures WHERE version_id = ?",
             version
@@ -726,7 +726,7 @@ impl Tracks {
     }
 
     /// Marks the Version `version` as failed at the failure version before the current one.
-    pub(crate) async fn failed_by_older_failure_version(&self, version: i64) {
+    pub(super) async fn failed_by_older_failure_version(&self, version: i64) {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
@@ -744,7 +744,7 @@ impl Tracks {
     }
 
     /// Marks the Version `version` as failed by the version before the current one.
-    pub(crate) async fn failed_by_older_probe(&self, version: i64) {
+    pub(super) async fn failed_by_older_probe(&self, version: i64) {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
@@ -762,7 +762,7 @@ impl Tracks {
     }
 
     /// Marks the Version `version` as probed by the version before the current one.
-    pub(crate) async fn read_by_older_probe(&self, version: i64) {
+    pub(super) async fn read_by_older_probe(&self, version: i64) {
         self.db
             .write(move |tx| {
                 Box::pin(async move {

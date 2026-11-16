@@ -8,6 +8,8 @@ use super::{
     AskedAudio, Candidates, DeviceDecoding, Facts, Fallback, Method, Network, Offers, PickedLimit,
     Plan, PlaybackLimit, Playing, Reason, Subtitle, audio_asked, build, default_max_transcodes,
     narrowed, on_local_network, preferred_subtitle, too_busy_to_play,
+    track_preferences::{Description, Preferred, SubtitlePreference},
+    tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
 };
 use crate::{
     ffmpeg::{
@@ -15,8 +17,6 @@ use crate::{
         VideoLimit,
     },
     server_settings::{HardwareChoice, PickedGpu},
-    track_preferences::{Description, Preferred, SubtitlePreference},
-    tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
 };
 
 /// How long the Version in [`facts`] is.
@@ -2447,11 +2447,10 @@ async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() 
             fixture::{MatchedMovie, tmdb_movie},
         },
         playback::{
-            Asked, AskedAudio, AskedSubtitle, Planned, StartedPlan, plan, running::RunningPlans,
-            subtitles,
+            Asked, AskedAudio, AskedSubtitle, Planned, Probing, StartedPlan, plan,
+            running::RunningPlans, subtitles,
         },
         plugins::ExtensionPoints,
-        probing::Probing,
         server_settings::{ServerUrl, Settings},
     };
 

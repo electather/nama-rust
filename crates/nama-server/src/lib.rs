@@ -18,7 +18,6 @@ mod matching;
 mod playback;
 pub mod plugin_settings;
 pub mod plugins;
-mod probing;
 mod rate_limits;
 mod requests;
 mod scanner;
@@ -26,8 +25,6 @@ mod server_settings;
 mod sessions;
 mod sign_in;
 mod sign_in_codes;
-mod track_preferences;
-mod tracks;
 pub mod users;
 #[cfg(feature = "web")]
 mod web;
@@ -47,10 +44,10 @@ use crate::{
     library::artwork::Artwork,
     library::contents::Contents,
     library::custom_images::CustomImages,
+    playback::Probing,
     playback::running::RunningPlans,
     playback::subtitles,
     plugin_settings::PluginSettings,
-    probing::Probing,
     requests::Requests,
     scanner::Scanner,
     server_settings::Settings,

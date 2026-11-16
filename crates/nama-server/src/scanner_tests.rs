@@ -15,9 +15,8 @@ use crate::{
     library::contents::{Contents, File, Item, Version},
     library::custom_images::CustomImages,
     library::libraries::{self, Kind, Libraries, Order},
-    playback::subtitles,
+    playback::{Probing, subtitles},
     plugins::ExtensionPoints,
-    probing::Probing,
     requests::Requests,
     server_settings::ServerUrl,
 };

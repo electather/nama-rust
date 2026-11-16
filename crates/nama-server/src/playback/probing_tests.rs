@@ -13,10 +13,12 @@ use crate::{
         fixture::{decide, tmdb_movie},
     },
     library::libraries::{Kind, Libraries},
-    playback::subtitles,
-    tracks::{
-        BaseLayer, Hdr, PROBE_ATTEMPTS, PROBE_VERSION, PassingReason, Probe, ProbeFailure, Track,
-        TrackKind, Tracks,
+    playback::{
+        subtitles,
+        tracks::{
+            BaseLayer, Hdr, PROBE_ATTEMPTS, PROBE_VERSION, PassingReason, Probe, ProbeFailure,
+            Track, TrackKind, Tracks,
+        },
     },
 };
 

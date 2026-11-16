@@ -1,5 +1,5 @@
 //! Probing: runs ffprobe on stored files and stores what each holds as its Tracks (see
-//! [`crate::tracks`]), and decides what a failure to probe one means for trying it again. It also
+//! [`super::tracks`]), and decides what a failure to probe one means for trying it again. It also
 //! lists a Version's keyframes when first asked for them, and keeps them for its file as it is
 //! ([`Probing::keyframes`]).
 //!
@@ -25,12 +25,14 @@ use nama_proto::nama::v1::ProbingFinished;
 use tokio::sync::watch;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
+use super::{
+    subtitles,
+    tracks::{LastingReason, PassingReason, Probe, ProbeFailure, Tracks},
+};
 use crate::{
     db::Database,
     ffmpeg::Ffmpeg,
     library::contents::{Contents, Stored},
-    playback::subtitles,
-    tracks::{LastingReason, PassingReason, Probe, ProbeFailure, Tracks},
 };
 
 /// How many files background passes probe at once, across all Libraries. Each probe reads only a
@@ -171,7 +173,7 @@ impl Probing {
     /// file, and kept. If something is listing them already, waits for that and returns what it
     /// found instead, or lists them itself if that gave up without finding anything. They're kept
     /// only while the Version's Tracks were read from its file as it is now.
-    pub(crate) async fn keyframes(&self, version: i64) -> Result<Vec<i64>, Error> {
+    pub(super) async fn keyframes(&self, version: i64) -> Result<Vec<i64>, Error> {
         let (path, file) = (self.inner.contents.version_file(version).await?)
             .ok_or(Error::NoSuchVersion(version))?;
         // ponytail: not held to PROBES_AT_ONCE, as `current` isn't; limit it apart if many

@@ -12,8 +12,8 @@ use crate::{
     },
     library::libraries::{Kind, Libraries},
     library::watch_states::{Progress, WatchStates},
+    playback::{Probe, Track, TrackKind, Tracks},
     plugins::Registry,
-    tracks::{Probe, Track, TrackKind, Tracks},
     users::{Permissions, User, Users},
 };
 

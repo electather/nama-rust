@@ -16,8 +16,15 @@
 //! files a scan stored for a Library and Matched, are served, by id, so a client can never name a
 //! path. The subtitles a plan offers are served beside it ([`subtitles`]).
 
+pub(crate) mod probing;
 pub(crate) mod running;
 pub(crate) mod subtitles;
+pub(crate) mod track_preferences;
+mod tracks;
+
+pub(crate) use probing::Probing;
+pub(crate) use track_preferences::TrackPreferences;
+pub(crate) use tracks::{Probe, Track, TrackKind, Tracks, track_to_proto};
 
 use std::{collections::BTreeSet, net::IpAddr, num::NonZeroU32, sync::Arc};
 
@@ -44,13 +51,13 @@ use crate::{
         Transcode, TranscodeAudio, VideoConversion, VideoLimit,
     },
     library::contents::Contents,
-    probing::{self, ProbeError, Probing},
     server_settings::{HardwareChoice, PlaybackValues},
-    track_preferences::{Description, Preferred, SubtitlePreference, same_language},
-    tracks::{Hdr, Probe, Track, TrackKind, Tracks, hdr_to_proto},
     users::{Caller, User},
 };
+use probing::ProbeError;
 use running::{RunningPlans, StartError};
+use track_preferences::{Description, Preferred, SubtitlePreference, same_language};
+use tracks::{Hdr, hdr_to_proto};
 
 /// How a plan plays a Version, the one the Server prefers first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -598,7 +605,7 @@ struct Facts {
 type Step = fn(&Facts, Option<&Candidates>) -> Vec<Reason>;
 
 /// What a Remux and a Transcode of a probed Version would each convert, worked out before the
-/// steps, which read them, so a plan's reasons and what it plays can't disagree (the crate's
+/// steps, which read them, so a plan's reasons and what it plays can't disagree (the area's
 /// `AGENTS.md`).
 struct Candidates {
     /// The place in the Version's Tracks of the audio Track a plan plays, whatever its method.

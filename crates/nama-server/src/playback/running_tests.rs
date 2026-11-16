@@ -23,9 +23,8 @@ use crate::{
     events::{EventBus, Filter, event},
     ffmpeg::{Ffmpeg, Keyframe, hls_init},
     library::contents::Contents,
-    playback::subtitles,
+    playback::{Probing, subtitles},
     plugins::ExtensionPoints,
-    probing::Probing,
     server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
 };
 

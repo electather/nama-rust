@@ -13,10 +13,10 @@ const MAX_LINES: usize = 800;
 const CEILINGS: &[(&str, usize)] = &[
     ("src/ffmpeg.rs", 1300),
     ("src/playback.rs", 2000),
+    ("src/playback/probing_tests.rs", 1200),
     ("src/playback/running.rs", 1200),
     ("src/playback/running_tests.rs", 1200),
     ("src/playback_tests.rs", 2900),
-    ("src/probing_tests.rs", 1200),
     ("src/scanner.rs", 900),
     ("src/users.rs", 1400),
     ("tests/access.rs", 900),
@@ -158,7 +158,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "src/tracks",
+        "src/playback/tracks",
         &["version_probes", "tracks", "probe_failures"],
     ),
     (
@@ -169,7 +169,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ("src/server_settings", &["server_settings"]),
     ("src/images", &["image_thumbhashes"]),
     ("src/library/custom_images", &["custom_images"]),
-    ("src/track_preferences", &["track_preferences"]),
+    ("src/playback/track_preferences", &["track_preferences"]),
     ("src/library/watch_states", &["watch_states"]),
     ("src/users/personal_settings", &["personal_settings"]),
     ("src/automation/store", &["plugin_store"]),
@@ -447,13 +447,10 @@ const STARTUP: &[&str] = &["lib", "main"];
 const MOVING_INTO: &[(&str, &str)] = &[
     ("codes", "users"),
     ("device_names", "users"),
-    ("probing", "playback"),
     ("rate_limits", "users"),
     ("sessions", "users"),
     ("sign_in", "users"),
     ("sign_in_codes", "users"),
-    ("track_preferences", "playback"),
-    ("tracks", "playback"),
 ];
 
 /// What is wrong with where `modules`, the stems of the `.rs` files directly under `src/`, are

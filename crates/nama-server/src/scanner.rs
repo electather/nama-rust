@@ -19,10 +19,11 @@
 //! `MatchingFinished`, then once Probing has caught up `ProbingFinished` (see [`crate::events`]).
 //!
 //! After each scan the Library's items are Matched (see [`crate::matching`]), still under the
-//! Library's scan lock, so Matching sees the items the scan stored. Then [`crate::probing`] is told
-//! its files changed, and probes them in the background without holding up the next scan. Last,
-//! the images no Match stores any more are deleted, and those the Library's Matches store and the
-//! store lacks are downloaded in the background (see [`crate::library::artwork`]).
+//! Library's scan lock, so Matching sees the items the scan stored. Then
+//! [`crate::playback::probing`] is told its files changed, and probes them in the background
+//! without holding up the next scan. Last, the images no Match stores any more are deleted, and
+//! those the Library's Matches store and the store lacks are downloaded in the background (see
+//! [`crate::library::artwork`]).
 //!
 //! Probing passes of one Library overlap, so `ProbingFinished` says the Library has caught up, not
 //! that one pass is done (ADR 0030): a pass waits for the files it left to another prober, and
@@ -63,9 +64,8 @@ use crate::{
     library::scan_locks::{ScanLock, ScanLocks},
     library::versions::PARSER_VERSION,
     matching::{self, Matcher, count},
-    playback::running::RunningPlans,
+    playback::{Probing, running::RunningPlans},
     plugins::{ExtensionPoints, Failure},
-    probing::Probing,
     requests::{self, RequestTitle, Requests},
 };
 
