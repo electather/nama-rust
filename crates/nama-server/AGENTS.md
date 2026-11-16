@@ -21,7 +21,7 @@
 - **One fixture.** Server tests in `tests/` build on `TestServer` in `tests/support`, started through `TestServer::builder()`. Their setup goes through the API, as a client's would; a shared helper never writes the database. A test file adds a fixture of its own only for what that file alone needs, and a shortcut one test needs stays in that test's file.
 - **One in-file fixture.** An in-file test that needs a Library with a Matched Movie builds it with `library::contents::fixture` and adds what else it needs on top, so a change to how a Match is stored touches one place.
 - **Fake programs.** Fake programs a test runs are written only through `ffmpeg::fake::script`. Writing one with `fs::write` can fail with "Text file busy" (#411).
-- **Unit tests sit beside their file.** `foo.rs`'s unit tests live in `foo_tests.rs` beside it, which `foo.rs` declares as `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`, so each test keeps its name. A file not moved yet keeps its `mod tests` inline until its area is regrouped.
+- **Unit tests sit beside their file.** `foo.rs`'s unit tests live in `foo_tests.rs` beside it, which `foo.rs` declares as `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`, so each test keeps its name.
 - **One clock.** Server code reads the time only through `db::now` or `db::now_ms`, which a Plugin's `nama.now` reads too, so a test moves every clock the Kernel or a Plugin sees with `db::advance_clock` (`testing` feature, process-wide; `TestServer::advance_clock` in `tests/support`).
 
 ### Structure
@@ -29,5 +29,5 @@
 - **File size.** No `.rs` file under `src/` or `tests/`, nor `build.rs`, is over 800 lines, except those `tests/structure.rs` lists with a ceiling, a multiple of 100 lines the file stays at or under. A ceiling only comes down, to the next 100 above the file as it shrinks, and its entry goes once the file is 800 lines or fewer. The table takes a new file only when a move-only change makes it out of a listed one.
 - **Owned tables.** Each table a "One owner" rule here or in an area's `AGENTS.md` names is listed with its owner in `tests/structure.rs`, which fails on SQL naming it in any other file, tests included. A new such rule adds its tables there.
 - **Named paths exist.** A path an `AGENTS.md` here names in backticks, one with a `/` in it, exists relative to that file's folder or the workspace root. `tests/structure.rs` checks it, so a move updates the rules that name what moved.
-- **Rows.** A module calls only a lower row, or a module to its right in its own row, of `ROWS` in `tests/structure.rs`; a new top-level file gets a place there (ADR 0051).
+- **Rows.** A module calls only a lower row, or a module to its right in its own row, of `ROWS` in `tests/structure.rs`, which fails on any other `crate::` path not in its `ALLOWED_UPWARD`; a new top-level file gets a place there (ADR 0051).
 - **Area rules.** An area's folder holds an `AGENTS.md` with the area's own rules and its neighbours; read it before changing the area. A rule lives once, in the nearest `AGENTS.md`.

@@ -18,14 +18,14 @@ Ten top-level files had no row. Each goes where its imports put it, so that no u
 - **Into `users/`:** `codes`, `device_names`, `rate_limits`, `sessions`, `sign_in` and `sign_in_codes`. `rate_limits` and `users` import each other, `sign_in` needs `codes`, `device_names`, `rate_limits` and `sign_in_codes`, and `sessions` needs `users`, so they form one area. `connections`, left of `users` in its row, uses `codes`, which stays allowed.
 - **Single files in the bottom row:** `forwarded` reads only `config` and is used by api and sessions; `web` imports nothing from the crate.
 
-`plugin_settings` stays a single file in the second row, as the design says: its folder holds only private helpers (`stored.rs`, `put_back.rs`), and its one rule, "One owner for Plugin changes", stays in `crates/nama-server/AGENTS.md`, so it gets no `AGENTS.md` of its own.
+`plugin_settings` stays a single file in the second row, as the design says: its folder holds only private helpers (`stored.rs`, `put_back.rs`, `running.rs`), and its one rule, "One owner for Plugin changes", stays in `crates/nama-server/AGENTS.md`, so it gets no `AGENTS.md` of its own.
 
 Two calls are allowed against the order:
 
 - **ADR 0012's upward call.** The Library makes Requests Available inside its own write, so a scan's Match and the Request's state change land in one transaction. The allowance is keyed on one file, `src/library/contents/decisions.rs`, calling the `requests` module: it imports the module and calls `requests::make_available` and `requests::make_seasons_available` through it.
 - **Tests may build a Scanner.** Unit tests (files named `*_tests.rs` or `testing.rs`) may build `scanner::Scanner`, since only `Scanner::new` makes `ScanLocks`, and a Matching or Requests test that needs a scan or a Matcher can't get one from a lower row.
 
-Later in this stage the remaining upward calls are cut, each with no behaviour change: `events` calling `requests` and `playback::visible_to`, `server_settings` using `playback::PlaybackLimit`, and the test-only `plugins/wasm/title_source_tests.rs` calling `library`. Then `tests/structure.rs` reads each source file's `crate::` paths and fails, naming the file, line and import, on every call the order forbids.
+The other upward calls were cut, each with no behaviour change: `events` calling `requests` and `playback::visible_to`, `server_settings` using `playback::PlaybackLimit`, and the test-only `plugins/wasm/title_source_tests.rs` calling `library`. `tests/structure.rs` reads each source file's `crate::` paths, skipping comments and strings, and fails, naming the file, line and import, on every call the order forbids that its `ALLOWED_UPWARD` table, holding the two calls above, doesn't list.
 
 ## Considered Options
 
@@ -35,6 +35,6 @@ Later in this stage the remaining upward calls are cut, each with no behaviour c
 
 ## Consequences
 
-- A new top-level file fails `tests/structure.rs` until it gets a row in `ROWS`, or a row in `MOVING_INTO` while a move is planned; the change that moves a file into its area removes its `MOVING_INTO` row.
+- A new top-level file fails `tests/structure.rs` until it gets a row in `ROWS`.
 - A call the order forbids is cut with a value passed in, a trait the lower row defines, or the item moved down, rather than allowed in the table.
 - Moving a module to another row is a decision recorded here, since it changes what every module above and below may call.
