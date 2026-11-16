@@ -11,16 +11,18 @@ import {
   Puzzle,
   ScanSearch,
   Server,
+  TriangleAlert,
   Tv,
 } from "lucide-react";
 
 import { ChangeImage, type ImageRules } from "@/components/edit-images";
-import type { Shown } from "@/components/state-label";
+import { type Shown, StateLabel } from "@/components/state-label";
 import {
   ExtensionPoint,
   PluginPermission,
   PluginService,
   type PluginSummary,
+  type RecogniserFailure,
 } from "@/gen/nama/v1/plugin_pb";
 import { pluginName } from "@/lib/plugins";
 
@@ -53,6 +55,33 @@ export function ExtensionPoints({ extensionPoints }: { extensionPoints: Extensio
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * That the Plugin's Recogniser keeps failing: how many calls in a row failed, when the last one did
+ * and what it said. Nothing while its calls answer.
+ */
+export function RecogniserFailing({ failure }: { failure: RecogniserFailure | undefined }) {
+  if (failure === undefined) return null;
+  const { lastError, atMs, failedInARow } = failure;
+  const at = new Date(Number(atMs));
+  const calls = failedInARow === 1 ? "Its last call" : `Its last ${failedInARow} calls`;
+  return (
+    <section aria-labelledby="recogniser-failing" className="mt-6 max-w-prose">
+      <h2 id="recogniser-failing">
+        <StateLabel label="Recogniser failing" Icon={TriangleAlert} />
+      </h2>
+      <p className="mt-2 text-sm text-pretty text-muted-foreground">
+        {calls} failed, the latest on{" "}
+        <time dateTime={at.toISOString()}>
+          {at.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+        </time>
+        . Until it answers, the Items it is asked about stay undecided and are tried again at the
+        next Scan; the rest of Matching goes on.
+      </p>
+      <p className="mt-1 text-sm text-pretty wrap-break-word">Last error: {lastError}</p>
+    </section>
   );
 }
 

@@ -1,7 +1,12 @@
 import { useSuspenseQuery } from "@connectrpc/connect-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { ExtensionPoints, LogoChoice, PluginLogo } from "@/components/plugin-at-a-glance";
+import {
+  ExtensionPoints,
+  LogoChoice,
+  PluginLogo,
+  RecogniserFailing,
+} from "@/components/plugin-at-a-glance";
 import { Page } from "@/components/page";
 import { PluginQualities } from "@/components/plugin-qualities";
 import { PluginSettings } from "@/components/plugin-settings";
@@ -39,6 +44,7 @@ function PluginPage() {
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
         <PluginToggle summary={summary} settings={plugin.settings} />
       </div>
+      <RecogniserFailing failure={plugin.recogniserFailure} />
       {summary.refusedReason === "" ? (
         <>
           <LogoChoice summary={summary} />
