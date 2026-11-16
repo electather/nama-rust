@@ -29,6 +29,18 @@ pub(super) fn is_interrupted(err: &extism::Error) -> bool {
     err.is::<Interrupted>()
 }
 
+/// How a call fails when another call on its compile ran past its limit: Extism ends that one by
+/// bumping the epoch of the engine they share, which interrupts this one too. Its caller gets a
+/// plain failure, and it isn't a crash, as the Plugin did nothing wrong in it.
+#[derive(Debug, Error)]
+#[error("another call of the Plugin ran past its time limit, and ending it ended this one too")]
+pub(super) struct Collateral;
+
+/// Whether a call failed as [`Collateral`].
+pub(super) fn is_collateral(err: &extism::Error) -> bool {
+    err.is::<Collateral>()
+}
+
 /// The calls running in one enablement, by their instance's id, which a `nama` import reads from
 /// its `CurrentPlugin`. Every compile of the enablement shares one, so stopping them reaches
 /// every call of the Plugin, whichever point it is at.
@@ -49,7 +61,8 @@ impl Calls {
 
     /// Calls the export `name` with `input` on a fresh instance of `compiled`, cancelling it as a
     /// timeout once the Plugin's own time passes `limit`, or as [`Interrupted`] once
-    /// [`Self::stop`] is called. Blocks while the Plugin runs.
+    /// [`Self::stop`] is called. One that another call's timeout interrupts fails as
+    /// [`Collateral`]. Blocks while the Plugin runs.
     // ponytail: one watchdog thread per call; one thread for every call, as Extism's own timer
     // is, if calls get so many that the threads cost.
     pub(super) fn run(
@@ -68,7 +81,7 @@ impl Calls {
             clock: Mutex::new(Clock {
                 used: Duration::ZERO,
                 since: Some(Instant::now()),
-                cancelled: false,
+                cancelled: None,
                 ended: false,
             }),
             changed: Condvar::new(),
@@ -88,10 +101,15 @@ impl Calls {
             let _ended = Ended(&call);
             plugin.call(name, input)
         });
-        // Extism words a stop as it does a timeout. Any failure once stopped is put down to the
-        // stop: the enablement is ending, so it no longer counts as a crash.
+        // Extism words a stop, and another call's timeout, as it does this call's own timeout.
+        // Any failure once stopped is put down to the stop: the enablement is ending, so it no
+        // longer counts as a crash.
+        let clock = call.lock();
         match called {
-            Err(_) if call.lock().cancelled => Err(Interrupted.into()),
+            Err(_) if clock.cancelled == Some(Cancelled::Stopped) => Err(Interrupted.into()),
+            Err(err) if clock.cancelled.is_none() && super::is_timeout(&err) => {
+                Err(Collateral.into())
+            }
             called => called,
         }
     }
@@ -114,7 +132,7 @@ impl Calls {
         let mut running = self.lock();
         running.stopped = true;
         for call in running.calls.values() {
-            call.update(|clock| clock.cancelled = true);
+            call.update(|clock| clock.cancelled = Some(Cancelled::Stopped));
         }
     }
 }
@@ -134,9 +152,18 @@ struct Clock {
     used: Duration,
     /// When the Plugin's clock last started; `None` while the Kernel answers an import.
     since: Option<Instant>,
-    /// Whether [`Calls::stop`] interrupted it.
-    cancelled: bool,
+    /// Why its watchdog cancelled it, if it did.
+    cancelled: Option<Cancelled>,
     ended: bool,
+}
+
+/// Why a call's watchdog cancelled it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Cancelled {
+    /// Its Plugin's own time passed its limit.
+    AtLimit,
+    /// [`Calls::stop`] interrupted it, whether or not it was past its limit too.
+    Stopped,
 }
 
 impl Call {
@@ -154,7 +181,10 @@ impl Call {
         let mut clock = self.lock();
         while !clock.ended {
             let used = clock.used + clock.since.map_or(Duration::ZERO, |since| since.elapsed());
-            let wait = if clock.cancelled || used >= self.limit {
+            if clock.cancelled.is_none() && used >= self.limit {
+                clock.cancelled = Some(Cancelled::AtLimit);
+            }
+            let wait = if clock.cancelled.is_some() {
                 // An error means Extism's timer is gone, and with it every call it could end.
                 drop(self.cancel.cancel());
                 Some(CANCEL_AGAIN_EVERY)

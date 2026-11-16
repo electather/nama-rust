@@ -11,7 +11,8 @@ use nama_plugin_api::{
         WatchStatesAsked,
     },
 };
-use nama_plugin_proto::nama::plugin::v1::Ticked;
+use nama_plugin_proto::nama::plugin::v1::{EventsObserved, ObservedEvents, Ticked};
+use tokio::sync::Notify;
 
 use crate::plugins::{Registry, tick};
 
@@ -19,7 +20,7 @@ use super::{
     CRASHES_BEFORE_DISABLING, Running,
     calls::Calls,
     load::{CALL_TIMEOUT, TICK_TIMEOUT, compile_with_kernel, load, write_cache_config},
-    services::{Method, POINTS, TICK},
+    services::{Method, OBSERVE_EVENTS, POINTS, TICK},
 };
 
 #[expect(
@@ -92,9 +93,79 @@ impl Kernel for Slow {
     }
 }
 
+/// A Kernel whose `store_put`, the first function the test Plugin's tick calls, says it was
+/// called on `entered` and answers once `release` is notified.
+struct Gate {
+    entered: Arc<Notify>,
+    release: Arc<Notify>,
+}
+
+impl Kernel for Gate {
+    fn store_get<'a>(
+        &'a self,
+        _: &'a StoreKey,
+    ) -> BoxFuture<'a, Result<StoreValue, KernelRefused>> {
+        refuse()
+    }
+
+    fn store_put<'a>(&'a self, _: &'a StoreEntry) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
+        Box::pin(async {
+            self.entered.notify_one();
+            self.release.notified().await;
+            Ok(Stored::default())
+        })
+    }
+
+    fn store_delete<'a>(&'a self, _: &'a StoreKey) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
+        refuse()
+    }
+
+    fn list_libraries<'a>(
+        &'a self,
+        _: &'a LibrariesAsked,
+    ) -> BoxFuture<'a, Result<Libraries, KernelRefused>> {
+        refuse()
+    }
+
+    fn list_titles<'a>(
+        &'a self,
+        _: &'a TitlesAsked,
+    ) -> BoxFuture<'a, Result<Titles, KernelRefused>> {
+        refuse()
+    }
+
+    fn list_watch_states<'a>(
+        &'a self,
+        _: &'a WatchStatesAsked,
+    ) -> BoxFuture<'a, Result<WatchStates, KernelRefused>> {
+        refuse()
+    }
+
+    fn list_users<'a>(&'a self, _: &'a UsersAsked) -> BoxFuture<'a, Result<Users, KernelRefused>> {
+        refuse()
+    }
+
+    fn delete_media<'a>(
+        &'a self,
+        _: &'a DeleteAsked,
+    ) -> BoxFuture<'a, Result<DeleteStarted, KernelRefused>> {
+        refuse()
+    }
+}
+
 /// The test Plugin built with `features`, enabled as the Server enables it, with `kernel`.
 fn running(
     features: &str,
+    data_dir: &tempfile::TempDir,
+    kernel: Option<Arc<dyn Kernel>>,
+) -> Running {
+    running_with(features, Vec::new(), data_dir, kernel)
+}
+
+/// [`running`] with the settings `config`, as Extism hands them to the Plugin.
+fn running_with(
+    features: &str,
+    config: Vec<(String, String)>,
     data_dir: &tempfile::TempDir,
     kernel: Option<Arc<dyn Kernel>>,
 ) -> Running {
@@ -104,7 +175,7 @@ fn running(
         &plugin.wasm,
         &cache_config,
         Vec::new(),
-        Vec::new(),
+        config,
         kernel,
         Calls::default(),
     )
@@ -152,6 +223,54 @@ async fn a_looping_tick_past_its_limit_times_out_and_counts_as_a_crash() {
     assert_eq!(failed.to_string(), "timeout");
     assert_eq!(running.crashes.load(Ordering::Relaxed), 1);
     assert!(started.elapsed() < CALL_TIMEOUT, "{:?}", started.elapsed());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_call_another_calls_timeout_interrupts_fails_plainly_and_not_as_a_crash() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let (entered, release) = (Arc::new(Notify::new()), Arc::new(Notify::new()));
+    let gate = Gate {
+        entered: Arc::clone(&entered),
+        release: Arc::clone(&release),
+    };
+    // One compile whose tick waits in the gate and whose Observer loops.
+    let running = running_with(
+        "automation",
+        vec![("observer".to_owned(), "loop".to_owned())],
+        &data_dir,
+        Some(Arc::new(gate)),
+    );
+    let ticking = tokio::spawn({
+        let running = running.clone();
+        async move {
+            running
+                .call_method::<_, Ticked>(&TICK, &Tick::default())
+                .await
+        }
+    });
+    entered.notified().await;
+    let observe = Method {
+        limit: SHORT,
+        ..OBSERVE_EVENTS
+    };
+
+    let timed_out = running
+        .call_method::<_, EventsObserved>(&observe, &ObservedEvents::default())
+        .await
+        .unwrap_err();
+    release.notify_one();
+    let interrupted = tokio::time::timeout(CALL_TIMEOUT, ticking)
+        .await
+        .expect("the tick ran on past the other call's timeout")
+        .unwrap()
+        .unwrap_err();
+
+    assert_eq!(timed_out.to_string(), "timeout");
+    assert_eq!(
+        interrupted.to_string(),
+        "another call of the Plugin ran past its time limit, and ending it ended this one too"
+    );
+    assert_eq!(running.crashes.load(Ordering::Relaxed), 1);
 }
 
 #[tokio::test(flavor = "multi_thread")]

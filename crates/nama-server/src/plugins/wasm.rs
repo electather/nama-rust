@@ -227,9 +227,10 @@ impl Running {
     /// Counts the crashes in a row, `err` among them if it is one. On the
     /// [`CRASHES_BEFORE_DISABLING`]th, unwinds with why, `cause`, so the registry disables the
     /// Plugin as it does one whose Rust code panics. A call interrupted because the enablement is
-    /// ending leaves the count as it was.
+    /// ending, or by another call's timeout, leaves the count as it was: resetting it there would
+    /// let a Plugin whose calls all loop, each ending the others, never be disabled.
     fn count_crash(&self, err: &extism::Error, cause: &str) {
-        if calls::is_interrupted(err) {
+        if calls::is_interrupted(err) || calls::is_collateral(err) {
             return;
         }
         if !is_crash(err) {
@@ -255,7 +256,9 @@ fn is_crash(err: &extism::Error) -> bool {
             .is_some_and(wasmtime::Error::is::<wasmtime::Trap>)
 }
 
-/// Whether a failed call ran past its limit or was cancelled.
+/// Whether a failed call ran past its own limit. Once [`calls::Calls::run`] has classified it, a
+/// call a stop or another call's timeout interrupted fails as [`calls::Interrupted`] or
+/// [`calls::Collateral`] instead.
 fn is_timeout(err: &extism::Error) -> bool {
     // Extism (1.41) gives a timeout as a bare "timeout".
     err.to_string() == "timeout"
@@ -338,9 +341,10 @@ impl Plugin for Installed {
         let mut crash_groups = BTreeMap::<_, Arc<AtomicU32>>::new();
         // Extism ends a call, at its limit or cancelled, by bumping the epoch of the engine it
         // runs on, which interrupts every call running on that engine, and each compile has one.
-        // So a point whose calls may run long gets a compile of its own: a tick ended at its limit
-        // doesn't end a delivery running beside it, nor a delivery's timeout the tick. The other
-        // points share one, as their calls are short.
+        // A call ended so fails as `calls::Collateral`, not as a crash; a compile per call would
+        // avoid it, but compiling costs too much. So a point whose calls may run long gets a
+        // compile of its own: a tick ended at its limit doesn't end a delivery running beside it,
+        // nor a delivery's timeout the tick. The other points share one, as their calls are short.
         let mut shared = None;
         for point in POINTS
             .iter()
