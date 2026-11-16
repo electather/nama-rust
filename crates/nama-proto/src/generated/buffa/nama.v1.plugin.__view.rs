@@ -7348,6 +7348,37 @@ impl<'a> ::buffa::MessageView<'a> for SettingValueView<'a> {
                     ),
                 );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::setting_value::Value::LibraryIds(
+                        ref mut existing,
+                    ),
+                ) = view.value
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.value = Some(
+                        super::super::__buffa::view::oneof::setting_value::Value::LibraryIds(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::LibraryIdsView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -7370,30 +7401,45 @@ impl<'a> ::buffa::MessageView<'a> for SettingValueView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::SettingValue {
-            value: self
-                .value
-                .as_ref()
-                .map(|v| match v {
-                    super::super::__buffa::view::oneof::setting_value::Value::TextValue(
-                        v,
-                    ) => {
-                        super::super::__buffa::oneof::setting_value::Value::TextValue(
-                            v.to_string(),
-                        )
-                    }
-                    super::super::__buffa::view::oneof::setting_value::Value::BoolValue(
-                        v,
-                    ) => {
-                        super::super::__buffa::oneof::setting_value::Value::BoolValue(*v)
-                    }
-                    super::super::__buffa::view::oneof::setting_value::Value::IntegerValue(
-                        v,
-                    ) => {
-                        super::super::__buffa::oneof::setting_value::Value::IntegerValue(
-                            *v,
-                        )
-                    }
-                }),
+            value: match self.value.as_ref() {
+                ::core::option::Option::Some(v) => {
+                    ::core::option::Option::Some(
+                        match v {
+                            super::super::__buffa::view::oneof::setting_value::Value::TextValue(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::setting_value::Value::TextValue(
+                                    v.to_string(),
+                                )
+                            }
+                            super::super::__buffa::view::oneof::setting_value::Value::BoolValue(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::setting_value::Value::BoolValue(
+                                    *v,
+                                )
+                            }
+                            super::super::__buffa::view::oneof::setting_value::Value::IntegerValue(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::setting_value::Value::IntegerValue(
+                                    *v,
+                                )
+                            }
+                            super::super::__buffa::view::oneof::setting_value::Value::LibraryIds(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::setting_value::Value::LibraryIds(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
+                        },
+                    )
+                }
+                ::core::option::Option::None => ::core::option::Option::None,
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -7401,7 +7447,7 @@ impl<'a> ::buffa::MessageView<'a> for SettingValueView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for SettingValueView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -7422,6 +7468,16 @@ impl<'a> ::buffa::ViewEncode<'a> for SettingValueView<'a> {
                 ) => {
                     size += 1u64 + ::buffa::types::int64_encoded_len(*v) as u64;
                 }
+                super::super::__buffa::view::oneof::setting_value::Value::LibraryIds(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -7430,7 +7486,7 @@ impl<'a> ::buffa::ViewEncode<'a> for SettingValueView<'a> {
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -7451,6 +7507,16 @@ impl<'a> ::buffa::ViewEncode<'a> for SettingValueView<'a> {
                     x,
                 ) => {
                     ::buffa::types::put_int64_field(3u32, *x, buf);
+                }
+                super::super::__buffa::view::oneof::setting_value::Value::LibraryIds(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
                 }
             }
         }
@@ -7495,6 +7561,11 @@ impl<'__a> ::serde::Serialize for SettingValueView<'__a> {
                             "integerValue",
                             &::buffa::json_helpers::ProtoJson(v),
                         )?;
+                }
+                super::super::__buffa::view::oneof::setting_value::Value::LibraryIds(
+                    v,
+                ) => {
+                    __map.serialize_entry("libraryIds", v)?;
                 }
             }
         }
@@ -7622,6 +7693,281 @@ impl ::buffa::HasMessageView for super::super::SettingValue {
     type ViewHandle = SettingValueOwnedView;
 }
 impl ::serde::Serialize for SettingValueOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// The ids of Libraries a SETTING_KIND_LIBRARIES setting names, in the order the admin gave them.
+#[derive(Clone, Debug, Default)]
+pub struct LibraryIdsView<'a> {
+    /// Field 1: `ids`
+    pub ids: ::buffa::RepeatedView<'a, i64>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for LibraryIdsView<'a> {
+    type Owned = super::super::LibraryIds;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    ::buffa::types::extend_packed_int64(
+                        payload,
+                        view.ids.as_mut_vec(),
+                        ::buffa::encoding::count_varints(payload),
+                    )?;
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.ids.push(::buffa::types::decode_int64(&mut cur)?);
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::LibraryIds, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::LibraryIds, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::LibraryIds {
+            ids: self.ids.to_vec(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for LibraryIdsView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.ids.is_empty() {
+            let payload: u64 = self
+                .ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.ids.is_empty() {
+            let payload: u64 = self
+                .ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(1u32, payload, buf);
+            for &v in &self.ids {
+                ::buffa::types::encode_int64(v, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for LibraryIdsView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !self.ids.is_empty() {
+            __map
+                .serialize_entry(
+                    "ids",
+                    &::buffa::json_helpers::RepeatedJson(&self.ids),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for LibraryIdsView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "LibraryIds";
+    const FULL_NAME: &'static str = "nama.v1.LibraryIds";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.LibraryIds";
+}
+::buffa::impl_default_view_instance!(LibraryIdsView);
+::buffa::impl_view_reborrow!(LibraryIdsView);
+/** Self-contained, `'static` owned view of a `LibraryIds` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`LibraryIdsView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`LibraryIdsView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct LibraryIdsOwnedView(::buffa::OwnedView<LibraryIdsView<'static>>);
+impl LibraryIdsOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            LibraryIdsOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            LibraryIdsOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::LibraryIds,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            LibraryIdsOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`LibraryIdsView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &LibraryIdsView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::LibraryIds {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `ids`
+    #[must_use]
+    pub fn ids(&self) -> &::buffa::RepeatedView<'_, i64> {
+        &self.0.reborrow().ids
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<LibraryIdsView<'static>>>
+for LibraryIdsOwnedView {
+    fn from(inner: ::buffa::OwnedView<LibraryIdsView<'static>>) -> Self {
+        LibraryIdsOwnedView(inner)
+    }
+}
+impl ::core::convert::From<LibraryIdsOwnedView>
+for ::buffa::OwnedView<LibraryIdsView<'static>> {
+    fn from(wrapper: LibraryIdsOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<LibraryIdsView<'static>>>
+for LibraryIdsOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<LibraryIdsView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::LibraryIds {
+    type View<'a> = LibraryIdsView<'a>;
+    type ViewHandle = LibraryIdsOwnedView;
+}
+impl ::serde::Serialize for LibraryIdsOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

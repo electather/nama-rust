@@ -50,7 +50,7 @@ enum RequestState {
   REQUEST_STATE_FAILED = 7;
 }
 
-// A Movie a Request asks for, as the metadata source gave it when the Request was opened.
+// A Movie a Request asks for, as the title source gave it when the Request was opened.
 message RequestedMovie {
   reserved 1;
   reserved "tmdb_id";
@@ -62,7 +62,7 @@ message RequestedMovie {
   repeated TitleId ids = 4;
 }
 
-// A Season a Request asks for, as the metadata source gave it when the Request was opened.
+// A Season a Request asks for, as the title source gave it when the Request was opened.
 message RequestedSeason {
   reserved 1, 5, 6;
   reserved "show_tmdb_id", "show_imdb_id", "show_tvdb_id";
@@ -76,7 +76,7 @@ message RequestedSeason {
   repeated TitleId show_ids = 7;
 }
 
-// One id of a title in a metadata source. A namespace is lowercase ASCII letters and digits,
+// One id of a title in a title source. A namespace is lowercase ASCII letters and digits,
 // such as `tmdb`, `imdb` or `tvdb`; its owner defines the value, which is never empty.
 message TitleId {
   string namespace = 1;

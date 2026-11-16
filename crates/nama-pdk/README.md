@@ -109,7 +109,7 @@ A Notifier is handed each notification with its `Recipient`: `Channel`, the chan
 
 ## 5. Settings
 
-The Manifest's `settings` lists what an admin fills in, each a `SettingField` of a `SettingKind`. A Plugin reads a setting with `extism_pdk::config::get(key)`, as text; what it holds when is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin).
+The Manifest's `settings` lists what an admin fills in, each a `SettingField` of a `SettingKind`. A Plugin reads a setting with `extism_pdk::config::get(key)`, as text; what it holds when is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). A Libraries setting holds Library ids an admin picked from the Server's list; read it with `nama_pdk::setting_library_ids(key)`, and skip an id the Kernel no longer lists, since a Library may be deleted after the setting is saved.
 
 A Plugin with a Choice setting, such as a quality profile, exports `check_settings()`, which the Server calls when an admin tests the settings. It checks them against the outside service and offers each Choice setting's values, built with `nama_pdk::checked_settings`:
 
@@ -123,7 +123,7 @@ pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
 }
 ```
 
-Settings each User sets for themself, such as a topic to be notified on, are Personal settings: the Manifest lists them in `personal_settings`, of the Text, Secret, Bool or Integer kind only, since a User's value must not widen the hosts the Plugin reaches, and with keys `settings` doesn't use. They are never in the config. A Notifier reads one User's values from `Recipient::User`, as text:
+Settings each User sets for themself, such as a topic to be notified on, are Personal settings: the Manifest lists them in `personal_settings`, of the Text, Secret, Bool or Integer kind only, since a User's value must not widen the hosts the Plugin reaches nor name Libraries, and with keys `settings` doesn't use. They are never in the config. A Notifier reads one User's values from `Recipient::User`, as text:
 
 ```rust
 use nama_pdk::Recipient;

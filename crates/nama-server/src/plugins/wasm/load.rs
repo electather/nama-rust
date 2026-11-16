@@ -371,7 +371,7 @@ pub(super) fn allowed_hosts(
 }
 
 /// `settings` as the Extism config a Plugin reads them from, each value as text: a bool as
-/// `true` or `false`, a number in decimal.
+/// `true` or `false`, a number in decimal, Library ids in decimal joined by `,` (empty for none).
 pub(super) fn extism_config(schema: &SettingsSchema, settings: &Settings) -> Vec<(String, String)> {
     schema
         .fields
@@ -381,6 +381,9 @@ pub(super) fn extism_config(schema: &SettingsSchema, settings: &Settings) -> Vec
                 SettingValue::Bool(on) => on.to_string(),
                 SettingValue::Integer(number) => number.to_string(),
                 SettingValue::Text(text) => text.clone(),
+                SettingValue::Libraries(ids) => {
+                    ids.iter().map(i64::to_string).collect::<Vec<_>>().join(",")
+                }
             };
             Some((field.key.clone(), text))
         })

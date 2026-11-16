@@ -156,6 +156,29 @@ fn a_plugin_reads_each_setting_as_text() {
     assert_eq!(config, expected);
 }
 
+#[test]
+fn a_plugin_reads_library_ids_as_decimals_joined_by_commas() {
+    let schema = SettingsSchema {
+        fields: vec![
+            field("keep", SettingKind::Libraries),
+            field("none", SettingKind::Libraries),
+        ],
+    };
+    let settings = Settings::new(
+        [
+            ("keep".to_owned(), SettingValue::Libraries(vec![12, 3])),
+            ("none".to_owned(), SettingValue::Libraries(Vec::new())),
+        ]
+        .into(),
+    );
+
+    let config = extism_config(&schema, &settings);
+
+    let expected =
+        [("keep", "12,3"), ("none", "")].map(|(key, value)| (key.to_owned(), value.to_owned()));
+    assert_eq!(config, expected);
+}
+
 fn manifest(kind: wire::SettingKind) -> Manifest {
     let field = wire::SettingField {
         key: "api_key".to_owned(),
@@ -312,6 +335,27 @@ fn a_logo_is_kept_without_its_scripts() {
     for gone in ["onload", "script", "onclick", "alert"] {
         assert!(!logo.contains(gone), "{logo}");
     }
+}
+
+#[test]
+fn a_manifest_whose_personal_settings_name_libraries_is_refused() {
+    let (judged, _) = judged(Manifest {
+        personal_settings: vec![wire::SettingField {
+            key: "libraries".to_owned(),
+            kind: wire::SettingKind::SETTING_KIND_LIBRARIES.into(),
+            ..Default::default()
+        }],
+        ..notifier()
+    });
+
+    let refused = judged.err().unwrap_or_default();
+    assert!(
+        refused.contains(
+            "its Personal setting libraries is Libraries, and a Personal setting may only be \
+             Text, Secret, Bool or Integer"
+        ),
+        "{refused}"
+    );
 }
 
 #[test]

@@ -9,5 +9,10 @@ pub mod setting_value {
         TextValue(&'a str),
         BoolValue(bool),
         IntegerValue(i64),
+        LibraryIds(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::LibraryIdsView<'a>,
+            >,
+        ),
     }
 }

@@ -750,7 +750,7 @@ impl ::serde::Serialize for RequestOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A Movie a Request asks for, as the metadata source gave it when the Request was opened.
+/// A Movie a Request asks for, as the title source gave it when the Request was opened.
 #[derive(Clone, Debug, Default)]
 pub struct RequestedMovieView<'a> {
     /// The title, in its title source's language.
@@ -1085,7 +1085,7 @@ impl ::serde::Serialize for RequestedMovieOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A Season a Request asks for, as the metadata source gave it when the Request was opened.
+/// A Season a Request asks for, as the title source gave it when the Request was opened.
 #[derive(Clone, Debug, Default)]
 pub struct RequestedSeasonView<'a> {
     /// The Season's number within the Show. Season 0 holds specials.
@@ -1455,7 +1455,7 @@ impl ::serde::Serialize for RequestedSeasonOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// One id of a title in a metadata source. A namespace is lowercase ASCII letters and digits,
+/// One id of a title in a title source. A namespace is lowercase ASCII letters and digits,
 /// such as `tmdb`, `imdb` or `tvdb`; its owner defines the value, which is never empty.
 #[derive(Clone, Debug, Default)]
 pub struct TitleIdView<'a> {

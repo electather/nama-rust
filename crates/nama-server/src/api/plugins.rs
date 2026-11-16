@@ -273,6 +273,13 @@ fn change_refused(err: ChangeError) -> ConnectError {
             .into()
         }
         ChangeError::InvalidSettings(error) => settings_refused(error),
+        ChangeError::UnknownLibrary { key, id } => refuse(
+            RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+            format!("the setting {key} names no Library {id}"),
+        )
+        .setting(&key)
+        .param("libraryId", &id)
+        .into(),
         ChangeError::NotOffered { plugin, key, value } => {
             let message = format!("{value} isn't one of the choices for the setting {key}");
             refuse(RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
@@ -616,6 +623,7 @@ fn setting_value_from_proto(value: &proto::SettingValue) -> Option<settings::Set
         Value::TextValue(text) => settings::SettingValue::Text(text.clone()),
         Value::BoolValue(on) => settings::SettingValue::Bool(*on),
         Value::IntegerValue(number) => settings::SettingValue::Integer(*number),
+        Value::LibraryIds(libraries) => settings::SettingValue::Libraries(libraries.ids.clone()),
     };
     Some(value)
 }
@@ -626,6 +634,10 @@ fn setting_value_to_proto(value: &settings::SettingValue) -> proto::SettingValue
         settings::SettingValue::Text(text) => Value::TextValue(text.clone()),
         settings::SettingValue::Bool(on) => Value::BoolValue(*on),
         settings::SettingValue::Integer(number) => Value::IntegerValue(*number),
+        settings::SettingValue::Libraries(ids) => Value::LibraryIds(Box::new(proto::LibraryIds {
+            ids: ids.clone(),
+            ..Default::default()
+        })),
     };
     proto::SettingValue {
         value: Some(value),
@@ -642,6 +654,7 @@ fn setting_kind_to_proto(kind: settings::SettingKind) -> proto::SettingKind {
         K::Integer => proto::SettingKind::SETTING_KIND_INTEGER,
         K::Choice => proto::SettingKind::SETTING_KIND_CHOICE,
         K::Url => proto::SettingKind::SETTING_KIND_URL,
+        K::Libraries => proto::SettingKind::SETTING_KIND_LIBRARIES,
     }
 }
 

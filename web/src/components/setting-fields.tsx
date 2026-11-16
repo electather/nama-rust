@@ -136,7 +136,9 @@ function hint({ description, required, defaultValue, secretSet }: Setting) {
 }
 
 function valueText(setting: SettingValue | undefined) {
-  return setting?.value.case === undefined ? "" : String(setting.value.value);
+  if (setting?.value.case === undefined) return "";
+  if (setting.value.case === "libraryIds") return setting.value.value.ids.join(",");
+  return String(setting.value.value);
 }
 
 /** The settings typed in `typed`, one per setting of `settings`. A blank one is left out. */

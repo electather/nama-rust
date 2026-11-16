@@ -654,13 +654,17 @@ impl State {
 }
 
 /// Why the Kernel can't take `manifest`'s Personal settings, if it can't (ADR 0046): one of a
-/// kind a User's value could widen the hosts the Plugin reaches by, or with a key that repeats or
-/// that a Plugin-wide setting also has.
+/// kind a User's value could widen the hosts the Plugin reaches by, one naming Libraries, which a
+/// User can't pick from the Admin's list, or with a key that repeats or that a Plugin-wide setting
+/// also has.
 pub(super) fn personal_settings_refusal(manifest: &Manifest) -> Option<String> {
     let personal = &manifest.personal_settings.fields;
     personal.iter().enumerate().find_map(|(index, field)| {
         let key = &field.key;
-        if matches!(field.kind, SettingKind::Url | SettingKind::Choice) {
+        if matches!(
+            field.kind,
+            SettingKind::Url | SettingKind::Choice | SettingKind::Libraries
+        ) {
             Some(format!(
                 "its Personal setting {key} is {:?}, and a Personal setting may only be Text, \
                  Secret, Bool or Integer",

@@ -983,7 +983,7 @@ pub mod request {
     #[doc(inline)]
     pub use super::__buffa::view::oneof::request::MovieOrSeason as MovieOrSeasonView;
 }
-/// A Movie a Request asks for, as the metadata source gave it when the Request was opened.
+/// A Movie a Request asks for, as the title source gave it when the Request was opened.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -1192,7 +1192,7 @@ pub const __REQUESTED_MOVIE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
     from_json: ::buffa::type_registry::any_from_json::<RequestedMovie>,
     is_wkt: false,
 };
-/// A Season a Request asks for, as the metadata source gave it when the Request was opened.
+/// A Season a Request asks for, as the title source gave it when the Request was opened.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -1428,7 +1428,7 @@ pub const __REQUESTED_SEASON_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::
     from_json: ::buffa::type_registry::any_from_json::<RequestedSeason>,
     is_wkt: false,
 };
-/// One id of a title in a metadata source. A namespace is lowercase ASCII letters and digits,
+/// One id of a title in a title source. A namespace is lowercase ASCII letters and digits,
 /// such as `tmdb`, `imdb` or `tvdb`; its owner defines the value, which is never empty.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]

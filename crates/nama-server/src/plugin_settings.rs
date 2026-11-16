@@ -34,6 +34,7 @@ use crate::{
     requests::qualities,
 };
 
+mod library_ids;
 mod put_back;
 mod running;
 mod stored;
@@ -132,6 +133,14 @@ pub enum ChangeError {
     /// The settings don't fit the Plugin's schema.
     #[error("the settings don't fit the plugin: {0}")]
     InvalidSettings(SettingsError),
+    /// A Libraries setting names an id no Library has.
+    #[error("the setting {key} names no Library {id}")]
+    UnknownLibrary {
+        /// The Libraries setting.
+        key: String,
+        /// The first of its ids no Library has.
+        id: i64,
+    },
     /// A choice setting's value isn't one the Plugin's settings check offers.
     #[error("{value} isn't one of the choices for the setting {key}")]
     NotOffered {
@@ -403,9 +412,9 @@ impl PluginSettings {
     ///
     /// # Errors
     ///
-    /// If no Plugin has the id or the Server refused it, the settings don't fit its schema, its
-    /// settings check fails or doesn't offer a choice setting's value, or the database can't be
-    /// read or written. A refused change saves nothing.
+    /// If no Plugin has the id or the Server refused it, the settings don't fit its schema or
+    /// name a Library that doesn't exist, its settings check fails or doesn't offer a choice
+    /// setting's value, or the database can't be read or written. A refused change saves nothing.
     pub async fn update(
         &self,
         id: &PluginId,
@@ -426,6 +435,8 @@ impl PluginSettings {
             Settings::new(settings.clone())
                 .resolve(&manifest.settings)
                 .map_err(ChangeError::InvalidSettings)?;
+            this.check_library_ids(&manifest.settings, &settings)
+                .await?;
             // ponytail: checked under `changing`, so a slow outside service holds up other Plugin
             // changes for up to SETTINGS_CHECK_TIMEOUT; check before locking if that bites.
             this.check_choices(&manifest, &settings).await?;

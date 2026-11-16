@@ -744,6 +744,30 @@ where
     }
 }
 
+/// The Library ids the `SETTING_KIND_LIBRARIES` setting `key` holds, in the order the admin gave
+/// them; none if it isn't set. A Library deleted since may be among them: skip an id the Kernel no
+/// longer lists.
+///
+/// # Errors
+///
+/// When the config can't be read, or the setting holds something other than ids, which the Kernel
+/// never writes.
+pub fn setting_library_ids(key: &str) -> Result<Vec<i64>, Error> {
+    library_ids(key, &extism_pdk::config::get(key)?.unwrap_or_default())
+}
+
+/// `text`, the setting `key`'s config, as Library ids: each in decimal, joined by `,`.
+fn library_ids(key: &str, text: &str) -> Result<Vec<i64>, Error> {
+    text.split(',')
+        .filter(|id| !id.is_empty())
+        .map(|id| {
+            id.parse().map_err(|_not_a_number| {
+                Error::msg(format!("the setting {key} holds {id:?}, not Library ids"))
+            })
+        })
+        .collect()
+}
+
 /// Sends `request` with `body`, as [`extism_pdk::http::request`] does. If the Server can't send
 /// it, such as when nothing answers at its host, the call fails with `unreachable` as its error,
 /// in place of the HTTP client's own words.
@@ -831,7 +855,17 @@ fn clear_error() {
 
 #[cfg(test)]
 mod tests {
-    use crate::{SearchQuery, SearchResults, TitleSource, extism_pdk::Error};
+    use crate::{SearchQuery, SearchResults, TitleSource, extism_pdk::Error, library_ids};
+
+    #[test]
+    fn library_ids_are_read_from_their_config_text() {
+        assert_eq!(library_ids("keep", "3,1,12").ok(), Some(vec![3, 1, 12]));
+        assert_eq!(library_ids("keep", "").ok(), Some(Vec::new()));
+        assert_eq!(
+            library_ids("keep", "3,Movies").map_err(|err| err.to_string()),
+            Err("the setting keep holds \"Movies\", not Library ids".to_owned())
+        );
+    }
 
     struct Searcher;
 

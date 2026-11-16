@@ -1,10 +1,15 @@
 //! Starting the Server's Plugins with the settings stored in the database, which come from the
 //! config's `[plugins.*]` tables once, on the first start, and changing them in the order
-//! ADR 0028 sets, against a real database and fake Plugins, without HTTP.
+//! ADR 0028 sets, against a real database and fake Plugins, without HTTP; `library_ids` saves a
+//! setting naming Libraries over the API.
 
+#[path = "plugin_settings/library_ids.rs"]
+mod library_ids;
 #[path = "support/log.rs"]
 #[expect(dead_code, reason = "the harness's `wait_for` has no use here")]
 mod log;
+#[path = "support/refused.rs"]
+mod refused;
 #[path = "support/server.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;

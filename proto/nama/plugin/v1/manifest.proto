@@ -127,6 +127,9 @@ enum SettingKind {
   // An http or https URL, such as a Sonarr address. The Plugin may send HTTP requests to its host,
   // as if `Manifest.allowed_hosts` named it.
   SETTING_KIND_URL = 6;
+  // The ids of Libraries, which an admin picks from the Server's Library list. A Library deleted
+  // later stays in the value, and the Plugin ignores an id the Kernel no longer lists.
+  SETTING_KIND_LIBRARIES = 7;
 }
 
 // A setting's value, of the setting's kind.
@@ -138,7 +141,14 @@ message SettingValue {
     bool bool_value = 2;
     // A whole number, for SETTING_KIND_INTEGER.
     int64 integer_value = 3;
+    // Library ids, for SETTING_KIND_LIBRARIES.
+    LibraryIds library_ids = 4;
   }
+}
+
+// The ids of Libraries a SETTING_KIND_LIBRARIES setting names, in the order the admin gave them.
+message LibraryIds {
+  repeated int64 ids = 1;
 }
 
 // The values a SETTING_KIND_CHOICE setting may take, in the order a form offers them.

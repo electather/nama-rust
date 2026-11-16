@@ -153,6 +153,7 @@ pub mod __buffa {
         reg.register_json_any(super::__PLUGIN_JSON_ANY);
         reg.register_json_any(super::__SETTING_JSON_ANY);
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
+        reg.register_json_any(super::__LIBRARY_IDS_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
         reg.register_json_any(super::__REQUEST_JSON_ANY);
         reg.register_json_any(super::__QUALITY_CHANGE_JSON_ANY);
@@ -701,6 +702,10 @@ pub use self::__buffa::view::SettingOwnedView;
 pub use self::__buffa::view::SettingValueView;
 #[doc(inline)]
 pub use self::__buffa::view::SettingValueOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LibraryIdsView;
+#[doc(inline)]
+pub use self::__buffa::view::LibraryIdsOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]

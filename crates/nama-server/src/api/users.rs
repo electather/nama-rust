@@ -475,6 +475,8 @@ fn personal_text(value: SettingValue) -> String {
         SettingValue::Text(text) => text,
         SettingValue::Bool(on) => on.to_string(),
         SettingValue::Integer(number) => number.to_string(),
+        // Never stored: the Kernel refuses a Manifest whose Personal settings name Libraries.
+        SettingValue::Libraries(_) => String::new(),
     }
 }
 
@@ -486,6 +488,8 @@ fn personal_value(kind: SettingKind, text: String) -> Option<SettingValue> {
         SettingKind::Text | SettingKind::Secret | SettingKind::Choice | SettingKind::Url => {
             Some(SettingValue::Text(text))
         }
+        // Never personal: the Kernel refuses a Manifest whose Personal settings name Libraries.
+        SettingKind::Libraries => None,
     }
 }
 

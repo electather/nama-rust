@@ -22,6 +22,7 @@ pub(super) const fn setting_kind(kind: wire::SettingKind) -> Option<SettingKind>
         wire::SettingKind::SETTING_KIND_INTEGER => SettingKind::Integer,
         wire::SettingKind::SETTING_KIND_CHOICE => SettingKind::Choice,
         wire::SettingKind::SETTING_KIND_URL => SettingKind::Url,
+        wire::SettingKind::SETTING_KIND_LIBRARIES => SettingKind::Libraries,
     })
 }
 
@@ -31,6 +32,9 @@ pub(super) fn setting_value(value: &wire::SettingValue) -> Option<SettingValue> 
         setting_value::Value::TextValue(text) => SettingValue::Text(text.clone()),
         setting_value::Value::BoolValue(on) => SettingValue::Bool(*on),
         setting_value::Value::IntegerValue(number) => SettingValue::Integer(*number),
+        setting_value::Value::LibraryIds(libraries) => {
+            SettingValue::Libraries(libraries.ids.clone())
+        }
     })
 }
 

@@ -59,6 +59,9 @@ pub enum SettingKind {
     /// An http or https URL with a host, such as a Sonarr address. An Installed Plugin may send
     /// HTTP requests to its host.
     Url,
+    /// The ids of Libraries, which an admin picks from the Server's Library list. A Library
+    /// deleted later stays in the value, so a Plugin ignores an id the Kernel no longer lists.
+    Libraries,
 }
 
 /// A setting's value.
@@ -72,6 +75,14 @@ pub enum SettingValue {
     /// Text, for [`SettingKind::Text`], [`SettingKind::Secret`], [`SettingKind::Choice`] and
     /// [`SettingKind::Url`].
     Text(String),
+    /// Library ids, for [`SettingKind::Libraries`].
+    Libraries(Vec<i64>),
+}
+
+impl From<Vec<i64>> for SettingValue {
+    fn from(ids: Vec<i64>) -> Self {
+        Self::Libraries(ids)
+    }
 }
 
 impl SettingValue {
@@ -82,6 +93,7 @@ impl SettingValue {
             (Self::Text(text), SettingKind::Url) => web_url(text).is_some(),
             (Self::Bool(_), SettingKind::Bool)
             | (Self::Integer(_), SettingKind::Integer)
+            | (Self::Libraries(_), SettingKind::Libraries)
             | (Self::Text(_), SettingKind::Text | SettingKind::Secret | SettingKind::Choice) => {
                 true
             }
@@ -97,6 +109,7 @@ impl fmt::Debug for SettingValue {
             Self::Bool(_) => "Bool",
             Self::Integer(_) => "Integer",
             Self::Text(_) => "Text",
+            Self::Libraries(_) => "Libraries",
         };
         write!(f, "{kind}(..)")
     }
@@ -124,7 +137,17 @@ impl Settings {
     pub fn text(&self, key: &str) -> Option<&str> {
         match self.get(key)? {
             SettingValue::Text(text) => Some(text),
-            SettingValue::Bool(_) | SettingValue::Integer(_) => None,
+            SettingValue::Bool(_) | SettingValue::Integer(_) | SettingValue::Libraries(_) => None,
+        }
+    }
+
+    /// The value of `key`, if it holds Library ids, as a [`SettingKind::Libraries`] setting's
+    /// does.
+    #[must_use]
+    pub fn library_ids(&self, key: &str) -> Option<&[i64]> {
+        match self.get(key)? {
+            SettingValue::Libraries(ids) => Some(ids),
+            SettingValue::Bool(_) | SettingValue::Integer(_) | SettingValue::Text(_) => None,
         }
     }
 
@@ -271,6 +294,26 @@ mod tests {
         assert!(!text("ftp://sonarr.lan/").is(SettingKind::Url));
         assert!(!text("not a url").is(SettingKind::Url));
         assert!(!SettingValue::Integer(8989).is(SettingKind::Url));
+    }
+
+    #[test]
+    fn a_libraries_setting_takes_only_library_ids() {
+        assert!(SettingValue::from(vec![1, 2]).is(SettingKind::Libraries));
+        assert!(SettingValue::Libraries(Vec::new()).is(SettingKind::Libraries));
+
+        assert!(!text("1,2").is(SettingKind::Libraries));
+        assert!(!SettingValue::Integer(1).is(SettingKind::Libraries));
+        assert!(!SettingValue::Libraries(vec![1]).is(SettingKind::Text));
+    }
+
+    #[test]
+    fn a_libraries_setting_is_read_as_ids() {
+        let settings =
+            Settings::new([("keep".to_owned(), SettingValue::Libraries(vec![4, 2]))].into());
+
+        assert_eq!(settings.library_ids("keep"), Some([4, 2].as_slice()));
+        assert_eq!(settings.text("keep"), None);
+        assert_eq!(settings.library_ids("missing"), None);
     }
 
     #[test]

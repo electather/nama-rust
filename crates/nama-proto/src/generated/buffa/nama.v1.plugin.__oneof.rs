@@ -9,8 +9,19 @@ pub mod setting_value {
         TextValue(::buffa::alloc::string::String),
         BoolValue(bool),
         IntegerValue(i64),
+        LibraryIds(::buffa::alloc::boxed::Box<super::super::super::LibraryIds>),
     }
     impl ::buffa::Oneof for Value {}
+    impl From<super::super::super::LibraryIds> for Value {
+        fn from(v: super::super::super::LibraryIds) -> Self {
+            Self::LibraryIds(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::LibraryIds> for ::core::option::Option<Value> {
+        fn from(v: super::super::super::LibraryIds) -> Self {
+            Self::Some(Value::from(v))
+        }
+    }
     impl ::serde::Serialize for Value {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -30,6 +41,9 @@ pub mod setting_value {
                         "integerValue",
                         &::buffa::json_helpers::ProtoJson(v),
                     )?;
+                }
+                Self::LibraryIds(v) => {
+                    map.serialize_entry("libraryIds", &**v)?;
                 }
             }
             map.end()
