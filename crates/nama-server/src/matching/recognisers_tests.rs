@@ -21,7 +21,10 @@ use crate::{
     library::custom_images::CustomImages,
     library::libraries::Libraries,
     library::title_source::TitleSources,
-    matching::{Miss, Summary, TitleKey, sources},
+    matching::{
+        Miss, Summary, TitleKey, sources,
+        tests::{Fixture, Library, Outcome, matched},
+    },
     plugins::{ExtensionPoints, Registry},
     scanner::Scanner,
     server_settings::ServerUrl,
@@ -85,6 +88,8 @@ enum Answers {
     /// The ids `namespace`, `value`.
     Names(&'static [(&'static str, &'static str)]),
     Fails,
+    /// Fails when asked about the title `.0`, and can't tell any other.
+    FailsFor(&'static str),
 }
 
 /// What the Recogniser was asked, in the order asked.
@@ -112,6 +117,8 @@ impl Recogniser for Fake {
                 ..Default::default()
             }),
             Answers::Fails => Err("unreachable".into()),
+            Answers::FailsFor(failing) if title.title == failing => Err("unreachable".into()),
+            Answers::FailsFor(_) => Ok(TitleRecognised::default()),
         };
         Box::pin(async { answer })
     }
@@ -308,6 +315,74 @@ async fn the_recogniser_receives_the_items_path_relative_to_the_library_folder()
     assert_eq!(summary.matched, 1);
     let asked = asked.lock().unwrap_or_else(PoisonError::into_inner);
     assert_eq!(asked[0].paths, ["Dark/Dark.mkv"]);
+}
+
+/// TMDB, and a Recogniser enabled and listed in both of `media`'s Libraries that fails for the
+/// title `failing`.
+async fn failing_for(failing: &'static str) -> Fixture {
+    let media = Fixture::new().await;
+    let recogniser = FakePlugin(Some((Answers::FailsFor(failing), Asked::default())));
+    media.plugins.enable(Arc::new(recogniser)).unwrap();
+    for library in [media.movies.id, media.shows.id] {
+        (media
+            .libraries
+            .set_recognisers(library, vec!["rr".to_owned()]))
+        .await
+        .unwrap();
+    }
+    media
+}
+
+async fn outcomes_after_scan(media: &Fixture, library: &Library) -> Vec<Outcome> {
+    media.scan(library).await;
+    media.outcomes(library).await
+}
+
+#[tokio::test]
+async fn a_recogniser_failing_for_one_movie_leaves_the_next_movie_matched_in_the_same_pass() {
+    let media = failing_for("Alien").await;
+    media.movies.write("Alien (1979)/Alien (1979).mkv");
+    media.movies.write("Dune (2021)/Dune (2021).mkv");
+
+    let outcomes = outcomes_after_scan(&media, &media.movies).await;
+
+    assert_eq!(outcomes, [Outcome::Undecided, matched(438_631, "Dune")]);
+}
+
+#[tokio::test]
+async fn a_recogniser_failing_for_one_show_leaves_another_shows_episodes_matched() {
+    let media = failing_for("Dark").await;
+    media
+        .shows
+        .write("Dark (2017)/Season 01/Dark (2017) - S01E03.mkv");
+    media
+        .shows
+        .write("Euphoria (US)/Season 01/Euphoria (US) - S01E01.mkv");
+
+    let outcomes = outcomes_after_scan(&media, &media.shows).await;
+
+    assert_eq!(outcomes, [Outcome::Undecided, matched(1_734_395, "Pilot")]);
+}
+
+#[tokio::test]
+async fn a_recogniser_failing_for_one_title_still_lets_the_scan_refresh_outdated_matches() {
+    let media = failing_for("Alien").await;
+    media.movies.write("Dune (2021)/Dune (2021).mkv");
+    media.scan(&media.movies).await;
+    media
+        .contents
+        .stored_by_older_metadata(media.movies.id)
+        .await;
+    media.movies.write("Alien (1979)/Alien (1979).mkv");
+
+    media.scan(&media.movies).await;
+
+    let outdated = media.contents.outdated(media.movies.id).await.unwrap();
+    assert!(outdated.is_empty(), "{outdated:?}");
+    assert_eq!(
+        media.outcomes(&media.movies).await,
+        [Outcome::Undecided, matched(438_631, "Dune")]
+    );
 }
 
 #[test]

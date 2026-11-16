@@ -71,7 +71,7 @@ impl Recognisers {
     ///
     /// # Errors
     ///
-    /// [`Miss::Undecided`] when a Recogniser fails, so the next scan asks again.
+    /// [`Miss::RecogniserFailed`] when a Recogniser fails, so the next scan asks again.
     pub(super) async fn recognise(
         &self,
         metadata: &TitleSources,
@@ -116,7 +116,7 @@ impl Recognisers {
                 ..
             }) => {
                 tracing::warn!(%plugin, error = failure.message, "the Recogniser failed");
-                Err(Miss::Undecided)
+                Err(Miss::RecogniserFailed)
             }
             // Not enabled, not a Recogniser, or it panicked, which disabled it.
             None => Ok(None),

@@ -39,7 +39,8 @@
 //! couldn't decide, because no title source is enabled or one failed (such as when TMDB is
 //! unreachable or rejects the API key), or its pin's source isn't enabled, has no Match and so is
 //! Unmatched too, but nothing is stored for it: it is undecided, and the next scan tries it again.
-//! Once a source fails, the rest of that pass is left for the next scan too.
+//! Once a source fails, the rest of that pass is left for the next scan too. A Recogniser that
+//! fails leaves only the title it was asked about undecided.
 //!
 //! A Match stores what [`METADATA_VERSION`] says Matching takes from the title sources. After
 //! deciding, each scan fetches the titles of Matches stored at an older version again, from the
@@ -215,6 +216,9 @@ enum Miss {
     /// The title sources couldn't answer: the item is Unmatched for now, but undecided, so
     /// the next scan tries again.
     Undecided,
+    /// A Recogniser failed for this title: undecided like [`Miss::Undecided`], but the title
+    /// sources still answer, so the sources go on Matching the Library's other titles.
+    RecogniserFailed,
     /// The item's pin names a title no source the Library asks looks titles up by: undecided until
     /// one does, while the sources go on Matching the Library's other titles.
     Unserved,
@@ -737,7 +741,9 @@ fn tally(outcomes: Outcomes, summary: &mut Summary) -> Decisions {
                 summary.unmatched += 1;
                 decided.push((item, Decided::Unmatched(reason)));
             }
-            Err(Miss::Undecided | Miss::Unserved) => summary.undecided += 1,
+            Err(Miss::Undecided | Miss::RecogniserFailed | Miss::Unserved) => {
+                summary.undecided += 1;
+            }
         }
     }
     Decisions {

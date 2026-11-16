@@ -60,7 +60,10 @@ impl Found {
             Miss::Unmatched(None) if self.from_hint => {
                 Miss::Unmatched(Some(UnmatchedReason::UnknownIdHint))
             }
-            miss @ (Miss::Unmatched(_) | Miss::Undecided | Miss::Unserved) => miss,
+            miss @ (Miss::Unmatched(_)
+            | Miss::Undecided
+            | Miss::RecogniserFailed
+            | Miss::Unserved) => miss,
         }
     }
 }
