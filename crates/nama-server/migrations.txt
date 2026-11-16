@@ -74,3 +74,4 @@
 0074_library_recognisers_read.sql
 0075_image_store.sql
 0076_not_in_show_reason.sql
+0077_notifications_off.sql
