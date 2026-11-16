@@ -10,6 +10,7 @@ Start from [`plugins/template`](../../plugins/template), a Notifier posting to a
 - [`plugins/telegram`](../../plugins/telegram): a Notifier and a Connector.
 - [`plugins/ntfy`](../../plugins/ntfy): a Notifier reaching each User by their Personal settings.
 - [`plugins/discord`](../../plugins/discord): a Notifier reaching each User by their Personal settings, and telling the Kernel when one is gone.
+- [`plugins/webhook`](../../plugins/webhook): a Notifier posting to its channel alone.
 
 What the Kernel gives a running Plugin (its clock, its limits, its settings, its HTTP) is part of the contract and is listed once, in `nama-plugin-proto`'s README under [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). This README walks through writing a Plugin and links there for the rules.
 
