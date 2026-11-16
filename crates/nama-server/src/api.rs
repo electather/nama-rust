@@ -679,15 +679,20 @@ fn unknown_enum_value(field: &str, message: &str) -> ConnectError {
         .into()
 }
 
-/// The Connect error a client gets when the database failed. The failure is logged, not sent: it
-/// says nothing the client can act on.
+/// The Connect error a client gets when the database failed: `unavailable` when every reader was
+/// busy, as trying again may work, else `internal`. The failure is logged, not sent: it says
+/// nothing the client can act on.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "by value, so callers can write `.map_err(database_failed)`"
 )]
 fn database_failed(err: sqlx::Error) -> ConnectError {
     tracing::error!("a request failed: {err}");
-    ConnectError::internal("the Server's database failed")
+    if matches!(err, sqlx::Error::PoolTimedOut) {
+        ConnectError::unavailable("the Server is busy; try again")
+    } else {
+        ConnectError::internal("the Server's database failed")
+    }
 }
 
 /// What a response shows of images: the Custom Images in place of the downloaded ones, and the

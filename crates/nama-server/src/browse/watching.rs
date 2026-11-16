@@ -4,24 +4,28 @@ use std::collections::HashMap;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use super::{Browse, Episode, Error, Movie, Show, Target, Titles, finding_failed};
-use crate::library::{
-    LibraryEpisode, MovieOrEpisode, Progress, TitlesIn, WatchState, WatchStateKind,
+use super::{Browse, Error, Show, Target, Titles, Version, finding_failed, with_tracks};
+use crate::{
+    library::{
+        LibraryEpisode, LibraryMovie, LibraryVersion, MovieOrEpisode, Progress, TitlesIn,
+        WatchState, WatchStateKind,
+    },
+    playback::Probe,
 };
 
 /// A Movie or Episode a User has started and not played, in the Library Continue Watching lists
-/// it under.
+/// it under, with Versions of the form `V`.
 #[derive(Debug)]
-pub(crate) enum Started {
+pub(crate) enum Started<V = Version> {
     Movie {
         library: i64,
-        movie: Movie,
+        movie: LibraryMovie<V>,
         state: WatchState,
     },
     Episode {
         library: i64,
         show: Show,
-        episode: Episode,
+        episode: LibraryEpisode<V>,
         state: WatchState,
     },
 }
@@ -97,7 +101,7 @@ impl Browse {
         };
         // Oldest first, so a title in two Libraries is found in the older.
         for library in self.libraries.list().await.map_err(finding_failed)? {
-            match self.read(&library).await? {
+            match self.titles(&library).await? {
                 Titles::Movies(movies) => found.movies(library.id, movies),
                 Titles::Shows(shows) => found.episodes(library.id, &shows),
             }
@@ -106,8 +110,7 @@ impl Browse {
             .map(|(asked, title)| (asked, Some(title)))
             .unzip();
         let newest = self.watch_states.of_titles(Some(user), &asked).await?;
-        Ok(started
-            .into_iter()
+        let listed: Vec<_> = (started.into_iter())
             .filter_map(|(watched, _)| {
                 let place = *found.place.get(&watched)?;
                 // Taken under the first of its ids listed, so a title is listed once.
@@ -115,17 +118,56 @@ impl Browse {
                 let &(_, state) = newest.get(place)?.first()?;
                 (state.position_ms > 0 && !state.played).then(|| title.with_state(state))
             })
+            .collect();
+        let probes = self
+            .probes(listed.iter().flat_map(Started::versions))
+            .await?;
+        Ok((listed.into_iter())
+            .map(|title| title.with_tracks(&probes))
             .collect())
     }
 }
 
-impl Started {
+impl Started<LibraryVersion> {
     /// The same title with the Watch State `state`.
     fn with_state(mut self, state: WatchState) -> Self {
         match &mut self {
             Self::Movie { state: had, .. } | Self::Episode { state: had, .. } => *had = state,
         }
         self
+    }
+
+    fn versions(&self) -> &[LibraryVersion] {
+        match self {
+            Self::Movie { movie, .. } => &movie.versions,
+            Self::Episode { episode, .. } => &episode.versions,
+        }
+    }
+
+    /// The same title, its Versions with the Tracks `probes` has of their files.
+    fn with_tracks(self, probes: &HashMap<i64, Probe>) -> Started {
+        match self {
+            Self::Movie {
+                library,
+                movie,
+                state,
+            } => Started::Movie {
+                library,
+                movie: movie.map_versions(with_tracks(probes)),
+                state,
+            },
+            Self::Episode {
+                library,
+                show,
+                episode,
+                state,
+            } => Started::Episode {
+                library,
+                show,
+                episode: episode.map_versions(with_tracks(probes)),
+                state,
+            },
+        }
     }
 }
 
@@ -136,7 +178,7 @@ struct Found {
     /// Which of `titles` each id the User started a title under is of.
     place: HashMap<MovieOrEpisode, usize>,
     /// Each title found, with every id of it, and one of the Watch States it was started with.
-    titles: Vec<((WatchStateKind, ExternalIds), Started)>,
+    titles: Vec<((WatchStateKind, ExternalIds), Started<LibraryVersion>)>,
 }
 
 impl Found {
@@ -147,7 +189,7 @@ impl Found {
         kind: WatchStateKind,
         ids: &ExternalIds,
         watched: impl Fn(&ExternalId) -> MovieOrEpisode,
-        title: impl FnOnce(WatchState) -> Started,
+        title: impl FnOnce(WatchState) -> Started<LibraryVersion>,
     ) {
         // ponytail: a title in two Libraries with different id sets, started both under an id
         // the older one has and under one only the newer one has, is listed twice: the older
@@ -168,7 +210,7 @@ impl Found {
     }
 
     /// The `movies` of the Library `library`.
-    fn movies(&mut self, library: i64, movies: Vec<Movie>) {
+    fn movies(&mut self, library: i64, movies: Vec<LibraryMovie>) {
         for movie in movies {
             let ids = movie.ids.clone();
             let started = |state| Started::Movie {
