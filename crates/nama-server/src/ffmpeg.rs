@@ -1242,7 +1242,7 @@ fn write_test_media(
 
 // The fakes are shell scripts.
 #[cfg(all(test, unix))]
-#[path = "ffmpeg_tests.rs"]
+#[path = "ffmpeg/ffmpeg_tests.rs"]
 pub(crate) mod tests;
 
 #[cfg(test)]
