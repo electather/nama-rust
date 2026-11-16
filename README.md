@@ -19,6 +19,8 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`docker/`](docker) | The Server's Docker image |
 | [`proto/`](proto) | The Protobuf API schema |
 
+[`CONTRIBUTING.md`](CONTRIBUTING.md) says where the rules live and how a change lands.
+
 ## Metadata from TMDB
 
 A Server Matches the files in its Libraries to Movies and Shows using the built-in TMDB Plugin ([`plugins/tmdb`](plugins/tmdb)). It needs a TMDB API key, which you can get for free from [themoviedb.org](https://www.themoviedb.org/settings/api). Without a key the Plugin isn't enabled and every file stays Unmatched. An Admin sets the key on TMDB's page under Plugins in the web app, and it takes effect without a restart.
