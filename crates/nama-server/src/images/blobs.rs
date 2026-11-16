@@ -28,13 +28,6 @@ pub(crate) trait Blobs: Send + Sync + fmt::Debug {
     fn put_file(&self, key: &str, file: NamedTempFile) -> BoxFuture<'_, io::Result<()>>;
 
     /// The object at `key`, or `None` if none is stored there.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "serving reads the data directory until it uses the store"
-        )
-    )]
     fn get(&self, key: &str) -> BoxFuture<'_, io::Result<Option<Vec<u8>>>>;
 
     /// Deletes the object at `key`; one already gone counts as deleted.

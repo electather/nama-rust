@@ -4,7 +4,7 @@
 use std::{
     error::Error,
     fs::{File, FileTimes},
-    io,
+    io::{self, BufReader, Seek as _, Write as _},
     panic::{AssertUnwindSafe, catch_unwind},
     path::{Path, PathBuf},
     sync::mpsc,
@@ -116,7 +116,7 @@ impl Format {
 /// What [`make_copy`] did.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum Copied {
-    /// It was there already, in this format.
+    /// It was there already, in this format, which isn't the one asked for.
     Found(Format),
     /// It was made now in this format, and the original's thumbhash taken on the way.
     Made { format: Format, thumbhash: Vec<u8> },
@@ -124,9 +124,26 @@ pub(super) enum Copied {
     Unneeded,
 }
 
-/// Writes `original` resized to `width`, its shape kept, in `copies` as the format `asked`,
-/// unless a copy is there already. A JPEG XL over [`MAX_JXL_PIXELS`] is made as a JPEG instead.
-/// Makes none where the original is to be sent as it is: it isn't a format the Server reads (such
+/// `bytes` in an unnamed file in `dir`, read from its start, for [`make_copy`]. Blocks, so call
+/// it on the resize thread.
+///
+/// # Errors
+///
+/// If `dir` can't be made or the file written.
+pub(super) fn on_disk(bytes: Vec<u8>, dir: &Path) -> io::Result<File> {
+    std::fs::create_dir_all(dir)?;
+    let mut file = tempfile::tempfile_in(dir)?;
+    file.write_all(&bytes)?;
+    // Gone before the image is decoded, so a resize holds no more than it did when originals
+    // were read from the data directory (ADR 0039).
+    drop(bytes);
+    file.rewind()?;
+    Ok(file)
+}
+
+/// Writes `original` resized to `width`, its shape kept, in `copies` as the format `asked`, the
+/// caller having found no copy in it. A JPEG XL over [`MAX_JXL_PIXELS`] is made as a JPEG instead,
+/// unless that copy is there already. Makes none where the original is to be sent as it is: it isn't a format the Server reads (such
 /// as SVG), is over [`MAX_PIXELS`] or [`MAX_BITMAP_BYTES`], is no wider than `width`, or has
 /// transparency and would be a JPEG, which has none.
 ///
@@ -135,17 +152,13 @@ pub(super) enum Copied {
 /// If the original can't be read or decoded, the copy or its thumbhash can't be made, or the copy
 /// can't be written.
 pub(super) fn make_copy(
-    original: &Path,
+    original: File,
     copies: &Path,
     width: u32,
     asked: Format,
 ) -> Result<Copied, Box<dyn Error + Send + Sync>> {
-    // A request that waited behind the one that made it finds it here.
-    if copies.join(asked.file_name(width)).try_exists()? {
-        return Ok(Copied::Found(asked));
-    }
-    // Read from the file, not a copy in memory: the JPEG decoder buffers the whole input itself.
-    let reader = ImageReader::open(original)?.with_guessed_format()?;
+    // Read from a file, not a copy in memory: the JPEG decoder buffers the whole input itself.
+    let reader = ImageReader::new(BufReader::new(original)).with_guessed_format()?;
     if reader.format().is_none() {
         return Ok(Copied::Unneeded);
     }

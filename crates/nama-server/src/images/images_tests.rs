@@ -6,7 +6,7 @@ use tempfile::TempDir;
 
 use axum::http::{HeaderMap, HeaderValue, header};
 
-use super::{Format, ImageStore, file_name, format_asked, unescape};
+use super::{Format, ImageStore, file_name, serving::format_asked, unescape};
 use crate::db::Database;
 
 const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];

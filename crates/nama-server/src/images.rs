@@ -10,6 +10,7 @@ mod blobs;
 mod local_disk;
 mod plugin_logos;
 mod resized;
+mod serving;
 
 use std::{
     io::{self, Write as _},
@@ -17,12 +18,7 @@ use std::{
     sync::Arc,
 };
 
-use axum::{
-    body::Body,
-    extract::Request,
-    http::{HeaderMap, HeaderValue, StatusCode, header},
-    response::{IntoResponse, Response},
-};
+use axum::{body::Body, http::StatusCode};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures_util::StreamExt as _;
 use image::{ImageFormat, ImageReader};
@@ -30,7 +26,6 @@ use serde::Deserialize;
 use sha2::{Digest as _, Sha256};
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt as _;
-use tower_http::services::ServeFile;
 
 pub(crate) use blobs::Blobs;
 #[expect(
@@ -112,6 +107,10 @@ pub struct ImageStore {
     db: Arc<Database>,
     resizer: ResizeThread,
     store: Arc<dyn Blobs>,
+    /// Held from fetching an original to resize until its copy is made, so one original at a time
+    /// is held in memory for it, and a request that waited behind the one making its copy finds
+    /// it rather than fetching the original again.
+    resizing: Arc<tokio::sync::Mutex<()>>,
     /// Held from finding a key missing until it is stored: two writes of one key would otherwise
     /// both store it, and the second, replacing the first, changes its `ETag` (#793).
     writing: Arc<[tokio::sync::Mutex<()>; WRITE_LOCKS]>,
@@ -152,11 +151,17 @@ impl ImageStore {
     /// The images stored in `data_dir`, their thumbhashes kept in `db`.
     #[must_use]
     pub fn new(data_dir: &Path, db: Arc<Database>) -> Self {
+        Self::over(data_dir, db, Arc::new(LocalDisk::new(data_dir)))
+    }
+
+    /// The images kept in `store`, their resized copies and uploads in `data_dir`.
+    fn over(data_dir: &Path, db: Arc<Database>, store: Arc<dyn Blobs>) -> Self {
         Self {
             dir: data_dir.to_owned(),
             db,
             resizer: ResizeThread::start(),
-            store: Arc::new(LocalDisk::new(data_dir)),
+            store,
+            resizing: Arc::default(),
             writing: Arc::new(std::array::from_fn(|_| tokio::sync::Mutex::default())),
         }
     }
@@ -245,112 +250,6 @@ impl ImageStore {
     /// If the store can't be read.
     pub async fn contains(&self, key: &[&str]) -> io::Result<bool> {
         self.blobs().exists(&row_key(key)).await
-    }
-
-    /// The image at `key` as the answer to `request`, sent as `content_type`: 404 if none is
-    /// stored, 304 for a matching `If-None-Match`, else the bytes with an `ETag`.
-    ///
-    /// With a `resize`, it is sent as a copy that wide, made the first time it is asked for, or
-    /// else as it is stored where it can't or needn't be resized (see `make_copy`), varying by
-    /// `Accept` either way. The copy is a JPEG XL where `Accept` lists `image/jxl`, else a JPEG, as
-    /// it is too where a JPEG XL would be over 7 megapixels.
-    /// Making a copy keeps the image's thumbhash, for `thumbhashes`.
-    /// The copy is made from the image's key alone, so it is never made again if the image at
-    /// `key` changes.
-    ///
-    /// Browsers keep the response for good, so serve it only at a URL that names these bytes
-    /// alone: a Provider's path, or a version taken from the bytes.
-    ///
-    /// # Errors
-    ///
-    /// If the file is there but can't be read.
-    pub async fn serve(
-        &self,
-        key: &[&str],
-        content_type: &'static str,
-        resize: Option<Resize>,
-        request: Request,
-    ) -> io::Result<Response> {
-        // Serving and resizing still read originals from the data directory, so they need the
-        // `LocalDisk` store until they go through `blobs` too.
-        let Some(resize) = resize else {
-            return serve_file(self.path(key), content_type, request).await;
-        };
-        let asked = format_asked(request.headers());
-        let mut response = if let Some(format) = self.ensure_copy(key, resize, asked).await {
-            // The copy can go between making it and sending it, deleted with the folder or by
-            // another request's eviction, so the original stands in for it.
-            let (head, _empty) = request.into_parts();
-            let for_copy = Request::from_parts(head.clone(), Body::empty());
-            let copy = self.copy_path(key, resize.width, format);
-            let sent = serve_file(copy, format.content_type(), for_copy).await?;
-            if sent.status() == StatusCode::NOT_FOUND {
-                let for_original = Request::from_parts(head, Body::empty());
-                serve_file(self.path(key), content_type, for_original).await?
-            } else {
-                sent
-            }
-        } else {
-            serve_file(self.path(key), content_type, request).await?
-        };
-        response
-            .headers_mut()
-            .insert(header::VARY, HeaderValue::from_static("accept"));
-        Ok(response)
-    }
-
-    /// The format of the copy of the image at `key` to send for `resize`, made now if it wasn't
-    /// there: `asked`, or JPEG where `make_copy` puts one in its place. `None` to send the image
-    /// as stored, which an image that can't be resized also is, after a warning is logged.
-    async fn ensure_copy(&self, key: &[&str], resize: Resize, asked: Format) -> Option<Format> {
-        let copy = self.copy_path(key, resize.width, asked);
-        let sent = copy.clone();
-        let touch = tokio::task::spawn_blocking(move || resized::touch(&sent)).await;
-        match touch.map_err(io::Error::from).and_then(|touched| touched) {
-            Ok(()) => return Some(asked),
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-            // It's there, and not marking it only lets eviction pick it sooner.
-            Err(err) => {
-                tracing::warn!("could not mark {} as sent: {err}", copy.display());
-                return Some(asked);
-            }
-        }
-        let (original, folder) = (self.path(key), self.copies_path(key));
-        let cache = self.dir.join(RESIZED_DIR);
-        let resized = self
-            .resizer
-            .run(move || {
-                let copied = resized::make_copy(&original, &folder, resize.width, asked);
-                if let Ok(Copied::Made { format, .. }) = copied
-                    && let made = folder.join(format.file_name(resize.width))
-                    && let Err(err) = resized::evict(&cache, resize.cache_limit, &made)
-                {
-                    tracing::error!("could not keep the resized images within their limit: {err}");
-                }
-                copied.map_err(|err| format!("could not resize {}: {err}", original.display()))
-            })
-            .await;
-        // The thread having stopped, or a resize having panicked, is one more failed resize.
-        let copied = resized
-            .map_err(|err| err.to_string())
-            .and_then(|copied| copied);
-        match copied {
-            Ok(Copied::Found(format)) => Some(format),
-            Ok(Copied::Made { format, thumbhash }) => {
-                // Without it the image only goes without a placeholder.
-                // ponytail: a Custom Image replaced while it is resized can leave its thumbhash
-                // behind, a row no URL sent names; sweep rows without a file if that matters.
-                if let Err(err) = self.keep_thumbhash(key, thumbhash).await {
-                    tracing::error!("could not keep the thumbhash of {key:?}: {err}");
-                }
-                Some(format)
-            }
-            Ok(Copied::Unneeded) => None,
-            Err(err) => {
-                tracing::warn!("{err}, so it is sent as it is");
-                None
-            }
-        }
     }
 
     async fn keep_thumbhash(&self, key: &[&str], thumbhash: Vec<u8>) -> sqlx::Result<()> {
@@ -464,10 +363,6 @@ impl ImageStore {
             .collect())
     }
 
-    fn path(&self, key: &[&str]) -> PathBuf {
-        under(self.dir.clone(), key)
-    }
-
     /// Where the copy `width` pixels wide in `format` of the image at `key` is kept.
     fn copy_path(&self, key: &[&str], width: u32, format: Format) -> PathBuf {
         self.copies_path(key).join(format.file_name(width))
@@ -477,37 +372,6 @@ impl ImageStore {
     /// in.
     fn copies_path(&self, key: &[&str]) -> PathBuf {
         under(self.dir.join(RESIZED_DIR), key)
-    }
-}
-
-/// JPEG XL where `headers` hold an `Accept` that lists `image/jxl` at a quality above 0, else
-/// JPEG.
-fn format_asked(headers: &HeaderMap) -> Format {
-    let is_quality_zero = |param: &str| {
-        param.split_once('=').is_some_and(|(name, value)| {
-            name.trim().eq_ignore_ascii_case("q")
-                && value
-                    .trim()
-                    .parse::<f32>()
-                    .is_ok_and(|quality| quality <= 0.0)
-        })
-    };
-    let accepts_jxl = headers
-        .get_all(header::ACCEPT)
-        .iter()
-        .filter_map(|accept| accept.to_str().ok())
-        .flat_map(|accept| accept.split(','))
-        .any(|range| {
-            let mut parts = range.split(';');
-            parts
-                .next()
-                .is_some_and(|media| media.trim().eq_ignore_ascii_case("image/jxl"))
-                && !parts.any(is_quality_zero)
-        });
-    if accepts_jxl {
-        Format::Jxl
-    } else {
-        Format::Jpeg
     }
 }
 
@@ -529,51 +393,6 @@ fn row_key(key: &[&str]) -> String {
 fn under(folder: PathBuf, key: &[&str]) -> PathBuf {
     key.iter()
         .fold(folder, |path, part| path.join(file_name(part)))
-}
-
-/// The file at `path` as the answer to `request`, sent as `content_type`, as [`ImageStore::serve`]
-/// says.
-async fn serve_file(
-    path: PathBuf,
-    content_type: &'static str,
-    request: Request,
-) -> io::Result<Response> {
-    let mut response = match ServeFile::new(path).try_call(request).await {
-        Ok(response) => response.into_response(),
-        // Without a fallback, `try_call` hands a missing file back as an error.
-        Err(err) if err.kind() == io::ErrorKind::NotFound => StatusCode::NOT_FOUND.into_response(),
-        Err(err) => return Err(err),
-    };
-    let status = response.status();
-    let headers = response.headers_mut();
-    // An unnamed type stays a download: no browser guesses it is HTML.
-    headers.insert(
-        header::X_CONTENT_TYPE_OPTIONS,
-        HeaderValue::from_static("nosniff"),
-    );
-    if status.is_success() {
-        // `ServeFile` guesses by extension, and would send an SVG as an image.
-        headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
-    }
-    if content_type == SVG {
-        // `sandbox` keeps a script from running when someone opens the SVG in its own tab, and
-        // `attachment` from it showing there at all; cleaning it is the second layer.
-        headers.insert(
-            header::CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'; sandbox"),
-        );
-        headers.insert(
-            header::CONTENT_DISPOSITION,
-            HeaderValue::from_static("attachment"),
-        );
-    }
-    if status.is_success() || status == StatusCode::NOT_MODIFIED {
-        headers.insert(
-            header::CACHE_CONTROL,
-            HeaderValue::from_static("private, max-age=31536000, immutable"),
-        );
-    }
-    Ok(response)
 }
 
 /// Writes `body` to `partial` as it arrives, refusing it past [`MAX_UPLOAD_BYTES`], and returns a
