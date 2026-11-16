@@ -383,6 +383,7 @@ async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() 
         audio: AskedAudio::Preferred(None),
         subtitle: AskedSubtitle::None,
         limit: PickedLimit::Unpicked,
+        start_ms: 0,
         client: std::net::Ipv4Addr::LOCALHOST.into(),
     };
     let planned = plan(

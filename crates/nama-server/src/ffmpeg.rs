@@ -328,7 +328,7 @@ impl Ffmpeg {
             input,
             video,
             codec,
-        } = video_args(clip, video);
+        } = video_args(clip, video, false);
         let output = tokio::process::Command::new(&ffmpeg.path)
             .args(["-v", "error", "-nostdin"])
             .args(input)
@@ -431,18 +431,22 @@ impl Ffmpeg {
         let mut command = tokio::process::Command::new(&ffmpeg.path);
         command.args(["-v", "error", "-nostdin"]);
         let video = &transcode.video;
+        let start_ms = from.cuts.first().copied().unwrap_or_default();
+        let seeks = start_ms > 0;
         let VideoArgs {
             input,
             video: video_input,
             codec,
-        } = video_args(path, video);
+        } = video_args(path, video, seeks);
         command.args(input);
-        let start_ms = from.cuts.first().copied().unwrap_or_default();
-        if start_ms > 0 {
+        if seeks {
             // Decodes from the keyframe before it and drops the frames before it.
             command.args(["-ss", &seconds(start_ms)]);
         }
         command.arg("-i").arg(path);
+        if seeks && matches!(video.burn_in, Some(BurnIn::Image { .. })) {
+            command.arg("-i").arg(path);
+        }
         // Times as in the file, so the keyframes forced below fall at the same frames whichever
         // cut a run starts at: `-force_key_frames` expressions time frames from the run's first.
         command.args(["-copyts", "-start_at_zero"]);

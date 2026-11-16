@@ -71,6 +71,14 @@ impl Timeline {
         self.keyframe_ms(self.keyframes_of(n).start)
     }
 
+    /// The segment playing at `ms`, by number: the last one starting at or before it, or the
+    /// first for a position before any.
+    pub(super) fn segment_at(&self, ms: i64) -> usize {
+        let starting_by = (self.segments)
+            .partition_point(|segment| self.keyframe_ms(segment.first_keyframe) <= ms);
+        starting_by.saturating_sub(1)
+    }
+
     /// Keyframe `n`, for ffmpeg to start at.
     pub(super) fn keyframe(&self, n: usize) -> Keyframe {
         let previous_ms = n
