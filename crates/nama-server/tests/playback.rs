@@ -27,13 +27,13 @@ use http::{fetch, fetch_with};
 use nama_proto::nama::v1::{
     AudioCodec, ClearMatchRequest, Container, DeleteLibraryRequest, DeleteUserRequest,
     DeviceDecoding, EventType, GetTrackPreferencesRequest, Gpu, HardwareAcceleration, HdrFormat,
-    LibraryKind, LibraryServiceClient, ListEpisodesRequest, PickedTrackKind, PlanPlaybackRequest,
-    Playback, PlaybackEnded, PlaybackLimit, PlaybackMethod, PlaybackPlan, PlaybackReason,
-    PlaybackReasonKind, PlaybackServiceClient, PlaybackSettings, PlaybackStarted, RefusalReason,
-    ReportTrackPickRequest, ServerServiceClient, SetAudioPreferenceRequest, SetMatchRequest,
-    SetSubtitlePreferenceRequest, StopPlaybackRequest, SubtitleFormat, SubtitleKind, Track,
-    UpdatePlaybackSettingsRequest, UserServiceClient, UsersAudioPreference,
-    UsersSubtitlePreference, Version, VideoCodec, VideoTrack,
+    LibraryKind, LibraryServiceClient, ListEpisodesRequest, Permission, PickedTrackKind,
+    PlanPlaybackRequest, Playback, PlaybackEnded, PlaybackLimit, PlaybackMethod, PlaybackPlan,
+    PlaybackReason, PlaybackReasonKind, PlaybackServiceClient, PlaybackSettings, PlaybackStarted,
+    RefusalReason, ReportTrackPickRequest, ServerServiceClient, SetAudioPreferenceRequest,
+    SetMatchRequest, SetPermissionsRequest, SetSubtitlePreferenceRequest, StopPlaybackRequest,
+    SubtitleFormat, SubtitleKind, Track, UpdatePlaybackSettingsRequest, UserServiceClient,
+    UsersAudioPreference, UsersSubtitlePreference, Version, VideoCodec, VideoTrack, event,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::{fake, fake::script};
@@ -654,6 +654,37 @@ async fn each_plan_tells_subscribers_its_playback_started() {
         };
         assert_eq!(subscription.next().await, told.into());
     }
+}
+
+#[tokio::test]
+async fn a_user_demoted_from_admin_is_told_only_of_their_own_playing_once_they_resubscribe() {
+    let fx = Fixture::alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let grace = fx.server.user("Grace", &[Permission::Admin]).await;
+    let started = [EventType::EVENT_TYPE_PLAYBACK_STARTED];
+    let mut as_admin = subscribe(&grace.client_config(), &started).await;
+
+    UserServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        .set_permissions(SetPermissionsRequest {
+            user_id: grace.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let after_demotion = as_admin.message().await.unwrap();
+    let mut demoted = subscribe(&grace.client_config(), &started).await;
+    fx.plan(version).await.unwrap();
+    plan_as(&grace, version).await.unwrap();
+
+    assert_eq!(
+        after_demotion, None,
+        "the stream opened as an Admin is still open"
+    );
+    let event::Event::PlaybackStarted(told) = demoted.next().await else {
+        panic!("not a PlaybackStarted");
+    };
+    let whose = told.playback.as_option().map(|playback| playback.user_id);
+    assert_eq!(whose, Some(grace.id), "told of the Admin's playing");
 }
 
 #[tokio::test]

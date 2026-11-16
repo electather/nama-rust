@@ -21,7 +21,8 @@ use super::{caller, unknown_enum_value};
 // TODO(M3): once there is per-Library access, only send a caller events about Libraries it may see.
 pub(super) struct EventServiceHandler {
     pub(super) events: EventBus,
-    /// Whose sign-outs end the streams their Devices opened.
+    /// Whose sign-outs end the streams their Devices opened, and whose Permission changes end the
+    /// streams they opened, so a stream never sees what its User no longer may.
     pub(super) users: Users,
 }
 
@@ -45,10 +46,14 @@ impl EventService for EventServiceHandler {
                 libraries: request.library_ids,
             };
             let signed_out = self.users.signed_out(caller.device.id);
+            let permissions_changed = self
+                .users
+                .permissions_changed(caller.user.id, caller.user.permissions);
             let events = self
                 .events
                 .subscribe(&caller.user, filter)
-                .take_until(signed_out);
+                .take_until(signed_out)
+                .take_until(permissions_changed);
             let stream: ServiceStream<SubscribeResponse> = Box::pin(events.map(Ok));
             Response::ok(stream)
         });

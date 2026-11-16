@@ -25,20 +25,29 @@ const TOKEN: &str = "nama_test-token";
 /// 90 days, in seconds, counted independently of the code under test.
 const NINETY_DAYS: i64 = 90 * 24 * 60 * 60;
 
+/// [`Users`] on a fresh database in `data_dir` with one User, Ada, who has
+/// [`Permissions::NEW_USER`].
+async fn ada(data_dir: &std::path::Path) -> (Users, User) {
+    let db = Arc::new(Database::open(data_dir).await.unwrap());
+    let ada = create_user(&db, "Ada").await.unwrap();
+    (Users::new(db, ExtensionPoints::default()), ada)
+}
+
 /// [`Users`] on a fresh database in `data_dir` with one Device, whose session is [`TOKEN`],
 /// and when it was signed in. It was last seen then, or a second after.
 async fn signed_in_device(data_dir: &std::path::Path) -> (Users, i64) {
-    let db = Arc::new(Database::open(data_dir).await.unwrap());
-    let user = create_user(&db, "Ada").await.unwrap();
+    let (users, ada) = ada(data_dir).await;
     let signed_in_at = now();
-    db.write(move |tx| {
-        Box::pin(
-            async move { insert_device(tx, user.id, None, laptop(), &hash_token(TOKEN)).await },
-        )
-    })
-    .await
-    .unwrap();
-    (Users::new(db, ExtensionPoints::default()), signed_in_at)
+    users
+        .db
+        .write(move |tx| {
+            Box::pin(
+                async move { insert_device(tx, ada.id, None, laptop(), &hash_token(TOKEN)).await },
+            )
+        })
+        .await
+        .unwrap();
+    (users, signed_in_at)
 }
 
 #[tokio::test]
@@ -159,6 +168,29 @@ async fn a_sign_out_whose_caller_stops_waiting_still_ends_the_wait() {
     let after = tokio::time::timeout(WAIT, waiting).await;
 
     assert!(after.is_ok(), "the wait didn't end");
+}
+
+#[tokio::test]
+async fn waiting_for_a_change_to_permissions_that_already_differ_ends_at_once() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let (users, ada) = ada(data_dir.path()).await;
+
+    // As when the change lands after the stream's request read them but before the wait began.
+    let waiting = users.permissions_changed(ada.id, Permissions::ADMIN);
+    let waited = tokio::time::timeout(WAIT, waiting).await;
+
+    assert!(waited.is_ok(), "the wait didn't end");
+}
+
+#[tokio::test]
+async fn waiting_for_a_change_to_a_user_who_doesnt_exist_ends_at_once() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let (users, ada) = ada(data_dir.path()).await;
+
+    let waiting = users.permissions_changed(ada.id + 1, ada.permissions);
+    let waited = tokio::time::timeout(WAIT, waiting).await;
+
+    assert!(waited.is_ok(), "the wait didn't end");
 }
 
 #[tokio::test]
