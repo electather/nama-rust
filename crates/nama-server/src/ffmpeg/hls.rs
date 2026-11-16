@@ -126,11 +126,10 @@ fn transcoded_video(
             filter_value(path)
         )),
     };
-    let filters: Vec<String> = [before, drawn, after].into_iter().flatten().collect();
     let mut args: Vec<String> = ["-map", "0:V:0"].map(str::to_owned).into();
-    if !filters.is_empty() {
+    if let Some(filters) = chain([before, drawn, after]) {
         // One `-vf`: a second would replace the first.
-        args.extend(["-vf".to_owned(), filters.join(",")]);
+        args.extend(["-vf".to_owned(), filters]);
     }
     args
 }
@@ -253,7 +252,7 @@ pub(super) fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
     let upload = accel.map(|accel| accel.upload().to_owned());
     // Scaling down first spares tone-mapping the pixels it drops. A subtitle instead goes after
     // tone-mapping, which would dim it, and before scaling, so it shrinks with the picture and an
-    // image one fits the source `picture` `overlay_graph` is given.
+    // image subtitle still fits the source size `overlay_graph` is given.
     let (before, after) = match video.burn_in {
         None => (chain([scale, tone_map, upload]), None),
         Some(_) => (tone_map, chain([scale, upload])),
@@ -265,7 +264,7 @@ pub(super) fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
     }
 }
 
-/// The `filters` given, in order, as one chain, or `None` if none is.
+/// The `filters` given, comma-joined in order into one chain, or `None` if none is.
 fn chain<const N: usize>(filters: [Option<String>; N]) -> Option<String> {
     let filters: Vec<String> = filters.into_iter().flatten().collect();
     (!filters.is_empty()).then(|| filters.join(","))
