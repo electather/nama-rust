@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, PoisonError, RwLock},
 };
 
-use nama_plugin_api::{ObservePoint, Observer, PluginId, PointKey};
+use nama_plugin_api::{ObservePoint, Observer, PluginId, PointKey, blob_store::BlobStore};
 use nama_proto::nama::v1::PluginKind;
 use tracing::{error, info, warn};
 
@@ -209,6 +209,14 @@ impl ExtensionPoints {
     pub fn providers<T: ?Sized + 'static>(&self) -> BTreeSet<PluginId> {
         let entries = self.entries(PointKey::provide::<T>());
         entries.into_iter().map(|entry| entry.plugin).collect()
+    }
+
+    /// The enabled Plugins that serve the blob store point, sorted by id, for the Admin to pick a
+    /// store from.
+    #[must_use]
+    #[cfg_attr(not(test), expect(dead_code, reason = "wired in by bs-switch-api"))]
+    pub(crate) fn blob_stores(&self) -> Vec<PluginId> {
+        self.providers::<dyn BlobStore>().into_iter().collect()
     }
 
     /// The enabled Plugins that provide a `T`, in the order [`ExtensionPoints::ask_first`] asks
