@@ -525,6 +525,54 @@ fn placement_problems_names_unplaced_twice_placed_and_gone_modules() {
     );
 }
 
+/// The test files among `paths`, crate-relative, that sit directly under `src/` beside a folder
+/// of their own in `folders`, the names of `src/`'s folders.
+fn stray_root_tests(paths: &[&str], folders: &[&str]) -> Vec<String> {
+    paths
+        .iter()
+        .filter_map(|path| {
+            let stem = path.strip_prefix("src/")?.strip_suffix("_tests.rs")?;
+            (!stem.contains('/') && folders.contains(&stem)).then(|| {
+                format!("{path} sits beside src/{stem}/: move it to src/{stem}/{stem}_tests.rs")
+            })
+        })
+        .collect()
+}
+
+/// The rule is "Unit tests sit beside their file" in `crates/nama-server/AGENTS.md`.
+#[test]
+fn an_area_roots_unit_tests_sit_in_its_folder() {
+    let files = rust_files();
+    let paths: Vec<&str> = files.iter().map(|file| file.path.as_str()).collect();
+    let mut folders: Vec<&str> = paths
+        .iter()
+        .filter_map(|path| path.strip_prefix("src/")?.split_once('/'))
+        .map(|(folder, _)| folder)
+        .collect();
+    folders.dedup();
+    assert!(
+        paths.contains(&"src/lib.rs") && folders.contains(&"library"),
+        "found no src/lib.rs or src/library/: the walk is checking nothing"
+    );
+    let problems = stray_root_tests(&paths, &folders);
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+#[test]
+fn stray_root_tests_names_a_root_test_file_beside_its_folder() {
+    let paths = [
+        "src/scanner.rs",
+        "src/scanner_tests.rs",
+        "src/scanner/scanner_tests.rs",
+        "src/db.rs",
+        "src/db_tests.rs",
+    ];
+    assert_eq!(
+        stray_root_tests(&paths, &["scanner"]),
+        ["src/scanner_tests.rs sits beside src/scanner/: move it to src/scanner/scanner_tests.rs"]
+    );
+}
+
 /// The calls against `ROWS` that are allowed anyway: who makes them, the leading segments of
 /// the `crate::` path they name, and why. An entry no import uses fails.
 const ALLOWED_UPWARD: &[Allowed] = &[
