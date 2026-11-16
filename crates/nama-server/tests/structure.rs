@@ -245,6 +245,76 @@ fn sql_tables_reads_the_word_after_a_keyword_across_lines() {
     );
 }
 
+/// The calls of sqlx's query functions that `.sqlx/` doesn't check at compile time.
+const UNCHECKED_QUERIES: &[&str] = &[
+    "sqlx::query(",
+    "sqlx::query_as(",
+    "sqlx::query_scalar(",
+    "query_with(",
+];
+
+/// Whether the file at `path` is test code by its name.
+fn is_test_file(path: &str) -> bool {
+    path.ends_with("_tests.rs") || path.ends_with("/testing.rs")
+}
+
+/// Each `(line number, call)` in `text` that calls one of `UNCHECKED_QUERIES`, up to a
+/// trailing inline `#[cfg(test)] mod tests` block.
+// ponytail: a text scan; a call split across lines or reached through a `use` alias is not seen.
+fn unchecked_queries(text: &str) -> Vec<(usize, &'static str)> {
+    let tests_start = text
+        .lines()
+        .zip(text.lines().skip(1))
+        .position(|(line, next)| line.trim() == "#[cfg(test)]" && next.trim() == "mod tests {")
+        .unwrap_or(usize::MAX);
+    text.lines()
+        .take(tests_start)
+        .enumerate()
+        .flat_map(|(index, line)| {
+            UNCHECKED_QUERIES
+                .iter()
+                .filter(|call| line.contains(**call))
+                .map(move |call| (index + 1, *call))
+        })
+        .collect()
+}
+
+#[test]
+fn production_code_calls_only_sqlxs_checked_query_macros() {
+    let problems: Vec<String> = rust_files()
+        .iter()
+        .filter(|file| file.path.starts_with("src/") && !is_test_file(&file.path))
+        .flat_map(|file| {
+            unchecked_queries(&file.text)
+                .into_iter()
+                .map(|(line, call)| {
+                    format!(
+                        "{}:{line}: {call} is unchecked: use its `!` macro",
+                        file.path
+                    )
+                })
+        })
+        .collect();
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+#[test]
+fn unchecked_queries_finds_calls_before_an_inline_test_module() {
+    let text = "let a = sqlx::query!(\"x\");\n\
+                let b = sqlx::query_scalar(\"x\");\n\
+                let c = sqlx::query_with(\"x\", args);\n\
+                #[cfg(test)]\n\
+                mod tests {\n\
+                    let d = sqlx::query_as(\"x\");\n\
+                }";
+    assert_eq!(
+        unchecked_queries(text),
+        [(2, "sqlx::query_scalar("), (3, "query_with(")]
+    );
+    assert!(is_test_file("src/a_tests.rs") && is_test_file("src/requests/testing.rs"));
+    assert!(!is_test_file("src/automation/store.rs"));
+}
+
 /// The paths `text`, an `AGENTS.md`, names: inline code spans outside fenced blocks that hold a
 /// `/`.
 // ponytail: a bare file name without a `/` (`README.md`, `libraries.rs`) is not checked, since

@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT count(*) AS \"kept!: i64\" FROM plugin_store WHERE plugin_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "kept!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0670baf44178175c303d16614b9f1b676c0a71708f7deac7ad079023cd92645f"
+}

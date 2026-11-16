@@ -123,10 +123,12 @@ async fn put_within(
 
 /// Refuses with [`Error::Full`] once `plugin` keeps `cap` entries.
 async fn check_room(conn: &mut SqliteConnection, plugin: &str, cap: i64) -> Result<(), Error> {
-    let kept: i64 = sqlx::query_scalar("SELECT count(*) FROM plugin_store WHERE plugin_id = ?")
-        .bind(plugin)
-        .fetch_one(conn)
-        .await?;
+    let kept = sqlx::query_scalar!(
+        r#"SELECT count(*) AS "kept!: i64" FROM plugin_store WHERE plugin_id = ?"#,
+        plugin
+    )
+    .fetch_one(conn)
+    .await?;
     if kept >= cap {
         return Err(Error::Full(cap));
     }
