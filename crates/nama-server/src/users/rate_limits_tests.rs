@@ -31,6 +31,13 @@ fn a_name_users_may_have_is_counted_whole_even_if_lowercasing_lengthens_it() {
 }
 
 #[test]
+fn a_name_users_may_have_is_counted_whole_even_if_typed_decomposed() {
+    let longest = "e\u{301}".repeat(*NAME_LENGTH.end());
+
+    assert_eq!(counted_name_key(&longest), name_key(&longest));
+}
+
+#[test]
 fn keys_whose_failures_left_the_window_are_dropped() {
     let mut window = Window::default();
     let start = Instant::now();

@@ -1,7 +1,8 @@
 //! Browse: the Movies and Shows a Library holds, as a User sees them.
 //!
 //! [`Browse`] finds titles through [`Contents`], never in the content tables itself (see
-//! `src/library/AGENTS.md`), and attaches their Versions' Tracks and the User's [`WatchState`]s.
+//! `src/library/AGENTS.md`), and attaches the User's [`WatchState`]s and, only to the Movies and
+//! Episodes it answers with, their Versions' Tracks.
 //! It writes only Watch State, for what a reported Version or a marked title stands for (ADR 0013).
 
 use std::{collections::HashMap, sync::Arc};
@@ -28,8 +29,8 @@ pub(crate) use watching::Started;
 
 /// A Movie whose Versions have their Tracks.
 pub(crate) type Movie = LibraryMovie<Version>;
-/// A Show whose Episodes' Versions have their Tracks.
-pub(crate) type Show = LibraryShow<Version>;
+/// A Show, its Episodes' Versions without Tracks: nothing shown of a Show reads them.
+pub(crate) type Show = LibraryShow;
 /// A Season whose Episodes' Versions have their Tracks.
 pub(crate) type Season = LibrarySeason<Version>;
 /// An Episode whose Versions have their Tracks.
@@ -76,10 +77,10 @@ pub(crate) enum Target {
     Show(ExternalId),
 }
 
-/// A Library's titles, read whole, with Versions of the form `V`.
-enum Titles<V = Version> {
-    Movies(Vec<LibraryMovie<V>>),
-    Shows(Vec<LibraryShow<V>>),
+/// A Library's titles, read whole, without Tracks.
+enum Titles {
+    Movies(Vec<LibraryMovie>),
+    Shows(Vec<LibraryShow>),
 }
 
 /// Reads the Libraries' titles and the Users' Watch States of them, and records Watch State.
@@ -108,10 +109,16 @@ impl Browse {
         user: i64,
         library: i64,
     ) -> Result<Vec<(Movie, Option<WatchState>)>, Error> {
-        let movies = self.read(&self.library(library).await?).await?.movies()?;
+        let movies = self.titles(&self.library(library).await?).await?.movies()?;
+        let probes = self
+            .probes(movies.iter().flat_map(|movie| &movie.versions))
+            .await?;
         let titles = movies.iter().map(movie_ids).collect();
         let states = self.states_of(user, titles).await?;
-        Ok(movies.into_iter().zip(states).collect())
+        let movies = movies
+            .into_iter()
+            .map(|movie| movie.map_versions(with_tracks(&probes)));
+        Ok(movies.zip(states).collect())
     }
 
     /// The Movie `id` of the Movies Library `library`, with the User `user`'s Watch State of it,
@@ -124,7 +131,9 @@ impl Browse {
         id: &ExternalId,
     ) -> Result<(Movie, Option<WatchState>, Option<String>), Error> {
         let library = self.library(library).await?;
-        let movie = self.read(&library).await?.movie(id)?;
+        let movie = self.titles(&library).await?.movie(id)?;
+        let probes = self.probes(movie.versions.iter()).await?;
+        let movie = movie.map_versions(with_tracks(&probes));
         let paths = movie.versions.iter().map(|version| version.path.as_str());
         let read_only_folder = read_only_folder(&library, paths).map(str::to_owned);
         let state = self.states_of(user, vec![movie_ids(&movie)]).await?.pop();
@@ -148,12 +157,12 @@ impl Browse {
 
     /// The Shows of the Shows Library `library`.
     pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, Error> {
-        self.read(&self.library(library).await?).await?.shows()
+        self.titles(&self.library(library).await?).await?.shows()
     }
 
     /// The Show `id` of the Shows Library `library`.
     pub(crate) async fn show(&self, library: i64, id: &ExternalId) -> Result<Show, Error> {
-        self.read(&self.library(library).await?).await?.show(id)
+        self.titles(&self.library(library).await?).await?.show(id)
     }
 
     /// Season `number` of the Show `show` of the Shows Library `library`.
@@ -163,9 +172,17 @@ impl Browse {
         show: &ExternalId,
         number: i64,
     ) -> Result<Season, Error> {
-        self.read(&self.library(library).await?)
-            .await?
-            .season(show, number)
+        let library = self.library(library).await?;
+        let season = self.titles(&library).await?.season(show, number)?;
+        let files = season.episodes.iter().flat_map(|episode| &episode.versions);
+        let probes = self.probes(files).await?;
+        let episodes = (season.episodes.into_iter())
+            .map(|episode| episode.map_versions(with_tracks(&probes)))
+            .collect();
+        Ok(LibrarySeason {
+            poster: season.poster,
+            episodes,
+        })
     }
 
     /// The Movies, Shows and Episodes of every Library that a search for `query` finds: see
@@ -187,30 +204,10 @@ impl Browse {
             .collect())
     }
 
-    /// Every title of `library`, its Versions with the Tracks probing read from their files as
-    /// they are now.
-    async fn read(&self, library: &Library) -> Result<Titles, Error> {
-        Ok(match self.titles(library).await? {
-            Titles::Movies(movies) => {
-                let files = movies.iter().flat_map(|movie| &movie.versions);
-                let probes = self.probes(files).await?;
-                let tracked = |movie: LibraryMovie| movie.map_versions(with_tracks(&probes));
-                Titles::Movies(movies.into_iter().map(tracked).collect())
-            }
-            Titles::Shows(shows) => {
-                let files = (shows.iter().flat_map(LibraryShow::episodes))
-                    .flat_map(|episode| &episode.versions);
-                let probes = self.probes(files).await?;
-                let tracked = |show: LibraryShow| show.map_versions(with_tracks(&probes));
-                Titles::Shows(shows.into_iter().map(tracked).collect())
-            }
-        })
-    }
-
     /// Every title of `library`, as [`Contents`] has it, without Tracks. Every finder reads
-    /// through here.
+    /// through here; one answering with Tracks reads them afterwards, of only what it answers with.
     // ponytail: whole-Library read (see AGENTS.md).
-    async fn titles(&self, library: &Library) -> Result<Titles<LibraryVersion>, Error> {
+    async fn titles(&self, library: &Library) -> Result<Titles, Error> {
         Ok(match library.kind {
             LibraryKind::Movies => Titles::Movies(self.contents.movies(library.id).await?),
             LibraryKind::Shows => Titles::Shows(self.contents.shows(library.id).await?),
@@ -231,8 +228,8 @@ impl Browse {
     }
 }
 
-impl<V> Titles<V> {
-    fn movies(self) -> Result<Vec<LibraryMovie<V>>, Error> {
+impl Titles {
+    fn movies(self) -> Result<Vec<LibraryMovie>, Error> {
         match self {
             Self::Movies(movies) => Ok(movies),
             Self::Shows(_) => Err(Error::WrongKind {
@@ -241,7 +238,7 @@ impl<V> Titles<V> {
         }
     }
 
-    fn shows(self) -> Result<Vec<LibraryShow<V>>, Error> {
+    fn shows(self) -> Result<Vec<LibraryShow>, Error> {
         match self {
             Self::Shows(shows) => Ok(shows),
             Self::Movies(_) => Err(Error::WrongKind {
@@ -251,25 +248,25 @@ impl<V> Titles<V> {
     }
 
     /// The Movie with `id` among its ids: any one identifies it (ADR 0042).
-    fn movie(self, id: &ExternalId) -> Result<LibraryMovie<V>, Error> {
+    fn movie(self, id: &ExternalId) -> Result<LibraryMovie, Error> {
         (self.movies()?.into_iter())
             .find(|movie| names(&movie.ids, id))
             .ok_or(Error::NothingMatched)
     }
 
     /// The Show with `id` among its ids: any one identifies it (ADR 0042).
-    fn show(self, id: &ExternalId) -> Result<LibraryShow<V>, Error> {
+    fn show(self, id: &ExternalId) -> Result<LibraryShow, Error> {
         (self.shows()?.into_iter())
             .find(|show| names(&show.ids, id))
             .ok_or(Error::NothingMatched)
     }
 
-    fn season(self, show: &ExternalId, number: i64) -> Result<LibrarySeason<V>, Error> {
+    fn season(self, show: &ExternalId, number: i64) -> Result<LibrarySeason, Error> {
         (self.show(show)?.seasons.remove(&number)).ok_or(Error::NoSuchSeason)
     }
 
     /// The Episode `id` of any of its Shows.
-    fn episode(self, id: &ExternalId) -> Result<LibraryEpisode<V>, Error> {
+    fn episode(self, id: &ExternalId) -> Result<LibraryEpisode, Error> {
         (self.shows()?.into_iter())
             .flat_map(|show| show.seasons.into_values())
             .flat_map(|season| season.episodes)

@@ -39,7 +39,9 @@ use crate::{
 
 use super::{
     caller, database_failed, permission_required,
-    plugins::{list_failed, logo, setting_to_proto, settings_from_proto, settings_refused},
+    plugins::{
+        change_refused, list_failed, logo, setting_to_proto, settings_from_proto, settings_refused,
+    },
     refuse, signed_out, unknown_enum_value,
 };
 
@@ -155,19 +157,9 @@ impl UserService for UserServiceHandler {
     ) -> ServiceResult<RevokeDeviceResponse> {
         let caller = caller(&ctx)?;
         let owner = devices_owner(caller, request.user_id)?;
-        let revoked = self
-            .users
-            .revoke(owner, request.device_id)
-            .await
-            .map_err(database_failed)?;
-        if !revoked {
-            return Err(refuse(
-                RefusalReason::REFUSAL_REASON_DEVICE_NOT_FOUND,
-                "that User has no such Device",
-            )
-            .field("device_id")
-            .into());
-        }
+        self.users
+            .revoke(&caller.user, owner, request.device_id)
+            .await?;
         let response = RevokeDeviceResponse::default();
         Ok(if request.device_id == caller.device.id {
             signed_out(response, &ctx)
@@ -381,7 +373,7 @@ impl UserService for UserServiceHandler {
         Settings::new(values.clone())
             .resolve(schema)
             .map_err(settings_refused)?;
-        let rows = values
+        let rows: Vec<_> = values
             .into_iter()
             .map(|(key, value)| {
                 let secret = schema
@@ -391,6 +383,14 @@ impl UserService for UserServiceHandler {
                 (key, personal_text(value), secret)
             })
             .collect();
+        let personal = rows
+            .iter()
+            .map(|(key, text, _)| (key.clone(), text.clone()))
+            .collect();
+        self.plugin_settings
+            .check_personal(&id, &personal)
+            .await
+            .map_err(change_refused)?;
         replace_personal_settings(&self.db, user, &id, rows)
             .await
             .map_err(database_failed)?;
@@ -572,6 +572,11 @@ impl From<users::Error> for ConnectError {
                     .param("minLength", users::NAME_LENGTH.start())
                     .param("maxLength", users::NAME_LENGTH.end())
             }
+            users::Error::NameCharacter {
+                field, character, ..
+            } => refuse(R::REFUSAL_REASON_NAME_CHARACTER, message)
+                .field(field)
+                .param("character", &format!("U+{:04X}", u32::from(character))),
             users::Error::PasswordRejected { field, .. } => {
                 refuse(R::REFUSAL_REASON_PASSWORD_REJECTED, message).field(field)
             }
@@ -582,6 +587,9 @@ impl From<users::Error> for ConnectError {
             // Every call that names a User names them in `user_id`.
             users::Error::NoSuchUser => {
                 refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message).field("user_id")
+            }
+            users::Error::NoSuchDevice => {
+                refuse(R::REFUSAL_REASON_DEVICE_NOT_FOUND, message).field("device_id")
             }
             // A polled Sign-in Code names no User.
             users::Error::ApprovingUserDeleted => refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message),

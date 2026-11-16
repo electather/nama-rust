@@ -141,6 +141,7 @@ fn reason_to_proto(
         ),
         Some(UnmatchedReason::NoTitleFits) => (R::UNMATCHED_REASON_NO_TITLE_FITS, Vec::new()),
         Some(UnmatchedReason::UnknownIdHint) => (R::UNMATCHED_REASON_UNKNOWN_ID_HINT, Vec::new()),
+        Some(UnmatchedReason::NotInShow) => (R::UNMATCHED_REASON_NOT_IN_SHOW, Vec::new()),
     }
 }
 

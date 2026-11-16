@@ -471,6 +471,26 @@ async fn setup_refuses_blank_names_and_names_that_are_too_long() {
 }
 
 #[tokio::test]
+async fn setup_refuses_names_holding_invisible_characters() {
+    let server = start().await;
+    for (json_field, field) in [("name", "name"), ("deviceName", "device_name")] {
+        let mut request = setup_request(&server, "SESSION_DELIVERY_TOKEN");
+        request[json_field] = json!("Ada\u{200B}");
+
+        let setup = call(&server, "Setup", &request, &[]).await;
+
+        let refusal = assert_refused(
+            setup.refused(),
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_NAME_CHARACTER,
+        );
+        assert_eq!(refusal.field, field);
+        assert_eq!(refusal.params["character"], "U+200B");
+    }
+    assert_eq!(set_up(&server).await.status, 200, "somebody was created");
+}
+
+#[tokio::test]
 async fn setup_trims_the_name_and_accepts_64_characters() {
     let server = start().await;
     let name = "é".repeat(64);

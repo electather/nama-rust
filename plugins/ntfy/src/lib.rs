@@ -4,7 +4,9 @@
 
 use nama_pdk::{
     Manifest,
-    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
+    nama_plugin_proto::nama::plugin::v1::{
+        PersonalSettingsCheck, SettingField, SettingKind, SettingValue, setting_value,
+    },
     services,
 };
 
@@ -22,7 +24,9 @@ mod exports {
     use nama_pdk::{
         Buffa, FnResult, Manifest, Notification, Notifier, Recipient,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, config},
-        nama_plugin_proto::nama::plugin::v1::UserRecipient,
+        nama_plugin_proto::nama::plugin::v1::{
+            PersonalSettingsCheck, PersonalSettingsChecked, UserRecipient,
+        },
         plugin_fn,
     };
     use serde::Deserialize;
@@ -32,6 +36,14 @@ mod exports {
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         Ok(Buffa(super::manifest()))
+    }
+
+    #[plugin_fn]
+    pub fn check_personal_settings(
+        Buffa(asked): Buffa<PersonalSettingsCheck>,
+    ) -> FnResult<Buffa<PersonalSettingsChecked>> {
+        super::check_personal_settings(&asked)?;
+        Ok(Buffa(PersonalSettingsChecked::default()))
     }
 
     /// Publishes each notification for a User to the topic they set.
@@ -150,6 +162,14 @@ fn manifest() -> Manifest {
         description: "Tells each User about their Requests on their own ntfy topic.".to_owned(),
         ..nama_pdk::manifest("ntfy", env!("CARGO_PKG_VERSION"))
     }
+}
+
+/// Refuses a User's Personal settings as [`topic`] refuses their topic, so they learn on saving it,
+/// not by never being notified.
+fn check_personal_settings(
+    asked: &PersonalSettingsCheck,
+) -> Result<(), nama_pdk::extism_pdk::Error> {
+    topic(asked.personal_settings.get(TOPIC).map(String::as_str)).map(drop)
 }
 
 /// `topic` if ntfy takes it: 1 to 64 letters, digits, `_` or `-`. A failure names the setting.

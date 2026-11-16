@@ -7,6 +7,7 @@
 - **One owner for Plugin changes.** Outside tests, only `src/plugin_settings.rs` enables or disables a Plugin or saves its settings, under its one lock and in ADR 0028's order. The type enforces it: only Plugin settings and startup hold the `Registry`, and every other module holds its `ExtensionPoints`, which calls Plugins but can't enable, disable or list them. Handlers and tasks ask `PluginSettings`.
 - **Migration list.** A new migration's file name also goes as the last line of `migrations.txt`, so two PRs adding the same migration number conflict in git (#561); a test checks it.
 - **Query data.** After changing a `sqlx::query!` or anything in `migrations/`, regenerate `.sqlx/` at the workspace root and commit it (commands in `README.md`).
+- **Config schema.** A change to `Config` regenerates `docs/nama.schema.json`, which editors check `nama.toml` against: `tests/config.rs` rewrites it and fails until it's committed.
 - **Whole-Library reads.** Browse reads a Library's whole contents even to find one title. Each such read is marked `// ponytail: whole-Library read`; query by id there once Libraries get big.
 
 ### Security

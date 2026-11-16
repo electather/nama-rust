@@ -35,6 +35,7 @@ use crate::{
 };
 
 mod library_ids;
+mod personal;
 mod put_back;
 mod running;
 mod stored;
