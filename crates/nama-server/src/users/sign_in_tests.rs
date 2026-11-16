@@ -1,15 +1,15 @@
 use std::{net::IpAddr, sync::Arc, time::Duration};
 
 use super::*;
-use crate::{db::Database, plugins::Registry, users::Permissions};
+use crate::{db::Database, plugins::Registry};
 
-const PASSWORD: &str = "correct horse battery staple";
+pub(super) const PASSWORD: &str = "correct horse battery staple";
 
 const LAPTOP_IP: &str = "192.0.2.7";
 
 /// [`SignIn`] on a fresh database in `data_dir`, with no Users yet and local-auth as the
 /// Authenticator, and the Setup Code it takes.
-async fn fresh_sign_in(data_dir: &std::path::Path) -> (SignIn, String) {
+pub(super) async fn fresh_sign_in(data_dir: &std::path::Path) -> (SignIn, String) {
     let setup_code = SetupCode::generate().unwrap();
     let entered = setup_code.to_string();
     (
@@ -19,7 +19,7 @@ async fn fresh_sign_in(data_dir: &std::path::Path) -> (SignIn, String) {
 }
 
 /// The Users kept in the database in `data_dir`, with local-auth as the Authenticator.
-async fn local_auth_users(data_dir: &std::path::Path) -> Users {
+pub(super) async fn local_auth_users(data_dir: &std::path::Path) -> Users {
     let db = Arc::new(Database::open(data_dir).await.unwrap());
     let plugins = Registry::new();
     plugins
@@ -30,7 +30,7 @@ async fn local_auth_users(data_dir: &std::path::Path) -> Users {
 
 /// [`SignIn`] on a fresh database in `data_dir`, set up with one User, Ada, whose password is
 /// [`PASSWORD`], and the Setup Code it took.
-async fn sign_in_with_ada(data_dir: &std::path::Path) -> (SignIn, String) {
+pub(super) async fn sign_in_with_ada(data_dir: &std::path::Path) -> (SignIn, String) {
     let (sign_in, setup_code) = fresh_sign_in(data_dir).await;
     set_up(&sign_in, &setup_code, "Ada", Instant::now())
         .await
@@ -39,7 +39,7 @@ async fn sign_in_with_ada(data_dir: &std::path::Path) -> (SignIn, String) {
 }
 
 /// Sets up from [`LAPTOP_IP`] with `setup_code`, creating `name` with [`PASSWORD`], at `now`.
-async fn set_up(
+pub(super) async fn set_up(
     sign_in: &SignIn,
     setup_code: &str,
     name: &str,
@@ -67,7 +67,7 @@ fn password(name: &str, password: &str) -> Proof {
 }
 
 /// Signs in from [`LAPTOP_IP`] as `name` with `password` at `now`.
-async fn attempt(
+pub(super) async fn attempt(
     sign_in: &SignIn,
     name: &str,
     password_given: &str,
@@ -83,7 +83,7 @@ async fn attempt(
 }
 
 /// Fails to sign in as `name` with a wrong password `times` times at `now`.
-async fn fail(sign_in: &SignIn, name: &str, times: usize, now: Instant) {
+pub(super) async fn fail(sign_in: &SignIn, name: &str, times: usize, now: Instant) {
     for _ in 0..times {
         let failed = attempt(sign_in, name, "not the password", now).await;
         assert!(
@@ -95,7 +95,7 @@ async fn fail(sign_in: &SignIn, name: &str, times: usize, now: Instant) {
 }
 
 /// How long `refused` says to wait, if it was blocked.
-fn retry_after_secs<T>(refused: Result<T, Error>) -> Option<u64> {
+pub(super) fn retry_after_secs<T>(refused: Result<T, Error>) -> Option<u64> {
     match refused {
         Err(Error::Blocked(blocked)) => Some(blocked.retry_after_secs()),
         _ => None,
@@ -229,110 +229,6 @@ async fn a_device_name_holding_an_invisible_character_is_refused_without_countin
     }
 
     attempt(&sign_in, "Ada", PASSWORD, now).await.unwrap();
-}
-
-/// Fails to set up from [`LAPTOP_IP`] with a wrong Setup Code `times` times at `now`.
-async fn fail_setup(sign_in: &SignIn, times: usize, now: Instant) {
-    for _ in 0..times {
-        let failed = set_up(sign_in, "AAAA-AAAA-AAAA", "Ada", now).await;
-        assert!(
-            matches!(failed, Err(Error::WrongSetupCode)),
-            "{:?}",
-            failed.map(|_| ())
-        );
-    }
-}
-
-#[tokio::test]
-async fn setup_with_the_right_code_creates_the_first_admin_signed_in_on_the_device() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let (sign_in, setup_code) = fresh_sign_in(data_dir.path()).await;
-
-    let signed_in = set_up(&sign_in, &setup_code, "Ada", Instant::now())
-        .await
-        .unwrap();
-
-    assert_eq!(signed_in.caller.user.name, "Ada");
-    assert_eq!(signed_in.caller.user.permissions, Permissions::ADMIN);
-    assert_eq!(signed_in.caller.device.name, "Laptop");
-}
-
-#[tokio::test]
-async fn the_51st_setup_from_an_address_after_wrong_codes_is_blocked_even_with_the_right_code() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let (sign_in, setup_code) = fresh_sign_in(data_dir.path()).await;
-    let now = Instant::now();
-    fail_setup(&sign_in, 50, now).await;
-
-    let blocked = set_up(&sign_in, &setup_code, "Ada", now).await;
-
-    assert_eq!(retry_after_secs(blocked), Some(15 * 60));
-}
-
-#[tokio::test]
-async fn the_51st_failure_from_an_address_mixing_sign_in_and_setup_is_blocked() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let (sign_in, setup_code) = fresh_sign_in(data_dir.path()).await;
-    let now = Instant::now();
-    fail_setup(&sign_in, 40, now).await;
-    fail(&sign_in, "Grace", 10, now).await;
-
-    let blocked = set_up(&sign_in, &setup_code, "Ada", now).await;
-
-    assert_eq!(retry_after_secs(blocked), Some(15 * 60));
-}
-
-#[tokio::test]
-async fn once_the_server_has_users_setup_is_refused_as_already_set_up_whatever_the_code() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let (sign_in, setup_code) = sign_in_with_ada(data_dir.path()).await;
-    let now = Instant::now();
-
-    let right_code = set_up(&sign_in, &setup_code, "Grace", now).await;
-    let wrong_code = set_up(&sign_in, "AAAA-AAAA-AAAA", "Grace", now).await;
-
-    for refused in [right_code, wrong_code] {
-        assert!(
-            matches!(refused, Err(Error::Users(users::Error::AlreadySetUp))),
-            "{:?}",
-            refused.map(|_| ())
-        );
-    }
-}
-
-#[tokio::test]
-async fn setup_on_a_server_that_started_with_users_is_refused_as_already_set_up() {
-    let data_dir = tempfile::tempdir().unwrap();
-    drop(sign_in_with_ada(data_dir.path()).await);
-    let restarted = SignIn::new(local_auth_users(data_dir.path()).await, None);
-
-    let refused = set_up(&restarted, "AAAA-AAAA-AAAA", "Grace", Instant::now()).await;
-
-    assert!(
-        matches!(refused, Err(Error::Users(users::Error::AlreadySetUp))),
-        "{:?}",
-        refused.map(|_| ())
-    );
-}
-
-#[tokio::test]
-async fn a_bad_admin_name_with_the_right_setup_code_is_refused_without_counting_as_a_guess() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let (sign_in, setup_code) = fresh_sign_in(data_dir.path()).await;
-    let now = Instant::now();
-    for _ in 0..50 {
-        let refused = set_up(&sign_in, &setup_code, "   ", now).await;
-        assert!(
-            matches!(
-                refused,
-                Err(Error::Users(users::Error::NameLength { field: "name", .. }))
-            ),
-            "{:?}",
-            refused.map(|_| ())
-        );
-    }
-
-    set_up(&sign_in, &setup_code, "Ada", now).await.unwrap();
 }
 
 /// Ada's Device "Phone", signed in from [`LAPTOP_IP`] by a Sign-in Code approved from a Device

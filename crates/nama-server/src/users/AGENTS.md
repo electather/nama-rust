@@ -2,7 +2,7 @@
 
 Users, Devices and their sessions (`../users.rs`), what their names may hold and the key a User's is unique under (`names.rs`), the Permissions a User holds (`permissions.rs`), setting and checking passwords through the Authenticator (`passwords.rs`), changing other Users' Permissions, the default ones, and deleting Users (`managing.rs`), signing in (`sign_in.rs`, with Sign-in Codes in `sign_in_codes.rs`, the Setup Code and random codes in `codes.rs`, the sign-in limits in `rate_limits.rs` and Device names in `device_names.rs`), the session layer over HTTP (`sessions.rs`), Personal settings, and whose Requests and playing a User sees (`seeing.rs`: `User::whose_requests`, `User::whose_playing`, `may_see`, `is_requester`).
 
-- **Guessable requests go through `SignIn` (`sign_in.rs`).** It lets an attempt through before reading a User or a secret, and un-counts it the moment the secret checks out; a failure after that, or an input check before it, is no guess. Sign-in Codes count only an unknown or expired code.
+- **Guessable requests go through `SignIn` (`sign_in.rs`).** It lets an attempt through before reading a User or a secret, and un-counts it the moment the secret checks out; a failure after that, an input check before it, or a refusal any client could predict, such as Setup on a set-up Server, is no guess. Sign-in Codes count only an unknown or expired code.
 - **One owner for Personal settings:** only `personal_settings.rs` reads or writes `personal_settings`, tests included; values are secrets in logs, and a secret never goes back to a client (ADR 0046).
 - **Private modules.** The area's files are private modules; neighbours import only what `../users.rs` re-exports, and items inside default to `pub(super)`.
 
