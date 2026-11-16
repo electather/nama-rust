@@ -147,14 +147,18 @@ async fn show_from(
     Ok(FoundShow { source, id, show })
 }
 
-/// The Season `number` of the Show `show`, from the source that gave the Show.
+/// The Season `number` of the Show `show`, from the source that gave the Show, or
+/// [`Miss::NOT_IN_SHOW`] if the source has no such Season.
 pub(super) async fn season(
     metadata: &TitleSources,
     show: &FoundShow,
     number: i64,
 ) -> Result<SourceSeason, Miss> {
-    let number = u32::try_from(number).map_err(|_negative| Miss::Unmatched(None))?;
-    Ok(metadata.season_from(&show.source, &show.id, number).await?)
+    let number = u32::try_from(number).map_err(|_negative| Miss::NOT_IN_SHOW)?;
+    match metadata.season_from(&show.source, &show.id, number).await {
+        Err(Unanswered::NotFound) => Err(Miss::NOT_IN_SHOW),
+        answer => Ok(answer?),
+    }
 }
 
 /// Every id a title is known by: `known`, the id `asked` that a source answered for, and the

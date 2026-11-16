@@ -108,6 +108,11 @@ test.each([
     { reason: UnmatchedReason.UNKNOWN_ID_HINT },
     "Its ID Hint names no title.",
   ],
+  [
+    "an Episode its Show doesn’t have says so",
+    { reason: UnmatchedReason.NOT_IN_SHOW },
+    "Its Show has no such Episode. Matching it to another Show may help.",
+  ],
 ])("%s on Needs a Match", async (_, why, shown) => {
   const item = { itemId: 7n, path: "/srv/shows/The Office/S01E01.mkv", kind: TitleKind.SHOW };
   openApp(
