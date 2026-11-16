@@ -55,7 +55,7 @@ fn nfc(text: &str) -> String {
 /// ignoring case and how accents were typed. Sign-in passes raw input, so it normalises itself,
 /// again after lowercasing, which can leave a string out of NFC.
 // ponytail: a `username` stored before names were normalised isn't re-keyed. It differs only for
-// a name typed decomposed or with invisible characters; delete and recreate such a User.
+// a name typed decomposed, and such a User no longer signs in by name; delete and recreate it.
 pub(super) fn name_key(name: &str) -> String {
     nfc(&normalised(name).to_lowercase())
 }
