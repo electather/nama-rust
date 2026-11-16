@@ -5631,6 +5631,13 @@ pub struct GetImageSettingsResponseView<'a> {
     pub settings: ::buffa::MessageFieldView<
         super::super::__buffa::view::ImageSettingsView<'a>,
     >,
+    /// The running switch to another image store (`SwitchImageStore`), or the last one if it
+    /// failed. Unset when none has run since the Server started, or the last one succeeded.
+    ///
+    /// Field 2: `switching`
+    pub switching: ::buffa::MessageFieldView<
+        super::super::__buffa::view::ImageStoreSwitchView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetImageSettingsResponseView<'a> {
@@ -5684,6 +5691,27 @@ impl<'a> ::buffa::MessageView<'a> for GetImageSettingsResponseView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.switching.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.switching = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::ImageStoreSwitchView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -5721,6 +5749,15 @@ impl<'a> ::buffa::MessageView<'a> for GetImageSettingsResponseView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            switching: match self.switching.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::ImageStoreSwitch,
+                        ::buffa::Inline<super::super::ImageStoreSwitch>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5735,6 +5772,14 @@ impl<'a> ::buffa::ViewEncode<'a> for GetImageSettingsResponseView<'a> {
         if self.settings.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.settings.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.switching.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.switching.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -5758,6 +5803,14 @@ impl<'a> ::buffa::ViewEncode<'a> for GetImageSettingsResponseView<'a> {
                 buf,
             );
             self.settings.write_to(__cache, buf);
+        }
+        if self.switching.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.switching.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5783,6 +5836,11 @@ impl<'__a> ::serde::Serialize for GetImageSettingsResponseView<'__a> {
         {
             if let ::core::option::Option::Some(__v) = self.settings.as_option() {
                 __map.serialize_entry("settings", __v)?;
+            }
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.switching.as_option() {
+                __map.serialize_entry("switching", __v)?;
             }
         }
         __map.end()
@@ -5886,6 +5944,18 @@ impl GetImageSettingsResponseOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ImageSettingsView<'_>> {
         &self.0.reborrow().settings
+    }
+    /// The running switch to another image store (`SwitchImageStore`), or the last one if it
+    /// failed. Unset when none has run since the Server started, or the last one succeeded.
+    ///
+    /// Field 2: `switching`
+    #[must_use]
+    pub fn switching(
+        &self,
+    ) -> &::buffa::MessageFieldView<
+        super::super::__buffa::view::ImageStoreSwitchView<'_>,
+    > {
+        &self.0.reborrow().switching
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetImageSettingsResponseView<'static>>>
@@ -6524,6 +6594,11 @@ pub struct ImageSettingsView<'a> {
     ///
     /// Field 2: `resized_cache_mib`
     pub resized_cache_mib: ::core::option::Option<u32>,
+    /// The id of the Plugin keeping the stored images, or empty for local disk in the data
+    /// directory, the default. `UpdateImageSettings` ignores it; `SwitchImageStore` changes it.
+    ///
+    /// Field 3: `store_plugin_id`
+    pub store_plugin_id: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ImageSettingsView<'a> {
@@ -6570,6 +6645,13 @@ impl<'a> ::buffa::MessageView<'a> for ImageSettingsView<'a> {
                 )?;
                 view.resized_cache_mib = Some(::buffa::types::decode_uint32(&mut cur)?);
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.store_plugin_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -6594,6 +6676,7 @@ impl<'a> ::buffa::MessageView<'a> for ImageSettingsView<'a> {
         ::core::result::Result::Ok(super::super::ImageSettings {
             resize_images: self.resize_images,
             resized_cache_mib: self.resized_cache_mib,
+            store_plugin_id: self.store_plugin_id.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -6611,6 +6694,11 @@ impl<'a> ::buffa::ViewEncode<'a> for ImageSettingsView<'a> {
         if let Some(v) = self.resized_cache_mib {
             size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
+        if !self.store_plugin_id.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.store_plugin_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -6627,6 +6715,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ImageSettingsView<'a> {
         }
         if let Some(v) = self.resized_cache_mib {
             ::buffa::types::put_uint32_field(2u32, v, buf);
+        }
+        if !self.store_plugin_id.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.store_plugin_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6658,6 +6749,9 @@ impl<'__a> ::serde::Serialize for ImageSettingsView<'__a> {
                     "resizedCacheMib",
                     &::buffa::json_helpers::ProtoJson(&__v),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.store_plugin_id) {
+            __map.serialize_entry("storePluginId", self.store_plugin_id)?;
         }
         __map.end()
     }
@@ -6767,6 +6861,14 @@ impl ImageSettingsOwnedView {
     pub fn resized_cache_mib(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().resized_cache_mib
     }
+    /// The id of the Plugin keeping the stored images, or empty for local disk in the data
+    /// directory, the default. `UpdateImageSettings` ignores it; `SwitchImageStore` changes it.
+    ///
+    /// Field 3: `store_plugin_id`
+    #[must_use]
+    pub fn store_plugin_id(&self) -> &'_ str {
+        self.0.reborrow().store_plugin_id
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<ImageSettingsView<'static>>>
 for ImageSettingsOwnedView {
@@ -6791,6 +6893,910 @@ impl ::buffa::HasMessageView for super::super::ImageSettings {
     type ViewHandle = ImageSettingsOwnedView;
 }
 impl ::serde::Serialize for ImageSettingsOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct SwitchImageStoreRequestView<'a> {
+    /// The id of the Plugin to keep the stored images, or empty for local disk.
+    ///
+    /// Field 1: `plugin_id`
+    pub plugin_id: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for SwitchImageStoreRequestView<'a> {
+    type Owned = super::super::SwitchImageStoreRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.plugin_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::SwitchImageStoreRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::SwitchImageStoreRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::SwitchImageStoreRequest {
+            plugin_id: self.plugin_id.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for SwitchImageStoreRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.plugin_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.plugin_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.plugin_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for SwitchImageStoreRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.plugin_id) {
+            __map.serialize_entry("pluginId", self.plugin_id)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for SwitchImageStoreRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SwitchImageStoreRequest";
+    const FULL_NAME: &'static str = "nama.v1.SwitchImageStoreRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SwitchImageStoreRequest";
+}
+::buffa::impl_default_view_instance!(SwitchImageStoreRequestView);
+::buffa::impl_view_reborrow!(SwitchImageStoreRequestView);
+/** Self-contained, `'static` owned view of a `SwitchImageStoreRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`SwitchImageStoreRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SwitchImageStoreRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct SwitchImageStoreRequestOwnedView(
+    ::buffa::OwnedView<SwitchImageStoreRequestView<'static>>,
+);
+impl SwitchImageStoreRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SwitchImageStoreRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SwitchImageStoreRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::SwitchImageStoreRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SwitchImageStoreRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`SwitchImageStoreRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &SwitchImageStoreRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::SwitchImageStoreRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The id of the Plugin to keep the stored images, or empty for local disk.
+    ///
+    /// Field 1: `plugin_id`
+    #[must_use]
+    pub fn plugin_id(&self) -> &'_ str {
+        self.0.reborrow().plugin_id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<SwitchImageStoreRequestView<'static>>>
+for SwitchImageStoreRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<SwitchImageStoreRequestView<'static>>) -> Self {
+        SwitchImageStoreRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<SwitchImageStoreRequestOwnedView>
+for ::buffa::OwnedView<SwitchImageStoreRequestView<'static>> {
+    fn from(wrapper: SwitchImageStoreRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<SwitchImageStoreRequestView<'static>>>
+for SwitchImageStoreRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<SwitchImageStoreRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::SwitchImageStoreRequest {
+    type View<'a> = SwitchImageStoreRequestView<'a>;
+    type ViewHandle = SwitchImageStoreRequestOwnedView;
+}
+impl ::serde::Serialize for SwitchImageStoreRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct SwitchImageStoreResponseView<'a> {
+    /// The switch just started, as `GetImageSettingsResponse.switching` follows it, or unset if it
+    /// already finished.
+    ///
+    /// Field 1: `switching`
+    pub switching: ::buffa::MessageFieldView<
+        super::super::__buffa::view::ImageStoreSwitchView<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for SwitchImageStoreResponseView<'a> {
+    type Owned = super::super::SwitchImageStoreResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.switching.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.switching = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::ImageStoreSwitchView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::SwitchImageStoreResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::SwitchImageStoreResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::SwitchImageStoreResponse {
+            switching: match self.switching.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::ImageStoreSwitch,
+                        ::buffa::Inline<super::super::ImageStoreSwitch>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for SwitchImageStoreResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.switching.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.switching.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.switching.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.switching.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for SwitchImageStoreResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.switching.as_option() {
+                __map.serialize_entry("switching", __v)?;
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for SwitchImageStoreResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SwitchImageStoreResponse";
+    const FULL_NAME: &'static str = "nama.v1.SwitchImageStoreResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SwitchImageStoreResponse";
+}
+::buffa::impl_default_view_instance!(SwitchImageStoreResponseView);
+::buffa::impl_view_reborrow!(SwitchImageStoreResponseView);
+/** Self-contained, `'static` owned view of a `SwitchImageStoreResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`SwitchImageStoreResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SwitchImageStoreResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct SwitchImageStoreResponseOwnedView(
+    ::buffa::OwnedView<SwitchImageStoreResponseView<'static>>,
+);
+impl SwitchImageStoreResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SwitchImageStoreResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SwitchImageStoreResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::SwitchImageStoreResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SwitchImageStoreResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`SwitchImageStoreResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &SwitchImageStoreResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::SwitchImageStoreResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The switch just started, as `GetImageSettingsResponse.switching` follows it, or unset if it
+    /// already finished.
+    ///
+    /// Field 1: `switching`
+    #[must_use]
+    pub fn switching(
+        &self,
+    ) -> &::buffa::MessageFieldView<
+        super::super::__buffa::view::ImageStoreSwitchView<'_>,
+    > {
+        &self.0.reborrow().switching
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<SwitchImageStoreResponseView<'static>>>
+for SwitchImageStoreResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<SwitchImageStoreResponseView<'static>>) -> Self {
+        SwitchImageStoreResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<SwitchImageStoreResponseOwnedView>
+for ::buffa::OwnedView<SwitchImageStoreResponseView<'static>> {
+    fn from(wrapper: SwitchImageStoreResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<SwitchImageStoreResponseView<'static>>>
+for SwitchImageStoreResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<SwitchImageStoreResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::SwitchImageStoreResponse {
+    type View<'a> = SwitchImageStoreResponseView<'a>;
+    type ViewHandle = SwitchImageStoreResponseOwnedView;
+}
+impl ::serde::Serialize for SwitchImageStoreResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// How far a switch to another image store has got.
+#[derive(Clone, Debug, Default)]
+pub struct ImageStoreSwitchView<'a> {
+    /// The id of the Plugin the images are moving to, or empty for local disk.
+    ///
+    /// Field 1: `to_plugin_id`
+    pub to_plugin_id: &'a str,
+    /// The images handled so far, those the new store already held included.
+    ///
+    /// Field 2: `copied`
+    pub copied: u32,
+    /// The images to handle, 0 until they are listed.
+    ///
+    /// Field 3: `total`
+    pub total: u32,
+    /// Why the switch stopped, the old store still in use, or empty while it runs.
+    ///
+    /// Field 4: `failure`
+    pub failure: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ImageStoreSwitchView<'a> {
+    type Owned = super::super::ImageStoreSwitch;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.to_plugin_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.copied = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.total = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.failure = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::ImageStoreSwitch, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::ImageStoreSwitch, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ImageStoreSwitch {
+            to_plugin_id: self.to_plugin_id.to_string(),
+            copied: self.copied,
+            total: self.total,
+            failure: self.failure.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ImageStoreSwitchView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.to_plugin_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.to_plugin_id) as u64;
+        }
+        if self.copied != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.copied) as u64;
+        }
+        if self.total != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.total) as u64;
+        }
+        if !self.failure.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.failure) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.to_plugin_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.to_plugin_id, buf);
+        }
+        if self.copied != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.copied, buf);
+        }
+        if self.total != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.total, buf);
+        }
+        if !self.failure.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.failure, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ImageStoreSwitchView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.to_plugin_id) {
+            __map.serialize_entry("toPluginId", self.to_plugin_id)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.copied) {
+            __map
+                .serialize_entry(
+                    "copied",
+                    &::buffa::json_helpers::ProtoJson(&self.copied),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.total) {
+            __map
+                .serialize_entry(
+                    "total",
+                    &::buffa::json_helpers::ProtoJson(&self.total),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.failure) {
+            __map.serialize_entry("failure", self.failure)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ImageStoreSwitchView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ImageStoreSwitch";
+    const FULL_NAME: &'static str = "nama.v1.ImageStoreSwitch";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ImageStoreSwitch";
+}
+::buffa::impl_default_view_instance!(ImageStoreSwitchView);
+::buffa::impl_view_reborrow!(ImageStoreSwitchView);
+/** Self-contained, `'static` owned view of a `ImageStoreSwitch` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ImageStoreSwitchView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ImageStoreSwitchView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ImageStoreSwitchOwnedView(::buffa::OwnedView<ImageStoreSwitchView<'static>>);
+impl ImageStoreSwitchOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ImageStoreSwitchOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ImageStoreSwitchOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ImageStoreSwitch,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ImageStoreSwitchOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ImageStoreSwitchView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ImageStoreSwitchView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ImageStoreSwitch {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The id of the Plugin the images are moving to, or empty for local disk.
+    ///
+    /// Field 1: `to_plugin_id`
+    #[must_use]
+    pub fn to_plugin_id(&self) -> &'_ str {
+        self.0.reborrow().to_plugin_id
+    }
+    /// The images handled so far, those the new store already held included.
+    ///
+    /// Field 2: `copied`
+    #[must_use]
+    pub fn copied(&self) -> u32 {
+        self.0.reborrow().copied
+    }
+    /// The images to handle, 0 until they are listed.
+    ///
+    /// Field 3: `total`
+    #[must_use]
+    pub fn total(&self) -> u32 {
+        self.0.reborrow().total
+    }
+    /// Why the switch stopped, the old store still in use, or empty while it runs.
+    ///
+    /// Field 4: `failure`
+    #[must_use]
+    pub fn failure(&self) -> &'_ str {
+        self.0.reborrow().failure
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ImageStoreSwitchView<'static>>>
+for ImageStoreSwitchOwnedView {
+    fn from(inner: ::buffa::OwnedView<ImageStoreSwitchView<'static>>) -> Self {
+        ImageStoreSwitchOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ImageStoreSwitchOwnedView>
+for ::buffa::OwnedView<ImageStoreSwitchView<'static>> {
+    fn from(wrapper: ImageStoreSwitchOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ImageStoreSwitchView<'static>>>
+for ImageStoreSwitchOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ImageStoreSwitchView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ImageStoreSwitch {
+    type View<'a> = ImageStoreSwitchView<'a>;
+    type ViewHandle = ImageStoreSwitchOwnedView;
+}
+impl ::serde::Serialize for ImageStoreSwitchOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

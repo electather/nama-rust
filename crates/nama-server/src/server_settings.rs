@@ -2,7 +2,8 @@
 //! URL, which notifications link to the web app with, and the Playback settings: the folder
 //! playback writes segment files to, how far behind playback it keeps them, the most Transcodes it
 //! runs at once, what they run on, and the default Playback Limit for remote playback; and whether
-//! Posters and Backdrops are resized, and how much disk the resized copies take.
+//! Posters and Backdrops are resized, how much disk the resized copies take, and which store
+//! keeps the images.
 //!
 //! [`Settings`] owns the table (see the crate's `AGENTS.md`).
 
@@ -12,7 +13,10 @@ use std::{
     sync::{Arc, PoisonError, RwLock},
 };
 
-use nama_plugin_api::settings::{SettingKind, SettingValue};
+use nama_plugin_api::{
+    PluginId,
+    settings::{SettingKind, SettingValue},
+};
 use sqlx::{Sqlite, Transaction};
 use thiserror::Error;
 
@@ -47,6 +51,8 @@ pub(crate) struct Values {
     pub(crate) url: String,
     pub(crate) playback: PlaybackValues,
     pub(crate) images: ImageValues,
+    /// The Plugin keeping the image store's originals, or `None` for local disk.
+    pub(crate) image_store: Option<PluginId>,
 }
 
 /// One value of every image setting.
@@ -134,7 +140,7 @@ impl Settings {
         let stored = sqlx::query!(
             "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,
                     hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,
-                    resize_images, resized_cache_mib
+                    resize_images, resized_cache_mib, image_store_plugin
              FROM server_settings"
         )
         .fetch_optional(self.db.reader())
@@ -156,6 +162,7 @@ impl Settings {
                 resize: stored.resize_images != 0,
                 resized_cache_mib: stored.resized_cache_mib.and_then(non_zero),
             },
+            image_store: plugin_named(stored.image_store_plugin),
         });
         *self.values.write().unwrap_or_else(PoisonError::into_inner) = values;
         Ok(())
@@ -344,6 +351,34 @@ impl Settings {
         Ok(images)
     }
 
+    /// Stores `plugin` as the one keeping the image store's originals, `None` for local disk. Only
+    /// a switch of the image store, once it has copied them, calls it.
+    ///
+    /// # Errors
+    ///
+    /// If storing it fails.
+    pub(crate) async fn set_image_store(&self, plugin: Option<PluginId>) -> sqlx::Result<()> {
+        let stored = plugin.as_ref().map(ToString::to_string).unwrap_or_default();
+        self.store(
+            move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "INSERT INTO server_settings (id, url, image_store_plugin)
+                         VALUES (1, '', ?)
+                         ON CONFLICT (id) DO UPDATE SET
+                             image_store_plugin = excluded.image_store_plugin",
+                        stored
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    Ok(())
+                })
+            },
+            move |values| values.image_store = plugin,
+        )
+        .await
+    }
+
     /// The GPU at the PCI address `id`, named as `passed` found it with `accel`, or else as
     /// stored with `accel`, so saving another setting keeps a pick whose GPU is gone.
     fn offered_gpu(
@@ -400,6 +435,11 @@ impl Settings {
 fn is_server_url(url: &str) -> bool {
     url.is_empty()
         || (SettingValue::Text(url.to_owned()).is(SettingKind::Url) && !url.contains(['?', '#']))
+}
+
+/// The Plugin `stored` names, or `None` for an empty one.
+fn plugin_named(stored: String) -> Option<PluginId> {
+    (!stored.is_empty()).then(|| PluginId::from(stored))
 }
 
 /// A stored count this Server can read, `None` for one out of range.

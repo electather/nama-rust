@@ -30,10 +30,6 @@ use tracing::{error, warn};
 
 use crate::images::{MAX_SVG_BYTES, clean_svg};
 
-#[cfg_attr(
-    not(test),
-    expect(unused_imports, reason = "wired in by bs-switch-api")
-)]
 pub(crate) use blob_store::PluginBlobs;
 pub(crate) use contract::{download, notification, observed, request};
 pub use points::ExtensionPoints;

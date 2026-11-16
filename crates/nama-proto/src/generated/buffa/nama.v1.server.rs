@@ -3343,6 +3343,18 @@ pub struct GetImageSettingsResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub settings: ::buffa::MessageField<ImageSettings, ::buffa::Inline<ImageSettings>>,
+    /// The running switch to another image store (`SwitchImageStore`), or the last one if it
+    /// failed. Unset when none has run since the Server started, or the last one succeeded.
+    ///
+    /// Field 2: `switching`
+    #[serde(
+        rename = "switching",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub switching: ::buffa::MessageField<
+        ImageStoreSwitch,
+        ::buffa::Inline<ImageStoreSwitch>,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3351,6 +3363,7 @@ impl ::core::fmt::Debug for GetImageSettingsResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("GetImageSettingsResponse")
             .field("settings", &self.settings)
+            .field("switching", &self.switching)
             .finish()
     }
 }
@@ -3389,6 +3402,14 @@ impl ::buffa::Message for GetImageSettingsResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.switching.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.switching.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3406,6 +3427,14 @@ impl ::buffa::Message for GetImageSettingsResponse {
                 buf,
             );
             self.settings.write_to(__cache, buf);
+        }
+        if self.switching.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.switching.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3431,6 +3460,17 @@ impl ::buffa::Message for GetImageSettingsResponse {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.switching.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3440,6 +3480,7 @@ impl ::buffa::Message for GetImageSettingsResponse {
     }
     fn clear(&mut self) {
         self.settings = ::buffa::MessageField::none();
+        self.switching = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3780,6 +3821,17 @@ pub struct ImageSettings {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub resized_cache_mib: ::core::option::Option<u32>,
+    /// The id of the Plugin keeping the stored images, or empty for local disk in the data
+    /// directory, the default. `UpdateImageSettings` ignores it; `SwitchImageStore` changes it.
+    ///
+    /// Field 3: `store_plugin_id`
+    #[serde(
+        rename = "storePluginId",
+        alias = "store_plugin_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub store_plugin_id: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3789,6 +3841,7 @@ impl ::core::fmt::Debug for ImageSettings {
         f.debug_struct("ImageSettings")
             .field("resize_images", &self.resize_images)
             .field("resized_cache_mib", &self.resized_cache_mib)
+            .field("store_plugin_id", &self.store_plugin_id)
             .finish()
     }
 }
@@ -3834,6 +3887,11 @@ impl ::buffa::Message for ImageSettings {
         if let Some(v) = self.resized_cache_mib {
             size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
+        if !self.store_plugin_id.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.store_plugin_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3849,6 +3907,9 @@ impl ::buffa::Message for ImageSettings {
         }
         if let Some(v) = self.resized_cache_mib {
             ::buffa::types::put_uint32_field(2u32, v, buf);
+        }
+        if !self.store_plugin_id.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.store_plugin_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3879,6 +3940,13 @@ impl ::buffa::Message for ImageSettings {
                     ::buffa::types::decode_uint32(buf)?,
                 );
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.store_plugin_id, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3889,6 +3957,7 @@ impl ::buffa::Message for ImageSettings {
     fn clear(&mut self) {
         self.resize_images = false;
         self.resized_cache_mib = ::core::option::Option::None;
+        self.store_plugin_id.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3919,5 +3988,481 @@ pub const __IMAGE_SETTINGS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::bu
     type_url: "type.googleapis.com/nama.v1.ImageSettings",
     to_json: ::buffa::type_registry::any_to_json::<ImageSettings>,
     from_json: ::buffa::type_registry::any_from_json::<ImageSettings>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct SwitchImageStoreRequest {
+    /// The id of the Plugin to keep the stored images, or empty for local disk.
+    ///
+    /// Field 1: `plugin_id`
+    #[serde(
+        rename = "pluginId",
+        alias = "plugin_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub plugin_id: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for SwitchImageStoreRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("SwitchImageStoreRequest")
+            .field("plugin_id", &self.plugin_id)
+            .finish()
+    }
+}
+impl SwitchImageStoreRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SwitchImageStoreRequest";
+}
+::buffa::impl_default_instance!(SwitchImageStoreRequest);
+impl ::buffa::MessageName for SwitchImageStoreRequest {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SwitchImageStoreRequest";
+    const FULL_NAME: &'static str = "nama.v1.SwitchImageStoreRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SwitchImageStoreRequest";
+}
+impl ::buffa::Message for SwitchImageStoreRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.plugin_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.plugin_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.plugin_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.plugin_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.plugin_id, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.plugin_id.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for SwitchImageStoreRequest {
+    const PROTO_FQN: &'static str = "nama.v1.SwitchImageStoreRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for SwitchImageStoreRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __SWITCH_IMAGE_STORE_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.SwitchImageStoreRequest",
+    to_json: ::buffa::type_registry::any_to_json::<SwitchImageStoreRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<SwitchImageStoreRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct SwitchImageStoreResponse {
+    /// The switch just started, as `GetImageSettingsResponse.switching` follows it, or unset if it
+    /// already finished.
+    ///
+    /// Field 1: `switching`
+    #[serde(
+        rename = "switching",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub switching: ::buffa::MessageField<
+        ImageStoreSwitch,
+        ::buffa::Inline<ImageStoreSwitch>,
+    >,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for SwitchImageStoreResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("SwitchImageStoreResponse")
+            .field("switching", &self.switching)
+            .finish()
+    }
+}
+impl SwitchImageStoreResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SwitchImageStoreResponse";
+}
+::buffa::impl_default_instance!(SwitchImageStoreResponse);
+impl ::buffa::MessageName for SwitchImageStoreResponse {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SwitchImageStoreResponse";
+    const FULL_NAME: &'static str = "nama.v1.SwitchImageStoreResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SwitchImageStoreResponse";
+}
+impl ::buffa::Message for SwitchImageStoreResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.switching.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.switching.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.switching.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.switching.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.switching.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.switching = ::buffa::MessageField::none();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for SwitchImageStoreResponse {
+    const PROTO_FQN: &'static str = "nama.v1.SwitchImageStoreResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for SwitchImageStoreResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __SWITCH_IMAGE_STORE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.SwitchImageStoreResponse",
+    to_json: ::buffa::type_registry::any_to_json::<SwitchImageStoreResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<SwitchImageStoreResponse>,
+    is_wkt: false,
+};
+/// How far a switch to another image store has got.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ImageStoreSwitch {
+    /// The id of the Plugin the images are moving to, or empty for local disk.
+    ///
+    /// Field 1: `to_plugin_id`
+    #[serde(
+        rename = "toPluginId",
+        alias = "to_plugin_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub to_plugin_id: ::buffa::alloc::string::String,
+    /// The images handled so far, those the new store already held included.
+    ///
+    /// Field 2: `copied`
+    #[serde(
+        rename = "copied",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub copied: u32,
+    /// The images to handle, 0 until they are listed.
+    ///
+    /// Field 3: `total`
+    #[serde(
+        rename = "total",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub total: u32,
+    /// Why the switch stopped, the old store still in use, or empty while it runs.
+    ///
+    /// Field 4: `failure`
+    #[serde(
+        rename = "failure",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub failure: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ImageStoreSwitch {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ImageStoreSwitch")
+            .field("to_plugin_id", &self.to_plugin_id)
+            .field("copied", &self.copied)
+            .field("total", &self.total)
+            .field("failure", &self.failure)
+            .finish()
+    }
+}
+impl ImageStoreSwitch {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ImageStoreSwitch";
+}
+::buffa::impl_default_instance!(ImageStoreSwitch);
+impl ::buffa::MessageName for ImageStoreSwitch {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "ImageStoreSwitch";
+    const FULL_NAME: &'static str = "nama.v1.ImageStoreSwitch";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ImageStoreSwitch";
+}
+impl ::buffa::Message for ImageStoreSwitch {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.to_plugin_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.to_plugin_id) as u64;
+        }
+        if self.copied != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.copied) as u64;
+        }
+        if self.total != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.total) as u64;
+        }
+        if !self.failure.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.failure) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.to_plugin_id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.to_plugin_id, buf);
+        }
+        if self.copied != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.copied, buf);
+        }
+        if self.total != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.total, buf);
+        }
+        if !self.failure.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.failure, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.to_plugin_id, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.copied = ::buffa::types::decode_uint32(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.total = ::buffa::types::decode_uint32(buf)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.failure, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.to_plugin_id.clear();
+        self.copied = 0u32;
+        self.total = 0u32;
+        self.failure.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ImageStoreSwitch {
+    const PROTO_FQN: &'static str = "nama.v1.ImageStoreSwitch";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ImageStoreSwitch {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __IMAGE_STORE_SWITCH_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.ImageStoreSwitch",
+    to_json: ::buffa::type_registry::any_to_json::<ImageStoreSwitch>,
+    from_json: ::buffa::type_registry::any_from_json::<ImageStoreSwitch>,
     is_wkt: false,
 };

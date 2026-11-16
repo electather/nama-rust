@@ -214,7 +214,6 @@ impl ExtensionPoints {
     /// The enabled Plugins that serve the blob store point, sorted by id, for the Admin to pick a
     /// store from.
     #[must_use]
-    #[cfg_attr(not(test), expect(dead_code, reason = "wired in by bs-switch-api"))]
     pub(crate) fn blob_stores(&self) -> Vec<PluginId> {
         self.providers::<dyn BlobStore>().into_iter().collect()
     }

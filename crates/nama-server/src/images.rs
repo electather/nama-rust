@@ -32,18 +32,18 @@ pub(crate) use blobs::{Blobs, MAX_BYTES};
 use local_disk::LocalDisk;
 pub(crate) use plugin_logos::{PluginLogos, router as plugin_logos_router};
 use resized::{Copied, Format, ResizeThread};
-pub(crate) use switch::Switching;
-#[cfg_attr(
-    not(test),
-    expect(unused_imports, reason = "the API wires it in: bs-switch-api")
-)]
-pub(crate) use switch::{Persist, SwitchRefused};
+pub(crate) use switch::{Persist, SwitchRefused, Switching};
 
 use crate::{db::Database, server_settings::ImageSettings};
 
 /// The widths an image is resized to, smallest first: those the web app's Poster grid and
 /// Backdrops are shown at, at one to three device pixels per CSS pixel. Any other is refused.
 pub const WIDTHS: [u32; 7] = [320, 480, 640, 960, 1280, 1920, 2560];
+
+/// The Built-in store: files in `data_dir`, as [`ImageStore::new`] keeps them.
+pub(crate) fn local_disk(data_dir: &Path) -> Arc<dyn Blobs> {
+    Arc::new(LocalDisk::new(data_dir))
+}
 
 /// Where the images Matches store are kept.
 pub(crate) const KEPT_ARTWORK_DIR: &str = "artwork";

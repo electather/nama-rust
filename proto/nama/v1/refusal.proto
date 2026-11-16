@@ -244,4 +244,16 @@ enum RefusalReason {
   // `invalid_argument`: a Plugin Permission the Admin grants is one the Plugin's Manifest doesn't
   // request. `field` is `granted_permissions`. Params: `pluginId`, `permission`.
   REFUSAL_REASON_PERMISSION_NOT_REQUESTED = 75;
+  // `failed_precondition`: no enabled Plugin with the id serves `EXTENSION_POINT_BLOB_STORE`, so
+  // it can't keep the stored images. `field` is `plugin_id`. Params: `pluginId`.
+  REFUSAL_REASON_NOT_A_BLOB_STORE = 76;
+  // `failed_precondition`: the store named already keeps the stored images, so there is nothing
+  // to switch. `field` is `plugin_id`. Params: `pluginId`, empty for local disk.
+  REFUSAL_REASON_IMAGE_STORE_IN_USE = 77;
+  // `failed_precondition`: another switch to an image store hasn't finished.
+  REFUSAL_REASON_IMAGE_STORE_SWITCHING = 78;
+  // `failed_precondition`: the store failed its check, writing an object, reading it back and
+  // deleting it, so the images stay where they are. The message says what failed. `field` is
+  // `plugin_id`. Params: `pluginId`, empty for local disk, and `reason`, in plain words.
+  REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK = 79;
 }

@@ -294,6 +294,9 @@ enum ExtensionPoint {
   EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8;
   // Proposes what a file is, which a Library lists to ask it (ADR 0050).
   EXTENSION_POINT_RECOGNISER = 9;
+  // Keeps the Server's stored images, such as in S3, once an Admin picks it with
+  // `ServerService.SwitchImageStore`.
+  EXTENSION_POINT_BLOB_STORE = 10;
 }
 
 // What kind of value a setting takes.

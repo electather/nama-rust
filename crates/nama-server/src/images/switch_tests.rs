@@ -169,7 +169,7 @@ async fn a_store_that_fails_its_probe_is_refused_and_nothing_is_copied() {
     let store = store_over(&data, &old).await;
     let target = Arc::new(InMemory::refusing(|_key| true));
 
-    let refused = store.switch_to(as_blobs(&target), saved()).await;
+    let refused = store.switch_to(as_blobs(&target), "next", saved()).await;
 
     assert!(matches!(refused, Err(SwitchRefused::FailedProbe(_))));
     assert_eq!(target.keys(), Vec::<String>::new());
@@ -188,10 +188,14 @@ async fn a_switch_copies_every_original_and_nothing_else_then_uses_the_new_store
     let target = Arc::new(InMemory::default());
     let (persist, release) = held();
 
-    store.switch_to(as_blobs(&target), persist).await.unwrap();
+    store
+        .switch_to(as_blobs(&target), "next", persist)
+        .await
+        .unwrap();
     let progress = copied(&store).await;
     release.send(()).unwrap();
 
+    assert_eq!(progress.to, "next");
     assert_eq!(progress.total, ORIGINALS.len());
     assert_eq!(finished(&store).await, None);
     let mut originals = ORIGINALS.to_vec();
@@ -220,7 +224,10 @@ async fn writes_during_a_switch_land_in_both_stores() {
     let store = store_over(&data, &old).await;
     let target = Arc::new(InMemory::default());
     let (persist, release) = held();
-    store.switch_to(as_blobs(&target), persist).await.unwrap();
+    store
+        .switch_to(as_blobs(&target), "next", persist)
+        .await
+        .unwrap();
     copied(&store).await;
 
     store.write(&["artwork", "new"], b"x").await.unwrap();
@@ -248,12 +255,12 @@ async fn a_second_switch_while_one_runs_is_refused() {
     let store = store_over(&data, &old).await;
     let (persist, release) = held();
     store
-        .switch_to(Arc::new(InMemory::default()), persist)
+        .switch_to(Arc::new(InMemory::default()), "next", persist)
         .await
         .unwrap();
 
     let second = store
-        .switch_to(Arc::new(InMemory::default()), saved())
+        .switch_to(Arc::new(InMemory::default()), "next", saved())
         .await;
 
     assert!(matches!(second, Err(SwitchRefused::Running)));
@@ -268,7 +275,7 @@ async fn a_switch_dropped_before_its_copy_starts_leaves_none_running() {
     let store = store_over(&data, &old).await;
     let writing = store.write_lock("artwork/held").lock().await;
 
-    let switch = store.switch_to(Arc::new(InMemory::default()), saved());
+    let switch = store.switch_to(Arc::new(InMemory::default()), "next", saved());
     let dropped = tokio::time::timeout(Duration::from_millis(50), switch).await;
 
     assert!(
@@ -278,7 +285,7 @@ async fn a_switch_dropped_before_its_copy_starts_leaves_none_running() {
     drop(writing);
     assert_eq!(store.switching(), None);
     store
-        .switch_to(Arc::new(InMemory::default()), saved())
+        .switch_to(Arc::new(InMemory::default()), "next", saved())
         .await
         .unwrap();
     assert_eq!(finished(&store).await, None);
@@ -296,7 +303,10 @@ async fn a_failed_copy_keeps_the_old_store_and_never_saves_the_new_one() {
         Box::new(move || mark(&persisted))
     };
 
-    store.switch_to(as_blobs(&target), persist).await.unwrap();
+    store
+        .switch_to(as_blobs(&target), "next", persist)
+        .await
+        .unwrap();
 
     let failed = finished(&store).await.unwrap().failed.unwrap();
     assert!(failed.contains("custom-images/movie/1/v1"), "{failed}");

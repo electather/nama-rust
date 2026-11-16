@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,\n                    hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,\n                    resize_images, resized_cache_mib\n             FROM server_settings",
+  "query": "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,\n                    hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,\n                    resize_images, resized_cache_mib, image_store_plugin\n             FROM server_settings",
   "describe": {
     "columns": [
       {
@@ -112,6 +112,17 @@
             "name": "resized_cache_mib"
           }
         }
+      },
+      {
+        "name": "image_store_plugin",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "image_store_plugin"
+          }
+        }
       }
     ],
     "parameters": {
@@ -127,8 +138,9 @@
       false,
       false,
       false,
-      true
+      true,
+      false
     ]
   },
-  "hash": "55acef5235ea9b9e3e1221e557a31d1aa2aa1b6cb92b015ab1c30b8ccdf8e19e"
+  "hash": "133f5cdd3f19559fa31c434a474bd7a5eaebb216a479c25800901a012995148a"
 }

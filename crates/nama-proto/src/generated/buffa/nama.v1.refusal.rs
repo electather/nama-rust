@@ -212,6 +212,18 @@ pub enum RefusalReason {
     /// `invalid_argument`: a Plugin Permission the Admin grants is one the Plugin's Manifest doesn't
     /// request. `field` is `granted_permissions`. Params: `pluginId`, `permission`.
     REFUSAL_REASON_PERMISSION_NOT_REQUESTED = 75i32,
+    /// `failed_precondition`: no enabled Plugin with the id serves `EXTENSION_POINT_BLOB_STORE`, so
+    /// it can't keep the stored images. `field` is `plugin_id`. Params: `pluginId`.
+    REFUSAL_REASON_NOT_A_BLOB_STORE = 76i32,
+    /// `failed_precondition`: the store named already keeps the stored images, so there is nothing
+    /// to switch. `field` is `plugin_id`. Params: `pluginId`, empty for local disk.
+    REFUSAL_REASON_IMAGE_STORE_IN_USE = 77i32,
+    /// `failed_precondition`: another switch to an image store hasn't finished.
+    REFUSAL_REASON_IMAGE_STORE_SWITCHING = 78i32,
+    /// `failed_precondition`: the store failed its check, writing an object, reading it back and
+    /// deleting it, so the images stay where they are. The message says what failed. `field` is
+    /// `plugin_id`. Params: `pluginId`, empty for local disk, and `reason`, in plain words.
+    REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK = 79i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -433,6 +445,18 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const PermissionNotRequested: Self = Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NOT_A_BLOB_STORE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NotABlobStore: Self = Self::REFUSAL_REASON_NOT_A_BLOB_STORE;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_IMAGE_STORE_IN_USE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ImageStoreInUse: Self = Self::REFUSAL_REASON_IMAGE_STORE_IN_USE;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ImageStoreSwitching: Self = Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ImageStoreFailedCheck: Self = Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -687,6 +711,18 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
                 )
             }
+            76i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_BLOB_STORE),
+            77i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_IMAGE_STORE_IN_USE)
+            }
+            78i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING)
+            }
+            79i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -833,6 +869,16 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED => {
                 "REFUSAL_REASON_PERMISSION_NOT_REQUESTED"
+            }
+            Self::REFUSAL_REASON_NOT_A_BLOB_STORE => "REFUSAL_REASON_NOT_A_BLOB_STORE",
+            Self::REFUSAL_REASON_IMAGE_STORE_IN_USE => {
+                "REFUSAL_REASON_IMAGE_STORE_IN_USE"
+            }
+            Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING => {
+                "REFUSAL_REASON_IMAGE_STORE_SWITCHING"
+            }
+            Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK => {
+                "REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK"
             }
         }
     }
@@ -1077,6 +1123,20 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
                 )
             }
+            "REFUSAL_REASON_NOT_A_BLOB_STORE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_BLOB_STORE)
+            }
+            "REFUSAL_REASON_IMAGE_STORE_IN_USE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_IMAGE_STORE_IN_USE)
+            }
+            "REFUSAL_REASON_IMAGE_STORE_SWITCHING" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING)
+            }
+            "REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1155,6 +1215,10 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_TITLE_SOURCES_INVALID,
             Self::REFUSAL_REASON_RECOGNISERS_INVALID,
             Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
+            Self::REFUSAL_REASON_NOT_A_BLOB_STORE,
+            Self::REFUSAL_REASON_IMAGE_STORE_IN_USE,
+            Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING,
+            Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
         ]
     }
 }

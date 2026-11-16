@@ -38,6 +38,7 @@ use crate::{
     playback::Probing,
     playback::{RunningPlans, SubtitleCache},
     plugin_settings::PluginSettings,
+    plugins::{ExtensionPoints, PluginBlobs},
     requests::Requests,
     scanner::Scanner,
     server_settings::Settings,
@@ -104,7 +105,7 @@ pub fn serve(
     let images = ImageStore::new(&config.data_dir, Arc::clone(&db));
     let artwork = Artwork::new(images.clone(), points.clone());
     let plugin_logos = PluginLogos::new(images.clone());
-    let custom_images = CustomImages::new(Arc::clone(&db), images);
+    let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
     let automation_points = points.clone();
     let scanner = Scanner::new(
         Arc::clone(&db),
@@ -118,7 +119,7 @@ pub fn serve(
     );
     let automation = Automation::serve(Arc::clone(&db), scanner.clone(), automation_points);
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
-    let load_settings = load_settings(settings.clone());
+    let load_settings = load_settings(settings.clone(), images.clone(), plugins.extension_points());
     let app = api::router(
         config,
         db,
@@ -126,6 +127,7 @@ pub fn serve(
         scanner.clone(),
         custom_images,
         plugin_logos,
+        images,
         artwork,
         probing.clone(),
         events.clone(),
@@ -176,14 +178,17 @@ pub fn serve(
     }
 }
 
-/// Reads the Server settings, logging a failure and going on with the defaults, then sweeps the
-/// segment files an earlier run left.
-async fn load_settings(settings: Settings) {
+/// Reads the Server settings, logging a failure and going on with the defaults, has `images`
+/// keep its originals in the store they name, then sweeps the segment files an earlier run left.
+async fn load_settings(settings: Settings, images: ImageStore, points: ExtensionPoints) {
     if let Err(err) = settings.load().await {
         tracing::error!(
             "reading the Server settings failed, so each is its default and notifications have \
              no links: {err}"
         );
+    }
+    if let Some(plugin) = settings.now().image_store {
+        images.keep_in(Arc::new(PluginBlobs::new(points, plugin)));
     }
     playback::sweep_leftovers(&settings.playback()).await;
 }

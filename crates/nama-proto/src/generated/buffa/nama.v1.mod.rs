@@ -298,6 +298,9 @@ pub mod __buffa {
         reg.register_json_any(super::__UPDATE_IMAGE_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UPDATE_IMAGE_SETTINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__IMAGE_SETTINGS_JSON_ANY);
+        reg.register_json_any(super::__SWITCH_IMAGE_STORE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SWITCH_IMAGE_STORE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__IMAGE_STORE_SWITCH_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
         reg.register_json_any(super::__DEVICE_JSON_ANY);
         reg.register_json_any(super::__SETUP_REQUEST_JSON_ANY);
@@ -1282,6 +1285,18 @@ pub use self::__buffa::view::UpdateImageSettingsResponseOwnedView;
 pub use self::__buffa::view::ImageSettingsView;
 #[doc(inline)]
 pub use self::__buffa::view::ImageSettingsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SwitchImageStoreRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SwitchImageStoreRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SwitchImageStoreResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SwitchImageStoreResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageStoreSwitchView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageStoreSwitchOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserView;
 #[doc(inline)]

@@ -4,6 +4,8 @@ use std::{
     sync::Arc,
 };
 
+use nama_plugin_api::PluginId;
+
 use super::{
     ChangeError, HardwareChoice, Invalid, PickedGpu, PlaybackChange, PlaybackLimit, PlaybackValues,
     Settings, Values,
@@ -395,4 +397,20 @@ async fn changing_the_playback_settings_first_stores_no_url() {
     settings.change_playback(change(FOLDER), &[]).await.unwrap();
 
     assert_eq!(restarted(&settings).await.now().url, "");
+}
+
+#[tokio::test]
+async fn a_stored_image_store_is_in_use_kept_by_other_changes_and_read_after_a_restart() {
+    let (_data_dir, settings) = fresh().await;
+    let s3 = PluginId::from_static("s3");
+
+    settings.set_image_store(Some(s3.clone())).await.unwrap();
+    let in_use = settings.now().image_store;
+    settings.change_images(false, None).await.unwrap();
+    let after_images = restarted(&settings).await.now().image_store;
+    settings.set_image_store(None).await.unwrap();
+
+    assert_eq!(in_use, Some(s3.clone()));
+    assert_eq!(after_images, Some(s3));
+    assert_eq!(restarted(&settings).await.now().image_store, None);
 }

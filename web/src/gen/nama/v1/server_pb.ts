@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/server.proto.
  */
 export const file_nama_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJkChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIEhQKDGltYWdlX3dpZHRocxgEIAMoDSIaChhHZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QiRgoZR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZRIpCghzZXR0aW5ncxgBIAEoCzIXLm5hbWEudjEuU2VydmVyU2V0dGluZ3MiSAobVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0EikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJJChxVcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyIdCg5TZXJ2ZXJTZXR0aW5ncxILCgN1cmwYASABKAkiGgoYR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0IoUCChlHZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlEiUKBmZmbXBlZxgBIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEiYKB2ZmcHJvYmUYAiABKAsyFS5uYW1hLnYxLkZvdW5kUHJvZ3JhbRIWCg5mZm1wZWdfcHJvYmxlbRgDIAEoCRIXCg9mZnByb2JlX3Byb2JsZW0YBCABKAkSKAoIaGFyZHdhcmUYBSADKAsyFi5uYW1hLnYxLkZvdW5kSGFyZHdhcmUSEwoLaGFzX2xpYngyNjQYBiABKAgSEgoKaGFzX3pzY2FsZRgHIAEoCBIVCg1jYW5fdHJhbnNjb2RlGAggASgIIqgBCg1Gb3VuZEhhcmR3YXJlEioKA2FwaRgBIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb24SGQoDZ3B1GAUgASgLMgwubmFtYS52MS5HcHUSEQoJdG9uZV9tYXBzGAIgASgIEioKDHRvbmVfbWFwcGluZxgDIAEoDjIULm5hbWEudjEuVG9uZU1hcHBpbmcSEQoJYXV0b21hdGljGAQgASgIIh8KA0dwdRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIi0KDEZvdW5kUHJvZ3JhbRIMCgRwYXRoGAEgASgJEg8KB3ZlcnNpb24YAiABKAkiHAoaR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QiSgobR2V0UGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIkwKHVVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0EisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIk0KHlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyKkAgoQUGxheWJhY2tTZXR0aW5ncxIWCg5zZWdtZW50X2ZvbGRlchgBIAEoCRIbCg5tYXhfdHJhbnNjb2RlcxgCIAEoDUgAiAEBEjUKFXJlbW90ZV9wbGF5YmFja19saW1pdBgDIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBI8ChVoYXJkd2FyZV9hY2NlbGVyYXRpb24YBCABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgFIAEoCzIMLm5hbWEudjEuR3B1EiAKE2tlZXBfYmVoaW5kX21pbnV0ZXMYBiABKA1IAYgBAUIRCg9fbWF4X3RyYW5zY29kZXNCFgoUX2tlZXBfYmVoaW5kX21pbnV0ZXMiGQoXR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QiRAoYR2V0SW1hZ2VTZXR0aW5nc1Jlc3BvbnNlEigKCHNldHRpbmdzGAEgASgLMhYubmFtYS52MS5JbWFnZVNldHRpbmdzIkYKGlVwZGF0ZUltYWdlU2V0dGluZ3NSZXF1ZXN0EigKCHNldHRpbmdzGAEgASgLMhYubmFtYS52MS5JbWFnZVNldHRpbmdzIkcKG1VwZGF0ZUltYWdlU2V0dGluZ3NSZXNwb25zZRIoCghzZXR0aW5ncxgBIAEoCzIWLm5hbWEudjEuSW1hZ2VTZXR0aW5ncyJcCg1JbWFnZVNldHRpbmdzEhUKDXJlc2l6ZV9pbWFnZXMYASABKAgSHgoRcmVzaXplZF9jYWNoZV9taWIYAiABKA1IAIgBAUIUChJfcmVzaXplZF9jYWNoZV9taWIqcwoLVG9uZU1hcHBpbmcSHAoYVE9ORV9NQVBQSU5HX1VOU1BFQ0lGSUVEEAASFQoRVE9ORV9NQVBQSU5HX05PTkUQARIUChBUT05FX01BUFBJTkdfR1BVEAISGQoVVE9ORV9NQVBQSU5HX1NPRlRXQVJFEAMq5QEKFEhhcmR3YXJlQWNjZWxlcmF0aW9uEiUKIUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9VTlNQRUNJRklFRBAAEh0KGUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9PRkYQARIfChtIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVkFBUEkQAhIdChlIQVJEV0FSRV9BQ0NFTEVSQVRJT05fUVNWEAMSHwobSEFSRFdBUkVfQUNDRUxFUkFUSU9OX05WRU5DEAQSJgoiSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1ZJREVPVE9PTEJPWBAFMqwGCg1TZXJ2ZXJTZXJ2aWNlElMKDUdldFNlcnZlckluZm8SHS5uYW1hLnYxLkdldFNlcnZlckluZm9SZXF1ZXN0Gh4ubmFtYS52MS5HZXRTZXJ2ZXJJbmZvUmVzcG9uc2UiA5ACARJfChFHZXRTZXJ2ZXJTZXR0aW5ncxIhLm5hbWEudjEuR2V0U2VydmVyU2V0dGluZ3NSZXF1ZXN0GiIubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgESaAoUVXBkYXRlU2VydmVyU2V0dGluZ3MSJC5uYW1hLnYxLlVwZGF0ZVNlcnZlclNldHRpbmdzUmVxdWVzdBolLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXNwb25zZSIDkAICEl8KEUdldFBsYXliYWNrU3RhdHVzEiEubmFtYS52MS5HZXRQbGF5YmFja1N0YXR1c1JlcXVlc3QaIi5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVzcG9uc2UiA5ACARJlChNHZXRQbGF5YmFja1NldHRpbmdzEiMubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVxdWVzdBokLm5hbWEudjEuR2V0UGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgESbgoWVXBkYXRlUGxheWJhY2tTZXR0aW5ncxImLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1JlcXVlc3QaJy5uYW1hLnYxLlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXNwb25zZSIDkAICElwKEEdldEltYWdlU2V0dGluZ3MSIC5uYW1hLnYxLkdldEltYWdlU2V0dGluZ3NSZXF1ZXN0GiEubmFtYS52MS5HZXRJbWFnZVNldHRpbmdzUmVzcG9uc2UiA5ACARJlChNVcGRhdGVJbWFnZVNldHRpbmdzEiMubmFtYS52MS5VcGRhdGVJbWFnZVNldHRpbmdzUmVxdWVzdBokLm5hbWEudjEuVXBkYXRlSW1hZ2VTZXR0aW5nc1Jlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_playback]);
+  fileDesc("ChRuYW1hL3YxL3NlcnZlci5wcm90bxIHbmFtYS52MSIWChRHZXRTZXJ2ZXJJbmZvUmVxdWVzdCJkChVHZXRTZXJ2ZXJJbmZvUmVzcG9uc2USDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEhYKDnNldHVwX3JlcXVpcmVkGAMgASgIEhQKDGltYWdlX3dpZHRocxgEIAMoDSIaChhHZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QiRgoZR2V0U2VydmVyU2V0dGluZ3NSZXNwb25zZRIpCghzZXR0aW5ncxgBIAEoCzIXLm5hbWEudjEuU2VydmVyU2V0dGluZ3MiSAobVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0EikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyJJChxVcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlEikKCHNldHRpbmdzGAEgASgLMhcubmFtYS52MS5TZXJ2ZXJTZXR0aW5ncyIdCg5TZXJ2ZXJTZXR0aW5ncxILCgN1cmwYASABKAkiGgoYR2V0UGxheWJhY2tTdGF0dXNSZXF1ZXN0IoUCChlHZXRQbGF5YmFja1N0YXR1c1Jlc3BvbnNlEiUKBmZmbXBlZxgBIAEoCzIVLm5hbWEudjEuRm91bmRQcm9ncmFtEiYKB2ZmcHJvYmUYAiABKAsyFS5uYW1hLnYxLkZvdW5kUHJvZ3JhbRIWCg5mZm1wZWdfcHJvYmxlbRgDIAEoCRIXCg9mZnByb2JlX3Byb2JsZW0YBCABKAkSKAoIaGFyZHdhcmUYBSADKAsyFi5uYW1hLnYxLkZvdW5kSGFyZHdhcmUSEwoLaGFzX2xpYngyNjQYBiABKAgSEgoKaGFzX3pzY2FsZRgHIAEoCBIVCg1jYW5fdHJhbnNjb2RlGAggASgIIqgBCg1Gb3VuZEhhcmR3YXJlEioKA2FwaRgBIAEoDjIdLm5hbWEudjEuSGFyZHdhcmVBY2NlbGVyYXRpb24SGQoDZ3B1GAUgASgLMgwubmFtYS52MS5HcHUSEQoJdG9uZV9tYXBzGAIgASgIEioKDHRvbmVfbWFwcGluZxgDIAEoDjIULm5hbWEudjEuVG9uZU1hcHBpbmcSEQoJYXV0b21hdGljGAQgASgIIh8KA0dwdRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIi0KDEZvdW5kUHJvZ3JhbRIMCgRwYXRoGAEgASgJEg8KB3ZlcnNpb24YAiABKAkiHAoaR2V0UGxheWJhY2tTZXR0aW5nc1JlcXVlc3QiSgobR2V0UGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlEisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIkwKHVVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0EisKCHNldHRpbmdzGAEgASgLMhkubmFtYS52MS5QbGF5YmFja1NldHRpbmdzIk0KHlVwZGF0ZVBsYXliYWNrU2V0dGluZ3NSZXNwb25zZRIrCghzZXR0aW5ncxgBIAEoCzIZLm5hbWEudjEuUGxheWJhY2tTZXR0aW5ncyKkAgoQUGxheWJhY2tTZXR0aW5ncxIWCg5zZWdtZW50X2ZvbGRlchgBIAEoCRIbCg5tYXhfdHJhbnNjb2RlcxgCIAEoDUgAiAEBEjUKFXJlbW90ZV9wbGF5YmFja19saW1pdBgDIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBI8ChVoYXJkd2FyZV9hY2NlbGVyYXRpb24YBCABKA4yHS5uYW1hLnYxLkhhcmR3YXJlQWNjZWxlcmF0aW9uEhkKA2dwdRgFIAEoCzIMLm5hbWEudjEuR3B1EiAKE2tlZXBfYmVoaW5kX21pbnV0ZXMYBiABKA1IAYgBAUIRCg9fbWF4X3RyYW5zY29kZXNCFgoUX2tlZXBfYmVoaW5kX21pbnV0ZXMiGQoXR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QicgoYR2V0SW1hZ2VTZXR0aW5nc1Jlc3BvbnNlEigKCHNldHRpbmdzGAEgASgLMhYubmFtYS52MS5JbWFnZVNldHRpbmdzEiwKCXN3aXRjaGluZxgCIAEoCzIZLm5hbWEudjEuSW1hZ2VTdG9yZVN3aXRjaCJGChpVcGRhdGVJbWFnZVNldHRpbmdzUmVxdWVzdBIoCghzZXR0aW5ncxgBIAEoCzIWLm5hbWEudjEuSW1hZ2VTZXR0aW5ncyJHChtVcGRhdGVJbWFnZVNldHRpbmdzUmVzcG9uc2USKAoIc2V0dGluZ3MYASABKAsyFi5uYW1hLnYxLkltYWdlU2V0dGluZ3MidQoNSW1hZ2VTZXR0aW5ncxIVCg1yZXNpemVfaW1hZ2VzGAEgASgIEh4KEXJlc2l6ZWRfY2FjaGVfbWliGAIgASgNSACIAQESFwoPc3RvcmVfcGx1Z2luX2lkGAMgASgJQhQKEl9yZXNpemVkX2NhY2hlX21pYiIsChdTd2l0Y2hJbWFnZVN0b3JlUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkiSAoYU3dpdGNoSW1hZ2VTdG9yZVJlc3BvbnNlEiwKCXN3aXRjaGluZxgBIAEoCzIZLm5hbWEudjEuSW1hZ2VTdG9yZVN3aXRjaCJYChBJbWFnZVN0b3JlU3dpdGNoEhQKDHRvX3BsdWdpbl9pZBgBIAEoCRIOCgZjb3BpZWQYAiABKA0SDQoFdG90YWwYAyABKA0SDwoHZmFpbHVyZRgEIAEoCSpzCgtUb25lTWFwcGluZxIcChhUT05FX01BUFBJTkdfVU5TUEVDSUZJRUQQABIVChFUT05FX01BUFBJTkdfTk9ORRABEhQKEFRPTkVfTUFQUElOR19HUFUQAhIZChVUT05FX01BUFBJTkdfU09GVFdBUkUQAyrlAQoUSGFyZHdhcmVBY2NlbGVyYXRpb24SJQohSEFSRFdBUkVfQUNDRUxFUkFUSU9OX1VOU1BFQ0lGSUVEEAASHQoZSEFSRFdBUkVfQUNDRUxFUkFUSU9OX09GRhABEh8KG0hBUkRXQVJFX0FDQ0VMRVJBVElPTl9WQUFQSRACEh0KGUhBUkRXQVJFX0FDQ0VMRVJBVElPTl9RU1YQAxIfChtIQVJEV0FSRV9BQ0NFTEVSQVRJT05fTlZFTkMQBBImCiJIQVJEV0FSRV9BQ0NFTEVSQVRJT05fVklERU9UT09MQk9YEAUyhQcKDVNlcnZlclNlcnZpY2USUwoNR2V0U2VydmVySW5mbxIdLm5hbWEudjEuR2V0U2VydmVySW5mb1JlcXVlc3QaHi5uYW1hLnYxLkdldFNlcnZlckluZm9SZXNwb25zZSIDkAIBEl8KEUdldFNlcnZlclNldHRpbmdzEiEubmFtYS52MS5HZXRTZXJ2ZXJTZXR0aW5nc1JlcXVlc3QaIi5uYW1hLnYxLkdldFNlcnZlclNldHRpbmdzUmVzcG9uc2UiA5ACARJoChRVcGRhdGVTZXJ2ZXJTZXR0aW5ncxIkLm5hbWEudjEuVXBkYXRlU2VydmVyU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5VcGRhdGVTZXJ2ZXJTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXwoRR2V0UGxheWJhY2tTdGF0dXMSIS5uYW1hLnYxLkdldFBsYXliYWNrU3RhdHVzUmVxdWVzdBoiLm5hbWEudjEuR2V0UGxheWJhY2tTdGF0dXNSZXNwb25zZSIDkAIBEmUKE0dldFBsYXliYWNrU2V0dGluZ3MSIy5uYW1hLnYxLkdldFBsYXliYWNrU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5HZXRQbGF5YmFja1NldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQbGF5YmFja1NldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQbGF5YmFja1NldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGxheWJhY2tTZXR0aW5nc1Jlc3BvbnNlIgOQAgISXAoQR2V0SW1hZ2VTZXR0aW5ncxIgLm5hbWEudjEuR2V0SW1hZ2VTZXR0aW5nc1JlcXVlc3QaIS5uYW1hLnYxLkdldEltYWdlU2V0dGluZ3NSZXNwb25zZSIDkAIBEmUKE1VwZGF0ZUltYWdlU2V0dGluZ3MSIy5uYW1hLnYxLlVwZGF0ZUltYWdlU2V0dGluZ3NSZXF1ZXN0GiQubmFtYS52MS5VcGRhdGVJbWFnZVNldHRpbmdzUmVzcG9uc2UiA5ACAhJXChBTd2l0Y2hJbWFnZVN0b3JlEiAubmFtYS52MS5Td2l0Y2hJbWFnZVN0b3JlUmVxdWVzdBohLm5hbWEudjEuU3dpdGNoSW1hZ2VTdG9yZVJlc3BvbnNlYgZwcm90bzM", [file_nama_v1_playback]);
 
 /**
  * @generated from message nama.v1.GetServerInfoRequest
@@ -511,6 +511,14 @@ export type GetImageSettingsResponse = Message<"nama.v1.GetImageSettingsResponse
    * @generated from field: nama.v1.ImageSettings settings = 1;
    */
   settings?: ImageSettings | undefined;
+
+  /**
+   * The running switch to another image store (`SwitchImageStore`), or the last one if it
+   * failed. Unset when none has run since the Server started, or the last one succeeded.
+   *
+   * @generated from field: nama.v1.ImageStoreSwitch switching = 2;
+   */
+  switching?: ImageStoreSwitch | undefined;
 };
 
 /**
@@ -578,6 +586,14 @@ export type ImageSettings = Message<"nama.v1.ImageSettings"> & {
    * @generated from field: optional uint32 resized_cache_mib = 2;
    */
   resizedCacheMib?: number | undefined;
+
+  /**
+   * The id of the Plugin keeping the stored images, or empty for local disk in the data
+   * directory, the default. `UpdateImageSettings` ignores it; `SwitchImageStore` changes it.
+   *
+   * @generated from field: string store_plugin_id = 3;
+   */
+  storePluginId: string;
 };
 
 /**
@@ -586,6 +602,87 @@ export type ImageSettings = Message<"nama.v1.ImageSettings"> & {
  */
 export const ImageSettingsSchema: GenMessage<ImageSettings> = /*@__PURE__*/
   messageDesc(file_nama_v1_server, 21);
+
+/**
+ * @generated from message nama.v1.SwitchImageStoreRequest
+ */
+export type SwitchImageStoreRequest = Message<"nama.v1.SwitchImageStoreRequest"> & {
+  /**
+   * The id of the Plugin to keep the stored images, or empty for local disk.
+   *
+   * @generated from field: string plugin_id = 1;
+   */
+  pluginId: string;
+};
+
+/**
+ * Describes the message nama.v1.SwitchImageStoreRequest.
+ * Use `create(SwitchImageStoreRequestSchema)` to create a new message.
+ */
+export const SwitchImageStoreRequestSchema: GenMessage<SwitchImageStoreRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 22);
+
+/**
+ * @generated from message nama.v1.SwitchImageStoreResponse
+ */
+export type SwitchImageStoreResponse = Message<"nama.v1.SwitchImageStoreResponse"> & {
+  /**
+   * The switch just started, as `GetImageSettingsResponse.switching` follows it, or unset if it
+   * already finished.
+   *
+   * @generated from field: nama.v1.ImageStoreSwitch switching = 1;
+   */
+  switching?: ImageStoreSwitch | undefined;
+};
+
+/**
+ * Describes the message nama.v1.SwitchImageStoreResponse.
+ * Use `create(SwitchImageStoreResponseSchema)` to create a new message.
+ */
+export const SwitchImageStoreResponseSchema: GenMessage<SwitchImageStoreResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 23);
+
+/**
+ * How far a switch to another image store has got.
+ *
+ * @generated from message nama.v1.ImageStoreSwitch
+ */
+export type ImageStoreSwitch = Message<"nama.v1.ImageStoreSwitch"> & {
+  /**
+   * The id of the Plugin the images are moving to, or empty for local disk.
+   *
+   * @generated from field: string to_plugin_id = 1;
+   */
+  toPluginId: string;
+
+  /**
+   * The images handled so far, those the new store already held included.
+   *
+   * @generated from field: uint32 copied = 2;
+   */
+  copied: number;
+
+  /**
+   * The images to handle, 0 until they are listed.
+   *
+   * @generated from field: uint32 total = 3;
+   */
+  total: number;
+
+  /**
+   * Why the switch stopped, the old store still in use, or empty while it runs.
+   *
+   * @generated from field: string failure = 4;
+   */
+  failure: string;
+};
+
+/**
+ * Describes the message nama.v1.ImageStoreSwitch.
+ * Use `create(ImageStoreSwitchSchema)` to create a new message.
+ */
+export const ImageStoreSwitchSchema: GenMessage<ImageStoreSwitch> = /*@__PURE__*/
+  messageDesc(file_nama_v1_server, 24);
 
 /**
  * What tone-maps HDR to SDR in a Transcode.
@@ -792,6 +889,26 @@ export const ServerService: GenService<{
     methodKind: "unary";
     input: typeof UpdateImageSettingsRequestSchema;
     output: typeof UpdateImageSettingsResponseSchema;
+  },
+  /**
+   * Moves the stored images (fetched artwork, Custom Images and Plugin logos) to another store
+   * and makes it the one in use: local disk in the data directory for an empty `plugin_id`, or
+   * the enabled Plugin with that id serving `EXTENSION_POINT_BLOB_STORE`. Needs
+   * `PERMISSION_MANAGE_SETTINGS`. The new store is first checked by writing an object, reading it
+   * back and deleting it. The images are then copied across in the background, one at a time,
+   * which `GetImageSettingsResponse.switching` follows; until every one is copied, and if the
+   * copy fails, the old store stays in use. The old store keeps its copies. Refused with
+   * `REFUSAL_REASON_NOT_A_BLOB_STORE` for an id of no enabled Plugin serving the point,
+   * `REFUSAL_REASON_IMAGE_STORE_IN_USE` for the store already in use, as a no-op that changes
+   * nothing, `REFUSAL_REASON_IMAGE_STORE_SWITCHING` while another switch runs, and
+   * `REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK` for a store that fails its check.
+   *
+   * @generated from rpc nama.v1.ServerService.SwitchImageStore
+   */
+  switchImageStore: {
+    methodKind: "unary";
+    input: typeof SwitchImageStoreRequestSchema;
+    output: typeof SwitchImageStoreResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_server, 0);

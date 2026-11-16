@@ -22,13 +22,11 @@ use crate::{
 /// The objects the Plugin `plugin`'s [`BlobStore`] keeps, asked through `points` at each call, so
 /// a call after the Plugin is disabled fails rather than reaching it.
 #[derive(Debug, Clone)]
-#[cfg_attr(not(test), expect(dead_code, reason = "wired in by bs-switch-api"))]
 pub(crate) struct PluginBlobs {
     points: ExtensionPoints,
     plugin: PluginId,
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "wired in by bs-switch-api"))]
 impl PluginBlobs {
     /// The objects `plugin` keeps.
     pub(crate) fn new(points: ExtensionPoints, plugin: PluginId) -> Self {
@@ -163,7 +161,6 @@ impl Blobs for PluginBlobs {
     }
 }
 
-#[cfg_attr(not(test), expect(dead_code, reason = "wired in by bs-switch-api"))]
 fn blob_key(key: &str) -> BlobKey {
     BlobKey {
         key: key.to_owned(),
@@ -173,7 +170,6 @@ fn blob_key(key: &str) -> BlobKey {
 
 /// `file`'s bytes, reading no more than one past [`MAX_BYTES`] to refuse a larger one. Blocks, so
 /// call it from `spawn_blocking`.
-#[cfg_attr(not(test), expect(dead_code, reason = "wired in by bs-switch-api"))]
 fn read_bounded(file: &NamedTempFile) -> io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
     // `reopen` reads from the start, wherever the writer left the file's offset.

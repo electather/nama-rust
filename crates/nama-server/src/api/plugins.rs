@@ -8,6 +8,7 @@ use nama_plugin_api::{
     Manifest, PluginId, PointKey,
     auth::Authenticator,
     automation::Permission,
+    blob_store::BlobStore,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
     metadata::TitleSource,
@@ -563,6 +564,10 @@ fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::Extens
         (
             PointKey::provide::<dyn Recogniser>(),
             Public::EXTENSION_POINT_RECOGNISER,
+        ),
+        (
+            PointKey::provide::<dyn BlobStore>(),
+            Public::EXTENSION_POINT_BLOB_STORE,
         ),
     ];
     points

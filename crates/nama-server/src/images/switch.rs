@@ -24,6 +24,8 @@ pub(crate) type Persist = Box<dyn FnOnce() -> BoxFuture<'static, io::Result<()>>
 /// How far a switch to another store has got.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Switching {
+    /// The new store, as the caller named it.
+    pub(crate) to: String,
     /// The originals handled so far, those the new store already held included.
     pub(crate) copied: usize,
     /// The originals to handle, once listed.
@@ -44,21 +46,18 @@ pub(crate) enum SwitchRefused {
 }
 
 impl ImageStore {
-    /// Starts moving the originals to `target`, refusing if a switch is running or `target`
-    /// fails a probe. The copy runs in the background, watched through [`Self::switching`];
-    /// `persist` is called once it is done, and `target` is made the store in use only if that
-    /// succeeds. A failure keeps the old store in use.
+    /// Starts moving the originals to `target`, which [`Switching`] names `to`, refusing if a
+    /// switch is running or `target` fails a probe. The copy runs in the background, watched
+    /// through [`Self::switching`]; `persist` is called once it is done, and `target` is made the
+    /// store in use only if that succeeds. A failure keeps the old store in use.
     ///
     /// # Errors
     ///
     /// [`SwitchRefused`] says why the switch didn't start.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the API wires it in: bs-switch-api")
-    )]
     pub(crate) async fn switch_to(
         &self,
         target: Arc<dyn Blobs>,
+        to: &str,
         persist: Persist,
     ) -> Result<(), SwitchRefused> {
         {
@@ -69,7 +68,10 @@ impl ImageStore {
             {
                 return Err(SwitchRefused::Running);
             }
-            *switching = Some(Switching::default());
+            *switching = Some(Switching {
+                to: to.to_owned(),
+                ..Switching::default()
+            });
         }
         let mut started = Unmark(Some(self));
         probe(target.as_ref())
@@ -97,10 +99,6 @@ impl ImageStore {
     }
 
     /// The running switch, or the last one if it failed; `None` once one succeeds.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the API wires it in: bs-switch-api")
-    )]
     pub(crate) fn switching(&self) -> Option<Switching> {
         self.progress().clone()
     }
@@ -109,6 +107,13 @@ impl ImageStore {
         self.switching
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Keeps the originals in `store` from now on, copying none: for startup, once the Server
+    /// settings are read, to use the store they name before anything reads an image. While the
+    /// Server runs, [`Self::switch_to`] moves them instead.
+    pub(crate) fn keep_in(&self, store: Arc<dyn Blobs>) {
+        self.make_current(store);
     }
 
     fn make_current(&self, store: Arc<dyn Blobs>) {

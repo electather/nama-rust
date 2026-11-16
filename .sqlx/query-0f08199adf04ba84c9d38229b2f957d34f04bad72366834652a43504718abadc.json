@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO server_settings (id, url, image_store_plugin)\n                         VALUES (1, '', ?)\n                         ON CONFLICT (id) DO UPDATE SET\n                             image_store_plugin = excluded.image_store_plugin",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "0f08199adf04ba84c9d38229b2f957d34f04bad72366834652a43504718abadc"
+}

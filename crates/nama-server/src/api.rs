@@ -22,7 +22,7 @@ use crate::{
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
-    images::{PluginLogos, plugin_logos_router},
+    images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
         Artwork, Contents, CustomImageUrls, CustomImages, Libraries, TitleKind, TitleSources,
         artwork_router, custom_images_router,
@@ -80,6 +80,7 @@ pub(crate) fn router(
     scanner: Scanner,
     custom_images: CustomImages,
     plugin_logos: PluginLogos,
+    image_store: ImageStore,
     artwork: Artwork,
     probing: Probing,
     events: EventBus,
@@ -119,6 +120,9 @@ pub(crate) fn router(
             settings,
             abilities: abilities.clone(),
             ffmpeg,
+            images: image_store,
+            points: plugins.clone(),
+            data_dir: config.data_dir.clone(),
         }))
         .add_service(Arc::new(SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
@@ -234,6 +238,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_UPDATE_PLAYBACK_SETTINGS_SPEC.procedure, ADMIN),
     (proto::SERVER_SERVICE_GET_IMAGE_SETTINGS_SPEC.procedure,     MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_UPDATE_IMAGE_SETTINGS_SPEC.procedure,  MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC.procedure,     MANAGE_SETTINGS),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
@@ -537,6 +542,10 @@ fn refuse(reason: RefusalReason, message: impl Into<String>) -> Refused {
 }
 
 /// The Connect code `reason` always comes with: API contract, as the reasons are (ADR 0019).
+#[expect(
+    clippy::too_many_lines,
+    reason = "one flat table of every reason's code; split, it would be read in pieces"
+)]
 const fn refusal_code(reason: RefusalReason) -> ErrorCode {
     use RefusalReason as R;
     match reason {
@@ -596,7 +605,11 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_PLUGIN_REFUSED
         | R::REFUSAL_REASON_PLUGIN_REFUSED_TO_START
         | R::REFUSAL_REASON_FOLDER_READ_ONLY
-        | R::REFUSAL_REASON_TITLE_ID_MISSING => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_TITLE_ID_MISSING
+        | R::REFUSAL_REASON_NOT_A_BLOB_STORE
+        | R::REFUSAL_REASON_IMAGE_STORE_IN_USE
+        | R::REFUSAL_REASON_IMAGE_STORE_SWITCHING
+        | R::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND

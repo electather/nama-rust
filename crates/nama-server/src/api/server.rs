@@ -1,26 +1,28 @@
 //! Facts about this Server, its settings, and the ffmpeg it found: `nama.v1.ServerService`.
 
-use std::{future, num::NonZeroU32, sync::Arc};
+use std::{future, io, num::NonZeroU32, path::PathBuf, sync::Arc};
 
 use buffa::EnumValue;
 use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult,
 };
+use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
     self as proto, FoundHardware, FoundProgram, GetImageSettingsRequest, GetImageSettingsResponse,
     GetPlaybackSettingsRequest, GetPlaybackSettingsResponse, GetPlaybackStatusRequest,
     GetPlaybackStatusResponse, GetServerInfoRequest, GetServerInfoResponse,
     GetServerSettingsRequest, GetServerSettingsResponse,
-    HardwareAcceleration as HardwareAccelerationProto, RefusalReason, ServerService,
-    ServerSettings, ToneMapping, UpdateImageSettingsRequest, UpdateImageSettingsResponse,
-    UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest,
-    UpdateServerSettingsResponse,
+    HardwareAcceleration as HardwareAccelerationProto, ImageStoreSwitch, RefusalReason,
+    ServerService, ServerSettings, SwitchImageStoreRequest, SwitchImageStoreResponse, ToneMapping,
+    UpdateImageSettingsRequest, UpdateImageSettingsResponse, UpdatePlaybackSettingsRequest,
+    UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest, UpdateServerSettingsResponse,
 };
 
 use crate::{
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
-    images,
+    images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
     playback::{accel_to_proto, limit_to_proto},
+    plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
         self, HardwareChoice, ImageValues, Invalid, PickedGpu, PlaybackChange, PlaybackValues,
     },
@@ -36,6 +38,10 @@ pub(super) struct ServerServiceHandler {
     pub(super) settings: server_settings::Settings,
     pub(super) abilities: Abilities,
     pub(super) ffmpeg: Arc<Ffmpeg>,
+    pub(super) images: ImageStore,
+    pub(super) points: ExtensionPoints,
+    /// Where local disk keeps the images.
+    pub(super) data_dir: PathBuf,
 }
 
 #[expect(
@@ -176,7 +182,10 @@ impl ServerService for ServerServiceHandler {
         Output = ServiceResult<impl Encodable<GetImageSettingsResponse> + Send + use<'a>>,
     > + Send {
         future::ready(Response::ok(GetImageSettingsResponse {
-            settings: image_settings_to_proto(self.settings.now().images).into(),
+            settings: self
+                .image_settings_to_proto(self.settings.now().images)
+                .into(),
+            switching: self.images.switching().map(switching_to_proto).into(),
             ..Default::default()
         }))
     }
@@ -192,10 +201,98 @@ impl ServerService for ServerServiceHandler {
             .await
             .map_err(settings_change_failed)?;
         Response::ok(UpdateImageSettingsResponse {
-            settings: image_settings_to_proto(stored).into(),
+            settings: self.image_settings_to_proto(stored).into(),
             ..Default::default()
         })
     }
+
+    async fn switch_image_store(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, SwitchImageStoreRequest>,
+    ) -> ServiceResult<SwitchImageStoreResponse> {
+        let named = request.plugin_id.to_owned();
+        let plugin = (!named.is_empty()).then(|| PluginId::from(named.clone()));
+        if plugin == self.settings.now().image_store {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_IMAGE_STORE_IN_USE,
+                "that store already keeps the images, so there is nothing to switch",
+            )
+            .field("plugin_id")
+            .param("pluginId", &named)
+            .into());
+        }
+        let target: Arc<dyn Blobs> = match plugin.clone() {
+            None => images::local_disk(&self.data_dir),
+            Some(id) if self.points.blob_stores().contains(&id) => {
+                Arc::new(PluginBlobs::new(self.points.clone(), id))
+            }
+            Some(_) => {
+                return Err(refuse(
+                    RefusalReason::REFUSAL_REASON_NOT_A_BLOB_STORE,
+                    format!("no enabled Plugin {named} keeps stored images"),
+                )
+                .field("plugin_id")
+                .param("pluginId", &named)
+                .into());
+            }
+        };
+        let settings = self.settings.clone();
+        let persist: Persist = Box::new(move || {
+            Box::pin(
+                async move { (settings.set_image_store(plugin).await).map_err(io::Error::other) },
+            )
+        });
+        (self.images.switch_to(target, &named, persist).await)
+            .map_err(|refused| switch_refused(&refused, &named))?;
+        Response::ok(SwitchImageStoreResponse {
+            switching: self.images.switching().map(switching_to_proto).into(),
+            ..Default::default()
+        })
+    }
+}
+
+impl ServerServiceHandler {
+    /// The image settings `values` as the API has them, with the store in use.
+    fn image_settings_to_proto(&self, values: ImageValues) -> proto::ImageSettings {
+        proto::ImageSettings {
+            resize_images: values.resize,
+            resized_cache_mib: values.resized_cache_mib.map(NonZeroU32::get),
+            store_plugin_id: (self.settings.now().image_store)
+                .map(|plugin| plugin.to_string())
+                .unwrap_or_default(),
+            ..Default::default()
+        }
+    }
+}
+
+/// A switch to another image store as the API has it.
+fn switching_to_proto(switching: Switching) -> ImageStoreSwitch {
+    ImageStoreSwitch {
+        to_plugin_id: switching.to,
+        copied: u32::try_from(switching.copied).unwrap_or(u32::MAX),
+        total: u32::try_from(switching.total).unwrap_or(u32::MAX),
+        failure: switching.failed.unwrap_or_default(),
+        ..Default::default()
+    }
+}
+
+/// The refusal saying why a switch to the store the client named `named` didn't start.
+fn switch_refused(refused: &SwitchRefused, named: &str) -> ConnectError {
+    match refused {
+        SwitchRefused::Running => refuse(
+            RefusalReason::REFUSAL_REASON_IMAGE_STORE_SWITCHING,
+            refused.to_string(),
+        ),
+        SwitchRefused::FailedProbe(reason) => refuse(
+            RefusalReason::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
+            refused.to_string(),
+        )
+        .field("plugin_id")
+        .param("pluginId", &named)
+        .param("reason", reason),
+    }
+    .into()
 }
 
 /// The Server settings as the API has them.
@@ -217,15 +314,6 @@ fn playback_settings_to_proto(settings: PlaybackValues) -> proto::PlaybackSettin
         gpu: (settings.hardware.gpu())
             .map(|gpu| gpu_to_proto(gpu.id.clone(), gpu.name.clone()))
             .into(),
-        ..Default::default()
-    }
-}
-
-/// The image settings as the API has them.
-fn image_settings_to_proto(settings: ImageValues) -> proto::ImageSettings {
-    proto::ImageSettings {
-        resize_images: settings.resize,
-        resized_cache_mib: settings.resized_cache_mib.map(NonZeroU32::get),
         ..Default::default()
     }
 }
