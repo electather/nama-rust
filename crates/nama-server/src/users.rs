@@ -5,23 +5,20 @@
 
 use std::{net::IpAddr, ops::RangeInclusive, sync::Arc};
 
-use buffa::Enumeration;
-use nama_plugin_api::{
-    PluginError, PluginId,
-    auth::{Authenticator, PasswordError},
-};
-use nama_proto::nama::v1::Permission;
 use sha2::{Digest, Sha256};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::sync::broadcast;
 
 use crate::{
     db::{BoxFuture, Database, now},
-    plugins::{ExtensionPoints, Failure, ProviderError},
+    plugins::ExtensionPoints,
 };
 
 mod codes;
 mod device_names;
+mod managing;
+mod passwords;
+mod permissions;
 pub(crate) mod personal_settings;
 mod rate_limits;
 mod seeing;
@@ -31,7 +28,9 @@ mod sign_in_codes;
 
 pub use codes::SetupCode;
 pub(crate) use codes::random_secret;
-use rate_limits::Attempt;
+use managing::{default_permissions, ensure_may_grant};
+use passwords::{Credential, set_password};
+pub(crate) use permissions::Permissions;
 pub(crate) use rate_limits::Blocked;
 pub(crate) use seeing::{is_requester, may_see};
 pub(crate) use sessions::{
@@ -59,9 +58,6 @@ const LAST_SEEN_PRECISION: i64 = 60 * 60;
 /// (ADR 0014).
 const RECENT_AUTHENTICATION_WINDOW: i64 = 10 * 60;
 
-/// What a User is shown for their password among their Sign-in Methods.
-const PASSWORD_METHOD_NAME: &str = "Password";
-
 /// How many sign-outs may happen before a waiter in [`Users::signed_out`] has seen them. One that
 /// falls further behind checks its Device in the database instead.
 const SIGN_OUTS_BUFFERED: usize = 64;
@@ -74,68 +70,6 @@ pub struct Users {
     db: Arc<Database>,
     plugins: ExtensionPoints,
     sign_outs: broadcast::Sender<i64>,
-}
-
-/// The set of Permissions a User holds (ADR 0020).
-// Stored in `users.permissions` as a bitset: bit n is the `Permission` numbered n. Those numbers
-// are API contract, so they never change under stored rows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
-#[sqlx(transparent)]
-pub(crate) struct Permissions(i64);
-
-impl Permissions {
-    /// What the first Admin gets.
-    pub(crate) const ADMIN: Self = Self(bit(Permission::Admin));
-
-    /// What a new User gets until the default set is changed: what a fresh or upgraded Server's
-    /// starts as (migration 0012).
-    #[cfg(test)]
-    pub(crate) const NEW_USER: Self =
-        Self(bit(Permission::Request) | bit(Permission::ViewRequests));
-
-    /// Whether these pass a check for `needed`: they hold it, `PERMISSION_ADMIN`, or the
-    /// Permission that covers it, as `PERMISSION_REQUEST` covers `PERMISSION_REQUEST_MOVIE` and
-    /// `PERMISSION_REQUEST_TV`, and `PERMISSION_AUTO_APPROVE` its variants, as in Seerr.
-    pub(crate) const fn allow(self, needed: Permission) -> bool {
-        let covering = match needed {
-            Permission::RequestMovie | Permission::RequestTv => Permission::Request,
-            Permission::AutoApproveMovie | Permission::AutoApproveTv => Permission::AutoApprove,
-            // Listed, not a wildcard, so a new Permission gets a decision about what covers it.
-            Permission::Unspecified
-            | Permission::Admin
-            | Permission::ManageUsers
-            | Permission::ManageLibraries
-            | Permission::ManageSettings
-            | Permission::ManageRequests
-            | Permission::Request
-            | Permission::AutoApprove
-            | Permission::ViewRequests
-            | Permission::ChooseQuality
-            | Permission::DeleteMedia => needed,
-        };
-        self.0 & (bit(Permission::Admin) | bit(needed) | bit(covering)) != 0
-    }
-
-    /// Each Permission held, in the order of their values.
-    pub(crate) fn iter(self) -> impl Iterator<Item = Permission> {
-        Permission::values()
-            .iter()
-            .copied()
-            .filter(move |&permission| self.0 & bit(permission) != 0)
-    }
-}
-
-impl FromIterator<Permission> for Permissions {
-    fn from_iter<I: IntoIterator<Item = Permission>>(iter: I) -> Self {
-        Self(iter.into_iter().fold(0, |bits, p| bits | bit(p)))
-    }
-}
-
-/// The bit `permission` is stored as in [`Permissions`].
-// ponytail: an `i64` holds Permissions numbered up to 62; past that, `users.permissions` needs
-// another encoding.
-const fn bit(permission: Permission) -> i64 {
-    1 << permission as i32
 }
 
 /// A User as clients see it.
@@ -240,19 +174,6 @@ pub struct NewDevice {
     pub ip_address: IpAddr,
     /// The `User-Agent` it sent, if any.
     pub user_agent: Option<String>,
-}
-
-/// A credential string the Kernel keeps for a User, and the Plugin whose Authenticator made it,
-/// which is the only one that can check it.
-struct Credential {
-    plugin: PluginId,
-    value: String,
-}
-
-/// A User's password Sign-in Method, made by a Plugin that is enabled.
-struct StoredPassword {
-    id: i64,
-    credential: Credential,
 }
 
 /// Why a change to the Users was refused or failed. No variant holds a password or a token.
@@ -403,73 +324,6 @@ impl Users {
         .await
     }
 
-    /// The Permissions [`Users::create`] gives a new User.
-    pub(crate) async fn default_permissions(&self) -> Result<Permissions, sqlx::Error> {
-        default_permissions(&mut *self.db.reader().acquire().await?).await
-    }
-
-    /// Makes `permissions` the ones new Users get, as `by` asks. Without `PERMISSION_ADMIN`, `by`
-    /// may not put it in them. Existing Users keep theirs.
-    pub(crate) async fn set_default_permissions(
-        &self,
-        by: &User,
-        permissions: Permissions,
-    ) -> Result<(), Error> {
-        ensure_may_grant(by.permissions, permissions)?;
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!(
-                        "UPDATE default_permissions SET permissions = ?",
-                        permissions.0
-                    )
-                    .execute(&mut **tx)
-                    .await?;
-                    Ok(())
-                })
-            })
-            .await
-    }
-
-    /// Gives the User `user` exactly `permissions`, as `by` asks, unless that leaves no User with
-    /// `PERMISSION_ADMIN` or [`ensure_may_change`] refuses. Without `PERMISSION_ADMIN`, `by` may
-    /// neither grant it nor change their own Permissions. Their Devices stay signed in, and the
-    /// Permissions apply from their next request, which reads them afresh.
-    pub(crate) async fn set_permissions(
-        &self,
-        by: &User,
-        user: i64,
-        permissions: Permissions,
-    ) -> Result<(), Error> {
-        ensure_may_grant(by.permissions, permissions)?;
-        if !by.permissions.allow(Permission::Admin) && by.id == user {
-            return Err(Error::AdminRequired);
-        }
-        let by = by.clone();
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    ensure_may_change(tx, &by, user).await?;
-                    update_permissions(tx, user, permissions).await
-                })
-            })
-            .await
-    }
-
-    /// Deletes the User `user` with their Sign-in Methods and Devices, as `by` asks, unless that
-    /// leaves no User with `PERMISSION_ADMIN` or [`ensure_may_change`] refuses. Their Devices are
-    /// signed out as [`Users::sign_out`] does.
-    pub(crate) async fn delete(&self, by: &User, user: i64) -> Result<(), Error> {
-        let by = by.clone();
-        self.write_signing_out(move |tx| {
-            Box::pin(async move {
-                ensure_may_change(tx, &by, user).await?;
-                delete_user(tx, user).await
-            })
-        })
-        .await
-    }
-
     /// The Devices of the User `user` that haven't expired, oldest first, or `None` if there is no
     /// such User.
     pub(crate) async fn devices(&self, user: i64) -> Result<Option<Vec<Device>>, sqlx::Error> {
@@ -506,90 +360,6 @@ impl Users {
             self.sign_out(device).await?;
         }
         Ok(theirs)
-    }
-
-    /// Changes the password of `caller`'s User to `new`, and signs every other Device of theirs
-    /// out. `caller`'s own Device stays signed in. Recent Authentication stands in for the current
-    /// password: the access layer checked it.
-    pub(crate) async fn change_password(&self, caller: &Caller, new: &str) -> Result<(), Error> {
-        let credential = self.hash_password("new_password", new).await?;
-        let (user, kept) = (caller.user.id, caller.device.id);
-        self.write_signing_out(move |tx| {
-            Box::pin(
-                async move { set_password_signing_others_out(tx, user, &credential, kept).await },
-            )
-        })
-        .await
-    }
-
-    /// Checks that `password` is `user`'s, refusing it with [`Error::WrongPassword`] if not.
-    ///
-    /// `_admitted` is a guess `SignInLimits::admit` let through: see "Guessable requests go through
-    /// `SignIn`" in `crates/nama-server/AGENTS.md`. ponytail: a fresh `SignInLimits` can still mint
-    /// one, and it isn't checked against `user`.
-    pub(crate) async fn confirm_password(
-        &self,
-        _admitted: &Attempt,
-        user: &User,
-        password: &str,
-    ) -> Result<(), Error> {
-        // Users are never renamed, so their name still finds them.
-        let found = self.user_named(&user.name).await?;
-        let stored = found.as_ref().and_then(|(_, stored)| stored.as_ref());
-        match self.verify_password(&Arc::from(password), stored).await? {
-            Some(_) => Ok(()),
-            None => Err(Error::WrongPassword),
-        }
-    }
-
-    /// Gives the Device `device` Recent Authentication, failing with [`Error::SignedOut`] if it
-    /// was signed out meanwhile.
-    pub(crate) async fn record_authentication(&self, device: i64) -> Result<(), Error> {
-        self.db
-            .write(move |tx| Box::pin(async move { record_authentication(tx, device).await }))
-            .await
-    }
-
-    /// Sets the password of the User `user` to `new`, as `by` asks, without their current one,
-    /// adding it if they have none, and signs every Device of theirs out, unless
-    /// [`ensure_may_change`] refuses.
-    pub(crate) async fn reset_password(
-        &self,
-        by: &User,
-        user: i64,
-        new: &str,
-    ) -> Result<(), Error> {
-        let credential = self.hash_password("new_password", new).await?;
-        let by = by.clone();
-        self.write_signing_out(move |tx| {
-            Box::pin(async move {
-                ensure_may_change(tx, &by, user).await?;
-                set_password_signing_all_out(tx, user, &credential).await
-            })
-        })
-        .await
-    }
-
-    /// The User named `name`, ignoring case, and the id of their password Sign-in Method, if
-    /// `password` is theirs. An unknown name takes as long as a wrong password, and is refused the
-    /// same way.
-    ///
-    /// `_admitted` is a guess `SignInLimits::admit` let through: see "Guessable requests go through
-    /// `SignIn`" in `crates/nama-server/AGENTS.md`. ponytail: a fresh `SignInLimits` can still mint
-    /// one, and it isn't checked against `name`.
-    pub(crate) async fn verify(
-        &self,
-        _admitted: &Attempt,
-        name: &str,
-        password: &str,
-    ) -> Result<(User, i64), Error> {
-        let found = self.user_named(name).await?;
-        let stored = found.as_ref().and_then(|(_, stored)| stored.as_ref());
-        let method = self.verify_password(&Arc::from(password), stored).await?;
-        match (found, method) {
-            (Some((user, _)), Some(method)) => Ok((user, method)),
-            _ => Err(Error::WrongNameOrPassword),
-        }
     }
 
     /// Signs `device`, whose name has been checked, in as whoever `proved` says. A User deleted
@@ -772,163 +542,6 @@ impl Users {
             .await?;
         Ok(())
     }
-
-    /// Has the first enabled Authenticator turn `password`, given as the request field `field`,
-    /// into a credential string.
-    async fn hash_password(
-        &self,
-        field: &'static str,
-        password: &str,
-    ) -> Result<Credential, Error> {
-        let password: Arc<str> = Arc::from(password);
-        let hashed = self
-            .plugins
-            .ask_first(|authenticator: Arc<dyn Authenticator>| {
-                let password = Arc::clone(&password);
-                async move {
-                    blocking(move || authenticator.hash_password(&password))
-                        .await
-                        .unwrap_or_else(|panicked| Err(PasswordError::Failed(panicked)))
-                }
-            })
-            .await
-            .ok_or(Error::NoAuthenticator)?;
-        match hashed.result {
-            Ok(value) => Ok(Credential {
-                plugin: hashed.plugin,
-                value,
-            }),
-            Err(Failure {
-                kind: Hashing::Rejected,
-                message,
-            }) => Err(Error::PasswordRejected { field, message }),
-            Err(Failure { message, .. }) => Err(Error::Authenticator(message)),
-        }
-    }
-
-    /// The User whose name is `name` ignoring case, whether or not they have a password, with their
-    /// password if an enabled Authenticator made it.
-    async fn user_named(
-        &self,
-        name: &str,
-    ) -> Result<Option<(User, Option<StoredPassword>)>, Error> {
-        let username = name_key(name);
-        let row = sqlx::query!(
-            r#"SELECT u.id AS "id!", u.display_username AS name,
-                      u.permissions AS "permissions: Permissions", u.created_at,
-                      m.id AS "method_id?", m.provider_id AS "provider_id?",
-                      m.credential AS "credential?"
-               FROM users u LEFT JOIN sign_in_methods m ON m.user_id = u.id AND m.subject IS NULL
-               WHERE u.username = ?"#,
-            username
-        )
-        .fetch_optional(self.db.reader())
-        .await?;
-        let Some(row) = row else {
-            return Ok(None);
-        };
-        let user = User {
-            id: row.id,
-            name: row.name,
-            permissions: row.permissions,
-            created_at: row.created_at,
-        };
-        let authenticators = self.plugins.providers::<dyn Authenticator>();
-        let plugin = authenticators
-            .into_iter()
-            .find(|id| row.provider_id.as_deref() == Some(id.as_str()));
-        let stored = match (row.method_id, plugin, row.credential) {
-            (Some(id), Some(plugin), Some(value)) => Some(StoredPassword {
-                id,
-                credential: Credential { plugin, value },
-            }),
-            _ => None,
-        };
-        Ok(Some((user, stored)))
-    }
-
-    /// The id of `stored`'s Sign-in Method if `password` is the one it was made from, as checked by
-    /// the Authenticator that made it. With no `stored` password, or none whose Plugin still
-    /// provides one, the answer is no, after as long as checking would have taken.
-    async fn verify_password(
-        &self,
-        password: &Arc<str>,
-        stored: Option<&StoredPassword>,
-    ) -> Result<Option<i64>, Error> {
-        if let Some(stored) = stored {
-            let credential: Arc<str> = Arc::from(stored.credential.value.as_str());
-            let verified = self
-                .plugins
-                .ask(&stored.credential.plugin, |authenticator| {
-                    verify_where_blocking_is_fine(authenticator, password, &credential)
-                })
-                .await;
-            match verified.map(|answer| answer.result) {
-                None => {}
-                Some(Ok(verified)) => return Ok(verified.then_some(stored.id)),
-                Some(Err(failure)) => return Err(Error::Authenticator(failure.message)),
-            }
-        }
-        self.verify_unknown_user(password).await?;
-        Ok(None)
-    }
-
-    /// Has the first enabled Authenticator spend as long on `password` as checking a real User's
-    /// would, for a name no User has.
-    async fn verify_unknown_user(&self, password: &Arc<str>) -> Result<(), Error> {
-        self.plugins
-            .ask_first(|authenticator: Arc<dyn Authenticator>| {
-                let password = Arc::clone(password);
-                blocking(move || authenticator.verify_unknown_user(&password))
-            })
-            .await
-            .ok_or(Error::NoAuthenticator)?
-            .result
-            .map_err(|failure| Error::Authenticator(failure.message))
-    }
-}
-
-/// Has `authenticator` check `password` against `credential`, which is meant to be slow, where
-/// blocking is fine.
-async fn verify_where_blocking_is_fine(
-    authenticator: Arc<dyn Authenticator>,
-    password: &Arc<str>,
-    credential: &Arc<str>,
-) -> Result<bool, PluginError> {
-    let (password, credential) = (Arc::clone(password), Arc::clone(credential));
-    blocking(move || authenticator.verify_password(&password, &credential)).await?
-}
-
-/// Runs `work`, an Authenticator's on a password, which is meant to be slow, where blocking is
-/// fine.
-// A panic in it fails the call and leaves the Plugin enabled: see "Plugin code runs contained" in
-// `crates/nama-server/AGENTS.md`.
-async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> T + Send + 'static,
-) -> Result<T, PluginError> {
-    Ok(tokio::task::spawn_blocking(work).await?)
-}
-
-/// What an Authenticator's failure to hash a password means for the User.
-enum Hashing {
-    /// The password breaks its rules, which the User is told.
-    Rejected,
-    Failed,
-}
-
-impl ProviderError<Hashing> for PasswordError {
-    fn failure(self) -> Failure<Hashing> {
-        match self {
-            Self::Rejected(message) => Failure {
-                kind: Hashing::Rejected,
-                message,
-            },
-            Self::Failed(error) => Failure {
-                kind: Hashing::Failed,
-                message: error.to_string(),
-            },
-        }
-    }
 }
 
 /// `name`, given as the request field `field`, trimmed, if it then has an allowed length. `what`
@@ -959,14 +572,6 @@ async fn any_user(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar!(r#"SELECT EXISTS (SELECT 1 FROM users) AS "any!: bool""#)
         .fetch_one(conn)
         .await
-}
-
-async fn default_permissions(conn: &mut SqliteConnection) -> Result<Permissions, sqlx::Error> {
-    sqlx::query_scalar!(
-        r#"SELECT permissions AS "permissions: Permissions" FROM default_permissions"#
-    )
-    .fetch_one(conn)
-    .await
 }
 
 async fn user_exists(conn: &mut SqliteConnection, user: i64) -> Result<bool, sqlx::Error> {
@@ -1046,98 +651,6 @@ async fn approving_user(
     })
 }
 
-/// Gives the User `user` exactly `permissions`, failing if that leaves no User with
-/// `PERMISSION_ADMIN`. Checked after the write, in the same transaction, so a refusal rolls the
-/// write back. Writes run one at a time, so two demotions at once can't both pass the check.
-async fn update_permissions(
-    conn: &mut SqliteConnection,
-    user: i64,
-    permissions: Permissions,
-) -> Result<(), Error> {
-    let now = now();
-    let updated = sqlx::query!(
-        "UPDATE users SET permissions = ?, updated_at = ? WHERE id = ?",
-        permissions.0,
-        now,
-        user
-    )
-    .execute(&mut *conn)
-    .await?;
-    if updated.rows_affected() == 0 {
-        return Err(Error::NoSuchUser);
-    }
-    ensure_an_admin_left(conn).await
-}
-
-/// Deletes the User `user`, whose Sign-in Methods and Devices go with them, failing if that leaves
-/// no User with `PERMISSION_ADMIN`, as [`update_permissions`] does. Returns the IDs of the Devices
-/// it signed out.
-async fn delete_user(conn: &mut SqliteConnection, user: i64) -> Result<Vec<i64>, Error> {
-    let devices = sqlx::query_scalar!(r#"SELECT id AS "id!" FROM devices WHERE user_id = ?"#, user)
-        .fetch_all(&mut *conn)
-        .await?;
-    // Their `sign_in_methods` and `devices` rows are deleted by `ON DELETE CASCADE`.
-    let deleted = sqlx::query!("DELETE FROM users WHERE id = ?", user)
-        .execute(&mut *conn)
-        .await?;
-    if deleted.rows_affected() == 0 {
-        return Err(Error::NoSuchUser);
-    }
-    ensure_an_admin_left(conn).await?;
-    Ok(devices)
-}
-
-/// Fails with [`Error::AdminRequired`] if `by`, without `PERMISSION_ADMIN`, would change the User
-/// `user`, who has it. Only an Admin changes an Admin, as in Seerr, so `PERMISSION_MANAGE_USERS`
-/// can't become `PERMISSION_ADMIN` by taking over an Admin. Read in the write's transaction, so
-/// `user` can't be made an Admin between the check and the change.
-async fn ensure_may_change(conn: &mut SqliteConnection, by: &User, user: i64) -> Result<(), Error> {
-    if by.permissions.allow(Permission::Admin) {
-        return Ok(());
-    }
-    let admin = Permissions::ADMIN.0;
-    let changing_an_admin = sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND permissions & ? != 0)
-               AS "admin!: bool""#,
-        user,
-        admin
-    )
-    .fetch_one(conn)
-    .await?;
-    if changing_an_admin {
-        Err(Error::AdminRequired)
-    } else {
-        Ok(())
-    }
-}
-
-/// Fails with [`Error::AdminRequired`] if a User holding `by`, without `PERMISSION_ADMIN`, would
-/// give it out in `permissions`.
-fn ensure_may_grant(by: Permissions, permissions: Permissions) -> Result<(), Error> {
-    if !by.allow(Permission::Admin) && permissions.allow(Permission::Admin) {
-        Err(Error::AdminRequired)
-    } else {
-        Ok(())
-    }
-}
-
-/// Fails with [`Error::LastAdmin`] if no User has `PERMISSION_ADMIN`, so the write before it, in
-/// the same transaction, is rolled back.
-async fn ensure_an_admin_left(conn: &mut SqliteConnection) -> Result<(), Error> {
-    let admin = Permissions::ADMIN.0;
-    let any_admin = sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM users WHERE permissions & ? != 0) AS "any!: bool""#,
-        admin
-    )
-    .fetch_one(conn)
-    .await?;
-    if any_admin {
-        Ok(())
-    } else {
-        Err(Error::LastAdmin)
-    }
-}
-
 /// Stores the first Admin, named `name`, with `credential` as their password, and `device`
 /// signed in with it, with the hash of its session token, unless the Server already has a User.
 /// The names have been checked.
@@ -1155,104 +668,6 @@ async fn insert_first_admin(
     let method = set_password(conn, user.id, credential).await?;
     let device = insert_device(conn, user.id, Some(method), device, token_hash).await?;
     Ok(Caller { user, device })
-}
-
-/// Records that the Device `device` proved who it is just now, failing if it was signed out
-/// meanwhile.
-async fn record_authentication(conn: &mut SqliteConnection, device: i64) -> Result<(), Error> {
-    let now = now();
-    let updated = sqlx::query!(
-        "UPDATE devices SET authenticated_at = ?, updated_at = ? WHERE id = ?",
-        now,
-        now,
-        device
-    )
-    .execute(conn)
-    .await?;
-    if updated.rows_affected() == 0 {
-        return Err(Error::SignedOut);
-    }
-    Ok(())
-}
-
-/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs out every
-/// Device of theirs but `kept`, returning the ids of those signed out.
-///
-/// Fails if `kept` was signed out meanwhile, such as by another password change, so a change never
-/// succeeds for a Device that is no longer signed in, nor overwrites the one that signed it out.
-async fn set_password_signing_others_out(
-    conn: &mut SqliteConnection,
-    user: i64,
-    credential: &Credential,
-    kept: i64,
-) -> Result<Vec<i64>, Error> {
-    let still_signed_in = sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ?) AS "exists!: bool""#,
-        kept
-    )
-    .fetch_one(&mut *conn)
-    .await?;
-    if !still_signed_in {
-        return Err(Error::SignedOut);
-    }
-    set_password(conn, user, credential).await?;
-    let signed_out = sqlx::query_scalar!(
-        r#"DELETE FROM devices WHERE user_id = ? AND id != ? RETURNING id AS "id!""#,
-        user,
-        kept
-    )
-    .fetch_all(conn)
-    .await?;
-    Ok(signed_out)
-}
-
-/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs out every
-/// Device of theirs, returning their ids. Fails if there is no such User.
-async fn set_password_signing_all_out(
-    conn: &mut SqliteConnection,
-    user: i64,
-    credential: &Credential,
-) -> Result<Vec<i64>, Error> {
-    if !user_exists(conn, user).await? {
-        return Err(Error::NoSuchUser);
-    }
-    set_password(conn, user, credential).await?;
-    let signed_out = sqlx::query_scalar!(
-        r#"DELETE FROM devices WHERE user_id = ? RETURNING id AS "id!""#,
-        user
-    )
-    .fetch_all(conn)
-    .await?;
-    Ok(signed_out)
-}
-
-/// Makes `credential` the User `user`'s password and returns its Sign-in Method's id. A password
-/// they had is overwritten, whichever Plugin made it, so it can't come back with a Plugin that is
-/// enabled again. It keeps its id, so Devices signed in with it aren't signed out by
-/// `ON DELETE CASCADE`; the callers sign out the ones they mean to.
-async fn set_password(
-    conn: &mut SqliteConnection,
-    user: i64,
-    credential: &Credential,
-) -> Result<i64, sqlx::Error> {
-    let now = now();
-    sqlx::query_scalar!(
-        r#"INSERT INTO sign_in_methods
-               (user_id, provider_id, credential, name, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT (user_id) WHERE subject IS NULL DO UPDATE
-               SET provider_id = excluded.provider_id, credential = excluded.credential,
-                   updated_at = excluded.updated_at
-           RETURNING id AS "id!""#,
-        user,
-        credential.plugin.as_str(),
-        credential.value,
-        PASSWORD_METHOD_NAME,
-        now,
-        now,
-    )
-    .fetch_one(conn)
-    .await
 }
 
 /// The `username` a User's `name` is stored and looked up under, so names are unique and found

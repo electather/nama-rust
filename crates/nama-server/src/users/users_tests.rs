@@ -1,4 +1,7 @@
-use super::*;
+use buffa::Enumeration;
+use nama_proto::nama::v1::Permission;
+
+use super::{rate_limits::Attempt, *};
 use crate::plugins::Registry;
 
 async fn create_user(db: &Database, name: &str) -> Result<User, Error> {
