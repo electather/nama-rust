@@ -11,7 +11,10 @@ use nama_plugin_api::{
         WatchStatesAsked,
     },
 };
-use nama_plugin_proto::nama::plugin::v1::{EventsObserved, ObservedEvents, Ticked};
+use nama_plugin_proto::{
+    nama::plugin::v1::{EventsObserved, ObservedEvents, Ticked},
+    services,
+};
 use tokio::sync::Notify;
 
 use crate::plugins::{Registry, tick};
@@ -19,7 +22,9 @@ use crate::plugins::{Registry, tick};
 use super::{
     CRASHES_BEFORE_DISABLING, Running,
     calls::Calls,
-    load::{CALL_TIMEOUT, TICK_TIMEOUT, compile_with_kernel, load, write_cache_config},
+    load::{
+        BLOB_TIMEOUT, CALL_TIMEOUT, TICK_TIMEOUT, compile_with_kernel, load, write_cache_config,
+    },
     services::{Method, OBSERVE_EVENTS, POINTS, TICK},
 };
 
@@ -344,10 +349,12 @@ async fn disabling_a_plugin_while_its_tick_runs_ends_the_wasm_call_promptly() {
 }
 
 #[test]
-fn a_tick_may_run_for_tick_timeout_and_every_other_method_for_call_timeout() {
+fn a_tick_and_a_blob_call_may_run_long_and_every_other_method_for_call_timeout() {
     for method in POINTS.iter().flat_map(|point| point.methods) {
         let limit = if method.export == TICK.export {
             TICK_TIMEOUT
+        } else if method.service == services::BLOB_STORE {
+            BLOB_TIMEOUT
         } else {
             CALL_TIMEOUT
         };

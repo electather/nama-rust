@@ -47,6 +47,11 @@ pub(super) const CALL_TIMEOUT: Duration = Duration::from_secs(5);
 pub(super) const TICK_TIMEOUT: Duration = Duration::from_secs(60);
 
 // Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
+/// How long a blob store call may run, of the Plugin's own time: longer than [`CALL_TIMEOUT`],
+/// since one call carries a whole object, up to `BLOB_MAX_BYTES`, to or from an outside store.
+pub(super) const BLOB_TIMEOUT: Duration = Duration::from_secs(60);
+
+// Changing it changes what the Kernel gives a Plugin: see `crates/nama-plugin-proto/AGENTS.md`.
 /// How much memory one call into an Installed Plugin may use, in 64 KiB pages: the guest's own and
 /// what Extism keeps for it, so one Plugin can't take the Server down.
 // ponytail: one cap for all; let a Manifest ask for more once a Plugin needs it.

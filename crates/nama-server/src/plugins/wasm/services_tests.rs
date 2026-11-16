@@ -8,7 +8,7 @@ use super::{
         Running,
         bundled::BUNDLED,
         compile,
-        load::{load, write_cache_config},
+        load::{BLOB_TIMEOUT, load, write_cache_config},
     },
     Failure, Method, OBSERVE_EVENTS, POINTS,
 };
@@ -45,6 +45,36 @@ fn a_tick_is_a_required_row_whose_failure_is_logged_not_shown() {
             ..
         }]
     ));
+}
+
+#[test]
+fn a_blob_store_is_five_required_rows_that_may_run_long_and_fail_to_the_caller() {
+    let blob_store = POINTS
+        .iter()
+        .find(|point| point.service == services::BLOB_STORE)
+        .unwrap();
+    let exports: Vec<_> = blob_store.required().map(|method| method.export).collect();
+
+    assert_eq!(
+        exports,
+        [
+            "blob_put",
+            "blob_get",
+            "blob_delete",
+            "blob_list",
+            "blob_exists"
+        ]
+    );
+    for method in blob_store.methods {
+        assert!(
+            matches!(method.failure, Failure::Provider),
+            "{}",
+            method.name
+        );
+        assert_eq!(method.limit, BLOB_TIMEOUT, "{}", method.name);
+    }
+    assert!(blob_store.runs_long());
+    assert_eq!(blob_store.crash_group, services::BLOB_STORE);
 }
 
 #[test]

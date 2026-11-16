@@ -34,7 +34,7 @@ pub mod nama {
 /// It covers the Manifest, the messages the services share and what the Kernel gives a Plugin;
 /// each service has a version of its own, in [`SERVICES`]. It is not this crate's version;
 /// `AGENTS.md` says when it changes.
-pub const CONTRACT_VERSION: &str = "0.3.3";
+pub const CONTRACT_VERSION: &str = "0.4.0";
 
 /// The full names of the `nama.plugin.v1` services, the Extension Points an Installed Plugin can
 /// serve, as a Manifest's `Point.service` names them.
@@ -57,6 +57,9 @@ pub mod services {
     /// A Recogniser, which proposes what a file is or which title an Item names; the Kernel
     /// decides.
     pub const RECOGNISER: &str = "nama.plugin.v1.RecogniserService";
+    /// A blob store, which keeps the Kernel's own stored files, such as the image store's
+    /// originals; never media files.
+    pub const BLOB_STORE: &str = "nama.plugin.v1.BlobStoreService";
 }
 
 /// Each service in [`services`] with its version, which a Manifest's `Point.version` requirement
@@ -70,4 +73,9 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::TITLE_SOURCE, "1.2.0"),
     (services::AUTOMATION, "1.1.0"),
     (services::RECOGNISER, "1.0.0"),
+    (services::BLOB_STORE, "1.0.0"),
 ];
+
+/// The largest object a blob store holds, in bytes: the Kernel never puts a larger one, and a
+/// blob store Plugin may refuse one. One call carries one object, so this bounds its memory.
+pub const BLOB_MAX_BYTES: usize = 20 * 1024 * 1024;

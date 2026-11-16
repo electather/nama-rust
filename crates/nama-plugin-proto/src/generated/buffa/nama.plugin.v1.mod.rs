@@ -2,6 +2,7 @@
 
 include!("nama.plugin.v1.request.rs");
 include!("nama.plugin.v1.automation.rs");
+include!("nama.plugin.v1.blob_store.rs");
 include!("nama.plugin.v1.connector.rs");
 include!("nama.plugin.v1.events.rs");
 include!("nama.plugin.v1.fulfiller.rs");
@@ -28,6 +29,7 @@ pub mod __buffa {
         use super::*;
         include!("nama.plugin.v1.request.__view.rs");
         include!("nama.plugin.v1.automation.__view.rs");
+        include!("nama.plugin.v1.blob_store.__view.rs");
         include!("nama.plugin.v1.connector.__view.rs");
         include!("nama.plugin.v1.events.__view.rs");
         include!("nama.plugin.v1.fulfiller.__view.rs");
@@ -90,6 +92,14 @@ pub mod __buffa {
         reg.register_json_any(super::__USER_JSON_ANY);
         reg.register_json_any(super::__DELETE_ASKED_JSON_ANY);
         reg.register_json_any(super::__DELETE_STARTED_JSON_ANY);
+        reg.register_json_any(super::__BLOB_TO_PUT_JSON_ANY);
+        reg.register_json_any(super::__BLOB_PUT_JSON_ANY);
+        reg.register_json_any(super::__BLOB_KEY_JSON_ANY);
+        reg.register_json_any(super::__BLOB_GOT_JSON_ANY);
+        reg.register_json_any(super::__BLOB_DELETED_JSON_ANY);
+        reg.register_json_any(super::__BLOBS_ASKED_JSON_ANY);
+        reg.register_json_any(super::__BLOB_PAGE_JSON_ANY);
+        reg.register_json_any(super::__BLOB_EXISTS_JSON_ANY);
         reg.register_json_any(super::__CONNECTION_START_JSON_ANY);
         reg.register_json_any(super::__CONNECTION_STARTED_JSON_ANY);
         reg.register_json_any(super::__CONNECTION_POLL_JSON_ANY);
@@ -287,6 +297,38 @@ pub use self::__buffa::view::DeleteAskedOwnedView;
 pub use self::__buffa::view::DeleteStartedView;
 #[doc(inline)]
 pub use self::__buffa::view::DeleteStartedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobToPutView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobToPutOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobPutView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobPutOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobKeyView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobKeyOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobGotView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobGotOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobDeletedView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobDeletedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobsAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobsAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobPageView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobPageOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobExistsView;
+#[doc(inline)]
+pub use self::__buffa::view::BlobExistsOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ConnectionStartView;
 #[doc(inline)]

@@ -68,6 +68,7 @@ Each point has a trait and a macro that exports it. The trait docs in [`src/lib.
 | `TITLE_SOURCE` | `TitleSource`, `title_source!` | | `search`, `movie`, `show`, `season`, `episode`, `image`, `artwork` |
 | `AUTOMATION` | `Automation`, `automation!` | `tick` | |
 | `RECOGNISER` | `Recogniser`, `recogniser!` | | `recognise_title`, `recognise_file` |
+| `BLOB_STORE` | `BlobStore`, `blob_store!` | `put`, `get`, `delete`, `list`, `exists` | |
 
 A trait's optional methods have defaults, and its macro exports them all, except `title_source!` and `recogniser!`, which export only the methods they list, since the Server asks nothing of a title source or Recogniser that lacks the export:
 
@@ -217,21 +218,68 @@ impl Recogniser for AbsoluteEpisodes {
 nama_pdk::recogniser!(AbsoluteEpisodes, [recognise_file]);
 ```
 
-## 8. HTTP
+## 8. Storing blobs
+
+A blob store keeps the Server's own stored files, such as its images' originals, Custom Images and Plugin logos, in an outside store such as S3; it never holds media files (ADR [0052](../../docs/adr/0052-the-kernels-stored-files-live-in-a-blob-store.md)). The Admin picks it as a Server setting, and local disk is the default. Every method is required, and `blob_store!` exports them all as `blob_put`, `blob_get`, `blob_delete`, `blob_list` and `blob_exists`.
+
+A key is `/`-separated, at most 1024 bytes, of ASCII letters, digits and `-_.%/`. One call carries one object of at most `nama_pdk::BLOB_MAX_BYTES`, 20 MiB: the Server never puts a larger one, and a store may refuse one. A missing key is no failure: `get` answers `None`, and `delete` succeeds. `list` answers at most 1000 keys a page, with an empty `next_page_token` on the last. A failure fails the Server's read or write, and a blob call may run for 60 seconds.
+
+```rust
+use nama_pdk::{BlobPage, BlobStore, Manifest, extism_pdk::Error, services};
+
+fn manifest() -> Manifest {
+    Manifest {
+        points: vec![nama_pdk::point(services::BLOB_STORE)],
+        ..nama_pdk::manifest("bucket", env!("CARGO_PKG_VERSION"))
+    }
+}
+
+struct Bucket;
+
+impl BlobStore for Bucket {
+    fn put(key: String, bytes: Vec<u8>) -> Result<(), Error> {
+        if bytes.len() > nama_pdk::BLOB_MAX_BYTES {
+            return Err(Error::msg(format!("{key} is over 20 MiB")));
+        }
+        // Send `bytes` to the store with `nama_pdk::http_request`.
+        Ok(())
+    }
+
+    fn get(_key: String) -> Result<Option<Vec<u8>>, Error> {
+        Ok(None)
+    }
+
+    fn delete(_key: String) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn list(_prefix: String, _page_token: String) -> Result<BlobPage, Error> {
+        Ok(BlobPage::default())
+    }
+
+    fn exists(_key: String) -> Result<bool, Error> {
+        Ok(false)
+    }
+}
+
+nama_pdk::blob_store!(Bucket);
+```
+
+## 9. HTTP
 
 Send requests with `nama_pdk::http_request`, which works like `extism_pdk::http::request` but takes the error the call fails with when nothing answers. Which hosts a Plugin may reach (`allowed_hosts` and its URL settings' hosts) is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Read the time with `nama_pdk::now`, never `SystemTime::now()`.
 
 Plugins are not given HTTP response headers today: a response carries its status and body only. A later stage may add them, so don't build on either.
 
-## 9. The call budget
+## 10. The call budget
 
 Each call has a memory and a time limit, and three crashes in a row disable the Plugin; the numbers and what counts as a crash are in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Keep each call short: hand work to the outside service and report on it later, as a Fulfiller's `progress` does.
 
-## 10. Errors
+## 11. Errors
 
 An export's error is its message to people. `manifest()`'s gets the Plugin refused and `check_settings()`'s is shown to the admin testing, and the trait docs' `# Errors` say where each point's goes, such as `fulfill`'s, which becomes the reason a Request shows as Failed. Write it as a sentence an admin can act on. A panic reaches the Server with its message, not as a bare trap.
 
-## 11. Building and installing
+## 12. Building and installing
 
 ```sh
 rustup target add wasm32-unknown-unknown

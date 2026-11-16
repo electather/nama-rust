@@ -116,6 +116,10 @@ _Avoid_: metadata provider, metadata agent, scraper
 A Provider that proposes what a file is, such as an Episode numbered from the start of its Show, or which title an Item names. The Kernel decides: it alone writes Matches and marks an Item Unmatched, and its own Matching is what it falls back to. Each Library asks its own Recognisers in its own order (ADR 0050).
 _Avoid_: matcher (the code's `matching::Matcher` fixes Matches by hand), parser, identifier
 
+**Blob store**:
+Where the Kernel's own stored files live, such as the originals of its images, Custom Images and Plugin logos: local disk under the data directory by default, or a Provider such as an S3 Plugin, which the Admin picks. It never holds media files, and resized copies stay a local cache (ADR 0052).
+_Avoid_: storage backend, bucket, object store, file host
+
 **Fulfiller**:
 A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, reports how they're progressing, and has the service stop monitoring what's been deleted, so it doesn't download it again.
 _Avoid_: downloader, *arr, client

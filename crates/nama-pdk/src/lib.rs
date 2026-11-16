@@ -23,6 +23,7 @@ pub use nama_plugin_proto::{
 };
 
 mod automation;
+mod blob_store;
 mod notification_text;
 mod recogniser;
 
@@ -30,6 +31,7 @@ pub use automation::{
     Automation, Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind,
     TitleWatchStates, Titles, User, WatchState, kernel,
 };
+pub use blob_store::{BLOB_MAX_BYTES, BlobPage, BlobStore};
 pub use recogniser::{
     FileRecognised, FileToRecognise, Recognised, RecognisedEpisodes, RecognisedMovie, Recogniser,
     TitleRecognised, TitleToRecognise,

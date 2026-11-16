@@ -39,6 +39,7 @@ use tracing::warn;
 use super::{CheckTimedOut, registry::Make, secret_values, without_secrets};
 
 mod automation;
+mod blob_store;
 mod bundled;
 mod calls;
 mod contract;

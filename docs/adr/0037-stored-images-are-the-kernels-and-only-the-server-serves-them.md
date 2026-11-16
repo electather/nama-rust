@@ -15,4 +15,5 @@ The Server keeps every image it shows: the Posters and Backdrops a Match downloa
 - A downloaded image no Match refers to is deleted. A Custom Image is removed only by an admin (ADR 0036).
 - Images of titles the Server doesn't have, shown while finding something to Request, stay in a cache of their own that can be thrown away.
 - A later storage Plugin implements the Kernel's interface, and the Server still serves the bytes.
+- ADR 0052 makes storage an Extension Point, the blob store, with local disk as the default.
 - Any signed-in User who guesses a Plugin's id can fetch its logo, and so learn it is installed.

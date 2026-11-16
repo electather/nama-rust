@@ -10,6 +10,7 @@ use buffa::Message;
 use nama_plugin_api::{
     PluginError, PointKey, Priority, Registrar,
     automation::Automation,
+    blob_store::BlobStore,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
     metadata::TitleSource,
@@ -22,7 +23,7 @@ use tracing::warn;
 
 use super::{
     Running, failure_cause,
-    load::{CALL_TIMEOUT, TICK_TIMEOUT},
+    load::{BLOB_TIMEOUT, CALL_TIMEOUT, TICK_TIMEOUT},
 };
 use crate::plugins::without_secrets;
 
@@ -146,6 +147,20 @@ pub(super) const TICK: Method = Method {
     ..provider(services::AUTOMATION, "Tick", "tick")
 };
 
+/// [`provider`], for a blob store method, which carries a whole object.
+const fn blob(name: &'static str, export: &'static str) -> Method {
+    Method {
+        limit: BLOB_TIMEOUT,
+        ..provider(services::BLOB_STORE, name, export)
+    }
+}
+
+pub(super) const BLOB_PUT: Method = blob("Put", "blob_put");
+pub(super) const BLOB_GET: Method = blob("Get", "blob_get");
+pub(super) const BLOB_DELETE: Method = blob("Delete", "blob_delete");
+pub(super) const BLOB_LIST: Method = blob("List", "blob_list");
+pub(super) const BLOB_EXISTS: Method = blob("Exists", "blob_exists");
+
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[
     Point {
@@ -229,6 +244,15 @@ pub(super) const POINTS: &[Point] = &[
         key: PointKey::provide::<dyn Recogniser>,
         register: |registrar, running| {
             registrar.provide::<dyn Recogniser>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        service: services::BLOB_STORE,
+        crash_group: services::BLOB_STORE,
+        methods: &[BLOB_PUT, BLOB_GET, BLOB_DELETE, BLOB_LIST, BLOB_EXISTS],
+        key: PointKey::provide::<dyn BlobStore>,
+        register: |registrar, running| {
+            registrar.provide::<dyn BlobStore>(Priority::DEFAULT, Arc::new(running));
         },
     },
 ];

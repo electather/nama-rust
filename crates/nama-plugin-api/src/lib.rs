@@ -15,6 +15,7 @@
 
 pub mod auth;
 pub mod automation;
+pub mod blob_store;
 pub mod connector;
 pub mod fulfiller;
 mod ids;
