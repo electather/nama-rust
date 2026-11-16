@@ -16,7 +16,7 @@
 //!
 //! Only paths are read here. The scanner never opens `.nfo` files or any other sidecar.
 
-use std::{path::Path, sync::LazyLock};
+use std::{ops::RangeInclusive, path::Path, sync::LazyLock};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB, TMDB, TVDB};
 use regex::Regex;
@@ -25,6 +25,10 @@ use crate::{library::contents::Item, library::libraries::Kind};
 
 /// The most Episodes one file can hold, so a typo like `S01E01-E900` isn't 900 Episodes.
 pub(super) const MAX_EPISODES_PER_FILE: i64 = 20;
+
+/// The years a Movie or Show may be from. A year a name or a Recogniser gives outside them is
+/// taken as none.
+pub(super) const YEARS: RangeInclusive<i64> = 1870..=2200;
 
 /// An ID Hint in any bracket, as Plex (`{tmdb-123}`), Jellyfin (`[tvdbid-123]`), Sonarr and
 /// Radarr write them, `{namespace-value}` in any namespace, or a bare IMDb id.
@@ -276,7 +280,7 @@ fn title_and_year(name: &str) -> Option<Named> {
                 .as_str()
                 .parse::<i64>()
                 .ok()
-                .filter(|year| (1870..=2200).contains(year)),
+                .filter(|year| YEARS.contains(year)),
         ),
         None => (&*untagged, None),
     };
@@ -313,7 +317,7 @@ fn id_hints(name: &str) -> ExternalIds {
 
 /// The id an ID Hint names, or `None` where it names none. The well-known namespaces keep the
 /// forms they had before any namespace was read, `{tmdbid-123}` included.
-fn id_hint(namespace: &str, value: &str) -> Option<ExternalId> {
+pub(super) fn id_hint(namespace: &str, value: &str) -> Option<ExternalId> {
     let digits = |text: &str| !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit());
     match namespace.strip_suffix("id").unwrap_or(namespace) {
         // Leading zeros go, as they did when these were read as numbers.

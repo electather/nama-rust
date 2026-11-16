@@ -94,6 +94,19 @@ pub(crate) struct Summary {
     pub(crate) unchanged: u64,
 }
 
+impl Summary {
+    /// Takes the `dropped` changes, which aren't stored, off what the scan added and updated.
+    fn leave_out(&mut self, dropped: &[Planned]) {
+        for planned in dropped {
+            if planned.added {
+                self.added -= 1;
+            } else {
+                self.updated -= 1;
+            }
+        }
+    }
+}
+
 /// Why a scan failed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
@@ -532,9 +545,11 @@ impl Scanner {
             let read_only = found.read_only.clone();
             self.inner.libraries.set_read_only(id, read_only).await?;
         }
-        let (planned, summary) = plan(library.kind, stored, found);
+        let (planned, mut summary) = plan(library.kind, stored, found);
         let order = &library.recognisers;
-        let changes = recognise(&self.inner.plugins, library.kind, order, planned, &cancel).await?;
+        let (changes, dropped) =
+            recognise(&self.inner.plugins, library.kind, order, planned, &cancel).await?;
+        summary.leave_out(&dropped);
         let files_total = count(changes.len());
         let mut files_done = 0;
         let mut changes = changes.into_iter();
@@ -753,7 +768,7 @@ fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<
         if !seen.insert(file.path.clone()) {
             continue;
         }
-        match stored.remove(&file.path) {
+        let added = match stored.remove(&file.path) {
             Some(old) if old.size == file.size && old.modified_ns == file.modified_ns => {
                 if old.parser_version < PARSER_VERSION {
                     summary.updated += 1;
@@ -763,15 +778,25 @@ fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<
                         items,
                         path: file.path,
                     };
-                    planned.push(Planned { change, unread });
+                    planned.push(Planned {
+                        change,
+                        unread,
+                        added: false,
+                    });
                 } else {
                     summary.unchanged += 1;
                 }
                 continue;
             }
-            Some(_) => summary.updated += 1,
-            None => summary.added += 1,
-        }
+            Some(_) => {
+                summary.updated += 1;
+                false
+            }
+            None => {
+                summary.added += 1;
+                true
+            }
+        };
         let (items, unread) = parse(file.relative);
         let change = Change::Store {
             items,
@@ -779,7 +804,11 @@ fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<
             size: file.size,
             modified_ns: file.modified_ns,
         };
-        planned.push(Planned { change, unread });
+        planned.push(Planned {
+            change,
+            unread,
+            added,
+        });
     }
     for (path, old) in stored {
         let path = Path::new(&path);
@@ -791,6 +820,7 @@ fn plan(kind: Kind, mut stored: HashMap<String, Stored>, found: Walked) -> (Vec<
             planned.push(Planned {
                 change,
                 unread: None,
+                added: false,
             });
         }
     }

@@ -19,7 +19,10 @@ use nama_plugin_api::{
 };
 use tokio_util::sync::CancellationToken;
 
-use super::{Error, names::MAX_EPISODES_PER_FILE};
+use super::{
+    Error,
+    names::{MAX_EPISODES_PER_FILE, YEARS, id_hint},
+};
 use crate::{
     db::Database,
     library::contents::{Change, Contents, Item},
@@ -34,41 +37,44 @@ pub(super) struct Planned {
     /// For a file the name parser made no Item from, its path relative to the Library folder
     /// it was found in, which Recognisers are asked about.
     pub(super) unread: Option<PathBuf>,
+    /// Whether the file wasn't stored before, so the scan counts it as added, not updated.
+    pub(super) added: bool,
 }
 
 /// The changes `planned` makes to a Library of `kind`, with each unread file's Items as the first
 /// of the enabled Recognisers in the Library's `order` serving `recognise_file` proposes them. A
 /// file none proposes usable Items for stays unparsed. A file a Recogniser fails on is left out,
 /// so the next scan reads it again: a new file stays unstored, a changed one keeps its old record
-/// and a re-read one its old parser version. A scan calls it under the Library's scan lock, as
-/// Matching asks title sources.
+/// and a re-read one its old parser version. Returns the changes to store and those left out. A
+/// scan calls it under the Library's scan lock, as Matching asks title sources.
 pub(super) async fn recognise(
     plugins: &ExtensionPoints,
     kind: Kind,
     order: &[String],
     planned: Vec<Planned>,
     cancel: &CancellationToken,
-) -> Result<Vec<Change>, Error> {
+) -> Result<(Vec<Change>, Vec<Planned>), Error> {
     let recognisers = listed(plugins, order);
     let mut changes = Vec::with_capacity(planned.len());
-    for Planned { mut change, unread } in planned {
-        let Some(relative) = unread.filter(|_| !recognisers.is_empty()) else {
-            changes.push(change);
+    let mut dropped = Vec::new();
+    for mut file in planned {
+        let Some(relative) = file.unread.as_ref().filter(|_| !recognisers.is_empty()) else {
+            changes.push(file.change);
             continue;
         };
         if cancel.is_cancelled() {
             return Err(Error::Cancelled);
         }
-        match ask(plugins, &recognisers, kind, &relative).await {
+        match ask(plugins, &recognisers, kind, relative).await {
             Ok(Some(items)) => {
-                set_items(&mut change, items);
-                changes.push(change);
+                set_items(&mut file.change, items);
+                changes.push(file.change);
             }
-            Ok(None) => changes.push(change),
-            Err(()) => {}
+            Ok(None) => changes.push(file.change),
+            Err(()) => dropped.push(file),
         }
     }
-    Ok(changes)
+    Ok((changes, dropped))
 }
 
 /// Has Contents read `library`'s unparsed files again and forget what Matching left Unmatched
@@ -186,7 +192,7 @@ fn movie_of(movie: &RecognisedMovie) -> Option<Item> {
     let title = movie.title.trim();
     (!title.is_empty()).then(|| Item::Movie {
         title: title.to_owned(),
-        year: movie.year.map(i64::from),
+        year: year(movie.year),
         hint: hint(&movie.ids),
     })
 }
@@ -199,9 +205,10 @@ fn episodes_of(episodes: RecognisedEpisodes) -> Option<Vec<Item>> {
     if show.is_empty() || numbers.is_empty() || !fits {
         return None;
     }
+    let year = year(episodes.show_year);
     let items = numbers.into_iter().map(|episode| Item::Episode {
         show: show.to_owned(),
-        year: episodes.show_year.map(i64::from),
+        year,
         hint: None,
         season: i64::from(episodes.season),
         episode: i64::from(episode),
@@ -209,13 +216,18 @@ fn episodes_of(episodes: RecognisedEpisodes) -> Option<Vec<Item>> {
     Some(items.collect())
 }
 
-/// The ID Hint Matching goes by among `ids`, picked as the name parser picks one from a name:
-/// TMDB's, else TVDB's, else IMDb's, else the first of any other namespace. Ids that aren't well
-/// formed are left out.
+/// `year` if it is one a name may give, as the name parser keeps a year.
+fn year(year: Option<i32>) -> Option<i64> {
+    year.map(i64::from).filter(|year| YEARS.contains(year))
+}
+
+/// The ID Hint Matching goes by among `ids`, read and picked as the name parser reads and picks
+/// one from a name: TMDB's, else TVDB's, else IMDb's, else the first of any other namespace. Ids
+/// the name parser wouldn't read as a hint are left out.
 fn hint(ids: &[TitleId]) -> Option<ExternalId> {
     let mut hints = ExternalIds::default();
     for id in ids {
-        let Ok(id) = ExternalId::new(&id.namespace, id.value.clone()) else {
+        let Some(id) = id_hint(&id.namespace.to_ascii_lowercase(), &id.value) else {
             continue;
         };
         if hints.get(id.namespace()).is_none() {

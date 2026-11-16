@@ -8,7 +8,10 @@ use std::{
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    contract::{FileRecognised, FileToRecognise, RecognisedEpisodes, RecognisedMovie, TitleId},
+    contract::{
+        FileRecognised, FileToRecognise, RecognisedEpisodes, RecognisedMovie, TitleId,
+        file_recognised::Recognised,
+    },
     metadata::ExternalId,
     recogniser::Recogniser,
 };
@@ -111,14 +114,17 @@ async fn recognised_listing(
         Planned {
             change: store("/media/Show - 2.mkv", Vec::new()),
             unread: Some(PathBuf::from("Show - 2.mkv")),
+            added: true,
         },
         Planned {
             change: store("/media/Show/Show - S01E01.mkv", vec![episode(1)]),
             unread: None,
+            added: true,
         },
         Planned {
             change: Change::Remove(7),
             unread: None,
+            added: false,
         },
     ];
     let order: Vec<String> = listing.iter().map(|&id| id.to_owned()).collect();
@@ -132,6 +138,7 @@ async fn recognised_listing(
     )
     .await
     .unwrap()
+    .0
 }
 
 /// [`recognised_listing`] with the Library listing the Recogniser.
@@ -171,6 +178,55 @@ fn a_proposal_of_the_wrong_kind_is_ignored() {
     assert_eq!(items(Kind::Shows, movie("Alien")), None);
     assert_eq!(items(Kind::Movies, episodes([1])), None);
     assert_eq!(items(Kind::Shows, FileRecognised::default()), None);
+}
+
+/// The ID Hint Matching goes by for a Movie proposed with the one id `namespace`, `value`.
+fn hint_of(namespace: &str, value: &str) -> Option<ExternalId> {
+    let mut proposal = movie("Alien");
+    if let Some(Recognised::Movie(movie)) = &mut proposal.recognised {
+        movie.ids = vec![TitleId {
+            namespace: namespace.to_owned(),
+            value: value.to_owned(),
+            ..TitleId::default()
+        }];
+    }
+    match items(Kind::Movies, proposal)?.pop()? {
+        Item::Movie { hint, .. } => hint,
+        Item::Episode { .. } => None,
+    }
+}
+
+#[test]
+fn a_proposed_id_is_read_as_the_name_parser_reads_an_id_hint() {
+    assert_eq!(hint_of("tmdb", "0123"), Some(ExternalId::tmdb(123)));
+    assert_eq!(
+        hint_of("imdbid", "TT0133093"),
+        ExternalId::new("imdb", "tt0133093").ok()
+    );
+    assert_eq!(hint_of("TVDB", "12a"), None);
+    assert_eq!(hint_of("edition", "Director's Cut"), None);
+}
+
+/// The year of the first Item proposed for `proposal` in a Library of `kind`.
+fn year_of(kind: Kind, proposal: FileRecognised) -> Option<i64> {
+    match items(kind, proposal)?.pop()? {
+        Item::Movie { year, .. } | Item::Episode { year, .. } => year,
+    }
+}
+
+#[test]
+fn a_proposed_year_no_name_could_give_is_dropped() {
+    let mut movie = movie("Alien");
+    if let Some(Recognised::Movie(proposed)) = &mut movie.recognised {
+        proposed.year = Some(1066);
+    }
+    let mut show = episodes([1]);
+    if let Some(Recognised::Episodes(proposed)) = &mut show.recognised {
+        proposed.show_year = Some(1999);
+    }
+
+    assert_eq!(year_of(Kind::Movies, movie), None);
+    assert_eq!(year_of(Kind::Shows, show), Some(1999));
 }
 
 #[test]
@@ -288,4 +344,23 @@ async fn a_scan_asks_newly_listed_recognisers_about_unparsed_files_once() {
         "listing it reads the unparsed file again"
     );
     assert_eq!((again.updated, asked()), (0, 1), "nothing changed since");
+}
+
+#[tokio::test]
+async fn a_scan_does_not_count_a_new_file_a_recogniser_failed_on_as_added() {
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(ProposingPlugin(|| None))).unwrap();
+    let media = Fixture::with_plugins(Kind::Shows, plugins.extension_points()).await;
+    let libraries = &media.scanner.inner.libraries;
+    let library = libraries.list().await.unwrap()[0].id;
+    libraries
+        .set_recognisers(library, vec!["proposing".to_owned()])
+        .await
+        .unwrap();
+    media.write("Show - 2.mkv", 1);
+    media.write("Show/Show - S01E01.mkv", 1);
+
+    let summary = media.scan().await;
+
+    assert_eq!((summary.added, summary.updated), (1, 0));
 }
