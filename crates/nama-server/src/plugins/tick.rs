@@ -10,7 +10,7 @@ use nama_plugin_api::{
 use tokio::time::MissedTickBehavior;
 use tracing::warn;
 
-use super::{Answer, ExtensionPoints, scope::Scope};
+use super::{ExtensionPoints, Failure, scope::Scope};
 
 /// A new scope for an enablement of `manifest`'s Plugin, ticking its Automation every
 /// `tick_every` if it has one and `registrations` provide one. The first tick comes at once, so an
@@ -44,27 +44,35 @@ async fn ticking(points: ExtensionPoints, plugin: PluginId, every: Duration) {
     interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
     loop {
         interval.tick().await;
-        // db's clock, not the system's, so a test's clock reaches Plugins.
-        let tick = Tick {
-            now_ms: crate::db::now().saturating_mul(1000),
-            ..Tick::default()
-        };
-        let tick = &tick;
-        let answer = points
-            .ask(&plugin, |automation: Arc<dyn Automation>| async move {
-                automation.tick(tick).await
-            })
-            .await;
-        match answer {
+        match once(&points, &plugin).await {
             // Disabled, or panicked, which disabled it.
             None => return,
-            Some(Answer {
-                result: Err(failure),
-                ..
-            }) => warn!(plugin = %plugin, error = failure.message, "automation tick failed"),
-            Some(_) => {}
+            Some(Err(failure)) => {
+                warn!(plugin = %plugin, error = failure.message, "automation tick failed");
+            }
+            Some(Ok(())) => {}
         }
     }
+}
+
+/// Ticks `plugin`'s Automation once, as the schedule does. `None` if it isn't enabled, provides no
+/// Automation, or panicked, which disabled it.
+pub(super) async fn once(
+    points: &ExtensionPoints,
+    plugin: &PluginId,
+) -> Option<Result<(), Failure>> {
+    // db's clock, not the system's, so a test's clock reaches Plugins.
+    let tick = Tick {
+        now_ms: crate::db::now().saturating_mul(1000),
+        ..Tick::default()
+    };
+    let tick = &tick;
+    let answer = points
+        .ask(plugin, |automation: Arc<dyn Automation>| async move {
+            automation.tick(tick).await
+        })
+        .await?;
+    Some(answer.result)
 }
 
 #[cfg(test)]

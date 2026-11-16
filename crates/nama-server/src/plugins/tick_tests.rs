@@ -130,3 +130,24 @@ async fn a_plugin_without_tick_every_is_never_ticked() {
 
     assert_eq!(count(&ticks), 0);
 }
+
+#[cfg(feature = "testing")]
+#[tokio::test(start_paused = true)]
+async fn tick_now_ticks_a_plugin_its_schedule_never_ticks() {
+    let registry = Registry::new();
+    let ticks = enabled(&registry, None);
+
+    registry.tick_now(&ID).await.unwrap();
+
+    assert_eq!(count(&ticks), 1);
+}
+
+#[cfg(feature = "testing")]
+#[tokio::test]
+async fn tick_now_refuses_a_plugin_that_is_not_enabled() {
+    let registry = Registry::new();
+
+    let refused = registry.tick_now(&ID).await.unwrap_err();
+
+    assert_eq!(refused, "ticked isn't enabled or provides no Automation");
+}

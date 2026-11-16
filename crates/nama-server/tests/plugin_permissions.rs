@@ -163,3 +163,25 @@ async fn enabling_again_with_none_clears_the_grants() {
     assert!(summary.enabled);
     assert_eq!(summary.granted_permissions, values(&[]));
 }
+
+#[tokio::test]
+async fn changing_the_grants_of_a_running_plugin_reaches_the_kernel() {
+    let server = with_automation_plugin().await;
+    listed(&server).await;
+    client(&server)
+        .enable_plugin(enable_granting(&[STORE]))
+        .await
+        .unwrap();
+    let refused = server.tick("test-plugin").await.unwrap_err();
+    assert!(
+        refused.contains("Read Libraries Permission"),
+        "the tick failed for another reason: {refused}"
+    );
+
+    client(&server)
+        .enable_plugin(enable_granting(&[STORE, READ_LIBRARIES]))
+        .await
+        .unwrap();
+
+    server.tick("test-plugin").await.unwrap();
+}

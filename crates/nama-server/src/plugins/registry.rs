@@ -481,6 +481,20 @@ impl Registry {
         self.write(|state| state.precedence.insert(PointKey::provide::<T>(), plugins));
     }
 
+    /// Testing only: ticks the Plugin `id`'s Automation once, now, as its schedule would, since
+    /// ticks come at least `MIN_TICK_EVERY` apart.
+    ///
+    /// # Errors
+    ///
+    /// The tick's failure message, or that the Plugin isn't enabled or provides no Automation.
+    #[cfg(feature = "testing")]
+    pub async fn tick_now(&self, id: &PluginId) -> Result<(), String> {
+        tick::once(&self.points, id)
+            .await
+            .ok_or_else(|| format!("{id} isn't enabled or provides no Automation"))?
+            .map_err(|failure| failure.message)
+    }
+
     /// The id of each Installed Plugin disabled from now on because it crashed, for the Server to
     /// save as disabled. Replaces the receiver an earlier call returned.
     pub(crate) fn crashed(&self) -> mpsc::UnboundedReceiver<PluginId> {

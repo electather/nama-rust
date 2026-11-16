@@ -20,6 +20,7 @@ use connectrpc::{
     ConnectError,
     client::{ClientConfig, HttpClient, ServerStream},
 };
+use nama_plugin_api::PluginId;
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::{
@@ -52,6 +53,8 @@ pub(crate) struct TestServer {
     /// The session token of the Admin's Device.
     pub(crate) admin_token: String,
     db: Arc<Database>,
+    /// The Registry the Server was started with, for running a Plugin's tick now.
+    plugins: Registry,
     tmdb: Option<FakeTmdb>,
     fulfiller: Option<FakeFulfiller>,
     _stop: oneshot::Sender<()>,
@@ -164,6 +167,7 @@ impl Builder {
             ..config
         };
         let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+        let registry = plugins.clone();
         let plugins = PluginSettings::start(Arc::clone(&db), plugins, &config)
             .await
             .unwrap();
@@ -190,6 +194,7 @@ impl Builder {
             addr,
             admin_token,
             db,
+            plugins: registry,
             tmdb,
             fulfiller,
             _stop: stop,
@@ -334,6 +339,14 @@ impl TestServer {
     )]
     pub(crate) fn advance_clock(&self, by: Duration) {
         nama_server::db::advance_clock(by);
+    }
+
+    /// Ticks the enabled Plugin `plugin`'s Automation once, now, returning the tick's failure
+    /// message, or why the Plugin can't tick.
+    pub(crate) async fn tick(&self, plugin: &str) -> Result<(), String> {
+        self.plugins
+            .tick_now(&PluginId::from(plugin.to_owned()))
+            .await
     }
 
     /// The Server's data directory, such as for its Installed Plugins.
