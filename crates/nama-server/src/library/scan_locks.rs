@@ -10,10 +10,17 @@ use std::{
 pub(crate) struct ScanLocks(Arc<Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>>);
 
 impl ScanLocks {
-    /// No Library's lock yet. Only `Scanner::new` calls it: it hands the same locks to its
-    /// Matcher, so no Match is fixed under locks a scan doesn't take.
+    /// No Library's lock yet. Only `Scanner::new` calls it (and the test-only `for_tests`): it
+    /// hands the same locks to its Matcher, so no Match is fixed under locks a scan doesn't take.
     pub(crate) fn new() -> Self {
         Self(Arc::default())
+    }
+
+    /// No Library's lock yet, for a Matching or Requests test that builds a Matcher without a
+    /// Scanner. The one other maker of `ScanLocks`, and test-only.
+    #[cfg(test)]
+    pub(crate) fn for_tests() -> Self {
+        Self::new()
     }
 
     /// Waits for any scan of the Library `id` to finish, then takes its scan lock.

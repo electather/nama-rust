@@ -18,15 +18,14 @@ use crate::{
     images::ImageStore,
     library::artwork::Artwork,
     library::contents::{Change, Contents, Item, UnmatchedReason, fixture},
-    library::custom_images::CustomImages,
     library::libraries::Libraries,
+    library::scan_locks::ScanLocks,
     library::title_source::TitleSources,
     matching::{
-        Miss, Summary, TitleKey, sources,
+        Matcher, Miss, Summary, TitleKey, sources,
         tests::{Fixture, Library, Outcome, matched},
     },
     plugins::{ExtensionPoints, Registry},
-    scanner::Scanner,
     server_settings::ServerUrl,
 };
 
@@ -275,20 +274,17 @@ async fn match_dark_file(answers: Answers) -> (Summary, usize, Asked) {
     contents.apply(library, vec![file]).await.unwrap();
     let (plugins, asked) = enabled(answers);
     let images = ImageStore::new(data.path(), Arc::clone(&db));
-    let scanner = Scanner::new(
+    let locks = ScanLocks::for_tests();
+    let matcher = Matcher::new(
         Arc::clone(&db),
         plugins.extension_points(),
-        Artwork::new(images.clone(), plugins.extension_points()),
-        CustomImages::new(Arc::clone(&db), images),
+        Artwork::new(images, plugins.extension_points()),
         EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
-        None,
-        None,
-        None,
+        locks.clone(),
     );
 
-    let scan = scanner.lock(library).await;
-    let summary = scanner
-        .matcher()
+    let scan = locks.lock(library).await;
+    let summary = matcher
         .match_library(&scan, &CancellationToken::new())
         .await
         .unwrap();

@@ -540,9 +540,9 @@ const ALLOWED_UPWARD: &[Allowed] = &[
         "ADR 0012: the Library makes Requests Available inside its own write",
     ),
     (
-        Importers::TestCode,
+        Importers::File("src/matching/matching_tests.rs"),
         &["scanner", "Scanner"],
-        "ADR 0051: only Scanner::new makes ScanLocks, which a Matching or Requests test needs",
+        "ADR 0051: Matching's Fixture scans real folders with Scanner::scan",
     ),
 ];
 

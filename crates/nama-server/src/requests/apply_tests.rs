@@ -20,10 +20,10 @@ use crate::{
     images::ImageStore,
     library::artwork::Artwork,
     library::contents::{Change, Item},
-    library::custom_images::CustomImages,
     library::libraries::{Kind, Libraries},
+    library::scan_locks::ScanLocks,
+    matching::Matcher,
     plugins::Registry,
-    scanner::Scanner,
     users::Permissions,
 };
 
@@ -178,18 +178,14 @@ async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_mad
     requests.contents.apply(library, vec![store]).await.unwrap();
     let item = requests.contents.files(library).await.unwrap()[0].items[0].id;
     let images = ImageStore::new(data.path(), Arc::clone(&requests.db));
-    let scanner = Scanner::new(
+    let pinning = Matcher::new(
         Arc::clone(&requests.db),
         requests.plugins.clone(),
-        Artwork::new(images.clone(), requests.plugins.clone()),
-        CustomImages::new(Arc::clone(&requests.db), images),
+        Artwork::new(images, requests.plugins.clone()),
         requests.events.clone(),
-        None,
-        None,
-        None,
+        ScanLocks::for_tests(),
     );
     let mut published = subscribe(&requests);
-    let pinning = scanner.matcher().clone();
 
     leave_once_queued(&requests, async move {
         pinning.set_match(item, &ExternalId::tmdb(949)).await

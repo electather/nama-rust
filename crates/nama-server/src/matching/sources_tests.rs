@@ -18,12 +18,11 @@ use crate::{
     images::ImageStore,
     library::artwork::Artwork,
     library::contents::{Change, Contents, Item, Metadata, Pin, UnmatchedReason, fixture},
-    library::custom_images::CustomImages,
     library::libraries::Libraries,
+    library::scan_locks::ScanLocks,
     library::title_source::TitleSources,
-    matching::{FoundShow, Miss, Summary, TitleKey, recognisers::Recognisers},
+    matching::{FoundShow, Matcher, Miss, Summary, TitleKey, recognisers::Recognisers},
     plugins::{ExtensionPoints, Registry},
-    scanner::Scanner,
     server_settings::ServerUrl,
 };
 
@@ -398,20 +397,17 @@ async fn match_with_pin(pin: ExternalId, aa_looks_up: &'static [&'static str]) -
         .unwrap();
     let (plugins, _) = looking_up(HAS, HAS, aa_looks_up);
     let images = ImageStore::new(data.path(), Arc::clone(&db));
-    let scanner = Scanner::new(
+    let locks = ScanLocks::for_tests();
+    let matcher = Matcher::new(
         Arc::clone(&db),
         plugins.extension_points(),
-        Artwork::new(images.clone(), plugins.extension_points()),
-        CustomImages::new(Arc::clone(&db), images),
+        Artwork::new(images, plugins.extension_points()),
         EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
-        None,
-        None,
-        None,
+        locks.clone(),
     );
 
-    let scan = scanner.lock(library).await;
-    scanner
-        .matcher()
+    let scan = locks.lock(library).await;
+    matcher
         .match_library(&scan, &CancellationToken::new())
         .await
         .unwrap()
@@ -715,19 +711,16 @@ async fn images_matching_dark(aa: Listing, bb: Listing) -> Vec<(String, String)>
         plugins.enable(Arc::new(ListingPlugin(source))).unwrap();
     }
     let images = ImageStore::new(data.path(), Arc::clone(&db));
-    let scanner = Scanner::new(
+    let locks = ScanLocks::for_tests();
+    let matcher = Matcher::new(
         Arc::clone(&db),
         plugins.extension_points(),
-        Artwork::new(images.clone(), plugins.extension_points()),
-        CustomImages::new(Arc::clone(&db), images),
+        Artwork::new(images, plugins.extension_points()),
         EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
-        None,
-        None,
-        None,
+        locks.clone(),
     );
-    let scan = scanner.lock(library).await;
-    scanner
-        .matcher()
+    let scan = locks.lock(library).await;
+    matcher
         .match_library(&scan, &CancellationToken::new())
         .await
         .unwrap();
