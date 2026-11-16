@@ -964,6 +964,8 @@ pub const __GET_SERVER_SETTINGS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonA
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct UpdateServerSettingsRequest {
+    /// Required: a request without it is refused, so leaving it out can't reset every setting.
+    ///
     /// Field 1: `settings`
     #[serde(
         rename = "settings",
@@ -2630,6 +2632,8 @@ pub const __GET_PLAYBACK_SETTINGS_RESPONSE_JSON_ANY: ::buffa::type_registry::Jso
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct UpdatePlaybackSettingsRequest {
+    /// Required: a request without it is refused, so leaving it out can't reset every setting.
+    ///
     /// Field 1: `settings`
     #[serde(
         rename = "settings",
@@ -2944,7 +2948,7 @@ pub struct PlaybackSettings {
     pub max_transcodes: ::core::option::Option<u32>,
     /// The Playback Limit for a Device whose address isn't on the local network, until its User
     /// picks one in the player. `PLAYBACK_LIMIT_ORIGINAL`, the default, for none; unset is taken as
-    /// that.
+    /// that. A value this Server doesn't know is refused.
     ///
     /// Field 3: `remote_playback_limit`
     #[serde(
@@ -2954,7 +2958,8 @@ pub struct PlaybackSettings {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub remote_playback_limit: ::buffa::EnumValue<PlaybackLimit>,
-    /// What Transcodes run on. One that didn't pass its test at startup leaves them in software.
+    /// What Transcodes run on. One that didn't pass its test at startup leaves them in software. A
+    /// value this Server doesn't know is refused.
     ///
     /// Field 4: `hardware_acceleration`
     #[serde(
@@ -3517,6 +3522,8 @@ pub const __GET_IMAGE_SETTINGS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAn
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct UpdateImageSettingsRequest {
+    /// Required: a request without it is refused, so leaving it out can't reset every setting.
+    ///
     /// Field 1: `settings`
     #[serde(
         rename = "settings",

@@ -109,6 +109,8 @@ export const GetServerSettingsResponseSchema: GenMessage<GetServerSettingsRespon
  */
 export type UpdateServerSettingsRequest = Message<"nama.v1.UpdateServerSettingsRequest"> & {
   /**
+   * Required: a request without it is refused, so leaving it out can't reset every setting.
+   *
    * @generated from field: nama.v1.ServerSettings settings = 1;
    */
   settings?: ServerSettings | undefined;
@@ -390,6 +392,8 @@ export const GetPlaybackSettingsResponseSchema: GenMessage<GetPlaybackSettingsRe
  */
 export type UpdatePlaybackSettingsRequest = Message<"nama.v1.UpdatePlaybackSettingsRequest"> & {
   /**
+   * Required: a request without it is refused, so leaving it out can't reset every setting.
+   *
    * @generated from field: nama.v1.PlaybackSettings settings = 1;
    */
   settings?: PlaybackSettings | undefined;
@@ -449,14 +453,15 @@ export type PlaybackSettings = Message<"nama.v1.PlaybackSettings"> & {
   /**
    * The Playback Limit for a Device whose address isn't on the local network, until its User
    * picks one in the player. `PLAYBACK_LIMIT_ORIGINAL`, the default, for none; unset is taken as
-   * that.
+   * that. A value this Server doesn't know is refused.
    *
    * @generated from field: nama.v1.PlaybackLimit remote_playback_limit = 3;
    */
   remotePlaybackLimit: PlaybackLimit;
 
   /**
-   * What Transcodes run on. One that didn't pass its test at startup leaves them in software.
+   * What Transcodes run on. One that didn't pass its test at startup leaves them in software. A
+   * value this Server doesn't know is refused.
    *
    * @generated from field: nama.v1.HardwareAcceleration hardware_acceleration = 4;
    */
@@ -533,6 +538,8 @@ export const GetImageSettingsResponseSchema: GenMessage<GetImageSettingsResponse
  */
 export type UpdateImageSettingsRequest = Message<"nama.v1.UpdateImageSettingsRequest"> & {
   /**
+   * Required: a request without it is refused, so leaving it out can't reset every setting.
+   *
    * @generated from field: nama.v1.ImageSettings settings = 1;
    */
   settings?: ImageSettings | undefined;

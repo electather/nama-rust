@@ -1146,6 +1146,8 @@ impl ::serde::Serialize for GetServerSettingsResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct UpdateServerSettingsRequestView<'a> {
+    /// Required: a request without it is refused, so leaving it out can't reset every setting.
+    ///
     /// Field 1: `settings`
     pub settings: ::buffa::MessageFieldView<
         super::super::__buffa::view::ServerSettingsView<'a>,
@@ -1399,6 +1401,8 @@ impl UpdateServerSettingsRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// Required: a request without it is refused, so leaving it out can't reset every setting.
+    ///
     /// Field 1: `settings`
     #[must_use]
     pub fn settings(
@@ -4302,6 +4306,8 @@ impl ::serde::Serialize for GetPlaybackSettingsResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct UpdatePlaybackSettingsRequestView<'a> {
+    /// Required: a request without it is refused, so leaving it out can't reset every setting.
+    ///
     /// Field 1: `settings`
     pub settings: ::buffa::MessageFieldView<
         super::super::__buffa::view::PlaybackSettingsView<'a>,
@@ -4555,6 +4561,8 @@ impl UpdatePlaybackSettingsRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// Required: a request without it is refused, so leaving it out can't reset every setting.
+    ///
     /// Field 1: `settings`
     #[must_use]
     pub fn settings(
@@ -4922,11 +4930,12 @@ pub struct PlaybackSettingsView<'a> {
     pub max_transcodes: ::core::option::Option<u32>,
     /// The Playback Limit for a Device whose address isn't on the local network, until its User
     /// picks one in the player. `PLAYBACK_LIMIT_ORIGINAL`, the default, for none; unset is taken as
-    /// that.
+    /// that. A value this Server doesn't know is refused.
     ///
     /// Field 3: `remote_playback_limit`
     pub remote_playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
-    /// What Transcodes run on. One that didn't pass its test at startup leaves them in software.
+    /// What Transcodes run on. One that didn't pass its test at startup leaves them in software. A
+    /// value this Server doesn't know is refused.
     ///
     /// Field 4: `hardware_acceleration`
     pub hardware_acceleration: ::buffa::EnumValue<super::super::HardwareAcceleration>,
@@ -5323,7 +5332,7 @@ impl PlaybackSettingsOwnedView {
     }
     /// The Playback Limit for a Device whose address isn't on the local network, until its User
     /// picks one in the player. `PLAYBACK_LIMIT_ORIGINAL`, the default, for none; unset is taken as
-    /// that.
+    /// that. A value this Server doesn't know is refused.
     ///
     /// Field 3: `remote_playback_limit`
     #[must_use]
@@ -5332,7 +5341,8 @@ impl PlaybackSettingsOwnedView {
     ) -> ::buffa::EnumValue<super::super::PlaybackLimit> {
         self.0.reborrow().remote_playback_limit
     }
-    /// What Transcodes run on. One that didn't pass its test at startup leaves them in software.
+    /// What Transcodes run on. One that didn't pass its test at startup leaves them in software. A
+    /// value this Server doesn't know is refused.
     ///
     /// Field 4: `hardware_acceleration`
     #[must_use]
@@ -5990,6 +6000,8 @@ impl ::serde::Serialize for GetImageSettingsResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct UpdateImageSettingsRequestView<'a> {
+    /// Required: a request without it is refused, so leaving it out can't reset every setting.
+    ///
     /// Field 1: `settings`
     pub settings: ::buffa::MessageFieldView<
         super::super::__buffa::view::ImageSettingsView<'a>,
@@ -6243,6 +6255,8 @@ impl UpdateImageSettingsRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// Required: a request without it is refused, so leaving it out can't reset every setting.
+    ///
     /// Field 1: `settings`
     #[must_use]
     pub fn settings(
