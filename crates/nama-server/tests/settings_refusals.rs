@@ -24,7 +24,8 @@ const FOLDER: &str = r"C:\nama";
 #[cfg(not(windows))]
 const FOLDER: &str = "/dev/shm/nama";
 
-/// Playback settings with every field away from its default, so a reset would show.
+/// Playback settings with every field but `gpu` away from its default, so a reset would show:
+/// a GPU is refused with Off.
 fn saved_playback() -> PlaybackSettings {
     PlaybackSettings {
         segment_folder: FOLDER.to_owned(),
