@@ -354,6 +354,10 @@ async fn a_movie_one_user_has_not_watched_is_kept() {
     dune_alone_is_deleted_next(&server, &library, &everyone).await;
 }
 
+/// A User starting a played Movie again keeps it. Starting again unmarks it first, so the Movie is
+/// kept because that User no longer has it played, not by the Cleanup's in-progress rule: the
+/// Kernel holds one Watch State per User and title, so a title every User played has none in
+/// progress, and the rule can't be told apart here. The Cleanup's own unit tests cover it.
 #[tokio::test]
 async fn a_movie_one_user_has_started_again_is_kept() {
     let (server, library) = alien_and_dune().await;
@@ -394,15 +398,37 @@ async fn an_episode_every_user_watched_past_the_limit_is_deleted_and_a_recent_on
     wait_until_listed(async || dark_episodes(&server, &library).await, &[LIES]).await;
 }
 
+/// A folder made read-only, made writable again however the test ends, so a failing assertion
+/// can't leave behind a scratch directory nobody can remove.
+#[cfg(unix)]
+struct ReadOnly(std::path::PathBuf);
+
+#[cfg(unix)]
+impl ReadOnly {
+    /// Makes `folder` read-only until the guard is dropped.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    fn new(folder: &std::path::Path) -> Self {
+        set_mode(folder, 0o555).unwrap();
+        Self(folder.to_owned())
+    }
+}
+
+#[cfg(unix)]
+impl Drop for ReadOnly {
+    fn drop(&mut self) {
+        // No unwrap: a panic while the test is already unwinding aborts the whole run.
+        let _: std::io::Result<()> = set_mode(&self.0, 0o755);
+    }
+}
+
 /// Sets the mode of the folder `folder` to `mode`.
 #[cfg(unix)]
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-fn set_mode(folder: &std::path::Path, mode: u32) {
+fn set_mode(folder: &std::path::Path, mode: u32) -> std::io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(folder, std::fs::Permissions::from_mode(mode)).unwrap();
+    std::fs::set_permissions(folder, std::fs::Permissions::from_mode(mode))
 }
 
 /// A delete that failed in the background leaves the Movie listed, and a day later the Cleanup
@@ -416,16 +442,14 @@ async fn a_delete_that_failed_is_asked_again_a_day_later() {
     enable_cleanup(&server, &EVERY_PERMISSION).await;
     mark_played(&server, &library, ALIEN).await;
     past_the_limit(&server);
-    let alien_folder = library.folder().join("Alien (1979)");
-    set_mode(&alien_folder, 0o555);
-    if std::fs::File::create(alien_folder.join("probe")).is_ok() {
+    let alien_folder = ReadOnly::new(&library.folder().join("Alien (1979)"));
+    if std::fs::File::create(alien_folder.0.join("probe")).is_ok() {
         // Running as root, which writes anywhere; there's nothing to test.
-        set_mode(&alien_folder, 0o755);
         return;
     }
 
     server.tick(CLEANUP).await.unwrap();
-    set_mode(library.folder(), 0o555);
+    let _library_folder = ReadOnly::new(library.folder());
     (server.scan_until(library.id, |event| {
         matches!(event, event::Event::ScanFinished(_))
     }))
@@ -433,9 +457,6 @@ async fn a_delete_that_failed_is_asked_again_a_day_later() {
     let same_day = server.tick(CLEANUP).await;
     server.advance_clock(Duration::from_hours(24));
     let a_day_later = server.tick(CLEANUP).await;
-    // So the scratch directory can be cleaned up.
-    set_mode(library.folder(), 0o755);
-    set_mode(&alien_folder, 0o755);
 
     assert_eq!(same_day, Ok(()), "asked again before a day passed");
     let refused = a_day_later.expect_err("a day later, the delete is asked again");
