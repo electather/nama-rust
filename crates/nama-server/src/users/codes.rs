@@ -32,7 +32,7 @@ impl SetupCode {
     }
 
     /// Whether `entered` is this code, ignoring case, dashes and spaces.
-    pub(crate) fn matches(&self, entered: &str) -> bool {
+    pub(super) fn matches(&self, entered: &str) -> bool {
         // Comparing hashes, so how long a wrong guess takes says nothing about the code.
         Sha256::digest(normalized_code(entered)) == Sha256::digest(&self.0)
     }
@@ -45,7 +45,7 @@ impl fmt::Display for SetupCode {
 }
 
 /// `length` random characters of [`CODE_ALPHABET`], for a code a person reads and types.
-pub(crate) fn random_code(length: usize) -> Result<String, getrandom::Error> {
+pub(super) fn random_code(length: usize) -> Result<String, getrandom::Error> {
     let mut bytes = vec![0; length];
     getrandom::fill(&mut bytes)?;
     // 256 is a multiple of 32, so every character is equally likely.
@@ -58,7 +58,7 @@ pub(crate) fn random_code(length: usize) -> Result<String, getrandom::Error> {
 
 /// A code as a person typed it, in the form [`random_code`] makes: without dashes or spaces, and
 /// in upper case.
-pub(crate) fn normalized_code(entered: &str) -> String {
+pub(super) fn normalized_code(entered: &str) -> String {
     entered
         .chars()
         .filter(|c| *c != '-' && !c.is_whitespace())
@@ -67,7 +67,7 @@ pub(crate) fn normalized_code(entered: &str) -> String {
 }
 
 /// A code [`random_code`] made, as it is shown: in groups of four joined by dashes.
-pub(crate) fn code_in_groups(code: &str) -> String {
+pub(super) fn code_in_groups(code: &str) -> String {
     let mut shown = String::with_capacity(code.len() + code.len() / 4);
     for (i, c) in code.chars().enumerate() {
         if i > 0 && i % 4 == 0 {

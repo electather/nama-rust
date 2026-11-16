@@ -32,8 +32,8 @@ use nama_proto::nama::v1::{
     subscribe_response,
 };
 use nama_server::{
-    codes::SetupCode, config::Config, db::Database, ffmpeg::Ffmpeg,
-    plugin_settings::PluginSettings, plugins::Registry,
+    config::Config, db::Database, ffmpeg::Ffmpeg, plugin_settings::PluginSettings,
+    plugins::Registry, users::SetupCode,
 };
 use tempfile::TempDir;
 use tokio::{net::TcpListener, sync::oneshot};

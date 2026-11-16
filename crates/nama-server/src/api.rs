@@ -16,7 +16,6 @@ use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason};
 
 use crate::{
     browse::Browse,
-    codes::SetupCode,
     config::Config,
     connections::Connections,
     db::{Database, now},
@@ -34,8 +33,10 @@ use crate::{
     requests::Requests,
     scanner::Scanner,
     server_settings::{self, ImageSettings},
-    sessions::{cleared_session_cookie, identify_caller, in_session_cookie},
-    users::{Caller, Users},
+    users::{
+        Caller, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
+        in_session_cookie,
+    },
 };
 
 mod browse;
@@ -50,7 +51,6 @@ mod sign_in;
 mod users;
 mod watch_states;
 
-use crate::sign_in::SignIn;
 use browse::BrowseServiceHandler;
 use events::EventServiceHandler;
 use libraries::LibraryServiceHandler;

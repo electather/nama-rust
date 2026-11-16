@@ -27,7 +27,7 @@ const SYSTEMS: &[(&str, &str)] = &[
 /// A Device name for a client sending `user_agent`, such as "Chrome on macOS".
 // ponytail: substring matching covers the common browsers; reach for a UA parser crate if Devices
 // from other clients need better names.
-pub(crate) fn from_user_agent(user_agent: Option<&str>) -> String {
+pub(super) fn from_user_agent(user_agent: Option<&str>) -> String {
     let user_agent = user_agent.unwrap_or_default();
     let find = |table: &[(&str, &'static str)]| {
         table

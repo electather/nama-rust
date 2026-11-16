@@ -444,14 +444,7 @@ const STARTUP: &[&str] = &["lib", "main"];
 // needs `playback::subtitles` (`probing/` goes with it). rate_limits and users import each other,
 // sign_in needs codes, device_names, rate_limits and sign_in_codes, sessions needs users, and
 // connections, left of users in its row, uses codes.
-const MOVING_INTO: &[(&str, &str)] = &[
-    ("codes", "users"),
-    ("device_names", "users"),
-    ("rate_limits", "users"),
-    ("sessions", "users"),
-    ("sign_in", "users"),
-    ("sign_in_codes", "users"),
-];
+const MOVING_INTO: &[(&str, &str)] = &[];
 
 /// What is wrong with where `modules`, the stems of the `.rs` files directly under `src/`, are
 /// placed in `rows`, `startup` and `moving_into`.

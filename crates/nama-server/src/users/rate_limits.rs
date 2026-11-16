@@ -13,7 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::users::{NAME_LENGTH, name_key};
+use super::{NAME_LENGTH, name_key};
 
 const WINDOW: Duration = Duration::from_mins(15);
 
@@ -30,7 +30,7 @@ const FAILURES_PER_DEVICE: usize = 10;
 
 /// The recent failed Setup, signing in and Reauthenticate attempts, by client IP and by User name.
 #[derive(Debug, Default)]
-pub(crate) struct SignInLimits {
+pub(super) struct SignInLimits {
     failures: Mutex<Failures>,
 }
 
@@ -60,7 +60,7 @@ pub(crate) struct Blocked {
 impl SignInLimits {
     /// Lets an attempt from `ip`, signing in as `name` if it names a User, through at `now` unless
     /// too many have failed recently, and counts it as failed until it succeeds.
-    pub(crate) fn admit(
+    pub(super) fn admit(
         &self,
         ip: IpAddr,
         name: Option<&str>,
@@ -88,7 +88,7 @@ impl SignInLimits {
 
     /// Un-counts `attempt`, which succeeded. A successful sign-in also forgets every failure for
     /// its name.
-    pub(crate) fn succeeded(&self, attempt: &Attempt) {
+    pub(super) fn succeeded(&self, attempt: &Attempt) {
         let mut failures = self.lock();
         failures.by_ip.forget(&attempt.ip, attempt.at);
         if let Some(key) = &attempt.name_key {
@@ -105,14 +105,14 @@ impl SignInLimits {
 /// The recent failed Sign-in Code lookups and approvals, lookups and approvals together, by the id
 /// of the Device that made them.
 #[derive(Debug, Default)]
-pub(crate) struct SignInCodeLimits {
+pub(super) struct SignInCodeLimits {
     failures: Mutex<Window<i64>>,
 }
 
 /// A Sign-in Code lookup or approval let through. Like an [`Attempt`], it counts as a failure
 /// unless it is reported as [`wasnt_a_guess`](SignInCodeLimits::wasnt_a_guess).
 #[derive(Debug)]
-pub(crate) struct SignInCodeAttempt {
+pub(super) struct SignInCodeAttempt {
     device: i64,
     at: Instant,
 }
@@ -120,7 +120,7 @@ pub(crate) struct SignInCodeAttempt {
 impl SignInCodeLimits {
     /// Lets a lookup or approval by the Device `device` at `now` through unless too many of its
     /// own have failed recently, and counts it as failed until it turns out not to be a guess.
-    pub(crate) fn admit(&self, device: i64, now: Instant) -> Result<SignInCodeAttempt, Blocked> {
+    pub(super) fn admit(&self, device: i64, now: Instant) -> Result<SignInCodeAttempt, Blocked> {
         let mut failures = self.lock();
         if let Some(retry_after) = failures.wait(&device, FAILURES_PER_DEVICE, now) {
             return Err(Blocked { retry_after });
@@ -131,7 +131,7 @@ impl SignInCodeLimits {
 
     /// Un-counts `attempt`, whose code turned out to exist: it succeeded, or failed for a reason
     /// a guess can't get, such as the code being approved already.
-    pub(crate) fn wasnt_a_guess(&self, attempt: &SignInCodeAttempt) {
+    pub(super) fn wasnt_a_guess(&self, attempt: &SignInCodeAttempt) {
         self.lock().forget(&attempt.device, attempt.at);
     }
 

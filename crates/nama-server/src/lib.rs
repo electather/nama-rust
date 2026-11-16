@@ -4,11 +4,9 @@ mod api;
 mod automation;
 pub use library::artwork;
 mod browse;
-pub mod codes;
 pub mod config;
 mod connections;
 pub mod db;
-mod device_names;
 mod events;
 pub mod ffmpeg;
 mod forwarded;
@@ -18,13 +16,9 @@ mod matching;
 mod playback;
 pub mod plugin_settings;
 pub mod plugins;
-mod rate_limits;
 mod requests;
 mod scanner;
 mod server_settings;
-mod sessions;
-mod sign_in;
-mod sign_in_codes;
 pub mod users;
 #[cfg(feature = "web")]
 mod web;
@@ -35,7 +29,6 @@ use tokio::net::TcpListener;
 
 use crate::{
     automation::Automation,
-    codes::SetupCode,
     config::Config,
     db::Database,
     events::EventBus,
@@ -51,6 +44,7 @@ use crate::{
     requests::Requests,
     scanner::Scanner,
     server_settings::Settings,
+    users::SetupCode,
 };
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins `plugins` started,

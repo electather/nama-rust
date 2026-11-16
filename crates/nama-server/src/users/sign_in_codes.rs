@@ -10,9 +10,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{
+use super::{
+    ApprovingDevice,
     codes::{code_in_groups, normalized_code, random_code, random_secret},
-    users::ApprovingDevice,
 };
 
 /// How long a Sign-in Code and its poll handle last.
@@ -28,7 +28,7 @@ const CODE_LENGTH: usize = 8;
 const MAX_PENDING: usize = 100_000;
 
 #[derive(Default)]
-pub(crate) struct SignInCodes {
+pub(super) struct SignInCodes {
     /// By poll handle.
     pending: Mutex<HashMap<String, Pending>>,
 }
@@ -59,7 +59,7 @@ pub(crate) enum Delivery {
 }
 
 #[derive(Debug)]
-pub(crate) enum Poll {
+pub(super) enum Poll {
     Waiting,
     /// Not approved, or not polled once approved, within [`LIFETIME`].
     Expired,
@@ -95,7 +95,7 @@ pub(crate) enum Error {
 
 impl SignInCodes {
     /// Starts signing in the Device `device_name`, which has been checked, at `now`.
-    pub(crate) fn start(
+    pub(super) fn start(
         &self,
         device_name: String,
         delivery: Delivery,
@@ -132,7 +132,7 @@ impl SignInCodes {
     }
 
     /// The name of the Device that the code `entered` would sign in, at `now`. Approves nothing.
-    pub(crate) fn look_up(&self, entered: &str, now: Instant) -> Result<String, Error> {
+    pub(super) fn look_up(&self, entered: &str, now: Instant) -> Result<String, Error> {
         let mut pending = self.lock();
         Ok(awaiting_approval(&mut pending, entered, now)?
             .device_name
@@ -140,7 +140,7 @@ impl SignInCodes {
     }
 
     /// Approves the code `entered` from `approving` at `now`, so its Device signs in as their User.
-    pub(crate) fn approve(
+    pub(super) fn approve(
         &self,
         entered: &str,
         approving: ApprovingDevice,
@@ -152,7 +152,7 @@ impl SignInCodes {
     }
 
     /// Where the sign-in polled with `handle` has got to at `now`.
-    pub(crate) fn poll(&self, handle: &str, now: Instant) -> Result<Poll, Error> {
+    pub(super) fn poll(&self, handle: &str, now: Instant) -> Result<Poll, Error> {
         let mut pending = self.lock();
         let sign_in = pending.get(handle).ok_or(Error::HandleNotFound)?;
         if now >= sign_in.expires_at {

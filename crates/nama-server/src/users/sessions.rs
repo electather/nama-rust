@@ -11,10 +11,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::{
-    forwarded::RequestSource,
-    users::{Caller, DEVICE_LIFETIME, Users},
-};
+use super::{Caller, DEVICE_LIFETIME, Users};
+use crate::forwarded::RequestSource;
 
 const COOKIE_NAME: &str = "nama_session";
 

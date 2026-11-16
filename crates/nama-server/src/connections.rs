@@ -16,10 +16,9 @@ use tokio::time::Instant;
 use tracing::{error, warn};
 
 use crate::{
-    codes,
     db::{Database, now},
     plugins::ExtensionPoints,
-    users::{Permissions, User},
+    users::{Permissions, User, random_secret},
 };
 
 /// How long a link waits for its User to finish with it.
@@ -107,7 +106,7 @@ impl Connections {
     /// the link they open to finish. Polls the Plugin in the background until they do, or for
     /// [`LIFETIME`].
     pub(crate) async fn start(&self, user: i64, plugin: &PluginId) -> Result<String, StartError> {
-        let code = codes::random_secret()?;
+        let code = random_secret()?;
         let started = self
             .plugins
             .ask(plugin, |connector: Arc<dyn Connector>| {

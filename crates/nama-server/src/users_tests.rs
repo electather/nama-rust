@@ -323,7 +323,7 @@ fn laptop() -> NewDevice {
 
 /// A guess let through by a throwaway rate limiter, which `verify` asks for.
 fn admitted() -> Attempt {
-    crate::rate_limits::SignInLimits::default()
+    rate_limits::SignInLimits::default()
         .admit(laptop().ip_address, None, std::time::Instant::now())
         .unwrap()
 }

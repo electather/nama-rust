@@ -16,12 +16,27 @@ use sqlx::{Sqlite, SqliteConnection, Transaction};
 use tokio::sync::broadcast;
 
 use crate::{
-    codes::random_secret,
     db::{BoxFuture, Database, now},
     plugins::{ExtensionPoints, Failure, ProviderError},
-    rate_limits::Attempt,
 };
+
+mod codes;
+mod device_names;
 pub(crate) mod personal_settings;
+mod rate_limits;
+mod sessions;
+mod sign_in;
+mod sign_in_codes;
+
+pub use codes::SetupCode;
+pub(crate) use codes::random_secret;
+use rate_limits::Attempt;
+pub(crate) use rate_limits::Blocked;
+pub(crate) use sessions::{
+    cleared_session_cookie, identify_caller, in_session_cookie, session_cookie,
+};
+pub(crate) use sign_in::{Error as SignInError, Polled, Proof, SignIn};
+pub(crate) use sign_in_codes::{Delivery, Error as SignInCodeError};
 
 /// How many characters a User's or Device's name may have, once trimmed.
 pub(crate) const NAME_LENGTH: RangeInclusive<usize> = 1..=64;
@@ -319,7 +334,7 @@ impl Users {
     }
 
     /// Whether the Server has any User yet. Until it has, the first Admin can be created with a
-    /// [`SetupCode`](crate::codes::SetupCode).
+    /// [`SetupCode`].
     ///
     /// # Errors
     ///

@@ -7,12 +7,12 @@
 
 use std::{net::IpAddr, time::Instant};
 
-use crate::{
+use super::{
+    self as users, ApprovingDevice, Caller, NewDevice, Proved, SignedIn, Users,
     codes::SetupCode,
     device_names,
     rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
     sign_in_codes::{self, Delivery, Poll, SignInCodes, Started},
-    users::{self, ApprovingDevice, Caller, NewDevice, Proved, SignedIn, Users},
 };
 
 /// Signs Devices in, with a proof or a Sign-in Code, under the sign-in limits.
