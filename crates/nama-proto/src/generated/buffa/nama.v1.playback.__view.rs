@@ -4873,7 +4873,7 @@ pub struct PlaybackPlanView<'a> {
     /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
     /// asked for or the Server chose, or else the one the Version plays by default. Unset when it has
     /// no audio or its Tracks aren't known. A plan that can't be played drops no choice, so it says
-    /// the one asked for.
+    /// the one asked for, if that is one of the Version's audio Tracks.
     ///
     /// Field 8: `audio_track`
     pub audio_track: ::core::option::Option<u32>,
@@ -4901,8 +4901,8 @@ pub struct PlaybackPlanView<'a> {
         ::buffa::EnumValue<super::super::PlaybackLimit>,
     >,
     /// The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
-    /// burns in, or else, when the request left the choice to the Server, one of `subtitles` that
-    /// the player shows itself. Unset for none.
+    /// burns in, or would if it could be played, or else, when the request left the choice to the
+    /// Server, one of `subtitles` that the player shows itself. Unset for none.
     ///
     /// Field 14: `starting_subtitle`
     pub starting_subtitle: ::core::option::Option<u32>,
@@ -5590,7 +5590,7 @@ impl PlaybackPlanOwnedView {
     /// The audio Track it plays, by its place in the Version's `tracks`, counting from 0: the one
     /// asked for or the Server chose, or else the one the Version plays by default. Unset when it has
     /// no audio or its Tracks aren't known. A plan that can't be played drops no choice, so it says
-    /// the one asked for.
+    /// the one asked for, if that is one of the Version's audio Tracks.
     ///
     /// Field 8: `audio_track`
     #[must_use]
@@ -5632,8 +5632,8 @@ impl PlaybackPlanOwnedView {
         &self.0.reborrow().playback_limits
     }
     /// The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
-    /// burns in, or else, when the request left the choice to the Server, one of `subtitles` that
-    /// the player shows itself. Unset for none.
+    /// burns in, or would if it could be played, or else, when the request left the choice to the
+    /// Server, one of `subtitles` that the player shows itself. Unset for none.
     ///
     /// Field 14: `starting_subtitle`
     #[must_use]

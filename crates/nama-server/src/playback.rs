@@ -114,12 +114,14 @@ pub(crate) struct Plan {
     pub(crate) subtitles: Vec<Subtitle>,
     /// The Playback Limit it keeps to, `None` being Original.
     pub(crate) limit: Option<PlaybackLimit>,
-    /// The place in the Version's Tracks of the audio Track it plays, if it has audio.
+    /// The place in the Version's Tracks of the audio Track it plays, or would if it could be
+    /// played, if it has audio.
     pub(crate) audio: Option<usize>,
-    /// The place in the Version's Tracks of the subtitle Track it burns in, if any.
+    /// The place in the Version's Tracks of the subtitle Track it burns in, or would if it could
+    /// be played, if any.
     pub(crate) burn_in: Option<usize>,
     /// The place in the Version's Tracks of the subtitle Track playback starts with, if any: the
-    /// one it burns in, or else a text one the Server chose for the Device to show.
+    /// one in `burn_in`, or else a text one the Server chose for the Device to show.
     pub(crate) starting_subtitle: Option<usize>,
     pub(crate) offers: Offers,
 }
