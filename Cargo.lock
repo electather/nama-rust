@@ -2283,6 +2283,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-webhook"
+version = "0.1.0"
+dependencies = [
+ "hmac",
+ "nama-pdk",
+ "serde",
+ "sha2 0.11.1",
+]
+
+[[package]]
 name = "nama-proto"
 version = "0.2.0"
 dependencies = [

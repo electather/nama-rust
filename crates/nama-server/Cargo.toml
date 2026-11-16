@@ -70,7 +70,7 @@ rustix = { version = "1", features = ["fs"] }
 [dev-dependencies]
 connectrpc = { version = "0.9.1", features = ["client"] }
 figment = { version = "0.10", features = ["test"] }
-# The fake S3 in `tests/support/fake_s3.rs` checks each request's signature, as S3 does.
+# The fake S3 checks each request's signature, as S3 does, and the Webhook test each body's.
 hmac = "0.13"
 http-body-util = "0.1"
 hyper = { version = "1", features = ["client", "http1"] }

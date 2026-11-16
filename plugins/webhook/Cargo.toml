@@ -1,0 +1,21 @@
+[package]
+name = "nama-plugin-webhook"
+version = "0.1.0"
+description = "Installed Plugin posting every Request event as signed JSON to a webhook URL, bundled in the Server"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# RustCrypto, since it builds for wasm32.
+hmac = "0.13"
+nama-pdk = { version = "0.2.0", path = "../../crates/nama-pdk" }
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.11"
+
+[lints]
+workspace = true
