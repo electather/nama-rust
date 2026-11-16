@@ -471,7 +471,7 @@ impl Contents {
         library_with_movie(&mut conn, id).await
     }
 
-    /// By title, grouped by [`primary_id`](super::primary_id).
+    /// By title, ignoring case, grouped by [`primary_id`](super::primary_id).
     pub(crate) async fn movies(&self, library: i64) -> Result<Vec<Movie>, sqlx::Error> {
         macro_rules! select {
             ($ids:literal) => {
@@ -537,12 +537,12 @@ impl Contents {
             movie.versions.push(version);
         }
         let mut movies: Vec<Movie> = movies.into_values().collect();
-        movies.sort_by(|a, b| a.title.cmp(&b.title));
+        movies.sort_by_cached_key(|movie| title_order(&movie.title));
         Ok(movies)
     }
 
-    /// By title, grouped by the Episodes' Show ids' [`primary_id`](super::primary_id), each
-    /// Season's Episodes by their own.
+    /// By title, ignoring case, grouped by the Episodes' Show ids'
+    /// [`primary_id`](super::primary_id), each Season's Episodes by their own.
     #[expect(
         clippy::too_many_lines,
         reason = "one query's columns, and the Show, Season and Episode each row fills"
@@ -637,9 +637,15 @@ impl Contents {
             }
         }
         let mut shows: Vec<Show> = shows.into_values().collect();
-        shows.sort_by(|a, b| a.title.cmp(&b.title));
+        shows.sort_by_cached_key(|show| title_order(&show.title));
         Ok(shows)
     }
+}
+
+/// The key Movies and Shows sort by: alphabetical whatever the case, then as written so titles
+/// differing only in case ("Up", "UP") keep one order.
+fn title_order(title: &str) -> (String, String) {
+    (title.to_lowercase(), title.to_owned())
 }
 
 impl Contents {
