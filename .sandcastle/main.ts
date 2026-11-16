@@ -823,14 +823,16 @@ async function readUsage(): Promise<Usage> {
     }),
   });
   // A 429 from the limit itself still carries the headers.
-  const header = (name: string) => {
+  const header = (name: string, missing?: number) => {
     const v = res.headers.get(`anthropic-ratelimit-unified-${name}`);
-    if (v === null) throw new Error(`HTTP ${res.status}, no ${name} header`);
-    return Number(v);
+    if (v !== null) return Number(v);
+    if (missing === undefined) throw new Error(`HTTP ${res.status}, no ${name} header`);
+    return missing;
   };
+  // The API leaves out the 5h headers at times (seen 2026-11-16, 7d only); read that as no 5h limit in play.
   return {
-    used: header("5h-utilization"),
-    resetsAt: header("5h-reset") * 1000,
+    used: header("5h-utilization", 0),
+    resetsAt: header("5h-reset", 0) * 1000,
     weekly: header("7d-utilization"),
     weeklyResetsAt: header("7d-reset") * 1000,
     readAt: Date.now(),
