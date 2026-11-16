@@ -1339,5 +1339,5 @@ async fn insert_device(
 }
 
 #[cfg(test)]
-#[path = "users_tests.rs"]
+#[path = "users/users_tests.rs"]
 mod tests;
