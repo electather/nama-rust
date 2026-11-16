@@ -339,6 +339,44 @@ async fn a_direct_play_is_kept_while_its_device_asks_for_its_version_and_then_en
     assert!(plans.ask(unasked, another).is_none());
 }
 
+#[tokio::test]
+async fn a_direct_play_is_kept_while_its_file_is_sent_and_then_ends() {
+    let data = tempfile::tempdir().unwrap();
+    let db = database(data.path()).await;
+    let plans = plans_in(
+        &db,
+        settings(&db, data.path().join("transcodes")).playback(),
+    );
+    let (version, device, another) = (4, 7, 8);
+    let direct_play = |on| Playback {
+        device_id: on,
+        version_id: version,
+        method: PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY.into(),
+        ..Default::default()
+    };
+    let (sent_to, not_sent_to) = (
+        plans.direct_play(direct_play(device)),
+        plans.direct_play(direct_play(another)),
+    );
+    let late_part = futures_util::stream::once(async {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    });
+    let mut file =
+        std::pin::pin!(plans.ask_direct_plays_while_sending(version, Some(device), late_part));
+
+    file.next().await;
+    plans.stop_unused(Duration::from_millis(50)).await;
+
+    assert!(plans.ask(sent_to, device).is_some());
+    assert!(plans.ask(not_sent_to, another).is_none());
+
+    assert!(file.next().await.is_none());
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    plans.stop_unused(Duration::from_millis(50)).await;
+
+    assert!(plans.ask(sent_to, device).is_none());
+}
+
 // The stand-in ffmpeg is `sleep`.
 #[cfg(unix)]
 #[tokio::test]

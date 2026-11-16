@@ -264,7 +264,11 @@ message PlaybackPlan {
   // `PLAYBACK_METHOD_UNSPECIFIED` when the Version can't be played on this Device; `reasons` say
   // why.
   PlaybackMethod method = 1;
-  // Where to play it from, on this Server. Empty when it can't be played.
+  // Where to play it from, on this Server. Empty when it can't be played. The Server ends the
+  // plan, publishing `PlaybackEnded`, about a minute after it was last asked for anything; for a
+  // Direct Play, each part of its file sent counts as asked for. So while nothing is being
+  // fetched, as when the player is paused, a client keeps the plan by asking for `url` (`HEAD` is
+  // enough) at least every 30 seconds, and calls `StopPlayback` when it closes.
   string url = 2;
   // The Tracks it plays: its video, then its audio, as the Device gets them, so audio a Remux
   // converts is AAC here. Empty when they aren't known, as on a Server without ffprobe.
