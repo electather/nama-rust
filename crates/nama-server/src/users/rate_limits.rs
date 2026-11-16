@@ -60,7 +60,7 @@ pub(crate) struct Attempt {
 #[derive(Debug, thiserror::Error)]
 #[error("too many failed attempts; try again in {} seconds", self.retry_after_secs())]
 pub(crate) struct Blocked {
-    /// How long until the oldest failure in the way leaves the window.
+    /// How long until the oldest count in the way leaves the window.
     retry_after: Duration,
 }
 
@@ -185,11 +185,12 @@ fn counted_name_key(name: &str) -> String {
     name_key(&capped)
 }
 
-/// When each key's failures still in the window happened, oldest first.
+/// When each key's counts still in the window happened, oldest first: failures, or Sign-in Code
+/// starts.
 #[derive(Debug)]
 struct Window<K> {
     times: HashMap<K, VecDeque<Instant>>,
-    /// When keys whose failures had all left the window were last dropped.
+    /// When keys whose counts had all left the window were last dropped.
     swept_at: Option<Instant>,
 }
 
@@ -203,7 +204,7 @@ impl<K> Default for Window<K> {
 }
 
 impl<K: Hash + Eq> Window<K> {
-    /// How long `key` must wait, as of `now`, before it has fewer than `limit` failures in the
+    /// How long `key` must wait, as of `now`, before it has fewer than `limit` counts in the
     /// window, if it has that many now.
     fn wait(&mut self, key: &K, limit: usize, now: Instant) -> Option<Duration> {
         let times = self.times.get_mut(key)?;
@@ -219,9 +220,9 @@ impl<K: Hash + Eq> Window<K> {
         (times.len() >= limit).then(|| WINDOW.saturating_sub(now.saturating_duration_since(oldest)))
     }
 
-    /// Counts a failure for `key` at `at`. Once a window, it also drops the keys whose failures
-    /// have all left it: sweeping on every failure would make each one slower the more peers have
-    /// failed recently.
+    /// Counts one for `key` at `at`. Once a window, it also drops the keys whose counts have all
+    /// left it: sweeping on every count would make each one slower the more peers were counted
+    /// recently.
     fn record(&mut self, key: K, at: Instant) {
         if self
             .swept_at

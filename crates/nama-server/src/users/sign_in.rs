@@ -146,7 +146,8 @@ impl SignIn {
     }
 
     /// Starts signing in `device` with a Sign-in Code at `now`, unless its IP started too many
-    /// recently. Only its name is kept; `delivery` is kept for the poll that signs it in, unread.
+    /// recently. Of `device`, only its name is kept; `delivery` is kept, unread, for the poll that
+    /// signs it in.
     pub(crate) fn start_code(
         &self,
         device: NewDevice,
