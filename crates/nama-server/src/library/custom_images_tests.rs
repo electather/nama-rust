@@ -7,7 +7,10 @@ use image::{ImageFormat, RgbImage};
 use nama_plugin_api::{PluginId, metadata::ExternalId};
 
 use super::{CustomImages, Role, Slot, router};
-use crate::{db::Database, images::ImageStore, server_settings::Settings};
+use crate::{
+    db::Database, images::ImageStore, library::Artwork, plugins::Registry,
+    server_settings::Settings,
+};
 
 #[test]
 fn a_slot_for_an_id_holding_a_slash_or_percent_round_trips_through_its_path() {
@@ -58,11 +61,12 @@ async fn an_image_for_an_id_holding_a_slash_is_uploaded_and_served_at_its_path()
     let data = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let store = ImageStore::new(data.path(), Arc::clone(&db));
-    let custom_images = CustomImages::new(Arc::clone(&db), store);
+    let custom_images = CustomImages::new(Arc::clone(&db), store.clone());
     let images = Settings::new(db, data.path().to_owned()).images();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let app = router(custom_images.clone(), images);
+    let artwork = Artwork::new(store.clone(), Registry::new().extension_points());
+    let app = router(custom_images.clone(), artwork, images);
     tokio::spawn(async move { axum::serve(listener, app).await });
     let mut png = Cursor::new(Vec::new());
     RgbImage::new(2, 3)

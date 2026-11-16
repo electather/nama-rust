@@ -3,7 +3,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { BrowseService, type MovieSchema } from "@/gen/nama/v1/browse_pb";
-import { LibraryKind } from "@/gen/nama/v1/library_pb";
+import { LibraryKind, type ListArtworkResponseSchema } from "@/gen/nama/v1/library_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
 import { fakeServer, newUser, openApp } from "./test-app";
@@ -17,17 +17,31 @@ const managesLibraries = [...newUser, Permission.MANAGE_LIBRARIES];
 
 const DOWNLOADED = "/media/artwork/tmdb/%2Falien.jpg";
 const CUSTOM = "/media/custom-images/movie/tmdb-348/poster/v1";
+const OTHER = "/media/artwork/tmdb/%2Fother.jpg";
 
-/** Alien's page for a User with `permissions`, whose Poster is whatever `movie` says now. */
-function openAlien(permissions: Permission[], movie: () => MessageInitShape<typeof MovieSchema>) {
+/**
+ * Alien's page for a User with `permissions`, whose Poster is whatever `movie` says now, and whose
+ * title sources list the artwork `listed` to pick from.
+ */
+function openAlien(
+  permissions: Permission[],
+  movie: () => MessageInitShape<typeof MovieSchema>,
+  listed: MessageInitShape<typeof ListArtworkResponseSchema> = {},
+) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
-  const transport = fakeServer({ signedIn: permissions, libraries }, {}, {}, (router) => {
-    router.service(BrowseService, {
-      getMovie: () => ({
-        movie: { title: "Alien", versions: [{ id: 1n, fileName: "Alien.mkv" }], ...movie() },
-      }),
-    });
-  });
+  const libraryService = { listArtwork: () => listed };
+  const transport = fakeServer(
+    { signedIn: permissions, libraries, libraryService },
+    {},
+    {},
+    (router) => {
+      router.service(BrowseService, {
+        getMovie: () => ({
+          movie: { title: "Alien", versions: [{ id: 1n, fileName: "Alien.mkv" }], ...movie() },
+        }),
+      });
+    },
+  );
   openApp("/libraries/1/movies/tmdb-348", transport);
 }
 
@@ -97,6 +111,37 @@ test("removing a Custom Image brings the downloaded one back", async () => {
     method: "DELETE",
   });
   expect(within(dialog).queryByRole("button", { name: "Remove custom image: Poster" })).toBeNull();
+});
+
+test("a Poster picked from the title sources is downloaded by the Server and shows", async () => {
+  let poster = { posterUrl: DOWNLOADED, customPoster: false };
+  const fetched = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+    poster = { posterUrl: CUSTOM, customPoster: true };
+    return Promise.resolve(new Response(null, { status: 204 }));
+  });
+  openAlien(managesLibraries, () => poster, { posterUrls: [DOWNLOADED, OTHER] });
+  const dialog = await openEditImages();
+
+  fireEvent.click(await within(dialog).findByRole("button", { name: "Pick Poster 2 of 2" }));
+
+  await waitFor(() => {
+    expect(within(dialog).getByRole("img", { name: "Poster" }).getAttribute("src")).toBe(CUSTOM);
+  });
+  expect(fetched).toHaveBeenCalledWith(
+    `/custom-images/movie/tmdb-348/poster?artwork=${encodeURIComponent(OTHER)}`,
+    { method: "PUT" },
+  );
+});
+
+test("an image no title source lists artwork for offers only the upload", async () => {
+  openAlien(managesLibraries, () => ({ posterUrl: DOWNLOADED }), { backdropUrls: [OTHER] });
+  const dialog = await openEditImages();
+
+  // The Backdrop's pick shows once the lists have arrived.
+  await within(dialog).findByRole("button", { name: "Pick Backdrop 1 of 1" });
+
+  expect(within(dialog).getByLabelText("Upload a Poster")).toBeDefined();
+  expect(within(dialog).queryByRole("button", { name: /^Pick Poster/u })).toBeNull();
 });
 
 test.each([
