@@ -94,7 +94,13 @@ impl Summary {
             if planned.added {
                 self.added -= 1;
             } else {
-                self.updated -= 1;
+                // Can't happen today: only a planned Store or Reparse with an unread file is
+                // dropped, and `plan` counted each of those as added or updated.
+                debug_assert!(
+                    self.updated > 0,
+                    "left out a change the scan never counted as updated"
+                );
+                self.updated = self.updated.saturating_sub(1);
             }
         }
     }

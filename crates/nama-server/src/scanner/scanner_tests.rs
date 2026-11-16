@@ -5,14 +5,14 @@ use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{Lagged, subscribe_response};
 use tempfile::TempDir;
 
-use super::{Doomed, Scanner, Summary};
+use super::{Doomed, Planned, Scanner, Summary};
 use crate::{
     db::Database,
     events::{EventBus, Filter},
     ffmpeg::Ffmpeg,
     images::ImageStore,
     library::artwork::Artwork,
-    library::contents::{Contents, File, Item, Version},
+    library::contents::{Change, Contents, File, Item, Version},
     library::custom_images::CustomImages,
     library::libraries::{self, Kind, Libraries, Order},
     playback::{Probing, subtitles},
@@ -183,6 +183,20 @@ fn summary(added: u64, updated: u64, removed: u64, unchanged: u64) -> Summary {
         removed,
         unchanged,
     }
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "left out a change the scan never counted as updated")]
+fn leaving_out_more_than_was_updated_is_caught_in_debug_builds() {
+    let mut counted = summary(0, 0, 1, 0);
+    let removal = Planned {
+        change: Change::Remove(7),
+        unread: None,
+        added: false,
+    };
+
+    counted.leave_out(&[removal]);
 }
 
 #[tokio::test]
