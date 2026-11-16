@@ -230,7 +230,7 @@ impl Registry {
         if self.read(|state| state.plugins.contains_key(id)) {
             return Err(EnableError::AlreadyEnabled(id.clone()));
         }
-        check_personal_settings(manifest)?;
+        refuse_bad_personal_settings(manifest)?;
         let schema = &manifest.settings;
         let settings = settings
             .resolve(schema)
@@ -701,7 +701,7 @@ pub(super) fn personal_settings_refusal(manifest: &Manifest) -> Option<String> {
 }
 
 /// Refuses `manifest` if [`personal_settings_refusal`] says why.
-fn check_personal_settings(manifest: &Manifest) -> Result<(), EnableError> {
+fn refuse_bad_personal_settings(manifest: &Manifest) -> Result<(), EnableError> {
     personal_settings_refusal(manifest).map_or(Ok(()), |reason| {
         Err(EnableError::Refused {
             plugin: manifest.id.clone(),
