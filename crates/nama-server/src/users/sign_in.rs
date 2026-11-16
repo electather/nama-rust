@@ -26,6 +26,7 @@ pub(crate) struct SignIn {
     codes: SignInCodes,
     /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
     code_limits: SignInCodeLimits,
+    /// The recent Sign-in Code starts, which keep one client IP from filling `codes`.
     code_start_limits: SignInCodeStartLimits,
 }
 

@@ -1104,6 +1104,7 @@ async fn one_ip_starting_too_many_codes_is_refused_but_not_another() {
         RefusalReason::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS,
     );
     assert_eq!(other.status, 200, "{}", other.body);
+    assert!(other.body.get("code").is_some(), "{}", other.body);
 }
 
 /// Calls `method`, `LookUpSignInCode` or `ApproveSignInCode`, with `code` as the Device whose

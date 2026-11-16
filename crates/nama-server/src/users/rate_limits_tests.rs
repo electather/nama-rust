@@ -75,7 +75,7 @@ fn a_code_attempt_that_wasnt_a_guess_isnt_counted() {
 }
 
 #[test]
-fn code_starts_are_admitted_again_once_old_starts_leave_the_window() {
+fn code_starts_are_counted_per_ip_and_admitted_again_once_old_starts_leave_the_window() {
     let limits = SignInCodeStartLimits::default();
     let other_ip = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 7));
     let start = Instant::now();
