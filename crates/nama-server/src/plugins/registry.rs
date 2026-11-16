@@ -9,7 +9,8 @@ use std::{
 };
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginId, PointKey, Priority, Registrar, Registration, Stop,
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    Registration, Stop,
     automation::{
         DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked, Permission,
         StoreEntry, StoreKey, StoreValue, Stored, Titles, TitlesAsked, Users, UsersAsked,
@@ -424,36 +425,49 @@ impl Registry {
             .resolve(&with_optional_choices(schema.clone()))
             .map_err(CheckError::InvalidSettings)?;
         let secrets = secret_values(&schema, &settings);
-        let scrubbed = |message: String| without_secrets(message, &secrets);
-        let panicked = |message: String| {
-            let message = scrubbed(message);
-            error!(plugin = %id, message, "plugin panicked while checking its settings");
-            CheckError::Failed(format!("{id} failed while checking its settings"))
-        };
-        let plugin = contain_sync(|| make()).map_err(panicked)?;
-        // The timeout is inside `contain`, so dropping a check it gave up on (Plugin code) is
-        // contained too, as are formatting and dropping the Plugin's error.
-        let check = contain(|| async {
-            let check = plugin.settings_check()?;
-            let checked = tokio::time::timeout(SETTINGS_CHECK_TIMEOUT, check.check(&settings))
-                .await
-                .unwrap_or_else(|_elapsed| Err(CheckTimedOut(SETTINGS_CHECK_TIMEOUT).into()));
-            Some(
-                checked.map_err(|error| match error.downcast::<CheckTimedOut>() {
-                    Ok(timed_out) => CheckError::TimedOut(id.clone(), timed_out.0),
-                    Err(error) => CheckError::Failed(scrubbed(error.to_string())),
-                }),
-            )
+        let checked = check_fresh(id, &make, &secrets, &settings, |plugin, settings| {
+            Some(plugin.settings_check()?.check(settings))
         });
-        let checked = match check.await {
-            Ok(Some(checked)) => checked,
-            Ok(None) => Err(no_check()),
-            Err(message) => Err(panicked(message)),
-        };
-        if let Err(message) = contain_sync(|| drop(plugin)) {
-            error!(plugin = %id, message, "plugin panicked while being dropped");
-        }
-        checked
+        checked.await?.ok_or_else(no_check)
+    }
+
+    /// Runs the Plugin `id`'s check of one User's Personal settings, `personal`, on a fresh
+    /// instance with the Plugin's saved `settings`, whether it is enabled or not. A Plugin without
+    /// one passes.
+    ///
+    /// # Errors
+    ///
+    /// If no Plugin has the id, the Server refused it, its settings don't fit, or the check fails.
+    /// A check that panics or runs past [`SETTINGS_CHECK_TIMEOUT`] fails without harming the
+    /// Server.
+    pub async fn check_personal_settings(
+        &self,
+        id: &PluginId,
+        settings: Settings,
+        personal: &BTreeMap<String, String>,
+    ) -> Result<(), CheckError> {
+        let (make, manifest) = self
+            .read(|state| {
+                let (make, manifest) = state.known.get(id)?.plugin.as_ref().ok()?;
+                Some((Arc::clone(make), manifest.clone()))
+            })
+            .ok_or_else(|| CheckError::Unknown(id.clone()))?;
+        let settings = settings
+            .resolve(&with_optional_choices(manifest.settings.clone()))
+            .map_err(CheckError::InvalidSettings)?;
+        let mut secrets = secret_values(&manifest.settings, &settings);
+        let personal_secrets = manifest
+            .personal_settings
+            .fields
+            .iter()
+            .filter(|field| field.kind == SettingKind::Secret)
+            .filter_map(|field| personal.get(&field.key));
+        secrets.extend(personal_secrets.cloned());
+        let asked = (settings, personal);
+        let checked = check_fresh(id, &make, &secrets, &asked, |plugin, (saved, values)| {
+            Some(plugin.personal_settings_check()?.check(saved, values))
+        });
+        checked.await.map(drop)
     }
 
     /// The ids of the enabled Plugins, sorted.
@@ -696,6 +710,53 @@ fn check_personal_settings(manifest: &Manifest) -> Result<(), EnableError> {
     })
 }
 
+/// The check [`check_fresh`] runs: a fresh Plugin's check on what is asked, or `None` if the Plugin
+/// has no such check.
+type FreshCheck<A, T> =
+    for<'p> fn(&'p dyn Plugin, &'p A) -> Option<BoxFuture<'p, Result<T, PluginError>>>;
+
+/// Runs `check` on `asked` with a fresh instance of the Plugin `id` that `make` makes, contained
+/// and under [`SETTINGS_CHECK_TIMEOUT`], with `secrets` blanked out of why it failed. `None` if the
+/// Plugin has no such check.
+async fn check_fresh<A: Sync, T>(
+    id: &PluginId,
+    make: &Make,
+    secrets: &[String],
+    asked: &A,
+    check: FreshCheck<A, T>,
+) -> Result<Option<T>, CheckError> {
+    let scrubbed = |message: String| without_secrets(message, secrets);
+    let panicked = |message: String| {
+        let message = scrubbed(message);
+        error!(plugin = %id, message, "plugin panicked while checking its settings");
+        CheckError::Failed(format!("{id} failed while checking its settings"))
+    };
+    let plugin = contain_sync(|| make()).map_err(panicked)?;
+    let fresh: &dyn Plugin = &*plugin;
+    // The timeout is inside `contain`, so dropping a check it gave up on (Plugin code) is
+    // contained too, as are formatting and dropping the Plugin's error.
+    let checking = contain(|| async move {
+        let checking = check(fresh, asked)?;
+        let checked = tokio::time::timeout(SETTINGS_CHECK_TIMEOUT, checking)
+            .await
+            .unwrap_or_else(|_elapsed| Err(CheckTimedOut(SETTINGS_CHECK_TIMEOUT).into()));
+        Some(
+            checked.map_err(|error| match error.downcast::<CheckTimedOut>() {
+                Ok(timed_out) => CheckError::TimedOut(id.clone(), timed_out.0),
+                Err(error) => CheckError::Failed(scrubbed(error.to_string())),
+            }),
+        )
+    });
+    let checked = match checking.await {
+        Ok(checked) => checked.transpose(),
+        Err(message) => Err(panicked(message)),
+    };
+    if let Err(message) = contain_sync(|| drop(plugin)) {
+        error!(plugin = %id, message, "plugin panicked while being dropped");
+    }
+    checked
+}
+
 /// `schema` with its Choice settings optional, since checking the settings is how an admin finds
 /// what to pick for them.
 fn with_optional_choices(mut schema: SettingsSchema) -> SettingsSchema {
@@ -712,3 +773,7 @@ impl fmt::Debug for Registry {
             .finish_non_exhaustive()
     }
 }
+
+#[cfg(test)]
+#[path = "registry_tests.rs"]
+mod tests;

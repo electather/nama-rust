@@ -1,6 +1,8 @@
-use nama_pdk::nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value};
+use nama_pdk::nama_plugin_proto::nama::plugin::v1::{
+    PersonalSettingsCheck, SettingKind, setting_value::Value,
+};
 
-use super::{manifest, topic};
+use super::{TOPIC, check_personal_settings, manifest, topic};
 
 #[test]
 fn a_topic_of_letters_digits_underscores_and_dashes_up_to_64_long_is_taken() {
@@ -29,6 +31,25 @@ fn an_empty_too_long_or_oddly_lettered_topic_is_refused_naming_the_setting() {
             "{refused}: {error}"
         );
     }
+}
+
+fn asked(topic: &str) -> PersonalSettingsCheck {
+    PersonalSettingsCheck {
+        personal_settings: std::iter::once((TOPIC.to_owned(), topic.to_owned())).collect(),
+        ..PersonalSettingsCheck::default()
+    }
+}
+
+#[test]
+fn the_personal_settings_check_passes_a_good_topic_and_refuses_a_bad_one_in_its_words() {
+    let passed = check_personal_settings(&asked("nama_ada-7Xq"));
+    let refused = check_personal_settings(&asked("bad topic/../!"));
+
+    assert!(passed.is_ok(), "{passed:?}");
+    assert_eq!(
+        refused.unwrap_err().to_string(),
+        "the Personal setting topic must be 1 to 64 letters, digits, _ or -"
+    );
 }
 
 #[test]

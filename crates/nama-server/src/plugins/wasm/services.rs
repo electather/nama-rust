@@ -30,6 +30,9 @@ use crate::plugins::without_secrets;
 /// The export that checks a Plugin's settings, if it has one. No service's: a Plugin of any has it.
 pub(super) const CHECK_SETTINGS: &str = "check_settings";
 
+/// The export that checks a User's Personal settings when they save them, if the Plugin has one.
+pub(super) const CHECK_PERSONAL_SETTINGS: &str = "check_personal_settings";
+
 /// How a method's failure reaches the Kernel.
 pub(super) enum Failure {
     /// The error becomes the caller's [`PluginError`], and counts toward the crashes in a row.
@@ -263,7 +266,7 @@ pub(super) fn known_exports() -> impl Iterator<Item = &'static str> {
         .iter()
         .flat_map(|point| point.methods)
         .map(|method| method.export)
-        .chain([CHECK_SETTINGS])
+        .chain([CHECK_SETTINGS, CHECK_PERSONAL_SETTINGS])
 }
 
 impl Running {

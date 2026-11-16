@@ -141,6 +141,8 @@ pub mod __buffa {
         reg.register_json_any(super::__POINT_JSON_ANY);
         reg.register_json_any(super::__SETTING_FIELD_JSON_ANY);
         reg.register_json_any(super::__CHECKED_SETTINGS_JSON_ANY);
+        reg.register_json_any(super::__PERSONAL_SETTINGS_CHECK_JSON_ANY);
+        reg.register_json_any(super::__PERSONAL_SETTINGS_CHECKED_JSON_ANY);
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
         reg.register_json_any(super::__LIBRARY_IDS_JSON_ANY);
         reg.register_json_any(super::__SETTING_CHOICES_JSON_ANY);
@@ -494,6 +496,14 @@ pub use self::__buffa::view::SettingFieldOwnedView;
 pub use self::__buffa::view::CheckedSettingsView;
 #[doc(inline)]
 pub use self::__buffa::view::CheckedSettingsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsCheckView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsCheckOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsCheckedView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsCheckedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SettingValueView;
 #[doc(inline)]

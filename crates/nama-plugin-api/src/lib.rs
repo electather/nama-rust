@@ -42,7 +42,7 @@ use std::{
 
 use crate::{
     automation::{Kernel, Permission},
-    settings::{Settings, SettingsCheck, SettingsSchema},
+    settings::{PersonalSettingsCheck, Settings, SettingsCheck, SettingsSchema},
 };
 
 /// A boxed future that can move between threads, as Extension Point handlers return.
@@ -155,6 +155,12 @@ pub trait Plugin: Send + Sync + 'static {
     /// [`SettingKind::Choice`](settings::SettingKind::Choice) settings. The Kernel runs it on a
     /// fresh instance that isn't enabled.
     fn settings_check(&self) -> Option<&dyn SettingsCheck> {
+        None
+    }
+
+    /// The Plugin's check of a User's Personal settings, if it has one. The Kernel runs it on a
+    /// fresh instance that isn't enabled when a User saves them, and refuses the save if it fails.
+    fn personal_settings_check(&self) -> Option<&dyn PersonalSettingsCheck> {
         None
     }
 

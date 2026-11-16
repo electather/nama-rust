@@ -250,6 +250,24 @@ pub trait SettingsCheck: Send + Sync {
     fn check<'a>(&'a self, settings: &'a Settings) -> BoxFuture<'a, Result<Choices, PluginError>>;
 }
 
+/// A Plugin's check of one User's Personal settings, run when that User saves them.
+pub trait PersonalSettingsCheck: Send + Sync {
+    /// Checks `personal`, one User's Personal settings as they would be saved, each value as text
+    /// under its key as a [`Recipient::User`](crate::notifier::Recipient::User) carries them.
+    /// `settings` are the Plugin's own saved settings. The Kernel gives up on a check that runs too
+    /// long.
+    ///
+    /// # Errors
+    ///
+    /// When the values won't work, such as a topic the service doesn't allow, in plain words the
+    /// User can act on.
+    fn check<'a>(
+        &'a self,
+        settings: &'a Settings,
+        personal: &'a BTreeMap<String, String>,
+    ) -> BoxFuture<'a, Result<(), PluginError>>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::{SettingField, SettingKind, SettingValue, Settings, SettingsError, SettingsSchema};
