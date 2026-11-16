@@ -14,14 +14,16 @@ use nama_proto::nama::v1::{
     CreateUserResponse, DeletePersonalSettingsRequest, DeletePersonalSettingsResponse,
     DeletePluginConnectionRequest, DeletePluginConnectionResponse, DeleteUserRequest,
     DeleteUserResponse, GetDefaultPermissionsRequest, GetDefaultPermissionsResponse,
-    ListDevicesRequest, ListDevicesResponse, ListPersonalSettingsRequest,
-    ListPersonalSettingsResponse, ListPluginConnectionsRequest, ListPluginConnectionsResponse,
-    ListUsersRequest, ListUsersResponse, Permission, PluginConnection, PluginConnectionState,
-    RefusalReason, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
-    RevokeDeviceResponse, SetDefaultPermissionsRequest, SetDefaultPermissionsResponse,
-    SetPermissionsRequest, SetPermissionsResponse, StartPluginConnectionRequest,
-    StartPluginConnectionResponse, UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse,
-    UserService,
+    ListDevicesRequest, ListDevicesResponse, ListNotificationPreferencesRequest,
+    ListNotificationPreferencesResponse, ListPersonalSettingsRequest, ListPersonalSettingsResponse,
+    ListPluginConnectionsRequest, ListPluginConnectionsResponse, ListUsersRequest,
+    ListUsersResponse, NotificationKind, NotificationPreference, Permission, PluginConnection,
+    PluginConnectionState, RefusalReason, ResetPasswordRequest, ResetPasswordResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, SetDefaultPermissionsRequest,
+    SetDefaultPermissionsResponse, SetNotificationPreferenceRequest,
+    SetNotificationPreferenceResponse, SetPermissionsRequest, SetPermissionsResponse,
+    StartPluginConnectionRequest, StartPluginConnectionResponse, UpdatePersonalSettingsRequest,
+    UpdatePersonalSettingsResponse, UserService,
 };
 
 use crate::{
@@ -32,8 +34,8 @@ use crate::{
     plugin_settings::{PluginSettings, StoredPlugin},
     plugins::Listed,
     users::{
-        self, Caller, Permissions, Users, delete_personal_settings, personal_settings_of,
-        replace_personal_settings,
+        self, Caller, Permissions, Users, delete_personal_settings, notification_preferences_of,
+        personal_settings_of, replace_personal_settings, set_notification_preference,
     },
 };
 
@@ -414,6 +416,48 @@ impl UserService for UserServiceHandler {
             .await
             .map_err(database_failed)?;
         Response::ok(DeletePersonalSettingsResponse::default())
+    }
+
+    async fn list_notification_preferences(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListNotificationPreferencesRequest>,
+    ) -> ServiceResult<ListNotificationPreferencesResponse> {
+        let preferences = notification_preferences_of(&self.db, &caller(&ctx)?.user)
+            .await
+            .map_err(database_failed)?
+            .into_iter()
+            .map(|(kind, on)| NotificationPreference {
+                kind: kind.into(),
+                on,
+                ..Default::default()
+            })
+            .collect();
+        Response::ok(ListNotificationPreferencesResponse {
+            preferences,
+            ..Default::default()
+        })
+    }
+
+    async fn set_notification_preference(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetNotificationPreferenceRequest>,
+    ) -> ServiceResult<SetNotificationPreferenceResponse> {
+        let request = request.to_owned_message();
+        let kind = match request.kind {
+            EnumValue::Known(NotificationKind::Unspecified) | EnumValue::Unknown(_) => {
+                return Err(unknown_enum_value(
+                    "kind",
+                    "the kind must be one the Server knows",
+                ));
+            }
+            EnumValue::Known(kind) => kind,
+        };
+        set_notification_preference(&self.db, caller(&ctx)?.user.id, kind, request.on)
+            .await
+            .map_err(database_failed)?;
+        Response::ok(SetNotificationPreferenceResponse::default())
     }
 }
 

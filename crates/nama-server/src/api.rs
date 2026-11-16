@@ -293,6 +293,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_LIST_PERSONAL_SETTINGS_SPEC.procedure,   Access::SignedIn),
     (proto::USER_SERVICE_UPDATE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
     (proto::USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
+    (proto::USER_SERVICE_LIST_NOTIFICATION_PREFERENCES_SPEC.procedure, Access::SignedIn),
+    (proto::USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC.procedure, Access::SignedIn),
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC.procedure, REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),

@@ -19,8 +19,8 @@ use nama_plugin_api::{
     points,
 };
 use nama_proto::nama::v1::{
-    Event, EventType, FollowedShow, Lagged, Permission, Request, RequestState, SubscribeResponse,
-    event, subscribe_response,
+    Event, EventType, FollowedShow, Lagged, NotificationKind, Permission, Request, RequestState,
+    SubscribeResponse, event, subscribe_response,
 };
 use tokio::sync::broadcast::{self, error::RecvError};
 use tokio_util::sync::CancellationToken;
@@ -31,7 +31,10 @@ use crate::{
     db::Database,
     plugins::{self, ExtensionPoints, Failure, ProviderError, without_secrets},
     server_settings::ServerUrl,
-    users::{self, User, delete_personal_settings, personal_settings_recipients},
+    users::{
+        self, User, delete_personal_settings, every_notification_turned_off,
+        personal_settings_recipients,
+    },
 };
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
@@ -262,13 +265,23 @@ async fn deliver(
 ) -> Result<(), Undelivered> {
     let (event, notification) = &*told;
     let mut recipients = vec![(None, Recipient::Channel)];
+    let turned_off = match every_notification_turned_off(&db).await {
+        Ok(turned_off) => turned_off,
+        // Telling someone a kind they turned off beats missing one they want.
+        Err(err) => {
+            error!(%plugin, "could not read who turned notifications off, so told all: {err}");
+            Vec::new()
+        }
+    };
     match connections::connected(&db, &plugin).await {
-        Ok(connected) => recipients.extend(connections_to_tell(event, connected)),
+        Ok(connected) => recipients.extend(connections_to_tell(event, connected, &turned_off)),
         Err(err) => error!(%plugin, "could not read whom to message about a Request: {err}"),
     }
     let mut secrets = HashMap::new();
     match personal_settings_recipients(&db, &plugin).await {
-        Ok(personal) => recipients.extend(personal_to_tell(event, personal, &mut secrets)),
+        Ok(personal) => {
+            recipients.extend(personal_to_tell(event, personal, &turned_off, &mut secrets));
+        }
         Err(err) => error!(%plugin, "could not read whose Personal settings to use: {err}"),
     }
     let deliveries = recipients.into_iter().map(|(user, recipient)| {
@@ -331,9 +344,10 @@ impl ProviderError<()> for Undelivered {
 fn connections_to_tell(
     event: &Event,
     connected: Vec<(User, String)>,
+    turned_off: &[(i64, NotificationKind)],
 ) -> Vec<(Option<i64>, Recipient)> {
     let (users, connections): (Vec<_>, Vec<_>) = connected.into_iter().unzip();
-    let told = users_to_tell(event, &users);
+    let told = users_to_tell(event, &users, turned_off);
     users
         .iter()
         .zip(connections)
@@ -347,10 +361,11 @@ fn connections_to_tell(
 fn personal_to_tell(
     event: &Event,
     personal: Vec<(User, BTreeMap<String, String>, Vec<String>)>,
+    turned_off: &[(i64, NotificationKind)],
     secrets: &mut HashMap<i64, Vec<String>>,
 ) -> Vec<(Option<i64>, Recipient)> {
     let users: Vec<User> = personal.iter().map(|(user, ..)| user.clone()).collect();
-    let told = users_to_tell(event, &users);
+    let told = users_to_tell(event, &users, turned_off);
     personal
         .into_iter()
         .filter(|(user, ..)| told.contains(&user.id))
@@ -507,19 +522,42 @@ impl Viewer {
 }
 
 /// The IDs of the Users told about `event`, so every Notifier shares the rules (ADR 0021): a
-/// Request's Requesters when it is approved, declined, Failed, Partially Available or Available,
-/// or cancelled by deleting media it waited on, and each of `users` with
-/// `PERMISSION_MANAGE_REQUESTS` about a new Pending Request. Nobody else, and nobody for any other
-/// event.
-pub(crate) fn users_to_tell(event: &Event, users: &[User]) -> Vec<i64> {
-    use RequestState as S;
-    use event::Event as E;
-    match event.event.as_ref() {
-        Some(E::RequestCreated(created)) if created.request.state == S::Pending => users
+/// Request's Requesters for each [`notification_kind`] but a new Pending Request, and each of
+/// `users` with `PERMISSION_MANAGE_REQUESTS` for that, but for those `turned_off` lists with that
+/// kind. Nobody for any other event.
+pub(crate) fn users_to_tell(
+    event: &Event,
+    users: &[User],
+    turned_off: &[(i64, NotificationKind)],
+) -> Vec<i64> {
+    let Some((kind, request)) = notification_kind(event) else {
+        return Vec::new();
+    };
+    let candidates = if kind == NotificationKind::NewPending {
+        users
             .iter()
             .filter(|user| user.permissions.allow(Permission::ManageRequests))
             .map(|user| user.id)
-            .collect(),
+            .collect()
+    } else {
+        requesters(request)
+    };
+    candidates
+        .into_iter()
+        .filter(|&user| !turned_off.contains(&(user, kind)))
+        .collect()
+}
+
+/// The kind of personal notification `event` makes, if any, with its Request: a Request approved,
+/// declined, Failed, Partially Available or Available, cancelled by deleting media it waited on,
+/// or new and Pending.
+fn notification_kind(event: &Event) -> Option<(NotificationKind, &Request)> {
+    use RequestState as S;
+    use event::Event as E;
+    match event.event.as_ref() {
+        Some(E::RequestCreated(created)) if created.request.state == S::Pending => {
+            Some((NotificationKind::NewPending, &created.request))
+        }
         // A scan opens a Followed Show's new Season already (Partially) Available. One opened
         // Approved tells nobody: its one Requester just asked for it.
         Some(E::RequestCreated(created))
@@ -528,20 +566,31 @@ pub(crate) fn users_to_tell(event: &Event, users: &[User]) -> Vec<i64> {
                 Some(S::PartiallyAvailable | S::Available)
             ) =>
         {
-            requesters(&created.request)
+            let kind = moved_to_kind(created.request.state.as_known()?)?;
+            Some((kind, &created.request))
         }
-        Some(E::RequestStateChanged(changed))
-            if matches!(
-                changed.request.state.as_known(),
-                Some(S::Approved | S::Declined | S::Failed | S::PartiallyAvailable | S::Available)
-            ) =>
-        {
-            requesters(&changed.request)
+        Some(E::RequestStateChanged(changed)) => {
+            let kind = moved_to_kind(changed.request.state.as_known()?)?;
+            Some((kind, &changed.request))
         }
         Some(E::RequestCancelled(cancelled)) if cancelled.deleted_by.is_some() => {
-            requesters(&cancelled.request)
+            Some((NotificationKind::CancelledByDeletion, &cancelled.request))
         }
-        _ => Vec::new(),
+        _ => None,
+    }
+}
+
+/// The kind telling Requesters their Request moved to `state`, if any.
+const fn moved_to_kind(state: RequestState) -> Option<NotificationKind> {
+    use NotificationKind as K;
+    use RequestState as S;
+    match state {
+        S::Approved => Some(K::Approved),
+        S::Declined => Some(K::Declined),
+        S::Failed => Some(K::Failed),
+        S::PartiallyAvailable => Some(K::PartiallyAvailable),
+        S::Available => Some(K::Available),
+        S::Unspecified | S::Pending | S::Processing => None,
     }
 }
 

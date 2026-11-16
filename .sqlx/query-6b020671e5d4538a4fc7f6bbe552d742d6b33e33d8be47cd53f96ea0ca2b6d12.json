@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM notifications_off WHERE user_id = ? AND kind = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6b020671e5d4538a4fc7f6bbe552d742d6b33e33d8be47cd53f96ea0ca2b6d12"
+}

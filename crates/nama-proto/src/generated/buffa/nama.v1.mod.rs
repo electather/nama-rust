@@ -356,6 +356,11 @@ pub mod __buffa {
         reg.register_json_any(super::__UPDATE_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_PERSONAL_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_NOTIFICATION_PREFERENCES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_NOTIFICATION_PREFERENCES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__NOTIFICATION_PREFERENCE_JSON_ANY);
+        reg.register_json_any(super::__SET_NOTIFICATION_PREFERENCE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_NOTIFICATION_PREFERENCE_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -1518,5 +1523,25 @@ pub use self::__buffa::view::DeletePersonalSettingsRequestOwnedView;
 pub use self::__buffa::view::DeletePersonalSettingsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::DeletePersonalSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListNotificationPreferencesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListNotificationPreferencesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListNotificationPreferencesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListNotificationPreferencesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::NotificationPreferenceView;
+#[doc(inline)]
+pub use self::__buffa::view::NotificationPreferenceOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetNotificationPreferenceRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetNotificationPreferenceRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetNotificationPreferenceResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetNotificationPreferenceResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

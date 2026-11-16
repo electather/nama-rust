@@ -18,6 +18,7 @@ mod codes;
 mod device_names;
 mod managing;
 mod names;
+mod notification_preferences;
 mod passwords;
 mod permissions;
 mod personal_settings;
@@ -31,6 +32,10 @@ pub use codes::SetupCode;
 pub(crate) use codes::random_secret;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 use names::{checked_name, name_key};
+pub(crate) use notification_preferences::{
+    every_turned_off as every_notification_turned_off, of as notification_preferences_of,
+    set as set_notification_preference,
+};
 use passwords::{Credential, set_password};
 pub(crate) use permissions::Permissions;
 pub(crate) use personal_settings::{
