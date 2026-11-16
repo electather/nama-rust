@@ -13,6 +13,7 @@ import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
 import { mainVerdict, mergeStep } from "./merge.ts";
+import { blockedCounts } from "./priority.ts";
 import { slotPool } from "./slots.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
 import { sweepLeftovers } from "./sweep.ts";
@@ -244,6 +245,7 @@ type ListedIssue = {
   parent: { number: number } | null;
   subIssuesSummary: { total: number; completed: number };
   blockedBy: { nodes: { number: number; state: string }[] };
+  blocking: { nodes: { number: number; state: string }[] };
 };
 
 type IssueRef = { number: number; repository: { name: string; owner: { login: string } } };
@@ -276,13 +278,13 @@ function prsByIssue(prs: OpenPr[]): Map<number, number> {
   return byIssue;
 }
 
-// Unblocked = no open native blocked-by (see docs/agents/issue-tracker.md).
+// Unblocked = no open native blocked-by (see docs/agents/issue-tracker.md). Ready ones come in priority.ts's order.
 // An issue with sub-issues is never built itself: its children are, and closeFinishedParents closes it.
 function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
   const issues: ListedIssue[] = JSON.parse(
     gh("issue", "list", "--label", READY, "--state", "open", "--limit", "100",
       // blockedBy, not issue_dependencies_summary: the summary lags seconds behind closes/edits
-      "--json", "number,title,author,parent,subIssuesSummary,blockedBy"),
+      "--json", "number,title,author,parent,subIssuesSummary,blockedBy,blocking"),
   );
   const withPr = prsByIssue(prs);
   const ready: Issue[] = [];
@@ -297,6 +299,9 @@ function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
     else if (blockers.length) waiting.push({ issue: i.number, queue: "build", why: `blocked by ${blockers.join(", ")} (open)` });
     else ready.push({ number: i.number, title: i.title, parent: i.parent?.number, branch: `agent/issue-${i.number}` });
   }
+  // ponytail: chains are followed through ready-for-agent issues only; any other blocked issue counts as one.
+  const blocked = blockedCounts(new Map(issues.map((i) => [i.number, i.blocking.nodes.filter((b) => b.state === "OPEN").map((b) => b.number)])));
+  ready.sort((a, b) => blocked.get(b.number)! - blocked.get(a.number)!); // stable: oldest first on a tie
   return { ready, waiting };
 }
 
