@@ -129,6 +129,7 @@ const plugins = [
     version: "0.1.0",
     kind: PluginKind.INSTALLED,
     enabled: false,
+    extensionPoints: [ExtensionPoint.AUTOMATION],
     settings: [
       {
         key: "libraries",

@@ -7,7 +7,7 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_plugin_api::{
     Manifest, PluginId, PointKey,
     auth::Authenticator,
-    automation::Permission,
+    automation::{Automation, Permission},
     blob_store::BlobStore,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
@@ -577,6 +577,10 @@ fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::Extens
         (
             PointKey::provide::<dyn BlobStore>(),
             Public::EXTENSION_POINT_BLOB_STORE,
+        ),
+        (
+            PointKey::provide::<dyn Automation>(),
+            Public::EXTENSION_POINT_AUTOMATION,
         ),
     ];
     points

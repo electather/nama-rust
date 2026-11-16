@@ -12,8 +12,8 @@ mod test_plugin;
 use buffa::EnumValue;
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
-    EnablePluginRequest, ListPluginsRequest, PluginPermission, PluginServiceClient, PluginSummary,
-    RefusalReason,
+    EnablePluginRequest, ExtensionPoint, ListPluginsRequest, PluginPermission, PluginServiceClient,
+    PluginSummary, RefusalReason,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -83,6 +83,20 @@ async fn listing_shows_the_permissions_a_plugin_requests_and_none_granted() {
         values(&[STORE, READ_LIBRARIES])
     );
     assert_eq!(summary.granted_permissions, values(&[]));
+}
+
+#[tokio::test]
+async fn an_automation_plugin_is_listed_at_the_automation_point() {
+    let server = with_automation_plugin().await;
+
+    let summary = listed(&server).await;
+
+    let automation = EnumValue::from(ExtensionPoint::EXTENSION_POINT_AUTOMATION);
+    assert!(
+        summary.extension_points.contains(&automation),
+        "{:?}",
+        summary.extension_points
+    );
 }
 
 #[tokio::test]

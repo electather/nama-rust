@@ -4,8 +4,10 @@ import { createConnectQueryKey } from "@connectrpc/connect-query";
 import {
   Activity,
   Bell,
+  CalendarClock,
   Database,
   Film,
+  Fingerprint,
   KeyRound,
   Link,
   Puzzle,
@@ -36,7 +38,9 @@ const points: Partial<Record<ExtensionPoint, Shown>> = {
   [ExtensionPoint.TITLE_SOURCE]: { label: "Title source", Icon: ScanSearch },
   [ExtensionPoint.EVENTS_OBSERVER]: { label: "Observes Events", Icon: Activity },
   [ExtensionPoint.SERVER_STARTED_OBSERVER]: { label: "Observes Server start", Icon: Server },
+  [ExtensionPoint.RECOGNISER]: { label: "Recogniser", Icon: Fingerprint },
   [ExtensionPoint.BLOB_STORE]: { label: "Blob store", Icon: Database },
+  [ExtensionPoint.AUTOMATION]: { label: "Automation", Icon: CalendarClock },
 };
 
 /**

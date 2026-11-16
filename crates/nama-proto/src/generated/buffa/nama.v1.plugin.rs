@@ -379,6 +379,9 @@ pub enum ExtensionPoint {
     /// Keeps the Server's stored images, such as in S3, once an Admin picks it with
     /// `ServerService.SwitchImageStore`.
     EXTENSION_POINT_BLOB_STORE = 10i32,
+    /// Ticks on a schedule and asks the Server's Automation service, as far as the Permissions an
+    /// Admin granted it allow, such as Cleanup (ADR 0048).
+    EXTENSION_POINT_AUTOMATION = 11i32,
 }
 impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -414,6 +417,9 @@ impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_BLOB_STORE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const BlobStore: Self = Self::EXTENSION_POINT_BLOB_STORE;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_AUTOMATION`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Automation: Self = Self::EXTENSION_POINT_AUTOMATION;
 }
 impl ::core::default::Default for ExtensionPoint {
     fn default() -> Self {
@@ -526,6 +532,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             }
             9i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_RECOGNISER),
             10i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_BLOB_STORE),
+            11i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_AUTOMATION),
             _ => ::core::option::Option::None,
         }
     }
@@ -547,6 +554,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             }
             Self::EXTENSION_POINT_RECOGNISER => "EXTENSION_POINT_RECOGNISER",
             Self::EXTENSION_POINT_BLOB_STORE => "EXTENSION_POINT_BLOB_STORE",
+            Self::EXTENSION_POINT_AUTOMATION => "EXTENSION_POINT_AUTOMATION",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -586,6 +594,9 @@ impl ::buffa::Enumeration for ExtensionPoint {
             "EXTENSION_POINT_BLOB_STORE" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_BLOB_STORE)
             }
+            "EXTENSION_POINT_AUTOMATION" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_AUTOMATION)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -602,6 +613,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
             Self::EXTENSION_POINT_RECOGNISER,
             Self::EXTENSION_POINT_BLOB_STORE,
+            Self::EXTENSION_POINT_AUTOMATION,
         ]
     }
 }

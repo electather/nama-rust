@@ -310,6 +310,9 @@ enum ExtensionPoint {
   // Keeps the Server's stored images, such as in S3, once an Admin picks it with
   // `ServerService.SwitchImageStore`.
   EXTENSION_POINT_BLOB_STORE = 10;
+  // Ticks on a schedule and asks the Server's Automation service, as far as the Permissions an
+  // Admin granted it allow, such as Cleanup (ADR 0048).
+  EXTENSION_POINT_AUTOMATION = 11;
 }
 
 // What kind of value a setting takes.
