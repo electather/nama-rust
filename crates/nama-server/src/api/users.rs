@@ -34,9 +34,8 @@ use crate::{
     plugin_settings::{PluginSettings, StoredPlugin},
     plugins::Listed,
     users::{
-        self, Caller, Permissions, Users, delete_personal_settings, notifications_turned_off,
-        offered_notification_kinds, personal_settings_of, replace_personal_settings,
-        set_notification_preference,
+        self, Caller, Permissions, Users, delete_personal_settings, notification_preferences_of,
+        personal_settings_of, replace_personal_settings, set_notification_preference,
     },
 };
 
@@ -414,14 +413,13 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListNotificationPreferencesRequest>,
     ) -> ServiceResult<ListNotificationPreferencesResponse> {
-        let user = &caller(&ctx)?.user;
-        let turned_off = notifications_turned_off(&self.db, user.id)
+        let preferences = notification_preferences_of(&self.db, &caller(&ctx)?.user)
             .await
-            .map_err(database_failed)?;
-        let preferences = offered_notification_kinds(user.permissions)
-            .map(|kind| NotificationPreference {
+            .map_err(database_failed)?
+            .into_iter()
+            .map(|(kind, on)| NotificationPreference {
                 kind: kind.into(),
-                on: !turned_off.contains(&kind),
+                on,
                 ..Default::default()
             })
             .collect();

@@ -4,11 +4,25 @@
 use buffa::Enumeration;
 use nama_proto::nama::v1::{NotificationKind, Permission};
 
-use crate::{db::Database, users::Permissions};
+use crate::{
+    db::Database,
+    users::{Permissions, User},
+};
+
+/// Each kind offered to `user`, in the order of its values, with whether they get it.
+pub(crate) async fn of(
+    db: &Database,
+    user: &User,
+) -> Result<Vec<(NotificationKind, bool)>, sqlx::Error> {
+    let turned_off = turned_off(db, user.id).await?;
+    Ok(offered(user.permissions)
+        .map(|kind| (kind, !turned_off.contains(&kind)))
+        .collect())
+}
 
 /// Each kind a User holding `permissions` may get, in the order of its values: new Pending only
 /// with `PERMISSION_MANAGE_REQUESTS`, as `crate::events` tells it.
-pub(crate) fn offered(permissions: Permissions) -> impl Iterator<Item = NotificationKind> {
+fn offered(permissions: Permissions) -> impl Iterator<Item = NotificationKind> {
     let manages_requests = permissions.allow(Permission::ManageRequests);
     NotificationKind::values()
         .iter()
@@ -19,11 +33,7 @@ pub(crate) fn offered(permissions: Permissions) -> impl Iterator<Item = Notifica
         })
 }
 
-/// The kinds `user` turned off.
-pub(crate) async fn turned_off(
-    db: &Database,
-    user: i64,
-) -> Result<Vec<NotificationKind>, sqlx::Error> {
+async fn turned_off(db: &Database, user: i64) -> Result<Vec<NotificationKind>, sqlx::Error> {
     let kinds = sqlx::query_scalar!("SELECT kind FROM notifications_off WHERE user_id = ?", user)
         .fetch_all(db.reader())
         .await?;

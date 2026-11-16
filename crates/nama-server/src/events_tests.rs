@@ -377,7 +377,6 @@ async fn a_request_event_reaches_each_told_user_with_their_own_personal_settings
     assert!(!failed.contains(FAILING_WEBHOOK), "{failed}");
 }
 
-/// A Notifier that keeps every recipient it is handed.
 #[derive(Default)]
 struct KeepsRecipients(Mutex<Vec<Recipient>>);
 

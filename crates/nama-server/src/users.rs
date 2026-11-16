@@ -31,8 +31,8 @@ pub use codes::SetupCode;
 pub(crate) use codes::random_secret;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 pub(crate) use notification_preferences::{
-    every_turned_off as every_notification_turned_off, offered as offered_notification_kinds,
-    set as set_notification_preference, turned_off as notifications_turned_off,
+    every_turned_off as every_notification_turned_off, of as notification_preferences_of,
+    set as set_notification_preference,
 };
 use passwords::{Credential, set_password};
 pub(crate) use permissions::Permissions;
