@@ -60,6 +60,10 @@ pub enum RefusalReason {
     /// `already_exists`: a folder already belongs to another Library. Params: `folder`, `library`
     /// (the other Library's name).
     REFUSAL_REASON_FOLDER_TAKEN = 21i32,
+    /// `failed_precondition`: a Library's folder is inside, or holds, a folder of another Library.
+    /// `field` is `folders`. Params: `folder`, `library` (the other Library's name) and
+    /// `libraryFolder` (its folder).
+    REFUSAL_REASON_FOLDER_OVERLAPS = 81i32,
     /// `invalid_argument`: the Library holds another kind of media. Params: `libraryKind`, the kind
     /// the call needs (`movies` or `shows`).
     REFUSAL_REASON_WRONG_LIBRARY_KIND = 22i32,
@@ -303,6 +307,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_TAKEN`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const FolderTaken: Self = Self::REFUSAL_REASON_FOLDER_TAKEN;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_OVERLAPS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FolderOverlaps: Self = Self::REFUSAL_REASON_FOLDER_OVERLAPS;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_WRONG_LIBRARY_KIND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const WrongLibraryKind: Self = Self::REFUSAL_REASON_WRONG_LIBRARY_KIND;
@@ -606,6 +613,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             20i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_LIBRARY_NOT_FOUND),
             21i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_TAKEN),
+            81i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_OVERLAPS),
             22i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_LIBRARY_KIND)
             }
@@ -780,6 +788,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_LIBRARY_NOT_FOUND => "REFUSAL_REASON_LIBRARY_NOT_FOUND",
             Self::REFUSAL_REASON_FOLDER_TAKEN => "REFUSAL_REASON_FOLDER_TAKEN",
+            Self::REFUSAL_REASON_FOLDER_OVERLAPS => "REFUSAL_REASON_FOLDER_OVERLAPS",
             Self::REFUSAL_REASON_WRONG_LIBRARY_KIND => {
                 "REFUSAL_REASON_WRONG_LIBRARY_KIND"
             }
@@ -965,6 +974,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             "REFUSAL_REASON_FOLDER_TAKEN" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_TAKEN)
+            }
+            "REFUSAL_REASON_FOLDER_OVERLAPS" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_OVERLAPS)
             }
             "REFUSAL_REASON_WRONG_LIBRARY_KIND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_LIBRARY_KIND)
@@ -1179,6 +1191,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
             Self::REFUSAL_REASON_LIBRARY_NOT_FOUND,
             Self::REFUSAL_REASON_FOLDER_TAKEN,
+            Self::REFUSAL_REASON_FOLDER_OVERLAPS,
             Self::REFUSAL_REASON_WRONG_LIBRARY_KIND,
             Self::REFUSAL_REASON_NOTHING_MATCHED,
             Self::REFUSAL_REASON_SEASON_NOT_FOUND,

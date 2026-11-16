@@ -312,6 +312,7 @@ fn finding_failed(err: LibraryError) -> Error {
         | LibraryError::FoldersEmpty
         | LibraryError::Folder { .. }
         | LibraryError::FolderTaken { .. }
+        | LibraryError::FolderOverlaps { .. }
         | LibraryError::TitleSources { .. } => {
             unreachable!("finding a Library refused a change: {err}")
         }

@@ -636,19 +636,39 @@ async fn watches_follow_libraries_created_updated_and_deleted() {
 #[tokio::test]
 async fn deleting_a_library_inside_another_keeps_the_outer_one_watched() {
     let media = Fixture::new(LibraryKind::Movies).await;
+    let beside = media.root.with_file_name("beside");
+    fs::create_dir(&beside).unwrap();
     fs::create_dir(media.path("inner")).unwrap();
     let inner = media.path("inner").to_str().unwrap().to_owned();
-    watch(&media).await;
     let created = media
         .scanner
         .create_library(
             "Inner".to_owned(),
             LibraryKind::Shows,
-            vec![inner],
+            vec![beside.to_str().unwrap().to_owned()],
             Order::default(),
         )
         .await
         .unwrap();
+    // Only a Library created before overlaps were refused (#812) can be inside another.
+    media
+        .db
+        .write(move |tx| {
+            Box::pin(
+                sqlx::query("UPDATE library_folders SET path = ? WHERE library_id = ?")
+                    .bind(inner)
+                    .bind(created.id)
+                    .execute(&mut **tx),
+            )
+        })
+        .await
+        .unwrap();
+    watch(&media).await;
+    assert_eq!(
+        media.scanner.watched().len(),
+        2,
+        "both Libraries are watched"
+    );
 
     media.scanner.delete_library(created.id).await.unwrap();
     media.write("inner/Alien (1979).mkv", 10);

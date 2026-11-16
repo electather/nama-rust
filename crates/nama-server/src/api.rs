@@ -613,7 +613,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_NOT_A_BLOB_STORE
         | R::REFUSAL_REASON_IMAGE_STORE_IN_USE
         | R::REFUSAL_REASON_IMAGE_STORE_SWITCHING
-        | R::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK
+        | R::REFUSAL_REASON_FOLDER_OVERLAPS => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
