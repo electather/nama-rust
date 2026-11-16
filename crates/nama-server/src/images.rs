@@ -731,5 +731,5 @@ pub(crate) fn percent_decode(text: &str) -> Option<String> {
 }
 
 #[cfg(test)]
-#[path = "images_tests.rs"]
+#[path = "images/images_tests.rs"]
 mod tests;
