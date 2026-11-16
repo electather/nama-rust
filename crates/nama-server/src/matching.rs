@@ -38,11 +38,13 @@
 //! Unmatched too, but nothing is stored for it: it is undecided, and the next scan tries it again.
 //! Once a source fails, the rest of that pass is left for the next scan too.
 //!
-//! A Match stores what [`METADATA_VERSION`] says Matching takes from the Provider. After deciding,
-//! each scan fetches the titles of Matches stored at an older version again, from the Plugin that
-//! Matched them and by the ids they have, as a first Match does, and stores what it gets (ADR
-//! 0040). It never searches, so each item keeps its title and pin. A title it couldn't fetch keeps
-//! what it had, at its older version, and the next scan tries again.
+//! A Match stores what [`METADATA_VERSION`] says Matching takes from the title sources. After
+//! deciding, each scan fetches the titles of Matches stored at an older version again, from the
+//! Plugin that Matched them and by the ids they have, as a first Match does, and stores what it
+//! gets (ADR 0040). It never searches, so each item keeps its title and pin. A title it couldn't
+//! fetch keeps what it had, at its older version, and the next scan tries again.
+//!
+//! [`METADATA_VERSION`]: crate::library::versions::METADATA_VERSION
 
 mod confidence;
 mod sources;
@@ -67,16 +69,10 @@ use crate::{
         Contents, Decided, Decisions, ImageRef, Item, Metadata, Name, Named, Pin, UnmatchedReason,
     },
     library::libraries::{self, Libraries},
+    library::scan_locks::{ScanLock, ScanLocks},
     library::title_source::{self, Episode, Season, Show, Source, TitleKind, TitleSources},
     plugins::ExtensionPoints,
-    scanner::{ScanLock, ScanLocks},
 };
-
-/// The version of what a Match stores from the metadata Provider, stored with each Match. See
-/// `src/matching/AGENTS.md` for when to bump it. Version 2 adds artwork picked across the
-/// Library's sources, Title Logos among it; version 3 genres, Content Ratings and a Show's own
-/// Poster, overview and first air date.
-pub(crate) const METADATA_VERSION: i64 = 3;
 
 /// What one pass of Matching decided.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -107,8 +103,8 @@ pub(crate) enum ManualError {
     /// The metadata source has no title with this id, or can't look titles up by it.
     #[error("the metadata source has no title {0}")]
     NoSuchTitle(ExternalId),
-    /// No metadata Provider is enabled, or it failed.
-    #[error("no metadata Provider could answer")]
+    /// No title source is enabled, or one failed.
+    #[error("no title source could answer")]
     Unavailable,
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -149,6 +145,8 @@ struct Pending {
 
 /// The Matches stored at an older [`METADATA_VERSION`], by the Plugin that Matched them and the id
 /// of their title: a Movie, or the Show an Episode is in.
+///
+/// [`METADATA_VERSION`]: crate::library::versions::METADATA_VERSION
 #[derive(Debug, Default)]
 struct Outdated {
     movies: BTreeMap<(PluginId, ExternalId), Vec<i64>>,
@@ -206,7 +204,7 @@ impl PendingEpisode {
 enum Miss {
     /// With why, or `None` where Matching stores none: a pin, or an Episode its Show doesn't have.
     Unmatched(Option<UnmatchedReason>),
-    /// The metadata Provider couldn't answer: the item is Unmatched for now, but undecided, so
+    /// The title sources couldn't answer: the item is Unmatched for now, but undecided, so
     /// the next scan tries again.
     Undecided,
     /// The item's pin names a title no source the Library asks looks titles up by: undecided until
@@ -382,7 +380,7 @@ impl Matcher {
         let this = self.in_order(order);
         let Pending { movies, shows } = self.undecided(library).await?;
         let mut summary = Summary::default();
-        // Once the Provider fails (or there is none), asking about the other titles would only
+        // Once a title source fails (or there is none), asking about the other titles would only
         // fail too, so the rest is left for the next scan.
         let mut available = true;
         for (key, items) in movies {
@@ -422,7 +420,7 @@ impl Matcher {
         if !available {
             tracing::warn!(
                 library,
-                "no metadata provider could answer; will try again next scan"
+                "no title source could answer; will try again next scan"
             );
         }
         Ok(summary)
@@ -445,8 +443,10 @@ impl Matcher {
 
     /// Fetches the titles of the Library `library`'s Matches stored at an older
     /// [`METADATA_VERSION`] again and stores what it gets, until `cancel` is cancelled. Returns
-    /// whether every Provider asked could answer. Each title's artwork is picked again from
+    /// whether every title source asked could answer. Each title's artwork is picked again from
     /// `ordered`, the Library's sources in its order, while the title comes only from its Plugin.
+    ///
+    /// [`METADATA_VERSION`]: crate::library::versions::METADATA_VERSION
     async fn refresh(
         &self,
         library: i64,
@@ -537,7 +537,7 @@ impl Matcher {
             .await
     }
 
-    /// This Matcher, asking only the Plugin `plugin`'s metadata Provider.
+    /// This Matcher, asking only the Plugin `plugin`'s title source.
     fn only(&self, plugin: PluginId) -> Self {
         Self {
             metadata: self.metadata.only(plugin),

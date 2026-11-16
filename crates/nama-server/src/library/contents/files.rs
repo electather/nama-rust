@@ -6,7 +6,7 @@ use nama_proto::nama::v1::{Event, LibraryItemAdded, LibraryItemRemoved};
 use sqlx::SqliteConnection;
 
 use super::{Contents, Item, ItemKind, ItemRow};
-use crate::{events::event, scanner::PARSER_VERSION};
+use crate::{events::event, library::versions::PARSER_VERSION};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Stored {

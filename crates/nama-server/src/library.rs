@@ -3,7 +3,10 @@
 
 pub mod artwork;
 pub(crate) mod contents;
+pub(crate) mod country_tags;
 pub(crate) mod custom_images;
 pub(crate) mod libraries;
+pub(crate) mod scan_locks;
 pub(crate) mod title_source;
+pub(crate) mod versions;
 pub(crate) mod watch_states;

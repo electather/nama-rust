@@ -11,7 +11,7 @@ use super::{
 use crate::{
     db::Database,
     library::libraries::{Kind, Libraries},
-    scanner::PARSER_VERSION,
+    library::versions::PARSER_VERSION,
 };
 
 /// A stored file, with its Items and what Matching stored for each, as tests read them back.
@@ -41,7 +41,7 @@ pub(crate) struct FileItem {
 pub(crate) struct Recorded {
     /// Whether the Item is Matched, rather than Unmatched.
     pub(crate) matched: bool,
-    /// The id of the Plugin whose metadata Provider made the Match.
+    /// The id of the Plugin whose title source made the Match.
     pub(crate) plugin: Option<String>,
     /// The Movie's or Episode's external ids.
     pub(crate) ids: ExternalIds,

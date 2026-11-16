@@ -27,7 +27,7 @@ pub(crate) struct Movie<V = Version> {
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Version gives it.
     pub(crate) ids: ExternalIds,
-    /// The Plugin whose metadata Provider made the Match.
+    /// The Plugin whose title source made the Match.
     pub(crate) plugin: String,
     pub(crate) title: String,
     pub(crate) original_title: Option<String>,
@@ -104,7 +104,7 @@ pub(crate) struct Show<V = Version> {
     pub(crate) title: String,
     /// Its own Poster: see [`Show::poster`] for the one it shows.
     pub(crate) own_poster: Option<ImageRef>,
-    /// The [`METADATA_VERSION`](crate::matching::METADATA_VERSION) that stored `own_poster`.
+    /// The [`METADATA_VERSION`](crate::library::versions::METADATA_VERSION) that stored `own_poster`.
     pub(crate) metadata_version: i64,
     pub(crate) backdrop: Option<ImageRef>,
     pub(crate) logo: Option<ImageRef>,
@@ -209,7 +209,7 @@ pub(crate) struct Episode<V = Version> {
     pub(crate) overview: Option<String>,
     pub(crate) air_date: Option<String>,
     pub(crate) runtime_minutes: Option<i64>,
-    /// The Plugin whose metadata Provider made the Match, which the Still's path is for.
+    /// The Plugin whose title source made the Match, which the Still's path is for.
     pub(crate) plugin: String,
     pub(crate) still: Option<String>,
     /// The files Matched to it, by path. A file holding two Episodes is a Version of each.

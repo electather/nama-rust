@@ -2,7 +2,8 @@
 
 What a Library holds: its contents, its settings (`libraries.rs`), asking its title sources, artwork, Custom Images and Watch State. Tracks join the area in a later stage.
 
-- **Parts.** Each part is a `mod` of `library.rs` that neighbours address by name, such as `library::title_source::TitleSources`; its own files are private modules. `artwork` is public only so the integration tests reach it as `nama_server::artwork`.
+- **Parts.** Each part is a `mod` of `library.rs` that neighbours address by name, such as `library::title_source::TitleSources`; its own files are private modules. `artwork` is public only so the integration tests reach it as `nama_server::artwork`. `scan_locks` holds each Library's scan lock, `country_tags` reads a Show name's country tag, and `versions` holds `PARSER_VERSION` and `METADATA_VERSION`, all here so the Scanner and Matching share them without calling up.
+- **Only `Scanner::new` makes `ScanLocks`.** It hands the same locks to its Matcher, so no Match is fixed under locks a scan doesn't take. Rust can't limit `ScanLocks::new` to the Scanner without an upward import, so review keeps it to one caller: `git grep -n 'ScanLocks::new'`.
 - **One owner for a Library's contents.** Only `contents.rs` and its `contents/` folder read or write `library_files`, `library_items`, `item_matches`, `item_match_ids`, `match_pins` and `title_search`, tests included. Everything else goes through `Contents`. `OWNED_TABLES` in `crates/nama-server/tests/structure.rs` enforces it.
 - **Matches make Requests Available in the same write.** A write that stores Matches makes the Matched Movies' and Seasons' Requests Available by calling `requests::make_available` and `make_seasons_available` (ADR 0012). It is the one accepted call up the rows.
 - **Private modules.** Contents' files are private modules; neighbours import only what `contents.rs` re-exports, and items inside default to `pub(super)`. The one exception is `pub(crate) mod fixture`, which other areas' tests import as `library::contents::fixture`. The title id code is in `contents/ids.rs`.
@@ -15,5 +16,5 @@ What a Library holds: its contents, its settings (`libraries.rs`), asking its ti
 
 ### Neighbours
 
-- Uses: `db`, `events`, `requests` (the ADR 0012 call), `plugins` (`ExtensionPoints`), `images`, `server_settings` (`ImageSettings`), and, until a later stage cuts them, `matching::METADATA_VERSION` and `scanner::PARSER_VERSION` up the rows.
-- Used by: `scanner`, `matching`, `browse`, `playback`, `probing`, `tracks`, `track_preferences`, `requests`, the `api` parts and startup in `lib.rs`.
+- Uses: `db`, `events`, `requests` (the ADR 0012 call), `plugins` (`ExtensionPoints`), `images`, `server_settings` (`ImageSettings`).
+- Used by: `scanner` and `matching` (also `scan_locks`, `country_tags` and `versions`), `browse`, `playback`, `probing`, `tracks`, `track_preferences`, `requests`, the `api` parts and startup in `lib.rs`.

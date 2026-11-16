@@ -33,8 +33,6 @@ mod watch;
 
 pub(crate) use deleting::{Deleted, Doomed};
 
-pub(crate) use names::{PARSER_VERSION, country_tag};
-
 use std::{
     collections::{HashMap, HashSet},
     ffi::OsStr,
@@ -59,6 +57,8 @@ use crate::{
     library::contents::{Change, Contents, Stored},
     library::custom_images::CustomImages,
     library::libraries::{self, Kind, Libraries, Library},
+    library::scan_locks::{ScanLock, ScanLocks},
+    library::versions::PARSER_VERSION,
     matching::{self, Matcher, count},
     playback::running::RunningPlans,
     plugins::{ExtensionPoints, Failure},
@@ -161,37 +161,6 @@ struct Inner {
     watches: watch::Watches,
 }
 
-/// Each Library's scan lock, shared by the [`Scanner`] and its [`Matcher`]. Only
-/// [`Scanner::new`] makes one, so no Matcher fixes a Match under locks a scan doesn't take.
-#[derive(Debug, Clone)]
-pub(crate) struct ScanLocks(Arc<Mutex<HashMap<i64, Arc<tokio::sync::Mutex<()>>>>>);
-
-impl ScanLocks {
-    /// Waits for any scan of the Library `id` to finish, then takes its scan lock.
-    pub(crate) async fn lock(&self, id: i64) -> ScanLock {
-        let mutex = Arc::clone(lock(&self.0).entry(id).or_default());
-        ScanLock {
-            library: id,
-            _guard: mutex.lock_owned().await,
-        }
-    }
-}
-
-/// A Library's scan lock: while it's held, no scan of the Library runs or starts, so the
-/// Library's items don't change. Only [`ScanLocks`] makes one.
-#[derive(Debug)]
-pub(crate) struct ScanLock {
-    library: i64,
-    _guard: tokio::sync::OwnedMutexGuard<()>,
-}
-
-impl ScanLock {
-    /// The Library this lock covers.
-    pub(crate) const fn library(&self) -> i64 {
-        self.library
-    }
-}
-
 impl Scanner {
     /// Tells `probing` each Library whose scan finished and has it clean subtitles, or does
     /// neither where nothing probes, has `running` end the plans playing media it deletes, and has
@@ -211,7 +180,7 @@ impl Scanner {
         running: Option<RunningPlans>,
         requests: Option<Requests>,
     ) -> Self {
-        let locks = ScanLocks(Arc::default());
+        let locks = ScanLocks::new();
         Self {
             inner: Arc::new(Inner {
                 libraries: Libraries::new(Arc::clone(&db)),

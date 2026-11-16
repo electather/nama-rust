@@ -15,7 +15,7 @@ use super::{
 use crate::{
     db::now,
     library::title_source::{Candidate, Season},
-    matching::METADATA_VERSION,
+    library::versions::METADATA_VERSION,
     requests,
 };
 
@@ -86,7 +86,7 @@ impl From<Vec<(i64, Decided)>> for Decisions {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Metadata {
-    /// The Plugin whose metadata Provider made the Match.
+    /// The Plugin whose title source made the Match.
     pub(crate) plugin: PluginId,
     pub(crate) ids: ExternalIds,
     /// For an Episode, its Show's.

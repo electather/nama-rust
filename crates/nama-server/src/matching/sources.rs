@@ -10,10 +10,10 @@ use super::{
 };
 use crate::{
     library::contents::{Metadata, Name, Pin, TiedTitle, UnmatchedReason},
+    library::country_tags::country_tag,
     library::title_source::{
         self, Candidate, SearchQuery, Season, Source, TitleKind, TitleSources,
     },
-    scanner::country_tag,
 };
 
 /// The title an item names, before its details are fetched.

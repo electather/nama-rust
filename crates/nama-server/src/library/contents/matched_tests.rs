@@ -11,7 +11,7 @@ use super::{
     },
     library_with_movie, matched_episodes, show_poster,
 };
-use crate::matching::METADATA_VERSION;
+use crate::library::versions::METADATA_VERSION;
 
 #[test]
 fn an_unrefreshed_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
