@@ -1,7 +1,8 @@
-import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
+import type { LibraryService } from "@/gen/nama/v1/library_pb";
 import type { UpdatePluginSettingsRequest } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
@@ -11,17 +12,21 @@ import { expectUnderField, refused } from "./test-refusal";
 afterEach(cleanup);
 
 /**
- * Opens the Plugin `id`'s details page to save its settings: `submit` saves them, and `sent` is the
- * request the Server got.
+ * Opens the Plugin `id`'s details page to save its settings, answering `LibraryService` calls with
+ * `library` where it gives them: `submit` saves them, and `sent` is the request the Server got.
  */
-function openToSave(id: string) {
+function openToSave(id: string, library: Partial<ServiceImpl<typeof LibraryService>> = {}) {
   const sent = new Promise<UpdatePluginSettingsRequest>((resolve) => {
-    openPlugin(id, {
-      updatePluginSettings: (request) => {
-        resolve(request);
-        return { plugin: { summary: { id, enabled: true } } };
+    openPlugin(
+      id,
+      {
+        updatePluginSettings: (request) => {
+          resolve(request);
+          return { plugin: { summary: { id, enabled: true } } };
+        },
       },
-    });
+      library,
+    );
   });
   return {
     sent,
@@ -138,4 +143,89 @@ test("a Plugin no longer on the Server says so for the form", async () => {
   fireEvent.click((await plugin("TMDB")).getByRole("button", { name: "Save" }));
 
   expect(await screen.findByText("This Plugin isn’t on the Server any more.")).toBeDefined();
+});
+
+/** The Libraries setting of the cleanup Plugin's details page, once its Libraries show. */
+async function librariesToClean() {
+  const group = (await plugin("cleanup")).getByRole("group", { name: "Libraries to clean" });
+  await within(group).findByRole("checkbox", { name: "Movies" });
+  return within(group);
+}
+
+test("a Libraries setting shows the Libraries it holds by name, leaving out one since deleted", async () => {
+  openPlugin("cleanup");
+
+  const group = await librariesToClean();
+  const ticked = group
+    .getAllByRole<HTMLInputElement>("checkbox")
+    .map((box) => [box.labels?.[0]?.textContent, box.checked]);
+  expect(ticked).toEqual([
+    ["Movies", true],
+    ["Shows", false],
+    ["Anime", false],
+  ]);
+});
+
+test("picking two Libraries saves their ids", async () => {
+  const { sent, submit } = openToSave("cleanup");
+  const group = await librariesToClean();
+  fireEvent.click(group.getByRole("checkbox", { name: "Movies" }));
+  fireEvent.click(group.getByRole("checkbox", { name: "Shows" }));
+  fireEvent.click(group.getByRole("checkbox", { name: "Anime" }));
+
+  await submit();
+
+  const { settings } = await sent;
+  expect(settings["libraries"]?.value.case).toBe("libraryIds");
+  expect(settings["libraries"]?.value.value).toMatchObject({ ids: [2n, 3n] });
+});
+
+test.each([
+  {
+    listing: "not yet listed",
+    shown: "Loading the Libraries…",
+    listLibraries: () => new Promise<never>(() => {}),
+  },
+  {
+    listing: "not listable",
+    shown: "The Libraries couldn’t be listed, so saving keeps the ones picked.",
+    listLibraries: () => {
+      throw new ConnectError("the database is locked", Code.Internal);
+    },
+  },
+])(
+  "saving while the Libraries are $listing keeps the ids the setting holds",
+  async ({ shown, listLibraries }) => {
+    const { sent, submit } = openToSave("cleanup", { listLibraries });
+    const group = within(
+      (await plugin("cleanup")).getByRole("group", { name: "Libraries to clean" }),
+    );
+    await group.findByText(shown);
+
+    await submit();
+
+    const { settings } = await sent;
+    expect(settings["libraries"]?.value.case).toBe("libraryIds");
+    expect(settings["libraries"]?.value.value).toMatchObject({ ids: [1n, 9n] });
+  },
+);
+
+test("a refusal naming a Library no longer on the Server shows under the Libraries setting", async () => {
+  openPlugin("cleanup", {
+    updatePluginSettings: () => {
+      throw refused(Code.NotFound, "the setting libraries names no Library 9", {
+        reason: RefusalReason.LIBRARY_NOT_FOUND,
+        field: "settings.libraries",
+        params: { libraryId: "9" },
+      });
+    },
+  });
+  const group = await librariesToClean();
+
+  fireEvent.click((await plugin("cleanup")).getByRole("button", { name: "Save" }));
+
+  const error = await screen.findByText("A Library picked here isn’t on the Server any more.");
+  const box = group.getByRole("checkbox", { name: "Movies" });
+  expect(box.getAttribute("aria-invalid")).toBe("true");
+  expect(box.getAttribute("aria-describedby")).toContain(error.id);
 });

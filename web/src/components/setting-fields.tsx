@@ -1,9 +1,17 @@
+import { create } from "@bufbuild/protobuf";
 import { useId, useState } from "react";
 
 import { FormField } from "@/components/form-field";
+import { LibraryPicker } from "@/components/library-picker";
 import { ChoiceInput } from "@/components/settings-test";
 import { Button } from "@/components/ui/button";
-import { type Choice, type Setting, SettingKind, type SettingValue } from "@/gen/nama/v1/plugin_pb";
+import {
+  type Choice,
+  LibraryIdsSchema,
+  type Setting,
+  SettingKind,
+  type SettingValue,
+} from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { formText, refusal, refusalOf, serverMessage } from "@/lib/forms";
 
@@ -21,11 +29,19 @@ export function SettingInput({
   choices?: Choice[] | undefined;
   error: string | undefined;
 }) {
-  if (setting.kind === SettingKind.BOOL) return <BoolInput setting={setting} />;
   if (setting.kind === SettingKind.CHOICE) {
     // A new element once the choices come, so it starts on the stored one.
     return <ChoiceInput key={String(choices !== undefined)} {...{ setting, choices, error }} />;
   }
+  if (setting.kind === SettingKind.LIBRARIES) {
+    return <LibraryPicker setting={setting} hint={hint(setting)} error={error} />;
+  }
+  return <OwnInput setting={setting} error={error} />;
+}
+
+/** The input of a setting whose value is typed or ticked on its own, with no list to pick from. */
+function OwnInput({ setting, error }: { setting: Setting; error: string | undefined }) {
+  if (setting.kind === SettingKind.BOOL) return <BoolInput setting={setting} />;
   if (setting.secretSet) return <SetSecret setting={setting} error={error} />;
   return <TypedInput setting={setting} error={error} />;
 }
@@ -153,6 +169,12 @@ export function settingsTyped(typed: FormData, settings: Setting[]) {
 function valueTyped(typed: FormData, key: string, kind: SettingKind): SettingValue["value"] {
   // An unticked checkbox isn't in the form data at all.
   if (kind === SettingKind.BOOL) return { case: "boolValue", value: typed.has(key) };
+  if (kind === SettingKind.LIBRARIES) return librariesTyped(typed, key);
+  return textTyped(typed, key, kind);
+}
+
+/** The setting `key` of `kind` as typed into a text input, a number for an INTEGER one. */
+function textTyped(typed: FormData, key: string, kind: SettingKind): SettingValue["value"] {
   const text = formText(typed, key);
   if (text === "") return { case: undefined };
   // The input only takes whole numbers (`step` 1), but may write one as `1e3` or `1.0`, which
@@ -160,6 +182,14 @@ function valueTyped(typed: FormData, key: string, kind: SettingKind): SettingVal
   return kind === SettingKind.INTEGER
     ? { case: "integerValue", value: BigInt(Number(text)) }
     : { case: "textValue", value: text };
+}
+
+/** The Libraries ticked for the setting `key`, by id. None ticked is blank. */
+function librariesTyped(typed: FormData, key: string): SettingValue["value"] {
+  const ids = typed.getAll(key).flatMap((id) => (typeof id === "string" ? [BigInt(id)] : []));
+  return ids.length === 0
+    ? { case: undefined }
+    : { case: "libraryIds", value: create(LibraryIdsSchema, { ids }) };
 }
 
 /** Why the Server refused the `attempt`: next to the setting its Refusal names, or for the form. */
@@ -192,4 +222,5 @@ const settingRefused: Partial<Record<RefusalReason, string>> = {
   [RefusalReason.FIELD_REQUIRED]: "This setting is required.",
   [RefusalReason.CHOICE_NOT_OFFERED]:
     "The Plugin doesn’t offer this choice now. Test the settings and pick again.",
+  [RefusalReason.LIBRARY_NOT_FOUND]: "A Library picked here isn’t on the Server any more.",
 };

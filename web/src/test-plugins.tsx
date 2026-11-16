@@ -1,6 +1,7 @@
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { screen, within } from "@testing-library/react";
 
+import type { LibraryService } from "@/gen/nama/v1/library_pb";
 import { ExtensionPoint, PluginKind, PluginService, SettingKind } from "@/gen/nama/v1/plugin_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 
@@ -14,8 +15,9 @@ const text = (value: string) => ({ value: { case: "textValue" as const, value } 
 /**
  * The Built-in Plugins of a fresh Server with a TMDB API key set, settings of every kind (log-events
  * missing its required Path), and the test Plugin, whose settings check offers choices, then an
- * Installed Plugin with a URL setting and one the Server refused. TMDB, the test Plugin and the
- * Installed Plugin name their Extension Points. Only TMDB has a logo.
+ * Installed Plugin with a URL setting, one with a Libraries setting holding Movies and a Library
+ * since deleted, and one the Server refused. TMDB, the test Plugin and the first Installed Plugin
+ * name their Extension Points. Only TMDB has a logo.
  */
 const plugins = [
   { id: "local-auth", version: "0.1.0", kind: PluginKind.BUILT_IN, enabled: true },
@@ -123,6 +125,21 @@ const plugins = [
     ],
   },
   {
+    id: "cleanup",
+    version: "0.1.0",
+    kind: PluginKind.INSTALLED,
+    enabled: false,
+    settings: [
+      {
+        key: "libraries",
+        label: "Libraries to clean",
+        description: "Where watched titles are deleted.",
+        kind: SettingKind.LIBRARIES,
+        value: { value: { case: "libraryIds" as const, value: { ids: [1n, 9n] } } },
+      },
+    ],
+  },
+  {
     id: "out-of-range.wasm",
     version: "",
     kind: PluginKind.INSTALLED,
@@ -158,9 +175,23 @@ function summaryOf({
   };
 }
 
-/** A fake Server that lists `plugins`, gets each by id, and answers other calls with `changes`. */
-function pluginServer(changes: Partial<ServiceImpl<typeof PluginService>>) {
-  return fakeServer({ signedIn: [Permission.MANAGE_SETTINGS] }, {}, {}, (router) => {
+/** The Libraries on the fake Server: Movies, Shows and Anime, but no longer Library 9. */
+const libraries = [
+  { id: 1n, name: "Movies" },
+  { id: 2n, name: "Shows" },
+  { id: 3n, name: "Anime" },
+];
+
+/**
+ * A fake Server with `libraries` that lists `plugins`, gets each by id, and answers other calls
+ * with `changes`, and other `LibraryService` calls, such as listing the Libraries, with `library`.
+ */
+function pluginServer(
+  changes: Partial<ServiceImpl<typeof PluginService>>,
+  library: Partial<ServiceImpl<typeof LibraryService>> = {},
+) {
+  const state = { signedIn: [Permission.MANAGE_SETTINGS], libraries, libraryService: library };
+  return fakeServer(state, {}, {}, (router) => {
     router.service(PluginService, {
       listPlugins: () => ({ summaries: plugins.map((listed) => summaryOf(listed)) }),
       getPlugin: ({ id }) => {
@@ -179,9 +210,16 @@ export function openPlugins(changes: Partial<ServiceImpl<typeof PluginService>> 
   openApp("/admin/plugins", pluginServer(changes));
 }
 
-/** Opens the Plugin `id`'s details page, as `openPlugins` does the list. */
-export function openPlugin(id: string, changes: Partial<ServiceImpl<typeof PluginService>> = {}) {
-  openApp(`/admin/plugins/${id}`, pluginServer(changes));
+/**
+ * Opens the Plugin `id`'s details page, as `openPlugins` does the list, answering `LibraryService`
+ * calls with `library` where it gives them.
+ */
+export function openPlugin(
+  id: string,
+  changes: Partial<ServiceImpl<typeof PluginService>> = {},
+  library: Partial<ServiceImpl<typeof LibraryService>> = {},
+) {
+  openApp(`/admin/plugins/${id}`, pluginServer(changes, library));
 }
 
 /** The Plugins list's row for the Plugin shown as `name`: its name, or its id without one. */
