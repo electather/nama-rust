@@ -11,34 +11,31 @@ use axum::{
 use buffa::MessageName;
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, ErrorCode, ErrorDetail, RequestContext, Response};
-use nama_plugin_api::metadata::{ExternalId, TitleKind};
-use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason, external_id};
+use nama_plugin_api::metadata::ExternalId;
+use nama_proto::nama::v1::{self as proto, Permission, Refusal, RefusalReason};
 
 use crate::{
-    artwork::{self, Artwork},
     browse::Browse,
-    codes::SetupCode,
     config::Config,
     connections::Connections,
-    contents::Contents,
-    custom_images::{self, CustomImages},
     db::{Database, now},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
-    libraries::Libraries,
-    metadata::MetadataSource,
-    playback::running::RunningPlans,
-    plugin_logos::{self, PluginLogos},
+    images::{ImageStore, PluginLogos, plugin_logos_router},
+    library::{
+        Artwork, Contents, CustomImageUrls, CustomImages, Libraries, TitleKind, TitleSources,
+        artwork_router, custom_images_router,
+    },
+    playback::{Probing, RunningPlans, SubtitleCache, TrackPreferences, Tracks, running_router},
     plugin_settings::PluginSettings,
-    probing::Probing,
     requests::Requests,
     scanner::Scanner,
     server_settings::{self, ImageSettings},
-    sessions::{cleared_session_cookie, identify_caller, in_session_cookie},
-    track_preferences::TrackPreferences,
-    tracks::Tracks,
-    users::{Caller, Users},
+    users::{
+        Caller, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
+        in_session_cookie,
+    },
 };
 
 mod browse;
@@ -53,7 +50,6 @@ mod sign_in;
 mod users;
 mod watch_states;
 
-use crate::sign_in::SignIn;
 use browse::BrowseServiceHandler;
 use events::EventServiceHandler;
 use libraries::LibraryServiceHandler;
@@ -84,6 +80,7 @@ pub(crate) fn router(
     scanner: Scanner,
     custom_images: CustomImages,
     plugin_logos: PluginLogos,
+    image_store: ImageStore,
     artwork: Artwork,
     probing: Probing,
     events: EventBus,
@@ -93,13 +90,13 @@ pub(crate) fn router(
     abilities: Abilities,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
-    subtitles: crate::playback::subtitles::Cache,
+    subtitles: SubtitleCache,
 ) -> axum::Router {
     let plugins = plugin_settings.extension_points();
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
     let image_settings = settings.images();
-    let artwork_router = artwork::router(artwork.clone(), contents.clone(), image_settings.clone());
+    let artwork_router = artwork_router(artwork.clone(), contents.clone(), image_settings.clone());
     let media = crate::playback::router(
         contents,
         running.clone(),
@@ -107,7 +104,7 @@ pub(crate) fn router(
         Arc::clone(&ffmpeg),
         subtitles,
     )
-    .merge(crate::playback::running::router(running.clone()));
+    .merge(running_router(running.clone()));
     let images = ImageSources::new(
         custom_images.clone(),
         artwork.clone(),
@@ -123,13 +120,16 @@ pub(crate) fn router(
             settings,
             abilities: abilities.clone(),
             ffmpeg,
+            images: image_store,
+            points: plugins.clone(),
+            data_dir: config.data_dir.clone(),
         }))
         .add_service(Arc::new(SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
         }))
         .add_service(Arc::new(MatchServiceHandler {
             matcher: scanner.matcher().clone(),
-            metadata: MetadataSource::new(plugins),
+            metadata: TitleSources::new(plugins.clone()),
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
         }))
@@ -153,7 +153,7 @@ pub(crate) fn router(
             images: images.clone(),
         }))
         .add_service(Arc::new(PluginServiceHandler {
-            plugin_settings,
+            plugin_settings: plugin_settings.clone(),
             custom_images: custom_images.clone(),
             plugin_logos: plugin_logos.clone(),
         }))
@@ -161,8 +161,11 @@ pub(crate) fn router(
             libraries: Libraries::new(Arc::clone(&db)),
             scanner,
             browse,
-            contents: Contents::new(db),
+            contents: Contents::new(Arc::clone(&db)),
             images,
+            title_sources: TitleSources::new(plugins.clone()),
+            plugins,
+            plugin_settings: plugin_settings.clone(),
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,
@@ -171,11 +174,15 @@ pub(crate) fn router(
         .add_service(Arc::new(UserServiceHandler {
             users: users.clone(),
             connections,
+            plugin_settings,
+            custom_images: custom_images.clone(),
+            plugin_logos: plugin_logos.clone(),
+            db,
         }))
         .into_axum_router()
         .merge(artwork_router)
-        .merge(custom_images::router(custom_images, image_settings))
-        .merge(plugin_logos::router(plugin_logos))
+        .merge(custom_images_router(custom_images, image_settings))
+        .merge(plugin_logos_router(plugin_logos))
         .merge(media)
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
@@ -231,6 +238,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_UPDATE_PLAYBACK_SETTINGS_SPEC.procedure, ADMIN),
     (proto::SERVER_SERVICE_GET_IMAGE_SETTINGS_SPEC.procedure,     MANAGE_SETTINGS),
     (proto::SERVER_SERVICE_UPDATE_IMAGE_SETTINGS_SPEC.procedure,  MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_SWITCH_IMAGE_STORE_SPEC.procedure,     MANAGE_SETTINGS),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
@@ -248,7 +256,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::LIBRARY_SERVICE_SCAN_LIBRARY_SPEC.procedure,          MANAGE_LIBRARIES),
     (proto::LIBRARY_SERVICE_PREVIEW_DELETE_MEDIA_SPEC.procedure,  DELETE_MEDIA),
     (proto::LIBRARY_SERVICE_DELETE_MEDIA_SPEC.procedure,          DELETE_MEDIA),
-    (proto::MATCH_SERVICE_SEARCH_METADATA_SPEC.procedure,         MANAGE_LIBRARIES),
+    (proto::LIBRARY_SERVICE_LIST_TITLE_SOURCES_SPEC.procedure,    MANAGE_LIBRARIES),
+    (proto::MATCH_SERVICE_SEARCH_TITLES_SPEC.procedure,           MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_SET_MATCH_SPEC.procedure,               MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_CLEAR_MATCH_SPEC.procedure,             MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC.procedure,    MANAGE_LIBRARIES),
@@ -281,6 +290,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_LIST_PLUGIN_CONNECTIONS_SPEC.procedure,  Access::SignedIn),
     (proto::USER_SERVICE_START_PLUGIN_CONNECTION_SPEC.procedure,  Access::SignedIn),
     (proto::USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC.procedure, Access::SignedIn),
+    (proto::USER_SERVICE_LIST_PERSONAL_SETTINGS_SPEC.procedure,   Access::SignedIn),
+    (proto::USER_SERVICE_UPDATE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
+    (proto::USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC.procedure, REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),
@@ -463,12 +475,17 @@ fn title_kind_from_proto(kind: EnumValue<proto::TitleKind>) -> Result<TitleKind,
     }
 }
 
-fn external_id_from_proto(id: external_id::Id) -> ExternalId {
-    match id {
-        external_id::Id::Tmdb(id) => ExternalId::Tmdb(id),
-        external_id::Id::Imdb(id) => ExternalId::Imdb(id),
-        external_id::Id::Tvdb(id) => ExternalId::Tvdb(id),
-    }
+/// The Kernel's id for `id`, which a request names in `field`: refused when its namespace isn't
+/// lowercase ASCII letters and digits or its value is empty.
+fn external_id_from_proto(id: proto::ExternalId, field: &str) -> Result<ExternalId, ConnectError> {
+    ExternalId::new(&id.namespace, id.value).map_err(|error| {
+        refuse(
+            RefusalReason::REFUSAL_REASON_TITLE_ID_MALFORMED,
+            format!("the title's id is malformed: {error}"),
+        )
+        .field(field)
+        .into()
+    })
 }
 
 /// A season or episode number as a proto `uint32`. A scan parses them from digits, so they are
@@ -483,26 +500,22 @@ fn required_id(
     field: &str,
     what: &str,
 ) -> Result<ExternalId, ConnectError> {
-    id.and_then(|id| id.id)
-        .map(external_id_from_proto)
-        .ok_or_else(|| {
-            refuse(
-                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                format!("the {what}'s id is missing"),
-            )
-            .field(field)
-            .into()
-        })
+    // An id with neither part set is one the client left out.
+    match id.filter(|id| !id.namespace.is_empty() || !id.value.is_empty()) {
+        Some(id) => external_id_from_proto(id, field),
+        None => Err(refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            format!("the {what}'s id is missing"),
+        )
+        .field(field)
+        .into()),
+    }
 }
 
-fn external_id_to_proto(id: ExternalId) -> proto::ExternalId {
-    let id = match id {
-        ExternalId::Tmdb(id) => external_id::Id::Tmdb(id),
-        ExternalId::Imdb(id) => external_id::Id::Imdb(id),
-        ExternalId::Tvdb(id) => external_id::Id::Tvdb(id),
-    };
+fn external_id_to_proto(id: &ExternalId) -> proto::ExternalId {
     proto::ExternalId {
-        id: Some(id),
+        namespace: id.namespace().to_owned(),
+        value: id.value().to_owned(),
         ..Default::default()
     }
 }
@@ -516,7 +529,7 @@ struct Refused {
 }
 
 /// Refuses a request for breaking the rule `reason` names, telling the client `message`. Every
-/// error a client can cause is built here (see AGENTS.md, "Refusals are typed").
+/// error a client can cause is built here (see `api/AGENTS.md`, "Refusals are typed").
 fn refuse(reason: RefusalReason, message: impl Into<String>) -> Refused {
     Refused {
         code: refusal_code(reason),
@@ -529,6 +542,10 @@ fn refuse(reason: RefusalReason, message: impl Into<String>) -> Refused {
 }
 
 /// The Connect code `reason` always comes with: API contract, as the reasons are (ADR 0019).
+#[expect(
+    clippy::too_many_lines,
+    reason = "one flat table of every reason's code; split, it would be read in pieces"
+)]
 const fn refusal_code(reason: RefusalReason) -> ErrorCode {
     use RefusalReason as R;
     match reason {
@@ -555,7 +572,11 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SHOW_HAS_QUALITY
         | R::REFUSAL_REASON_GPU_NOT_OFFERED
         | R::REFUSAL_REASON_UNKNOWN_LANGUAGE
-        | R::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL
+        | R::REFUSAL_REASON_TITLE_ID_MALFORMED
+        | R::REFUSAL_REASON_TITLE_SOURCES_INVALID
+        | R::REFUSAL_REASON_RECOGNISERS_INVALID
+        | R::REFUSAL_REASON_PERMISSION_NOT_REQUESTED => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
@@ -582,7 +603,13 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_CHOICE_NOT_OFFERED
         | R::REFUSAL_REASON_FULFILLER_TAKEN
         | R::REFUSAL_REASON_PLUGIN_REFUSED
-        | R::REFUSAL_REASON_FOLDER_READ_ONLY => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_PLUGIN_REFUSED_TO_START
+        | R::REFUSAL_REASON_FOLDER_READ_ONLY
+        | R::REFUSAL_REASON_TITLE_ID_MISSING
+        | R::REFUSAL_REASON_NOT_A_BLOB_STORE
+        | R::REFUSAL_REASON_IMAGE_STORE_IN_USE
+        | R::REFUSAL_REASON_IMAGE_STORE_SWITCHING
+        | R::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
@@ -595,11 +622,12 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_ITEM_NOT_FOUND
         | R::REFUSAL_REASON_REQUEST_NOT_FOUND
         | R::REFUSAL_REASON_FOLLOWED_SHOW_NOT_FOUND
-        | R::REFUSAL_REASON_PLUGIN_NOT_FOUND => ErrorCode::NotFound,
+        | R::REFUSAL_REASON_PLUGIN_NOT_FOUND
+        | R::REFUSAL_REASON_TITLE_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_USER_NAME_TAKEN | R::REFUSAL_REASON_FOLDER_TAKEN => {
             ErrorCode::AlreadyExists
         }
-        R::REFUSAL_REASON_NO_METADATA_PROVIDER => ErrorCode::Unavailable,
+        R::REFUSAL_REASON_NO_TITLE_SOURCE => ErrorCode::Unavailable,
     }
 }
 
@@ -664,7 +692,7 @@ fn database_failed(err: sqlx::Error) -> ConnectError {
 /// What a response shows of images: the Custom Images in place of the downloaded ones, and the
 /// thumbhash of each image resized so far, by URL.
 struct ShownImages {
-    custom: custom_images::Urls,
+    custom: CustomImageUrls,
     thumbhashes: HashMap<String, Vec<u8>>,
 }
 
@@ -719,60 +747,5 @@ fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::fs;
-
-    use super::{ACCESS, Access};
-
-    /// Every RPC `buf generate` wrote a stub for, by path, read from the generated code so a new
-    /// RPC shows up here without anyone listing it.
-    fn generated_rpcs() -> Vec<String> {
-        let generated = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../nama-proto/src/generated/connect"
-        );
-        let mut rpcs = Vec::new();
-        for file in fs::read_dir(generated).expect("the generated code is checked in") {
-            let code = fs::read_to_string(file.expect("readable").path()).expect("readable");
-            rpcs.extend(
-                code.lines()
-                    .filter_map(|line| line.trim().strip_prefix("\"/nama."))
-                    .filter_map(|rest| rest.strip_suffix("\","))
-                    .map(|rest| format!("/nama.{rest}")),
-            );
-        }
-        rpcs
-    }
-
-    #[test]
-    fn every_generated_rpc_has_an_access_entry() {
-        let rpcs = generated_rpcs();
-        assert_eq!(rpcs.len(), ACCESS.len(), "the scan found {rpcs:?}");
-
-        let unlisted: Vec<_> = rpcs
-            .iter()
-            .filter(|rpc| Access::of(rpc).is_none())
-            .collect();
-
-        assert!(unlisted.is_empty(), "list these in `ACCESS`: {unlisted:?}");
-    }
-
-    #[test]
-    fn a_path_in_no_entry_has_no_access() {
-        for path in [
-            "/nama.v1.LibraryService/Unlisted",
-            "/nama.v1.BrowseService/Unlisted",
-            "/elsewhere",
-        ] {
-            assert!(Access::of(path).is_none(), "{path}");
-        }
-    }
-
-    #[test]
-    fn media_needs_a_session() {
-        assert!(matches!(
-            Access::of("/media/versions/1"),
-            Some(Access::SignedIn)
-        ));
-    }
-}
+#[path = "api/api_tests.rs"]
+mod tests;

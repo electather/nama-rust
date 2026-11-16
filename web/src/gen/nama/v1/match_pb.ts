@@ -10,42 +10,28 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/match.proto.
  */
 export const file_nama_v1_match: GenFile = /*@__PURE__*/
-  fileDesc("ChNuYW1hL3YxL21hdGNoLnByb3RvEgduYW1hLnYxIkIKCkV4dGVybmFsSWQSDgoEdG1kYhgBIAEoA0gAEg4KBGltZGIYAiABKAlIABIOCgR0dmRiGAMgASgDSABCBAoCaWQijAEKDlRpdGxlQ2FuZGlkYXRlEh8KAmlkGAEgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEg0KBXRpdGxlGAIgASgJEhsKDm9yaWdpbmFsX3RpdGxlGAMgASgJSACIAQESEQoEeWVhchgEIAEoBUgBiAEBQhEKD19vcmlnaW5hbF90aXRsZUIHCgVfeWVhciJkChVTZWFyY2hNZXRhZGF0YVJlcXVlc3QSIAoEa2luZBgBIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAIgASgJEhEKBHllYXIYAyABKAVIAIgBAUIHCgVfeWVhciJFChZTZWFyY2hNZXRhZGF0YVJlc3BvbnNlEisKCmNhbmRpZGF0ZXMYASADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlIkkKD1NldE1hdGNoUmVxdWVzdBIPCgdpdGVtX2lkGAEgASgDEiUKCHRpdGxlX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIjYKEFNldE1hdGNoUmVzcG9uc2USDwoHbWF0Y2hlZBgBIAEoBBIRCgl1bm1hdGNoZWQYAiABKAQiJAoRQ2xlYXJNYXRjaFJlcXVlc3QSDwoHaXRlbV9pZBgBIAEoAyInChJDbGVhck1hdGNoUmVzcG9uc2USEQoJdW5tYXRjaGVkGAEgASgEIi8KGUxpc3RVbm1hdGNoZWRJdGVtc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyJbChpMaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZRIlCgVpdGVtcxgBIAMoCzIWLm5hbWEudjEuVW5tYXRjaGVkSXRlbRIWCg51bnBhcnNlZF9wYXRocxgCIAMoCSKVAgoNVW5tYXRjaGVkSXRlbRIPCgdpdGVtX2lkGAEgASgDEgwKBHBhdGgYAiABKAkSIAoEa2luZBgDIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAQgASgJEhEKBHllYXIYBSABKAVIAIgBARITCgZzZWFzb24YBiABKAVIAYgBARIUCgdlcGlzb2RlGAcgASgFSAKIAQESKAoGcmVhc29uGAggASgOMhgubmFtYS52MS5Vbm1hdGNoZWRSZWFzb24SLAoLdGllZF90aXRsZXMYCSADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlQgcKBV95ZWFyQgkKB19zZWFzb25CCgoIX2VwaXNvZGUqUgoJVGl0bGVLaW5kEhoKFlRJVExFX0tJTkRfVU5TUEVDSUZJRUQQABIUChBUSVRMRV9LSU5EX01PVklFEAESEwoPVElUTEVfS0lORF9TSE9XEAIqnQEKD1VubWF0Y2hlZFJlYXNvbhIgChxVTk1BVENIRURfUkVBU09OX1VOU1BFQ0lGSUVEEAASHgoaVU5NQVRDSEVEX1JFQVNPTl9BTUJJR1VPVVMQARIiCh5VTk1BVENIRURfUkVBU09OX05PX1RJVExFX0ZJVFMQAhIkCiBVTk1BVENIRURfUkVBU09OX1VOS05PV05fSURfSElOVBADMtwCCgxNYXRjaFNlcnZpY2USVgoOU2VhcmNoTWV0YWRhdGESHi5uYW1hLnYxLlNlYXJjaE1ldGFkYXRhUmVxdWVzdBofLm5hbWEudjEuU2VhcmNoTWV0YWRhdGFSZXNwb25zZSIDkAIBEkQKCFNldE1hdGNoEhgubmFtYS52MS5TZXRNYXRjaFJlcXVlc3QaGS5uYW1hLnYxLlNldE1hdGNoUmVzcG9uc2UiA5ACAhJKCgpDbGVhck1hdGNoEhoubmFtYS52MS5DbGVhck1hdGNoUmVxdWVzdBobLm5hbWEudjEuQ2xlYXJNYXRjaFJlc3BvbnNlIgOQAgISYgoSTGlzdFVubWF0Y2hlZEl0ZW1zEiIubmFtYS52MS5MaXN0VW5tYXRjaGVkSXRlbXNSZXF1ZXN0GiMubmFtYS52MS5MaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZSIDkAIBYgZwcm90bzM");
+  fileDesc("ChNuYW1hL3YxL21hdGNoLnByb3RvEgduYW1hLnYxIlIKCkV4dGVybmFsSWQSEQoJbmFtZXNwYWNlGAQgASgJEg0KBXZhbHVlGAUgASgJSgQIARACSgQIAhADSgQIAxAEUgR0bWRiUgRpbWRiUgR0dmRiIowBCg5UaXRsZUNhbmRpZGF0ZRIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBINCgV0aXRsZRgCIAEoCRIbCg5vcmlnaW5hbF90aXRsZRgDIAEoCUgAiAEBEhEKBHllYXIYBCABKAVIAYgBAUIRCg9fb3JpZ2luYWxfdGl0bGVCBwoFX3llYXIiYgoTU2VhcmNoVGl0bGVzUmVxdWVzdBIgCgRraW5kGAEgASgOMhIubmFtYS52MS5UaXRsZUtpbmQSDQoFdGl0bGUYAiABKAkSEQoEeWVhchgDIAEoBUgAiAEBQgcKBV95ZWFyIkMKFFNlYXJjaFRpdGxlc1Jlc3BvbnNlEisKCmNhbmRpZGF0ZXMYASADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlIkkKD1NldE1hdGNoUmVxdWVzdBIPCgdpdGVtX2lkGAEgASgDEiUKCHRpdGxlX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIjYKEFNldE1hdGNoUmVzcG9uc2USDwoHbWF0Y2hlZBgBIAEoBBIRCgl1bm1hdGNoZWQYAiABKAQiJAoRQ2xlYXJNYXRjaFJlcXVlc3QSDwoHaXRlbV9pZBgBIAEoAyInChJDbGVhck1hdGNoUmVzcG9uc2USEQoJdW5tYXRjaGVkGAEgASgEIi8KGUxpc3RVbm1hdGNoZWRJdGVtc1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAyJbChpMaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZRIlCgVpdGVtcxgBIAMoCzIWLm5hbWEudjEuVW5tYXRjaGVkSXRlbRIWCg51bnBhcnNlZF9wYXRocxgCIAMoCSKVAgoNVW5tYXRjaGVkSXRlbRIPCgdpdGVtX2lkGAEgASgDEgwKBHBhdGgYAiABKAkSIAoEa2luZBgDIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAQgASgJEhEKBHllYXIYBSABKAVIAIgBARITCgZzZWFzb24YBiABKAVIAYgBARIUCgdlcGlzb2RlGAcgASgFSAKIAQESKAoGcmVhc29uGAggASgOMhgubmFtYS52MS5Vbm1hdGNoZWRSZWFzb24SLAoLdGllZF90aXRsZXMYCSADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlQgcKBV95ZWFyQgkKB19zZWFzb25CCgoIX2VwaXNvZGUqUgoJVGl0bGVLaW5kEhoKFlRJVExFX0tJTkRfVU5TUEVDSUZJRUQQABIUChBUSVRMRV9LSU5EX01PVklFEAESEwoPVElUTEVfS0lORF9TSE9XEAIqnQEKD1VubWF0Y2hlZFJlYXNvbhIgChxVTk1BVENIRURfUkVBU09OX1VOU1BFQ0lGSUVEEAASHgoaVU5NQVRDSEVEX1JFQVNPTl9BTUJJR1VPVVMQARIiCh5VTk1BVENIRURfUkVBU09OX05PX1RJVExFX0ZJVFMQAhIkCiBVTk1BVENIRURfUkVBU09OX1VOS05PV05fSURfSElOVBADMtYCCgxNYXRjaFNlcnZpY2USUAoMU2VhcmNoVGl0bGVzEhwubmFtYS52MS5TZWFyY2hUaXRsZXNSZXF1ZXN0Gh0ubmFtYS52MS5TZWFyY2hUaXRsZXNSZXNwb25zZSIDkAIBEkQKCFNldE1hdGNoEhgubmFtYS52MS5TZXRNYXRjaFJlcXVlc3QaGS5uYW1hLnYxLlNldE1hdGNoUmVzcG9uc2UiA5ACAhJKCgpDbGVhck1hdGNoEhoubmFtYS52MS5DbGVhck1hdGNoUmVxdWVzdBobLm5hbWEudjEuQ2xlYXJNYXRjaFJlc3BvbnNlIgOQAgISYgoSTGlzdFVubWF0Y2hlZEl0ZW1zEiIubmFtYS52MS5MaXN0VW5tYXRjaGVkSXRlbXNSZXF1ZXN0GiMubmFtYS52MS5MaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZSIDkAIBYgZwcm90bzM");
 
 /**
- * An id of a title in a metadata source. Movies and Shows have separate id spaces.
+ * An id of a title in a title source: a namespace and a value, such as `tmdb` and `603`.
+ * Movies and Shows have separate id spaces.
  *
  * @generated from message nama.v1.ExternalId
  */
 export type ExternalId = Message<"nama.v1.ExternalId"> & {
   /**
-   * @generated from oneof nama.v1.ExternalId.id
+   * Who defines the value: lowercase ASCII letters and digits, such as `tmdb`, `imdb` or `tvdb`.
+   *
+   * @generated from field: string namespace = 4;
    */
-  id: {
-    /**
-     * A TMDB id.
-     *
-     * @generated from field: int64 tmdb = 1;
-     */
-    value: bigint;
-    case: "tmdb";
-  } | {
-    /**
-     * An IMDb id, such as `tt0078748`.
-     *
-     * @generated from field: string imdb = 2;
-     */
-    value: string;
-    case: "imdb";
-  } | {
-    /**
-     * A TVDB id.
-     *
-     * @generated from field: int64 tvdb = 3;
-     */
-    value: bigint;
-    case: "tvdb";
-  } | { case: undefined; value?: undefined };
+  namespace: string;
+
+  /**
+   * The id there. Never empty; the Server passes it on without reading it.
+   *
+   * @generated from field: string value = 5;
+   */
+  value: string;
 };
 
 /**
@@ -69,14 +55,14 @@ export type TitleCandidate = Message<"nama.v1.TitleCandidate"> & {
   id?: ExternalId | undefined;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 2;
    */
   title: string;
 
   /**
-   * The title in its original language, if the metadata source has it.
+   * The title in its original language, if the title source has it.
    *
    * @generated from field: optional string original_title = 3;
    */
@@ -98,9 +84,9 @@ export const TitleCandidateSchema: GenMessage<TitleCandidate> = /*@__PURE__*/
   messageDesc(file_nama_v1_match, 1);
 
 /**
- * @generated from message nama.v1.SearchMetadataRequest
+ * @generated from message nama.v1.SearchTitlesRequest
  */
-export type SearchMetadataRequest = Message<"nama.v1.SearchMetadataRequest"> & {
+export type SearchTitlesRequest = Message<"nama.v1.SearchTitlesRequest"> & {
   /**
    * Must not be `TITLE_KIND_UNSPECIFIED`.
    *
@@ -124,16 +110,16 @@ export type SearchMetadataRequest = Message<"nama.v1.SearchMetadataRequest"> & {
 };
 
 /**
- * Describes the message nama.v1.SearchMetadataRequest.
- * Use `create(SearchMetadataRequestSchema)` to create a new message.
+ * Describes the message nama.v1.SearchTitlesRequest.
+ * Use `create(SearchTitlesRequestSchema)` to create a new message.
  */
-export const SearchMetadataRequestSchema: GenMessage<SearchMetadataRequest> = /*@__PURE__*/
+export const SearchTitlesRequestSchema: GenMessage<SearchTitlesRequest> = /*@__PURE__*/
   messageDesc(file_nama_v1_match, 2);
 
 /**
- * @generated from message nama.v1.SearchMetadataResponse
+ * @generated from message nama.v1.SearchTitlesResponse
  */
-export type SearchMetadataResponse = Message<"nama.v1.SearchMetadataResponse"> & {
+export type SearchTitlesResponse = Message<"nama.v1.SearchTitlesResponse"> & {
   /**
    * @generated from field: repeated nama.v1.TitleCandidate candidates = 1;
    */
@@ -141,10 +127,10 @@ export type SearchMetadataResponse = Message<"nama.v1.SearchMetadataResponse"> &
 };
 
 /**
- * Describes the message nama.v1.SearchMetadataResponse.
- * Use `create(SearchMetadataResponseSchema)` to create a new message.
+ * Describes the message nama.v1.SearchTitlesResponse.
+ * Use `create(SearchTitlesResponseSchema)` to create a new message.
  */
-export const SearchMetadataResponseSchema: GenMessage<SearchMetadataResponse> = /*@__PURE__*/
+export const SearchTitlesResponseSchema: GenMessage<SearchTitlesResponse> = /*@__PURE__*/
   messageDesc(file_nama_v1_match, 3);
 
 /**
@@ -159,7 +145,7 @@ export type SetMatchRequest = Message<"nama.v1.SetMatchRequest"> & {
   itemId: bigint;
 
   /**
-   * The Movie, or for an Episode the Show, to Match it to, as `SearchMetadata` gave it.
+   * The Movie, or for an Episode the Show, to Match it to, as `SearchTitles` gave it.
    *
    * @generated from field: nama.v1.ExternalId title_id = 2;
    */
@@ -284,7 +270,7 @@ export const ListUnmatchedItemsResponseSchema: GenMessage<ListUnmatchedItemsResp
 
 /**
  * An item that needs a Match, and what its file's name was parsed as. `kind`, `title` and `year`
- * are what to pass to `SearchMetadata` to find its title.
+ * are what to pass to `SearchTitles` to find its title.
  *
  * @generated from message nama.v1.UnmatchedItem
  */
@@ -425,7 +411,7 @@ export const UnmatchedReason = {
   NO_TITLE_FITS: 2,
 
   /**
-   * The item's ID Hint names no title the metadata source has.
+   * The item's ID Hint names no title the title source has.
    *
    * @generated from enum value: UNMATCHED_REASON_UNKNOWN_ID_HINT = 3;
    */
@@ -446,7 +432,7 @@ export const UnmatchedReasonSchema: GenEnum<UnmatchedReason> = /*@__PURE__*/
   enumDesc(file_nama_v1_match, 1);
 
 /**
- * Fixing Matches by hand: finding titles in the metadata source, and Matching items to them.
+ * Fixing Matches by hand: finding titles in the title sources, and Matching items to them.
  *
  * A Match set or cleared here is pinned to what the item's file names: the title and year (and
  * ID hint) of a Movie, or of the Show an Episode is in. Automatic Matching follows the pin instead
@@ -457,16 +443,16 @@ export const UnmatchedReasonSchema: GenEnum<UnmatchedReason> = /*@__PURE__*/
  */
 export const MatchService: GenService<{
   /**
-   * Searches the enabled metadata Provider for titles, best fit first. Fails with
+   * Searches the enabled title sources for titles, best fit first. Fails with
    * `invalid_argument` if the kind is unspecified or the title blank, and with `unavailable` if
-   * no metadata Provider is enabled or it failed.
+   * no title source is enabled or one failed.
    *
-   * @generated from rpc nama.v1.MatchService.SearchMetadata
+   * @generated from rpc nama.v1.MatchService.SearchTitles
    */
-  searchMetadata: {
+  searchTitles: {
     methodKind: "unary";
-    input: typeof SearchMetadataRequestSchema;
-    output: typeof SearchMetadataResponseSchema;
+    input: typeof SearchTitlesRequestSchema;
+    output: typeof SearchTitlesResponseSchema;
   },
   /**
    * Matches an item to a title and pins the Match. For a Movie, the title is a Movie, and every
@@ -474,7 +460,7 @@ export const MatchService: GenService<{
    * Show, and every Episode in the Library named as being in the same Show is Matched again
    * through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Fails with
    * `not_found` if there is no such item, with `invalid_argument` if the id is missing or names
-   * no title, and with `unavailable` if the metadata Provider can't answer, in which case nothing
+   * no title, and with `unavailable` if no title source can answer, in which case nothing
    * changes.
    *
    * @generated from rpc nama.v1.MatchService.SetMatch
@@ -498,7 +484,7 @@ export const MatchService: GenService<{
   },
   /**
    * Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
-   * those it hasn't Matched yet, such as when no metadata Provider was enabled. Items pinned
+   * those it hasn't Matched yet, such as when no title source was enabled. Items pinned
    * Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
    * Also lists the Library's files whose names didn't parse, which an Admin fixes by renaming.
    * Fails with `not_found` if there is no such Library.

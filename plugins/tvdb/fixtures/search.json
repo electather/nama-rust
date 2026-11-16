@@ -1,0 +1,40 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "objectID": "series-371980",
+      "aliases": [],
+      "country": "usa",
+      "id": "series-371980",
+      "image_url": "https://artworks.thetvdb.com/banners/v4/series/371980/posters/61f1b0b1a7a0c.jpg",
+      "name": "Severance",
+      "first_air_time": "2022-02-18",
+      "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
+      "primary_language": "eng",
+      "primary_type": "series",
+      "status": "Continuing",
+      "type": "series",
+      "tvdb_id": "371980",
+      "year": "2022",
+      "slug": "severance",
+      "translations": { "eng": "Severance", "deu": "Severance" },
+      "network": "Apple TV+",
+      "remote_ids": [
+        { "id": "tt11280740", "type": 2, "sourceName": "IMDB" },
+        { "id": "95396", "type": 12, "sourceName": "TheMovieDB.com" }
+      ],
+      "thumbnail": "https://artworks.thetvdb.com/banners/v4/series/371980/posters/61f1b0b1a7a0c_t.jpg"
+    },
+    {
+      "objectID": "series-79157",
+      "country": "kor",
+      "id": "series-79157",
+      "name": "세브란스",
+      "primary_language": "kor",
+      "type": "series",
+      "tvdb_id": "79157",
+      "translations": { "eng": "Severance Hospital" }
+    }
+  ],
+  "links": { "prev": null, "self": "https://api4.thetvdb.com/v4/search?query=severance&type=series&page=0", "next": null, "total_items": 2, "page_size": 50 }
+}

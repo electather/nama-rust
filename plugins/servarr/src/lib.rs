@@ -6,10 +6,7 @@ use std::collections::{HashMap, HashSet};
 use nama_pdk::{
     CheckedSettings, Download, Fulfilled, Request,
     extism_pdk::{Error, HttpRequest, HttpResponse, Json, config, json},
-    nama_proto::nama::{
-        plugin::v1::SettingField,
-        v1::{DownloadStatus, SettingKind},
-    },
+    nama_plugin_proto::nama::plugin::v1::{DownloadStatus, SettingField, SettingKind},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -93,8 +90,8 @@ pub fn fulfilled(
         .find(|profile| Some(profile.id) == profile_id);
     Fulfilled {
         reference,
-        profile_id: profile_id.map(|id| id.to_string()).unwrap_or_default(),
-        profile_name: used.map(|used| used.name).unwrap_or_default(),
+        profile_id: profile_id.map_or_default(|id| id.to_string()),
+        profile_name: used.map_or_default(|used| used.name),
         ..Fulfilled::default()
     }
 }
@@ -195,22 +192,7 @@ impl Servarr {
     /// # Errors
     /// If the service doesn't answer, refuses, or answers with something other than a `T`.
     pub fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, Error> {
-        self.parsed(&self.get_response(path)?)
-    }
-
-    /// The service's response at the API path `path`, if it took the request, for its headers.
-    ///
-    /// # Errors
-    /// If the service doesn't answer or refuses.
-    pub fn get_response(&self, path: &str) -> Result<HttpResponse, Error> {
-        self.accepted(self.send("GET", path, None::<()>)?)
-    }
-
-    /// `response`'s body as a `T`.
-    ///
-    /// # Errors
-    /// If the body isn't a `T`.
-    pub fn parsed<T: DeserializeOwned>(&self, response: &HttpResponse) -> Result<T, Error> {
+        let response = self.accepted(self.send("GET", path, None::<()>)?)?;
         parsed(self.name, &response.body())
     }
 
@@ -494,7 +476,7 @@ struct ValidationFailure {
 
 #[cfg(test)]
 mod tests {
-    use nama_pdk::nama_proto::nama::v1::RequestedQuality;
+    use nama_pdk::nama_plugin_proto::nama::plugin::v1::RequestedQuality;
 
     use super::*;
 
@@ -605,6 +587,28 @@ mod tests {
                 ("root_folder", "The folder Radarr puts each Movie in."),
             ]
             .map(|(key, description)| (key.to_owned(), description.to_owned()))
+        );
+    }
+
+    #[test]
+    fn settings_are_a_url_a_secret_and_two_choices_all_required_without_defaults() {
+        let declared: Vec<_> = settings("Sonarr", "Show", 8989)
+            .into_iter()
+            .map(|field| {
+                let default = field.default_value.into_option();
+                (field.key, field.kind.as_known(), field.required, default)
+            })
+            .collect();
+        let field = |key: &str, kind| (key.to_owned(), Some(kind), true, None);
+
+        assert_eq!(
+            declared,
+            [
+                field("url", SettingKind::SETTING_KIND_URL),
+                field("api_key", SettingKind::SETTING_KIND_SECRET),
+                field("quality_profile", SettingKind::SETTING_KIND_CHOICE),
+                field("root_folder", SettingKind::SETTING_KIND_CHOICE),
+            ]
         );
     }
 

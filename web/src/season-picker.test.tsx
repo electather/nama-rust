@@ -24,7 +24,7 @@ import { refused } from "./test-refusal";
 afterEach(cleanup);
 
 /**
- * A fake Server whose metadata source has `show`, where asking for Seasons opens a Pending Request
+ * A fake Server whose title source has `show`, where asking for Seasons opens a Pending Request
  * for each one for the signed-in User (ID 1), or adds them as a Requester to the one it has.
  */
 function showServer(
@@ -34,7 +34,7 @@ function showServer(
 ) {
   const show = create(FoundShowSchema, init);
   const asked: number[][] = [];
-  const followed: bigint[] = [];
+  const followed: string[] = [];
   const state =
     events === undefined ? { signedIn: permissions } : { signedIn: permissions, events };
   const transport = fakeServer(state, {}, {}, (router) => {
@@ -42,8 +42,8 @@ function showServer(
       listRequests: () => ({}),
       searchMovies: () => ({}),
       searchShows: () => {
-        const { tmdbId, title, year, posterUrl } = show;
-        return { shows: [{ tmdbId, title, year, posterUrl }] };
+        const { id, title, year, posterUrl } = show;
+        return { shows: [{ id, title, year, posterUrl }] };
       },
       lookUpShow: () => ({ show }),
       createSeasonRequests: ({ seasonNumbers }) => {
@@ -65,8 +65,8 @@ function showServer(
         }
         return { requests: seasons.map(({ request }) => request).filter((r) => r !== undefined) };
       },
-      createFollowedShow: ({ showTmdbId }) => {
-        followed.push(showTmdbId);
+      createFollowedShow: ({ showId }) => {
+        followed.push(`${showId?.namespace}-${showId?.value}`);
         show.followedShow = create(FollowedShowSchema, {
           state: RequestState.PENDING,
           requesters: [{ userId: 1n, name: "Sam" }],
@@ -79,7 +79,7 @@ function showServer(
 }
 
 const dark = {
-  tmdbId: 70_523n,
+  id: { namespace: "tmdb", value: "70523" },
   title: "Dark",
   year: 2017,
   seasons: [
@@ -273,7 +273,7 @@ test("picking Whole Show leaves out the Seasons, and Requesting it shows it Pend
 
   expect(await within(seasonRow("Whole Show")).findByText("Pending")).toBeDefined();
   expect(seasonsWhilePicked).toEqual([true, true]);
-  expect(followed).toEqual([70_523n]);
+  expect(followed).toEqual(["tmdb-70523"]);
   expect(asked).toEqual([]);
   expect(checkbox("Whole Show").disabled).toBe(true);
 });
@@ -293,5 +293,5 @@ test("a Show someone else follows shows its state, and Requesting the Whole Show
   await waitFor(() => {
     expect(checkbox("Whole Show").disabled).toBe(true);
   });
-  expect(followed).toEqual([70_523n]);
+  expect(followed).toEqual(["tmdb-70523"]);
 });

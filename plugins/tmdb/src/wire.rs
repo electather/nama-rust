@@ -1,6 +1,9 @@
-//! TMDB's v3 JSON, as far as the Plugin reads it, and how it maps onto the plugin API's types.
+//! TMDB's v3 JSON, as far as the Plugin reads it, and how it maps onto the contract's messages.
 
-use nama_plugin_api::metadata::{Candidate, Episode, ExternalId, ExternalIds, Movie, Season, Show};
+use nama_plugin_api::{
+    contract::{Artwork, ArtworkKind, Candidate, Episode, Movie, Season, Show, TitleId},
+    metadata::{ExternalId, IMDB},
+};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -21,14 +24,17 @@ pub(crate) struct MovieResult {
 
 impl From<MovieResult> for Candidate {
     fn from(movie: MovieResult) -> Self {
+        let id = title_id(&ExternalId::tmdb(movie.id));
         Self {
-            id: ExternalId::Tmdb(movie.id),
+            ids: vec![id.clone()],
+            id: id.into(),
             year: year(movie.release_date.as_deref()),
             title: movie.title,
             original_title: present(movie.original_title),
             poster: present(movie.poster_path),
             origin_country: Vec::new(),
             vote_count: movie.vote_count,
+            ..Default::default()
         }
     }
 }
@@ -48,14 +54,17 @@ pub(crate) struct ShowResult {
 
 impl From<ShowResult> for Candidate {
     fn from(show: ShowResult) -> Self {
+        let id = title_id(&ExternalId::tmdb(show.id));
         Self {
-            id: ExternalId::Tmdb(show.id),
+            ids: vec![id.clone()],
+            id: id.into(),
             year: year(show.first_air_date.as_deref()),
             title: show.name,
             original_title: present(show.original_name),
             poster: present(show.poster_path),
             origin_country: show.origin_country,
             vote_count: show.vote_count,
+            ..Default::default()
         }
     }
 }
@@ -82,16 +91,21 @@ pub(crate) struct WireIds {
 }
 
 impl WireIds {
-    fn with_tmdb(self, tmdb: i64) -> ExternalIds {
-        ExternalIds {
-            tmdb: Some(tmdb),
-            imdb: present(self.imdb_id),
-            tvdb: self.tvdb_id,
-        }
+    fn with_tmdb(self, tmdb: i64) -> Vec<TitleId> {
+        let imdb = present(self.imdb_id).and_then(|imdb| ExternalId::new(IMDB, imdb).ok());
+        [
+            Some(ExternalId::tmdb(tmdb)),
+            imdb,
+            self.tvdb_id.map(ExternalId::tvdb),
+        ]
+        .iter()
+        .flatten()
+        .map(title_id)
+        .collect()
     }
 }
 
-/// `/movie/{id}?append_to_response=external_ids,images,release_dates`.
+/// `/movie/{id}?append_to_response=external_ids,release_dates`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MovieDetails {
     id: i64,
@@ -108,19 +122,17 @@ pub(crate) struct MovieDetails {
     #[serde(default)]
     genres: Vec<Genre>,
     #[serde(default)]
-    images: Images,
-    #[serde(default)]
     release_dates: ReleaseDates,
 }
 
 impl MovieDetails {
-    /// The Movie, with its Title Logo in `language` and its Content Rating in `country`.
-    pub(crate) fn into_movie(self, language: &str, country: Option<&str>) -> Movie {
-        let mut ids = self.external_ids;
-        ids.imdb_id = present(ids.imdb_id).or(self.imdb_id);
+    /// The Movie, with its Content Rating in `country`.
+    pub(crate) fn into_movie(self, country: Option<&str>) -> Movie {
+        let mut wire = self.external_ids;
+        wire.imdb_id = present(wire.imdb_id).or(self.imdb_id);
         let releases = in_country(self.release_dates.results, country, |it| &it.iso_3166_1);
         Movie {
-            ids: ids.with_tmdb(self.id),
+            ids: wire.with_tmdb(self.id),
             title: self.title,
             original_title: present(self.original_title),
             overview: present(self.overview),
@@ -128,17 +140,17 @@ impl MovieDetails {
             runtime_minutes: self.runtime.filter(|&minutes| minutes > 0),
             poster: present(self.poster_path),
             backdrop: present(self.backdrop_path),
-            title_logo: self.images.title_logo(language),
             genres: genre_names(self.genres),
             content_rating: releases.and_then(|releases| {
                 (releases.release_dates.into_iter())
                     .find_map(|release| present(release.certification))
             }),
+            ..Default::default()
         }
     }
 }
 
-/// `/tv/{id}?append_to_response=external_ids,images,content_ratings`.
+/// `/tv/{id}?append_to_response=external_ids,content_ratings`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ShowDetails {
     id: i64,
@@ -155,8 +167,6 @@ pub(crate) struct ShowDetails {
     #[serde(default)]
     genres: Vec<Genre>,
     #[serde(default)]
-    images: Images,
-    #[serde(default)]
     content_ratings: ContentRatings,
 }
 
@@ -166,8 +176,8 @@ struct SeasonSummary {
 }
 
 impl ShowDetails {
-    /// The Show, with its Title Logo in `language` and its Content Rating in `country`.
-    pub(crate) fn into_show(self, language: &str, country: Option<&str>) -> Show {
+    /// The Show, with its Content Rating in `country`.
+    pub(crate) fn into_show(self, country: Option<&str>) -> Show {
         let rated = in_country(self.content_ratings.results, country, |it| &it.iso_3166_1);
         Show {
             ids: self.external_ids.with_tmdb(self.id),
@@ -178,9 +188,9 @@ impl ShowDetails {
             poster: present(self.poster_path),
             backdrop: present(self.backdrop_path),
             seasons: self.seasons.iter().map(|s| s.season_number).collect(),
-            title_logo: self.images.title_logo(language),
             genres: genre_names(self.genres),
             content_rating: rated.and_then(|rated| present(rated.rating)),
+            ..Default::default()
         }
     }
 }
@@ -192,34 +202,6 @@ struct Genre {
 
 fn genre_names(genres: Vec<Genre>) -> Vec<String> {
     genres.into_iter().map(|genre| genre.name).collect()
-}
-
-/// `images`, appended to a details response.
-#[derive(Debug, Default, Deserialize)]
-struct Images {
-    #[serde(default)]
-    logos: Vec<Logo>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Logo {
-    file_path: Option<String>,
-    iso_639_1: Option<String>,
-    #[serde(default)]
-    vote_average: f64,
-}
-
-impl Images {
-    /// The best-voted logo in `language`. Never one in another language, since a Title Logo is
-    /// read as the title.
-    fn title_logo(self, language: &str) -> Option<String> {
-        (self.logos.into_iter())
-            .filter(|logo| {
-                (logo.iso_639_1.as_deref()).is_some_and(|it| it.eq_ignore_ascii_case(language))
-            })
-            .max_by(|a, b| a.vote_average.total_cmp(&b.vote_average))
-            .and_then(|logo| present(logo.file_path))
-    }
 }
 
 /// `release_dates`, appended to a Movie's details: its releases by country.
@@ -287,6 +269,7 @@ impl From<SeasonDetails> for Season {
             air_date: present(season.air_date),
             poster: present(season.poster_path),
             episodes: season.episodes.into_iter().map(Episode::from).collect(),
+            ..Default::default()
         }
     }
 }
@@ -318,7 +301,62 @@ impl From<EpisodeDetails> for Episode {
             air_date: present(episode.air_date),
             runtime_minutes: episode.runtime.filter(|&minutes| minutes > 0),
             still: present(episode.still_path),
+            ..Default::default()
         }
+    }
+}
+
+/// `/movie/{id}/images` or `/tv/{id}/images`, asked in every language.
+#[derive(Debug, Deserialize)]
+pub(crate) struct Images {
+    #[serde(default)]
+    posters: Vec<ImageDetails>,
+    #[serde(default)]
+    backdrops: Vec<ImageDetails>,
+    #[serde(default)]
+    logos: Vec<ImageDetails>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ImageDetails {
+    file_path: String,
+    iso_639_1: Option<String>,
+    width: Option<u32>,
+    height: Option<u32>,
+    vote_average: Option<f64>,
+    vote_count: Option<u32>,
+}
+
+impl From<Images> for Vec<Artwork> {
+    fn from(images: Images) -> Self {
+        [
+            (ArtworkKind::ARTWORK_KIND_POSTER, images.posters),
+            (ArtworkKind::ARTWORK_KIND_BACKDROP, images.backdrops),
+            (ArtworkKind::ARTWORK_KIND_LOGO, images.logos),
+        ]
+        .into_iter()
+        .flat_map(|(kind, list)| list.into_iter().map(move |image| (kind, image)))
+        .filter(|(_, image)| !image.file_path.trim().is_empty())
+        .map(|(kind, image)| Artwork {
+            kind: kind.into(),
+            path: image.file_path,
+            language: present(image.iso_639_1),
+            width: image.width,
+            height: image.height,
+            rating: image.vote_average,
+            votes: image.vote_count,
+            ..Default::default()
+        })
+        .collect()
+    }
+}
+
+/// `id` as the contract carries it.
+pub(crate) fn title_id(id: &ExternalId) -> TitleId {
+    TitleId {
+        namespace: id.namespace().to_owned(),
+        value: id.value().to_owned(),
+        ..Default::default()
     }
 }
 
@@ -331,3 +369,7 @@ fn present(text: Option<String>) -> Option<String> {
 fn year(date: Option<&str>) -> Option<i32> {
     date?.get(..4)?.parse().ok()
 }
+
+#[cfg(test)]
+#[path = "wire_tests.rs"]
+mod tests;

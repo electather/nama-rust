@@ -156,8 +156,203 @@ impl ::buffa::Enumeration for PluginKind {
         ]
     }
 }
-/// A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
-/// `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+/// What an Admin lets a Plugin do in the Server, as its Manifest requests (ADR 0049). These are
+/// not a User's Permissions: they say what the Plugin itself may read or change.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum PluginPermission {
+    PLUGIN_PERMISSION_UNSPECIFIED = 0i32,
+    /// Keep its own notes in the Server, such as which titles it has already looked at.
+    PLUGIN_PERMISSION_STORE = 1i32,
+    /// See every Library and the Movies and Episodes in it.
+    PLUGIN_PERMISSION_READ_LIBRARIES = 2i32,
+    /// See what every User has watched, and when.
+    PLUGIN_PERMISSION_READ_WATCH_STATES = 3i32,
+    /// Delete Movies and Episodes, with their files on disk.
+    PLUGIN_PERMISSION_DELETE_MEDIA = 4i32,
+    /// See every User's id and display name.
+    PLUGIN_PERMISSION_READ_USERS = 5i32,
+}
+impl PluginPermission {
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::PLUGIN_PERMISSION_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_STORE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Store: Self = Self::PLUGIN_PERMISSION_STORE;
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_READ_LIBRARIES`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ReadLibraries: Self = Self::PLUGIN_PERMISSION_READ_LIBRARIES;
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_READ_WATCH_STATES`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ReadWatchStates: Self = Self::PLUGIN_PERMISSION_READ_WATCH_STATES;
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_DELETE_MEDIA`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeleteMedia: Self = Self::PLUGIN_PERMISSION_DELETE_MEDIA;
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_READ_USERS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ReadUsers: Self = Self::PLUGIN_PERMISSION_READ_USERS;
+}
+impl ::core::default::Default for PluginPermission {
+    fn default() -> Self {
+        Self::PLUGIN_PERMISSION_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for PluginPermission {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PluginPermission {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = PluginPermission;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!(
+                        "a string, integer, or null for ", stringify!(PluginPermission)
+                    ),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<PluginPermission, E> {
+                <PluginPermission as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<PluginPermission, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <PluginPermission as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<PluginPermission, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <PluginPermission as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<PluginPermission, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PluginPermission {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for PluginPermission {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_STORE),
+            2i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_LIBRARIES),
+            3i32 => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_WATCH_STATES)
+            }
+            4i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_DELETE_MEDIA),
+            5i32 => ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_USERS),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::PLUGIN_PERMISSION_UNSPECIFIED => "PLUGIN_PERMISSION_UNSPECIFIED",
+            Self::PLUGIN_PERMISSION_STORE => "PLUGIN_PERMISSION_STORE",
+            Self::PLUGIN_PERMISSION_READ_LIBRARIES => "PLUGIN_PERMISSION_READ_LIBRARIES",
+            Self::PLUGIN_PERMISSION_READ_WATCH_STATES => {
+                "PLUGIN_PERMISSION_READ_WATCH_STATES"
+            }
+            Self::PLUGIN_PERMISSION_DELETE_MEDIA => "PLUGIN_PERMISSION_DELETE_MEDIA",
+            Self::PLUGIN_PERMISSION_READ_USERS => "PLUGIN_PERMISSION_READ_USERS",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "PLUGIN_PERMISSION_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_UNSPECIFIED)
+            }
+            "PLUGIN_PERMISSION_STORE" => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_STORE)
+            }
+            "PLUGIN_PERMISSION_READ_LIBRARIES" => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_LIBRARIES)
+            }
+            "PLUGIN_PERMISSION_READ_WATCH_STATES" => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_WATCH_STATES)
+            }
+            "PLUGIN_PERMISSION_DELETE_MEDIA" => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_DELETE_MEDIA)
+            }
+            "PLUGIN_PERMISSION_READ_USERS" => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_READ_USERS)
+            }
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::PLUGIN_PERMISSION_UNSPECIFIED,
+            Self::PLUGIN_PERMISSION_STORE,
+            Self::PLUGIN_PERMISSION_READ_LIBRARIES,
+            Self::PLUGIN_PERMISSION_READ_WATCH_STATES,
+            Self::PLUGIN_PERMISSION_DELETE_MEDIA,
+            Self::PLUGIN_PERMISSION_READ_USERS,
+        ]
+    }
+}
+/// A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin
+/// names the points it serves by their `nama.plugin.v1` service, such as
+/// `nama.plugin.v1.MovieFulfillerService` (ADR 0043).
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
@@ -173,12 +368,20 @@ pub enum ExtensionPoint {
     EXTENSION_POINT_CONNECTOR = 4i32,
     /// Checks the credentials people sign in with.
     EXTENSION_POINT_AUTHENTICATOR = 5i32,
-    /// Finds metadata for Movies and Shows, such as TMDB.
-    EXTENSION_POINT_METADATA_PROVIDER = 6i32,
+    /// A title source: searches for and describes Movies and Shows, such as TMDB.
+    EXTENSION_POINT_TITLE_SOURCE = 6i32,
     /// Observes the Server's Events.
     EXTENSION_POINT_EVENTS_OBSERVER = 7i32,
     /// Observes the Server starting.
     EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8i32,
+    /// Proposes what a file is, which a Library lists to ask it (ADR 0050).
+    EXTENSION_POINT_RECOGNISER = 9i32,
+    /// Keeps the Server's stored images, such as in S3, once an Admin picks it with
+    /// `ServerService.SwitchImageStore`.
+    EXTENSION_POINT_BLOB_STORE = 10i32,
+    /// Ticks on a schedule and asks the Server's Automation service, as far as the Permissions an
+    /// Admin granted it allow, such as Cleanup (ADR 0048).
+    EXTENSION_POINT_AUTOMATION = 11i32,
 }
 impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -199,15 +402,24 @@ impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_AUTHENTICATOR`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Authenticator: Self = Self::EXTENSION_POINT_AUTHENTICATOR;
-    ///Idiomatic alias for [`Self::EXTENSION_POINT_METADATA_PROVIDER`]; `Debug` prints the variant name.
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_TITLE_SOURCE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
-    pub const MetadataProvider: Self = Self::EXTENSION_POINT_METADATA_PROVIDER;
+    pub const TitleSource: Self = Self::EXTENSION_POINT_TITLE_SOURCE;
     ///Idiomatic alias for [`Self::EXTENSION_POINT_EVENTS_OBSERVER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const EventsObserver: Self = Self::EXTENSION_POINT_EVENTS_OBSERVER;
     ///Idiomatic alias for [`Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ServerStartedObserver: Self = Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_RECOGNISER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Recogniser: Self = Self::EXTENSION_POINT_RECOGNISER;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_BLOB_STORE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const BlobStore: Self = Self::EXTENSION_POINT_BLOB_STORE;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_AUTOMATION`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Automation: Self = Self::EXTENSION_POINT_AUTOMATION;
 }
 impl ::core::default::Default for ExtensionPoint {
     fn default() -> Self {
@@ -311,13 +523,16 @@ impl ::buffa::Enumeration for ExtensionPoint {
             3i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_NOTIFIER),
             4i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_CONNECTOR),
             5i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_AUTHENTICATOR),
-            6i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_METADATA_PROVIDER),
+            6i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_TITLE_SOURCE),
             7i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_EVENTS_OBSERVER),
             8i32 => {
                 ::core::option::Option::Some(
                     Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
                 )
             }
+            9i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_RECOGNISER),
+            10i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_BLOB_STORE),
+            11i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_AUTOMATION),
             _ => ::core::option::Option::None,
         }
     }
@@ -332,13 +547,14 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_NOTIFIER => "EXTENSION_POINT_NOTIFIER",
             Self::EXTENSION_POINT_CONNECTOR => "EXTENSION_POINT_CONNECTOR",
             Self::EXTENSION_POINT_AUTHENTICATOR => "EXTENSION_POINT_AUTHENTICATOR",
-            Self::EXTENSION_POINT_METADATA_PROVIDER => {
-                "EXTENSION_POINT_METADATA_PROVIDER"
-            }
+            Self::EXTENSION_POINT_TITLE_SOURCE => "EXTENSION_POINT_TITLE_SOURCE",
             Self::EXTENSION_POINT_EVENTS_OBSERVER => "EXTENSION_POINT_EVENTS_OBSERVER",
             Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER => {
                 "EXTENSION_POINT_SERVER_STARTED_OBSERVER"
             }
+            Self::EXTENSION_POINT_RECOGNISER => "EXTENSION_POINT_RECOGNISER",
+            Self::EXTENSION_POINT_BLOB_STORE => "EXTENSION_POINT_BLOB_STORE",
+            Self::EXTENSION_POINT_AUTOMATION => "EXTENSION_POINT_AUTOMATION",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -361,8 +577,8 @@ impl ::buffa::Enumeration for ExtensionPoint {
             "EXTENSION_POINT_AUTHENTICATOR" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_AUTHENTICATOR)
             }
-            "EXTENSION_POINT_METADATA_PROVIDER" => {
-                ::core::option::Option::Some(Self::EXTENSION_POINT_METADATA_PROVIDER)
+            "EXTENSION_POINT_TITLE_SOURCE" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_TITLE_SOURCE)
             }
             "EXTENSION_POINT_EVENTS_OBSERVER" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_EVENTS_OBSERVER)
@@ -371,6 +587,15 @@ impl ::buffa::Enumeration for ExtensionPoint {
                 ::core::option::Option::Some(
                     Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
                 )
+            }
+            "EXTENSION_POINT_RECOGNISER" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_RECOGNISER)
+            }
+            "EXTENSION_POINT_BLOB_STORE" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_BLOB_STORE)
+            }
+            "EXTENSION_POINT_AUTOMATION" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_AUTOMATION)
             }
             _ => ::core::option::Option::None,
         }
@@ -383,14 +608,16 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_NOTIFIER,
             Self::EXTENSION_POINT_CONNECTOR,
             Self::EXTENSION_POINT_AUTHENTICATOR,
-            Self::EXTENSION_POINT_METADATA_PROVIDER,
+            Self::EXTENSION_POINT_TITLE_SOURCE,
             Self::EXTENSION_POINT_EVENTS_OBSERVER,
             Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
+            Self::EXTENSION_POINT_RECOGNISER,
+            Self::EXTENSION_POINT_BLOB_STORE,
+            Self::EXTENSION_POINT_AUTOMATION,
         ]
     }
 }
-/// What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
-/// with it too (`nama.plugin.v1.SettingField`).
+/// What kind of value a setting takes.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
@@ -410,6 +637,9 @@ pub enum SettingKind {
     /// An http or https URL, such as a Sonarr address. An Installed Plugin may send HTTP requests
     /// to its host, as if its Manifest's `allowed_hosts` named it.
     SETTING_KIND_URL = 6i32,
+    /// The ids of Libraries, picked from the Server's Library list (`ListLibraries`). Saving an id
+    /// that names no Library is refused; a Library deleted later stays in the value.
+    SETTING_KIND_LIBRARIES = 7i32,
 }
 impl SettingKind {
     ///Idiomatic alias for [`Self::SETTING_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -433,6 +663,9 @@ impl SettingKind {
     ///Idiomatic alias for [`Self::SETTING_KIND_URL`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Url: Self = Self::SETTING_KIND_URL;
+    ///Idiomatic alias for [`Self::SETTING_KIND_LIBRARIES`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Libraries: Self = Self::SETTING_KIND_LIBRARIES;
 }
 impl ::core::default::Default for SettingKind {
     fn default() -> Self {
@@ -535,6 +768,7 @@ impl ::buffa::Enumeration for SettingKind {
             4i32 => ::core::option::Option::Some(Self::SETTING_KIND_INTEGER),
             5i32 => ::core::option::Option::Some(Self::SETTING_KIND_CHOICE),
             6i32 => ::core::option::Option::Some(Self::SETTING_KIND_URL),
+            7i32 => ::core::option::Option::Some(Self::SETTING_KIND_LIBRARIES),
             _ => ::core::option::Option::None,
         }
     }
@@ -550,6 +784,7 @@ impl ::buffa::Enumeration for SettingKind {
             Self::SETTING_KIND_INTEGER => "SETTING_KIND_INTEGER",
             Self::SETTING_KIND_CHOICE => "SETTING_KIND_CHOICE",
             Self::SETTING_KIND_URL => "SETTING_KIND_URL",
+            Self::SETTING_KIND_LIBRARIES => "SETTING_KIND_LIBRARIES",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -569,6 +804,9 @@ impl ::buffa::Enumeration for SettingKind {
                 ::core::option::Option::Some(Self::SETTING_KIND_CHOICE)
             }
             "SETTING_KIND_URL" => ::core::option::Option::Some(Self::SETTING_KIND_URL),
+            "SETTING_KIND_LIBRARIES" => {
+                ::core::option::Option::Some(Self::SETTING_KIND_LIBRARIES)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -581,6 +819,7 @@ impl ::buffa::Enumeration for SettingKind {
             Self::SETTING_KIND_INTEGER,
             Self::SETTING_KIND_CHOICE,
             Self::SETTING_KIND_URL,
+            Self::SETTING_KIND_LIBRARIES,
         ]
     }
 }
@@ -1410,13 +1649,30 @@ pub struct EnablePluginRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub id: ::buffa::alloc::string::String,
+    /// The Plugin Permissions the Admin grants it, replacing those granted before. Each must be one
+    /// its `requested_permissions` lists, or the call is refused with
+    /// `REFUSAL_REASON_PERMISSION_NOT_REQUESTED`. Empty grants none.
+    ///
+    /// Field 2: `granted_permissions`
+    #[serde(
+        rename = "grantedPermissions",
+        alias = "granted_permissions",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub granted_permissions: ::buffa::alloc::vec::Vec<
+        ::buffa::EnumValue<PluginPermission>,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for EnablePluginRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("EnablePluginRequest").field("id", &self.id).finish()
+        f.debug_struct("EnablePluginRequest")
+            .field("id", &self.id)
+            .field("granted_permissions", &self.granted_permissions)
+            .finish()
     }
 }
 impl EnablePluginRequest {
@@ -1449,6 +1705,14 @@ impl ::buffa::Message for EnablePluginRequest {
         if !self.id.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
         }
+        if !self.granted_permissions.is_empty() {
+            let payload: u64 = self
+                .granted_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1461,6 +1725,17 @@ impl ::buffa::Message for EnablePluginRequest {
         use ::buffa::Enumeration as _;
         if !self.id.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.id, buf);
+        }
+        if !self.granted_permissions.is_empty() {
+            let payload: u64 = self
+                .granted_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(2u32, payload, buf);
+            for v in &self.granted_permissions {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1482,6 +1757,44 @@ impl ::buffa::Message for EnablePluginRequest {
                 )?;
                 ::buffa::types::merge_string(&mut self.id, buf)?;
             }
+            2u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.granted_permissions.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.granted_permissions
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.granted_permissions
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1491,6 +1804,7 @@ impl ::buffa::Message for EnablePluginRequest {
     }
     fn clear(&mut self) {
         self.id.clear();
+        self.granted_permissions.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3376,6 +3690,30 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub custom_logo: bool,
+    /// The Plugin Permissions it asks for, which an Admin grants some or all of in `EnablePlugin`.
+    ///
+    /// Field 13: `requested_permissions`
+    #[serde(
+        rename = "requestedPermissions",
+        alias = "requested_permissions",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub requested_permissions: ::buffa::alloc::vec::Vec<
+        ::buffa::EnumValue<PluginPermission>,
+    >,
+    /// The Plugin Permissions an Admin granted it, kept across restarts until it is enabled again.
+    ///
+    /// Field 14: `granted_permissions`
+    #[serde(
+        rename = "grantedPermissions",
+        alias = "granted_permissions",
+        with = "::buffa::json_helpers::repeated_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub granted_permissions: ::buffa::alloc::vec::Vec<
+        ::buffa::EnumValue<PluginPermission>,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3394,6 +3732,8 @@ impl ::core::fmt::Debug for PluginSummary {
             .field("extension_points", &self.extension_points)
             .field("logo_url", &self.logo_url)
             .field("custom_logo", &self.custom_logo)
+            .field("requested_permissions", &self.requested_permissions)
+            .field("granted_permissions", &self.granted_permissions)
             .finish()
     }
 }
@@ -3467,6 +3807,22 @@ impl ::buffa::Message for PluginSummary {
         if self.custom_logo {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if !self.requested_permissions.is_empty() {
+            let payload: u64 = self
+                .requested_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.granted_permissions.is_empty() {
+            let payload: u64 = self
+                .granted_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3520,6 +3876,28 @@ impl ::buffa::Message for PluginSummary {
         }
         if self.custom_logo {
             ::buffa::types::put_bool_field(12u32, self.custom_logo, buf);
+        }
+        if !self.requested_permissions.is_empty() {
+            let payload: u64 = self
+                .requested_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(13u32, payload, buf);
+            for v in &self.requested_permissions {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        if !self.granted_permissions.is_empty() {
+            let payload: u64 = self
+                .granted_permissions
+                .iter()
+                .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(14u32, payload, buf);
+            for v in &self.granted_permissions {
+                ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3642,6 +4020,82 @@ impl ::buffa::Message for PluginSummary {
                 )?;
                 self.custom_logo = ::buffa::types::decode_bool(buf)?;
             }
+            13u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.requested_permissions.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.requested_permissions
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.requested_permissions
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            14u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    self.granted_permissions.reserve(len);
+                    let mut limited = buf.take(len);
+                    while limited.has_remaining() {
+                        self.granted_permissions
+                            .push(
+                                ::buffa::EnumValue::from(
+                                    ::buffa::types::decode_int32_packed(&mut limited)?,
+                                ),
+                            );
+                    }
+                    let leftover = limited.remaining();
+                    if leftover > 0 {
+                        limited.advance(leftover);
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.granted_permissions
+                        .push(
+                            ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?),
+                        );
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3661,6 +4115,8 @@ impl ::buffa::Message for PluginSummary {
         self.extension_points.clear();
         self.logo_url.clear();
         self.custom_logo = false;
+        self.requested_permissions.clear();
+        self.granted_permissions.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3725,6 +4181,18 @@ pub struct Plugin {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub checks_settings: bool,
+    /// Set while its Recogniser's last call failed, so the Admin sees one that keeps failing.
+    ///
+    /// Field 13: `recogniser_failure`
+    #[serde(
+        rename = "recogniserFailure",
+        alias = "recogniser_failure",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub recogniser_failure: ::buffa::MessageField<
+        RecogniserFailure,
+        ::buffa::Inline<RecogniserFailure>,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3735,6 +4203,7 @@ impl ::core::fmt::Debug for Plugin {
             .field("summary", &self.summary)
             .field("settings", &self.settings)
             .field("checks_settings", &self.checks_settings)
+            .field("recogniser_failure", &self.recogniser_failure)
             .finish()
     }
 }
@@ -3784,6 +4253,14 @@ impl ::buffa::Message for Plugin {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.recogniser_failure.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.recogniser_failure.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3812,6 +4289,14 @@ impl ::buffa::Message for Plugin {
                 buf,
             );
             self.summary.write_to(__cache, buf);
+        }
+        if self.recogniser_failure.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                13u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.recogniser_failure.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3856,6 +4341,17 @@ impl ::buffa::Message for Plugin {
                     ctx,
                 )?;
             }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.recogniser_failure.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3867,6 +4363,7 @@ impl ::buffa::Message for Plugin {
         self.settings.clear();
         self.checks_settings = false;
         self.summary = ::buffa::MessageField::none();
+        self.recogniser_failure = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3897,6 +4394,189 @@ pub const __PLUGIN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::typ
     type_url: "type.googleapis.com/nama.v1.Plugin",
     to_json: ::buffa::type_registry::any_to_json::<Plugin>,
     from_json: ::buffa::type_registry::any_from_json::<Plugin>,
+    is_wkt: false,
+};
+/// A Recogniser whose last call failed (ADR 0050). The Server keeps it in memory only: a call that
+/// answers clears it, and so do disabling the Plugin and a restart.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct RecogniserFailure {
+    /// What the last failure said.
+    ///
+    /// Field 1: `last_error`
+    #[serde(
+        rename = "lastError",
+        alias = "last_error",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub last_error: ::buffa::alloc::string::String,
+    /// When it failed, in milliseconds since the Unix epoch.
+    ///
+    /// Field 2: `at_ms`
+    #[serde(
+        rename = "atMs",
+        alias = "at_ms",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub at_ms: i64,
+    /// How many calls in a row have failed, the last included.
+    ///
+    /// Field 3: `failed_in_a_row`
+    #[serde(
+        rename = "failedInARow",
+        alias = "failed_in_a_row",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub failed_in_a_row: u32,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for RecogniserFailure {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("RecogniserFailure")
+            .field("last_error", &self.last_error)
+            .field("at_ms", &self.at_ms)
+            .field("failed_in_a_row", &self.failed_in_a_row)
+            .finish()
+    }
+}
+impl RecogniserFailure {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RecogniserFailure";
+}
+::buffa::impl_default_instance!(RecogniserFailure);
+impl ::buffa::MessageName for RecogniserFailure {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "RecogniserFailure";
+    const FULL_NAME: &'static str = "nama.v1.RecogniserFailure";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RecogniserFailure";
+}
+impl ::buffa::Message for RecogniserFailure {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.last_error.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.last_error) as u64;
+        }
+        if self.at_ms != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.at_ms) as u64;
+        }
+        if self.failed_in_a_row != 0u32 {
+            size
+                += 1u64
+                    + ::buffa::types::uint32_encoded_len(self.failed_in_a_row) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.last_error.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.last_error, buf);
+        }
+        if self.at_ms != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.at_ms, buf);
+        }
+        if self.failed_in_a_row != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.failed_in_a_row, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.last_error, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.at_ms = ::buffa::types::decode_int64(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.failed_in_a_row = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.last_error.clear();
+        self.at_ms = 0i64;
+        self.failed_in_a_row = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for RecogniserFailure {
+    const PROTO_FQN: &'static str = "nama.v1.RecogniserFailure";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for RecogniserFailure {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __RECOGNISER_FAILURE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.RecogniserFailure",
+    to_json: ::buffa::type_registry::any_to_json::<RecogniserFailure>,
+    from_json: ::buffa::type_registry::any_from_json::<RecogniserFailure>,
     is_wkt: false,
 };
 /// One setting a Plugin takes, as its schema declares it, and its stored value.
@@ -4270,7 +4950,7 @@ impl ::buffa::Message for SettingValue {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -4285,6 +4965,14 @@ impl ::buffa::Message for SettingValue {
                 __buffa::oneof::setting_value::Value::IntegerValue(v) => {
                     size += 1u64 + ::buffa::types::int64_encoded_len(*v) as u64;
                 }
+                __buffa::oneof::setting_value::Value::LibraryIds(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -4292,7 +4980,7 @@ impl ::buffa::Message for SettingValue {
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -4307,6 +4995,14 @@ impl ::buffa::Message for SettingValue {
                 }
                 __buffa::oneof::setting_value::Value::IntegerValue(x) => {
                     ::buffa::types::put_int64_field(3u32, *x, buf);
+                }
+                __buffa::oneof::setting_value::Value::LibraryIds(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        4u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
                 }
             }
         }
@@ -4355,6 +5051,26 @@ impl ::buffa::Message for SettingValue {
                         ::buffa::types::decode_int64(buf)?,
                     ),
                 );
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::setting_value::Value::LibraryIds(ref mut existing),
+                ) = self.value
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.value = ::core::option::Option::Some(
+                        __buffa::oneof::setting_value::Value::LibraryIds(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -4472,6 +5188,30 @@ impl<'de> ::serde::Deserialize<'de> for SettingValue {
                                 );
                             }
                         }
+                        "libraryIds" | "library_ids" => {
+                            let v: ::core::option::Option<LibraryIds> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            LibraryIds,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_value.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'value'",
+                                        ),
+                                    );
+                                }
+                                __oneof_value = Some(
+                                    __buffa::oneof::setting_value::Value::LibraryIds(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
+                                );
+                            }
+                        }
                         _ => {
                             map.next_value::<::serde::de::IgnoredAny>()?;
                         }
@@ -4513,3 +5253,174 @@ pub mod setting_value {
     #[doc(inline)]
     pub use super::__buffa::view::oneof::setting_value::Value as ValueView;
 }
+/// The ids of Libraries a SETTING_KIND_LIBRARIES setting names, in the order the admin gave them.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct LibraryIds {
+    /// Field 1: `ids`
+    #[serde(
+        rename = "ids",
+        with = "::buffa::json_helpers::proto_seq",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub ids: ::buffa::alloc::vec::Vec<i64>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for LibraryIds {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("LibraryIds").field("ids", &self.ids).finish()
+    }
+}
+impl LibraryIds {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.LibraryIds";
+}
+::buffa::impl_default_instance!(LibraryIds);
+impl ::buffa::MessageName for LibraryIds {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "LibraryIds";
+    const FULL_NAME: &'static str = "nama.v1.LibraryIds";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.LibraryIds";
+}
+impl ::buffa::Message for LibraryIds {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.ids.is_empty() {
+            let payload: u64 = self
+                .ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.ids.is_empty() {
+            let payload: u64 = self
+                .ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(1u32, payload, buf);
+            for &v in &self.ids {
+                ::buffa::types::encode_int64(v, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_int64(
+                            &buf.chunk()[..len],
+                            &mut self.ids,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.ids.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.ids
+                                .push(::buffa::types::decode_int64_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.ids.push(::buffa::types::decode_int64(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.ids.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for LibraryIds {
+    const PROTO_FQN: &'static str = "nama.v1.LibraryIds";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for LibraryIds {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __LIBRARY_IDS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.LibraryIds",
+    to_json: ::buffa::type_registry::any_to_json::<LibraryIds>,
+    from_json: ::buffa::type_registry::any_from_json::<LibraryIds>,
+    is_wkt: false,
+};

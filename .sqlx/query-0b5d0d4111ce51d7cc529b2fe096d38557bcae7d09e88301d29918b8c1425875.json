@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT quality_id, quality_name, quality_profile_id FROM followed_shows WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "quality_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "quality_id"
+          }
+        }
+      },
+      {
+        "name": "quality_name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "quality_name"
+          }
+        }
+      },
+      {
+        "name": "quality_profile_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "quality_profile_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "0b5d0d4111ce51d7cc529b2fe096d38557bcae7d09e88301d29918b8c1425875"
+}

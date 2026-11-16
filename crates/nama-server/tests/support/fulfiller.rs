@@ -12,14 +12,14 @@ use std::{
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    contract::{RequestedMovie, RequestedSeason, request::MovieOrSeason},
     fulfiller::{
-        Download, Fulfilled, Fulfiller, Movies, ShowDeleted, Shows, StopMonitoring, stop_monitoring,
+        Download, Fulfilled, Fulfiller, Movies, Request, ShowDeleted, Shows, StopMonitoring,
+        TitleId, stop_monitoring,
     },
     settings::{Choice, Choices, Settings, SettingsCheck},
 };
-use nama_proto::nama::v1::{
-    Quality, Request, RequestedMovie, RequestedSeason, request::MovieOrSeason,
-};
+use nama_proto::nama::v1::Quality;
 use nama_server::plugins::Registry;
 
 /// The id of the Plugin providing the fake Fulfiller for Movies.
@@ -101,6 +101,8 @@ pub(crate) struct FakeFulfiller {
     check_fails: Arc<AtomicBool>,
     /// The profile id and name it reports it used on each hand-off, if any.
     used: Arc<Mutex<Option<(String, String)>>>,
+    /// The namespaces it needs a title to have an id in.
+    needs: Arc<Mutex<Vec<String>>>,
 }
 
 impl FakeFulfiller {
@@ -117,6 +119,22 @@ impl FakeFulfiller {
     /// Refuses the hand-offs that ask it to follow a Show from now on.
     pub(crate) fn refuse_to_follow(&self) {
         self.refuses_following.store(true, Ordering::Relaxed);
+    }
+
+    /// Needs a title to have an id in one of `namespaces` from now on.
+    pub(crate) fn need(&self, namespaces: &[&str]) {
+        *self.needs.lock().unwrap_or_else(PoisonError::into_inner) = namespaces
+            .iter()
+            .map(|&namespace| namespace.to_owned())
+            .collect();
+    }
+
+    /// The namespaces it needs a title to have an id in.
+    fn namespaces_needed(&self) -> Vec<String> {
+        self.needs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// Takes every Request it is handed from now on.
@@ -228,6 +246,21 @@ fn asked_movie(request: &Request) -> &RequestedMovie {
     }
 }
 
+/// The number in `namespace` among `ids`, if they have one.
+fn id_number(ids: &[TitleId], namespace: &str) -> Option<i64> {
+    let id = ids.iter().find(|id| id.namespace == namespace)?;
+    id.value.parse().ok()
+}
+
+/// The TMDB id among `ids`, which a Request's title always has for now.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn tmdb_number(ids: &[TitleId]) -> i64 {
+    id_number(ids, "tmdb").unwrap()
+}
+
 /// The Season `request` asks for, as the Server hands only those to a Shows Fulfiller.
 #[expect(clippy::panic, reason = "a test helper fails its test by panicking")]
 fn asked_season(request: &Request) -> &RequestedSeason {
@@ -238,11 +271,15 @@ fn asked_season(request: &Request) -> &RequestedSeason {
 }
 
 impl Fulfiller<Movies> for FakeFulfiller {
+    fn needs(&self) -> Vec<String> {
+        self.namespaces_needed()
+    }
+
     fn fulfill<'a>(
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
-        let tmdb_id = asked_movie(request).tmdb_id;
+        let tmdb_id = tmdb_number(&asked_movie(request).ids);
         self.handed
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -266,8 +303,12 @@ impl Fulfiller<Movies> for FakeFulfiller {
         &'a self,
         title: &'a StopMonitoring,
     ) -> BoxFuture<'a, Result<(), PluginError>> {
-        let Some(stop_monitoring::Title::MovieTmdbId(tmdb_id)) = title.title else {
+        let Some(stop_monitoring::Title::Movie(movie)) = &title.title else {
             panic!("a Movies Fulfiller was told to stop monitoring {title:?}");
+        };
+        let tmdb = movie.ids.iter().find(|id| id.namespace == "tmdb");
+        let Some(tmdb_id) = tmdb.and_then(|id| id.value.parse::<i64>().ok()) else {
+            panic!("a Movies Fulfiller was told to stop monitoring {title:?}, with no TMDB id");
         };
         assert!(
             !self.panics_stopping_monitoring.load(Ordering::Relaxed),
@@ -306,17 +347,26 @@ impl Fulfiller<Movies> for FakeFulfiller {
 }
 
 impl Fulfiller<Shows> for FakeFulfiller {
+    fn needs(&self) -> Vec<String> {
+        self.namespaces_needed()
+    }
+
     fn fulfill<'a>(
         &'a self,
         request: &'a Request,
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let season = asked_season(request);
-        let (show, season_number) = (season.show_tmdb_id, season.season_number);
+        let (show, season_number) = (tmdb_number(&season.show_ids), season.season_number);
         let follow = request.followed_show_id.is_some();
         self.handed_seasons
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .push((show, season.show_tvdb_id, season_number, follow));
+            .push((
+                show,
+                id_number(&season.show_ids, "tvdb"),
+                season_number,
+                follow,
+            ));
         let refuses = self.refuses.load(Ordering::Relaxed);
         let refuses_to_follow = follow && self.refuses_following.load(Ordering::Relaxed);
         let fulfilled = self.fulfilled(format!("show-{show}-season-{season_number}"));
@@ -335,7 +385,7 @@ impl Fulfiller<Shows> for FakeFulfiller {
         self.unfollowed
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .push(asked_season(request).show_tmdb_id);
+            .push(tmdb_number(&asked_season(request).show_ids));
         Box::pin(async { Ok(()) })
     }
 
@@ -409,8 +459,9 @@ impl Plugin for ShowsFulfillerPlugin {
         Some(&self.0)
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::new(self.0.clone()));
+        Ok(())
     }
 }
 
@@ -430,7 +481,8 @@ impl Plugin for FulfillerPlugin {
         Some(&self.0)
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(self.0.clone()));
+        Ok(())
     }
 }

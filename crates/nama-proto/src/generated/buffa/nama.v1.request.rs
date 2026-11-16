@@ -523,6 +523,15 @@ pub struct Request {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub fulfiller_plugin_id: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Why the Server failed it without handing it to its Fulfiller, as `failure_reason` says in
+    /// English. Only a Failed Request the Server didn't hand off has one.
+    ///
+    /// Field 15: `failure`
+    #[serde(
+        rename = "failure",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub failure: ::buffa::MessageField<Refusal, ::buffa::Inline<Refusal>>,
     #[serde(flatten)]
     pub movie_or_season: ::core::option::Option<__buffa::oneof::request::MovieOrSeason>,
     #[serde(skip)]
@@ -544,6 +553,7 @@ impl ::core::fmt::Debug for Request {
             .field("quality_used", &self.quality_used)
             .field("quality_change", &self.quality_change)
             .field("fulfiller_plugin_id", &self.fulfiller_plugin_id)
+            .field("failure", &self.failure)
             .field("movie_or_season", &self.movie_or_season)
             .finish()
     }
@@ -698,6 +708,14 @@ impl ::buffa::Message for Request {
         if let Some(ref v) = self.fulfiller_plugin_id {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.failure.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.failure.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -791,6 +809,14 @@ impl ::buffa::Message for Request {
         }
         if let Some(ref v) = self.fulfiller_plugin_id {
             ::buffa::types::put_string_field(14u32, v, buf);
+        }
+        if self.failure.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                15u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.failure.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -970,6 +996,17 @@ impl ::buffa::Message for Request {
                     buf,
                 )?;
             }
+            15u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.failure.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -991,6 +1028,7 @@ impl ::buffa::Message for Request {
         self.quality_used = ::buffa::MessageField::none();
         self.quality_change = ::buffa::MessageField::none();
         self.fulfiller_plugin_id = ::core::option::Option::None;
+        self.failure = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1058,6 +1096,9 @@ impl<'de> ::serde::Deserialize<'de> for Request {
                 > = None;
                 let mut __f_fulfiller_plugin_id: ::core::option::Option<
                     ::core::option::Option<::buffa::alloc::string::String>,
+                > = None;
+                let mut __f_failure: ::core::option::Option<
+                    ::buffa::MessageField<Refusal, ::buffa::Inline<Refusal>>,
                 > = None;
                 let mut __oneof_movie_or_season: ::core::option::Option<
                     __buffa::oneof::request::MovieOrSeason,
@@ -1223,6 +1264,14 @@ impl<'de> ::serde::Deserialize<'de> for Request {
                                     >()?,
                             );
                         }
+                        "failure" => {
+                            __f_failure = Some(
+                                map
+                                    .next_value::<
+                                        ::buffa::MessageField<Refusal, ::buffa::Inline<Refusal>>,
+                                    >()?,
+                            );
+                        }
                         "movie" => {
                             let v: ::core::option::Option<RequestedMovie> = map
                                 .next_value_seed(
@@ -1312,6 +1361,9 @@ impl<'de> ::serde::Deserialize<'de> for Request {
                 }
                 if let ::core::option::Option::Some(v) = __f_fulfiller_plugin_id {
                     __r.fulfiller_plugin_id = v;
+                }
+                if let ::core::option::Option::Some(v) = __f_failure {
+                    __r.failure = v;
                 }
                 __r.movie_or_season = __oneof_movie_or_season;
                 Ok(__r)
@@ -2044,17 +2096,16 @@ pub struct FollowedShow {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub id: i64,
-    /// The Show's TMDB id.
+    /// The id the Followed Show is kept under.
     ///
-    /// Field 2: `show_tmdb_id`
+    /// Field 9: `show_id`
     #[serde(
-        rename = "showTmdbId",
-        alias = "show_tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "showId",
+        alias = "show_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub show_tmdb_id: i64,
-    /// The Show's title, in the metadata Provider's language, as it was when the Followed Show was
+    pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    /// The Show's title, in its title source's language, as it was when the Followed Show was
     /// opened.
     ///
     /// Field 3: `show_title`
@@ -2125,7 +2176,7 @@ impl ::core::fmt::Debug for FollowedShow {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("FollowedShow")
             .field("id", &self.id)
-            .field("show_tmdb_id", &self.show_tmdb_id)
+            .field("show_id", &self.show_id)
             .field("show_title", &self.show_title)
             .field("state", &self.state)
             .field("requesters", &self.requesters)
@@ -2177,9 +2228,6 @@ impl ::buffa::Message for FollowedShow {
         if self.id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.id) as u64;
         }
-        if self.show_tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.show_tmdb_id) as u64;
-        }
         if !self.show_title.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.show_title) as u64;
         }
@@ -2211,6 +2259,14 @@ impl ::buffa::Message for FollowedShow {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2223,9 +2279,6 @@ impl ::buffa::Message for FollowedShow {
         use ::buffa::Enumeration as _;
         if self.id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.id, buf);
-        }
-        if self.show_tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(2u32, self.show_tmdb_id, buf);
         }
         if !self.show_title.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.show_title, buf);
@@ -2258,6 +2311,14 @@ impl ::buffa::Message for FollowedShow {
             );
             self.quality.write_to(__cache, buf);
         }
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                9u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -2277,13 +2338,6 @@ impl ::buffa::Message for FollowedShow {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 self.id = ::buffa::types::decode_int64(buf)?;
-            }
-            2u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.show_tmdb_id = ::buffa::types::decode_int64(buf)?;
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -2343,6 +2397,17 @@ impl ::buffa::Message for FollowedShow {
                     ctx,
                 )?;
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.show_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2352,13 +2417,13 @@ impl ::buffa::Message for FollowedShow {
     }
     fn clear(&mut self) {
         self.id = 0i64;
-        self.show_tmdb_id = 0i64;
         self.show_title.clear();
         self.state = ::buffa::EnumValue::from(0);
         self.requesters.clear();
         self.created_at = 0i64;
         self.decline_reason = ::core::option::Option::None;
         self.quality = ::buffa::MessageField::none();
+        self.show_id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2391,23 +2456,31 @@ pub const __FOLLOWED_SHOW_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     from_json: ::buffa::type_registry::any_from_json::<FollowedShow>,
     is_wkt: false,
 };
-/// A Movie a Request asks for, with its metadata as the metadata source gave it when the Request
+/// A Movie a Request asks for, with its metadata as the title source gave it when the Request
 /// was opened.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct RequestedMovie {
-    /// The Movie's TMDB id.
+    /// The id the Request is kept under.
     ///
-    /// Field 1: `tmdb_id`
+    /// Field 4: `id`
     #[serde(
-        rename = "tmdbId",
-        alias = "tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub tmdb_id: i64,
-    /// The title, in the metadata Provider's language.
+    pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    /// Every id the title source gave for the Movie when the Request was opened, at most one per
+    /// namespace, `id` among them.
+    ///
+    /// Field 5: `ids`
+    #[serde(
+        rename = "ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub ids: ::buffa::alloc::vec::Vec<ExternalId>,
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -2432,7 +2505,8 @@ pub struct RequestedMovie {
 impl ::core::fmt::Debug for RequestedMovie {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("RequestedMovie")
-            .field("tmdb_id", &self.tmdb_id)
+            .field("id", &self.id)
+            .field("ids", &self.ids)
             .field("title", &self.title)
             .field("release_date", &self.release_date)
             .finish()
@@ -2473,37 +2547,63 @@ impl ::buffa::Message for RequestedMovie {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.tmdb_id) as u64;
-        }
         if !self.title.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
         }
         if let Some(ref v) = self.release_date {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.tmdb_id, buf);
-        }
         if !self.title.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.title, buf);
         }
         if let Some(ref v) = self.release_date {
             ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if self.id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.id.write_to(__cache, buf);
+        }
+        for v in &self.ids {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2518,13 +2618,6 @@ impl ::buffa::Message for RequestedMovie {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.tmdb_id = ::buffa::types::decode_int64(buf)?;
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2544,6 +2637,29 @@ impl ::buffa::Message for RequestedMovie {
                     buf,
                 )?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.ids.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2552,9 +2668,10 @@ impl ::buffa::Message for RequestedMovie {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.tmdb_id = 0i64;
         self.title.clear();
         self.release_date = ::core::option::Option::None;
+        self.id = ::buffa::MessageField::none();
+        self.ids.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2587,22 +2704,32 @@ pub const __REQUESTED_MOVIE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
     from_json: ::buffa::type_registry::any_from_json::<RequestedMovie>,
     is_wkt: false,
 };
-/// A Season a Request asks for, with its metadata as the metadata source gave it when the Request
+/// A Season a Request asks for, with its metadata as the title source gave it when the Request
 /// was opened.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct RequestedSeason {
-    /// The Show's TMDB id.
+    /// The Show's id the Request is kept under.
     ///
-    /// Field 1: `show_tmdb_id`
+    /// Field 7: `show_id`
     #[serde(
-        rename = "showTmdbId",
-        alias = "show_tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "showId",
+        alias = "show_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub show_tmdb_id: i64,
+    pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    /// Every id the title source gave for the Show when the Request was opened, at most one per
+    /// namespace, `show_id` among them.
+    ///
+    /// Field 8: `show_ids`
+    #[serde(
+        rename = "showIds",
+        alias = "show_ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub show_ids: ::buffa::alloc::vec::Vec<ExternalId>,
     /// The Season's number within the Show. Season 0 holds specials.
     ///
     /// Field 2: `season_number`
@@ -2613,7 +2740,7 @@ pub struct RequestedSeason {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub season_number: u32,
-    /// The Show's title, in the metadata Provider's language.
+    /// The Show's title, in its title source's language.
     ///
     /// Field 3: `show_title`
     #[serde(
@@ -2632,25 +2759,6 @@ pub struct RequestedSeason {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub air_date: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The Show's IMDb id, such as `tt5753856`, if the metadata source has one.
-    ///
-    /// Field 5: `show_imdb_id`
-    #[serde(
-        rename = "showImdbId",
-        alias = "show_imdb_id",
-        skip_serializing_if = "::core::option::Option::is_none"
-    )]
-    pub show_imdb_id: ::core::option::Option<::buffa::alloc::string::String>,
-    /// The Show's TVDB id, if the metadata source has one.
-    ///
-    /// Field 6: `show_tvdb_id`
-    #[serde(
-        rename = "showTvdbId",
-        alias = "show_tvdb_id",
-        with = "::buffa::json_helpers::opt_int64",
-        skip_serializing_if = "::core::option::Option::is_none"
-    )]
-    pub show_tvdb_id: ::core::option::Option<i64>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2658,12 +2766,11 @@ pub struct RequestedSeason {
 impl ::core::fmt::Debug for RequestedSeason {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("RequestedSeason")
-            .field("show_tmdb_id", &self.show_tmdb_id)
+            .field("show_id", &self.show_id)
+            .field("show_ids", &self.show_ids)
             .field("season_number", &self.season_number)
             .field("show_title", &self.show_title)
             .field("air_date", &self.air_date)
-            .field("show_imdb_id", &self.show_imdb_id)
-            .field("show_tvdb_id", &self.show_tvdb_id)
             .finish()
     }
 }
@@ -2685,23 +2792,6 @@ impl RequestedSeason {
         self.air_date = Some(value.into());
         self
     }
-    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
-    #[inline]
-    ///Sets [`Self::show_imdb_id`] to `Some(value)`, consuming and returning `self`.
-    pub fn with_show_imdb_id(
-        mut self,
-        value: impl Into<::buffa::alloc::string::String>,
-    ) -> Self {
-        self.show_imdb_id = Some(value.into());
-        self
-    }
-    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
-    #[inline]
-    ///Sets [`Self::show_tvdb_id`] to `Some(value)`, consuming and returning `self`.
-    pub fn with_show_tvdb_id(mut self, value: i64) -> Self {
-        self.show_tvdb_id = Some(value);
-        self
-    }
 }
 ::buffa::impl_default_instance!(RequestedSeason);
 impl ::buffa::MessageName for RequestedSeason {
@@ -2719,13 +2809,10 @@ impl ::buffa::Message for RequestedSeason {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.show_tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.show_tmdb_id) as u64;
-        }
         if self.season_number != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_number) as u64;
         }
@@ -2735,25 +2822,32 @@ impl ::buffa::Message for RequestedSeason {
         if let Some(ref v) = self.air_date {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
-        if let Some(ref v) = self.show_imdb_id {
-            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
-        if let Some(v) = self.show_tvdb_id {
-            size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        for v in &self.show_ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.show_tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.show_tmdb_id, buf);
-        }
         if self.season_number != 0u32 {
             ::buffa::types::put_uint32_field(2u32, self.season_number, buf);
         }
@@ -2763,11 +2857,21 @@ impl ::buffa::Message for RequestedSeason {
         if let Some(ref v) = self.air_date {
             ::buffa::types::put_string_field(4u32, v, buf);
         }
-        if let Some(ref v) = self.show_imdb_id {
-            ::buffa::types::put_string_field(5u32, v, buf);
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                7u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
         }
-        if let Some(v) = self.show_tvdb_id {
-            ::buffa::types::put_int64_field(6u32, v, buf);
+        for v in &self.show_ids {
+            ::buffa::types::put_len_delimited_header(
+                8u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2782,13 +2886,6 @@ impl ::buffa::Message for RequestedSeason {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.show_tmdb_id = ::buffa::types::decode_int64(buf)?;
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2815,26 +2912,28 @@ impl ::buffa::Message for RequestedSeason {
                     buf,
                 )?;
             }
-            5u32 => {
+            7u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                ::buffa::types::merge_string(
-                    self
-                        .show_imdb_id
-                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                ::buffa::Message::merge_length_delimited(
+                    self.show_id.get_or_insert_default(),
                     buf,
+                    ctx,
                 )?;
             }
-            6u32 => {
+            8u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
-                    ::buffa::encoding::WireType::Varint,
+                    ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                self.show_tvdb_id = ::core::option::Option::Some(
-                    ::buffa::types::decode_int64(buf)?,
-                );
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.show_ids.push(elem);
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -2844,12 +2943,11 @@ impl ::buffa::Message for RequestedSeason {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.show_tmdb_id = 0i64;
         self.season_number = 0u32;
         self.show_title.clear();
         self.air_date = ::core::option::Option::None;
-        self.show_imdb_id = ::core::option::Option::None;
-        self.show_tvdb_id = ::core::option::Option::None;
+        self.show_id = ::buffa::MessageField::none();
+        self.show_ids.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3063,16 +3161,18 @@ pub const __REQUESTER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct CreateRequestRequest {
-    /// The TMDB id of the Movie to ask for.
+    /// The id of the Movie to ask for. Any well-formed id is taken. An id
+    /// no title source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
-    /// Field 1: `movie_tmdb_id`
+    /// Field 3: `movie_id`
     #[serde(
-        rename = "movieTmdbId",
-        alias = "movie_tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "movieId",
+        alias = "movie_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub movie_tmdb_id: i64,
+    pub movie_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
     /// The id of the Quality to download it at, from `ListMovieQualities`. Unset for the default.
     ///
     /// Field 2: `quality`
@@ -3089,7 +3189,7 @@ pub struct CreateRequestRequest {
 impl ::core::fmt::Debug for CreateRequestRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("CreateRequestRequest")
-            .field("movie_tmdb_id", &self.movie_tmdb_id)
+            .field("movie_id", &self.movie_id)
             .field("quality", &self.quality)
             .finish()
     }
@@ -3126,31 +3226,41 @@ impl ::buffa::Message for CreateRequestRequest {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.movie_tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.movie_tmdb_id) as u64;
-        }
         if let Some(v) = self.quality {
             size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
+        if self.movie_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.movie_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.movie_tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.movie_tmdb_id, buf);
-        }
         if let Some(v) = self.quality {
             ::buffa::types::put_int64_field(2u32, v, buf);
+        }
+        if self.movie_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.movie_id.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3165,13 +3275,6 @@ impl ::buffa::Message for CreateRequestRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.movie_tmdb_id = ::buffa::types::decode_int64(buf)?;
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -3181,6 +3284,17 @@ impl ::buffa::Message for CreateRequestRequest {
                     ::buffa::types::decode_int64(buf)?,
                 );
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.movie_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3189,8 +3303,8 @@ impl ::buffa::Message for CreateRequestRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.movie_tmdb_id = 0i64;
         self.quality = ::core::option::Option::None;
+        self.movie_id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3366,16 +3480,18 @@ pub const __CREATE_REQUEST_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct CreateSeasonRequestsRequest {
-    /// The TMDB id of the Show.
+    /// The id of the Show. Any well-formed id is taken. An id
+    /// no title source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
-    /// Field 1: `show_tmdb_id`
+    /// Field 4: `show_id`
     #[serde(
-        rename = "showTmdbId",
-        alias = "show_tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "showId",
+        alias = "show_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub show_tmdb_id: i64,
+    pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
     /// The numbers of the Seasons to ask for: at least one. A number given twice counts once.
     ///
     /// Field 2: `season_numbers`
@@ -3403,7 +3519,7 @@ pub struct CreateSeasonRequestsRequest {
 impl ::core::fmt::Debug for CreateSeasonRequestsRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("CreateSeasonRequestsRequest")
-            .field("show_tmdb_id", &self.show_tmdb_id)
+            .field("show_id", &self.show_id)
             .field("season_numbers", &self.season_numbers)
             .field("quality", &self.quality)
             .finish()
@@ -3441,13 +3557,10 @@ impl ::buffa::Message for CreateSeasonRequestsRequest {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.show_tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.show_tmdb_id) as u64;
-        }
         if !self.season_numbers.is_empty() {
             let payload: u64 = self
                 .season_numbers
@@ -3459,19 +3572,24 @@ impl ::buffa::Message for CreateSeasonRequestsRequest {
         if let Some(v) = self.quality {
             size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
         }
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.show_tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.show_tmdb_id, buf);
-        }
         if !self.season_numbers.is_empty() {
             let payload: u64 = self
                 .season_numbers
@@ -3486,6 +3604,14 @@ impl ::buffa::Message for CreateSeasonRequestsRequest {
         if let Some(v) = self.quality {
             ::buffa::types::put_int64_field(3u32, v, buf);
         }
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -3499,13 +3625,6 @@ impl ::buffa::Message for CreateSeasonRequestsRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.show_tmdb_id = ::buffa::types::decode_int64(buf)?;
-            }
             2u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let len = ::buffa::encoding::decode_varint(buf)?;
@@ -3555,6 +3674,17 @@ impl ::buffa::Message for CreateSeasonRequestsRequest {
                     ::buffa::types::decode_int64(buf)?,
                 );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.show_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3563,9 +3693,9 @@ impl ::buffa::Message for CreateSeasonRequestsRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.show_tmdb_id = 0i64;
         self.season_numbers.clear();
         self.quality = ::core::option::Option::None;
+        self.show_id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3934,16 +4064,18 @@ pub const __LIST_REQUESTS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct CreateFollowedShowRequest {
-    /// The TMDB id of the Show.
+    /// The id of the Show. Any well-formed id is taken. An id
+    /// no title source has, or can look titles up by, is refused with
+    /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
+    /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
-    /// Field 1: `show_tmdb_id`
+    /// Field 3: `show_id`
     #[serde(
-        rename = "showTmdbId",
-        alias = "show_tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "showId",
+        alias = "show_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub show_tmdb_id: i64,
+    pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
     /// The id of the Quality to download its Seasons at, from `ListShowQualities`. Unset for the
     /// Show's, or else the default.
     ///
@@ -3961,7 +4093,7 @@ pub struct CreateFollowedShowRequest {
 impl ::core::fmt::Debug for CreateFollowedShowRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("CreateFollowedShowRequest")
-            .field("show_tmdb_id", &self.show_tmdb_id)
+            .field("show_id", &self.show_id)
             .field("quality", &self.quality)
             .finish()
     }
@@ -3998,31 +4130,41 @@ impl ::buffa::Message for CreateFollowedShowRequest {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.show_tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.show_tmdb_id) as u64;
-        }
         if let Some(v) = self.quality {
             size += 1u64 + ::buffa::types::int64_encoded_len(v) as u64;
+        }
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.show_tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.show_tmdb_id, buf);
-        }
         if let Some(v) = self.quality {
             ::buffa::types::put_int64_field(2u32, v, buf);
+        }
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                3u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4037,13 +4179,6 @@ impl ::buffa::Message for CreateFollowedShowRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.show_tmdb_id = ::buffa::types::decode_int64(buf)?;
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -4053,6 +4188,17 @@ impl ::buffa::Message for CreateFollowedShowRequest {
                     ::buffa::types::decode_int64(buf)?,
                 );
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.show_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4061,8 +4207,8 @@ impl ::buffa::Message for CreateFollowedShowRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.show_tmdb_id = 0i64;
         self.quality = ::core::option::Option::None;
+        self.show_id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -9000,17 +9146,15 @@ pub const __LIST_OFFERED_QUALITIES_RESPONSE_JSON_ANY: ::buffa::type_registry::Js
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct MovieHit {
-    /// The Movie's TMDB id.
+    /// The Movie's id in the title source.
     ///
-    /// Field 1: `tmdb_id`
+    /// Field 12: `id`
     #[serde(
-        rename = "tmdbId",
-        alias = "tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub tmdb_id: i64,
-    /// The title, in the metadata Provider's language.
+    pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -9038,7 +9182,7 @@ pub struct MovieHit {
     )]
     pub poster_url: ::core::option::Option<::buffa::alloc::string::String>,
     /// The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
-    /// by `tmdb_id`.
+    /// by `id`.
     ///
     /// Field 8: `library_id`
     #[serde(
@@ -9073,7 +9217,7 @@ pub struct MovieHit {
 impl ::core::fmt::Debug for MovieHit {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("MovieHit")
-            .field("tmdb_id", &self.tmdb_id)
+            .field("id", &self.id)
             .field("title", &self.title)
             .field("year", &self.year)
             .field("poster_url", &self.poster_url)
@@ -9146,9 +9290,6 @@ impl ::buffa::Message for MovieHit {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.tmdb_id) as u64;
-        }
         if !self.title.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
         }
@@ -9172,6 +9313,14 @@ impl ::buffa::Message for MovieHit {
         if let Some(ref v) = self.poster_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if self.id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9182,9 +9331,6 @@ impl ::buffa::Message for MovieHit {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.tmdb_id, buf);
-        }
         if !self.title.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.title, buf);
         }
@@ -9208,6 +9354,14 @@ impl ::buffa::Message for MovieHit {
         if let Some(ref v) = self.poster_thumbhash {
             ::buffa::types::put_shared_bytes_field(10u32, v, buf);
         }
+        if self.id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                12u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.id.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -9221,13 +9375,6 @@ impl ::buffa::Message for MovieHit {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.tmdb_id = ::buffa::types::decode_int64(buf)?;
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -9288,6 +9435,17 @@ impl ::buffa::Message for MovieHit {
                     buf,
                 )?;
             }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -9296,13 +9454,13 @@ impl ::buffa::Message for MovieHit {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.tmdb_id = 0i64;
         self.title.clear();
         self.year = ::core::option::Option::None;
         self.poster_url = ::core::option::Option::None;
         self.library_id = ::core::option::Option::None;
         self.request = ::buffa::MessageField::none();
         self.poster_thumbhash = ::core::option::Option::None;
+        self.id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -9335,22 +9493,20 @@ pub const __MOVIE_HIT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::
     from_json: ::buffa::type_registry::any_from_json::<MovieHit>,
     is_wkt: false,
 };
-/// A Movie looked up in the metadata source: all a `MovieHit` has, and what only a look-up fetches.
+/// A Movie looked up in the title source: all a `MovieHit` has, and what only a look-up fetches.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct FoundMovie {
-    /// The Movie's TMDB id.
+    /// The Movie's id in the title source.
     ///
-    /// Field 1: `tmdb_id`
+    /// Field 12: `id`
     #[serde(
-        rename = "tmdbId",
-        alias = "tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub tmdb_id: i64,
-    /// The title, in the metadata Provider's language.
+    pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -9368,7 +9524,7 @@ pub struct FoundMovie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub year: ::core::option::Option<i32>,
-    /// What it is about, in the metadata Provider's language.
+    /// What it is about, in its title source's language.
     ///
     /// Field 4: `overview`
     #[serde(
@@ -9403,7 +9559,7 @@ pub struct FoundMovie {
     )]
     pub backdrop_url: ::core::option::Option<::buffa::alloc::string::String>,
     /// The oldest Library the Movie is Matched in, if any. `BrowseService.GetMovie` opens it there,
-    /// by `tmdb_id`.
+    /// by `id`.
     ///
     /// Field 8: `library_id`
     #[serde(
@@ -9448,7 +9604,7 @@ pub struct FoundMovie {
 impl ::core::fmt::Debug for FoundMovie {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("FoundMovie")
-            .field("tmdb_id", &self.tmdb_id)
+            .field("id", &self.id)
             .field("title", &self.title)
             .field("year", &self.year)
             .field("overview", &self.overview)
@@ -9562,9 +9718,6 @@ impl ::buffa::Message for FoundMovie {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.tmdb_id) as u64;
-        }
         if !self.title.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
         }
@@ -9600,6 +9753,14 @@ impl ::buffa::Message for FoundMovie {
         if let Some(ref v) = self.backdrop_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if self.id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9610,9 +9771,6 @@ impl ::buffa::Message for FoundMovie {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.tmdb_id, buf);
-        }
         if !self.title.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.title, buf);
         }
@@ -9648,6 +9806,14 @@ impl ::buffa::Message for FoundMovie {
         if let Some(ref v) = self.backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(11u32, v, buf);
         }
+        if self.id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                12u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.id.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -9661,13 +9827,6 @@ impl ::buffa::Message for FoundMovie {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.tmdb_id = ::buffa::types::decode_int64(buf)?;
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -9773,6 +9932,17 @@ impl ::buffa::Message for FoundMovie {
                     buf,
                 )?;
             }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -9781,7 +9951,6 @@ impl ::buffa::Message for FoundMovie {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.tmdb_id = 0i64;
         self.title.clear();
         self.year = ::core::option::Option::None;
         self.overview = ::core::option::Option::None;
@@ -9792,6 +9961,7 @@ impl ::buffa::Message for FoundMovie {
         self.request = ::buffa::MessageField::none();
         self.poster_thumbhash = ::core::option::Option::None;
         self.backdrop_thumbhash = ::core::option::Option::None;
+        self.id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -10093,25 +10263,22 @@ pub const __SEARCH_MOVIES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntr
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct LookUpMovieRequest {
-    /// The Movie's TMDB id.
+    /// The Movie's id.
     ///
-    /// Field 1: `movie_tmdb_id`
+    /// Field 2: `movie_id`
     #[serde(
-        rename = "movieTmdbId",
-        alias = "movie_tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "movieId",
+        alias = "movie_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub movie_tmdb_id: i64,
+    pub movie_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for LookUpMovieRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("LookUpMovieRequest")
-            .field("movie_tmdb_id", &self.movie_tmdb_id)
-            .finish()
+        f.debug_struct("LookUpMovieRequest").field("movie_id", &self.movie_id).finish()
     }
 }
 impl LookUpMovieRequest {
@@ -10137,25 +10304,35 @@ impl ::buffa::Message for LookUpMovieRequest {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.movie_tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.movie_tmdb_id) as u64;
+        if self.movie_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.movie_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.movie_tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.movie_tmdb_id, buf);
+        if self.movie_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.movie_id.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10170,12 +10347,16 @@ impl ::buffa::Message for LookUpMovieRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
+            2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
-                    ::buffa::encoding::WireType::Varint,
+                    ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                self.movie_tmdb_id = ::buffa::types::decode_int64(buf)?;
+                ::buffa::Message::merge_length_delimited(
+                    self.movie_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -10185,7 +10366,7 @@ impl ::buffa::Message for LookUpMovieRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.movie_tmdb_id = 0i64;
+        self.movie_id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -10361,17 +10542,15 @@ pub const __LOOK_UP_MOVIE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntr
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ShowHit {
-    /// The Show's TMDB id.
+    /// The Show's id in the title source.
     ///
-    /// Field 1: `tmdb_id`
+    /// Field 12: `id`
     #[serde(
-        rename = "tmdbId",
-        alias = "tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub tmdb_id: i64,
-    /// The title, in the metadata Provider's language.
+    pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -10415,7 +10594,7 @@ pub struct ShowHit {
 impl ::core::fmt::Debug for ShowHit {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("ShowHit")
-            .field("tmdb_id", &self.tmdb_id)
+            .field("id", &self.id)
             .field("title", &self.title)
             .field("year", &self.year)
             .field("poster_url", &self.poster_url)
@@ -10475,13 +10654,10 @@ impl ::buffa::Message for ShowHit {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.tmdb_id) as u64;
-        }
         if !self.title.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
         }
@@ -10494,19 +10670,24 @@ impl ::buffa::Message for ShowHit {
         if let Some(ref v) = self.poster_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if self.id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.tmdb_id, buf);
-        }
         if !self.title.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.title, buf);
         }
@@ -10518,6 +10699,14 @@ impl ::buffa::Message for ShowHit {
         }
         if let Some(ref v) = self.poster_thumbhash {
             ::buffa::types::put_shared_bytes_field(10u32, v, buf);
+        }
+        if self.id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                12u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.id.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10532,13 +10721,6 @@ impl ::buffa::Message for ShowHit {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.tmdb_id = ::buffa::types::decode_int64(buf)?;
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -10579,6 +10761,17 @@ impl ::buffa::Message for ShowHit {
                     buf,
                 )?;
             }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -10587,11 +10780,11 @@ impl ::buffa::Message for ShowHit {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.tmdb_id = 0i64;
         self.title.clear();
         self.year = ::core::option::Option::None;
         self.poster_url = ::core::option::Option::None;
         self.poster_thumbhash = ::core::option::Option::None;
+        self.id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -10624,22 +10817,20 @@ pub const __SHOW_HIT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::t
     from_json: ::buffa::type_registry::any_from_json::<ShowHit>,
     is_wkt: false,
 };
-/// A Show looked up in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
+/// A Show looked up in the title source, whose Seasons `CreateSeasonRequests` asks for.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct FoundShow {
-    /// The Show's TMDB id.
+    /// The Show's id in the title source.
     ///
-    /// Field 1: `tmdb_id`
+    /// Field 12: `id`
     #[serde(
-        rename = "tmdbId",
-        alias = "tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub tmdb_id: i64,
-    /// The title, in the metadata Provider's language.
+    pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -10657,7 +10848,7 @@ pub struct FoundShow {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub year: ::core::option::Option<i32>,
-    /// What it is about, in the metadata Provider's language.
+    /// What it is about, in its title source's language.
     ///
     /// Field 4: `overview`
     #[serde(
@@ -10745,7 +10936,7 @@ pub struct FoundShow {
 impl ::core::fmt::Debug for FoundShow {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("FoundShow")
-            .field("tmdb_id", &self.tmdb_id)
+            .field("id", &self.id)
             .field("title", &self.title)
             .field("year", &self.year)
             .field("overview", &self.overview)
@@ -10845,9 +11036,6 @@ impl ::buffa::Message for FoundShow {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.tmdb_id) as u64;
-        }
         if !self.title.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
         }
@@ -10893,6 +11081,14 @@ impl ::buffa::Message for FoundShow {
         if let Some(ref v) = self.backdrop_thumbhash {
             size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
         }
+        if self.id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -10903,9 +11099,6 @@ impl ::buffa::Message for FoundShow {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.tmdb_id, buf);
-        }
         if !self.title.is_empty() {
             ::buffa::types::put_string_field(2u32, &self.title, buf);
         }
@@ -10951,6 +11144,14 @@ impl ::buffa::Message for FoundShow {
         if let Some(ref v) = self.backdrop_thumbhash {
             ::buffa::types::put_shared_bytes_field(11u32, v, buf);
         }
+        if self.id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                12u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.id.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -10964,13 +11165,6 @@ impl ::buffa::Message for FoundShow {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.tmdb_id = ::buffa::types::decode_int64(buf)?;
-            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -11081,6 +11275,17 @@ impl ::buffa::Message for FoundShow {
                     buf,
                 )?;
             }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -11089,7 +11294,6 @@ impl ::buffa::Message for FoundShow {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.tmdb_id = 0i64;
         self.title.clear();
         self.year = ::core::option::Option::None;
         self.overview = ::core::option::Option::None;
@@ -11100,6 +11304,7 @@ impl ::buffa::Message for FoundShow {
         self.quality = ::buffa::MessageField::none();
         self.poster_thumbhash = ::core::option::Option::None;
         self.backdrop_thumbhash = ::core::option::Option::None;
+        self.id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -11132,7 +11337,7 @@ pub const __FOUND_SHOW_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
     from_json: ::buffa::type_registry::any_from_json::<FoundShow>,
     is_wkt: false,
 };
-/// A Season of a Show in the metadata source, and how close it is to being on the Server: in a
+/// A Season of a Show in the title source, and how close it is to being on the Server: in a
 /// Library, asked for in a Request, or neither.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
@@ -11636,25 +11841,22 @@ pub const __SEARCH_SHOWS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct LookUpShowRequest {
-    /// The Show's TMDB id.
+    /// The Show's id.
     ///
-    /// Field 1: `show_tmdb_id`
+    /// Field 2: `show_id`
     #[serde(
-        rename = "showTmdbId",
-        alias = "show_tmdb_id",
-        with = "::buffa::json_helpers::int64",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+        rename = "showId",
+        alias = "show_id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
-    pub show_tmdb_id: i64,
+    pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for LookUpShowRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("LookUpShowRequest")
-            .field("show_tmdb_id", &self.show_tmdb_id)
-            .finish()
+        f.debug_struct("LookUpShowRequest").field("show_id", &self.show_id).finish()
     }
 }
 impl LookUpShowRequest {
@@ -11680,25 +11882,35 @@ impl ::buffa::Message for LookUpShowRequest {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.show_tmdb_id != 0i64 {
-            size += 1u64 + ::buffa::types::int64_encoded_len(self.show_tmdb_id) as u64;
+        if self.show_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.show_tmdb_id != 0i64 {
-            ::buffa::types::put_int64_field(1u32, self.show_tmdb_id, buf);
+        if self.show_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.show_id.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -11713,12 +11925,16 @@ impl ::buffa::Message for LookUpShowRequest {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
+            2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
-                    ::buffa::encoding::WireType::Varint,
+                    ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                self.show_tmdb_id = ::buffa::types::decode_int64(buf)?;
+                ::buffa::Message::merge_length_delimited(
+                    self.show_id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -11728,7 +11944,7 @@ impl ::buffa::Message for LookUpShowRequest {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.show_tmdb_id = 0i64;
+        self.show_id = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

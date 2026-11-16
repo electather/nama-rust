@@ -2,19 +2,21 @@
 //! value, and changing a Plugin's settings and enabling and disabling it without a restart, over a
 //! real socket and against a real SQLite database.
 
+#[path = "../src/plugins/wasm/bundling.rs"]
+mod bundling;
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use buffa::Message;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use figment::{Figment, providers::Serialized};
 use nama_plugin_api::{
-    PluginId, auth::Authenticator, metadata::MetadataProvider, settings::SettingValue,
+    PluginId, auth::Authenticator, metadata::TitleSource, settings::SettingValue,
 };
 use nama_plugin_test_choices as test_choices;
 use nama_proto::nama::v1::{
@@ -159,14 +161,14 @@ impl Started {
         .enabled()
     }
 
-    /// Whether some enabled Plugin provides `T`, as Matching looks for a metadata Provider to call.
+    /// Whether some enabled Plugin provides `T`, as Matching looks for a title source to call.
     fn provides<T: ?Sized + 'static>(&self) -> bool {
         !self.plugins.providers::<T>().is_empty()
     }
 
-    /// Whether Matching has a metadata Provider to call.
+    /// Whether Matching has a title source to call.
     fn can_match(&self) -> bool {
-        self.provides::<dyn MetadataProvider>()
+        self.provides::<dyn TitleSource>()
     }
 }
 
@@ -257,36 +259,26 @@ fn setting<'a>(plugin: &'a Plugin, key: &str) -> &'a Setting {
 
 #[tokio::test]
 async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled() {
+    use PluginKind::{PLUGIN_KIND_BUILT_IN as BUILT_IN, PLUGIN_KIND_INSTALLED as INSTALLED};
     let listed = list_plugins_with(BTreeMap::new()).await;
-
-    let kinds: Vec<_> = listed
-        .summaries
-        .iter()
-        .map(|plugin| (plugin.id.as_str(), plugin.kind.as_known()))
-        .collect();
-    let built_in = Some(PluginKind::PLUGIN_KIND_BUILT_IN);
-    let installed = Some(PluginKind::PLUGIN_KIND_INSTALLED);
-    assert_eq!(
-        kinds,
-        [
-            ("local-auth", built_in),
-            ("log-events", built_in),
-            ("radarr", installed),
-            ("sonarr", installed),
-            ("telegram", installed),
-            (test_choices::ID, built_in),
-            ("tmdb", built_in)
-        ]
-    );
-    for plugin in &listed.summaries {
-        assert!(!plugin.version.is_empty(), "{plugin:?}");
-    }
+    let bundled = bundling::bundled(Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../plugins"
+    )))
+    .unwrap();
+    let mut expected = Vec::from_iter(bundled.iter().map(|id| (id.as_str(), Some(INSTALLED))));
+    let built_ins = ["local-auth", "log-events", test_choices::ID, "tmdb"];
+    expected.extend(built_ins.map(|id| (id, Some(BUILT_IN))));
+    expected.sort_unstable_by_key(|(id, _)| *id);
+    let kinds = listed.summaries.iter().map(|p| (&*p.id, p.kind.as_known()));
+    assert_eq!(Vec::from_iter(kinds), expected);
+    assert!(listed.summaries.iter().all(|p| !p.version.is_empty()));
     assert!(plugin(&listed, "local-auth").enabled);
     // TMDB can't run without an API key, and an Installed Plugin starts disabled.
     assert!(!plugin(&listed, "tmdb").enabled);
-    assert!(!plugin(&listed, "radarr").enabled);
-    assert!(!plugin(&listed, "sonarr").enabled);
-    assert!(!plugin(&listed, "telegram").enabled);
+    for id in &bundled {
+        assert!(!plugin(&listed, id).enabled, "{id}");
+    }
 }
 
 // `plugins/AGENTS.md`: every Plugin ships a logo.
@@ -330,7 +322,9 @@ async fn every_plugin_is_listed_with_its_extension_points_enabled_or_not() {
             EXTENSION_POINT_SHOW_FULFILLER
         ]
     );
-    assert_eq!(points("tmdb"), [EXTENSION_POINT_METADATA_PROVIDER]);
+    assert_eq!(points("tmdb"), [EXTENSION_POINT_TITLE_SOURCE]);
+    assert_eq!(points("tvdb"), [EXTENSION_POINT_TITLE_SOURCE]);
+    assert_eq!(points("fanart"), [EXTENSION_POINT_TITLE_SOURCE]);
 }
 
 #[tokio::test]
@@ -339,7 +333,7 @@ async fn a_plugins_extension_points_come_with_it() {
 
     assert_eq!(
         tmdb.summary.extension_points,
-        [ExtensionPoint::EXTENSION_POINT_METADATA_PROVIDER]
+        [ExtensionPoint::EXTENSION_POINT_TITLE_SOURCE]
     );
 }
 
@@ -733,6 +727,53 @@ async fn enabling_a_plugin_with_a_setting_of_the_wrong_kind_is_refused_naming_it
     assert_eq!(refusal.field, "settings.api_key");
     assert_eq!(refusal.params["settingKind"], "SETTING_KIND_SECRET");
     assert!(!started.can_match());
+}
+
+#[tokio::test]
+async fn enabling_a_plugin_that_refuses_to_start_is_refused_with_its_reason() {
+    let mut settings = test_choices_with_profile();
+    let config = settings.get_mut(test_choices::ID).unwrap();
+    config.enabled = false;
+    let refuse = SettingValue::Text(test_choices::REFUSE.to_owned());
+    config.settings.insert("fail_with".to_owned(), refuse);
+    let started = Started::with(&settings).await;
+
+    let refusal = assert_refused(
+        started
+            .client()
+            .enable_plugin(enable(test_choices::ID))
+            .await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
+    );
+
+    assert_eq!(refusal.field, "id");
+    assert_eq!(refusal.params["reason"], "the key … was turned down");
+    assert!(!started.get(test_choices::ID).await.unwrap().summary.enabled);
+}
+
+#[tokio::test]
+async fn settings_a_plugin_refuses_to_start_with_are_saved_and_it_runs_on_with_its_old_ones() {
+    let started = Started::with(&test_choices_with_profile()).await;
+    let refused = || {
+        [
+            ("profile", text("1")),
+            ("fail_with", text(test_choices::REFUSE)),
+        ]
+    };
+
+    // Twice, so the second puts it back as it runs, not with the refused settings saved.
+    let first = started.update(test_choices::ID, refused()).await;
+    let second = started.update(test_choices::ID, refused()).await;
+
+    assert!(first.unwrap().plugin.unwrap().summary.enabled);
+    assert!(second.unwrap().plugin.unwrap().summary.enabled);
+    let config = started.stored().await.remove(test_choices::ID).unwrap();
+    assert!(config.enabled);
+    assert_eq!(
+        config.settings.get("fail_with"),
+        Some(&SettingValue::Text(test_choices::REFUSE.to_owned()))
+    );
 }
 
 #[tokio::test]

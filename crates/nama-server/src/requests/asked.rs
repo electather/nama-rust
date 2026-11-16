@@ -1,5 +1,5 @@
 //! What a Request and a Followed Show share, as things Users ask for together and a Request
-//! manager decides: written once for both, by "Requester rules once" in `nama-server/AGENTS.md`.
+//! manager decides: written once for both, by "Requester rules once" in `src/requests/AGENTS.md`.
 
 use std::{collections::HashMap, fmt};
 
@@ -7,6 +7,7 @@ use nama_proto::nama::v1::{RequestState, Requester};
 use sqlx::SqliteConnection;
 
 use super::Error;
+use crate::users::is_requester;
 
 /// Which kind of thing Users asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,17 +94,6 @@ pub(super) async fn requesters(
     Ok(requesters)
 }
 
-/// Whether `viewer`, as [`super::visible_to`] gives one, may see something `requesters` asked
-/// for: everyone's if `None`, else only what that User is among the Requesters of. The events
-/// filter asks it too, so a User's event stream and Request list agree.
-pub(crate) fn may_see(viewer: Option<i64>, requesters: &[Requester]) -> bool {
-    viewer.is_none_or(|user| is_requester(user, requesters))
-}
-
-fn is_requester(user: i64, requesters: &[Requester]) -> bool {
-    requesters.iter().any(|requester| requester.user_id == user)
-}
-
 /// The `asked` with the ID `id` that `found` holds, if `user` is among the `requesters` it has.
 /// Refuses with [`Error::NoSuch`] if `found` is `None`, else with [`Error::NotARequester`].
 pub(super) fn requested_by<T>(
@@ -163,7 +153,7 @@ pub(super) async fn decide(
     state: RequestState,
     reason: Option<&str>,
 ) -> Result<bool, sqlx::Error> {
-    let state = super::stored(state);
+    let state = super::state::stored(state);
     macro_rules! decide {
         ($table:literal, $requesters:literal, $asked_id:literal) => {
             sqlx::query!(
@@ -208,3 +198,7 @@ pub(super) async fn join(
     }
     Ok(per_kind!(asked, join).rows_affected() > 0)
 }
+
+#[cfg(test)]
+#[path = "asked_tests.rs"]
+mod tests;

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO followed_show_ids (followed_show_id, namespace, value) VALUES (?, ?, ?)\n             ON CONFLICT (followed_show_id, namespace) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "6a46859509814371c401964e064756fe197c6d64673f9b407a2ece3c76b3bae4"
+}

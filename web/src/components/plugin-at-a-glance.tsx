@@ -1,11 +1,31 @@
 // What both the Plugins list and a Plugin's page show of it, and how its page changes its logo, kept
 // in one module so each page stays within oxlint's `import/max-dependencies`.
 import { createConnectQueryKey } from "@connectrpc/connect-query";
-import { Activity, Bell, Film, KeyRound, Link, Puzzle, ScanSearch, Server, Tv } from "lucide-react";
+import {
+  Activity,
+  Bell,
+  CalendarClock,
+  Database,
+  Film,
+  Fingerprint,
+  KeyRound,
+  Link,
+  Puzzle,
+  ScanSearch,
+  Server,
+  TriangleAlert,
+  Tv,
+} from "lucide-react";
 
 import { ChangeImage, type ImageRules } from "@/components/edit-images";
-import type { Shown } from "@/components/state-label";
-import { ExtensionPoint, PluginService, type PluginSummary } from "@/gen/nama/v1/plugin_pb";
+import { type Shown, StateLabel } from "@/components/state-label";
+import {
+  ExtensionPoint,
+  PluginPermission,
+  PluginService,
+  type PluginSummary,
+  type RecogniserFailure,
+} from "@/gen/nama/v1/plugin_pb";
 import { pluginName } from "@/lib/plugins";
 
 /** Each Extension Point in plain words, with the icon the web picks for it. */
@@ -15,9 +35,12 @@ const points: Partial<Record<ExtensionPoint, Shown>> = {
   [ExtensionPoint.NOTIFIER]: { label: "Notifier", Icon: Bell },
   [ExtensionPoint.CONNECTOR]: { label: "Connector", Icon: Link },
   [ExtensionPoint.AUTHENTICATOR]: { label: "Authenticator", Icon: KeyRound },
-  [ExtensionPoint.METADATA_PROVIDER]: { label: "Metadata Provider", Icon: ScanSearch },
+  [ExtensionPoint.TITLE_SOURCE]: { label: "Title source", Icon: ScanSearch },
   [ExtensionPoint.EVENTS_OBSERVER]: { label: "Observes Events", Icon: Activity },
   [ExtensionPoint.SERVER_STARTED_OBSERVER]: { label: "Observes Server start", Icon: Server },
+  [ExtensionPoint.RECOGNISER]: { label: "Recogniser", Icon: Fingerprint },
+  [ExtensionPoint.BLOB_STORE]: { label: "Blob store", Icon: Database },
+  [ExtensionPoint.AUTOMATION]: { label: "Automation", Icon: CalendarClock },
 };
 
 /**
@@ -36,6 +59,71 @@ export function ExtensionPoints({ extensionPoints }: { extensionPoints: Extensio
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * That the Plugin's Recogniser keeps failing: how many calls in a row failed, when the last one did
+ * and what it said. Nothing while its calls answer.
+ */
+export function RecogniserFailing({ failure }: { failure: RecogniserFailure | undefined }) {
+  if (failure === undefined) return null;
+  const { lastError, atMs, failedInARow } = failure;
+  const at = new Date(Number(atMs));
+  const calls = failedInARow === 1 ? "Its last call" : `Its last ${failedInARow} calls`;
+  return (
+    <section aria-labelledby="recogniser-failing" className="mt-6 max-w-prose">
+      <h2 id="recogniser-failing">
+        <StateLabel label="Recogniser failing" Icon={TriangleAlert} />
+      </h2>
+      <p className="mt-2 text-sm text-pretty text-muted-foreground">
+        {calls} failed, the latest on{" "}
+        <time dateTime={at.toISOString()}>
+          {at.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+        </time>
+        . Until it answers, the Items it is asked about stay undecided and are tried again at the
+        next Scan; the rest of Matching goes on.
+      </p>
+      <p className="mt-1 text-sm text-pretty wrap-break-word">Last error: {lastError}</p>
+    </section>
+  );
+}
+
+/** Each Plugin Permission in plain words, with what granting it lets the Plugin do. */
+export const pluginPermissions: Partial<
+  Record<PluginPermission, { label: string; about: string }>
+> = {
+  [PluginPermission.STORE]: {
+    label: "Keep its own data",
+    about: "It keeps notes in the Server, such as which titles it has already looked at.",
+  },
+  [PluginPermission.READ_LIBRARIES]: {
+    label: "Read Libraries",
+    about: "It sees every Library and the Movies and Episodes in it.",
+  },
+  [PluginPermission.READ_WATCH_STATES]: {
+    label: "Read Watch State",
+    about: "It sees what every User has watched, and when.",
+  },
+  [PluginPermission.DELETE_MEDIA]: {
+    label: "Delete media",
+    about: "It can delete Movies and Episodes, with their files on disk, for good.",
+  },
+  [PluginPermission.READ_USERS]: {
+    label: "Read Users",
+    about: "It sees every User's id and display name, and nothing else about them.",
+  },
+};
+
+/**
+ * The Plugin Permissions an Admin granted the Plugin, if any, as a line of a wrapping flex row.
+ * One from a newer Server than this app knows is left out.
+ */
+export function GrantedPermissions({ granted }: { granted: PluginPermission[] }) {
+  const labels = granted.flatMap((permission) => pluginPermissions[permission]?.label ?? []);
+  if (labels.length === 0) return null;
+  return (
+    <p className="w-full text-sm text-pretty text-muted-foreground">Granted: {labels.join(", ")}</p>
   );
 }
 

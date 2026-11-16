@@ -35,7 +35,9 @@ use fake_radarr::{Changed, FakeRadarr};
 use fake_sonarr::FakeSonarr;
 use http::fetch;
 use log::Log;
-use nama_plugin_api::fulfiller::{EpisodeNumber, EpisodeNumbers, ShowDeleted, show_deleted};
+use nama_plugin_api::fulfiller::{
+    EpisodeNumber, EpisodeNumbers, ShowDeleted, TitleId, show_deleted,
+};
 use nama_proto::nama::v1::{
     ApproveFollowedShowRequest, AudioCodec, BrowseServiceClient, CancelRequestRequest, Container,
     DeleteMediaRequest, DeleteMediaResponse, DeviceDecoding, Episode, EpisodeToDelete, EventType,
@@ -181,7 +183,17 @@ impl Fixture {
         let fx = Self::dark().await;
         let sonarr = FakeSonarr::start().await;
         sonarr.enable_on(&fx.server).await;
-        fx.server.admin_requests().follow(DARK).await;
+        let requests = fx.server.admin_requests();
+        requests.follow(DARK).await;
+        // A Season handed off while Sonarr refreshes the Show another one added goes on a retry.
+        let handed_off = async {
+            while !requests.list_in(RequestState::Approved).await.0.is_empty() {
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(15), handed_off)
+            .await
+            .unwrap();
         sonarr.finish_refreshes().await;
         (fx, sonarr)
     }
@@ -503,6 +515,17 @@ async fn a_fulfiller_that_cant_be_told_is_named_and_the_delete_still_happens() {
     assert_eq!(deleted.fulfillers_not_told, [MOVIE_FULFILLER]);
     assert!(!fx.exists(DUNE_VIDEO));
     assert_eq!(fx.titles().await, ["Alien"]);
+}
+
+#[tokio::test]
+async fn a_fulfiller_needing_an_id_the_movie_lacks_is_named_and_not_asked() {
+    let fx = Fixture::alien_and_dune_on(TestServer::builder().fulfiller(&[])).await;
+    fx.server.fulfiller().need(&["made-up"]);
+
+    let deleted = fx.delete(movie(fx.library, DUNE)).await.unwrap();
+
+    assert_eq!(deleted.fulfillers_not_told, [MOVIE_FULFILLER]);
+    assert_eq!(fx.server.fulfiller().stopped_monitoring(), [0; 0]);
 }
 
 /// What the fake Radarr is asked when told to unmonitor Alien, which it has as its Movie 2, while
@@ -860,8 +883,17 @@ async fn deleting_a_show_deletes_every_season_and_a_subscriber_is_told_of_each_i
 /// What of Dark a Shows Fulfiller is told to stop monitoring: `deleted`.
 fn dark_deleted(deleted: impl Into<show_deleted::Deleted>) -> ShowDeleted {
     ShowDeleted {
-        show_tmdb_id: Some(DARK),
-        show_tvdb_id: Some(DARK_TVDB),
+        show_ids: [
+            ("imdb", "tt5753856".to_owned()),
+            ("tmdb", DARK.to_string()),
+            ("tvdb", DARK_TVDB.to_string()),
+        ]
+        .map(|(namespace, value)| TitleId {
+            namespace: namespace.to_owned(),
+            value,
+            ..Default::default()
+        })
+        .into(),
         deleted: Some(deleted.into()),
         ..Default::default()
     }
@@ -973,7 +1005,7 @@ async fn deleting_a_show_unmonitors_every_season_in_sonarr_and_keeps_it_followin
         .list_in(RequestState::Unspecified)
         .await;
     assert_eq!(followed.len(), 1, "{followed:?}");
-    assert_eq!(followed[0].show_tmdb_id, DARK);
+    assert_eq!(followed[0].show_id, tmdb_id(DARK).into());
 }
 
 #[tokio::test]

@@ -8,21 +8,28 @@
 use std::{
     collections::{HashMap, hash_map::Entry},
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use nama_plugin_api::{
     PluginId,
     fulfiller::{Fulfilled, Fulfiller, Movies, Shows},
 };
-use nama_proto::nama::v1::{Request, RequestState, request::MovieOrSeason};
+use nama_proto::nama::v1::{ExternalId, Request, RequestState, request::MovieOrSeason};
 use tokio::sync::{Notify, mpsc::UnboundedReceiver};
 use tracing::{error, warn};
 
-use super::{Error, Requests, as_handed_off, load, load_one, lock};
+use super::followed::as_handed_off;
+use super::listing::{load, load_one};
+use super::{Error, Requests, lock};
 use crate::{
     db::{BoxFuture, Database, detached},
-    plugins::{Answer, ExtensionPoints},
+    plugins::{self, Answer, ExtensionPoints, Failure, RETRIES, Retryable},
 };
+
+/// What a Fulfiller answered to a hand-off, and how long it said to wait if it said to try again,
+/// when the answer is the failure the Request settles with once the Kernel gives up.
+type Fulfilling = (Answer<Fulfilled, Vec<String>>, Option<Duration>);
 
 /// Requests' way to the Fulfillers for Movies and for Shows, where they are enabled.
 #[derive(Debug, Clone)]
@@ -34,6 +41,9 @@ pub(super) struct HandOff {
     handing: Arc<Mutex<HashMap<i64, bool>>>,
     /// Wakes [`super::progress::Progress::follow`] when a Request becomes Processing.
     became_processing: Arc<Notify>,
+    /// How many times in a row each Request waiting to be handed off again was, after its
+    /// Fulfiller said to try again.
+    retries: Arc<Mutex<HashMap<i64, u32>>>,
 }
 
 impl HandOff {
@@ -49,6 +59,7 @@ impl HandOff {
             plugins,
             handing: Arc::default(),
             became_processing,
+            retries: Arc::default(),
         }
     }
 
@@ -63,7 +74,8 @@ impl HandOff {
 
     /// Hands the Approved `request`, which `claim` holds, to the Fulfiller for its kind, Movies or
     /// Shows, publishing that its state changed: to Processing once it takes the Request, or to
-    /// Failed, with its reason, if it doesn't. Returns the Request as it is now. Without a
+    /// Failed, with its reason, if it doesn't or if the title lacks every id it needs, when it
+    /// isn't asked. Returns the Request as it is now. Without a
     /// Fulfiller for its kind the Request waits in Approved. Settles through `requests`' path.
     ///
     /// Runs in a task of its own: once the Fulfiller has taken the Request, its reference must be
@@ -93,6 +105,7 @@ impl HandOff {
     /// one that finished since `request` was read has moved it on.
     async fn claimed(&self, requests: &Requests, request: Request) -> Result<Request, Error> {
         let id = request.id;
+        let retried = lock(&self.retries).remove(&id).unwrap_or(0);
         let mut conn = self.db.reader().acquire().await?;
         let current = match load_one(&mut conn, id).await? {
             Some(current) if current.state == RequestState::Approved => current,
@@ -102,9 +115,21 @@ impl HandOff {
         };
         let handed = as_handed_off(&mut conn, current.clone()).await?;
         drop(conn);
-        let Some(fulfilled) = self.fulfill(&handed).await else {
+        let Some((fulfilled, try_again)) = self.fulfill(&handed).await else {
             return Ok(current);
         };
+        if let Some(wait) = try_again {
+            if retried < RETRIES {
+                lock(&self.retries).insert(id, retried + 1);
+                self.hand_off_later(requests, &fulfilled.plugin, current.clone(), wait);
+                return Ok(current);
+            }
+            warn!(
+                request = id,
+                retries = RETRIES,
+                "the Fulfiller kept saying to try again, so the Request fails"
+            );
+        }
         let took = fulfilled.result.is_ok();
         let asked = current.quality.as_option().cloned();
         let settled = requests.settle_hand_off(id, fulfilled, asked).await?;
@@ -145,6 +170,33 @@ impl HandOff {
         }
     }
 
+    /// Hands `request` off again after `wait`, as the Plugin `plugin`'s Fulfiller said to, settling
+    /// through `requests`' path. The wait runs in the Plugin's scope, so disabling it ends the
+    /// wait at once (ADR 0047). The hand-off itself is detached like any other, since once the
+    /// Fulfiller takes the Request its reference must be stored.
+    fn hand_off_later(
+        &self,
+        requests: &Requests,
+        plugin: &PluginId,
+        request: Request,
+        wait: Duration,
+    ) {
+        let hand_off = self.clone();
+        let requests = requests.clone();
+        // Not spawned if the Plugin was disabled meanwhile: enabling one hands off what waits.
+        self.plugins.spawn_in(plugin, async move {
+            tokio::time::sleep(wait).await;
+            let id = request.id;
+            // Another hand-off has it, and looks at it again once done.
+            let Some(claim) = hand_off.claim(id) else {
+                return;
+            };
+            if let Err(err) = hand_off.request(&requests, request, claim).await {
+                error!(request = id, "handing a Request off again failed: {err}");
+            }
+        });
+    }
+
     async fn hand_off_waiting(&self, requests: &Requests) -> Result<(), Error> {
         let mut conn = self.db.reader().acquire().await?;
         // ponytail: reads every Request to find the Approved ones; filter in SQL if there get many.
@@ -164,54 +216,159 @@ impl HandOff {
     }
 
     /// What the Fulfiller for `request`'s kind says to it, if one is enabled: what it reports once
-    /// it takes it, or why it doesn't.
-    async fn fulfill(&self, request: &Request) -> Option<Answer<Fulfilled>> {
-        let fulfilled = match request.movie_or_season.as_ref()? {
-            MovieOrSeason::Movie(_) => self.fulfill_as::<Movies>(request).await,
-            MovieOrSeason::Season(_) => self.fulfill_as::<Shows>(request).await,
+    /// it takes it, or why it doesn't. A failure's `kind` names the id namespaces the Fulfiller
+    /// needs when the Kernel didn't hand it `request` for lack of an id in any of them, and is
+    /// empty when the Fulfiller itself refused. Also how long it said to wait, if it said to try
+    /// again.
+    async fn fulfill(&self, request: &Request) -> Option<Fulfilling> {
+        let (fulfilled, try_again) = match request.movie_or_season.as_ref()? {
+            MovieOrSeason::Movie(movie) => {
+                self.fulfill_as::<Movies>(request, "Movie", &movie.ids)
+                    .await
+            }
+            MovieOrSeason::Season(season) => {
+                self.fulfill_as::<Shows>(request, "Show", &season.show_ids)
+                    .await
+            }
         }?;
-        if let Err(failure) = &fulfilled.result {
+        if let (Err(failure), None) = (&fulfilled.result, try_again) {
             warn!(
                 request = request.id,
                 reason = failure.message,
                 "the Fulfiller didn't take the Request"
             );
         }
-        Some(fulfilled)
+        Some((fulfilled, try_again))
     }
 
-    /// [`Self::fulfill`] by the Fulfiller of `Kind`.
-    async fn fulfill_as<Kind: 'static>(&self, request: &Request) -> Option<Answer<Fulfilled>> {
-        self.plugins
+    /// [`Self::fulfill`] by the Fulfiller of `Kind`, for a `title`, `Movie` or `Show`, with the ids
+    /// `ids`.
+    async fn fulfill_as<Kind: 'static>(
+        &self,
+        request: &Request,
+        title: &str,
+        ids: &[ExternalId],
+    ) -> Option<Fulfilling> {
+        let told = &plugins::request(request);
+        // Asked inside the Plugin's containment, so the failure names the Plugin that would have
+        // been handed the Request.
+        let Answer { plugin, result } = self
+            .plugins
             .ask_first(|fulfiller: Arc<dyn Fulfiller<Kind>>| async move {
-                fulfiller.fulfill(request).await
+                if let Some(needs) = unmet(&*fulfiller, namespaces(ids)) {
+                    return Ok(Err(needs));
+                }
+                fulfiller.fulfill(told).await.map(Ok).map_err(Retryable)
             })
-            .await
+            .await?;
+        let mut try_again = None;
+        let result = match result {
+            Ok(Ok(fulfilled)) => Ok(fulfilled),
+            Ok(Err(needs)) => Err(Failure {
+                message: missing(&plugin, title, &needs),
+                kind: needs,
+            }),
+            Err(Failure { kind, message }) => {
+                try_again = kind;
+                Err(Failure {
+                    kind: Vec::new(),
+                    message,
+                })
+            }
+        };
+        Some((Answer { plugin, result }, try_again))
     }
 
     /// Tells the Shows Fulfiller, if one is enabled, to stop following the Show of `season`, the
-    /// Season Request of a Followed Show that ended. A failure is only logged: the Followed Show
-    /// ended either way.
+    /// Season Request of a Followed Show that ended. A failure, or a Show lacking every id it
+    /// needs, which skips it, is only logged: the Followed Show ended either way.
     pub(super) async fn unfollow(&self, season: &Request) {
+        self.unfollow_retried(season, 0).await;
+    }
+
+    /// [`Self::unfollow`], after the Fulfiller said to try again `retried` times in a row. Asks it
+    /// again in its scope when it says so again, up to [`RETRIES`] times.
+    async fn unfollow_retried(&self, season: &Request, retried: u32) {
+        let Some(MovieOrSeason::Season(asked)) = &season.movie_or_season else {
+            return;
+        };
+        let told = &plugins::request(season);
         let unfollowed = self
             .plugins
             .ask_first(|fulfiller: Arc<dyn Fulfiller<Shows>>| async move {
-                fulfiller.unfollow(season).await
+                if let Some(needs) = unmet(&*fulfiller, namespaces(&asked.show_ids)) {
+                    return Ok(Err(needs));
+                }
+                fulfiller.unfollow(told).await.map(Ok).map_err(Retryable)
             })
             .await;
-        if let Some(Answer {
-            result: Err(failure),
-            ..
-        }) = unfollowed
-            && let Some(MovieOrSeason::Season(asked)) = &season.movie_or_season
-        {
-            warn!(
-                show = asked.show_tmdb_id,
-                reason = failure.message,
-                "the Shows Fulfiller didn't stop following the Show"
-            );
-        }
+        let reason = match unfollowed {
+            Some(Answer {
+                plugin,
+                result: Ok(Err(needs)),
+            }) => missing(&plugin, "Show", &needs),
+            Some(Answer {
+                plugin,
+                result: Err(Failure {
+                    kind: Some(wait), ..
+                }),
+            }) if retried < RETRIES => {
+                self.unfollow_later(&plugin, season.clone(), wait, retried + 1);
+                return;
+            }
+            Some(Answer {
+                result: Err(failure),
+                ..
+            }) => failure.message,
+            _ => return,
+        };
+        warn!(
+            show = asked
+                .show_id
+                .as_option()
+                .map(|id| format!("{}-{}", id.namespace, id.value)),
+            reason, retried, "the Shows Fulfiller didn't stop following the Show"
+        );
     }
+
+    /// Tells the Plugin `plugin`'s Fulfiller again after `wait` to stop following the Show of
+    /// `season`, as it said to, which is the `retried`th time in a row. The wait runs in the
+    /// Plugin's scope, so disabling it ends the wait at once (ADR 0047).
+    fn unfollow_later(&self, plugin: &PluginId, season: Request, wait: Duration, retried: u32) {
+        let hand_off = self.clone();
+        // Not spawned if the Plugin was disabled meanwhile, which leaves nothing to tell.
+        self.plugins.spawn_in(plugin, async move {
+            tokio::time::sleep(wait).await;
+            hand_off.unfollow_retried(&season, retried).await;
+        });
+    }
+}
+
+/// The namespaces of `ids`.
+fn namespaces(ids: &[ExternalId]) -> impl Iterator<Item = &str> {
+    ids.iter().map(|id| id.namespace.as_str())
+}
+
+/// The namespaces `fulfiller` needs when a title, known by ids in `namespaces`, has an id in none
+/// of them, so the Kernel doesn't ask it about the title.
+pub(crate) fn unmet<'a, Kind: 'static>(
+    fulfiller: &dyn Fulfiller<Kind>,
+    mut namespaces: impl Iterator<Item = &'a str>,
+) -> Option<Vec<String>> {
+    let needs = fulfiller.needs();
+    let met = needs.is_empty() || namespaces.any(|namespace| needs.iter().any(|n| n == namespace));
+    (!met).then_some(needs)
+}
+
+/// Why the Plugin `plugin`'s Fulfiller wasn't handed a Request for a `title`, `Movie` or `Show`,
+/// which has no id in any of the namespaces it `needs`.
+pub(crate) fn missing(plugin: &PluginId, title: &str, needs: &[String]) -> String {
+    let ids = match needs {
+        [one] => format!("the {title}'s {one} id"),
+        [first @ .., last] => format!("one of the {title}'s {} or {last} ids", first.join(", ")),
+        [] => format!("the {title}'s id"),
+    };
+    format!("{plugin} needs {ids}, and none is known for it")
 }
 
 /// A hand-off's hold on one Request in [`HandOff::handing`], let go however the hand-off ends, a
@@ -268,30 +425,5 @@ impl Drop for Claim {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use super::Claim;
-
-    #[test]
-    fn a_claim_another_hand_off_skipped_is_kept_for_one_more_look() {
-        let handing = Arc::default();
-        let claim = Claim::take(&handing, 1).unwrap();
-        assert!(Claim::take(&handing, 1).is_none());
-
-        let kept = claim.release().expect("the skipped Request was let go");
-
-        assert!(kept.release().is_none());
-        assert!(Claim::take(&handing, 1).is_some());
-    }
-
-    #[test]
-    fn a_dropped_claim_lets_the_request_be_claimed_again() {
-        let handing = Arc::default();
-        let claim = Claim::take(&handing, 1).unwrap();
-
-        drop(claim);
-
-        assert!(Claim::take(&handing, 1).is_some());
-    }
-}
+#[path = "hand_off_tests.rs"]
+mod tests;

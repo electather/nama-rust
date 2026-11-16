@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT namespace, value FROM followed_show_ids WHERE followed_show_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "namespace",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_show_ids",
+            "name": "namespace"
+          }
+        }
+      },
+      {
+        "name": "value",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_show_ids",
+            "name": "value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "96ad9545a5f1c152ef1df4bc67595279d7eec9e96bdad8f8f5d7f6343402c4f9"
+}

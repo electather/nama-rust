@@ -21,7 +21,7 @@ afterEach(cleanup);
 function followedServer() {
   const followed = create(FollowedShowSchema, {
     id: 7n,
-    showTmdbId: 70_523n,
+    showId: { namespace: "tmdb", value: "70523" },
     showTitle: "Dark",
     state: RequestState.PENDING,
     requesters: [{ userId: 2n, name: "Ada" }],
@@ -31,7 +31,7 @@ function followedServer() {
     id: 3n,
     movieOrSeason: {
       case: "season",
-      value: { showTmdbId: 70_523n, seasonNumber: 1, showTitle: "Dark" },
+      value: { showId: { namespace: "tmdb", value: "70523" }, seasonNumber: 1, showTitle: "Dark" },
     },
     state: RequestState.PENDING,
     requesters: [{ userId: 2n, name: "Ada" }],

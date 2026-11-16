@@ -1,0 +1,273 @@
+//! Sign-in attempts, Setup included: one place that names the signing-in Device, lets the attempt
+//! past the sign-in limits, checks its proof or the Setup Code and has [`Users`] issue the session,
+//! in that order. Sign-in Codes go through it too. Reauthenticating follows the same order, giving
+//! an existing Device Recent Authentication in place of a session, and signing out ends one.
+//!
+//! Guessable requests go through it (the crate's `AGENTS.md`, "Guessable requests").
+
+use std::{net::IpAddr, time::Instant};
+
+use super::{
+    self as users, ApprovingDevice, Caller, NewDevice, Proved, SignedIn, Users,
+    codes::SetupCode,
+    device_names,
+    rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
+    sign_in_codes::{self, Delivery, Poll, SignInCodes, Started},
+};
+
+/// Signs Devices in, with a proof or a Sign-in Code, under the sign-in limits.
+pub(crate) struct SignIn {
+    users: Users,
+    /// What `setup` must be given. `None` once the Server started with Users.
+    setup_code: Option<SetupCode>,
+    /// The recent failed attempts of Setup, signing in and Reauthenticate alike, so they share one
+    /// limit per client IP.
+    limits: SignInLimits,
+    codes: SignInCodes,
+    /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
+    code_limits: SignInCodeLimits,
+}
+
+/// Who a Device claims to be, and what proves it, when it signs in or reauthenticates. Not `Debug`,
+/// so the password can't end up in a log.
+pub(crate) enum Proof {
+    /// A User's name, matched ignoring case, and their password.
+    Password { name: String, password: String },
+}
+
+/// Where a Sign-in Code polled with its handle has got to. Not `Debug`: it may hold a session
+/// token.
+pub(crate) enum Polled {
+    /// Not approved yet.
+    Waiting,
+    /// Not approved, or not polled once approved, within the code's lifetime.
+    Expired,
+    /// Approved, so the polling Device is signed in as the approver, to be given its session by
+    /// `delivery`, as it asked when it started the code.
+    SignedIn {
+        signed_in: SignedIn,
+        delivery: Delivery,
+    },
+}
+
+/// Why a sign-in attempt was refused or failed.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum Error {
+    /// Too many attempts failed recently from the client IP or for the name.
+    #[error(transparent)]
+    Blocked(#[from] Blocked),
+    /// Setup was given a code other than the Server's Setup Code.
+    #[error("the Setup Code is wrong")]
+    WrongSetupCode,
+    /// The Device's name, the proof, the new Admin, a Server already set up, a Device signed out
+    /// meanwhile or the database.
+    #[error(transparent)]
+    Users(#[from] users::Error),
+    /// A Sign-in Code or poll handle.
+    #[error(transparent)]
+    Code(#[from] sign_in_codes::Error),
+    /// Reauthenticating gave no proof of who the caller is.
+    #[error("the proof of who you are is missing")]
+    ProofMissing,
+}
+
+impl SignIn {
+    /// Sign-in attempts against `users`, with no failures counted yet, that set up the Server with
+    /// `setup_code` while it has no Users.
+    pub(crate) fn new(users: Users, setup_code: Option<SetupCode>) -> Self {
+        Self {
+            users,
+            setup_code,
+            limits: SignInLimits::default(),
+            codes: SignInCodes::default(),
+            code_limits: SignInCodeLimits::default(),
+        }
+    }
+
+    /// Creates the first Admin, named `name` with `password`, for whoever gives `setup_code`, and
+    /// signs `device` in as them, at `now`. Once the Server has Users every attempt is refused as
+    /// already set up, whatever code it gives, so the code can't be probed then.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is its own fact about the attempt, and a struct would only rename them"
+    )]
+    pub(crate) async fn setup(
+        &self,
+        setup_code: &str,
+        name: &str,
+        password: &str,
+        device: NewDevice,
+        now: Instant,
+    ) -> Result<SignedIn, Error> {
+        let device = named(device)?;
+        let attempt = self.limits.admit(device.ip_address, None, now)?;
+        // The Server only made no code because it started with Users.
+        let server_code = self.setup_code.as_ref().ok_or(users::Error::AlreadySetUp)?;
+        if self.users.any().await.map_err(users::Error::from)? {
+            return Err(users::Error::AlreadySetUp.into());
+        }
+        if !server_code.matches(setup_code) {
+            return Err(Error::WrongSetupCode);
+        }
+        self.limits.succeeded(&attempt);
+        Ok(self
+            .users
+            .create_first_admin(name, password, device)
+            .await?)
+    }
+
+    /// Signs `device` in as whoever `proof` proves it is, at `now`.
+    pub(crate) async fn sign_in(
+        &self,
+        proof: Proof,
+        device: NewDevice,
+        now: Instant,
+    ) -> Result<SignedIn, Error> {
+        // Input checks run before `admit`, so a mistake in them is never counted as a guess.
+        let device = named(device)?;
+        let Proof::Password { name, password } = proof;
+        let attempt = self.limits.admit(device.ip_address, Some(&name), now)?;
+        let (user, method) = self.users.verify(&attempt, &name, &password).await?;
+        self.limits.succeeded(&attempt);
+        Ok(self
+            .users
+            .sign_in_as(Proved::Method { user, method }, device)
+            .await?)
+    }
+
+    /// Starts signing in, with a Sign-in Code, the Device `device_name` that sent `user_agent`, at
+    /// `now`. `delivery` is kept for the poll that signs it in, unread.
+    pub(crate) fn start_code(
+        &self,
+        device_name: String,
+        user_agent: Option<&str>,
+        delivery: Delivery,
+        now: Instant,
+    ) -> Result<Started, Error> {
+        let device_name = checked_device_name(device_name, user_agent)?;
+        Ok(self.codes.start(device_name, delivery, now)?)
+    }
+
+    /// The name of the Device that the code `entered` would sign in, looked up by `caller` at
+    /// `now`.
+    pub(crate) fn look_up_code(
+        &self,
+        caller: &Caller,
+        entered: &str,
+        now: Instant,
+    ) -> Result<String, Error> {
+        self.counting_unknown_codes(caller, now, || self.codes.look_up(entered, now))
+    }
+
+    /// Approves the code `entered` at `now`, so its Device signs in as `caller`'s User.
+    pub(crate) fn approve_code(
+        &self,
+        caller: &Caller,
+        entered: &str,
+        now: Instant,
+    ) -> Result<(), Error> {
+        self.counting_unknown_codes(caller, now, || {
+            self.codes
+                .approve(entered, ApprovingDevice::from(caller), now)
+        })
+    }
+
+    /// Where the Sign-in Code polled with `handle` at `now` has got to, signing the polling Device
+    /// in from `ip_address` with `user_agent` if the code was approved. That uses the code up, so
+    /// the poll's request source is a value its caller must have read already.
+    pub(crate) async fn poll_code(
+        &self,
+        handle: &str,
+        ip_address: IpAddr,
+        user_agent: Option<String>,
+        now: Instant,
+    ) -> Result<Polled, Error> {
+        let (approving, device_name, delivery) = match self.codes.poll(handle, now)? {
+            Poll::Waiting => return Ok(Polled::Waiting),
+            Poll::Expired => return Ok(Polled::Expired),
+            Poll::Approved {
+                approving,
+                device_name,
+                delivery,
+            } => (approving, device_name, delivery),
+        };
+        let device = NewDevice {
+            name: device_name,
+            ip_address,
+            user_agent,
+        };
+        let signed_in = self
+            .users
+            .sign_in_as(Proved::Code(approving), device)
+            .await?;
+        Ok(Polled::SignedIn {
+            signed_in,
+            delivery,
+        })
+    }
+
+    /// Runs `use_code` for `caller` at `now`, unless their Device has failed too often lately. Only
+    /// a code that is unknown or expired counts as a failure: that is what a guess gets.
+    fn counting_unknown_codes<T>(
+        &self,
+        caller: &Caller,
+        now: Instant,
+        use_code: impl FnOnce() -> Result<T, sign_in_codes::Error>,
+    ) -> Result<T, Error> {
+        let attempt = self.code_limits.admit(caller.device.id, now)?;
+        let used = use_code();
+        if !matches!(used, Err(sign_in_codes::Error::NotFound)) {
+            self.code_limits.wasnt_a_guess(&attempt);
+        }
+        Ok(used?)
+    }
+
+    /// Gives `caller`'s Device Recent Authentication if `proof` proves it is their User, as asked
+    /// from `ip` at `now`. A missing proof is refused with [`Error::ProofMissing`] and a Device
+    /// found signed out once the proof checked out with [`users::Error::SignedOut`]; neither is a
+    /// guess. A proof of another User is refused like a wrong password.
+    pub(crate) async fn reauthenticate(
+        &self,
+        caller: &Caller,
+        proof: Option<Proof>,
+        ip: IpAddr,
+        now: Instant,
+    ) -> Result<(), Error> {
+        let Proof::Password { name, password } = proof.ok_or(Error::ProofMissing)?;
+        let attempt = self.limits.admit(ip, Some(&caller.user.name), now)?;
+        if users::name_key(&name) != users::name_key(&caller.user.name) {
+            return Err(users::Error::WrongPassword.into());
+        }
+        self.users
+            .confirm_password(&attempt, &caller.user, &password)
+            .await?;
+        // Before recording, so a Device found signed out after the right password isn't a guess.
+        self.limits.succeeded(&attempt);
+        Ok(self.users.record_authentication(caller.device.id).await?)
+    }
+
+    /// Signs the Device `device` out, so its session stops working.
+    pub(crate) async fn sign_out(&self, device: i64) -> Result<(), sqlx::Error> {
+        self.users.sign_out(device).await
+    }
+}
+
+/// `device` with its name checked, made from its `User-Agent` if it gave none.
+fn named(device: NewDevice) -> Result<NewDevice, users::Error> {
+    let name = checked_device_name(device.name, device.user_agent.as_deref())?;
+    Ok(NewDevice { name, ..device })
+}
+
+/// `name` checked as a Device's, or made from `user_agent` if it is blank.
+fn checked_device_name(name: String, user_agent: Option<&str>) -> Result<String, users::Error> {
+    let name = if name.trim().is_empty() {
+        device_names::from_user_agent(user_agent)
+    } else {
+        name
+    };
+    users::checked_name("device_name", "a Device's name", &name)
+}
+
+#[cfg(test)]
+#[path = "sign_in_tests.rs"]
+mod tests;

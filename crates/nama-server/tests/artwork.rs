@@ -1,4 +1,4 @@
-//! Posters and backdrops: downloaded when a Match is made, fetched from the metadata Provider if
+//! Posters and backdrops: downloaded when a Match is made, fetched from the title source if
 //! someone asks first, and kept in the Server's image store while a Match stores them.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -28,7 +28,7 @@ use nama_proto::nama::v1::{
     RequestServiceClient, SearchMoviesRequest, SetMatchRequest,
 };
 use nama_server::{
-    artwork::{Artwork, Error},
+    Artwork, ArtworkError,
     db::Database,
     images::ImageStore,
     plugins::{ExtensionPoints, Registry},
@@ -40,7 +40,7 @@ use server::{
 
 const POSTER: &str = "/vfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg";
 const BACKDROP: &str = "/AmR3JG1VQVxU8TfAvljUhfSFUOx.jpg";
-const TITLE_LOGO: &str = "/fzbFBy8eTB3hbmHDgSrbNdhDzA9.png";
+const TITLE_LOGO: &str = "/qH7nHxlGlKvK3vqSRtrjtE4ZQgW.png";
 const HEAT_POSTER: &str = "/umSVjVdbVwtx5ryCA2QXL44Durm.jpg";
 const HEAT_BACKDROP: &str = "/rfEXNlql4CafRmtgp2VLrdyBMCo.jpg";
 /// Dark's Season 1 Poster and its Show's Backdrop.
@@ -48,7 +48,7 @@ const DARK_SEASON_1_POSTER: &str = "/5LoHuHWA4H8jElFlZDvsmU2n63b.jpg";
 const DARK_BACKDROP: &str = "/3lBDg3i6nn5R2NKFCJ6oKyUo2j5.jpg";
 /// Dark's own Poster and Title Logo.
 const DARK_POSTER: &str = "/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg";
-const DARK_TITLE_LOGO: &str = "/7l3H2B3ofXWDNfjX9XvZf2cdUOT.png";
+const DARK_TITLE_LOGO: &str = "/b3eMvXwALgdBkBd2zZpDmpDWBbX.png";
 /// The Still of Dark's S01E01.
 const SECRETS_STILL: &str = "/gNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
 const DARK_S01E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
@@ -306,7 +306,10 @@ async fn an_image_the_provider_does_not_have_is_not_found() {
         .keep(&PluginId::from_static("tmdb"), "/missing.jpg")
         .await;
 
-    assert!(matches!(missing, Err(Error::NotFound)), "{missing:?}");
+    assert!(
+        matches!(missing, Err(ArtworkError::NotFound)),
+        "{missing:?}"
+    );
 }
 
 #[tokio::test]
@@ -319,6 +322,9 @@ async fn an_image_from_a_plugin_that_is_not_enabled_is_unavailable() {
         .keep(&PluginId::from_static("other"), POSTER)
         .await;
 
-    assert!(matches!(result, Err(Error::Unavailable(_))), "{result:?}");
+    assert!(
+        matches!(result, Err(ArtworkError::Unavailable(_))),
+        "{result:?}"
+    );
     assert_eq!(fake.requests(), Vec::<String>::new());
 }

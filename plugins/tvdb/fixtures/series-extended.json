@@ -1,0 +1,39 @@
+{
+  "status": "success",
+  "data": {
+    "id": 371980,
+    "name": "Severance",
+    "slug": "severance",
+    "image": "https://artworks.thetvdb.com/banners/v4/series/371980/posters/61f1b0b1a7a0c.jpg",
+    "firstAired": "2022-02-18",
+    "year": "2022",
+    "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
+    "originalCountry": "usa",
+    "originalLanguage": "eng",
+    "remoteIds": [
+      { "id": "tt11280740", "type": 2, "sourceName": "IMDB" },
+      { "id": "95396", "type": 12, "sourceName": "TheMovieDB.com" },
+      { "id": "severance", "type": 18, "sourceName": "Wikidata" }
+    ],
+    "artworks": [
+      { "id": 62066712, "image": "https://artworks.thetvdb.com/banners/v4/series/371980/banners/61f1b0f4b1d23.jpg", "type": 1, "score": 100001 },
+      { "id": 62066740, "image": "https://artworks.thetvdb.com/banners/v4/series/371980/backgrounds/61f1b1a2c4e8f.jpg", "type": 3, "score": 100002 },
+      { "id": 62066741, "image": "https://artworks.thetvdb.com/banners/v4/series/371980/backgrounds/61f1b1b3d5f90.jpg", "type": 3, "score": 100005 }
+    ],
+    "seasons": [
+      { "id": 1950062, "seriesId": 371980, "type": { "id": 1, "name": "Aired Order", "type": "official" }, "number": 0 },
+      { "id": 1950063, "seriesId": 371980, "type": { "id": 1, "name": "Aired Order", "type": "official" }, "number": 1 },
+      { "id": 2069215, "seriesId": 371980, "type": { "id": 1, "name": "Aired Order", "type": "official" }, "number": 2 },
+      { "id": 2069300, "seriesId": 371980, "type": { "id": 2, "name": "DVD Order", "type": "dvd" }, "number": 1 }
+    ],
+    "translations": {
+      "nameTranslations": [
+        { "name": "Severance", "language": "eng" },
+        { "name": "Separación", "language": "spa" }
+      ],
+      "overviewTranslations": [
+        { "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.", "language": "eng" }
+      ]
+    }
+  }
+}

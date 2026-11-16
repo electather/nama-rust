@@ -2,17 +2,17 @@ syntax = "proto3";
 
 package nama.v1;
 
-// Fixing Matches by hand: finding titles in the metadata source, and Matching items to them.
+// Fixing Matches by hand: finding titles in the title sources, and Matching items to them.
 //
 // A Match set or cleared here is pinned to what the item's file names: the title and year (and
 // ID hint) of a Movie, or of the Show an Episode is in. Automatic Matching follows the pin instead
 // of searching, so it holds when the file changes, or is renamed to a name that still says the same
 // title, year and ID hint, and new Episodes of a pinned Show Match the pinned Show.
 service MatchService {
-  // Searches the enabled metadata Provider for titles, best fit first. Fails with
+  // Searches the enabled title sources for titles, best fit first. Fails with
   // `invalid_argument` if the kind is unspecified or the title blank, and with `unavailable` if
-  // no metadata Provider is enabled or it failed.
-  rpc SearchMetadata(SearchMetadataRequest) returns (SearchMetadataResponse) {
+  // no title source is enabled or one failed.
+  rpc SearchTitles(SearchTitlesRequest) returns (SearchTitlesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Matches an item to a title and pins the Match. For a Movie, the title is a Movie, and every
@@ -20,7 +20,7 @@ service MatchService {
   // Show, and every Episode in the Library named as being in the same Show is Matched again
   // through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Fails with
   // `not_found` if there is no such item, with `invalid_argument` if the id is missing or names
-  // no title, and with `unavailable` if the metadata Provider can't answer, in which case nothing
+  // no title, and with `unavailable` if no title source can answer, in which case nothing
   // changes.
   rpc SetMatch(SetMatchRequest) returns (SetMatchResponse) {
     option idempotency_level = IDEMPOTENT;
@@ -32,7 +32,7 @@ service MatchService {
     option idempotency_level = IDEMPOTENT;
   }
   // Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
-  // those it hasn't Matched yet, such as when no metadata Provider was enabled. Items pinned
+  // those it hasn't Matched yet, such as when no title source was enabled. Items pinned
   // Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
   // Also lists the Library's files whose names didn't parse, which an Admin fixes by renaming.
   // Fails with `not_found` if there is no such Library.
@@ -48,31 +48,30 @@ enum TitleKind {
   TITLE_KIND_SHOW = 2;
 }
 
-// An id of a title in a metadata source. Movies and Shows have separate id spaces.
+// An id of a title in a title source: a namespace and a value, such as `tmdb` and `603`.
+// Movies and Shows have separate id spaces.
 message ExternalId {
-  oneof id {
-    // A TMDB id.
-    int64 tmdb = 1;
-    // An IMDb id, such as `tt0078748`.
-    string imdb = 2;
-    // A TVDB id.
-    int64 tvdb = 3;
-  }
+  reserved 1, 2, 3;
+  reserved "tmdb", "imdb", "tvdb";
+  // Who defines the value: lowercase ASCII letters and digits, such as `tmdb`, `imdb` or `tvdb`.
+  string namespace = 4;
+  // The id there. Never empty; the Server passes it on without reading it.
+  string value = 5;
 }
 
 // A title a search found.
 message TitleCandidate {
   // The id to pass to `SetMatch`.
   ExternalId id = 1;
-  // The title, in the metadata Provider's language.
+  // The title, in its title source's language.
   string title = 2;
-  // The title in its original language, if the metadata source has it.
+  // The title in its original language, if the title source has it.
   optional string original_title = 3;
   // The year a Movie was released or a Show first aired, if known.
   optional int32 year = 4;
 }
 
-message SearchMetadataRequest {
+message SearchTitlesRequest {
   // Must not be `TITLE_KIND_UNSPECIFIED`.
   TitleKind kind = 1;
   // Must not be blank.
@@ -81,14 +80,14 @@ message SearchMetadataRequest {
   optional int32 year = 3;
 }
 
-message SearchMetadataResponse {
+message SearchTitlesResponse {
   repeated TitleCandidate candidates = 1;
 }
 
 message SetMatchRequest {
   // The item to Match.
   int64 item_id = 1;
-  // The Movie, or for an Episode the Show, to Match it to, as `SearchMetadata` gave it.
+  // The Movie, or for an Episode the Show, to Match it to, as `SearchTitles` gave it.
   ExternalId title_id = 2;
 }
 
@@ -123,7 +122,7 @@ message ListUnmatchedItemsResponse {
 }
 
 // An item that needs a Match, and what its file's name was parsed as. `kind`, `title` and `year`
-// are what to pass to `SearchMetadata` to find its title.
+// are what to pass to `SearchTitles` to find its title.
 message UnmatchedItem {
   // The item to pass to `SetMatch`.
   int64 item_id = 1;
@@ -155,6 +154,6 @@ enum UnmatchedReason {
   UNMATCHED_REASON_AMBIGUOUS = 1;
   // No title the search found fits well enough. A rename or an ID Hint may fix it.
   UNMATCHED_REASON_NO_TITLE_FITS = 2;
-  // The item's ID Hint names no title the metadata source has.
+  // The item's ID Hint names no title the title source has.
   UNMATCHED_REASON_UNKNOWN_ID_HINT = 3;
 }

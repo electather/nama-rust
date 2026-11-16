@@ -6,7 +6,7 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_plugin_api::{
     PluginId,
     fulfiller::{Movies, Shows},
-    metadata::{Candidate, ExternalId},
+    metadata::ExternalId,
 };
 use nama_proto::nama::v1::{
     self as proto, ApproveFollowedShowRequest, ApproveFollowedShowResponse, ApproveRequestRequest,
@@ -24,15 +24,16 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    artwork::Artwork,
-    contents::Metadata,
-    custom_images::{Role, Slot},
-    qualities,
-    requests::{self, Asked, Found, FoundShow, Hit, Requests},
+    library::{Artwork, Candidate, ImageRef, Metadata, Role, Slot},
+    requests::{
+        self, Asked, Found, FoundShow, Hit, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
+        QualityRefused, Requests,
+    },
 };
 
 use super::{
-    ImageSources, Refused, ShownImages, caller, database_failed, refuse, title_kind_from_proto,
+    ImageSources, Refused, ShownImages, caller, database_failed, external_id_to_proto, refuse,
+    required_id, title_kind_from_proto,
 };
 
 /// `nama.v1.RequestService`: Users asking for Movies and Seasons of Shows. Asking needs
@@ -59,9 +60,14 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, CreateRequestRequest>,
     ) -> ServiceResult<CreateRequestResponse> {
         let asker = &caller(&ctx)?.user;
+        let request = request.to_owned_message();
         let request = self
             .requests
-            .create(asker, request.movie_tmdb_id, request.quality)
+            .create(
+                asker,
+                &required_id(request.movie_id.into_option(), "movie_id", "Movie")?,
+                request.quality,
+            )
             .await?;
         Response::ok(CreateRequestResponse {
             request: request.into(),
@@ -75,6 +81,7 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, CreateSeasonRequestsRequest>,
     ) -> ServiceResult<CreateSeasonRequestsResponse> {
         let asker = &caller(&ctx)?.user;
+        let request = request.to_owned_message();
         let seasons: BTreeSet<u32> = request.season_numbers.iter().copied().collect();
         if seasons.is_empty() {
             return Err(refuse(
@@ -86,7 +93,12 @@ impl RequestService for RequestServiceHandler {
         }
         let requests = self
             .requests
-            .create_seasons(asker, request.show_tmdb_id, &seasons, request.quality)
+            .create_seasons(
+                asker,
+                &required_id(request.show_id.into_option(), "show_id", "Show")?,
+                &seasons,
+                request.quality,
+            )
             .await?;
         Response::ok(CreateSeasonRequestsResponse {
             requests,
@@ -232,7 +244,20 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, LookUpMovieRequest>,
     ) -> ServiceResult<LookUpMovieResponse> {
         let viewer = &caller(&ctx)?.user;
-        let found = self.requests.look_up(viewer, request.movie_tmdb_id).await?;
+        let id = required_id(
+            request.to_owned_message().movie_id.into_option(),
+            "movie_id",
+            "Movie",
+        )?;
+        let not_found = || title_not_found(&id, "movie_id", "Movie");
+        let found = self.requests.look_up(viewer, &id).await;
+        let found = found.map_err(|err| {
+            if matches!(err, requests::Error::NoSuchMovie(_)) {
+                not_found()
+            } else {
+                err.into()
+            }
+        })?;
         let images = self.images.shown().await?;
         Response::ok(LookUpMovieResponse {
             movie: self.looked_up_to_proto(found, &images).into(),
@@ -263,10 +288,20 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, LookUpShowRequest>,
     ) -> ServiceResult<LookUpShowResponse> {
         let viewer = &caller(&ctx)?.user;
-        let found = self
-            .requests
-            .look_up_show(viewer, request.show_tmdb_id)
-            .await?;
+        let id = required_id(
+            request.to_owned_message().show_id.into_option(),
+            "show_id",
+            "Show",
+        )?;
+        let not_found = || title_not_found(&id, "show_id", "Show");
+        let found = self.requests.look_up_show(viewer, &id).await;
+        let found = found.map_err(|err| {
+            if matches!(err, requests::Error::NoSuchShow(_)) {
+                not_found()
+            } else {
+                err.into()
+            }
+        })?;
         let images = self.images.shown().await?;
         Response::ok(LookUpShowResponse {
             show: self.looked_up_show_to_proto(found, &images).into(),
@@ -343,9 +378,14 @@ impl RequestService for RequestServiceHandler {
         request: ServiceRequest<'_, CreateFollowedShowRequest>,
     ) -> ServiceResult<CreateFollowedShowResponse> {
         let asker = &caller(&ctx)?.user;
+        let request = request.to_owned_message();
         let (followed_show, requests) = self
             .requests
-            .follow(asker, request.show_tmdb_id, request.quality)
+            .follow(
+                asker,
+                &required_id(request.show_id.into_option(), "show_id", "Show")?,
+                request.quality,
+            )
             .await?;
         Response::ok(CreateFollowedShowResponse {
             followed_show: followed_show.into(),
@@ -421,17 +461,16 @@ impl RequestService for RequestServiceHandler {
 }
 
 impl RequestServiceHandler {
-    /// The URL and thumbhash of the image a title shows in `slot`: its Custom Image in `images`, or
-    /// else the one at `path` from `plugin`'s Provider, offered to clients.
+    /// The URL and thumbhash of an image a title shows: `custom`, its Custom Image's URL, or else
+    /// the one at `path` from `plugin`'s Provider, offered to clients.
     fn image(
         &self,
         images: &ShownImages,
-        slot: &Slot,
+        custom: Option<String>,
         plugin: &PluginId,
         path: Option<String>,
     ) -> (Option<String>, Option<Vec<u8>>) {
-        let url =
-            (images.custom.of(slot)).or_else(|| path.map(|path| self.artwork.offer(plugin, &path)));
+        let url = custom.or_else(|| path.map(|path| self.artwork.offer(plugin, &path)));
         let thumbhash = images.thumbhash(url.as_deref());
         (url, thumbhash)
     }
@@ -439,7 +478,7 @@ impl RequestServiceHandler {
     /// A Movie a search found, as clients see it, with its poster offered to them.
     fn searched_to_proto(&self, found: Found<Candidate>, images: &ShownImages) -> proto::MovieHit {
         let Found {
-            tmdb_id,
+            id,
             plugin,
             movie,
             library,
@@ -447,12 +486,12 @@ impl RequestServiceHandler {
         } = found;
         let (poster_url, poster_thumbhash) = self.image(
             images,
-            &movie_slot(tmdb_id, Role::Poster),
+            (images.custom).of_title(&id, &movie.ids, |id| movie_slot(id, Role::Poster)),
             &plugin,
             movie.poster,
         );
         proto::MovieHit {
-            tmdb_id,
+            id: external_id_to_proto(&id).into(),
             title: movie.title,
             year: movie.year,
             poster_url,
@@ -470,17 +509,23 @@ impl RequestServiceHandler {
         images: &ShownImages,
     ) -> proto::FoundMovie {
         let Found {
-            tmdb_id,
+            id,
             plugin,
             movie,
             library,
             request,
         } = found;
-        let image = |role, path| self.image(images, &movie_slot(tmdb_id, role), &plugin, path);
+        let image = |role, image: Option<ImageRef>| {
+            let custom = (images.custom).of_title(&id, &movie.ids, |id| movie_slot(id, role));
+            match image {
+                Some(ImageRef { plugin: by, path }) => self.image(images, custom, &by, Some(path)),
+                None => self.image(images, custom, &plugin, None),
+            }
+        };
         let (poster_url, poster_thumbhash) = image(Role::Poster, movie.poster);
         let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, movie.backdrop);
         proto::FoundMovie {
-            tmdb_id,
+            id: external_id_to_proto(&id).into(),
             title: movie.title,
             year: movie.release_date.as_deref().and_then(year_of),
             overview: movie.overview,
@@ -498,18 +543,18 @@ impl RequestServiceHandler {
     /// A Show a search found, as clients see it, with its poster offered to them.
     fn searched_show_to_proto(&self, hit: Hit, images: &ShownImages) -> proto::ShowHit {
         let Hit {
-            tmdb_id,
+            id,
             plugin,
             candidate: show,
         } = hit;
         let (poster_url, poster_thumbhash) = self.image(
             images,
-            &show_slot(tmdb_id, Role::Poster),
+            (images.custom).of_title(&id, &show.ids, |id| show_slot(id, Role::Poster)),
             &plugin,
             show.poster,
         );
         proto::ShowHit {
-            tmdb_id,
+            id: external_id_to_proto(&id).into(),
             title: show.title,
             year: show.year,
             poster_url,
@@ -521,18 +566,21 @@ impl RequestServiceHandler {
     /// A Show looked up, as clients see it, with its images offered to them.
     fn looked_up_show_to_proto(&self, found: FoundShow, images: &ShownImages) -> proto::FoundShow {
         let FoundShow {
-            tmdb_id,
+            id,
             plugin,
             show,
             seasons,
             followed_show,
             quality,
         } = found;
-        let image = |role, path| self.image(images, &show_slot(tmdb_id, role), &plugin, path);
+        let image = |role, path| {
+            let custom = (images.custom).of_title(&id, &show.ids, |id| show_slot(id, role));
+            self.image(images, custom, &plugin, path)
+        };
         let (poster_url, poster_thumbhash) = image(Role::Poster, show.poster);
         let (backdrop_url, backdrop_thumbhash) = image(Role::Backdrop, show.backdrop);
         proto::FoundShow {
-            tmdb_id,
+            id: external_id_to_proto(&id).into(),
             title: show.title,
             year: show.first_air_date.as_deref().and_then(year_of),
             overview: show.overview,
@@ -548,14 +596,14 @@ impl RequestServiceHandler {
     }
 }
 
-/// The slot of the Movie whose TMDB id is `tmdb_id`, as browsing identifies it.
-fn movie_slot(tmdb_id: i64, role: Role) -> Slot {
-    Slot::movie(&ExternalId::Tmdb(tmdb_id), role)
+/// The slot of the Movie `id`, as browsing identifies it.
+fn movie_slot(id: &ExternalId, role: Role) -> Slot {
+    Slot::movie(id, role)
 }
 
-/// The slot of the Show whose TMDB id is `tmdb_id`, as browsing identifies it.
-fn show_slot(tmdb_id: i64, role: Role) -> Slot {
-    Slot::show(&ExternalId::Tmdb(tmdb_id), role)
+/// The slot of the Show `id`, as browsing identifies it.
+fn show_slot(id: &ExternalId, role: Role) -> Slot {
+    Slot::show(id, role)
 }
 
 /// `title`, unless it is blank, which a search for titles refuses.
@@ -577,28 +625,41 @@ fn year_of(date: &str) -> Option<i32> {
 }
 
 /// The refusal of a Quality a User named, in the field they named it in.
-impl From<qualities::Refused> for ConnectError {
-    fn from(err: qualities::Refused) -> Self {
+impl From<QualityRefused> for ConnectError {
+    fn from(err: QualityRefused) -> Self {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            qualities::Refused::NotAllowed => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field(qualities::ASKED)
+            QualityRefused::NotAllowed => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field(QUALITY_ASKED_FIELD)
             }
-            qualities::Refused::NotOffered { id, field } => {
+            QualityRefused::NotOffered { id, field } => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
                     .field(field)
                     .param("qualityId", &id)
             }
-            qualities::Refused::NotTheShows { named, shows } => {
-                show_has_quality(message, qualities::ASKED, named, &shows)
+            QualityRefused::NotTheShows { named, shows } => {
+                show_has_quality(message, QUALITY_ASKED_FIELD, named, &shows)
             }
-            qualities::Refused::ShowQualityFixed { named, shows } => {
-                show_has_quality(message, qualities::CHANGED, named, &shows)
+            QualityRefused::ShowQualityFixed { named, shows } => {
+                show_has_quality(message, QUALITY_CHANGED_FIELD, named, &shows)
             }
         };
         refused.into()
     }
+}
+
+/// The refusal of a look-up of the `what` `id`, named in `field`, which no title source has or
+/// can look up. Unlike the create calls' `REFUSAL_REASON_UNKNOWN_TITLE`, a look-up names no title
+/// to act on, so it is `not_found`.
+fn title_not_found(id: &ExternalId, field: &str, what: &str) -> ConnectError {
+    refuse(
+        RefusalReason::REFUSAL_REASON_TITLE_NOT_FOUND,
+        format!("no title source has a {what} with the id {id}"),
+    )
+    .field(field)
+    .param("titleId", id)
+    .into()
 }
 
 /// The refusal of the Quality `named` in `field`, as it isn't the Show's, `shows`.
@@ -622,10 +683,9 @@ impl From<requests::Error> for ConnectError {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            // Every RPC naming a Request or Followed Show names it in `id`, only `CreateRequest`
-            // and `LookUpMovie` name a Movie, both in `movie_tmdb_id`, and only
-            // `CreateSeasonRequests`, `CreateFollowedShow` and `LookUpShow` a Show, all in
-            // `show_tmdb_id`.
+            // Every RPC naming a Request or Followed Show names it in `id`. The create RPCs name
+            // a Movie in `movie_id` and a Show in `show_id`, which the refusals below name;
+            // `LookUpMovie` and `LookUpShow` answer a title no source has themselves.
             requests::Error::NoSuch(Asked::Request, id) => {
                 refuse(R::REFUSAL_REASON_REQUEST_NOT_FOUND, message)
                     .field("id")
@@ -660,27 +720,27 @@ impl From<requests::Error> for ConnectError {
                     .param("followedShowId", &id)
             }
             requests::Error::InLibrary(id) => refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
-                .field("movie_tmdb_id")
-                .param("tmdbId", &id),
+                .field("movie_id")
+                .param("titleId", &id),
             requests::Error::SeasonInLibrary { show, season } => {
                 refuse(R::REFUSAL_REASON_ALREADY_IN_LIBRARY, message)
                     .field("season_numbers")
-                    .param("tmdbId", &show)
+                    .param("titleId", &show)
                     .param("seasonNumber", &season)
             }
             requests::Error::NoSuchMovie(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
-                .field("movie_tmdb_id")
-                .param("titleId", &ExternalId::Tmdb(id)),
+                .field("movie_id")
+                .param("titleId", &id),
             requests::Error::NoSuchShow(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
-                .field("show_tmdb_id")
-                .param("titleId", &ExternalId::Tmdb(id)),
+                .field("show_id")
+                .param("titleId", &id),
             requests::Error::NoSuchSeason { show, season } => {
                 refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
                     .field("season_numbers")
-                    .param("titleId", &ExternalId::Tmdb(show))
+                    .param("titleId", &show)
                     .param("seasonNumber", &season)
             }
-            requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
+            requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_TITLE_SOURCE, message),
             requests::Error::Quality(refused) => return refused.into(),
             requests::Error::PageTokenInvalid => {
                 refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page_token")

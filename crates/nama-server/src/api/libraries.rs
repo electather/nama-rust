@@ -4,22 +4,25 @@ use std::{collections::HashMap, path::Path};
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use nama_plugin_api::{PluginId, PointKey, recogniser::Recogniser};
 use nama_proto::nama::v1::{
     self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
     DeleteLibraryResponse, DeleteMediaRequest, DeleteMediaResponse, EpisodeTakenAlong,
-    FileNotDeleted, GetLibraryRequest, GetLibraryResponse, LibraryKind, LibraryService,
-    ListLibrariesRequest, ListLibrariesResponse, MediaFile, MediaToDelete, Permission,
-    PreviewDeleteMediaRequest, PreviewDeleteMediaResponse, RefusalReason, Request, RequestToCancel,
-    ScanLibraryRequest, ScanLibraryResponse, UpdateLibraryRequest, UpdateLibraryResponse,
-    media_to_delete, request::MovieOrSeason,
+    FileNotDeleted, GetLibraryRequest, GetLibraryResponse, LibraryService, ListLibrariesRequest,
+    ListLibrariesResponse, ListTitleSourcesRequest, ListTitleSourcesResponse, MediaFile,
+    MediaToDelete, Permission, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse,
+    RefusalReason, Request, RequestToCancel, ScanLibraryRequest, ScanLibraryResponse, TitleSource,
+    UpdateLibraryRequest, UpdateLibraryResponse, media_to_delete, request::MovieOrSeason,
 };
 
 use crate::{
-    artwork,
     browse::{Browse, Target, ToDelete},
-    contents::{Contents, Episode, NewestBackdrop},
-    custom_images::{Role, Slot},
-    libraries::{self, FolderProblem, Kind, Libraries, Library},
+    library::{
+        Contents, FolderProblem, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
+        NewestBackdrop, Order, Role, Slot, TitleSources, artwork_url,
+    },
+    plugin_settings::PluginSettings,
+    plugins::ExtensionPoints,
     scanner::{self, Deleted, Scanner},
 };
 
@@ -41,6 +44,12 @@ pub(super) struct LibraryServiceHandler {
     /// Finds each Library's newest title's Backdrop.
     pub(super) contents: Contents,
     pub(super) images: ImageSources,
+    /// Lists the title sources a Library may name.
+    pub(super) title_sources: TitleSources,
+    /// Names the Plugins serving them.
+    pub(super) plugins: ExtensionPoints,
+    /// Says which Plugins a Library may list as Recognisers.
+    pub(super) plugin_settings: PluginSettings,
 }
 
 /// What each Library is shown by: see [`Backdrops::of`].
@@ -58,6 +67,48 @@ impl LibraryServiceHandler {
             images: self.images.shown().await?,
         })
     }
+
+    /// Refuses a non-empty `order` that could never Match, as no source in it searches; an empty
+    /// one keeps the Library's order, or TMDB alone.
+    async fn check_searches(&self, order: &[String]) -> Result<(), ConnectError> {
+        if order.is_empty() || self.title_sources.searches_any(order).await {
+            return Ok(());
+        }
+        let message =
+            "No source in this order searches for titles; add one that does, such as TMDB";
+        Err(
+            refuse(RefusalReason::REFUSAL_REASON_TITLE_SOURCES_INVALID, message)
+                .field("title_sources")
+                .into(),
+        )
+    }
+
+    /// Refuses Recogniser `ids`, sent in the request field `field`, that name an id twice or of
+    /// no Plugin the Server has whose Manifest names the Recogniser point.
+    async fn check_recognisers(&self, ids: &[String], field: &str) -> Result<(), ConnectError> {
+        for (seen, id) in (1..).zip(ids) {
+            let repeated = ids.iter().take(seen).filter(|other| *other == id).count() > 1;
+            // A stored order is comma-separated.
+            if repeated || id.contains(',') || !self.is_recogniser(id).await? {
+                let message = format!("{id:?} is no Recogniser's Plugin, or is named twice");
+                let refused = refuse(RefusalReason::REFUSAL_REASON_RECOGNISERS_INVALID, message);
+                return Err(refused.field(field).param("pluginId", id).into());
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether the Plugin `id`, enabled or not, says in its Manifest it serves the Recogniser
+    /// point.
+    async fn is_recogniser(&self, id: &str) -> Result<bool, ConnectError> {
+        let plugin = PluginId::from(id.to_owned());
+        let stored = (self.plugin_settings.get(&plugin).await).map_err(database_failed)?;
+        let point = PointKey::provide::<dyn Recogniser>();
+        Ok(stored.is_some_and(|stored| {
+            (stored.plugin.manifest)
+                .is_ok_and(|manifest| manifest.extension_points.contains(&point))
+        }))
+    }
 }
 
 impl Backdrops {
@@ -68,12 +119,15 @@ impl Backdrops {
             return (Some(url), true);
         }
         let newest = self.newest.get(&library.id).map(|newest| {
-            let title = match library.kind {
-                Kind::Movies => Slot::movie(&newest.title, Role::Backdrop),
-                Kind::Shows => Slot::show(&newest.title, Role::Backdrop),
+            let slot = |id: &_| match library.kind {
+                LibraryKind::Movies => Slot::movie(id, Role::Backdrop),
+                LibraryKind::Shows => Slot::show(id, Role::Backdrop),
             };
-            (self.images.custom.of(&title))
-                .unwrap_or_else(|| artwork::url(&newest.plugin, &newest.path))
+            (self
+                .images
+                .custom
+                .of_title(&newest.title, &newest.ids, slot))
+            .unwrap_or_else(|| artwork_url(&newest.plugin, &newest.path))
         });
         (newest, false)
     }
@@ -92,9 +146,14 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<CreateLibraryResponse> {
         let request = request.to_owned_message();
         let kind = kind_from_proto(request.kind)?;
-        let library = self
-            .scanner
-            .create_library(request.name, kind, request.folders)
+        self.check_searches(&request.title_sources).await?;
+        (self.check_recognisers(&request.recogniser_ids, "recogniser_ids")).await?;
+        let order = Order {
+            title_sources: request.title_sources,
+            recognisers: Some(request.recogniser_ids),
+        };
+        let library = (self.scanner)
+            .create_library(request.name, kind, request.folders, order)
             .await?;
         let backdrops = self.backdrops().await?;
         Response::ok(CreateLibraryResponse {
@@ -151,9 +210,20 @@ impl LibraryService for LibraryServiceHandler {
         request: ServiceRequest<'_, UpdateLibraryRequest>,
     ) -> ServiceResult<UpdateLibraryResponse> {
         let request = request.to_owned_message();
-        let library = self
-            .scanner
-            .update_library(request.id, request.name, request.folders)
+        self.check_searches(&request.title_sources).await?;
+        let recognisers = request
+            .recogniser_order
+            .into_option()
+            .map(|order| order.ids);
+        if let Some(ids) = &recognisers {
+            self.check_recognisers(ids, "recogniser_order").await?;
+        }
+        let order = Order {
+            title_sources: request.title_sources,
+            recognisers,
+        };
+        let library = (self.scanner)
+            .update_library(request.id, request.name, request.folders, order)
             .await?;
         let backdrops = self.backdrops().await?;
         Response::ok(UpdateLibraryResponse {
@@ -218,6 +288,26 @@ impl LibraryService for LibraryServiceHandler {
         let doomed = self.browse.doomed(target).await.map_err(refused(fields))?;
         let deleted = self.scanner.delete_media(doomed, by).await;
         Response::ok(deleted_to_proto(deleted.map_err(deleting_failed)?))
+    }
+
+    async fn list_title_sources(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, ListTitleSourcesRequest>,
+    ) -> ServiceResult<ListTitleSourcesResponse> {
+        let sources = self.title_sources.sources().await;
+        Response::ok(ListTitleSourcesResponse {
+            title_sources: (sources.into_iter())
+                .map(|source| TitleSource {
+                    plugin_name: self.plugins.name(&source.plugin),
+                    plugin_id: source.plugin.to_string(),
+                    searches: source.searches(),
+                    namespace: source.namespace,
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        })
     }
 }
 
@@ -300,7 +390,7 @@ fn to_delete_from_proto(target: Option<MediaToDelete>) -> Result<(ToDelete, Fiel
     })
 }
 
-fn taken_along_to_proto(episode: Episode) -> EpisodeTakenAlong {
+fn taken_along_to_proto(episode: LibraryEpisode) -> EpisodeTakenAlong {
     EpisodeTakenAlong {
         season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),
@@ -340,7 +430,7 @@ fn deleted_to_proto(deleted: Deleted) -> DeleteMediaResponse {
     }
 }
 
-fn file_to_proto(file: &scanner::deleting::File) -> MediaFile {
+fn file_to_proto(file: &scanner::DoomedFile) -> MediaFile {
     MediaFile {
         file_name: file_name(&file.path),
         size: file.size,
@@ -370,13 +460,16 @@ fn deleting_failed(err: scanner::Error) -> ConnectError {
     ConnectError::internal("deleting failed on the Server")
 }
 
-fn kind_from_proto(kind: EnumValue<LibraryKind>) -> Result<Kind, ConnectError> {
+fn kind_from_proto(kind: EnumValue<proto::LibraryKind>) -> Result<LibraryKind, ConnectError> {
     match kind {
-        EnumValue::Known(LibraryKind::LIBRARY_KIND_MOVIES) => Ok(Kind::Movies),
-        EnumValue::Known(LibraryKind::LIBRARY_KIND_SHOWS) => Ok(Kind::Shows),
-        EnumValue::Known(LibraryKind::LIBRARY_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
-            unknown_enum_value("kind", "a Library's kind must be movies or shows"),
-        ),
+        EnumValue::Known(proto::LibraryKind::LIBRARY_KIND_MOVIES) => Ok(LibraryKind::Movies),
+        EnumValue::Known(proto::LibraryKind::LIBRARY_KIND_SHOWS) => Ok(LibraryKind::Shows),
+        EnumValue::Known(proto::LibraryKind::LIBRARY_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => {
+            Err(unknown_enum_value(
+                "kind",
+                "a Library's kind must be movies or shows",
+            ))
+        }
     }
 }
 
@@ -386,32 +479,34 @@ fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
         id: library.id,
         name: library.name,
         kind: match library.kind {
-            Kind::Movies => LibraryKind::LIBRARY_KIND_MOVIES,
-            Kind::Shows => LibraryKind::LIBRARY_KIND_SHOWS,
+            LibraryKind::Movies => proto::LibraryKind::LIBRARY_KIND_MOVIES,
+            LibraryKind::Shows => proto::LibraryKind::LIBRARY_KIND_SHOWS,
         }
         .into(),
         folders: library.folders,
         backdrop_thumbhash: backdrops.images.thumbhash(backdrop_url.as_deref()),
         backdrop_url,
         custom_backdrop,
+        title_sources: library.title_sources,
+        recogniser_ids: library.recognisers,
         ..Default::default()
     }
 }
 
 /// The Connect error a client gets for a Library request that failed. Database failures are
 /// logged, not sent: they say nothing the client can act on.
-impl From<libraries::Error> for ConnectError {
-    fn from(err: libraries::Error) -> Self {
+impl From<LibraryError> for ConnectError {
+    fn from(err: LibraryError) -> Self {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            libraries::Error::NameBlank => {
+            LibraryError::NameBlank => {
                 refuse(R::REFUSAL_REASON_FIELD_REQUIRED, message).field("name")
             }
-            libraries::Error::FoldersEmpty => {
+            LibraryError::FoldersEmpty => {
                 refuse(R::REFUSAL_REASON_FIELD_REQUIRED, message).field("folders")
             }
-            libraries::Error::Folder {
+            LibraryError::Folder {
                 index,
                 folder,
                 problem,
@@ -432,16 +527,24 @@ impl From<libraries::Error> for ConnectError {
                     refused
                 }
             }
-            libraries::Error::NotFound(id) => {
+            LibraryError::NotFound(id) => {
                 refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message).param("libraryId", &id)
             }
-            libraries::Error::FolderTaken { folder, library } => {
+            LibraryError::FolderTaken { folder, library } => {
                 refuse(R::REFUSAL_REASON_FOLDER_TAKEN, message)
                     .field("folders")
                     .param("folder", &folder)
                     .param("library", &library)
             }
-            libraries::Error::Database(err) => return database_failed(err),
+            LibraryError::TitleSources { namespace } => {
+                let refused =
+                    refuse(R::REFUSAL_REASON_TITLE_SOURCES_INVALID, message).field("title_sources");
+                match namespace {
+                    Some(namespace) => refused.param("namespace", &namespace),
+                    None => refused,
+                }
+            }
+            LibraryError::Database(err) => return database_failed(err),
         };
         refused.into()
     }

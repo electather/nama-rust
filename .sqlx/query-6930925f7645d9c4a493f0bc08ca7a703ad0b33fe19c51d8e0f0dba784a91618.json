@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT requests.id AS \"id!\" FROM requests\n                 JOIN request_title_ids AS title ON title.request_id = requests.id\n                 JOIN json_each(?) AS wanted\n                     ON title.namespace = wanted.key AND title.value = wanted.value\n                 WHERE requests.season IS ? AND state NOT IN ('declined', 'available')",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requests",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6930925f7645d9c4a493f0bc08ca7a703ad0b33fe19c51d8e0f0dba784a91618"
+}

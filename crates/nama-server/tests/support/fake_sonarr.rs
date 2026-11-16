@@ -34,6 +34,9 @@ const SONARR: Servarr = Servarr {
     queue_include: "includeSeries",
 };
 
+/// Severance's TVDB id, as the fake TVDB gives it.
+const SEVERANCE_TVDB: i64 = 371_980;
+
 /// How long the refresh Sonarr starts as it adds a Show takes, as one fetching it from TVDB does.
 const REFRESH: Duration = Duration::from_millis(300);
 
@@ -50,8 +53,12 @@ struct Fake {
     shows: Mutex<Vec<Value>>,
     /// Whether the next list of its Shows by TVDB id answers as if it didn't have them.
     stale_find: AtomicBool,
-    /// Whether the refreshes it starts as it adds a Show never finish.
+    /// Whether the refreshes it starts as it adds a Show wait for [`FakeSonarr::release_refreshes`].
     hold_refreshes: AtomicBool,
+    /// The refreshes held so far, as the index of their command, their Show's id and its Seasons.
+    held: Mutex<Vec<(usize, i64, Value)>>,
+    /// Each call to its own routes, as `GET /api/v3/series`, in order.
+    calls: Mutex<Vec<String>>,
     /// The commands it queued, as `GET /api/v3/command` lists them.
     commands: Mutex<Vec<Value>>,
     /// The ids of the Shows whose refresh after their add finished, and so have Episodes.
@@ -83,9 +90,25 @@ impl FakeSonarr {
         self.state.stale_find.store(true, Ordering::Relaxed);
     }
 
-    /// Makes the refreshes it starts as it adds a Show from now on never finish.
+    /// Makes the refreshes it starts as it adds a Show from now on wait for
+    /// [`Self::release_refreshes`].
     pub(crate) fn hold_refreshes(&self) {
         self.state.hold_refreshes.store(true, Ordering::Relaxed);
+    }
+
+    /// Finishes each held refresh at once, and stops holding them.
+    pub(crate) fn release_refreshes(&self) {
+        self.state.hold_refreshes.store(false, Ordering::Relaxed);
+        let held = std::mem::take(&mut *lock(&self.state.held));
+        for (command, id, seasons) in held {
+            finish_refresh(&self.state, command, id, seasons);
+        }
+    }
+
+    /// Each call to its own routes so far, as `GET /api/v3/series`, in order. The routes it
+    /// shares with the fake Radarr, such as the queue, aren't in it.
+    pub(crate) fn calls(&self) -> Vec<String> {
+        lock(&self.state.calls).clone()
     }
 
     /// Returns once every refresh it started has finished, as Seasons' monitoring settles.
@@ -153,11 +176,11 @@ impl DerefMut for FakeSonarr {
 }
 
 async fn answer(State(fake): State<Arc<Fake>>, method: Method, uri: Uri, body: Bytes) -> Response {
-    let query: HashMap<String, String> = Query::try_from_uri(&uri)
-        .map(|Query(query)| query)
-        .unwrap_or_default();
+    let query: HashMap<String, String> =
+        Query::try_from_uri(&uri).map_or_default(|Query(query)| query);
     let body: Value = serde_json::from_slice(&body).unwrap_or_default();
     let param = |key: &str| query.get(key).map_or("", String::as_str);
+    lock(&fake.calls).push(format!("{method} {}", uri.path()));
     match (method, uri.path()) {
         (Method::GET, "/api/v3/series") => find(&fake, param("tvdbId")),
         (Method::GET, "/api/v3/series/lookup") => look_up(param("term")),
@@ -187,13 +210,37 @@ fn find(fake: &Fake, tvdb_id: &str) -> Response {
 }
 
 /// As Sonarr answers a lookup by `term` such as `tvdb:334824`: the Show as TVDB knows it, or `[]`
-/// for one it can't find. It finds only Dark (`series-lookup.json`).
+/// for one it can't find. It finds only Dark (`series-lookup.json`) and Severance, which it makes
+/// from Dark's.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
 fn look_up(term: &str) -> Response {
     if term == format!("tvdb:{DARK_TVDB}") {
-        SONARR.fixture(StatusCode::OK, "series-lookup.json")
-    } else {
-        json(StatusCode::OK, &json!([]))
+        return SONARR.fixture(StatusCode::OK, "series-lookup.json");
     }
+    if term != format!("tvdb:{SEVERANCE_TVDB}") {
+        return json(StatusCode::OK, &json!([]));
+    }
+    let mut shows: Value =
+        serde_json::from_slice(&SONARR.read_fixture("series-lookup.json")).unwrap();
+    let Some(Value::Object(show)) = shows.get_mut(0) else {
+        return json(StatusCode::OK, &json!([]));
+    };
+    for (field, value) in [
+        ("title", json!("Severance")),
+        ("sortTitle", json!("severance")),
+        ("year", json!(2022)),
+        ("tvdbId", json!(SEVERANCE_TVDB)),
+        ("tmdbId", json!(95_396)),
+        ("imdbId", json!("tt11280740")),
+        ("titleSlug", json!("severance")),
+        ("folder", json!("Severance (2022)")),
+    ] {
+        show.insert(field.to_owned(), value);
+    }
+    json(StatusCode::OK, &shows)
 }
 
 fn add_show(fake: &Arc<Fake>, show: &Value) -> Response {
@@ -233,19 +280,25 @@ fn refresh(fake: &Arc<Fake>, id: i64, seasons: Value) {
         "id": command + 1,
     }));
     if fake.hold_refreshes.load(Ordering::Relaxed) {
+        lock(&fake.held).push((command, id, seasons));
         return;
     }
     let fake = Arc::clone(fake);
     tokio::spawn(async move {
         tokio::time::sleep(REFRESH).await;
-        if let Some(show) = lock(&fake.shows).iter_mut().find(|show| show["id"] == id) {
-            show["seasons"] = seasons;
-        }
-        lock(&fake.refreshed).push(id);
-        if let Some(Value::Object(fields)) = lock(&fake.commands).get_mut(command) {
-            fields.insert("status".to_owned(), json!("completed"));
-        }
+        finish_refresh(&fake, command, id, seasons);
     });
+}
+
+/// Finishes the refresh queued as command `command`, saving the Show `id`'s Seasons as `seasons`.
+fn finish_refresh(fake: &Fake, command: usize, id: i64, seasons: Value) {
+    if let Some(show) = lock(&fake.shows).iter_mut().find(|show| show["id"] == id) {
+        show["seasons"] = seasons;
+    }
+    lock(&fake.refreshed).push(id);
+    if let Some(Value::Object(fields)) = lock(&fake.commands).get_mut(command) {
+        fields.insert("status".to_owned(), json!("completed"));
+    }
 }
 
 /// As Sonarr's series editor does for `monitorNewItems`, the one field the Plugin edits: sets it on

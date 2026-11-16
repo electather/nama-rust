@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/plugin.proto.
  */
 export const file_nama_v1_plugin: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiTwoTTGlzdFBsdWdpbnNSZXNwb25zZRIpCglzdW1tYXJpZXMYAiADKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnlKBAgBEAJSB3BsdWdpbnMiHgoQR2V0UGx1Z2luUmVxdWVzdBIKCgJpZBgBIAEoCSI0ChFHZXRQbHVnaW5SZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiK3AQobVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0EgoKAmlkGAEgASgJEkQKCHNldHRpbmdzGAIgAygLMjIubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASI/ChxVcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlEh8KBnBsdWdpbhgBIAEoCzIPLm5hbWEudjEuUGx1Z2luIiEKE0VuYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkiFgoURW5hYmxlUGx1Z2luUmVzcG9uc2UiswEKGVRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QSCgoCaWQYASABKAkSQgoIc2V0dGluZ3MYAiADKAsyMC5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASKoAQoaVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2USQQoHY2hvaWNlcxgBIAMoCzIwLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVzcG9uc2UuQ2hvaWNlc0VudHJ5GkcKDENob2ljZXNFbnRyeRILCgNrZXkYASABKAkSJgoFdmFsdWUYAiABKAsyFy5uYW1hLnYxLlNldHRpbmdDaG9pY2VzOgI4ASIyCg5TZXR0aW5nQ2hvaWNlcxIgCgdjaG9pY2VzGAEgAygLMg8ubmFtYS52MS5DaG9pY2UiJgoGQ2hvaWNlEg0KBXZhbHVlGAEgASgJEg0KBWxhYmVsGAIgASgJIiIKFERpc2FibGVQbHVnaW5SZXF1ZXN0EgoKAmlkGAEgASgJIhcKFURpc2FibGVQbHVnaW5SZXNwb25zZSJgCgdRdWFsaXR5EgoKAmlkGAEgASgDEhIKCnByb2ZpbGVfaWQYAiABKAkSDAoEbmFtZRgDIAEoCRITCgtkZXNjcmlwdGlvbhgEIAEoCRISCgppc19kZWZhdWx0GAUgASgIIiIKFExpc3RRdWFsaXRpZXNSZXF1ZXN0EgoKAmlkGAEgASgJIjwKFUxpc3RRdWFsaXRpZXNSZXNwb25zZRIjCglxdWFsaXRpZXMYASADKAsyEC5uYW1hLnYxLlF1YWxpdHkiSgoXUmVwbGFjZVF1YWxpdGllc1JlcXVlc3QSCgoCaWQYASABKAkSIwoJcXVhbGl0aWVzGAIgAygLMhAubmFtYS52MS5RdWFsaXR5Ij8KGFJlcGxhY2VRdWFsaXRpZXNSZXNwb25zZRIjCglxdWFsaXRpZXMYASADKAsyEC5uYW1hLnYxLlF1YWxpdHkinwIKDVBsdWdpblN1bW1hcnkSCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIhCgRraW5kGAMgASgOMhMubmFtYS52MS5QbHVnaW5LaW5kEg8KB2VuYWJsZWQYBCABKAgSFgoOcmVmdXNlZF9yZWFzb24YBSABKAkSGAoQc2V0dGluZ3NfbWlzc2luZxgGIAEoCBIMCgRuYW1lGAcgASgJEhMKC2Rlc2NyaXB0aW9uGAggASgJEjEKEGV4dGVuc2lvbl9wb2ludHMYCSADKA4yFy5uYW1hLnYxLkV4dGVuc2lvblBvaW50EhAKCGxvZ29fdXJsGAsgASgJEhMKC2N1c3RvbV9sb2dvGAwgASgISgQIChALUghsb2dvX3N2ZyL/AQoGUGx1Z2luEicKB3N1bW1hcnkYDCABKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnkSIgoIc2V0dGluZ3MYBSADKAsyEC5uYW1hLnYxLlNldHRpbmcSFwoPY2hlY2tzX3NldHRpbmdzGAYgASgISgQIARACSgQIAhADSgQIAxAESgQIBBAFSgQIBxAISgQICBAJSgQICRAKSgQIChALSgQICxAMUgJpZFIHdmVyc2lvblIEa2luZFIHZW5hYmxlZFIOcmVmdXNlZF9yZWFzb25SBG5hbWVSC2Rlc2NyaXB0aW9uUhBleHRlbnNpb25fcG9pbnRzUghsb2dvX3N2ZyLYAQoHU2V0dGluZxILCgNrZXkYASABKAkSDQoFbGFiZWwYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSIgoEa2luZBgEIAEoDjIULm5hbWEudjEuU2V0dGluZ0tpbmQSEAoIcmVxdWlyZWQYBSABKAgSLAoNZGVmYXVsdF92YWx1ZRgGIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlEiQKBXZhbHVlGAcgASgLMhUubmFtYS52MS5TZXR0aW5nVmFsdWUSEgoKc2VjcmV0X3NldBgIIAEoCCJcCgxTZXR0aW5nVmFsdWUSFAoKdGV4dF92YWx1ZRgBIAEoCUgAEhQKCmJvb2xfdmFsdWUYAiABKAhIABIXCg1pbnRlZ2VyX3ZhbHVlGAMgASgDSABCBwoFdmFsdWUqXgoKUGx1Z2luS2luZBIbChdQTFVHSU5fS0lORF9VTlNQRUNJRklFRBAAEhgKFFBMVUdJTl9LSU5EX0JVSUxUX0lOEAESGQoVUExVR0lOX0tJTkRfSU5TVEFMTEVEEAIq0wIKDkV4dGVuc2lvblBvaW50Eh8KG0VYVEVOU0lPTl9QT0lOVF9VTlNQRUNJRklFRBAAEiMKH0VYVEVOU0lPTl9QT0lOVF9NT1ZJRV9GVUxGSUxMRVIQARIiCh5FWFRFTlNJT05fUE9JTlRfU0hPV19GVUxGSUxMRVIQAhIcChhFWFRFTlNJT05fUE9JTlRfTk9USUZJRVIQAxIdChlFWFRFTlNJT05fUE9JTlRfQ09OTkVDVE9SEAQSIQodRVhURU5TSU9OX1BPSU5UX0FVVEhFTlRJQ0FUT1IQBRIlCiFFWFRFTlNJT05fUE9JTlRfTUVUQURBVEFfUFJPVklERVIQBhIjCh9FWFRFTlNJT05fUE9JTlRfRVZFTlRTX09CU0VSVkVSEAcSKwonRVhURU5TSU9OX1BPSU5UX1NFUlZFUl9TVEFSVEVEX09CU0VSVkVSEAgquwEKC1NldHRpbmdLaW5kEhwKGFNFVFRJTkdfS0lORF9VTlNQRUNJRklFRBAAEhUKEVNFVFRJTkdfS0lORF9URVhUEAESFwoTU0VUVElOR19LSU5EX1NFQ1JFVBACEhUKEVNFVFRJTkdfS0lORF9CT09MEAMSGAoUU0VUVElOR19LSU5EX0lOVEVHRVIQBBIXChNTRVRUSU5HX0tJTkRfQ0hPSUNFEAUSFAoQU0VUVElOR19LSU5EX1VSTBAGMswFCg1QbHVnaW5TZXJ2aWNlEk0KC0xpc3RQbHVnaW5zEhsubmFtYS52MS5MaXN0UGx1Z2luc1JlcXVlc3QaHC5uYW1hLnYxLkxpc3RQbHVnaW5zUmVzcG9uc2UiA5ACARJHCglHZXRQbHVnaW4SGS5uYW1hLnYxLkdldFBsdWdpblJlcXVlc3QaGi5uYW1hLnYxLkdldFBsdWdpblJlc3BvbnNlIgOQAgESaAoUVXBkYXRlUGx1Z2luU2V0dGluZ3MSJC5uYW1hLnYxLlVwZGF0ZVBsdWdpblNldHRpbmdzUmVxdWVzdBolLm5hbWEudjEuVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXNwb25zZSIDkAICElAKDEVuYWJsZVBsdWdpbhIcLm5hbWEudjEuRW5hYmxlUGx1Z2luUmVxdWVzdBodLm5hbWEudjEuRW5hYmxlUGx1Z2luUmVzcG9uc2UiA5ACAhJfChJUZXN0UGx1Z2luU2V0dGluZ3MSIi5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QaIy5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlIgASUwoNRGlzYWJsZVBsdWdpbhIdLm5hbWEudjEuRGlzYWJsZVBsdWdpblJlcXVlc3QaHi5uYW1hLnYxLkRpc2FibGVQbHVnaW5SZXNwb25zZSIDkAICElMKDUxpc3RRdWFsaXRpZXMSHS5uYW1hLnYxLkxpc3RRdWFsaXRpZXNSZXF1ZXN0Gh4ubmFtYS52MS5MaXN0UXVhbGl0aWVzUmVzcG9uc2UiA5ACARJcChBSZXBsYWNlUXVhbGl0aWVzEiAubmFtYS52MS5SZXBsYWNlUXVhbGl0aWVzUmVxdWVzdBohLm5hbWEudjEuUmVwbGFjZVF1YWxpdGllc1Jlc3BvbnNlIgOQAgJiBnByb3RvMw");
+  fileDesc("ChRuYW1hL3YxL3BsdWdpbi5wcm90bxIHbmFtYS52MSIUChJMaXN0UGx1Z2luc1JlcXVlc3QiTwoTTGlzdFBsdWdpbnNSZXNwb25zZRIpCglzdW1tYXJpZXMYAiADKAsyFi5uYW1hLnYxLlBsdWdpblN1bW1hcnlKBAgBEAJSB3BsdWdpbnMiHgoQR2V0UGx1Z2luUmVxdWVzdBIKCgJpZBgBIAEoCSI0ChFHZXRQbHVnaW5SZXNwb25zZRIfCgZwbHVnaW4YASABKAsyDy5uYW1hLnYxLlBsdWdpbiK3AQobVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXF1ZXN0EgoKAmlkGAEgASgJEkQKCHNldHRpbmdzGAIgAygLMjIubmFtYS52MS5VcGRhdGVQbHVnaW5TZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASI/ChxVcGRhdGVQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlEh8KBnBsdWdpbhgBIAEoCzIPLm5hbWEudjEuUGx1Z2luIlkKE0VuYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkSNgoTZ3JhbnRlZF9wZXJtaXNzaW9ucxgCIAMoDjIZLm5hbWEudjEuUGx1Z2luUGVybWlzc2lvbiIWChRFbmFibGVQbHVnaW5SZXNwb25zZSKzAQoZVGVzdFBsdWdpblNldHRpbmdzUmVxdWVzdBIKCgJpZBgBIAEoCRJCCghzZXR0aW5ncxgCIAMoCzIwLm5hbWEudjEuVGVzdFBsdWdpblNldHRpbmdzUmVxdWVzdC5TZXR0aW5nc0VudHJ5GkYKDVNldHRpbmdzRW50cnkSCwoDa2V5GAEgASgJEiQKBXZhbHVlGAIgASgLMhUubmFtYS52MS5TZXR0aW5nVmFsdWU6AjgBIqgBChpUZXN0UGx1Z2luU2V0dGluZ3NSZXNwb25zZRJBCgdjaG9pY2VzGAEgAygLMjAubmFtYS52MS5UZXN0UGx1Z2luU2V0dGluZ3NSZXNwb25zZS5DaG9pY2VzRW50cnkaRwoMQ2hvaWNlc0VudHJ5EgsKA2tleRgBIAEoCRImCgV2YWx1ZRgCIAEoCzIXLm5hbWEudjEuU2V0dGluZ0Nob2ljZXM6AjgBIjIKDlNldHRpbmdDaG9pY2VzEiAKB2Nob2ljZXMYASADKAsyDy5uYW1hLnYxLkNob2ljZSImCgZDaG9pY2USDQoFdmFsdWUYASABKAkSDQoFbGFiZWwYAiABKAkiIgoURGlzYWJsZVBsdWdpblJlcXVlc3QSCgoCaWQYASABKAkiFwoVRGlzYWJsZVBsdWdpblJlc3BvbnNlImAKB1F1YWxpdHkSCgoCaWQYASABKAMSEgoKcHJvZmlsZV9pZBgCIAEoCRIMCgRuYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEhIKCmlzX2RlZmF1bHQYBSABKAgiIgoUTGlzdFF1YWxpdGllc1JlcXVlc3QSCgoCaWQYASABKAkiPAoVTGlzdFF1YWxpdGllc1Jlc3BvbnNlEiMKCXF1YWxpdGllcxgBIAMoCzIQLm5hbWEudjEuUXVhbGl0eSJKChdSZXBsYWNlUXVhbGl0aWVzUmVxdWVzdBIKCgJpZBgBIAEoCRIjCglxdWFsaXRpZXMYAiADKAsyEC5uYW1hLnYxLlF1YWxpdHkiPwoYUmVwbGFjZVF1YWxpdGllc1Jlc3BvbnNlEiMKCXF1YWxpdGllcxgBIAMoCzIQLm5hbWEudjEuUXVhbGl0eSKRAwoNUGx1Z2luU3VtbWFyeRIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEiEKBGtpbmQYAyABKA4yEy5uYW1hLnYxLlBsdWdpbktpbmQSDwoHZW5hYmxlZBgEIAEoCBIWCg5yZWZ1c2VkX3JlYXNvbhgFIAEoCRIYChBzZXR0aW5nc19taXNzaW5nGAYgASgIEgwKBG5hbWUYByABKAkSEwoLZGVzY3JpcHRpb24YCCABKAkSMQoQZXh0ZW5zaW9uX3BvaW50cxgJIAMoDjIXLm5hbWEudjEuRXh0ZW5zaW9uUG9pbnQSEAoIbG9nb191cmwYCyABKAkSEwoLY3VzdG9tX2xvZ28YDCABKAgSOAoVcmVxdWVzdGVkX3Blcm1pc3Npb25zGA0gAygOMhkubmFtYS52MS5QbHVnaW5QZXJtaXNzaW9uEjYKE2dyYW50ZWRfcGVybWlzc2lvbnMYDiADKA4yGS5uYW1hLnYxLlBsdWdpblBlcm1pc3Npb25KBAgKEAtSCGxvZ29fc3ZnIrcCCgZQbHVnaW4SJwoHc3VtbWFyeRgMIAEoCzIWLm5hbWEudjEuUGx1Z2luU3VtbWFyeRIiCghzZXR0aW5ncxgFIAMoCzIQLm5hbWEudjEuU2V0dGluZxIXCg9jaGVja3Nfc2V0dGluZ3MYBiABKAgSNgoScmVjb2duaXNlcl9mYWlsdXJlGA0gASgLMhoubmFtYS52MS5SZWNvZ25pc2VyRmFpbHVyZUoECAEQAkoECAIQA0oECAMQBEoECAQQBUoECAcQCEoECAgQCUoECAkQCkoECAoQC0oECAsQDFICaWRSB3ZlcnNpb25SBGtpbmRSB2VuYWJsZWRSDnJlZnVzZWRfcmVhc29uUgRuYW1lUgtkZXNjcmlwdGlvblIQZXh0ZW5zaW9uX3BvaW50c1IIbG9nb19zdmciTwoRUmVjb2duaXNlckZhaWx1cmUSEgoKbGFzdF9lcnJvchgBIAEoCRINCgVhdF9tcxgCIAEoAxIXCg9mYWlsZWRfaW5fYV9yb3cYAyABKA0i2AEKB1NldHRpbmcSCwoDa2V5GAEgASgJEg0KBWxhYmVsGAIgASgJEhMKC2Rlc2NyaXB0aW9uGAMgASgJEiIKBGtpbmQYBCABKA4yFC5uYW1hLnYxLlNldHRpbmdLaW5kEhAKCHJlcXVpcmVkGAUgASgIEiwKDWRlZmF1bHRfdmFsdWUYBiABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZRIkCgV2YWx1ZRgHIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlEhIKCnNlY3JldF9zZXQYCCABKAgiiAEKDFNldHRpbmdWYWx1ZRIUCgp0ZXh0X3ZhbHVlGAEgASgJSAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhcKDWludGVnZXJfdmFsdWUYAyABKANIABIqCgtsaWJyYXJ5X2lkcxgEIAEoCzITLm5hbWEudjEuTGlicmFyeUlkc0gAQgcKBXZhbHVlIhkKCkxpYnJhcnlJZHMSCwoDaWRzGAEgAygDKl4KClBsdWdpbktpbmQSGwoXUExVR0lOX0tJTkRfVU5TUEVDSUZJRUQQABIYChRQTFVHSU5fS0lORF9CVUlMVF9JThABEhkKFVBMVUdJTl9LSU5EX0lOU1RBTExFRBACKucBChBQbHVnaW5QZXJtaXNzaW9uEiEKHVBMVUdJTl9QRVJNSVNTSU9OX1VOU1BFQ0lGSUVEEAASGwoXUExVR0lOX1BFUk1JU1NJT05fU1RPUkUQARIkCiBQTFVHSU5fUEVSTUlTU0lPTl9SRUFEX0xJQlJBUklFUxACEicKI1BMVUdJTl9QRVJNSVNTSU9OX1JFQURfV0FUQ0hfU1RBVEVTEAMSIgoeUExVR0lOX1BFUk1JU1NJT05fREVMRVRFX01FRElBEAQSIAocUExVR0lOX1BFUk1JU1NJT05fUkVBRF9VU0VSUxAFKq4DCg5FeHRlbnNpb25Qb2ludBIfChtFWFRFTlNJT05fUE9JTlRfVU5TUEVDSUZJRUQQABIjCh9FWFRFTlNJT05fUE9JTlRfTU9WSUVfRlVMRklMTEVSEAESIgoeRVhURU5TSU9OX1BPSU5UX1NIT1dfRlVMRklMTEVSEAISHAoYRVhURU5TSU9OX1BPSU5UX05PVElGSUVSEAMSHQoZRVhURU5TSU9OX1BPSU5UX0NPTk5FQ1RPUhAEEiEKHUVYVEVOU0lPTl9QT0lOVF9BVVRIRU5USUNBVE9SEAUSIAocRVhURU5TSU9OX1BPSU5UX1RJVExFX1NPVVJDRRAGEiMKH0VYVEVOU0lPTl9QT0lOVF9FVkVOVFNfT0JTRVJWRVIQBxIrCidFWFRFTlNJT05fUE9JTlRfU0VSVkVSX1NUQVJURURfT0JTRVJWRVIQCBIeChpFWFRFTlNJT05fUE9JTlRfUkVDT0dOSVNFUhAJEh4KGkVYVEVOU0lPTl9QT0lOVF9CTE9CX1NUT1JFEAoSHgoaRVhURU5TSU9OX1BPSU5UX0FVVE9NQVRJT04QCyrXAQoLU2V0dGluZ0tpbmQSHAoYU0VUVElOR19LSU5EX1VOU1BFQ0lGSUVEEAASFQoRU0VUVElOR19LSU5EX1RFWFQQARIXChNTRVRUSU5HX0tJTkRfU0VDUkVUEAISFQoRU0VUVElOR19LSU5EX0JPT0wQAxIYChRTRVRUSU5HX0tJTkRfSU5URUdFUhAEEhcKE1NFVFRJTkdfS0lORF9DSE9JQ0UQBRIUChBTRVRUSU5HX0tJTkRfVVJMEAYSGgoWU0VUVElOR19LSU5EX0xJQlJBUklFUxAHMsoFCg1QbHVnaW5TZXJ2aWNlEk0KC0xpc3RQbHVnaW5zEhsubmFtYS52MS5MaXN0UGx1Z2luc1JlcXVlc3QaHC5uYW1hLnYxLkxpc3RQbHVnaW5zUmVzcG9uc2UiA5ACARJHCglHZXRQbHVnaW4SGS5uYW1hLnYxLkdldFBsdWdpblJlcXVlc3QaGi5uYW1hLnYxLkdldFBsdWdpblJlc3BvbnNlIgOQAgESaAoUVXBkYXRlUGx1Z2luU2V0dGluZ3MSJC5uYW1hLnYxLlVwZGF0ZVBsdWdpblNldHRpbmdzUmVxdWVzdBolLm5hbWEudjEuVXBkYXRlUGx1Z2luU2V0dGluZ3NSZXNwb25zZSIDkAICElAKDEVuYWJsZVBsdWdpbhIcLm5hbWEudjEuRW5hYmxlUGx1Z2luUmVxdWVzdBodLm5hbWEudjEuRW5hYmxlUGx1Z2luUmVzcG9uc2UiA5ACAhJdChJUZXN0UGx1Z2luU2V0dGluZ3MSIi5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1JlcXVlc3QaIy5uYW1hLnYxLlRlc3RQbHVnaW5TZXR0aW5nc1Jlc3BvbnNlElMKDURpc2FibGVQbHVnaW4SHS5uYW1hLnYxLkRpc2FibGVQbHVnaW5SZXF1ZXN0Gh4ubmFtYS52MS5EaXNhYmxlUGx1Z2luUmVzcG9uc2UiA5ACAhJTCg1MaXN0UXVhbGl0aWVzEh0ubmFtYS52MS5MaXN0UXVhbGl0aWVzUmVxdWVzdBoeLm5hbWEudjEuTGlzdFF1YWxpdGllc1Jlc3BvbnNlIgOQAgESXAoQUmVwbGFjZVF1YWxpdGllcxIgLm5hbWEudjEuUmVwbGFjZVF1YWxpdGllc1JlcXVlc3QaIS5uYW1hLnYxLlJlcGxhY2VRdWFsaXRpZXNSZXNwb25zZSIDkAICYgZwcm90bzM");
 
 /**
  * @generated from message nama.v1.ListPluginsRequest
@@ -134,6 +134,15 @@ export type EnablePluginRequest = Message<"nama.v1.EnablePluginRequest"> & {
    * @generated from field: string id = 1;
    */
   id: string;
+
+  /**
+   * The Plugin Permissions the Admin grants it, replacing those granted before. Each must be one
+   * its `requested_permissions` lists, or the call is refused with
+   * `REFUSAL_REASON_PERMISSION_NOT_REQUESTED`. Empty grants none.
+   *
+   * @generated from field: repeated nama.v1.PluginPermission granted_permissions = 2;
+   */
+  grantedPermissions: PluginPermission[];
 };
 
 /**
@@ -503,6 +512,20 @@ export type PluginSummary = Message<"nama.v1.PluginSummary"> & {
    * @generated from field: bool custom_logo = 12;
    */
   customLogo: boolean;
+
+  /**
+   * The Plugin Permissions it asks for, which an Admin grants some or all of in `EnablePlugin`.
+   *
+   * @generated from field: repeated nama.v1.PluginPermission requested_permissions = 13;
+   */
+  requestedPermissions: PluginPermission[];
+
+  /**
+   * The Plugin Permissions an Admin granted it, kept across restarts until it is enabled again.
+   *
+   * @generated from field: repeated nama.v1.PluginPermission granted_permissions = 14;
+   */
+  grantedPermissions: PluginPermission[];
 };
 
 /**
@@ -538,6 +561,13 @@ export type Plugin = Message<"nama.v1.Plugin"> & {
    * @generated from field: bool checks_settings = 6;
    */
   checksSettings: boolean;
+
+  /**
+   * Set while its Recogniser's last call failed, so the Admin sees one that keeps failing.
+   *
+   * @generated from field: nama.v1.RecogniserFailure recogniser_failure = 13;
+   */
+  recogniserFailure?: RecogniserFailure | undefined;
 };
 
 /**
@@ -546,6 +576,42 @@ export type Plugin = Message<"nama.v1.Plugin"> & {
  */
 export const PluginSchema: GenMessage<Plugin> = /*@__PURE__*/
   messageDesc(file_nama_v1_plugin, 20);
+
+/**
+ * A Recogniser whose last call failed (ADR 0050). The Server keeps it in memory only: a call that
+ * answers clears it, and so do disabling the Plugin and a restart.
+ *
+ * @generated from message nama.v1.RecogniserFailure
+ */
+export type RecogniserFailure = Message<"nama.v1.RecogniserFailure"> & {
+  /**
+   * What the last failure said.
+   *
+   * @generated from field: string last_error = 1;
+   */
+  lastError: string;
+
+  /**
+   * When it failed, in milliseconds since the Unix epoch.
+   *
+   * @generated from field: int64 at_ms = 2;
+   */
+  atMs: bigint;
+
+  /**
+   * How many calls in a row have failed, the last included.
+   *
+   * @generated from field: uint32 failed_in_a_row = 3;
+   */
+  failedInARow: number;
+};
+
+/**
+ * Describes the message nama.v1.RecogniserFailure.
+ * Use `create(RecogniserFailureSchema)` to create a new message.
+ */
+export const RecogniserFailureSchema: GenMessage<RecogniserFailure> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 21);
 
 /**
  * One setting a Plugin takes, as its schema declares it, and its stored value.
@@ -613,7 +679,7 @@ export type Setting = Message<"nama.v1.Setting"> & {
  * Use `create(SettingSchema)` to create a new message.
  */
 export const SettingSchema: GenMessage<Setting> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 21);
+  messageDesc(file_nama_v1_plugin, 22);
 
 /**
  * A setting's value, of the setting's kind.
@@ -648,6 +714,14 @@ export type SettingValue = Message<"nama.v1.SettingValue"> & {
      */
     value: bigint;
     case: "integerValue";
+  } | {
+    /**
+     * Library ids, for SETTING_KIND_LIBRARIES.
+     *
+     * @generated from field: nama.v1.LibraryIds library_ids = 4;
+     */
+    value: LibraryIds;
+    case: "libraryIds";
   } | { case: undefined; value?: undefined };
 };
 
@@ -656,7 +730,26 @@ export type SettingValue = Message<"nama.v1.SettingValue"> & {
  * Use `create(SettingValueSchema)` to create a new message.
  */
 export const SettingValueSchema: GenMessage<SettingValue> = /*@__PURE__*/
-  messageDesc(file_nama_v1_plugin, 22);
+  messageDesc(file_nama_v1_plugin, 23);
+
+/**
+ * The ids of Libraries a SETTING_KIND_LIBRARIES setting names, in the order the admin gave them.
+ *
+ * @generated from message nama.v1.LibraryIds
+ */
+export type LibraryIds = Message<"nama.v1.LibraryIds"> & {
+  /**
+   * @generated from field: repeated int64 ids = 1;
+   */
+  ids: bigint[];
+};
+
+/**
+ * Describes the message nama.v1.LibraryIds.
+ * Use `create(LibraryIdsSchema)` to create a new message.
+ */
+export const LibraryIdsSchema: GenMessage<LibraryIds> = /*@__PURE__*/
+  messageDesc(file_nama_v1_plugin, 24);
 
 /**
  * Where a Plugin comes from.
@@ -699,8 +792,71 @@ export const PluginKindSchema: GenEnum<PluginKind> = /*@__PURE__*/
   enumDesc(file_nama_v1_plugin, 0);
 
 /**
- * A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
- * `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+ * What an Admin lets a Plugin do in the Server, as its Manifest requests (ADR 0049). These are
+ * not a User's Permissions: they say what the Plugin itself may read or change.
+ *
+ * @generated from enum nama.v1.PluginPermission
+ */
+export const PluginPermission = {
+  /**
+   * @generated from enum value: PLUGIN_PERMISSION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * Keep its own notes in the Server, such as which titles it has already looked at.
+   *
+   * @generated from enum value: PLUGIN_PERMISSION_STORE = 1;
+   */
+  STORE: 1,
+
+  /**
+   * See every Library and the Movies and Episodes in it.
+   *
+   * @generated from enum value: PLUGIN_PERMISSION_READ_LIBRARIES = 2;
+   */
+  READ_LIBRARIES: 2,
+
+  /**
+   * See what every User has watched, and when.
+   *
+   * @generated from enum value: PLUGIN_PERMISSION_READ_WATCH_STATES = 3;
+   */
+  READ_WATCH_STATES: 3,
+
+  /**
+   * Delete Movies and Episodes, with their files on disk.
+   *
+   * @generated from enum value: PLUGIN_PERMISSION_DELETE_MEDIA = 4;
+   */
+  DELETE_MEDIA: 4,
+
+  /**
+   * See every User's id and display name.
+   *
+   * @generated from enum value: PLUGIN_PERMISSION_READ_USERS = 5;
+   */
+  READ_USERS: 5,
+} as const;
+
+/**
+ * What an Admin lets a Plugin do in the Server, as its Manifest requests (ADR 0049). These are
+ * not a User's Permissions: they say what the Plugin itself may read or change.
+ *
+ * @generated from enum nama.v1.PluginPermission
+ */
+export type PluginPermission = (typeof PluginPermission)[keyof typeof PluginPermission] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.PluginPermission.
+ */
+export const PluginPermissionSchema: GenEnum<PluginPermission> = /*@__PURE__*/
+  enumDesc(file_nama_v1_plugin, 1);
+
+/**
+ * A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin
+ * names the points it serves by their `nama.plugin.v1` service, such as
+ * `nama.plugin.v1.MovieFulfillerService` (ADR 0043).
  *
  * @generated from enum nama.v1.ExtensionPoint
  */
@@ -746,11 +902,11 @@ export const ExtensionPoint = {
   AUTHENTICATOR: 5,
 
   /**
-   * Finds metadata for Movies and Shows, such as TMDB.
+   * A title source: searches for and describes Movies and Shows, such as TMDB.
    *
-   * @generated from enum value: EXTENSION_POINT_METADATA_PROVIDER = 6;
+   * @generated from enum value: EXTENSION_POINT_TITLE_SOURCE = 6;
    */
-  METADATA_PROVIDER: 6,
+  TITLE_SOURCE: 6,
 
   /**
    * Observes the Server's Events.
@@ -765,11 +921,35 @@ export const ExtensionPoint = {
    * @generated from enum value: EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8;
    */
   SERVER_STARTED_OBSERVER: 8,
+
+  /**
+   * Proposes what a file is, which a Library lists to ask it (ADR 0050).
+   *
+   * @generated from enum value: EXTENSION_POINT_RECOGNISER = 9;
+   */
+  RECOGNISER: 9,
+
+  /**
+   * Keeps the Server's stored images, such as in S3, once an Admin picks it with
+   * `ServerService.SwitchImageStore`.
+   *
+   * @generated from enum value: EXTENSION_POINT_BLOB_STORE = 10;
+   */
+  BLOB_STORE: 10,
+
+  /**
+   * Ticks on a schedule and asks the Server's Automation service, as far as the Permissions an
+   * Admin granted it allow, such as Cleanup (ADR 0048).
+   *
+   * @generated from enum value: EXTENSION_POINT_AUTOMATION = 11;
+   */
+  AUTOMATION: 11,
 } as const;
 
 /**
- * A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
- * `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+ * A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin
+ * names the points it serves by their `nama.plugin.v1` service, such as
+ * `nama.plugin.v1.MovieFulfillerService` (ADR 0043).
  *
  * @generated from enum nama.v1.ExtensionPoint
  */
@@ -779,11 +959,10 @@ export type ExtensionPoint = (typeof ExtensionPoint)[keyof typeof ExtensionPoint
  * Describes the enum nama.v1.ExtensionPoint.
  */
 export const ExtensionPointSchema: GenEnum<ExtensionPoint> = /*@__PURE__*/
-  enumDesc(file_nama_v1_plugin, 1);
+  enumDesc(file_nama_v1_plugin, 2);
 
 /**
- * What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
- * with it too (`nama.plugin.v1.SettingField`).
+ * What kind of value a setting takes.
  *
  * @generated from enum nama.v1.SettingKind
  */
@@ -836,11 +1015,18 @@ export const SettingKind = {
    * @generated from enum value: SETTING_KIND_URL = 6;
    */
   URL: 6,
+
+  /**
+   * The ids of Libraries, picked from the Server's Library list (`ListLibraries`). Saving an id
+   * that names no Library is refused; a Library deleted later stays in the value.
+   *
+   * @generated from enum value: SETTING_KIND_LIBRARIES = 7;
+   */
+  LIBRARIES: 7,
 } as const;
 
 /**
- * What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
- * with it too (`nama.plugin.v1.SettingField`).
+ * What kind of value a setting takes.
  *
  * @generated from enum nama.v1.SettingKind
  */
@@ -850,13 +1036,14 @@ export type SettingKind = (typeof SettingKind)[keyof typeof SettingKind] | Unkno
  * Describes the enum nama.v1.SettingKind.
  */
 export const SettingKindSchema: GenEnum<SettingKind> = /*@__PURE__*/
-  enumDesc(file_nama_v1_plugin, 2);
+  enumDesc(file_nama_v1_plugin, 3);
 
 /**
  * The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
  * `permission_denied` without it. A secret setting's value never leaves the Server. Every call
- * but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails with
- * `REFUSAL_REASON_PLUGIN_REFUSED`.
+ * but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails
+ * with `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
+ * settings, which fails `EnablePlugin` with `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`.
  *
  * @generated from service nama.v1.PluginService
  */
@@ -885,10 +1072,15 @@ export const PluginService: GenService<{
   /**
    * Replaces a Plugin's settings and, if it is meant to be enabled, enables it again with them,
    * without a restart. Settings that don't fit its schema are refused with a Refusal naming
-   * `settings.<key>`, and nothing changes. If a choice setting has a value, the Plugin's settings
-   * check runs on the new settings first, and a check that fails, or doesn't offer that value, is
-   * refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or `REFUSAL_REASON_CHOICE_NOT_OFFERED`
-   * naming the setting, and nothing changes. Fails with `not_found` for an unknown Plugin.
+   * `settings.<key>`, and nothing changes; so is a `SETTING_KIND_LIBRARIES` setting naming an id
+   * no Library has, with `REFUSAL_REASON_LIBRARY_NOT_FOUND` and the id in `libraryId`. If a choice
+   * setting has a value, the Plugin's settings check runs on the new settings first, and a check
+   * that fails, or doesn't offer that value, is refused with
+   * `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or `REFUSAL_REASON_CHOICE_NOT_OFFERED` naming the
+   * setting, and nothing changes. A Plugin that then refuses to start with them
+   * doesn't fail the call: the settings are saved and it comes back not running
+   * (`plugin.summary.enabled` false); `EnablePlugin` says why with
+   * `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. Fails with `not_found` for an unknown Plugin.
    *
    * @generated from rpc nama.v1.PluginService.UpdatePluginSettings
    */
@@ -902,7 +1094,8 @@ export const PluginService: GenService<{
    * Enabling one that is enabled already only saves that. If its stored settings don't fit its
    * schema, fails with `REFUSAL_REASON_FIELD_REQUIRED` or `REFUSAL_REASON_SETTING_WRONG_KIND`,
    * naming the setting in `field` as `settings.<key>` and in the `settingKey` param; the Plugin
-   * stays disabled and nothing is saved.
+   * stays disabled and nothing is saved. A Plugin that refuses to start with them fails with
+   * `REFUSAL_REASON_PLUGIN_REFUSED_TO_START` and stays disabled.
    *
    * @generated from rpc nama.v1.PluginService.EnablePlugin
    */

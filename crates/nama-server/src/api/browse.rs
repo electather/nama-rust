@@ -12,13 +12,12 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    artwork,
     browse::{self, Browse, Episode, Movie, Show, Started, Version},
-    contents::{FoundEpisode, FoundMovie, FoundShow},
-    custom_images::{Role, Slot},
-    libraries::Kind,
-    tracks::track_to_proto,
-    watch_states::WatchState,
+    library::{
+        FoundEpisode, FoundMovie, FoundShow, ImageRef, LibraryKind, Role, Slot, WatchState,
+        artwork_url,
+    },
+    playback::track_to_proto,
 };
 
 use super::{
@@ -200,15 +199,15 @@ impl BrowseService for BrowseServiceHandler {
 }
 
 fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::MovieInLibrary {
-    let downloaded = movie.poster.map(|path| artwork::url(&movie.plugin, &path));
+    let downloaded = (movie.poster).map(|image| artwork_url(image.plugin.as_str(), &image.path));
     let poster_url = (images.custom)
-        .of(&Slot::movie(&movie.id, Role::Poster))
+        .of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster))
         .or(downloaded);
     proto::MovieInLibrary {
         library_id: movie.library,
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
         poster_url,
-        id: external_id_to_proto(movie.id).into(),
+        id: external_id_to_proto(&movie.id).into(),
         title: movie.title,
         release_date: movie.release_date,
         ..Default::default()
@@ -216,15 +215,15 @@ fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::Movie
 }
 
 fn found_show_to_proto(show: FoundShow, images: &ShownImages) -> proto::ShowInLibrary {
-    let downloaded = show.poster.map(|path| artwork::url(&show.plugin, &path));
+    let downloaded = (show.poster).map(|image| artwork_url(image.plugin.as_str(), &image.path));
     let poster_url = (images.custom)
-        .of(&Slot::show(&show.id, Role::Poster))
+        .of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Poster))
         .or(downloaded);
     proto::ShowInLibrary {
         library_id: show.library,
         poster_thumbhash: images.thumbhash(poster_url.as_deref()),
         poster_url,
-        id: external_id_to_proto(show.id).into(),
+        id: external_id_to_proto(&show.id).into(),
         title: show.title,
         ..Default::default()
     }
@@ -233,8 +232,8 @@ fn found_show_to_proto(show: FoundShow, images: &ShownImages) -> proto::ShowInLi
 fn found_episode_to_proto(episode: FoundEpisode) -> proto::EpisodeInLibrary {
     proto::EpisodeInLibrary {
         library_id: episode.library,
-        id: external_id_to_proto(episode.id).into(),
-        show_id: external_id_to_proto(episode.show).into(),
+        id: external_id_to_proto(&episode.id).into(),
+        show_id: external_id_to_proto(&episode.show).into(),
         show_title: episode.show_title,
         season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),
@@ -251,16 +250,17 @@ fn movie_to_proto(
     watch_state: Option<WatchState>,
     images: &ShownImages,
 ) -> proto::Movie {
-    let plugin = movie.plugin;
-    let artwork_url = |path: String| artwork::url(&plugin, &path);
-    let custom_poster = images.custom.of(&Slot::movie(&movie.id, Role::Poster));
-    let custom_backdrop = images.custom.of(&Slot::movie(&movie.id, Role::Backdrop));
+    let artwork_url = |image: ImageRef| artwork_url(image.plugin.as_str(), &image.path);
+    let custom_poster =
+        (images.custom).of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster));
+    let custom_backdrop =
+        (images.custom).of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Backdrop));
     let (poster_is_custom, backdrop_is_custom) =
         (custom_poster.is_some(), custom_backdrop.is_some());
     let poster_url = custom_poster.or_else(|| movie.poster.map(artwork_url));
     let backdrop_url = custom_backdrop.or_else(|| movie.backdrop.map(artwork_url));
     proto::Movie {
-        title_logo_url: movie.title_logo.map(artwork_url),
+        title_logo_url: movie.logo.map(artwork_url),
         genres: movie.genres,
         content_rating: movie.content_rating,
         custom_poster: poster_is_custom,
@@ -269,7 +269,7 @@ fn movie_to_proto(
         backdrop_thumbhash: images.thumbhash(backdrop_url.as_deref()),
         poster_url,
         backdrop_url,
-        id: external_id_to_proto(movie.id).into(),
+        id: external_id_to_proto(&movie.id).into(),
         title: movie.title,
         original_title: movie.original_title,
         overview: movie.overview,
@@ -327,15 +327,17 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
 /// A Show as clients see it, without its Seasons, with its images as URLs on this Server and their
 /// thumbhashes, and its Custom Images in `images` in place of the downloaded ones.
 fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
-    let artwork_url = |path: &str| artwork::url(&show.plugin, path);
-    let custom_poster = images.custom.of(&Slot::show(&show.id, Role::Poster));
-    let custom_backdrop = images.custom.of(&Slot::show(&show.id, Role::Backdrop));
+    let artwork_url = |image: &ImageRef| artwork_url(image.plugin.as_str(), &image.path);
+    let custom_poster =
+        (images.custom).of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Poster));
+    let custom_backdrop =
+        (images.custom).of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Backdrop));
     let (poster_is_custom, backdrop_is_custom) =
         (custom_poster.is_some(), custom_backdrop.is_some());
     let poster_url = custom_poster.or_else(|| show.poster().map(artwork_url));
-    let backdrop_url = custom_backdrop.or_else(|| show.backdrop.as_deref().map(artwork_url));
+    let backdrop_url = custom_backdrop.or_else(|| show.backdrop.as_ref().map(artwork_url));
     proto::Show {
-        id: external_id_to_proto(show.id.clone()).into(),
+        id: external_id_to_proto(&show.id).into(),
         title: show.title.clone(),
         custom_poster: poster_is_custom,
         custom_backdrop: backdrop_is_custom,
@@ -343,7 +345,7 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
         backdrop_thumbhash: images.thumbhash(backdrop_url.as_deref()),
         poster_url,
         backdrop_url,
-        title_logo_url: show.title_logo.as_deref().map(artwork_url),
+        title_logo_url: show.logo.as_ref().map(artwork_url),
         genres: show.genres.clone(),
         content_rating: show.content_rating.clone(),
         overview: show.overview.clone(),
@@ -355,12 +357,13 @@ fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
 /// The URL of the Poster of `show`'s Season `number`, its Custom Image in `images` if it has one,
 /// and whether it is.
 fn season_poster(show: &Show, number: i64, images: &ShownImages) -> (Option<String>, bool) {
-    if let Some(url) = images.custom.of(&Slot::season(&show.id, number)) {
+    if let Some(url) = (images.custom).of_title(&show.id, &show.ids, |id| Slot::season(id, number))
+    {
         return (Some(url), true);
     }
-    let downloaded = (show.seasons.get(&number)).and_then(|season| season.poster.as_deref());
+    let downloaded = (show.seasons.get(&number)).and_then(|season| season.poster.as_ref());
     (
-        downloaded.map(|path| artwork::url(&show.plugin, path)),
+        downloaded.map(|image| artwork_url(image.plugin.as_str(), &image.path)),
         false,
     )
 }
@@ -372,11 +375,11 @@ fn episode_to_proto(
     watch_state: Option<WatchState>,
     images: &ShownImages,
 ) -> proto::Episode {
-    let still_url = (episode.still).map(|path| artwork::url(&episode.plugin, &path));
+    let still_url = (episode.still).map(|path| artwork_url(&episode.plugin, &path));
     proto::Episode {
         still_thumbhash: images.thumbhash(still_url.as_deref()),
         still_url,
-        id: external_id_to_proto(episode.id).into(),
+        id: external_id_to_proto(&episode.id).into(),
         season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),
         title: episode.title,
@@ -458,8 +461,8 @@ pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError 
             }
             browse::Error::WrongKind { wanted } => {
                 let kind = match wanted {
-                    Kind::Movies => "movies",
-                    Kind::Shows => "shows",
+                    LibraryKind::Movies => "movies",
+                    LibraryKind::Shows => "shows",
                 };
                 refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
                     .field(fields.library)
@@ -470,3 +473,7 @@ pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError 
         refused.into()
     }
 }
+
+#[cfg(test)]
+#[path = "browse_tests.rs"]
+mod tests;

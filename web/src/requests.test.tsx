@@ -18,7 +18,7 @@ const heat = {
   id: 2n,
   movieOrSeason: {
     case: "movie" as const,
-    value: { tmdbId: 949n, title: "Heat", releaseDate: "1995-12-15" },
+    value: { id: { namespace: "tmdb", value: "949" }, title: "Heat", releaseDate: "1995-12-15" },
   },
   state: RequestState.PENDING,
   requesters: [
@@ -29,7 +29,10 @@ const heat = {
 
 const dune = {
   id: 1n,
-  movieOrSeason: { case: "movie" as const, value: { tmdbId: 438_631n, title: "Dune" } },
+  movieOrSeason: {
+    case: "movie" as const,
+    value: { id: { namespace: "tmdb", value: "438631" }, title: "Dune" },
+  },
   state: RequestState.APPROVED,
   requesters: [{ userId: 3n, name: "Grace" }],
   quality: { id: 7n, name: "4K", profileId: "5" },
@@ -66,7 +69,12 @@ function darkSeason(id: bigint, seasonNumber: number, state: RequestState) {
     id,
     movieOrSeason: {
       case: "season" as const,
-      value: { showTmdbId: 70_523n, seasonNumber, showTitle: "Dark", airDate: "2017-12-01" },
+      value: {
+        showId: { namespace: "tmdb", value: "70523" },
+        seasonNumber,
+        showTitle: "Dark",
+        airDate: "2017-12-01",
+      },
     },
     state,
     requesters: [{ userId: 1n, name: "Sam" }],
@@ -99,7 +107,7 @@ test("the Requests page groups a Show's Season Requests, in Season order, with t
 /** Sam's Followed Show of Dark, Approved. */
 const followedDark = {
   id: 7n,
-  showTmdbId: 70_523n,
+  showId: { namespace: "tmdb", value: "70523" },
   showTitle: "Dark",
   state: RequestState.APPROVED,
   requesters: [{ userId: 1n, name: "Sam" }],

@@ -1,17 +1,20 @@
 //! The Server's Plugins and their settings: `nama.v1.PluginService`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::{
     Manifest, PluginId, PointKey,
     auth::Authenticator,
+    automation::{Automation, Permission},
+    blob_store::BlobStore,
     connector::Connector,
     fulfiller::{Fulfiller, Movies, Shows},
-    metadata::MetadataProvider,
+    metadata::TitleSource,
     notifier::Notifier,
     points::{Events, ServerStarted},
+    recogniser::Recogniser,
     settings::{self, SettingField, Settings, SettingsError},
 };
 use nama_proto::nama::v1::{
@@ -22,11 +25,11 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    custom_images::{CustomImages, Slot, Urls},
-    plugin_logos::PluginLogos,
+    images::PluginLogos,
+    library::{CustomImageUrls, CustomImages, Slot},
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
-    plugins::{CheckError, EnableError, Listed},
-    qualities,
+    plugins::{CheckError, EnableError, Failing, Listed},
+    requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
 };
 
 use super::{database_failed, refuse};
@@ -43,9 +46,9 @@ pub(super) struct PluginServiceHandler {
 }
 
 /// A Plugin's logo as clients fetch it.
-struct Logo {
+pub(super) struct Logo {
     /// Empty if it has none.
-    url: String,
+    pub(super) url: String,
     /// Whether it is a Custom Image.
     custom: bool,
 }
@@ -64,9 +67,19 @@ impl PluginService for PluginServiceHandler {
         let listed = self.plugin_settings.list().await.map_err(list_failed)?;
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let mut summaries = Vec::with_capacity(listed.len());
-        for StoredPlugin { plugin, stored } in listed {
-            let logo = self.logo(&plugin, &custom).await;
-            summaries.push(plugin_summary_to_proto(plugin, stored.settings, logo));
+        for StoredPlugin {
+            plugin,
+            stored,
+            granted,
+        } in listed
+        {
+            let logo = logo(&self.plugin_logos, &plugin, &custom).await;
+            summaries.push(plugin_summary_to_proto(
+                plugin,
+                stored.settings,
+                &granted,
+                logo,
+            ));
         }
         Response::ok(ListPluginsResponse {
             summaries,
@@ -111,8 +124,13 @@ impl PluginService for PluginServiceHandler {
         request: ServiceRequest<'_, EnablePluginRequest>,
     ) -> ServiceResult<EnablePluginResponse> {
         let id = PluginId::from(request.id.to_owned());
+        let granted = request
+            .granted_permissions
+            .iter()
+            .map(|&permission| permission_from_proto(permission))
+            .collect::<Result<HashSet<_>, _>>()?;
         self.plugin_settings
-            .enable(&id)
+            .enable_granting(&id, granted)
             .await
             .map_err(change_refused)?;
         Response::ok(EnablePluginResponse::default())
@@ -200,34 +218,46 @@ impl PluginServiceHandler {
             .ok_or_else(|| plugin_not_found(id))
     }
 
-    /// `stored` as `Plugin`, with its logo.
+    /// `stored` as `Plugin`, with its logo and whether its Recogniser's last call failed.
     async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
-        let logo = self.logo(&stored.plugin, &custom).await;
-        Ok(plugin_to_proto(stored.plugin, stored.stored.settings, logo))
+        let logo = logo(&self.plugin_logos, &stored.plugin, &custom).await;
+        let failing = (self.plugin_settings.extension_points())
+            .failing(&stored.plugin.id, PointKey::provide::<dyn Recogniser>());
+        Ok(proto::Plugin {
+            recogniser_failure: failing.map(failing_to_proto).into(),
+            ..plugin_to_proto(stored.plugin, stored.stored.settings, &stored.granted, logo)
+        })
     }
+}
 
-    /// `plugin`'s logo: its Custom Image, among `custom`, else its Manifest's, which is stored
-    /// first if it isn't. Without a URL if the store fails, which is logged: the Plugin is still
-    /// listed.
-    async fn logo(&self, plugin: &Listed, custom: &Urls) -> Logo {
-        if let Some(url) = custom.of(&Slot::plugin(&plugin.id)) {
-            return Logo { url, custom: true };
-        }
-        let manifest_logo = plugin
-            .manifest
-            .as_ref()
-            .ok()
-            .and_then(|it| it.logo_svg.as_deref());
-        let url = match manifest_logo {
-            Some(svg) => self.plugin_logos.stored_url(&plugin.id, svg).await.unwrap_or_else(|err| {
+/// `plugin`'s logo: its Custom Image, among `custom`, else its Manifest's, which is stored in
+/// `plugin_logos` first if it isn't. Without a URL if the store fails, which is logged: the Plugin
+/// is still listed.
+pub(super) async fn logo(
+    plugin_logos: &PluginLogos,
+    plugin: &Listed,
+    custom: &CustomImageUrls,
+) -> Logo {
+    if let Some(url) = custom.of(&Slot::plugin(&plugin.id)) {
+        return Logo { url, custom: true };
+    }
+    let manifest_logo = plugin
+        .manifest
+        .as_ref()
+        .ok()
+        .and_then(|it| it.logo_svg.as_deref());
+    let url = match manifest_logo {
+        Some(svg) => plugin_logos
+            .stored_url(&plugin.id, svg)
+            .await
+            .unwrap_or_else(|err| {
                 tracing::error!(plugin = %plugin.id, "could not store the Plugin's logo: {err}");
                 String::new()
             }),
-            None => String::new(),
-        };
-        Logo { url, custom: false }
-    }
+        None => String::new(),
+    };
+    Logo { url, custom: false }
 }
 
 /// The refusal of a Plugin change or settings check failing with `err`. A database failure is
@@ -236,7 +266,25 @@ fn change_refused(err: ChangeError) -> ConnectError {
     match err {
         ChangeError::Unknown(id) => plugin_not_found(&id),
         ChangeError::Refused { plugin, reason } => EnableError::Refused { plugin, reason }.into(),
+        ChangeError::NotRequested { plugin, permission } => {
+            let name = permission_to_proto(permission).proto_name();
+            refuse(
+                RefusalReason::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
+                format!("{plugin} doesn't ask for the Plugin Permission {name}"),
+            )
+            .field(GRANTED_PERMISSIONS)
+            .param("pluginId", &plugin)
+            .param("permission", &name)
+            .into()
+        }
         ChangeError::InvalidSettings(error) => settings_refused(error),
+        ChangeError::UnknownLibrary { key, id } => refuse(
+            RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+            format!("the setting {key} names no Library {id}"),
+        )
+        .setting(&key)
+        .param("libraryId", &id)
+        .into(),
         ChangeError::NotOffered { plugin, key, value } => {
             let message = format!("{value} isn't one of the choices for the setting {key}");
             refuse(RefusalReason::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
@@ -312,6 +360,14 @@ impl From<EnableError> for ConnectError {
             .param("pluginId", &plugin)
             .param("reason", &reason)
             .into(),
+            EnableError::RefusedToStart { plugin, reason } => refuse(
+                RefusalReason::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
+                format!("{plugin} refused to start: {reason}"),
+            )
+            .field("id")
+            .param("pluginId", &plugin)
+            .param("reason", &reason)
+            .into(),
             // The settings are the stored ones, not the request's, but #162 asks for the refusal
             // to name one.
             EnableError::InvalidSettings { error, .. } => settings_refused(error),
@@ -338,7 +394,7 @@ impl From<EnableError> for ConnectError {
 
 /// The refusal of settings that don't fit their Plugin's schema, naming the one that doesn't as
 /// `settings.<key>`, the way `Plugin.settings` lists it.
-fn settings_refused(err: SettingsError) -> ConnectError {
+pub(super) fn settings_refused(err: SettingsError) -> ConnectError {
     let refused = match err {
         SettingsError::Missing(key) => refuse(
             RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
@@ -346,7 +402,7 @@ fn settings_refused(err: SettingsError) -> ConnectError {
         )
         .setting(&key),
         SettingsError::WrongKind { key, expected } => {
-            let kind = proto::SettingKind::from(expected).proto_name();
+            let kind = setting_kind_to_proto(expected).proto_name();
             refuse(
                 RefusalReason::REFUSAL_REASON_SETTING_WRONG_KIND,
                 format!("the setting {key} must be {kind}"),
@@ -361,6 +417,7 @@ fn settings_refused(err: SettingsError) -> ConnectError {
 fn plugin_summary_to_proto(
     plugin: Listed,
     stored: BTreeMap<String, settings::SettingValue>,
+    granted: &HashSet<Permission>,
     logo: Logo,
 ) -> proto::PluginSummary {
     let (manifest, refused_reason) = manifest_and_refusal(&plugin.id, plugin.manifest);
@@ -372,6 +429,8 @@ fn plugin_summary_to_proto(
     );
     proto::PluginSummary {
         settings_missing,
+        requested_permissions: permissions_to_proto(&manifest.permissions),
+        granted_permissions: permissions_to_proto(granted),
         extension_points: extension_points_to_proto(&manifest.extension_points),
         id: plugin.id.to_string(),
         name: manifest.name,
@@ -389,6 +448,7 @@ fn plugin_summary_to_proto(
 fn plugin_to_proto(
     plugin: Listed,
     stored: BTreeMap<String, settings::SettingValue>,
+    granted: &HashSet<Permission>,
     logo: Logo,
 ) -> proto::Plugin {
     // A refused Plugin has no settings schema, so it comes with none.
@@ -401,8 +461,66 @@ fn plugin_to_proto(
     proto::Plugin {
         checks_settings: plugin.checks_settings,
         settings,
-        summary: plugin_summary_to_proto(plugin, stored, logo).into(),
+        summary: plugin_summary_to_proto(plugin, stored, granted, logo).into(),
         ..Default::default()
+    }
+}
+
+fn failing_to_proto(failing: Failing) -> proto::RecogniserFailure {
+    proto::RecogniserFailure {
+        last_error: failing.last_error,
+        at_ms: failing.at_ms,
+        failed_in_a_row: failing.in_a_row,
+        ..Default::default()
+    }
+}
+
+/// The `EnablePluginRequest` field that grants Plugin Permissions.
+const GRANTED_PERMISSIONS: &str = "granted_permissions";
+
+/// `permissions` as the client API names them, in the order the enum lists them.
+fn permissions_to_proto<'a>(
+    permissions: impl IntoIterator<Item = &'a Permission>,
+) -> Vec<EnumValue<proto::PluginPermission>> {
+    let mut permissions: Vec<_> = permissions.into_iter().copied().collect();
+    permissions.sort_by_key(|&permission| permission as i32);
+    permissions
+        .into_iter()
+        .map(|permission| permission_to_proto(permission).into())
+        .collect()
+}
+
+/// `permission` as the client API names it. The client API has its own enum, since it imports
+/// nothing from the Plugin contract (ADR 0041).
+fn permission_to_proto(permission: Permission) -> proto::PluginPermission {
+    use proto::PluginPermission as Public;
+    match permission {
+        Permission::PERMISSION_UNSPECIFIED => Public::PLUGIN_PERMISSION_UNSPECIFIED,
+        Permission::PERMISSION_STORE => Public::PLUGIN_PERMISSION_STORE,
+        Permission::PERMISSION_READ_LIBRARIES => Public::PLUGIN_PERMISSION_READ_LIBRARIES,
+        Permission::PERMISSION_READ_WATCH_STATES => Public::PLUGIN_PERMISSION_READ_WATCH_STATES,
+        Permission::PERMISSION_DELETE_MEDIA => Public::PLUGIN_PERMISSION_DELETE_MEDIA,
+        Permission::PERMISSION_READ_USERS => Public::PLUGIN_PERMISSION_READ_USERS,
+    }
+}
+
+/// The Plugin Permission a request names, or the refusal of one unset or unknown.
+fn permission_from_proto(
+    permission: EnumValue<proto::PluginPermission>,
+) -> Result<Permission, ConnectError> {
+    use proto::PluginPermission as Public;
+    match permission.as_known() {
+        Some(Public::PLUGIN_PERMISSION_STORE) => Ok(Permission::PERMISSION_STORE),
+        Some(Public::PLUGIN_PERMISSION_READ_LIBRARIES) => Ok(Permission::PERMISSION_READ_LIBRARIES),
+        Some(Public::PLUGIN_PERMISSION_READ_WATCH_STATES) => {
+            Ok(Permission::PERMISSION_READ_WATCH_STATES)
+        }
+        Some(Public::PLUGIN_PERMISSION_DELETE_MEDIA) => Ok(Permission::PERMISSION_DELETE_MEDIA),
+        Some(Public::PLUGIN_PERMISSION_READ_USERS) => Ok(Permission::PERMISSION_READ_USERS),
+        Some(Public::PLUGIN_PERMISSION_UNSPECIFIED) | None => Err(super::unknown_enum_value(
+            GRANTED_PERMISSIONS,
+            "each granted Plugin Permission must be one this Server knows",
+        )),
     }
 }
 
@@ -441,8 +559,8 @@ fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::Extens
             Public::EXTENSION_POINT_AUTHENTICATOR,
         ),
         (
-            PointKey::provide::<dyn MetadataProvider>(),
-            Public::EXTENSION_POINT_METADATA_PROVIDER,
+            PointKey::provide::<dyn TitleSource>(),
+            Public::EXTENSION_POINT_TITLE_SOURCE,
         ),
         (
             PointKey::observe::<Events>(),
@@ -451,6 +569,18 @@ fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::Extens
         (
             PointKey::observe::<ServerStarted>(),
             Public::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
+        ),
+        (
+            PointKey::provide::<dyn Recogniser>(),
+            Public::EXTENSION_POINT_RECOGNISER,
+        ),
+        (
+            PointKey::provide::<dyn BlobStore>(),
+            Public::EXTENSION_POINT_BLOB_STORE,
+        ),
+        (
+            PointKey::provide::<dyn Automation>(),
+            Public::EXTENSION_POINT_AUTOMATION,
         ),
     ];
     points
@@ -462,22 +592,19 @@ fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::Extens
 
 /// A setting with its `stored` value, as a client may see it: a secret's value, stored or
 /// default, never leaves the Server (see AGENTS.md, "Secrets stay out of storage and logs").
-fn setting_to_proto(
+pub(super) fn setting_to_proto(
     field: &SettingField,
     stored: Option<&settings::SettingValue>,
 ) -> proto::Setting {
     let secret = field.kind == settings::SettingKind::Secret;
     let shown = |value: Option<&settings::SettingValue>| {
-        value
-            .filter(|_| !secret)
-            .map(proto::SettingValue::from)
-            .into()
+        value.filter(|_| !secret).map(setting_value_to_proto).into()
     };
     proto::Setting {
         key: field.key.clone(),
         label: field.label.clone(),
         description: field.description.clone(),
-        kind: proto::SettingKind::from(field.kind).into(),
+        kind: setting_kind_to_proto(field.kind).into(),
         required: field.required,
         default_value: shown(field.default.as_ref()),
         value: shown(stored),
@@ -487,7 +614,7 @@ fn setting_to_proto(
 }
 
 /// The settings a request gives, by key, leaving out those [`setting_value_from_proto`] does.
-fn settings_from_proto<'a>(
+pub(super) fn settings_from_proto<'a>(
     sent: impl IntoIterator<Item = (&'a String, &'a proto::SettingValue)>,
 ) -> BTreeMap<String, settings::SettingValue> {
     sent.into_iter()
@@ -512,13 +639,50 @@ fn setting_choices_to_proto(choices: Vec<settings::Choice>) -> proto::SettingCho
 /// `value` as a setting's value, or `None` if it has none or is blank, which leaves the setting
 /// out.
 fn setting_value_from_proto(value: &proto::SettingValue) -> Option<settings::SettingValue> {
-    settings::SettingValue::from_proto(value)
-        .filter(|value| !matches!(value, settings::SettingValue::Text(text) if text.is_empty()))
+    use proto::setting_value::Value;
+    let value = match value.value.as_ref()? {
+        Value::TextValue(text) if text.is_empty() => return None,
+        Value::TextValue(text) => settings::SettingValue::Text(text.clone()),
+        Value::BoolValue(on) => settings::SettingValue::Bool(*on),
+        Value::IntegerValue(number) => settings::SettingValue::Integer(*number),
+        Value::LibraryIds(libraries) => settings::SettingValue::Libraries(libraries.ids.clone()),
+    };
+    Some(value)
+}
+
+fn setting_value_to_proto(value: &settings::SettingValue) -> proto::SettingValue {
+    use proto::setting_value::Value;
+    let value = match value {
+        settings::SettingValue::Text(text) => Value::TextValue(text.clone()),
+        settings::SettingValue::Bool(on) => Value::BoolValue(*on),
+        settings::SettingValue::Integer(number) => Value::IntegerValue(*number),
+        settings::SettingValue::Libraries(ids) => Value::LibraryIds(Box::new(proto::LibraryIds {
+            ids: ids.clone(),
+            ..Default::default()
+        })),
+    };
+    proto::SettingValue {
+        value: Some(value),
+        ..Default::default()
+    }
+}
+
+fn setting_kind_to_proto(kind: settings::SettingKind) -> proto::SettingKind {
+    use settings::SettingKind as K;
+    match kind {
+        K::Text => proto::SettingKind::SETTING_KIND_TEXT,
+        K::Secret => proto::SettingKind::SETTING_KIND_SECRET,
+        K::Bool => proto::SettingKind::SETTING_KIND_BOOL,
+        K::Integer => proto::SettingKind::SETTING_KIND_INTEGER,
+        K::Choice => proto::SettingKind::SETTING_KIND_CHOICE,
+        K::Url => proto::SettingKind::SETTING_KIND_URL,
+        K::Libraries => proto::SettingKind::SETTING_KIND_LIBRARIES,
+    }
 }
 
 /// The Connect error a client gets when the Plugins couldn't be listed, logged as
 /// [`database_failed`] logs.
-fn list_failed(err: ListError) -> ConnectError {
+pub(super) fn list_failed(err: ListError) -> ConnectError {
     match err {
         ListError::Read(err) => database_failed(err),
         err @ ListError::ReadInstalled(_) => {
@@ -530,28 +694,28 @@ fn list_failed(err: ListError) -> ConnectError {
 
 /// The refusal of a list of Qualities for the Plugin `plugin` that breaks a list rule, naming the
 /// field at fault.
-fn invalid_qualities(err: qualities::Invalid, plugin: &PluginId) -> ConnectError {
+fn invalid_qualities(err: QualitiesInvalid, plugin: &PluginId) -> ConnectError {
     use RefusalReason as R;
     let message = err.to_string();
     let (reason, field) = match err {
-        qualities::Invalid::Blank(index, part) => (
+        QualitiesInvalid::Blank(index, part) => (
             R::REFUSAL_REASON_FIELD_REQUIRED,
             format!("qualities[{index}].{part}"),
         ),
-        qualities::Invalid::Repeated(index, part) => (
+        QualitiesInvalid::Repeated(index, part) => (
             R::REFUSAL_REASON_QUALITY_REPEATED,
             format!("qualities[{index}].{part}"),
         ),
-        qualities::Invalid::NotOneDefault => (
+        QualitiesInvalid::NotOneDefault => (
             R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
             "qualities".to_owned(),
         ),
-        qualities::Invalid::ProfileNotOffered(index, profile) => {
-            let field = format!("qualities[{index}].{}", qualities::PROFILE);
+        QualitiesInvalid::ProfileNotOffered(index, profile) => {
+            let field = format!("qualities[{index}].{QUALITY_PROFILE_FIELD}");
             return refuse(R::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
                 .field(&field)
                 .param("pluginId", plugin)
-                .param("settingKey", &qualities::QUALITY_PROFILE)
+                .param("settingKey", &QUALITY_PROFILE)
                 .param("settingValue", &profile)
                 .into();
         }
@@ -560,27 +724,5 @@ fn invalid_qualities(err: qualities::Invalid, plugin: &PluginId) -> ConnectError
 }
 
 #[cfg(test)]
-mod tests {
-    use nama_plugin_api::settings::{SettingField, SettingKind, SettingValue};
-
-    use super::setting_to_proto;
-
-    #[test]
-    fn a_secrets_default_and_stored_value_are_never_sent() {
-        let token = SettingField {
-            key: "token".to_owned(),
-            label: "Token".to_owned(),
-            description: String::new(),
-            kind: SettingKind::Secret,
-            required: false,
-            default: Some(SettingValue::Text("default-token".to_owned())),
-        };
-        let stored = SettingValue::Text("stored-token".to_owned());
-
-        let shown = setting_to_proto(&token, Some(&stored));
-
-        assert!(shown.default_value.is_unset(), "{shown:?}");
-        assert!(shown.value.is_unset(), "{shown:?}");
-        assert!(shown.secret_set);
-    }
-}
+#[path = "plugins_tests.rs"]
+mod tests;

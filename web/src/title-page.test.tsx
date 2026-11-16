@@ -125,7 +125,7 @@ test("an unstarted Movie shows Play, and a played one too", async () => {
   expect(screen.queryByRole("progressbar")).toBeNull();
 });
 
-const dark = { id: { id: { case: "tmdb", value: 70_523n } }, title: "Dark" } as const;
+const dark = { id: { namespace: "tmdb", value: "70523" }, title: "Dark" } as const;
 
 /** Opens Dark's page, with `entries` in Continue Watching. */
 function openDark(...entries: MessageInitShape<typeof ContinueWatchingEntrySchema>[]) {
@@ -168,7 +168,7 @@ test("a Show's page shows its own overview and first air year, and no button uns
 });
 
 test("a Show's page resumes its most recently started Episode in Continue Watching", async () => {
-  const other = { id: { id: { case: "tmdb", value: 1n } }, title: "Other" } as const;
+  const other = { id: { namespace: "tmdb", value: "1" }, title: "Other" } as const;
   // Most recent first: another Show's, then Dark's in another Library, then this one's.
   openDark(
     episodeEntry(other, 2n, 1),

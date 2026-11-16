@@ -1,24 +1,25 @@
-//! The images the Server keeps, as plain files in the data directory (ADR 0037).
+//! The images the Server keeps, in a `Blobs` store: by default `LocalDisk`, plain files in the
+//! data directory (ADR 0037).
 //!
 //! Only [`ImageStore`] reads or writes them (`AGENTS.md`). A key names an image by a few parts,
 //! each escaped to one file name, so no key reaches outside the store. Resized copies are kept
 //! apart, in a `resized` folder, and can be deleted at any time (ADR 0039). An image's thumbhash is
 //! kept in the database once it has been resized.
 
+mod blobs;
+mod local_disk;
+mod plugin_logos;
 mod resized;
+mod serving;
+mod switch;
 
 use std::{
     io::{self, Write as _},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex, PoisonError, RwLock},
 };
 
-use axum::{
-    body::Body,
-    extract::Request,
-    http::{HeaderMap, HeaderValue, StatusCode, header},
-    response::{IntoResponse, Response},
-};
+use axum::{body::Body, http::StatusCode};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures_util::StreamExt as _;
 use image::{ImageFormat, ImageReader};
@@ -26,9 +27,12 @@ use serde::Deserialize;
 use sha2::{Digest as _, Sha256};
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt as _;
-use tower_http::services::ServeFile;
 
+pub(crate) use blobs::{Blobs, MAX_BYTES};
+use local_disk::LocalDisk;
+pub(crate) use plugin_logos::{PluginLogos, router as plugin_logos_router};
 use resized::{Copied, Format, ResizeThread};
+pub(crate) use switch::{Persist, SwitchRefused, Switching};
 
 use crate::{db::Database, server_settings::ImageSettings};
 
@@ -36,8 +40,41 @@ use crate::{db::Database, server_settings::ImageSettings};
 /// Backdrops are shown at, at one to three device pixels per CSS pixel. Any other is refused.
 pub const WIDTHS: [u32; 7] = [320, 480, 640, 960, 1280, 1920, 2560];
 
+/// The Built-in store: files in `data_dir`, as [`ImageStore::new`] keeps them.
+pub(crate) fn local_disk(data_dir: &Path) -> Arc<dyn Blobs> {
+    Arc::new(LocalDisk::new(data_dir))
+}
+
+/// Where the images Matches store are kept.
+pub(crate) const KEPT_ARTWORK_DIR: &str = "artwork";
+
+/// Where the images only a Movie or Show search or lookup offered are kept.
+pub(crate) const OFFERED_ARTWORK_DIR: &str = "artwork-cache";
+
+/// Where Custom Images are kept.
+pub(crate) const CUSTOM_IMAGES_DIR: &str = "custom-images";
+
+/// Where the Plugins' Manifest logos are kept, one folder per Plugin.
+pub(crate) const PLUGIN_LOGOS_DIR: &str = "plugin-logos";
+
+/// The first part of every original's key: what a switch to another store copies. Offered
+/// artwork is among them, since it is served from the store too.
+pub(crate) const ORIGINAL_DIRS: &[&str] = &[
+    KEPT_ARTWORK_DIR,
+    OFFERED_ARTWORK_DIR,
+    CUSTOM_IMAGES_DIR,
+    PLUGIN_LOGOS_DIR,
+];
+
 /// The folder in the data directory resized copies are kept in (`AGENTS.md`).
 const RESIZED_DIR: &str = "resized";
+
+/// The folder in the data directory uploads are written to as they arrive. No image key starts
+/// with it, and it is on the data directory's filesystem, so `LocalDisk` can rename one into place.
+const UPLOADS_DIR: &str = "uploads";
+
+/// How many locks [`ImageStore::write`] spreads its keys over.
+const WRITE_LOCKS: usize = 16;
 
 /// The most bytes an uploaded image may have: 20 MiB.
 pub const MAX_UPLOAD_BYTES: u64 = 20 * 1024 * 1024;
@@ -92,6 +129,20 @@ pub struct ImageStore {
     dir: PathBuf,
     db: Arc<Database>,
     resizer: ResizeThread,
+    /// The store the originals are kept in, or while a switch runs one that mirrors writes into
+    /// the next (`switch.rs`).
+    store: Arc<RwLock<Arc<dyn Blobs>>>,
+    /// The running or last failed switch to another store.
+    switching: Arc<Mutex<Option<Switching>>>,
+    /// Held from fetching an original to resize until its copy is made, so one original at a time
+    /// is held in memory for it, and a request that waited behind the one making its copy finds
+    /// it rather than fetching the original again.
+    resizing: Arc<tokio::sync::Mutex<()>>,
+    /// Held from finding a key missing until it is stored: two writes of one key would otherwise
+    /// both store it, and the second, replacing the first, changes its `ETag` (#793). Every write
+    /// and delete takes the store under it, so a switch holding them all knows none is left
+    /// writing only to the old store.
+    writing: Arc<[tokio::sync::Mutex<()>; WRITE_LOCKS]>,
 }
 
 /// A resized copy asked for.
@@ -129,11 +180,37 @@ impl ImageStore {
     /// The images stored in `data_dir`, their thumbhashes kept in `db`.
     #[must_use]
     pub fn new(data_dir: &Path, db: Arc<Database>) -> Self {
+        Self::over(data_dir, db, Arc::new(LocalDisk::new(data_dir)))
+    }
+
+    /// The images kept in `store`, their resized copies and uploads in `data_dir`.
+    fn over(data_dir: &Path, db: Arc<Database>, store: Arc<dyn Blobs>) -> Self {
         Self {
             dir: data_dir.to_owned(),
             db,
             resizer: ResizeThread::start(),
+            store: Arc::new(RwLock::new(store)),
+            switching: Arc::default(),
+            resizing: Arc::default(),
+            writing: Arc::new(std::array::from_fn(|_| tokio::sync::Mutex::default())),
         }
+    }
+
+    /// The store the originals are kept in. Every call to it goes through here.
+    fn blobs(&self) -> Arc<dyn Blobs> {
+        Arc::clone(&self.store.read().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    /// The lock a write of `key` holds (see `writing`).
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "a remainder of `WRITE_LOCKS` is below the array's length"
+    )]
+    fn write_lock(&self, key: &str) -> &tokio::sync::Mutex<()> {
+        let hash = key.bytes().fold(0_usize, |hash, byte| {
+            hash.wrapping_mul(31).wrapping_add(usize::from(byte))
+        });
+        &self.writing[hash % WRITE_LOCKS]
     }
 
     /// Stores `bytes` as the image at `key`, so no reader ever sees part of it, keeping an image
@@ -143,8 +220,13 @@ impl ImageStore {
     ///
     /// If the file can't be written.
     pub async fn write(&self, key: &[&str], bytes: &[u8]) -> io::Result<()> {
-        let (path, bytes) = (self.path(key), bytes.to_vec());
-        tokio::task::spawn_blocking(move || write_unless_stored(&path, &bytes)).await?
+        let key = row_key(key);
+        let _writing = self.write_lock(&key).lock().await;
+        let blobs = self.blobs();
+        if blobs.exists(&key).await? {
+            return Ok(());
+        }
+        blobs.put(&key, bytes.to_vec()).await
     }
 
     /// Keeps `body`, a JPEG, PNG or WebP of at most [`MAX_UPLOAD_BYTES`] and [`MAX_PIXELS`], or
@@ -161,35 +243,36 @@ impl ImageStore {
         body: Body,
         svg_accepted: bool,
     ) -> Result<Received, UploadError> {
-        let dir = self.path(dir);
-        let partial = {
-            let dir = dir.clone();
-            tokio::task::spawn_blocking(move || {
-                std::fs::create_dir_all(&dir)?;
-                // Its name starts with `.`, which `file_name` never gives, so no key names it.
-                NamedTempFile::new_in(dir)
-            })
-            .await
-            .map_err(io::Error::from)??
-        };
+        let uploads = self.dir.join(UPLOADS_DIR);
+        let partial = tokio::task::spawn_blocking(move || {
+            std::fs::create_dir_all(&uploads)?;
+            // Its name starts with `.`, which `file_name` never gives, so no key names it.
+            NamedTempFile::new_in(uploads)
+        })
+        .await
+        .map_err(io::Error::from)??;
         let version = write_hashed(&partial, body).await?;
-        tokio::task::spawn_blocking(move || {
+        let (partial, content_type) = tokio::task::spawn_blocking(move || {
             let content_type = match content_type_of(partial.path()) {
                 Err(UploadError::NotAnImage) if svg_accepted => clean_svg_in(&partial)?,
                 other => other?,
             };
             // Synced before the rename, or a crash can leave a whole name over an empty file.
             partial.as_file().sync_all()?;
-            partial
-                .persist(dir.join(&version))
-                .map_err(io::Error::from)?;
-            Ok(Received {
-                version,
-                content_type,
-            })
+            Ok::<_, UploadError>((partial, content_type))
         })
         .await
-        .map_err(io::Error::from)?
+        .map_err(io::Error::from)??;
+        let key = row_key(&[dir, &[version.as_str()]].concat());
+        let _writing = self.write_lock(&key).lock().await;
+        let blobs = self.blobs();
+        if !blobs.exists(&key).await? {
+            blobs.put_file(&key, partial).await?;
+        }
+        Ok(Received {
+            version,
+            content_type,
+        })
     }
 
     /// Whether an image is stored at `key`.
@@ -198,111 +281,7 @@ impl ImageStore {
     ///
     /// If the store can't be read.
     pub async fn contains(&self, key: &[&str]) -> io::Result<bool> {
-        tokio::fs::try_exists(self.path(key)).await
-    }
-
-    /// The image at `key` as the answer to `request`, sent as `content_type`: 404 if none is
-    /// stored, 304 for a matching `If-None-Match`, else the bytes with an `ETag`.
-    ///
-    /// With a `resize`, it is sent as a copy that wide, made the first time it is asked for, or
-    /// else as it is stored where it can't or needn't be resized (see `make_copy`), varying by
-    /// `Accept` either way. The copy is a JPEG XL where `Accept` lists `image/jxl`, else a JPEG, as
-    /// it is too where a JPEG XL would be over 7 megapixels.
-    /// Making a copy keeps the image's thumbhash, for `thumbhashes`.
-    /// The copy is made from the image's key alone, so it is never made again if the image at
-    /// `key` changes.
-    ///
-    /// Browsers keep the response for good, so serve it only at a URL that names these bytes
-    /// alone: a Provider's path, or a version taken from the bytes.
-    ///
-    /// # Errors
-    ///
-    /// If the file is there but can't be read.
-    pub async fn serve(
-        &self,
-        key: &[&str],
-        content_type: &'static str,
-        resize: Option<Resize>,
-        request: Request,
-    ) -> io::Result<Response> {
-        let Some(resize) = resize else {
-            return serve_file(self.path(key), content_type, request).await;
-        };
-        let asked = format_asked(request.headers());
-        let mut response = if let Some(format) = self.ensure_copy(key, resize, asked).await {
-            // The copy can go between making it and sending it, deleted with the folder or by
-            // another request's eviction, so the original stands in for it.
-            let (head, _empty) = request.into_parts();
-            let for_copy = Request::from_parts(head.clone(), Body::empty());
-            let copy = self.copy_path(key, resize.width, format);
-            let sent = serve_file(copy, format.content_type(), for_copy).await?;
-            if sent.status() == StatusCode::NOT_FOUND {
-                let for_original = Request::from_parts(head, Body::empty());
-                serve_file(self.path(key), content_type, for_original).await?
-            } else {
-                sent
-            }
-        } else {
-            serve_file(self.path(key), content_type, request).await?
-        };
-        response
-            .headers_mut()
-            .insert(header::VARY, HeaderValue::from_static("accept"));
-        Ok(response)
-    }
-
-    /// The format of the copy of the image at `key` to send for `resize`, made now if it wasn't
-    /// there: `asked`, or JPEG where `make_copy` puts one in its place. `None` to send the image
-    /// as stored, which an image that can't be resized also is, after a warning is logged.
-    async fn ensure_copy(&self, key: &[&str], resize: Resize, asked: Format) -> Option<Format> {
-        let copy = self.copy_path(key, resize.width, asked);
-        let sent = copy.clone();
-        let touch = tokio::task::spawn_blocking(move || resized::touch(&sent)).await;
-        match touch.map_err(io::Error::from).and_then(|touched| touched) {
-            Ok(()) => return Some(asked),
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-            // It's there, and not marking it only lets eviction pick it sooner.
-            Err(err) => {
-                tracing::warn!("could not mark {} as sent: {err}", copy.display());
-                return Some(asked);
-            }
-        }
-        let (original, folder) = (self.path(key), self.copies_path(key));
-        let cache = self.dir.join(RESIZED_DIR);
-        let resized = self
-            .resizer
-            .run(move || {
-                let copied = resized::make_copy(&original, &folder, resize.width, asked);
-                if let Ok(Copied::Made { format, .. }) = copied
-                    && let made = folder.join(format.file_name(resize.width))
-                    && let Err(err) = resized::evict(&cache, resize.cache_limit, &made)
-                {
-                    tracing::error!("could not keep the resized images within their limit: {err}");
-                }
-                copied.map_err(|err| format!("could not resize {}: {err}", original.display()))
-            })
-            .await;
-        // The thread having stopped, or a resize having panicked, is one more failed resize.
-        let copied = resized
-            .map_err(|err| err.to_string())
-            .and_then(|copied| copied);
-        match copied {
-            Ok(Copied::Found(format)) => Some(format),
-            Ok(Copied::Made { format, thumbhash }) => {
-                // Without it the image only goes without a placeholder.
-                // ponytail: a Custom Image replaced while it is resized can leave its thumbhash
-                // behind, a row no URL sent names; sweep rows without a file if that matters.
-                if let Err(err) = self.keep_thumbhash(key, thumbhash).await {
-                    tracing::error!("could not keep the thumbhash of {key:?}: {err}");
-                }
-                Some(format)
-            }
-            Ok(Copied::Unneeded) => None,
-            Err(err) => {
-                tracing::warn!("{err}, so it is sent as it is");
-                None
-            }
-        }
+        self.blobs().exists(&row_key(key)).await
     }
 
     async fn keep_thumbhash(&self, key: &[&str], thumbhash: Vec<u8>) -> sqlx::Result<()> {
@@ -356,19 +335,25 @@ impl ImageStore {
     /// If the file or its copies are there but can't be deleted, or the thumbhash can't be.
     pub async fn delete(&self, key: &[&str]) -> io::Result<()> {
         self.forget_thumbhashes(key).await?;
-        unless_gone(tokio::fs::remove_file(self.path(key)).await)?;
+        let row = row_key(key);
+        {
+            let _writing = self.write_lock(&row).lock().await;
+            self.blobs().delete(&row).await?;
+        }
         self.delete_copies(key).await
     }
 
-    /// Deletes the folder at `key` and every image in it, if it is there, with their resized
-    /// copies and thumbhashes.
+    /// Deletes every image under `key`, with their resized copies and thumbhashes.
     ///
     /// # Errors
     ///
-    /// If the folder or the copies are there but can't be deleted, or the thumbhashes can't be.
+    /// If an image or the copies are there but can't be deleted, or the thumbhashes can't be.
     pub async fn delete_dir(&self, key: &[&str]) -> io::Result<()> {
         self.forget_thumbhashes(key).await?;
-        unless_gone(tokio::fs::remove_dir_all(self.path(key)).await)?;
+        for stored in self.blobs().list(&format!("{}/", row_key(key))).await? {
+            let _writing = self.write_lock(&stored).lock().await;
+            self.blobs().delete(&stored).await?;
+        }
         self.delete_copies(key).await
     }
 
@@ -406,12 +391,12 @@ impl ImageStore {
     ///
     /// If the store can't be read.
     pub async fn list(&self, dir: &str) -> io::Result<Vec<Vec<String>>> {
-        let (root, top) = (self.dir.clone(), self.path(&[dir]));
-        tokio::task::spawn_blocking(move || list_under(&root, &top)).await?
-    }
-
-    fn path(&self, key: &[&str]) -> PathBuf {
-        under(self.dir.clone(), key)
+        let stored = self.blobs().list(&format!("{}/", file_name(dir))).await?;
+        Ok(stored
+            .iter()
+            // Skips a name `file_name` doesn't give, such as one put there by hand.
+            .filter_map(|key| key.split('/').map(unescape).collect())
+            .collect())
     }
 
     /// Where the copy `width` pixels wide in `format` of the image at `key` is kept.
@@ -423,37 +408,6 @@ impl ImageStore {
     /// in.
     fn copies_path(&self, key: &[&str]) -> PathBuf {
         under(self.dir.join(RESIZED_DIR), key)
-    }
-}
-
-/// JPEG XL where `headers` hold an `Accept` that lists `image/jxl` at a quality above 0, else
-/// JPEG.
-fn format_asked(headers: &HeaderMap) -> Format {
-    let is_quality_zero = |param: &str| {
-        param.split_once('=').is_some_and(|(name, value)| {
-            name.trim().eq_ignore_ascii_case("q")
-                && value
-                    .trim()
-                    .parse::<f32>()
-                    .is_ok_and(|quality| quality <= 0.0)
-        })
-    };
-    let accepts_jxl = headers
-        .get_all(header::ACCEPT)
-        .iter()
-        .filter_map(|accept| accept.to_str().ok())
-        .flat_map(|accept| accept.split(','))
-        .any(|range| {
-            let mut parts = range.split(';');
-            parts
-                .next()
-                .is_some_and(|media| media.trim().eq_ignore_ascii_case("image/jxl"))
-                && !parts.any(is_quality_zero)
-        });
-    if accepts_jxl {
-        Format::Jxl
-    } else {
-        Format::Jpeg
     }
 }
 
@@ -475,51 +429,6 @@ fn row_key(key: &[&str]) -> String {
 fn under(folder: PathBuf, key: &[&str]) -> PathBuf {
     key.iter()
         .fold(folder, |path, part| path.join(file_name(part)))
-}
-
-/// The file at `path` as the answer to `request`, sent as `content_type`, as [`ImageStore::serve`]
-/// says.
-async fn serve_file(
-    path: PathBuf,
-    content_type: &'static str,
-    request: Request,
-) -> io::Result<Response> {
-    let mut response = match ServeFile::new(path).try_call(request).await {
-        Ok(response) => response.into_response(),
-        // Without a fallback, `try_call` hands a missing file back as an error.
-        Err(err) if err.kind() == io::ErrorKind::NotFound => StatusCode::NOT_FOUND.into_response(),
-        Err(err) => return Err(err),
-    };
-    let status = response.status();
-    let headers = response.headers_mut();
-    // An unnamed type stays a download: no browser guesses it is HTML.
-    headers.insert(
-        header::X_CONTENT_TYPE_OPTIONS,
-        HeaderValue::from_static("nosniff"),
-    );
-    if status.is_success() {
-        // `ServeFile` guesses by extension, and would send an SVG as an image.
-        headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
-    }
-    if content_type == SVG {
-        // `sandbox` keeps a script from running when someone opens the SVG in its own tab, and
-        // `attachment` from it showing there at all; cleaning it is the second layer.
-        headers.insert(
-            header::CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'; sandbox"),
-        );
-        headers.insert(
-            header::CONTENT_DISPOSITION,
-            HeaderValue::from_static("attachment"),
-        );
-    }
-    if status.is_success() || status == StatusCode::NOT_MODIFIED {
-        headers.insert(
-            header::CACHE_CONTROL,
-            HeaderValue::from_static("private, max-age=31536000, immutable"),
-        );
-    }
-    Ok(response)
 }
 
 /// Writes `body` to `partial` as it arrives, refusing it past [`MAX_UPLOAD_BYTES`], and returns a
@@ -619,16 +528,6 @@ fn write_now(path: &Path, bytes: &[u8]) -> io::Result<()> {
     Ok(())
 }
 
-/// [`ImageStore::write`], blocking the thread it runs on.
-fn write_unless_stored(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    match synced_beside(path, bytes)?.persist_noclobber(path) {
-        Ok(_file) => Ok(()),
-        // Something other than a file at `path`, such as a folder, isn't a stored image.
-        Err(err) if err.error.kind() == io::ErrorKind::AlreadyExists && path.is_file() => Ok(()),
-        Err(err) => Err(err.error),
-    }
-}
-
 /// A temporary file of `bytes` in `path`'s folder, synced to disk, to rename to `path`.
 fn synced_beside(path: &Path, bytes: &[u8]) -> io::Result<NamedTempFile> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
@@ -662,36 +561,17 @@ pub(crate) fn file_name(text: &str) -> String {
     name
 }
 
-/// [`ImageStore::list`] of the folder `top` in the store at `root`. Blocks, so call it from
-/// `spawn_blocking`.
-fn list_under(root: &Path, top: &Path) -> io::Result<Vec<Vec<String>>> {
-    let mut keys = Vec::new();
-    for entry in walkdir::WalkDir::new(top) {
-        match entry {
-            Ok(entry) if entry.file_type().is_file() => keys.extend(key_at(root, entry.path())),
-            Ok(_) => {}
-            // No such `top` yet, or a file deleted while listing.
-            Err(err) if err.io_error().map(io::Error::kind) == Some(io::ErrorKind::NotFound) => {}
-            Err(err) => return Err(err.into()),
-        }
-    }
-    Ok(keys)
-}
-
-/// The key of the image at `path` in the store at `root`, unless a name on the way isn't one
-/// [`file_name`] gives, such as a write's temporary file.
-fn key_at(root: &Path, path: &Path) -> Option<Vec<String>> {
-    let relative = path.strip_prefix(root).ok()?;
-    relative
-        .iter()
-        .map(|part| part.to_str().and_then(unescape))
-        .collect()
-}
-
 /// The text `name` is the [`file_name`] of, if it is one.
 fn unescape(name: &str) -> Option<String> {
-    let mut bytes = Vec::with_capacity(name.len());
-    let mut rest = name.as_bytes();
+    let text = percent_decode(name)?;
+    (file_name(&text) == name).then_some(text)
+}
+
+/// `text` with each `%XX` made the byte it stands for, `None` if one is cut short, isn't hex or
+/// the result isn't UTF-8. It accepts any encoding of a text; a caller wanting one checks it.
+pub(crate) fn percent_decode(text: &str) -> Option<String> {
+    let mut bytes = Vec::with_capacity(text.len());
+    let mut rest = text.as_bytes();
     while let Some((&byte, tail)) = rest.split_first() {
         rest = tail;
         if byte == b'%' {
@@ -702,140 +582,9 @@ fn unescape(name: &str) -> Option<String> {
             bytes.push(byte);
         }
     }
-    let text = String::from_utf8(bytes).ok()?;
-    (file_name(&text) == name).then_some(text)
+    String::from_utf8(bytes).ok()
 }
 
 #[cfg(test)]
-mod tests {
-    use axum::{body::Body, extract::Request};
-
-    use std::sync::Arc;
-
-    use tempfile::TempDir;
-
-    use axum::http::{HeaderMap, HeaderValue, header};
-
-    use super::{Format, ImageStore, file_name, format_asked, unescape};
-    use crate::db::Database;
-
-    const KEY: &[&str] = &["artwork", "tmdb", "/poster.jpg"];
-
-    async fn store_in(data: &TempDir) -> ImageStore {
-        let db = Database::open(data.path()).await.unwrap();
-        ImageStore::new(data.path(), Arc::new(db))
-    }
-
-    #[tokio::test]
-    async fn a_failed_write_leaves_nothing_behind() {
-        let data = tempfile::tempdir().unwrap();
-        let store = store_in(&data).await;
-        // A folder where the image goes, so the write can't put it there.
-        let blocked = data.path().join("artwork/tmdb/%2Fposter.jpg");
-        std::fs::create_dir_all(blocked.join("in-the-way")).unwrap();
-
-        let written = store.write(KEY, b"\xff\xd8").await;
-
-        assert!(written.is_err());
-        let left: Vec<_> = std::fs::read_dir(blocked.parent().unwrap())
-            .unwrap()
-            .map(|entry| entry.unwrap().file_name())
-            .collect();
-        assert_eq!(left, ["%2Fposter.jpg"]);
-    }
-
-    #[tokio::test]
-    async fn writing_a_stored_key_again_keeps_the_first_file_and_its_etag() {
-        let data = tempfile::tempdir().unwrap();
-        let store = store_in(&data).await;
-        let get = || Request::get("/").body(Body::empty()).unwrap();
-        store.write(KEY, b"\xff\xd8first").await.unwrap();
-        let first = store.serve(KEY, "image/jpeg", None, get()).await.unwrap();
-        let etag = first.headers()[header::ETAG].clone();
-
-        store.write(KEY, b"\xff\xd8second!").await.unwrap();
-
-        let mut again = get();
-        again.headers_mut().insert(header::IF_NONE_MATCH, etag);
-        let response = store.serve(KEY, "image/jpeg", None, again).await.unwrap();
-        assert_eq!(response.status(), 304);
-        let folder = data.path().join("artwork/tmdb");
-        assert_eq!(
-            std::fs::read(folder.join("%2Fposter.jpg")).unwrap(),
-            b"\xff\xd8first"
-        );
-        assert_eq!(std::fs::read_dir(folder).unwrap().count(), 1);
-    }
-
-    #[tokio::test]
-    async fn deleting_an_image_twice_leaves_none_stored() {
-        let data = tempfile::tempdir().unwrap();
-        let store = store_in(&data).await;
-        store.write(KEY, b"\xff\xd8").await.unwrap();
-
-        store.delete(KEY).await.unwrap();
-
-        assert!(!store.contains(KEY).await.unwrap());
-        store.delete(KEY).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn an_image_not_stored_is_not_found() {
-        let data = tempfile::tempdir().unwrap();
-        let request = Request::get("/").body(Body::empty()).unwrap();
-
-        let response = store_in(&data)
-            .await
-            .serve(KEY, "image/jpeg", None, request)
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), 404);
-    }
-
-    #[tokio::test]
-    async fn listing_gives_the_key_of_each_image_stored_under_a_folder() {
-        let data = tempfile::tempdir().unwrap();
-        let store = store_in(&data).await;
-        store.write(KEY, b"\xff\xd8").await.unwrap();
-        store.write(&["elsewhere", "x"], b"\xff\xd8").await.unwrap();
-        // As a write leaves it while it is under way.
-        std::fs::write(data.path().join("artwork/tmdb/.tmpAbC123"), b"").unwrap();
-
-        let listed = store.list("artwork").await.unwrap();
-
-        assert_eq!(listed, [KEY]);
-        assert_eq!(
-            store.list("nothing-yet").await.unwrap(),
-            Vec::<Vec<String>>::new()
-        );
-    }
-
-    #[test]
-    fn jpeg_xl_is_accepted_where_listed_at_a_quality_above_zero() {
-        let accepts = |values: &[&'static str]| {
-            let mut headers = HeaderMap::new();
-            for value in values {
-                headers.append(header::ACCEPT, HeaderValue::from_static(value));
-            }
-            format_asked(&headers) == Format::Jxl
-        };
-
-        assert!(accepts(&["image/avif, Image/JXL ;q=0.5"]));
-        assert!(accepts(&["image/webp", "image/jxl"]));
-        assert!(!accepts(&["image/jxl;q=0", "image/*"]));
-        assert!(!accepts(&["image/jxl; q=0.000"]));
-        assert!(!accepts(&["image/*,*/*;q=0.8"]));
-        assert!(!accepts(&[]));
-    }
-
-    #[test]
-    fn a_file_name_unescapes_to_its_text_and_no_other_name_does() {
-        for text in ["/poster.jpg", "a b/%.ünï", "tmdb"] {
-            assert_eq!(unescape(&file_name(text)).as_deref(), Some(text));
-        }
-        for name in [".tmpAbC123", "%2f", "%2", "%ZZ", "a%2Fb%"] {
-            assert_eq!(unescape(name), None, "{name}");
-        }
-    }
-}
+#[path = "images/images_tests.rs"]
+mod tests;

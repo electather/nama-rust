@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE libraries SET recognisers_read = ? WHERE id = ? AND recognisers_read IS NOT ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "d9e50f1390753b2989c740248c919bd2f705a71f5e352fab00f220b626cb9472"
+}

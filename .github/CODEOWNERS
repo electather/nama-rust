@@ -1,0 +1,35 @@
+# Every path is owned by @electather. Later lines win, so a crate, package or Server area
+# can take more owners on its own line.
+*                                           @electather
+
+# Crates
+/crates/nama-hub/                           @electather
+/crates/nama-pdk/                           @electather
+/crates/nama-plugin-api/                    @electather
+/crates/nama-plugin-proto/                  @electather
+/crates/nama-proto/                         @electather
+/crates/nama-server/                        @electather
+/crates/nama-test-plugin/                   @electather
+/crates/nama-test-report/                   @electather
+
+# Packages
+/plugins/                                   @electather
+/web/                                       @electather
+/proto/                                     @electather
+/docs/                                      @electather
+
+# Server areas: each covers foo.rs, foo_tests.rs and foo/
+/crates/nama-server/src/api*                @electather
+/crates/nama-server/src/automation*         @electather
+/crates/nama-server/src/browse*             @electather
+/crates/nama-server/src/ffmpeg*             @electather
+/crates/nama-server/src/images*             @electather
+/crates/nama-server/src/library*            @electather
+/crates/nama-server/src/matching*           @electather
+/crates/nama-server/src/playback*           @electather
+/crates/nama-server/src/plugins*            @electather
+/crates/nama-server/src/plugin_settings*    @electather
+/crates/nama-server/src/requests*           @electather
+/crates/nama-server/src/scanner*            @electather
+/crates/nama-server/src/server_settings*    @electather
+/crates/nama-server/src/users*              @electather

@@ -6,7 +6,6 @@ use std::{collections::HashMap, path::PathBuf};
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_proto::nama::v1::{
     BrowseServiceClient, ExternalId, GetMovieRequest, LibraryKind, MatchServiceClient, Movie,
-    external_id,
 };
 use nama_server::ffmpeg::Ffmpeg;
 
@@ -119,7 +118,8 @@ impl Fixture {
 
 pub(crate) fn tmdb_id(id: i64) -> ExternalId {
     ExternalId {
-        id: Some(external_id::Id::Tmdb(id)),
+        namespace: "tmdb".to_owned(),
+        value: id.to_string(),
         ..Default::default()
     }
 }

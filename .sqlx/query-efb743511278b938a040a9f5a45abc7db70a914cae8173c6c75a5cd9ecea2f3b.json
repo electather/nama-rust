@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT followed_shows.id AS \"id!\", show_id FROM followed_shows\n           JOIN followed_show_ids AS known ON known.followed_show_id = followed_shows.id\n           JOIN json_each(?) AS wanted\n               ON known.namespace = wanted.key AND known.value = wanted.value\n           WHERE state = 'approved'\n           ORDER BY followed_shows.id LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "show_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "show_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      null,
+      false
+    ]
+  },
+  "hash": "efb743511278b938a040a9f5a45abc7db70a914cae8173c6c75a5cd9ecea2f3b"
+}

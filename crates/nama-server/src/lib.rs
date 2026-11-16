@@ -1,39 +1,25 @@
 //! The Nama Server as a library, so its pieces can be tested on their own.
 
 mod api;
-pub mod artwork;
+mod automation;
+pub use library::{Artwork, ArtworkError};
 mod browse;
-pub mod codes;
 pub mod config;
 mod connections;
-mod contents;
-mod custom_images;
 pub mod db;
-mod device_names;
 mod events;
 pub mod ffmpeg;
 mod forwarded;
 pub mod images;
-mod libraries;
+mod library;
 mod matching;
-mod metadata;
 mod playback;
-mod plugin_logos;
 pub mod plugin_settings;
 pub mod plugins;
-mod probing;
-mod qualities;
-mod rate_limits;
 mod requests;
 mod scanner;
 mod server_settings;
-mod sessions;
-mod sign_in;
-mod sign_in_codes;
-mod track_preferences;
-mod tracks;
 pub mod users;
-mod watch_states;
 #[cfg(feature = "web")]
 mod web;
 
@@ -42,23 +28,21 @@ use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::net::TcpListener;
 
 use crate::{
-    artwork::Artwork,
-    codes::SetupCode,
+    automation::Automation,
     config::Config,
-    contents::Contents,
-    custom_images::CustomImages,
     db::Database,
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
-    images::ImageStore,
-    playback::running::RunningPlans,
-    playback::subtitles,
-    plugin_logos::PluginLogos,
+    images::{ImageStore, PluginLogos},
+    library::{Contents, CustomImages},
+    playback::Probing,
+    playback::{RunningPlans, SubtitleCache},
     plugin_settings::PluginSettings,
-    probing::Probing,
+    plugins::{ExtensionPoints, PluginBlobs},
     requests::Requests,
     scanner::Scanner,
     server_settings::Settings,
+    users::SetupCode,
 };
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins `plugins` started,
@@ -104,10 +88,11 @@ pub fn serve(
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
     let points = plugins.extension_points();
+    let watch_folders = config.watch_folders;
     let settings = Settings::new(Arc::clone(&db), config.data_dir.join("transcodes"));
     let events = EventBus::new(Arc::clone(&db), points.clone(), settings.server_url());
     let ffmpeg = Arc::new(ffmpeg);
-    let subtitles = subtitles::Cache::new(&config.data_dir);
+    let subtitles = SubtitleCache::new(&config.data_dir);
     let probing = Probing::new(Arc::clone(&db), Arc::clone(&ffmpeg), subtitles.clone());
     let running = RunningPlans::new(
         settings.playback(),
@@ -120,7 +105,8 @@ pub fn serve(
     let images = ImageStore::new(&config.data_dir, Arc::clone(&db));
     let artwork = Artwork::new(images.clone(), points.clone());
     let plugin_logos = PluginLogos::new(images.clone());
-    let custom_images = CustomImages::new(Arc::clone(&db), images);
+    let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
+    let automation_points = points.clone();
     let scanner = Scanner::new(
         Arc::clone(&db),
         points,
@@ -131,8 +117,9 @@ pub fn serve(
         Some(running.clone()),
         Some(requests.clone()),
     );
+    let automation = Automation::serve(Arc::clone(&db), scanner.clone(), automation_points);
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
-    let load_settings = load_settings(settings.clone());
+    let load_settings = load_settings(settings.clone(), images.clone(), plugins.extension_points());
     let app = api::router(
         config,
         db,
@@ -140,6 +127,7 @@ pub fn serve(
         scanner.clone(),
         custom_images,
         plugin_logos,
+        images,
         artwork,
         probing.clone(),
         events.clone(),
@@ -160,7 +148,9 @@ pub fn serve(
         scanner.start_all().await;
         // Quiet long enough that a file being copied in is scanned once it's whole; every six hours
         // for the folders whose changes the OS doesn't report, such as network shares.
-        scanner.watch(Duration::from_secs(30), Duration::from_hours(6));
+        if watch_folders {
+            scanner.watch(Duration::from_secs(30), Duration::from_hours(6));
+        }
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         requests.start(plugins.take_came_up(), Duration::from_mins(1));
         let served = axum::serve(
@@ -182,18 +172,23 @@ pub fn serve(
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
         plugins.shutdown().await;
+        // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
+        drop(automation);
         served
     }
 }
 
-/// Reads the Server settings, logging a failure and going on with the defaults, then sweeps the
-/// segment files an earlier run left.
-async fn load_settings(settings: Settings) {
+/// Reads the Server settings, logging a failure and going on with the defaults, has `images`
+/// keep its originals in the store they name, then sweeps the segment files an earlier run left.
+async fn load_settings(settings: Settings, images: ImageStore, points: ExtensionPoints) {
     if let Err(err) = settings.load().await {
         tracing::error!(
             "reading the Server settings failed, so each is its default and notifications have \
              no links: {err}"
         );
     }
-    playback::running::sweep_leftovers(&settings.playback()).await;
+    if let Some(plugin) = settings.now().image_store {
+        images.keep_in(Arc::new(PluginBlobs::new(points, plugin)));
+    }
+    playback::sweep_leftovers(&settings.playback()).await;
 }

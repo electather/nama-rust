@@ -1,29 +1,27 @@
 //! Fixing Matches by hand: `nama.v1.MatchService`.
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
-use nama_plugin_api::metadata::SearchQuery;
 use nama_proto::nama::v1::{
     self as proto, ClearMatchRequest, ClearMatchResponse, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, MatchService, RefusalReason, SearchMetadataRequest,
-    SearchMetadataResponse, SetMatchRequest, SetMatchResponse,
+    ListUnmatchedItemsResponse, MatchService, RefusalReason, SearchTitlesRequest,
+    SearchTitlesResponse, SetMatchRequest, SetMatchResponse,
 };
 
 use crate::{
-    contents::{Contents, Item, TiedTitle, Unmatched, UnmatchedReason},
-    libraries::Libraries,
+    library::{
+        Contents, Item, Libraries, SearchQuery, TiedTitle, TitleSources, Unanswered, Unmatched,
+        UnmatchedReason,
+    },
     matching::{ManualError, Matcher},
-    metadata::{self, MetadataSource},
 };
 
-use super::{
-    database_failed, external_id_from_proto, external_id_to_proto, refuse, title_kind_from_proto,
-};
+use super::{database_failed, external_id_to_proto, refuse, required_id, title_kind_from_proto};
 
 /// `nama.v1.MatchService`: fixing Matches by hand. Needs `PERMISSION_MANAGE_LIBRARIES`, which
 /// [`require_access`](super::require_access) enforces.
 pub(super) struct MatchServiceHandler {
     pub(super) matcher: Matcher,
-    pub(super) metadata: MetadataSource,
+    pub(super) metadata: TitleSources,
     pub(super) contents: Contents,
     pub(super) libraries: Libraries,
 }
@@ -34,11 +32,11 @@ pub(super) struct MatchServiceHandler {
               documents; the refined signature isn't visible outside this crate"
 )]
 impl MatchService for MatchServiceHandler {
-    async fn search_metadata(
+    async fn search_titles(
         &self,
         _ctx: RequestContext,
-        request: ServiceRequest<'_, SearchMetadataRequest>,
-    ) -> ServiceResult<SearchMetadataResponse> {
+        request: ServiceRequest<'_, SearchTitlesRequest>,
+    ) -> ServiceResult<SearchTitlesResponse> {
         let request = request.to_owned_message();
         if request.title.trim().is_empty() {
             return Err(refuse(
@@ -53,12 +51,15 @@ impl MatchService for MatchServiceHandler {
             title: request.title,
             year: request.year,
         };
-        let candidates = match self.metadata.search(&query).await {
+        // A Match search belongs to no Library, so it asks in Admin precedence.
+        let candidates = match self.metadata.search_in_turn(&query).await {
             Ok((_, candidates)) => candidates,
-            Err(metadata::Error::NotFound) => Vec::new(),
-            Err(metadata::Error::Unavailable) => return Err(ManualError::Unavailable.into()),
+            Err(Unanswered::NotFound) => Vec::new(),
+            Err(Unanswered::Unavailable) => {
+                return Err(ManualError::Unavailable.into());
+            }
         };
-        Response::ok(SearchMetadataResponse {
+        Response::ok(SearchTitlesResponse {
             candidates: candidates
                 .into_iter()
                 .map(|candidate| title_to_proto(candidate.into()))
@@ -73,18 +74,7 @@ impl MatchService for MatchServiceHandler {
         request: ServiceRequest<'_, SetMatchRequest>,
     ) -> ServiceResult<SetMatchResponse> {
         let request = request.to_owned_message();
-        let title = request
-            .title_id
-            .into_option()
-            .and_then(|id| id.id)
-            .map(external_id_from_proto)
-            .ok_or_else(|| {
-                refuse(
-                    RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-                    "the title to Match to is missing",
-                )
-                .field("title_id")
-            })?;
+        let title = required_id(request.title_id.into_option(), "title_id", "title")?;
         let summary = self.matcher.set_match(request.item_id, &title).await?;
         Response::ok(SetMatchResponse {
             matched: summary.matched,
@@ -131,7 +121,7 @@ impl MatchService for MatchServiceHandler {
 
 fn title_to_proto(title: TiedTitle) -> proto::TitleCandidate {
     proto::TitleCandidate {
-        id: external_id_to_proto(title.id).into(),
+        id: external_id_to_proto(&title.id).into(),
         title: title.title,
         original_title: title.original_title,
         year: title.year,
@@ -204,7 +194,7 @@ impl From<ManualError> for ConnectError {
             ManualError::NoSuchTitle(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
                 .field("title_id")
                 .param("titleId", &id),
-            ManualError::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
+            ManualError::Unavailable => refuse(R::REFUSAL_REASON_NO_TITLE_SOURCE, message),
             ManualError::Database(err) => return database_failed(err),
         };
         refused.into()

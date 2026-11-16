@@ -17,7 +17,9 @@ use nama_plugin_local_auth::LocalAuth;
 )]
 fn authenticator() -> Arc<dyn Authenticator> {
     let mut registrar = Registrar::new();
-    LocalAuth.register(&mut registrar);
+    LocalAuth
+        .register(&mut registrar)
+        .expect("local-auth starts");
     registrar
         .into_registrations()
         .iter()

@@ -16,10 +16,9 @@ use tokio::time::Instant;
 use tracing::{error, warn};
 
 use crate::{
-    codes,
     db::{Database, now},
     plugins::ExtensionPoints,
-    users::{Permissions, User},
+    users::{Permissions, User, random_secret},
 };
 
 /// How long a link waits for its User to finish with it.
@@ -107,7 +106,7 @@ impl Connections {
     /// the link they open to finish. Polls the Plugin in the background until they do, or for
     /// [`LIFETIME`].
     pub(crate) async fn start(&self, user: i64, plugin: &PluginId) -> Result<String, StartError> {
-        let code = codes::random_secret()?;
+        let code = random_secret()?;
         let started = self
             .plugins
             .ask(plugin, |connector: Arc<dyn Connector>| {
@@ -120,7 +119,15 @@ impl Connections {
             .map_err(|failure| StartError::Failed(failure.message))?;
         let waiter = (user, plugin.clone());
         self.lock().insert(waiter.clone(), code.clone());
-        tokio::spawn(self.clone().wait_for(waiter, code, started.pending));
+        let stop = StopWaiting {
+            waiting: Arc::clone(&self.waiting),
+            waiter,
+            code,
+        };
+        // In the Plugin's scope, so disabling it ends the poll at once (ADR 0047). If it was
+        // disabled meanwhile, the task is dropped unrun and its `StopWaiting` with it.
+        self.plugins
+            .spawn_in(plugin, self.clone().wait_for(stop, started.pending));
         Ok(started.url)
     }
 
@@ -147,17 +154,14 @@ impl Connections {
     }
 
     /// Polls for the link `code` until its User finishes with it, then stores their Plugin
-    /// Connection, or gives up after [`LIFETIME`].
-    async fn wait_for(self, waiter: Waiter, code: String, pending: String) {
-        if let Some(connection) = self.poll(&waiter, &code, &pending).await
-            && let Err(err) = self.store(&waiter, &code, connection).await
+    /// Connection, or gives up after [`LIFETIME`]. `stop` stops the link waiting when this ends,
+    /// cancelled or not.
+    async fn wait_for(self, stop: StopWaiting, pending: String) {
+        let StopWaiting { waiter, code, .. } = &stop;
+        if let Some(connection) = self.poll(waiter, code, &pending).await
+            && let Err(err) = self.store(waiter, code, connection).await
         {
             error!(plugin = %waiter.1, "could not store a Plugin Connection: {err}");
-        }
-        // Under one lock, so a link started again meanwhile keeps its own code.
-        let mut waiting = self.lock();
-        if waiting.get(&waiter) == Some(&code) {
-            waiting.remove(&waiter);
         }
     }
 
@@ -301,91 +305,28 @@ pub(crate) async fn forget(
     .await
 }
 
+/// Removes a link's code from `waiting` when dropped, so a poll that ends, is cancelled with its
+/// Plugin's scope or never starts leaves nothing behind.
+struct StopWaiting {
+    waiting: Arc<Mutex<HashMap<Waiter, String>>>,
+    waiter: Waiter,
+    code: String,
+}
+
+impl Drop for StopWaiting {
+    fn drop(&mut self) {
+        // Under one lock, so a link started again meanwhile keeps its own code.
+        let mut waiting = lock(&self.waiting);
+        if waiting.get(&self.waiter) == Some(&self.code) {
+            waiting.remove(&self.waiter);
+        }
+    }
+}
+
 fn lock(waiting: &Mutex<HashMap<Waiter, String>>) -> MutexGuard<'_, HashMap<Waiter, String>> {
     waiting.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use nama_plugin_api::{
-        BoxFuture, Manifest, Plugin, PluginError, PointKey, Priority, Registrar,
-        connector::ConnectionStarted,
-    };
-
-    use super::*;
-    use crate::plugins::Registry;
-
-    /// A Plugin whose Connector counts its polls, and nobody ever finishes with its links.
-    struct NeverConnected(Arc<AtomicUsize>);
-
-    impl Plugin for NeverConnected {
-        fn manifest(&self) -> Manifest {
-            Manifest {
-                version: "1.0.0".to_owned(),
-                extension_points: vec![PointKey::provide::<dyn Connector>()],
-                ..Manifest::new(PluginId::from_static("chat"))
-            }
-        }
-
-        fn register(&self, registrar: &mut Registrar) {
-            let connector: Arc<dyn Connector> = Arc::new(Self(Arc::clone(&self.0)));
-            registrar.provide(Priority::DEFAULT, connector);
-        }
-    }
-
-    impl Connector for NeverConnected {
-        fn start_connection<'a>(
-            &'a self,
-            code: &'a str,
-        ) -> BoxFuture<'a, Result<ConnectionStarted, PluginError>> {
-            Box::pin(async move {
-                Ok(ConnectionStarted {
-                    url: format!("https://chat.example.com/{code}"),
-                    pending: code.to_owned(),
-                    ..ConnectionStarted::default()
-                })
-            })
-        }
-
-        fn poll_connection<'a>(
-            &'a self,
-            _pending: &'a str,
-        ) -> BoxFuture<'a, Result<Option<String>, PluginError>> {
-            self.0.fetch_add(1, Ordering::Relaxed);
-            Box::pin(async { Ok(None) })
-        }
-    }
-
-    #[tokio::test]
-    async fn a_link_nobody_finishes_within_ten_minutes_expires_and_is_polled_no_more() {
-        let data_dir = tempfile::tempdir().unwrap();
-        let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
-        let polls = Arc::new(AtomicUsize::new(0));
-        let plugins = Registry::new();
-        plugins
-            .enable(Arc::new(NeverConnected(Arc::clone(&polls))))
-            .unwrap();
-        let connections = Connections::new(db, plugins.extension_points());
-        let chat = PluginId::from_static("chat");
-        // After opening the database, whose pool times out by the clock.
-        tokio::time::pause();
-
-        connections.start(1, &chat).await.unwrap();
-        tokio::time::sleep(Duration::from_mins(9)).await;
-        let polled_while_waiting = polls.load(Ordering::Relaxed);
-        tokio::time::sleep(Duration::from_secs(61)).await;
-        let polled_by_expiry = polls.load(Ordering::Relaxed);
-        tokio::time::sleep(Duration::from_secs(60)).await;
-        let polled_after = polls.load(Ordering::Relaxed);
-        tokio::time::resume();
-
-        assert!(polled_while_waiting > 0, "the link was never polled");
-        assert_eq!(polled_after, polled_by_expiry, "polled after it expired");
-        assert_eq!(
-            connections.list(1).await.unwrap(),
-            [(chat, State::NotConnected)]
-        );
-    }
-}
+#[path = "connections_tests.rs"]
+mod tests;

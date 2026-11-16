@@ -1,8 +1,18 @@
-# The Nama API schema (ADR 0007). Run `buf` commands from this directory.
+# The schema of the client API and the Plugin contract (ADR 0007).
+# Run `buf` commands from this directory.
 version: v2
 lint:
   use:
     - STANDARD
+  # The contract's rpcs are WASM exports, not RPCs (ADR 0043): they keep their message names, and
+  # a message one export takes may be what another takes too.
+  ignore_only:
+    RPC_REQUEST_STANDARD_NAME:
+      - nama/plugin
+    RPC_RESPONSE_STANDARD_NAME:
+      - nama/plugin
+    RPC_REQUEST_RESPONSE_UNIQUE:
+      - nama/plugin
 breaking:
   use:
     - FILE

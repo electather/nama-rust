@@ -8,7 +8,7 @@ use nama_plugin_log_events::LogEvents;
 use nama_plugin_tmdb::Tmdb;
 use nama_proto::nama::v1::PluginKind;
 
-use super::{Described, Registry, kept_logo, what_it_says};
+use super::{Registry, kept_logo, registry::Described, what_it_says};
 
 fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
     vec![

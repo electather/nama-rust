@@ -9,11 +9,12 @@ Following deepseek-harness's "everything is a plugin" design, every feature outs
 - **Embedded JS (rquickjs)**: rejected. Plugins could only be written in JS, and the bindings would be maintained by hand.
 - **wasmtime Component Model + WIT**: rejected for now as more machinery than Extism. Plugin messages are protobuf generated from the same schema as the client API, so nothing is written by hand.
 - **In-process, unsandboxed, everything replaceable (deepseek-harness as-is)**: rejected. Its Kernel is replaceable; ours isn't.
+- **Intercept Extension Points**, where a Plugin lets an action continue, changes it or vetoes it: built with the registry, then removed because no Extension Point was ever declared as one. A Plugin that needs a say is asked as a Provider.
 
 ## Consequences
 
-- Extension Points are declared Observe, Intercept or Provide. Hot paths (scanning, segment serving) expose only batched Observe events and per-item or per-session Intercepts.
+- Extension Points are declared Observe or Provide. Hot paths (scanning, segment serving) expose only batched Observe events.
 - Every registration a Plugin makes belongs to that Plugin, so install, enable and remove work without a restart.
-- A manifest, which the `.wasm` exports as a protobuf message from a `manifest()` function so a Plugin is one file, declares the supported `nama-api` version range, a settings schema and allowed HTTP hosts. Hosts are host names (globs allowed) with no port, which is how Extism matches them. Hosts the admin enters in a Plugin's settings, such as a Sonarr URL, are added when the Server loads it (spike #11). Intercepts have timeouts, and a crashing Plugin is disabled, not fatal.
+- A manifest, which the `.wasm` exports as a protobuf message from a `manifest()` function so a Plugin is one file, declares the supported Plugin contract version range, a settings schema and allowed HTTP hosts. Hosts are host names (globs allowed) with no port, which is how Extism matches them. Hosts the admin enters in a Plugin's settings, such as a Sonarr URL, are added when the Server loads it (spike #11). A call into an Installed Plugin has a timeout, and a crashing Plugin is disabled, not fatal.
 - Installed Plugins depend only on host capabilities, never on each other.
 - Built-in Plugins are separate crates (in `plugins/`), not modules of the Server crate. That's the only way to make the compiler stop them reaching into Kernel internals, which is what "everything is a Plugin" depends on.

@@ -23,7 +23,7 @@ function server(failures = 0) {
     router.service(BrowseService, {
       getMovie: () => ({
         movie: {
-          id: { id: { case: "tmdb", value: 348n } },
+          id: { namespace: "tmdb", value: "348" },
           title: "Alien",
           versions: [{ id: 7n, fileName: "Alien (1979).mkv", size: 1n }],
           watchState: { positionMs: reports.at(-1)?.positionMs ?? 0n, durationMs: 7_000_000n },

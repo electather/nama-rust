@@ -2,11 +2,11 @@
 //! that the wiring from the Kernel to a Plugin works.
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Observer, Plugin, PluginId, PointKey, Registrar,
-    points::{Events, ServerStarted, ServerStartedEvent},
+    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Registrar,
+    contract::{Event, Playback, event::Event as Happened},
+    points::{Events, ObservedEvents, ServerStarted, ServerStartedEvent},
     settings::SettingsSchema,
 };
-use nama_proto::nama::v1::{Event, Playback, event::Event as Happened};
 use tracing::info;
 
 /// The Plugin.
@@ -28,17 +28,21 @@ impl Plugin for LogEvents {
                     .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
+            personal_settings: SettingsSchema::default(),
             extension_points: vec![
                 PointKey::observe::<ServerStarted>(),
                 PointKey::observe::<Events>(),
             ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
+            permissions: Vec::new(),
+            tick_every: None,
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.observe::<ServerStarted>(Log);
         registrar.observe::<Events>(Log);
+        Ok(())
     }
 }
 
@@ -55,9 +59,9 @@ impl Observer<ServerStarted> for Log {
 // ponytail: only playback is logged; a scan's batches of up to thousands of Items would flood the
 // log, so log them once someone needs them there.
 impl Observer<Events> for Log {
-    fn observe<'a>(&'a self, event: &'a Vec<Event>) -> BoxFuture<'a, ()> {
+    fn observe<'a>(&'a self, event: &'a ObservedEvents) -> BoxFuture<'a, ()> {
         Box::pin(async move {
-            for (what, playback) in event.iter().filter_map(playback) {
+            for (what, playback) in event.events.iter().filter_map(playback) {
                 log_playback(what, playback);
             }
         })
@@ -96,9 +100,10 @@ mod tests {
         sync::{Arc, Mutex, PoisonError},
     };
 
-    use nama_plugin_api::{Observer, points::Events};
-    use nama_proto::nama::v1::{
-        Event, Playback, PlaybackEnded, PlaybackMethod, PlaybackStarted, event,
+    use nama_plugin_api::{
+        Observer,
+        contract::{Event, Playback, PlaybackEnded, PlaybackMethod, PlaybackStarted, event},
+        points::{Events, ObservedEvents},
     };
 
     use super::Log;
@@ -151,7 +156,11 @@ mod tests {
             ..Default::default()
         };
 
-        Observer::<Events>::observe(&Log, &vec![event(started), event(ended)]).await;
+        let batch = ObservedEvents {
+            events: vec![event(started), event(ended)],
+            ..Default::default()
+        };
+        Observer::<Events>::observe(&Log, &batch).await;
 
         let logged = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
         let lines: Vec<&str> = logged.lines().collect();

@@ -102,6 +102,30 @@ pub type OwnedDeletePluginConnectionRequestView = ::buffa::view::OwnedView<
 pub type OwnedDeletePluginConnectionResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::DeletePluginConnectionResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListPersonalSettingsRequestView<'static>>`.
+pub type OwnedListPersonalSettingsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListPersonalSettingsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListPersonalSettingsResponseView<'static>>`.
+pub type OwnedListPersonalSettingsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListPersonalSettingsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<UpdatePersonalSettingsRequestView<'static>>`.
+pub type OwnedUpdatePersonalSettingsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdatePersonalSettingsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<UpdatePersonalSettingsResponseView<'static>>`.
+pub type OwnedUpdatePersonalSettingsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdatePersonalSettingsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<DeletePersonalSettingsRequestView<'static>>`.
+pub type OwnedDeletePersonalSettingsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeletePersonalSettingsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<DeletePersonalSettingsResponseView<'static>>`.
+pub type OwnedDeletePersonalSettingsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeletePersonalSettingsResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserResponse>
 for crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'_> {
     fn encode(
@@ -544,6 +568,108 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListPersonalSettingsResponse>
+for crate::messages::nama::v1::__buffa::view::ListPersonalSettingsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListPersonalSettingsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListPersonalSettingsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UpdatePersonalSettingsResponse>
+for crate::messages::nama::v1::__buffa::view::UpdatePersonalSettingsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UpdatePersonalSettingsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UpdatePersonalSettingsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeletePersonalSettingsResponse>
+for crate::messages::nama::v1::__buffa::view::DeletePersonalSettingsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::DeletePersonalSettingsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::DeletePersonalSettingsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const USER_SERVICE_SERVICE_NAME: &str = "nama.v1.UserService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -624,8 +750,27 @@ pub const USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC: ::connectrpc::Spec = ::con
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
-/// Managing the Server's Users, their Devices and Plugin Connections. Every RPC but `ListDevices`,
-/// `RevokeDevice`, `ChangePassword` and the Plugin Connection ones needs `PERMISSION_MANAGE_USERS`,
+/// Static [`Spec`](::connectrpc::Spec) for the `ListPersonalSettings` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_LIST_PERSONAL_SETTINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/ListPersonalSettings",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `UpdatePersonalSettings` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_UPDATE_PERSONAL_SETTINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/UpdatePersonalSettings",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `DeletePersonalSettings` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/DeletePersonalSettings",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Managing the Server's Users, their Devices, Plugin Connections and Personal settings. Every RPC
+/// but `ListDevices`, `RevokeDevice`, `ChangePassword`, the Plugin Connection ones and the Personal
+/// settings ones needs `PERMISSION_MANAGE_USERS`,
 /// and fails with `permission_denied` without it.
 /// Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
 /// User with it, grant it, put it in the default Permissions or create a User while they hold it, or
@@ -1008,6 +1153,83 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::DeletePluginConnectionResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists the caller's own Personal settings (ADR 0046): one entry per enabled Plugin whose
+    /// Manifest declares any, sorted by Plugin id. Any signed-in User may list their own, and only
+    /// their own. A secret's value is never sent, only whether it is set.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_personal_settings<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListPersonalSettingsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListPersonalSettingsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Replaces the caller's own Personal settings for one Plugin. A secret left out or blank keeps
+    /// its stored value, and a key the Plugin doesn't declare is ignored. Fails with
+    /// `REFUSAL_REASON_PLUGIN_NOT_FOUND` for a Plugin that isn't enabled or declares no Personal
+    /// settings, `REFUSAL_REASON_FIELD_REQUIRED` for a required one left out or blank, and
+    /// `REFUSAL_REASON_SETTING_WRONG_KIND` for a value of the wrong kind, each naming the setting as
+    /// `settings.<key>`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn update_personal_settings<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::UpdatePersonalSettingsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::UpdatePersonalSettingsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Forgets the caller's own Personal settings for one Plugin. Forgetting what isn't set does
+    /// nothing.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn delete_personal_settings<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::DeletePersonalSettingsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::DeletePersonalSettingsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1420,6 +1642,93 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC)
+            .route_view_idempotent(
+                USER_SERVICE_SERVICE_NAME,
+                "ListPersonalSettings",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListPersonalSettingsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListPersonalSettingsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_personal_settings(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListPersonalSettingsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_LIST_PERSONAL_SETTINGS_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "UpdatePersonalSettings",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::UpdatePersonalSettingsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::UpdatePersonalSettingsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.update_personal_settings(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::UpdatePersonalSettingsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_UPDATE_PERSONAL_SETTINGS_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "DeletePersonalSettings",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::DeletePersonalSettingsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::DeletePersonalSettingsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.delete_personal_settings(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::DeletePersonalSettingsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1550,6 +1859,24 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC),
+                )
+            }
+            "ListPersonalSettings" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(USER_SERVICE_LIST_PERSONAL_SETTINGS_SPEC),
+                )
+            }
+            "UpdatePersonalSettings" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_UPDATE_PERSONAL_SETTINGS_SPEC),
+                )
+            }
+            "DeletePersonalSettings" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC),
                 )
             }
             _ => None,
@@ -1842,6 +2169,72 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::DeletePluginConnectionResponse,
+                        >(format)
+                })
+            }
+            "ListPersonalSettings" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListPersonalSettingsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListPersonalSettingsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListPersonalSettingsRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_personal_settings(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListPersonalSettingsResponse,
+                        >(format)
+                })
+            }
+            "UpdatePersonalSettings" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::UpdatePersonalSettingsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::UpdatePersonalSettingsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::UpdatePersonalSettingsRequest,
+                    >::from_parts(&req, &body);
+                    svc.update_personal_settings(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::UpdatePersonalSettingsResponse,
+                        >(format)
+                })
+            }
+            "DeletePersonalSettings" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::DeletePersonalSettingsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::DeletePersonalSettingsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::DeletePersonalSettingsRequest,
+                    >::from_parts(&req, &body);
+                    svc.delete_personal_settings(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::DeletePersonalSettingsResponse,
                         >(format)
                 })
             }
@@ -2540,6 +2933,141 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_DELETE_PLUGIN_CONNECTION_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListPersonalSettings RPC. Sends a request to /nama.v1.UserService/ListPersonalSettings.
+    pub async fn list_personal_settings(
+        &self,
+        request: crate::messages::nama::v1::ListPersonalSettingsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListPersonalSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_personal_settings_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListPersonalSettings RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_personal_settings_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListPersonalSettingsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListPersonalSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_LIST_PERSONAL_SETTINGS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the UpdatePersonalSettings RPC. Sends a request to /nama.v1.UserService/UpdatePersonalSettings.
+    pub async fn update_personal_settings(
+        &self,
+        request: crate::messages::nama::v1::UpdatePersonalSettingsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UpdatePersonalSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.update_personal_settings_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the UpdatePersonalSettings RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn update_personal_settings_with_options(
+        &self,
+        request: crate::messages::nama::v1::UpdatePersonalSettingsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UpdatePersonalSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_UPDATE_PERSONAL_SETTINGS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the DeletePersonalSettings RPC. Sends a request to /nama.v1.UserService/DeletePersonalSettings.
+    pub async fn delete_personal_settings(
+        &self,
+        request: crate::messages::nama::v1::DeletePersonalSettingsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeletePersonalSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.delete_personal_settings_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the DeletePersonalSettings RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn delete_personal_settings_with_options(
+        &self,
+        request: crate::messages::nama::v1::DeletePersonalSettingsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::DeletePersonalSettingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

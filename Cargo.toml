@@ -6,6 +6,11 @@ members = ["crates/*", "plugins/*"]
 edition = "2024"
 repository = "https://github.com/electather/nama-rust"
 
+# Backtraces keep file and line; full debug info made each worktree's target/ tens of GB and
+# slowed every link. Set CARGO_PROFILE_DEV_DEBUG=full when a debugger needs locals.
+[profile.dev]
+debug = "line-tables-only"
+
 # Unoptimized argon2 takes over a second per hash, and the sign-in tests hash dozens of times.
 [profile.dev.package.argon2]
 opt-level = 3

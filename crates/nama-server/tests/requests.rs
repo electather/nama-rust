@@ -36,23 +36,22 @@ use nama_plugin_api::{
     settings::SettingValue,
 };
 use nama_plugin_local_auth::LocalAuth;
+use nama_plugin_proto::nama::plugin::v1 as wire;
 use nama_plugin_test_choices as test_choices;
 use nama_proto::nama::v1::{
-    ApproveFollowedShowRequest, ApproveRequestRequest, CancelFollowedShowRequest,
+    self as api, ApproveFollowedShowRequest, ApproveRequestRequest, CancelFollowedShowRequest,
     CancelRequestRequest, CountPendingRequestsRequest, CreateFollowedShowRequest,
     CreateRequestRequest, CreateSeasonRequestsRequest, DeclineFollowedShowRequest,
     DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundShow,
     GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest, ListMovieQualitiesRequest,
     ListOfferedQualitiesRequest, ListPluginsRequest, ListQualitiesRequest, ListRequestsRequest,
-    ListRequestsResponse, LookUpMovieRequest, LookUpShowRequest, MovieHit, Permission,
-    PluginServiceClient, Quality, RefusalReason, Request, RequestServiceClient, RequestState,
-    RetryRequestRequest, SearchMoviesRequest, SearchShowsRequest, SetDefaultQualityRequest,
-    TitleKind, UpdatePluginSettingsRequest, WithdrawFollowedShowRequest, event,
-    request::MovieOrSeason, setting_value,
+    ListRequestsResponse, MovieHit, Permission, PluginServiceClient, Quality, RefusalReason,
+    Request, RequestServiceClient, RequestState, RetryRequestRequest, SearchMoviesRequest,
+    SearchShowsRequest, SetDefaultQualityRequest, TitleKind, UpdatePluginSettingsRequest,
+    WithdrawFollowedShowRequest, event, request::MovieOrSeason, setting_value,
 };
 use nama_server::{
     config::{Config, PluginConfig},
-    db::Database,
     ffmpeg::Ffmpeg,
     plugin_settings::{self, PluginSettings},
     plugins::Registry,
@@ -61,9 +60,9 @@ use refused::assert_refused;
 use server::{
     Builder, Library, Subscription, TestServer, WAIT,
     fulfiller::{FakeFulfiller, Fulfills, MOVIE_FULFILLER, SHOWS_FULFILLER, quality},
-    requests::Requester,
+    requests::{Requester, tmdb_id},
     subscribe,
-    tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, HEAT, THE_OFFICE},
+    tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, HEAT, THE_OFFICE, UNLISTED},
 };
 use tokio::{net::TcpListener, sync::mpsc};
 
@@ -309,7 +308,7 @@ fn requests(config: ClientConfig) -> RequestServiceClient<HttpClient> {
 /// Asks for the Seasons `seasons` of the Show `show`.
 fn season_request(show: i64, seasons: &[u32]) -> CreateSeasonRequestsRequest {
     CreateSeasonRequestsRequest {
-        show_tmdb_id: show,
+        show_id: tmdb_id(show).into(),
         season_numbers: seasons.to_vec(),
         ..Default::default()
     }
@@ -440,7 +439,7 @@ async fn a_user_without_request_movie_is_refused_naming_the_permission() {
 
     let refused = requests(as_viewer)
         .create_request(CreateRequestRequest {
-            movie_tmdb_id: HEAT,
+            movie_id: tmdb_id(HEAT).into(),
             ..Default::default()
         })
         .await;
@@ -466,7 +465,7 @@ async fn requesting_a_movie_matched_in_a_library_is_refused() {
 
     let refused = requests(as_grace)
         .create_request(CreateRequestRequest {
-            movie_tmdb_id: ALIEN,
+            movie_id: tmdb_id(ALIEN).into(),
             ..Default::default()
         })
         .await;
@@ -476,7 +475,7 @@ async fn requesting_a_movie_matched_in_a_library_is_refused() {
         ErrorCode::FailedPrecondition,
         RefusalReason::REFUSAL_REASON_ALREADY_IN_LIBRARY,
     );
-    assert_eq!(refusal.field, "movie_tmdb_id");
+    assert_eq!(refusal.field, "movie_id");
 }
 
 #[tokio::test]
@@ -490,7 +489,7 @@ async fn requesting_a_movie_the_metadata_source_doesnt_have_is_refused() {
 
     let refused = requests(as_grace)
         .create_request(CreateRequestRequest {
-            movie_tmdb_id: 1,
+            movie_id: tmdb_id(1).into(),
             ..Default::default()
         })
         .await;
@@ -844,16 +843,26 @@ async fn an_approved_request_becomes_available_once_a_scan_matches_its_movie_and
     assert_eq!(ada.list().await, [changed.request.into_option().unwrap()]);
 }
 
-/// One download, `percent` done, as a Fulfiller reports it.
-fn downloading(title: &str, percent: f32) -> Download {
-    Download {
+/// One download, `percent` done, as a Fulfiller reports it and as a client is shown it.
+fn downloading(title: &str, percent: f32) -> (Download, api::Download) {
+    let (size_bytes, eta_seconds) = (Some(4_000_000_000), Some(600));
+    let reported = Download {
         title: title.to_owned(),
         percent,
-        size_bytes: Some(4_000_000_000),
-        eta_seconds: Some(600),
+        size_bytes,
+        eta_seconds,
         status: DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING.into(),
         ..Default::default()
-    }
+    };
+    let shown = api::Download {
+        title: title.to_owned(),
+        percent,
+        size_bytes,
+        eta_seconds,
+        status: api::DownloadStatus::DOWNLOAD_STATUS_DOWNLOADING.into(),
+        ..Default::default()
+    };
+    (reported, shown)
 }
 
 #[tokio::test]
@@ -866,10 +875,10 @@ async fn without_view_requests_a_user_sees_the_progress_of_only_their_own_proces
         .user("Grace", &[Permission::RequestMovie])
         .await
         .client_config();
-    let heat = downloading("Heat.1995.1080p", 42.5);
-    let dune = downloading("Dune.2021.2160p", 7.0);
-    fulfiller.download(HEAT, vec![heat.clone()]);
-    fulfiller.download(DUNE, vec![dune.clone()]);
+    let (reported_heat, heat) = downloading("Heat.1995.1080p", 42.5);
+    let (reported_dune, dune) = downloading("Dune.2021.2160p", 7.0);
+    fulfiller.download(HEAT, vec![reported_heat]);
+    fulfiller.download(DUNE, vec![reported_dune]);
     let adas = requests(as_ada).ask(HEAT).await;
     let graces = requests(as_grace.clone()).ask(DUNE).await;
     let mut graces_events = subscribe(&as_grace, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
@@ -897,7 +906,7 @@ async fn a_request_whose_fulfiller_cant_say_how_it_is_progressing_stays_processi
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
     let ada = requests(as_ada.clone());
     let mut adas_events = subscribe(&as_ada, &[EventType::EVENT_TYPE_REQUEST_PROGRESS]).await;
-    fulfiller.download(HEAT, vec![downloading("Heat.1995.1080p", 42.5)]);
+    fulfiller.download(HEAT, vec![downloading("Heat.1995.1080p", 42.5).0]);
     let heat = fixture.server.approve(ada.ask(HEAT).await.id).await;
     let event::Event::RequestProgress(_) = adas_events.next().await else {
         panic!("not Heat's first progress");
@@ -1181,7 +1190,7 @@ async fn approving_a_request_hands_it_to_an_installed_movie_fulfiller_which_says
     let event::Event::RequestProgress(progress) = event else {
         panic!("not progress: {event:?}");
     };
-    let half_done = Download {
+    let half_done = api::Download {
         title: "test-949".to_owned(),
         percent: 50.0,
         ..Default::default()
@@ -1402,30 +1411,12 @@ async fn a_season_request_whose_show_has_no_tvdb_id_is_still_handed_to_the_shows
     let fixture = Fixture::with_shows_fulfiller(&[]).await;
     let fulfiller = fixture.server.fulfiller();
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
-    let pending = requests(as_ada).ask_seasons(DARK, &[1]).await;
-    forget_show_tvdb_ids(fixture.server.db()).await;
+    let pending = requests(as_ada).ask_seasons(UNLISTED, &[1]).await;
 
     let approved = fixture.server.approve(pending[0].id).await;
 
     assert_eq!(approved.state, RequestState::Processing);
-    assert_eq!(fulfiller.handed_seasons(), [(DARK, None, 1, false)]);
-}
-
-/// Forgets every Season Request's Show TVDB id, as for a Show the metadata source has none for.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn forget_show_tvdb_ids(db: &Database) {
-    db.write(|tx| {
-        Box::pin(async move {
-            sqlx::query("UPDATE requests SET show_tvdb_id = NULL")
-                .execute(&mut **tx)
-                .await
-        })
-    })
-    .await
-    .unwrap();
+    assert_eq!(fulfiller.handed_seasons(), [(UNLISTED, None, 1, false)]);
 }
 
 #[tokio::test]
@@ -1984,7 +1975,7 @@ async fn a_search_finds_movies_with_their_year_and_poster_and_no_library_or_requ
     let titles: Vec<_> = found.iter().map(|movie| movie.title.as_str()).collect();
     assert_eq!(titles, ["Alien", "Alien: Romulus", "Aliens"]);
     let alien = &found[0];
-    assert_eq!(alien.tmdb_id, ALIEN);
+    assert_eq!(alien.id, tmdb_id(ALIEN).into());
     assert_eq!(alien.year, Some(1979));
     assert_eq!(
         alien.poster_url.as_deref(),
@@ -2022,15 +2013,8 @@ async fn a_movie_someone_else_requested_shows_their_request_and_asking_joins_it(
     let found = search_alien(as_grace.clone()).await;
     let joined = requests(as_grace.clone()).ask(ALIEN).await;
     let looked_up = requests(as_grace)
-        .look_up_movie(LookUpMovieRequest {
-            movie_tmdb_id: ALIEN,
-            ..Default::default()
-        })
+        .try_look_up_movie(tmdb_id(ALIEN))
         .await
-        .unwrap()
-        .into_owned()
-        .movie
-        .into_option()
         .unwrap();
 
     assert_eq!(found[0].request.as_option(), Some(&adas));
@@ -2086,29 +2070,6 @@ async fn searching_for_a_blank_title_is_refused() {
         RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
     );
     assert_eq!(refusal.field, "title");
-}
-
-#[tokio::test]
-async fn looking_up_a_movie_the_metadata_source_doesnt_have_is_refused() {
-    let fixture = Fixture::start().await;
-    let as_grace = fixture
-        .server
-        .user("Grace", &NEW_USER)
-        .await
-        .client_config();
-
-    let refused = requests(as_grace)
-        .look_up_movie(LookUpMovieRequest {
-            movie_tmdb_id: 1,
-            ..Default::default()
-        })
-        .await;
-
-    assert_refused(
-        refused,
-        ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
-    );
 }
 
 /// Artwork is served for paths a search handed out, and still for no others: Alien's backdrop
@@ -2314,7 +2275,7 @@ async fn requesting_a_season_of_a_show_the_metadata_source_doesnt_have_is_refuse
         ErrorCode::InvalidArgument,
         RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
     );
-    assert_eq!(refusal.field, "show_tmdb_id");
+    assert_eq!(refusal.field, "show_id");
     let title = refusal.params.get("titleId").map(String::as_str);
     assert_eq!(title, Some("tmdb-1"));
 }
@@ -2561,15 +2522,8 @@ async fn a_scan_makes_an_approved_season_request_available_and_leaves_a_declined
 )]
 async fn look_up_dark(config: ClientConfig) -> FoundShow {
     requests(config)
-        .look_up_show(LookUpShowRequest {
-            show_tmdb_id: DARK,
-            ..Default::default()
-        })
+        .try_look_up_show(tmdb_id(DARK))
         .await
-        .unwrap()
-        .into_owned()
-        .show
-        .into_option()
         .unwrap()
 }
 
@@ -2652,64 +2606,15 @@ async fn a_show_search_finds_shows_with_their_year_and_poster() {
     );
     let found: Vec<_> = found
         .iter()
-        .map(|show| (show.tmdb_id, show.title.as_str(), show.year))
+        .map(|show| (&*show.id, show.title.as_str(), show.year))
         .collect();
     assert_eq!(
         found,
         [
-            (THE_OFFICE, "The Office", Some(2005)),
-            (2996, "The Office", Some(2001))
+            (&tmdb_id(THE_OFFICE), "The Office", Some(2005)),
+            (&tmdb_id(2996), "The Office", Some(2001))
         ]
     );
-}
-
-#[tokio::test]
-async fn looking_up_a_show_the_metadata_source_doesnt_have_is_refused() {
-    let fixture = Fixture::start().await;
-    let as_grace = fixture
-        .server
-        .user("Grace", &NEW_USER)
-        .await
-        .client_config();
-
-    let refused = requests(as_grace)
-        .look_up_show(LookUpShowRequest {
-            show_tmdb_id: 1,
-            ..Default::default()
-        })
-        .await;
-
-    let refusal = assert_refused(
-        refused,
-        ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
-    );
-    assert_eq!(refusal.field, "show_tmdb_id");
-}
-
-#[tokio::test]
-async fn a_user_without_request_tv_is_refused_looking_up_a_show() {
-    let fixture = Fixture::start().await;
-    let as_grace = fixture
-        .server
-        .user("Grace", &[Permission::RequestMovie])
-        .await
-        .client_config();
-
-    let refused = requests(as_grace)
-        .look_up_show(LookUpShowRequest {
-            show_tmdb_id: DARK,
-            ..Default::default()
-        })
-        .await;
-
-    let refusal = assert_refused(
-        refused,
-        ErrorCode::PermissionDenied,
-        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
-    );
-    let permission = refusal.params.get("permission").map(String::as_str);
-    assert_eq!(permission, Some("PERMISSION_REQUEST_TV"));
 }
 
 /// Follows Dark as the caller of `client` as if it had two Seasons then: the fake TMDB has no
@@ -3035,7 +2940,7 @@ async fn a_user_without_request_tv_is_refused_a_whole_show_naming_the_permission
 
     let refused = requests(as_movie_asker)
         .create_followed_show(CreateFollowedShowRequest {
-            show_tmdb_id: DARK,
+            show_id: tmdb_id(DARK).into(),
             ..Default::default()
         })
         .await;
@@ -4072,8 +3977,9 @@ impl Plugin for NotifierPlugin {
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn Notifier>(Priority::DEFAULT, Arc::new(self.1.clone()));
+        Ok(())
     }
 }
 
@@ -4106,11 +4012,11 @@ async fn creating_a_movie_request_delivers_it_to_each_enabled_notifiers_channel(
         assert_eq!(delivered.len(), 1, "{delivered:?}");
         let (notification, recipient) = &delivered[0];
         assert_eq!(*recipient, Recipient::Channel);
-        assert_eq!(notification.request.as_option(), Some(&request));
-        let Some(event::Event::RequestCreated(created)) = &notification.event.event else {
+        assert_eq!(notification.request.id, request.id);
+        let Some(wire::event::Event::RequestCreated(created)) = &notification.event.event else {
             panic!("not the new Request: {notification:?}");
         };
-        assert_eq!(created.request.as_option(), Some(&request));
+        assert_eq!(created.request.id, request.id);
     }
 }
 
@@ -4119,7 +4025,10 @@ async fn a_disabled_notifier_is_handed_nothing() {
     let enabled = FakeNotifier::new(Delivery::Keeps);
     let disabled = FakeNotifier::new(Delivery::Keeps);
     let fixture = with_notifiers(&[("enabled", &enabled), ("disabled", &disabled)]).await;
-    fixture.plugins.disable(&PluginId::from_static("disabled"));
+    fixture
+        .plugins
+        .disable(&PluginId::from_static("disabled"))
+        .await;
     let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
 
     requests(as_ada).ask(HEAT).await;
@@ -4180,11 +4089,39 @@ async fn creating_a_movie_request_has_an_installed_notifier_post_it_to_the_url_i
     let body = tokio::time::timeout(WAIT, posted.recv()).await.unwrap();
 
     let notification = Notification::decode_from_slice(&body.unwrap()).unwrap();
-    assert_eq!(notification.request.as_option(), Some(&request));
-    let Some(event::Event::RequestCreated(created)) = &notification.event.event else {
+    let Some(wire::event::Event::RequestCreated(created)) = &notification.event.event else {
         panic!("not the new Request: {notification:?}");
     };
-    assert_eq!(created.request.as_option(), Some(&request));
+    // What a Notifier reads, as the client read it.
+    let Some(MovieOrSeason::Movie(asked)) = &request.movie_or_season else {
+        panic!("not a Movie: {request:?}");
+    };
+    assert_eq!(request.state, RequestState::Pending);
+    let asked_by: Vec<_> = request
+        .requesters
+        .iter()
+        .map(|requester| (requester.user_id, requester.name.as_str()))
+        .collect();
+    for sent in [&notification.request, &created.request] {
+        let sent = sent.as_option().unwrap();
+        let Some(wire::request::MovieOrSeason::Movie(movie)) = &sent.movie_or_season else {
+            panic!("not a Movie: {sent:?}");
+        };
+        let sent_by: Vec<_> = sent
+            .requesters
+            .iter()
+            .map(|requester| (requester.user_id, requester.name.as_str()))
+            .collect();
+        assert_eq!(
+            (sent.id, movie.title.as_str(), sent.state, sent_by),
+            (
+                request.id,
+                asked.title.as_str(),
+                wire::RequestState::REQUEST_STATE_PENDING.into(),
+                asked_by.clone()
+            )
+        );
+    }
 }
 
 #[tokio::test]

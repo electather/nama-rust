@@ -5,10 +5,10 @@ include!("nama.v1.watch_state.rs");
 include!("nama.v1.browse.rs");
 include!("nama.v1.playback.rs");
 include!("nama.v1.plugin.rs");
+include!("nama.v1.refusal.rs");
 include!("nama.v1.request.rs");
 include!("nama.v1.event.rs");
 include!("nama.v1.library.rs");
-include!("nama.v1.refusal.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
 include!("nama.v1.user.rs");
@@ -34,17 +34,16 @@ pub mod __buffa {
         include!("nama.v1.browse.__view.rs");
         include!("nama.v1.playback.__view.rs");
         include!("nama.v1.plugin.__view.rs");
+        include!("nama.v1.refusal.__view.rs");
         include!("nama.v1.request.__view.rs");
         include!("nama.v1.event.__view.rs");
         include!("nama.v1.library.__view.rs");
-        include!("nama.v1.refusal.__view.rs");
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
         include!("nama.v1.user.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
-            include!("nama.v1.match.__view_oneof.rs");
             include!("nama.v1.watch_state.__view_oneof.rs");
             include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.plugin.__view_oneof.rs");
@@ -57,7 +56,6 @@ pub mod __buffa {
     pub mod oneof {
         #[allow(unused_imports)]
         use super::*;
-        include!("nama.v1.match.__oneof.rs");
         include!("nama.v1.watch_state.__oneof.rs");
         include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.plugin.__oneof.rs");
@@ -70,8 +68,8 @@ pub mod __buffa {
     pub fn register_types(reg: &mut ::buffa::type_registry::TypeRegistry) {
         reg.register_json_any(super::__EXTERNAL_ID_JSON_ANY);
         reg.register_json_any(super::__TITLE_CANDIDATE_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_METADATA_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_METADATA_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_TITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_MATCH_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_MATCH_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CLEAR_MATCH_REQUEST_JSON_ANY);
@@ -153,8 +151,11 @@ pub mod __buffa {
         reg.register_json_any(super::__REPLACE_QUALITIES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_SUMMARY_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_JSON_ANY);
+        reg.register_json_any(super::__RECOGNISER_FAILURE_JSON_ANY);
         reg.register_json_any(super::__SETTING_JSON_ANY);
         reg.register_json_any(super::__SETTING_VALUE_JSON_ANY);
+        reg.register_json_any(super::__LIBRARY_IDS_JSON_ANY);
+        reg.register_json_any(super::__REFUSAL_JSON_ANY);
         reg.register_json_any(super::__REQUEST_JSON_ANY);
         reg.register_json_any(super::__QUALITY_CHANGE_JSON_ANY);
         reg.register_json_any(super::__REQUESTED_QUALITY_JSON_ANY);
@@ -254,6 +255,7 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UPDATE_LIBRARY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RECOGNISER_ORDER_JSON_ANY);
         reg.register_json_any(super::__UPDATE_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_LIBRARY_RESPONSE_JSON_ANY);
@@ -272,7 +274,9 @@ pub mod __buffa {
         reg.register_json_any(super::__EPISODE_TAKEN_ALONG_JSON_ANY);
         reg.register_json_any(super::__MEDIA_FILE_JSON_ANY);
         reg.register_json_any(super::__FILE_NOT_DELETED_JSON_ANY);
-        reg.register_json_any(super::__REFUSAL_JSON_ANY);
+        reg.register_json_any(super::__LIST_TITLE_SOURCES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_TITLE_SOURCES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__TITLE_SOURCE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_INFO_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_SETTINGS_REQUEST_JSON_ANY);
@@ -295,6 +299,9 @@ pub mod __buffa {
         reg.register_json_any(super::__UPDATE_IMAGE_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UPDATE_IMAGE_SETTINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__IMAGE_SETTINGS_JSON_ANY);
+        reg.register_json_any(super::__SWITCH_IMAGE_STORE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SWITCH_IMAGE_STORE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__IMAGE_STORE_SWITCH_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
         reg.register_json_any(super::__DEVICE_JSON_ANY);
         reg.register_json_any(super::__SETUP_REQUEST_JSON_ANY);
@@ -342,6 +349,13 @@ pub mod __buffa {
         reg.register_json_any(super::__START_PLUGIN_CONNECTION_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_PLUGIN_CONNECTION_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_PLUGIN_CONNECTION_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_PERSONAL_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PERSONAL_SETTINGS_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PERSONAL_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DELETE_PERSONAL_SETTINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DELETE_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -353,13 +367,13 @@ pub use self::__buffa::view::TitleCandidateView;
 #[doc(inline)]
 pub use self::__buffa::view::TitleCandidateOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchMetadataRequestView;
+pub use self::__buffa::view::SearchTitlesRequestView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchMetadataRequestOwnedView;
+pub use self::__buffa::view::SearchTitlesRequestOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchMetadataResponseView;
+pub use self::__buffa::view::SearchTitlesResponseView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchMetadataResponseOwnedView;
+pub use self::__buffa::view::SearchTitlesResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SetMatchRequestView;
 #[doc(inline)]
@@ -685,6 +699,10 @@ pub use self::__buffa::view::PluginView;
 #[doc(inline)]
 pub use self::__buffa::view::PluginOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::RecogniserFailureView;
+#[doc(inline)]
+pub use self::__buffa::view::RecogniserFailureOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::SettingView;
 #[doc(inline)]
 pub use self::__buffa::view::SettingOwnedView;
@@ -692,6 +710,14 @@ pub use self::__buffa::view::SettingOwnedView;
 pub use self::__buffa::view::SettingValueView;
 #[doc(inline)]
 pub use self::__buffa::view::SettingValueOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LibraryIdsView;
+#[doc(inline)]
+pub use self::__buffa::view::LibraryIdsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RefusalView;
+#[doc(inline)]
+pub use self::__buffa::view::RefusalOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestView;
 #[doc(inline)]
@@ -1089,6 +1115,10 @@ pub use self::__buffa::view::UpdateLibraryRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::UpdateLibraryRequestOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::RecogniserOrderView;
+#[doc(inline)]
+pub use self::__buffa::view::RecogniserOrderOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::UpdateLibraryResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::UpdateLibraryResponseOwnedView;
@@ -1161,9 +1191,17 @@ pub use self::__buffa::view::FileNotDeletedView;
 #[doc(inline)]
 pub use self::__buffa::view::FileNotDeletedOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::RefusalView;
+pub use self::__buffa::view::ListTitleSourcesRequestView;
 #[doc(inline)]
-pub use self::__buffa::view::RefusalOwnedView;
+pub use self::__buffa::view::ListTitleSourcesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTitleSourcesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTitleSourcesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleSourceView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleSourceOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetServerInfoRequestView;
 #[doc(inline)]
@@ -1252,6 +1290,18 @@ pub use self::__buffa::view::UpdateImageSettingsResponseOwnedView;
 pub use self::__buffa::view::ImageSettingsView;
 #[doc(inline)]
 pub use self::__buffa::view::ImageSettingsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SwitchImageStoreRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SwitchImageStoreRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SwitchImageStoreResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SwitchImageStoreResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageStoreSwitchView;
+#[doc(inline)]
+pub use self::__buffa::view::ImageStoreSwitchOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserView;
 #[doc(inline)]
@@ -1440,5 +1490,33 @@ pub use self::__buffa::view::DeletePluginConnectionRequestOwnedView;
 pub use self::__buffa::view::DeletePluginConnectionResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::DeletePluginConnectionResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPersonalSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPersonalSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPersonalSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPersonalSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonalSettingsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePersonalSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePersonalSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePersonalSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdatePersonalSettingsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePersonalSettingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePersonalSettingsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePersonalSettingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeletePersonalSettingsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

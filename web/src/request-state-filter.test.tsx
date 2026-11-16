@@ -19,14 +19,20 @@ const ada = [{ userId: 2n, name: "Ada" }];
 
 const pendingHeat = {
   id: 2n,
-  movieOrSeason: { case: "movie" as const, value: { tmdbId: 949n, title: "Heat" } },
+  movieOrSeason: {
+    case: "movie" as const,
+    value: { id: { namespace: "tmdb", value: "949" }, title: "Heat" },
+  },
   state: RequestState.PENDING,
   requesters: ada,
 };
 
 const failedDune = {
   id: 1n,
-  movieOrSeason: { case: "movie" as const, value: { tmdbId: 438_631n, title: "Dune" } },
+  movieOrSeason: {
+    case: "movie" as const,
+    value: { id: { namespace: "tmdb", value: "438631" }, title: "Dune" },
+  },
   state: RequestState.FAILED,
   requesters: ada,
 };
@@ -111,7 +117,11 @@ test("a state the app doesn't know in the URL shows All", async () => {
 });
 
 test("a Failed Season Request shows under its Show's title without its Approved Followed Show", async () => {
-  const season = { showTmdbId: 70_523n, seasonNumber: 1, showTitle: "Dark" };
+  const season = {
+    showId: { namespace: "tmdb", value: "70523" },
+    seasonNumber: 1,
+    showTitle: "Dark",
+  };
   openApp(
     "/requests?state=failed",
     filteringServer(
@@ -127,7 +137,7 @@ test("a Failed Season Request shows under its Show's title without its Approved 
       [
         {
           id: 7n,
-          showTmdbId: 70_523n,
+          showId: { namespace: "tmdb", value: "70523" },
           showTitle: "Dark",
           state: RequestState.APPROVED,
           requesters: ada,

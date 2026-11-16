@@ -16,21 +16,22 @@ use std::{
     collections::BTreeMap,
     path::Path,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use log::Log;
-use nama_plugin_api::PluginId;
-use nama_proto::{
-    NAMA_API_VERSION,
-    nama::v1::{
-        CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
-        GetPluginRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest, Plugin,
-        PluginKind, PluginServiceClient, PluginSummary, RefusalReason, ScanLibraryRequest,
-        SettingValue, TestPluginSettingsRequest, TestPluginSettingsResponse,
-        UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, setting_value::Value,
-    },
+use nama_plugin_api::{
+    PluginId, contract,
+    notifier::{Notification, Notifier, Recipient},
+};
+use nama_plugin_proto::CONTRACT_VERSION;
+use nama_proto::nama::v1::{
+    CreateLibraryRequest, DisablePluginRequest, EnablePluginRequest, ExtensionPoint,
+    GetPluginRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind,
+    PluginServiceClient, PluginSummary, RefusalReason, ScanLibraryRequest, SettingValue,
+    TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
+    UpdatePluginSettingsResponse, setting_value::Value,
 };
 use nama_server::{
     config::Config,
@@ -101,8 +102,8 @@ impl Started {
         Ok(response.into_owned())
     }
 
-    /// Drops in the test Plugin with its Observer set to `observer` (`log`, `loop` or `panic`),
-    /// enables it, and returns a Library to scan so it is told about Events.
+    /// Drops in the test Plugin with its Observer set to `observer` (`log`, `clock`, `loop`,
+    /// `hoard` or `panic`), enables it, and returns a Library to scan so it is told about Events.
     async fn observing(&self, observer: &str) -> (i64, tempfile::TempDir) {
         self.drop_in("test.wasm", "");
         // Listing is what reads `plugins/`.
@@ -386,7 +387,7 @@ async fn a_plugin_naming_a_point_without_its_exports_is_refused_naming_the_expor
     let listed = started.listed("unexported.wasm").await.unwrap();
     assert_eq!(
         listed.refused_reason,
-        "its Manifest names PROVIDE_POINT_CONNECTOR, and it has no start_connection export"
+        "its Manifest names nama.plugin.v1.ConnectorService, and it has no start_connection export"
     );
     assert_refused(
         started
@@ -399,15 +400,29 @@ async fn a_plugin_naming_a_point_without_its_exports_is_refused_naming_the_expor
 }
 
 #[tokio::test]
-async fn a_plugin_built_for_nama_api_0_1_is_refused_naming_the_version() {
+async fn a_plugin_built_for_contract_0_1_is_refused_naming_the_version() {
     let started = Started::new().await;
 
-    started.drop_in("old.wasm", "nama-api-0-1");
+    started.drop_in("old.wasm", "contract-0-1");
 
     let listed = started.listed("old.wasm").await.unwrap();
     assert_eq!(
         listed.refused_reason,
-        format!("it wants nama-api ^0.1.0, and this Server has {NAMA_API_VERSION}")
+        format!("it wants Plugin contract ^0.1.0, and this Server has {CONTRACT_VERSION}")
+    );
+}
+
+#[tokio::test]
+async fn a_plugin_naming_no_points_is_refused() {
+    let started = Started::new().await;
+
+    started.drop_in("empty.wasm", "empty-points");
+
+    let listed = started.listed("empty.wasm").await.unwrap();
+    assert_eq!(
+        listed.refused_reason,
+        "its Manifest names no Extension Points, so it would do nothing; a Plugin built before \
+         Extension Points became services must name them in points"
     );
 }
 
@@ -521,6 +536,48 @@ async fn an_observer_that_loops_forever_is_stopped_by_the_timeout_and_the_server
 }
 
 #[tokio::test]
+async fn an_observer_that_runs_past_the_memory_cap_crashes_and_the_server_carries_on() {
+    let log = Log::global();
+    let started = Started::new().await;
+    let (library, _media) = started.observing("hoard").await;
+
+    started.scan(library).await;
+    log.wait_for(
+        &[
+            "test-plugin",
+            "observer crashed: it used more than 128 MiB of memory",
+        ],
+        1,
+    )
+    .await;
+
+    assert_eq!(log.count(&["test-plugin hoarded"]), 0);
+    assert!(started.listed("test-plugin").await.is_some());
+}
+
+#[tokio::test]
+async fn a_plugin_reads_the_servers_clock() {
+    let log = Log::global();
+    let started = Started::new().await;
+    let (library, _media) = started.observing("clock").await;
+    let millis = |time: SystemTime| time.duration_since(UNIX_EPOCH).unwrap().as_millis();
+
+    let before = millis(SystemTime::now());
+    started.scan(library).await;
+    log.wait_for(&["test-plugin's clock reads"], 1).await;
+    let after = millis(SystemTime::now());
+
+    let contents = log.contents();
+    let (_, logged) = contents.split_once("test-plugin's clock reads ").unwrap();
+    let digits = logged.split(|c: char| !c.is_ascii_digit()).next().unwrap();
+    let read: u128 = digits.parse().unwrap();
+    assert!(
+        (before..=after).contains(&read),
+        "{before} <= {read} <= {after}"
+    );
+}
+
+#[tokio::test]
 async fn a_plugin_that_keeps_panicking_logs_why_is_disabled_and_saved_so_and_can_be_enabled_again()
 {
     let log = Log::global();
@@ -624,14 +681,23 @@ async fn testing_an_unsaved_url_reaches_its_host_for_that_test_alone() {
 
 #[tokio::test]
 async fn a_check_that_loops_forever_or_panics_fails_in_plain_words_and_the_server_carries_on() {
+    let log = Log::global();
     let started = Started::new().await;
     started.drop_in("test.wasm", "");
     assert!(started.listed("test-plugin").await.is_some());
 
     let looped = started.test_settings(&[("fail_with", "loop")]).await;
     let panicked = started.test_settings(&[("fail_with", "panic")]).await;
+    let hoarded = started.test_settings(&[("fail_with", "hoard")]).await;
+    log.wait_for(&["test-plugin", "it used more than 128 MiB of memory"], 1)
+        .await;
 
     for (failed, message, timeout_seconds) in [
+        (
+            hoarded,
+            "test-plugin failed while checking its settings",
+            None,
+        ),
         (
             looped,
             "test-plugin didn't finish checking its settings within 5 seconds",
@@ -671,4 +737,57 @@ async fn a_check_that_fails_is_refused_with_the_plugins_error() {
         failed.unwrap_err().message.as_deref(),
         Some("the service refused the API key")
     );
+}
+
+// A Request's progress never reaches a Notifier: the Kernel's conversion leaves it out
+// (`a_request_progress_notification_gives_none`), and the contract has no message for it.
+#[tokio::test]
+async fn an_installed_notifier_is_handed_the_contracts_notification() {
+    let started = Started::new().await;
+    started.drop_in("test.wasm", "");
+    started.listed("test-plugin").await.unwrap();
+    // It fails every notification for its channel, so a failure shows it was handed one.
+    started
+        .save_settings(&[("notifier", "error")])
+        .await
+        .unwrap();
+    started
+        .client()
+        .enable_plugin(enable("test-plugin"))
+        .await
+        .unwrap();
+    let asked = contract::Request {
+        id: 7,
+        ..Default::default()
+    };
+    let withdrawn = Notification {
+        event: Some(contract::Event {
+            event: Some(
+                contract::RequestWithdrawn {
+                    request: Some(asked.clone()).into(),
+                    ..Default::default()
+                }
+                .into(),
+            ),
+            ..Default::default()
+        })
+        .into(),
+        request: Some(asked).into(),
+        ..Default::default()
+    };
+
+    let (sender, mut delivered) = tokio::sync::mpsc::unbounded_channel();
+    started
+        .plugins
+        .extension_points()
+        .tell_each(move |_, notifier: Arc<dyn Notifier>| {
+            let (sender, withdrawn) = (sender.clone(), withdrawn.clone());
+            async move {
+                let withdrawn = notifier.deliver(&withdrawn, &Recipient::Channel).await;
+                sender.send(withdrawn.is_ok()).unwrap();
+                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(())
+            }
+        });
+
+    assert_eq!(delivered.recv().await, Some(false));
 }

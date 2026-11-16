@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+// The Extension Point for a blob store, which keeps the Kernel's own stored files, such as the
+// image store's originals, custom images and Plugin logos (ADR 0052). It never holds media files.
+// An Installed Plugin serves it through the WASM exports each rpc names, each taking and returning
+// its messages encoded as protobuf.
+//
+// A key is `/`-separated, at most 1024 bytes, of ASCII letters, digits and `-_.%/`. An object is
+// at most `BLOB_MAX_BYTES` (20 MiB): the Kernel never puts a larger one, and a Plugin may refuse
+// one. One call carries one object. An export that fails fails the Kernel's read or write.
+service BlobStoreService {
+  // The `blob_put` export: stores `bytes` at `key`, replacing any object there. Required.
+  rpc Put(BlobToPut) returns (BlobPut);
+  // The `blob_get` export: the object at `key`. A missing key answers `found` false, not a
+  // failure. Required.
+  rpc Get(BlobKey) returns (BlobGot);
+  // The `blob_delete` export: deletes the object at `key`. Deleting a missing key succeeds.
+  // Required.
+  rpc Delete(BlobKey) returns (BlobDeleted);
+  // The `blob_list` export: a page of the keys starting with a prefix. Required.
+  rpc List(BlobsAsked) returns (BlobPage);
+  // The `blob_exists` export: whether an object is at `key`. Required.
+  rpc Exists(BlobKey) returns (BlobExists);
+}
+
+// What the `blob_put` export takes: an object and the key to store it at.
+message BlobToPut {
+  // Where to store it.
+  string key = 1;
+  // The object, at most `BLOB_MAX_BYTES`.
+  bytes bytes = 2;
+}
+
+// What the `blob_put` export returns once the object is stored.
+message BlobPut {}
+
+// What the `blob_get`, `blob_delete` and `blob_exists` exports take: the key of one object.
+message BlobKey {
+  string key = 1;
+}
+
+// What the `blob_get` export returns.
+message BlobGot {
+  // Whether an object is at the key. False for a missing key, which is not a failure.
+  bool found = 1;
+  // The object, empty when `found` is false.
+  bytes bytes = 2;
+}
+
+// What the `blob_delete` export returns once the object is gone, or if it never was there.
+message BlobDeleted {}
+
+// What the `blob_list` export takes: which keys to list, and where to go on from.
+message BlobsAsked {
+  // Only keys starting with it are listed. Empty lists every key.
+  string prefix = 1;
+  // The `next_page_token` of the page before, or empty for the first page.
+  string page_token = 2;
+}
+
+// What the `blob_list` export returns: one page of keys.
+message BlobPage {
+  // At most 1000 keys starting with the prefix asked for.
+  repeated string keys = 1;
+  // What to pass as `page_token` for the next page; empty on the last page.
+  string next_page_token = 2;
+}
+
+// What the `blob_exists` export returns.
+message BlobExists {
+  // Whether an object is at the key.
+  bool exists = 1;
+}

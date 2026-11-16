@@ -9,28 +9,23 @@
     reason = "an export returns `FnResult` even when it can't fail"
 )]
 mod exports {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, time::Duration};
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Request,
-        StopMonitoring,
-        extism_pdk::{self, Error, HttpResponse},
-        nama_proto::nama::{
-            plugin::v1::{
-                EpisodeNumbers, ProvidePoint, show_deleted::Deleted, stop_monitoring::Title,
-            },
-            v1::{RequestedSeason, request::MovieOrSeason},
+        StopMonitoring, TitleId, TryAgainIn,
+        extism_pdk::{self, Error},
+        nama_plugin_proto::nama::plugin::v1::{
+            EpisodeNumbers, RequestedSeason, request::MovieOrSeason, show_deleted::Deleted,
+            stop_monitoring::Title,
         },
-        plugin_fn,
+        plugin_fn, services, title_id,
     };
     use nama_servarr::{QualityProfile, Queued, Servarr};
     use serde::{Deserialize, Serialize};
 
-    /// How long, in seconds by Sonarr's `Date` header, a hand-off waits for Sonarr to finish
-    /// adding its Show. That header counts whole seconds, so the wait lasts between one and two
-    /// seconds, well inside the 5 s a call may take.
-    const ADD_WAIT_SECONDS: i64 = 2;
-    const SECONDS_A_DAY: i64 = 24 * 60 * 60;
+    /// How long the Kernel waits before asking again while Sonarr refreshes a Show.
+    const REFRESH_RETRY: Duration = Duration::from_secs(5);
 
     /// The code Sonarr gives when it refuses to add a Show because it already has it.
     const SERIES_EXISTS: &str = "SeriesExistsValidator";
@@ -39,7 +34,8 @@ mod exports {
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         Ok(Buffa(Manifest {
             logo_svg: include_str!("../logo.svg").to_owned(),
-            providers: vec![ProvidePoint::PROVIDE_POINT_SHOW_FULFILLER.into()],
+            points: vec![nama_pdk::point(services::SHOW_FULFILLER)],
+            show_id_namespaces: vec!["tvdb".to_owned()],
             settings: nama_servarr::settings("Sonarr", "Show", 8989),
             name: "Sonarr".to_owned(),
             description: "Sends Approved Season Requests to Sonarr to download.".to_owned(),
@@ -72,7 +68,7 @@ mod exports {
             let Some(show) = had else {
                 return Ok(fulfilled(tvdb_id, season_number, asked, profiles));
             };
-            sonarr.wait_until_added(show.id)?;
+            sonarr.not_refreshing(show.id)?;
             if request.followed_show_id.is_some() {
                 sonarr.monitor_new_seasons(show.id, true)?;
             }
@@ -88,7 +84,7 @@ mod exports {
                 return Ok(());
             };
             // A refresh saves the whole Show as it read it, so would undo the change too.
-            sonarr.wait_until_added(show.id)?;
+            sonarr.not_refreshing(show.id)?;
             sonarr.monitor_new_seasons(show.id, false)
         }
 
@@ -98,16 +94,13 @@ mod exports {
             let Some(Title::Show(show_deleted)) = title.title else {
                 return Err(Error::msg("Sonarr stops monitoring only Shows"));
             };
-            // Sonarr finds a Show only by its TVDB id, so one without it was never handed over.
-            let Some(tvdb_id) = show_deleted.show_tvdb_id else {
-                return Ok(());
-            };
+            let tvdb_id = needed_tvdb_id(&show_deleted.show_ids)?;
             let sonarr = Sonarr::from_config()?;
             let Some(show) = sonarr.find(tvdb_id)? else {
                 return Ok(());
             };
             // A refresh saves the whole Show as it read it, so would undo the change too.
-            sonarr.wait_until_added(show.id)?;
+            sonarr.not_refreshing(show.id)?;
             let episodes: Vec<Episode> =
                 sonarr.api.get(&format!("episode?seriesId={}", show.id))?;
             let (seasons, episodes) = match show_deleted.deleted {
@@ -232,35 +225,22 @@ mod exports {
             self.api.add("series", new_show, SERIES_EXISTS)
         }
 
-        /// Returns once Sonarr has no refresh of the Show `show_id` queued or running, or fails
-        /// after about [`ADD_WAIT_SECONDS`]. A refresh reads the Show's Seasons, fetches it from
-        /// TVDB, then saves the Seasons as it read them, so a Season monitored meanwhile is
-        /// dropped. Sonarr starts one as it adds a Show, so a Season handed off right after
+        /// Fails with [`TryAgainIn`] while Sonarr has a refresh of the Show `show_id` queued or
+        /// running, so the Kernel asks again later. A refresh reads the Show's Seasons, fetches
+        /// it from TVDB, then saves the Seasons as it read them, so a Season monitored meanwhile
+        /// is dropped. Sonarr starts one as it adds a Show, so a Season handed off right after
         /// another one added its Show would be.
-        fn wait_until_added(&self, show_id: i64) -> Result<(), Error> {
-            let Some(first) = self.refreshing_at(show_id)? else {
-                return Ok(());
-            };
-            while let Some(now) = self.refreshing_at(show_id)? {
-                // The day may turn while it waits.
-                let waited = (now - first).rem_euclid(SECONDS_A_DAY);
-                (waited < ADD_WAIT_SECONDS)
-                    .then_some(())
-                    .ok_or_else(still_adding)?;
+        fn not_refreshing(&self, show_id: i64) -> Result<(), Error> {
+            if self.refreshing(show_id)? {
+                return Err(TryAgainIn(REFRESH_RETRY).into());
             }
             Ok(())
         }
 
-        /// The second of the day by Sonarr's clock, if it has a refresh of the Show `show_id`
-        /// queued or running.
-        fn refreshing_at(&self, show_id: i64) -> Result<Option<i64>, Error> {
-            let response = self.api.get_response("command")?;
-            let commands: Vec<Command> = self.api.parsed(&response)?;
-            if !commands.iter().any(|command| command.refreshes(show_id)) {
-                return Ok(None);
-            }
-            // A Plugin has no clock, so a wait is timed by Sonarr's, and can't be without it.
-            second_of_day(&response).map(Some).ok_or_else(still_adding)
+        /// Whether Sonarr has a refresh of the Show `show_id` queued or running.
+        fn refreshing(&self, show_id: i64) -> Result<bool, Error> {
+            let commands: Vec<Command> = self.api.get("command")?;
+            Ok(commands.iter().any(|command| command.refreshes(show_id)))
         }
 
         /// Has Sonarr monitor the new Seasons of the Show it has as `show_id`, or stop to.
@@ -361,35 +341,20 @@ mod exports {
     }
 
     fn show_tvdb_id(request: &Request) -> Result<i64, Error> {
-        asked_season(request)?
-            .show_tvdb_id
+        needed_tvdb_id(&asked_season(request)?.show_ids)
+    }
+
+    /// The TVDB id among a Show's `ids`, as the number Sonarr's API finds it by, or why there is
+    /// none.
+    fn needed_tvdb_id(ids: &[TitleId]) -> Result<i64, Error> {
+        title_id(ids, "tvdb")
+            .and_then(|tvdb| tvdb.parse().ok())
             .ok_or_else(|| Error::msg("Sonarr needs the Show's TVDB id, and none is known for it"))
     }
 
     /// Sonarr's `monitorNewItems` for a Show whose new Seasons it monitors if `monitored`.
     fn new_items(monitored: bool) -> &'static str {
         if monitored { "all" } else { "none" }
-    }
-
-    /// Why a Season Request fails when Sonarr takes too long adding its Show.
-    fn still_adding() -> Error {
-        Error::msg(
-            "Sonarr was still adding the Show, so it would have forgotten this Season. \
-             Retry in a minute.",
-        )
-    }
-
-    /// The second of the day `response` was sent at, by its `Date` header.
-    fn second_of_day(response: &HttpResponse) -> Option<i64> {
-        // An HTTP date has a fixed shape, such as `Sun, 08 Nov 2026 12:00:03 GMT`.
-        let time = response.header("date")?.get(17..25)?;
-        let mut parts = time.split(':').map(str::parse::<i64>);
-        let (Some(Ok(hours)), Some(Ok(minutes)), Some(Ok(seconds))) =
-            (parts.next(), parts.next(), parts.next())
-        else {
-            return None;
-        };
-        Some((hours * 60 + minutes) * 60 + seconds)
     }
 
     /// What an entry in Sonarr's queue is for: one Episode of a Season.
@@ -555,5 +520,47 @@ mod exports {
         name: &'static str,
         series_id: i64,
         season_number: u32,
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use nama_pdk::TitleId;
+
+        use super::needed_tvdb_id;
+
+        fn id(namespace: &str, value: &str) -> TitleId {
+            TitleId {
+                namespace: namespace.to_owned(),
+                value: value.to_owned(),
+                ..TitleId::default()
+            }
+        }
+
+        #[test]
+        fn a_show_without_a_tvdb_id_is_refused() {
+            let error = needed_tvdb_id(&[id("tmdb", "1396")]).unwrap_err();
+
+            assert_eq!(
+                error.to_string(),
+                "Sonarr needs the Show's TVDB id, and none is known for it"
+            );
+        }
+
+        #[test]
+        fn a_show_s_tvdb_id_is_its_number() {
+            let ids = [id("tmdb", "1396"), id("tvdb", "81189")];
+
+            assert_eq!(needed_tvdb_id(&ids).unwrap(), 81189);
+        }
+
+        #[test]
+        fn a_show_whose_tvdb_id_is_not_a_number_is_refused() {
+            let error = needed_tvdb_id(&[id("tvdb", "breaking-bad")]).unwrap_err();
+
+            assert_eq!(
+                error.to_string(),
+                "Sonarr needs the Show's TVDB id, and none is known for it"
+            );
+        }
     }
 }

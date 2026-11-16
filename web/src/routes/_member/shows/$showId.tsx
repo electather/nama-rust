@@ -9,17 +9,14 @@ import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { externalIdFromParam, queryOrNotFound } from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
-/** A Show from the metadata source, for picking its Seasons to Request. */
+/** A Show from the title source, for picking its Seasons to Request. */
 export const Route = createFileRoute("/_member/shows/$showId")({
   beforeLoad: ({ context }) => {
     // Only search results link here, and only for those who may Request Shows.
     if (!may(context.signedIn.user, Permission.REQUEST_TV)) throw notFound();
   },
   loader: async ({ context, params }) => {
-    const { id } = externalIdFromParam(params.showId);
-    // Requests name Shows by TMDB id.
-    if (id.case !== "tmdb") throw notFound();
-    const input = { showTmdbId: id.value };
+    const input = { showId: externalIdFromParam(params.showId) };
     await queryOrNotFound(context, RequestService.method.lookUpShow, input);
     return input;
   },

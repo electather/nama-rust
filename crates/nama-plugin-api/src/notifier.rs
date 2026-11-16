@@ -8,9 +8,9 @@
 //! registrar.provide::<dyn Notifier>(Priority::DEFAULT, Arc::new(my_notifier));
 //! ```
 
-use std::{error::Error, fmt, time::Duration};
+use std::{collections::BTreeMap, error::Error, fmt, time::Duration};
 
-pub use nama_proto::nama::plugin::v1::Notification;
+pub use nama_plugin_proto::nama::plugin::v1::Notification;
 
 use crate::{BoxFuture, PluginError};
 
@@ -18,7 +18,7 @@ use crate::{BoxFuture, PluginError};
 pub const DELIVER_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Whom a [`Notification`] is for.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Recipient {
     /// The channel set in the Notifier's settings, which hears about every Request event. A
     /// Notifier with no channel set does nothing with these.
@@ -26,10 +26,30 @@ pub enum Recipient {
     /// The Plugin Connection of one User the Kernel tells, as the Plugin's Connector found it,
     /// such as their Telegram chat id.
     Connection(String),
+    /// A User the Kernel tells who set this Plugin's Personal settings, with their values under
+    /// each key as text, as config values are. The Kernel sends it only to a Plugin whose
+    /// [`Manifest`](crate::Manifest) declares Personal settings.
+    User(BTreeMap<String, String>),
 }
 
-/// The error a [`Notifier`] returns when the service says a [`Recipient::Connection`] is gone,
-/// such as a User who blocked the bot. The Kernel then deletes that Plugin Connection.
+// Hand-written so a Personal setting's value never reaches a log: only the keys show.
+impl fmt::Debug for Recipient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Channel => f.write_str("Channel"),
+            Self::Connection(connection) => f.debug_tuple("Connection").field(connection).finish(),
+            Self::User(settings) => f
+                .debug_tuple("User")
+                .field(&settings.keys().collect::<Vec<_>>())
+                .finish(),
+        }
+    }
+}
+
+/// The error a [`Notifier`] returns when the service says a recipient is gone, such as a User who
+/// blocked the bot or a deleted webhook. For a [`Recipient::Connection`] the Kernel then deletes
+/// that Plugin Connection; for a [`Recipient::User`] it deletes that User's Personal settings for
+/// the Plugin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecipientGone;
 
@@ -48,12 +68,15 @@ pub trait Notifier: Send + Sync + 'static {
     ///
     /// # Errors
     ///
-    /// [`RecipientGone`] when the service says a [`Recipient::Connection`] is gone. Otherwise when
-    /// the service didn't take the notification: the Kernel logs the reason, or the timeout, and
-    /// doesn't retry.
+    /// [`RecipientGone`] when the service says the recipient is gone. Otherwise when the service
+    /// didn't take the notification: the Kernel logs the reason, or the timeout, and doesn't retry.
     fn deliver<'a>(
         &'a self,
         notification: &'a Notification,
         recipient: &'a Recipient,
     ) -> BoxFuture<'a, Result<(), PluginError>>;
 }
+
+#[cfg(test)]
+#[path = "notifier_tests.rs"]
+mod tests;

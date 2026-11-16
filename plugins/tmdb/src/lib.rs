@@ -1,8 +1,8 @@
 //! A Built-in Plugin that provides metadata from [TMDB](https://www.themoviedb.org), the only
-//! metadata source built into the Server.
+//! title source built into the Server.
 //!
-//! Enabled with an API key in its settings, it registers a
-//! [`nama_plugin_api::metadata::MetadataProvider`] that searches TMDB and fetches
+//! Enabled with an API key in its settings, it registers a title source,
+//! [`nama_plugin_api::metadata::TitleSource`], that searches TMDB and fetches
 //! Movie, Show, Season and Episode details and images by TMDB id, along with the IMDb and TVDB ids
 //! TMDB knows. Without an API key the Kernel doesn't enable it.
 //!
@@ -16,11 +16,10 @@ mod wire;
 use std::sync::Arc;
 
 use nama_plugin_api::{
-    Manifest, Plugin, PluginId, PointKey, Priority, Registrar,
-    metadata::MetadataProvider,
+    Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    metadata::TitleSource,
     settings::{SettingField, SettingKind, SettingValue, SettingsSchema},
 };
-use tracing::error;
 
 use crate::client::Client;
 
@@ -30,7 +29,7 @@ const LANGUAGE: &str = "language";
 
 const DEFAULT_LANGUAGE: &str = "en-US";
 
-/// The TMDB Built-in Plugin, providing the [`MetadataProvider`] that Matching uses.
+/// The TMDB Built-in Plugin, providing the [`TitleSource`] that Matching uses.
 #[derive(Debug, Clone, Default)]
 pub struct Tmdb {
     endpoints: Endpoints,
@@ -88,8 +87,7 @@ impl Plugin for Tmdb {
                 SettingField {
                     key: LANGUAGE.to_owned(),
                     label: "Language".to_owned(),
-                    description: "The language titles, overviews and Title Logos are fetched \
-                                  in, as an IETF tag such as en-US or de-DE. Its country, such \
+                    description: "The language titles and overviews are fetched in, as an IETF tag such as en-US or de-DE. Its country, such \
                                   as US, picks the Content Rating."
                         .to_owned(),
                     kind: SettingKind::Text,
@@ -105,25 +103,25 @@ impl Plugin for Tmdb {
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings,
-            extension_points: vec![PointKey::provide::<dyn MetadataProvider>()],
+            personal_settings: SettingsSchema::default(),
+            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
+            permissions: Vec::new(),
+            tick_every: None,
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         let settings = registrar.settings();
         // The Kernel only enables the Plugin with an API key.
-        let Some(api_key) = settings.text(API_KEY) else {
-            error!("the tmdb plugin was enabled without an API key");
-            return;
-        };
+        let api_key = settings
+            .text(API_KEY)
+            .ok_or("the tmdb plugin needs an API key")?;
         let language = settings.text(LANGUAGE).unwrap_or(DEFAULT_LANGUAGE);
-        match Client::new(self.endpoints.clone(), api_key, language) {
-            Ok(client) => {
-                let provider: Arc<dyn MetadataProvider> = Arc::new(client);
-                registrar.provide::<dyn MetadataProvider>(Priority::DEFAULT, provider);
-            }
-            Err(err) => error!("could not set up HTTPS for TMDB: {err}"),
-        }
+        let client = Client::new(self.endpoints.clone(), api_key, language)
+            .map_err(|err| format!("could not set up HTTPS for TMDB: {err}"))?;
+        let source: Arc<dyn TitleSource> = Arc::new(client);
+        registrar.provide::<dyn TitleSource>(Priority::DEFAULT, source);
+        Ok(())
     }
 }

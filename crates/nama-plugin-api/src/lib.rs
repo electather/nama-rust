@@ -1,16 +1,12 @@
 //! The contract between the Kernel and its Plugins (ADR 0006).
 //!
 //! A [`Plugin`] takes part in a Server through Extension Points. Each Extension Point is a type
-//! declared as one of three kinds:
+//! declared as one of two kinds:
 //!
 //! - **Observe** ([`ObservePoint`]): the Kernel tells [`Observer`]s that something happened. Delivery
 //!   is asynchronous and fire-and-forget, so an Observer can't change or delay what it observes.
-//! - **Intercept** ([`InterceptPoint`]): before an action takes effect, its [`Interceptor`]s run one
-//!   after another in [`Priority`] order. Each returns a [`Verdict`]: let the action continue,
-//!   modify it, or veto it. Each Intercept Extension Point declares, as its [`OnFailure`], whether
-//!   an Interceptor that fails lets the action through or blocks it.
-//! - **Provide**: a capability the Server needs, looked up by its trait (for example
-//!   [`dyn MetadataProvider`](metadata::MetadataProvider)). A Plugin registers a Provider as an
+//! - **Provide**: a capability the Server needs, looked up by its trait (for example a title
+//!   source, [`dyn TitleSource`](metadata::TitleSource)). A Plugin registers a Provider as an
 //!   `Arc` of that trait object. A Server won't start without at least one
 //!   [`dyn Authenticator`](auth::Authenticator).
 //!
@@ -18,12 +14,20 @@
 //! Everything registered there belongs to that Plugin, so disabling the Plugin removes all of it.
 
 pub mod auth;
+pub mod automation;
+pub mod blob_store;
 pub mod connector;
 pub mod fulfiller;
+mod ids;
 pub mod metadata;
 pub mod notifier;
 pub mod points;
+pub mod recogniser;
 pub mod settings;
+
+/// The Plugin contract's messages (ADR 0041), which the Extension Points take and return, so a
+/// Built-in Plugin sees the same types an Installed one does.
+pub use nama_plugin_proto::nama::plugin::v1 as contract;
 
 use std::{
     any::{Any, TypeId},
@@ -32,11 +36,14 @@ use std::{
     fmt,
     future::Future,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
 
-use crate::settings::{Settings, SettingsCheck, SettingsSchema};
+use crate::{
+    automation::{Kernel, Permission},
+    settings::{Settings, SettingsCheck, SettingsSchema},
+};
 
 /// A boxed future that can move between threads, as Extension Point handlers return.
 ///
@@ -91,15 +98,24 @@ pub struct Manifest {
     /// The settings the Plugin takes, so an admin UI can render a form for them. The Kernel
     /// enables the Plugin only with settings that fit it.
     pub settings: SettingsSchema,
+    /// The Personal settings the Plugin takes: settings each User sets for themself, such as a
+    /// topic to be notified on (ADR 0046). The Kernel hands one User's values to the Plugin only
+    /// in a call for that User, such as a [`notifier::Recipient::User`].
+    pub personal_settings: SettingsSchema,
     /// The Extension Points the Plugin takes part at, such as
     /// [`PointKey::provide::<dyn Notifier>()`](notifier::Notifier), so an admin sees what it does
     /// before it is enabled. The Kernel refuses to enable a Plugin whose
     /// [`Plugin::register`] registers at one it doesn't name.
     pub extension_points: Vec<PointKey>,
     /// The Plugin's logo, an SVG document's text such as `include_str!("../logo.svg")`. The
-    /// Kernel drops one over 16 KiB, with a DOCTYPE, or that isn't SVG, logging why; the Plugin
+    /// Kernel drops one over 64 KiB, with a DOCTYPE, or that isn't SVG, logging why; the Plugin
     /// is otherwise as it would be.
     pub logo_svg: Option<String>,
+    /// The Plugin Permissions it requests, which the Admin grants some or all of when enabling
+    /// it; each [`Kernel`] function needs one.
+    pub permissions: Vec<Permission>,
+    /// How often the Kernel ticks its [`Automation`](automation::Automation), if it provides one.
+    pub tick_every: Option<Duration>,
 }
 
 impl Manifest {
@@ -113,8 +129,11 @@ impl Manifest {
             description: String::new(),
             version: String::new(),
             settings: SettingsSchema::default(),
+            personal_settings: SettingsSchema::default(),
             extension_points: Vec::new(),
             logo_svg: None,
+            permissions: Vec::new(),
+            tick_every: None,
         }
     }
 }
@@ -139,12 +158,18 @@ pub trait Plugin: Send + Sync + 'static {
         None
     }
 
-    /// Registers the Plugin's Observers, Interceptors and Providers.
+    /// Registers the Plugin's Observers and Providers.
     ///
     /// Called each time the Plugin is enabled, with the Plugin's settings in
     /// [`Registrar::settings`]. Everything registered here is removed again when the Plugin is
     /// disabled.
-    fn register(&self, registrar: &mut Registrar);
+    ///
+    /// # Errors
+    ///
+    /// When the Plugin can't start with these settings. The Kernel then doesn't enable it, drops
+    /// what it registered so far, and shows the error's message to the admin without the
+    /// Plugin's secret settings.
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError>;
 }
 
 /// Where a handler runs relative to the other handlers at the same Extension Point.
@@ -178,64 +203,11 @@ pub trait Observer<P: ObservePoint>: Send + Sync + 'static {
     fn observe<'a>(&'a self, event: &'a P::Event) -> BoxFuture<'a, ()>;
 }
 
-/// What an Intercept Extension Point does with the action when one of its Interceptors fails
-/// (returns an error or times out).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum OnFailure {
-    /// Fail-open: skip the failed Interceptor and let the action through.
-    Allow,
-    /// Fail-closed: block the action.
-    Block,
-}
-
-/// An Intercept Extension Point: an action that Interceptors may let continue, modify or veto
-/// before it takes effect.
-pub trait InterceptPoint: 'static {
-    /// The Extension Point's name, for the log.
-    const NAME: &'static str;
-
-    /// Whether a failing Interceptor lets the action through or blocks it.
-    const ON_FAILURE: OnFailure;
-
-    /// How long one Interceptor may take before it counts as failed.
-    const TIMEOUT: Duration = Duration::from_secs(5);
-
-    /// The action being intercepted.
-    type Action: Send + Sync + 'static;
-}
-
-/// What an Interceptor decides about an action.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Verdict<A> {
-    /// Let the action continue unchanged.
-    Continue,
-    /// Replace the action. Later Interceptors see the replacement.
-    Modify(A),
-    /// Stop the action, for the given reason. Later Interceptors don't run.
-    Veto(String),
-}
-
-/// A Plugin's handler that can let an action continue, modify it, or veto it before it takes
-/// effect.
-pub trait Interceptor<P: InterceptPoint>: Send + Sync + 'static {
-    /// Decides about one action.
-    ///
-    /// # Errors
-    ///
-    /// When the Interceptor can't decide. The Extension Point's [`OnFailure`] says what happens
-    /// to the action then.
-    fn intercept<'a>(
-        &'a self,
-        action: &'a P::Action,
-    ) -> BoxFuture<'a, Result<Verdict<P::Action>, PluginError>>;
-}
-
 /// The kind of an Extension Point. Part of [`PointKey`], so one type can't be confused across
 /// kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Kind {
     Observe,
-    Intercept,
     Provide,
 }
 
@@ -253,16 +225,6 @@ impl PointKey {
     pub fn observe<P: ObservePoint>() -> Self {
         Self {
             kind: Kind::Observe,
-            type_id: TypeId::of::<P>(),
-            name: P::NAME,
-        }
-    }
-
-    /// The key of the Intercept Extension Point `P`.
-    #[must_use]
-    pub fn intercept<P: InterceptPoint>() -> Self {
-        Self {
-            kind: Kind::Intercept,
             type_id: TypeId::of::<P>(),
             name: P::NAME,
         }
@@ -307,7 +269,7 @@ impl std::hash::Hash for PointKey {
 pub struct Registration {
     point: PointKey,
     priority: Priority,
-    /// An `Arc<dyn Observer<P>>`, `Arc<dyn Interceptor<P>>` or `Arc<T>`, by `point`'s kind.
+    /// An `Arc<dyn Observer<P>>` or `Arc<T>`, by `point`'s kind.
     handler: Arc<dyn Any + Send + Sync>,
 }
 
@@ -328,12 +290,6 @@ impl Registration {
     #[must_use]
     pub fn observer<P: ObservePoint>(&self) -> Option<Arc<dyn Observer<P>>> {
         self.handler_at(PointKey::observe::<P>())
-    }
-
-    /// The handler, if it is an Interceptor at `P`.
-    #[must_use]
-    pub fn interceptor<P: InterceptPoint>(&self) -> Option<Arc<dyn Interceptor<P>>> {
-        self.handler_at(PointKey::intercept::<P>())
     }
 
     /// The handler, if it is a Provider of `T`.
@@ -360,11 +316,93 @@ impl fmt::Debug for Registration {
     }
 }
 
+/// The signal that one enablement of a Plugin is ending: it is disabled, enabled again with
+/// other settings or grants, or the Server is stopping.
+///
+/// The Kernel fires it when it cancels the enablement's scope, before it waits for the tasks in
+/// that scope (ADR 0047), so a Plugin can interrupt work the Kernel isn't awaiting, such as a
+/// call running on a thread of its own. A Built-in Plugin whose work is all futures the Kernel
+/// awaits needs none: the Kernel stops awaiting them. Cloning gives another handle to the same
+/// signal.
+#[derive(Clone, Default)]
+pub struct Stop(Arc<Mutex<Stopping>>);
+
+#[derive(Default)]
+struct Stopping {
+    stopped: bool,
+    callbacks: Vec<Box<dyn FnOnce() + Send>>,
+}
+
+impl Stop {
+    /// A signal that hasn't fired.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Stopping> {
+        // A callback runs outside the lock, so a poisoned lock's state is still whole.
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Runs `callback` once when the signal fires, or now if it has. It runs on the thread that
+    /// fires it, so it must return quickly; the Kernel contains a panic in it.
+    pub fn on_stop(&self, callback: impl FnOnce() + Send + 'static) {
+        let mut stopping = self.lock();
+        if stopping.stopped {
+            drop(stopping);
+            callback();
+        } else {
+            stopping.callbacks.push(Box::new(callback));
+        }
+    }
+
+    /// Whether the signal has fired.
+    #[must_use]
+    pub fn is_stopped(&self) -> bool {
+        self.lock().stopped
+    }
+
+    /// Fires the signal: runs each callback [`Self::on_stop`] took, once. Only the Kernel calls
+    /// it; a second call runs nothing.
+    pub fn stop(&self) {
+        let callbacks = {
+            let mut stopping = self.lock();
+            stopping.stopped = true;
+            std::mem::take(&mut stopping.callbacks)
+        };
+        for callback in callbacks {
+            callback();
+        }
+    }
+}
+
+impl fmt::Debug for Stop {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Stop")
+            .field("stopped", &self.is_stopped())
+            .finish_non_exhaustive()
+    }
+}
+
 /// Collects what one Plugin registers while it is being enabled.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Registrar {
     settings: Settings,
     registrations: Vec<Registration>,
+    kernel: Option<Arc<dyn Kernel>>,
+    stop: Stop,
+}
+
+impl fmt::Debug for Registrar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Registrar")
+            .field("settings", &self.settings)
+            .field("registrations", &self.registrations)
+            .field("kernel", &self.kernel.is_some())
+            .field("stop", &self.stop)
+            .finish()
+    }
 }
 
 impl Registrar {
@@ -379,8 +417,39 @@ impl Registrar {
     pub fn with_settings(settings: Settings) -> Self {
         Self {
             settings,
-            registrations: Vec::new(),
+            ..Self::default()
         }
+    }
+
+    /// Hands the Plugin `kernel`, the functions an Automation Plugin may call. Only the Kernel
+    /// calls it, when enabling a Plugin.
+    #[must_use]
+    pub fn with_kernel(self, kernel: Arc<dyn Kernel>) -> Self {
+        Self {
+            kernel: Some(kernel),
+            ..self
+        }
+    }
+
+    /// Hands the Plugin `stop`, which fires when this enablement ends. Only the Kernel calls it,
+    /// when enabling a Plugin.
+    #[must_use]
+    pub fn with_stop(self, stop: Stop) -> Self {
+        Self { stop, ..self }
+    }
+
+    /// The signal that this enablement of the Plugin is ending. A Registrar the Kernel didn't hand
+    /// one has a signal that never fires.
+    #[must_use]
+    pub fn stop(&self) -> Stop {
+        self.stop.clone()
+    }
+
+    /// The functions the Plugin may call on the Kernel, if it is handed them; `None` for a Plugin
+    /// that provides no [`Automation`](automation::Automation).
+    #[must_use]
+    pub fn kernel(&self) -> Option<Arc<dyn Kernel>> {
+        self.kernel.clone()
     }
 
     /// The settings the Plugin is being enabled with, checked against its
@@ -394,16 +463,6 @@ impl Registrar {
     pub fn observe<P: ObservePoint>(&mut self, observer: impl Observer<P>) {
         let observer: Arc<dyn Observer<P>> = Arc::new(observer);
         self.push(PointKey::observe::<P>(), Priority::DEFAULT, observer);
-    }
-
-    /// Registers an Interceptor at the Intercept Extension Point `P`.
-    pub fn intercept<P: InterceptPoint>(
-        &mut self,
-        priority: Priority,
-        interceptor: impl Interceptor<P>,
-    ) {
-        let interceptor: Arc<dyn Interceptor<P>> = Arc::new(interceptor);
-        self.push(PointKey::intercept::<P>(), priority, interceptor);
     }
 
     /// Registers a Provider of the capability `T`, usually a `dyn Trait`.

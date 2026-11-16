@@ -110,8 +110,16 @@ async fn answer(
     let path = uri.path();
     if let Some(image) = path.strip_prefix("/t/p/") {
         let file = image.rsplit('/').next().unwrap_or_default();
+        let content_type = if std::path::Path::new(file)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("png"))
+        {
+            "image/png"
+        } else {
+            "image/jpeg"
+        };
         return match read_fixture(fixtures().join("images").join(file)) {
-            Some(bytes) => ([(header::CONTENT_TYPE, "image/jpeg")], bytes).into_response(),
+            Some(bytes) => ([(header::CONTENT_TYPE, content_type)], bytes).into_response(),
             None => StatusCode::NOT_FOUND.into_response(),
         };
     }

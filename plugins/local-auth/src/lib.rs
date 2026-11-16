@@ -19,10 +19,8 @@ use nama_plugin_api::{
 
 const PASSWORD_LENGTH: RangeInclusive<usize> = 8..=1024;
 
-/// What [`Authenticator::verify_unknown_user`] checks against: a password no User has, hashed with
-/// the same parameters as every new credential, so checking against it costs the same as checking a
-/// real User's. It is a constant so that setting up `local-auth` can't fail.
-const DUMMY_CREDENTIAL: &str = "$argon2id$v=19$m=19456,t=2,p=1$gVFAYI9SXil+7t4cbyaaww$cT+AzDWaNGwSRE/BPXjRgIy41T5KNjs7p69V5uq36BU";
+/// The password behind the credential [`Authenticator::verify_unknown_user`] checks against.
+const DUMMY_PASSWORD: &str = "a password no User has";
 
 /// The `local-auth` Built-in Plugin: the Server registers it so that Users can sign in with a
 /// password.
@@ -42,18 +40,36 @@ impl Plugin for LocalAuth {
             description: "Lets Users sign in with a password.".to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema::default(),
+            personal_settings: SettingsSchema::default(),
             extension_points: vec![PointKey::provide::<dyn Authenticator>()],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
+            permissions: Vec::new(),
+            tick_every: None,
         }
     }
 
-    fn register(&self, registrar: &mut Registrar) {
-        let provider: Arc<dyn Authenticator> = Arc::new(Argon2id);
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        let provider: Arc<dyn Authenticator> = Arc::new(Argon2id::new()?);
         registrar.provide::<dyn Authenticator>(Priority::DEFAULT, provider);
+        Ok(())
     }
 }
 
-struct Argon2id;
+struct Argon2id {
+    /// What [`Authenticator::verify_unknown_user`] checks against: [`DUMMY_PASSWORD`] hashed by
+    /// [`hash`], like every new credential, so checking against it costs the same as checking a
+    /// real User's.
+    dummy_credential: String,
+}
+
+impl Argon2id {
+    /// The Authenticator, with its credential for unknown Users freshly made.
+    fn new() -> Result<Self, PluginError> {
+        let dummy_credential = hash(DUMMY_PASSWORD)
+            .map_err(|err| format!("could not make the credential for unknown Users: {err}"))?;
+        Ok(Self { dummy_credential })
+    }
+}
 
 impl Authenticator for Argon2id {
     fn hash_password(&self, password: &str) -> Result<String, PasswordError> {
@@ -78,7 +94,8 @@ impl Authenticator for Argon2id {
 
     fn verify_unknown_user(&self, password: &str) {
         // Only the time spent matters; the answer is always "no such User".
-        let _checked: Result<bool, PluginError> = self.verify_password(password, DUMMY_CREDENTIAL);
+        let _checked: Result<bool, PluginError> =
+            self.verify_password(password, &self.dummy_credential);
     }
 }
 
@@ -93,21 +110,13 @@ fn hash(password: &str) -> Result<String, password_hash::Error> {
 mod tests {
     use super::*;
 
-    /// The password [`DUMMY_CREDENTIAL`] was made from.
-    const DUMMY_PASSWORD: &str = "a password no User has";
-
-    /// The unknown-User check costs what a real one does only while [`DUMMY_CREDENTIAL`] is a real
-    /// argon2id credential with the parameters new credentials get, so a change to the `argon2`
-    /// crate's defaults fails here.
     #[test]
-    fn the_dummy_credential_is_a_real_credential_with_the_parameters_of_a_new_one() {
-        let new = hash(DUMMY_PASSWORD).unwrap();
-        let parameters = |credential: &str| credential.rsplitn(3, '$').nth(2).map(str::to_owned);
+    fn the_credential_made_at_registration_verifies_against_the_dummy_password() {
+        let authenticator = Argon2id::new().unwrap();
 
-        assert_eq!(parameters(DUMMY_CREDENTIAL), parameters(&new));
         assert!(
-            Argon2id
-                .verify_password(DUMMY_PASSWORD, DUMMY_CREDENTIAL)
+            authenticator
+                .verify_password(DUMMY_PASSWORD, &authenticator.dummy_credential)
                 .unwrap()
         );
     }

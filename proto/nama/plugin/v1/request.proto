@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+// Users asking for one Movie, or one Season of a Show, as the Kernel hands it to an Installed
+// Plugin: to a Fulfiller's `fulfill` and `unfollow` exports, to an Observer inside a Request event,
+// and to a Notifier inside a notification.
+message Request {
+  int64 id = 1;
+  // What it asks for.
+  oneof movie_or_season {
+    RequestedMovie movie = 2;
+    RequestedSeason season = 3;
+  }
+  RequestState state = 4;
+  // Who asked for it, first asker first. There is at least one.
+  repeated Requester requesters = 5;
+  // When it was opened, in seconds since the Unix epoch.
+  int64 created_at = 6;
+  // Why it was declined. Only a Declined Request has one, and only if the decliner gave one.
+  optional string decline_reason = 7;
+  // Why the Fulfiller didn't take it, in the Fulfiller's own words. Only a Failed Request has one.
+  optional string failure_reason = 8;
+  // The ID of the Followed Show that opened it, while that Followed Show lasts.
+  optional int64 followed_show_id = 9;
+  // The Quality to download it at. Unset if no Fulfiller was enabled or it had no Qualities when
+  // the Request opened, when the Plugin's own default profile applies.
+  RequestedQuality quality = 10;
+  // The latest change a Request manager made to its Quality, if any.
+  QualityChange quality_change = 11;
+}
+
+// Where a Request is on its way to the Library. A Plugin that doesn't know a state treats it as
+// unspecified.
+enum RequestState {
+  REQUEST_STATE_UNSPECIFIED = 0;
+  // Waiting for a Request manager to approve or decline it.
+  REQUEST_STATE_PENDING = 1;
+  // Approved, and waiting for what it asks for to be Matched in a Library.
+  REQUEST_STATE_APPROVED = 2;
+  // Declined, and closed.
+  REQUEST_STATE_DECLINED = 3;
+  // Handed to a Fulfiller, which is fetching it.
+  REQUEST_STATE_PROCESSING = 4;
+  // Some, but not all, of what it asks for is Matched in a Library.
+  REQUEST_STATE_PARTIALLY_AVAILABLE = 5;
+  // Matched in a Library, and closed.
+  REQUEST_STATE_AVAILABLE = 6;
+  // The Fulfiller didn't take it, for the reason in `failure_reason`.
+  REQUEST_STATE_FAILED = 7;
+}
+
+// A Movie a Request asks for, as the title source gave it when the Request was opened.
+message RequestedMovie {
+  reserved 1;
+  reserved "tmdb_id";
+  // The title, in its title source's language.
+  string title = 2;
+  // When it was released, as `YYYY-MM-DD`.
+  optional string release_date = 3;
+  // Every id the Kernel knows the Movie by, at most one per namespace. Any one identifies it.
+  repeated TitleId ids = 4;
+}
+
+// A Season a Request asks for, as the title source gave it when the Request was opened.
+message RequestedSeason {
+  reserved 1, 5, 6;
+  reserved "show_tmdb_id", "show_imdb_id", "show_tvdb_id";
+  // The Season's number within the Show. Season 0 holds specials.
+  uint32 season_number = 2;
+  // The Show's title, in its title source's language.
+  string show_title = 3;
+  // When the Season first aired, as `YYYY-MM-DD`.
+  optional string air_date = 4;
+  // Every id the Kernel knows the Show by, at most one per namespace. Any one identifies it.
+  repeated TitleId show_ids = 7;
+}
+
+// One id of a title in a title source. A namespace is lowercase ASCII letters and digits,
+// such as `tmdb`, `imdb` or `tvdb`; its owner defines the value, which is never empty.
+message TitleId {
+  string namespace = 1;
+  string value = 2;
+}
+
+// A User who asked for what a Request covers.
+message Requester {
+  int64 user_id = 1;
+  // The User's name.
+  string name = 2;
+  // When they asked, in seconds since the Unix epoch.
+  int64 requested_at = 3;
+}
+
+// The Quality a Request is downloaded at, kept as it was when the Request took it.
+message RequestedQuality {
+  // The Quality's id on the Fulfiller's list, which may not have it any more.
+  int64 id = 1;
+  // Its friendly name, such as `HD`.
+  string name = 2;
+  // The id of the service's quality profile to download it at.
+  string profile_id = 3;
+}
+
+// A Request manager changing a Request's Quality, as `Request.quality` now has it.
+message QualityChange {
+  // The Request manager's name, unset once that User is deleted.
+  optional string changed_by = 1;
+  // The friendly name of the Quality it had before, unset if it had none.
+  optional string previous_name = 2;
+  // When, in seconds since the Unix epoch.
+  int64 changed_at = 3;
+}

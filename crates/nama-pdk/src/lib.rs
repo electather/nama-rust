@@ -1,65 +1,55 @@
 //! Plugin development kit for Installed Plugins (ADR 0006, ADR 0009).
 //!
-//! An Installed Plugin is a `cdylib` built for `wasm32-unknown-unknown`. Each of its exports is a
-//! [`plugin_fn`] that takes and returns `nama.plugin.v1` messages wrapped in [`Buffa`]. Every
-//! Plugin exports `manifest()`, which returns its [`Manifest`]:
-//!
-//! ```
-//! // `plugin_fn` expands to paths starting with `extism_pdk`.
-//! use nama_pdk::{Buffa, FnResult, Manifest, extism_pdk, plugin_fn};
-//!
-//! #[plugin_fn]
-//! pub fn manifest() -> FnResult<Buffa<Manifest>> {
-//!     Ok(Buffa(nama_pdk::manifest("hello", env!("CARGO_PKG_VERSION"))))
-//! }
-//! ```
-//!
-//! The Plugin reads its settings with [`extism_pdk::config::get`], and sends HTTP requests with
-//! [`http_request`] to the hosts its Manifest's `allowed_hosts` and its URL settings name.
-//!
-//! A Plugin with [`SETTING_KIND_CHOICE`](nama_proto::nama::v1::SettingKind) settings exports `check_settings()`, which
-//! checks its settings against the outside service and offers the choices for each, built with
-//! [`checked_settings`]. It runs only when an admin tests settings, which may be unsaved, and may
-//! reach the hosts of the URL settings tested:
-//!
-//! ```
-//! use nama_pdk::{Buffa, CheckedSettings, FnResult, extism_pdk, plugin_fn};
-//!
-//! #[plugin_fn]
-//! pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
-//!     let profiles = [("1", "HD"), ("4", "Ultra HD")];
-//!     Ok(Buffa(nama_pdk::checked_settings([("profile", profiles)])))
-//! }
-//! ```
-//!
-//! If the Plugin panics, the Server gets the panic's message with the error of the call that
-//! panicked, not just a bare trap.
-//!
-//! A Plugin that hands Requests to an outside service implements [`Fulfiller`] and exports it with
-//! [`fulfiller!`].
-//!
-//! A Plugin that tells people about Requests through an outside service implements [`Notifier`] and
-//! exports it with [`notifier!`].
-//!
-//! A Plugin that connects Users to an outside service, such as their Telegram chat, implements
-//! [`Connector`] and exports it with [`connector!`].
+//! The crate's `README.md` walks through writing a Plugin with it, from the Manifest to the `.wasm`.
 
-use std::{collections::HashMap, fmt};
+// Compiles and runs the README's examples with this crate's doctests.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeExamples;
+
+use std::{collections::HashMap, fmt, time::Duration};
 
 pub use extism_pdk::{self, FnResult, plugin_fn};
-pub use nama_proto::{
+pub use nama_plugin_proto::{
     self,
-    nama::{
-        plugin::v1::{
-            CheckedSettings, ConnectionStarted, Fulfilled, Manifest, Notification, StopMonitoring,
-            delivery::Recipient,
-        },
-        v1::{Download, Request},
+    nama::plugin::v1::{
+        Artwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Candidate, CheckedSettings,
+        ConnectionStarted, Download, Episode, EpisodeAnswer, EpisodeAsked, Fulfilled, Image,
+        ImageAnswer, ImageAsked, Manifest, Movie, MovieAnswer, Notification, Point, Request,
+        SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer,
+        StopMonitoring, TitleAsked, TitleId, TitleKind, delivery::Recipient,
     },
+    services,
 };
 
+mod automation;
+mod blob_store;
+mod notification_text;
+mod recogniser;
+
+pub use automation::{
+    Automation, Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind,
+    TitleWatchStates, Titles, User, WatchState, kernel,
+};
+pub use blob_store::{BLOB_MAX_BYTES, BlobPage, BlobStore};
+pub use recogniser::{
+    FileRecognised, FileToRecognise, Recognised, RecognisedEpisodes, RecognisedMovie, Recogniser,
+    TitleRecognised, TitleToRecognise,
+};
+
+/// What a notification says happened, in the Glossary's words, or `None` for what isn't told.
+pub use notification_text::what_happened;
+
 use extism_pdk::{Error, FromBytesOwned, HttpRequest, HttpResponse, ToBytes, ToMemory};
-use nama_proto::nama::v1::{Choice, SettingChoices};
+use nama_plugin_proto::nama::plugin::v1::{Choice, SettingChoices};
+
+/// The value of the id in `namespace` among a title's `ids`, such as its `tmdb` id, if it has one.
+#[must_use]
+pub fn title_id<'a>(ids: &'a [TitleId], namespace: &str) -> Option<&'a str> {
+    ids.iter()
+        .find(|id| id.namespace == namespace)
+        .map(|id| id.value.as_str())
+}
 
 /// Wraps a protobuf message so it crosses an Extism call encoded as protobuf, as an export's
 /// input or output.
@@ -80,7 +70,7 @@ impl<T: buffa::Message> FromBytesOwned for Buffa<T> {
     }
 }
 
-/// A Manifest for the Plugin `id` at `version`, which works with the Nama API versions this
+/// A Manifest for the Plugin `id` at `version`, which works with the Plugin contract versions this
 /// `nama-pdk` was built against. Fill in its other fields, such as `name`, `description`,
 /// `settings` and `logo_svg` (`include_str!("../logo.svg")`), with struct update syntax.
 #[must_use]
@@ -88,21 +78,56 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
     Manifest {
         id: id.to_owned(),
         version: version.to_owned(),
-        nama_api: format!("^{}", nama_proto::NAMA_API_VERSION),
+        contract: format!("^{}", nama_plugin_proto::CONTRACT_VERSION),
         ..Manifest::default()
     }
 }
 
+/// The Extension Point `service`, one of [`services`], at the versions this `nama-pdk` was built
+/// against, for a Manifest's `points`:
+///
+/// ```
+/// use nama_pdk::{Manifest, services};
+///
+/// let manifest = Manifest {
+///     points: vec![nama_pdk::point(services::NOTIFIER)],
+///     ..nama_pdk::manifest("hello", "0.1.0")
+/// };
+/// ```
+///
+/// # Panics
+///
+/// When `service` isn't one of [`services`]: a Plugin's own bug, which its first `manifest()`
+/// call finds.
+#[must_use]
+#[expect(
+    clippy::panic,
+    reason = "an unknown service is the Plugin author's bug"
+)]
+pub fn point(service: &str) -> Point {
+    let &(service, version) = nama_plugin_proto::SERVICES
+        .iter()
+        .find(|&&(name, _)| name == service)
+        .unwrap_or_else(|| panic!("{service} isn't an Extension Point of the Plugin contract"));
+    Point {
+        service: service.to_owned(),
+        version: format!("^{version}"),
+        ..Point::default()
+    }
+}
+
 /// A Fulfiller: hands Approved Movie or Season Requests to an outside service, such as Radarr
-/// (ADR 0003). Its Manifest lists `PROVIDE_POINT_MOVIE_FULFILLER`, `PROVIDE_POINT_SHOW_FULFILLER` or
-/// both in `providers`, and [`fulfiller!`] exports it:
+/// (ADR 0003). Its Manifest's `points` name [`services::MOVIE_FULFILLER`],
+/// [`services::SHOW_FULFILLER`] or both, built with [`point`]; it names the id namespaces it can
+/// find a title by in `movie_id_namespaces` and `show_id_namespaces`, such as `tmdb`, and
+/// [`fulfiller!`] exports it:
 ///
 /// ```
 /// use std::collections::HashMap;
 ///
 /// use nama_pdk::{
 ///     Download, Fulfilled, Fulfiller, Request, extism_pdk::Error,
-///     nama_proto::nama::v1::request::MovieOrSeason,
+///     nama_plugin_proto::nama::plugin::v1::request::MovieOrSeason, title_id,
 /// };
 ///
 /// struct Radarr;
@@ -112,8 +137,11 @@ pub fn manifest(id: &str, version: &str) -> Manifest {
 ///         let Some(MovieOrSeason::Movie(movie)) = request.movie_or_season else {
 ///             return Err(Error::msg("Radarr takes only Movie Requests"));
 ///         };
+///         let Some(tmdb) = title_id(&movie.ids, "tmdb") else {
+///             return Err(Error::msg("Radarr needs the Movie's TMDB id"));
+///         };
 ///         Ok(Fulfilled {
-///             reference: format!("radarr-{}", movie.tmdb_id),
+///             reference: format!("radarr-{tmdb}"),
 ///             ..Fulfilled::default()
 ///         })
 ///     }
@@ -136,9 +164,11 @@ pub trait Fulfiller {
     ///
     /// # Errors
     ///
-    /// When the service didn't take the Request, such as when it is unreachable or doesn't know
-    /// the title or the quality profile `request` names, or the Plugin can't follow a Show it was
-    /// asked to. The error's message is the reason the Request shows as Failed.
+    /// [`TryAgainIn`] when the service can't take it yet, such as Sonarr still adding the Show:
+    /// the Server asks again with the same Request after that long. Otherwise when the service
+    /// didn't take the Request, such as when it is unreachable or doesn't know the title or the
+    /// quality profile `request` names, or the Plugin can't follow a Show it was asked to. The
+    /// error's message is the reason the Request shows as Failed.
     fn fulfill(request: Request) -> Result<Fulfilled, Error>;
 
     /// Stops following the Show `request` is a Season of, as a hand-off asked it to, since its
@@ -146,7 +176,8 @@ pub trait Fulfiller {
     ///
     /// # Errors
     ///
-    /// When the service couldn't be told. The Server logs the error's message.
+    /// [`TryAgainIn`] when the service can't be told yet: the Server asks again after that long.
+    /// Otherwise when the service couldn't be told. The Server logs the error's message.
     fn unfollow(_request: Request) -> Result<(), Error> {
         Ok(())
     }
@@ -157,8 +188,9 @@ pub trait Fulfiller {
     ///
     /// # Errors
     ///
-    /// When the service couldn't be told. The delete goes ahead, and the person deleting is told
-    /// the service may download the title again.
+    /// [`TryAgainIn`] when the service can't be told yet: the Server asks again after that long.
+    /// Otherwise when the service couldn't be told. The delete goes ahead, and the person deleting
+    /// is told the service may download the title again.
     fn stop_monitoring(_title: StopMonitoring) -> Result<(), Error> {
         Ok(())
     }
@@ -172,32 +204,90 @@ pub trait Fulfiller {
     fn progress(references: Vec<String>) -> Result<HashMap<String, Vec<Download>>, Error>;
 }
 
+/// The error a [`Fulfiller`] returns from `fulfill`, `unfollow` or `stop_monitoring` when the
+/// service can't act yet, such as Sonarr still adding a Show: the Server asks again with the same
+/// input after this long, clamped to 1 to 300 seconds, while the Plugin stays enabled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TryAgainIn(pub Duration);
+
+impl fmt::Display for TryAgainIn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "try again in {} seconds", self.0.as_secs())
+    }
+}
+
+impl std::error::Error for TryAgainIn {}
+
+impl TryAgainIn {
+    /// The `retry_after_seconds` a [`fulfiller!`] export answers for `error`: its whole seconds
+    /// if it is a [`TryAgainIn`], saturating at `u32::MAX`, or `None` for any other error.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn seconds_in(error: &Error) -> Option<u32> {
+        error
+            .downcast_ref::<Self>()
+            .map(|Self(wait)| u32::try_from(wait.as_secs()).unwrap_or(u32::MAX))
+    }
+}
+
 /// Exports a [`Fulfiller`] as the Plugin's `fulfill`, `unfollow`, `stop_monitoring` and `progress`,
-/// taking and returning the `nama.plugin.v1` messages the Server exchanges with them.
+/// taking and returning the `nama.plugin.v1` messages the Server exchanges with them. A
+/// [`TryAgainIn`] error from the first three becomes their answer's `retry_after_seconds`.
 #[macro_export]
 macro_rules! fulfiller {
     ($fulfiller:ty) => {
         const _: () = {
             // `plugin_fn` expands to paths starting with `extism_pdk`.
             use $crate::{
-                Buffa, FnResult, Fulfiller, Request, StopMonitoring, extism_pdk,
-                nama_proto::nama::plugin::v1::{Downloads, Fulfilled, Progress, ProgressAsked},
+                Buffa, FnResult, Fulfiller, Request, StopMonitoring, TryAgainIn, extism_pdk,
+                nama_plugin_proto::nama::plugin::v1::{
+                    Downloads, Fulfilled, Progress, ProgressAsked, StoppedMonitoring, Unfollowed,
+                },
                 plugin_fn,
             };
 
             #[plugin_fn]
             pub fn fulfill(Buffa(request): Buffa<Request>) -> FnResult<Buffa<Fulfilled>> {
-                Ok(Buffa(<$fulfiller as Fulfiller>::fulfill(request)?))
+                match <$fulfiller as Fulfiller>::fulfill(request) {
+                    Ok(fulfilled) => Ok(Buffa(fulfilled)),
+                    Err(error) => match TryAgainIn::seconds_in(&error) {
+                        Some(seconds) => Ok(Buffa(Fulfilled {
+                            retry_after_seconds: Some(seconds),
+                            ..Fulfilled::default()
+                        })),
+                        None => Err(error.into()),
+                    },
+                }
             }
 
             #[plugin_fn]
-            pub fn unfollow(Buffa(request): Buffa<Request>) -> FnResult<()> {
-                Ok(<$fulfiller as Fulfiller>::unfollow(request)?)
+            pub fn unfollow(Buffa(request): Buffa<Request>) -> FnResult<Buffa<Unfollowed>> {
+                match <$fulfiller as Fulfiller>::unfollow(request) {
+                    Ok(()) => Ok(Buffa(Unfollowed::default())),
+                    Err(error) => match TryAgainIn::seconds_in(&error) {
+                        Some(seconds) => Ok(Buffa(Unfollowed {
+                            retry_after_seconds: Some(seconds),
+                            ..Unfollowed::default()
+                        })),
+                        None => Err(error.into()),
+                    },
+                }
             }
 
             #[plugin_fn]
-            pub fn stop_monitoring(Buffa(title): Buffa<StopMonitoring>) -> FnResult<()> {
-                Ok(<$fulfiller as Fulfiller>::stop_monitoring(title)?)
+            pub fn stop_monitoring(
+                Buffa(title): Buffa<StopMonitoring>,
+            ) -> FnResult<Buffa<StoppedMonitoring>> {
+                match <$fulfiller as Fulfiller>::stop_monitoring(title) {
+                    Ok(()) => Ok(Buffa(StoppedMonitoring::default())),
+                    Err(error) => match TryAgainIn::seconds_in(&error) {
+                        Some(seconds) => Ok(Buffa(StoppedMonitoring {
+                            retry_after_seconds: Some(seconds),
+                            ..StoppedMonitoring::default()
+                        })),
+                        None => Err(error.into()),
+                    },
+                }
             }
 
             #[plugin_fn]
@@ -223,7 +313,7 @@ macro_rules! fulfiller {
 
 /// A Notifier: tells people about Requests through an outside service, such as Telegram (ADR
 /// 0021). The Server decides who is told what, and hands it each notification with its recipient.
-/// Its Manifest lists `PROVIDE_POINT_NOTIFIER` in `providers`, and [`notifier!`] exports it:
+/// Its Manifest's `points` name [`services::NOTIFIER`], and [`notifier!`] exports it:
 ///
 /// ```
 /// use nama_pdk::{Notification, Notifier, Recipient, extism_pdk::Error};
@@ -237,6 +327,12 @@ macro_rules! fulfiller {
 ///             Recipient::Channel(_) => Ok(()),
 ///             // Send it to the User whose Plugin Connection, such as a chat id, this is.
 ///             Recipient::Connection(_) => Ok(()),
+///             // Send it to a User by the values they set for the Manifest's `personal_settings`,
+///             // such as their own topic. A Plugin with no Personal settings fails here.
+///             Recipient::User(user) => {
+///                 let _topic = user.personal_settings.get("topic");
+///                 Ok(())
+///             }
 ///         }
 ///     }
 /// }
@@ -249,14 +345,15 @@ pub trait Notifier {
     ///
     /// # Errors
     ///
-    /// [`RecipientGone`] when the service says a [`Recipient::Connection`] is gone. Otherwise when
-    /// the service didn't take the notification: the Server logs the error's message and doesn't
-    /// retry.
+    /// [`RecipientGone`] when the service says the recipient is gone. Otherwise when the service
+    /// didn't take the notification: the Server logs the error's message and doesn't retry.
     fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error>;
 }
 
-/// The error a [`Notifier`] returns when the service says a [`Recipient::Connection`] is gone,
-/// such as a User who blocked the bot. The Server then deletes that Plugin Connection.
+/// The error a [`Notifier`] returns when the service says a recipient is gone, such as a User who
+/// blocked the bot or a deleted webhook. For a [`Recipient::Connection`] the Server then deletes
+/// that Plugin Connection; for a [`Recipient::User`] it deletes that User's Personal settings for
+/// the Plugin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecipientGone;
 
@@ -278,7 +375,7 @@ macro_rules! notifier {
             use $crate::{
                 Buffa, FnResult, Notifier, RecipientGone,
                 extism_pdk::{self, Error},
-                nama_proto::nama::plugin::v1::{Delivered, Delivery},
+                nama_plugin_proto::nama::plugin::v1::{Delivered, Delivery},
                 plugin_fn,
             };
 
@@ -307,7 +404,7 @@ macro_rules! notifier {
 
 /// A Connector: connects a User to an outside service through a link they open, such as a
 /// Telegram deep link (ADR 0021). The Server keeps what it finds as the User's Plugin Connection.
-/// Its Manifest lists `PROVIDE_POINT_CONNECTOR` in `providers`, and [`connector!`] exports it:
+/// Its Manifest's `points` name [`services::CONNECTOR`], and [`connector!`] exports it:
 ///
 /// ```
 /// use nama_pdk::{ConnectionStarted, Connector, extism_pdk::Error};
@@ -358,7 +455,9 @@ macro_rules! connector {
             // `plugin_fn` expands to paths starting with `extism_pdk`.
             use $crate::{
                 Buffa, ConnectionStarted, Connector, FnResult, extism_pdk,
-                nama_proto::nama::plugin::v1::{ConnectionPoll, ConnectionPolled, ConnectionStart},
+                nama_plugin_proto::nama::plugin::v1::{
+                    ConnectionPoll, ConnectionPolled, ConnectionStart,
+                },
                 plugin_fn,
             };
 
@@ -379,6 +478,236 @@ macro_rules! connector {
                     connection: <$connector as Connector>::poll_connection(poll.pending)?,
                     ..ConnectionPolled::default()
                 }))
+            }
+        };
+    };
+}
+
+/// A title source: tells the Server about Movies and Shows so it can Match the files in a Library
+/// to titles. Every method is optional, and only those [`title_source!`] lists are exported; the
+/// Server asks nothing of one that isn't.
+///
+/// Asked by an id in a namespace it can't look titles up by, a method answers with
+/// `unsupported_id` set rather than failing, and the Server asks the next source; a failure means
+/// the source couldn't answer, which is worth trying again. The Manifest's `title_namespace` and
+/// `title_lookup_namespaces` say which namespaces it looks titles up by:
+///
+/// ```
+/// use nama_pdk::{
+///     Candidate, SearchQuery, SearchResults, TitleId, TitleSource, extism_pdk::Error,
+/// };
+///
+/// struct Tvdb;
+///
+/// impl TitleSource for Tvdb {
+///     fn search(query: SearchQuery) -> Result<SearchResults, Error> {
+///         let id = TitleId {
+///             namespace: "tvdb".to_owned(),
+///             value: "81189".to_owned(),
+///             ..TitleId::default()
+///         };
+///         Ok(SearchResults {
+///             candidates: vec![Candidate {
+///                 ids: vec![id.clone()],
+///                 id: id.into(),
+///                 title: query.title,
+///                 ..Candidate::default()
+///             }],
+///             ..SearchResults::default()
+///         })
+///     }
+/// }
+///
+/// nama_pdk::title_source!(Tvdb, [search]);
+/// ```
+pub trait TitleSource {
+    /// The titles of `query.kind` that best fit `query`, best first; none if nothing fits.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked, which is worth trying again later.
+    fn search(_query: SearchQuery) -> Result<SearchResults, Error> {
+        Err(not_served("search"))
+    }
+
+    /// The Movie with the id `asked` names, unset if the source has none.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked.
+    fn movie(_asked: TitleAsked) -> Result<MovieAnswer, Error> {
+        Err(not_served("movie"))
+    }
+
+    /// The Show with the id `asked` names, unset if the source has none.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked.
+    fn show(_asked: TitleAsked) -> Result<ShowAnswer, Error> {
+        Err(not_served("show"))
+    }
+
+    /// The Season `asked` names, with its Episodes, unset if the source has none.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked.
+    fn season(_asked: SeasonAsked) -> Result<SeasonAnswer, Error> {
+        Err(not_served("season"))
+    }
+
+    /// The Episode `asked` names, unset if the source has none.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked.
+    fn episode(_asked: EpisodeAsked) -> Result<EpisodeAnswer, Error> {
+        Err(not_served("episode"))
+    }
+
+    /// The image at the path `asked` names, as the source gave it in a poster, backdrop, still or
+    /// artwork, unset if it has none there.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked.
+    fn image(_asked: ImageAsked) -> Result<ImageAnswer, Error> {
+        Err(not_served("image"))
+    }
+
+    /// The artwork the source has for the title `asked` names, of every kind it has; none if it
+    /// has none.
+    ///
+    /// # Errors
+    ///
+    /// When the source couldn't be asked.
+    fn artwork(_asked: ArtworkAsked) -> Result<ArtworkAnswer, Error> {
+        Err(not_served("artwork"))
+    }
+}
+
+/// What a [`TitleSource`] method the Plugin doesn't override returns, should [`title_source!`]
+/// list it anyway.
+fn not_served(method: &str) -> Error {
+    Error::msg(format!("this title source doesn't serve {method}"))
+}
+
+/// Exports the [`TitleSource`] methods a Plugin serves, each under its export name: `search` as
+/// `title_search`, and `movie`, `show`, `season`, `episode`, `image` and `artwork` likewise,
+/// taking and returning their `nama.plugin.v1` messages:
+/// `title_source!(Tvdb, [search, show, season, image])`.
+///
+/// The Server treats a missing export as a method the source doesn't serve, so only the methods
+/// listed are exported. A macro can't see which of the trait's defaults a type overrides, so the
+/// list is explicit.
+#[macro_export]
+macro_rules! title_source {
+    ($source:ty, [$($method:ident),+ $(,)?]) => {
+        $($crate::title_source!(@export $source, $method);)+
+    };
+    (@export $source:ty, search) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, SearchQuery, SearchResults, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_search(
+                Buffa(query): Buffa<SearchQuery>,
+            ) -> FnResult<Buffa<SearchResults>> {
+                Ok(Buffa(<$source as TitleSource>::search(query)?))
+            }
+        };
+    };
+    (@export $source:ty, movie) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, TitleAsked, MovieAnswer, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_movie(
+                Buffa(asked): Buffa<TitleAsked>,
+            ) -> FnResult<Buffa<MovieAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::movie(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, show) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, TitleAsked, ShowAnswer, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_show(
+                Buffa(asked): Buffa<TitleAsked>,
+            ) -> FnResult<Buffa<ShowAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::show(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, season) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, SeasonAsked, SeasonAnswer, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_season(
+                Buffa(asked): Buffa<SeasonAsked>,
+            ) -> FnResult<Buffa<SeasonAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::season(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, episode) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, EpisodeAsked, EpisodeAnswer, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_episode(
+                Buffa(asked): Buffa<EpisodeAsked>,
+            ) -> FnResult<Buffa<EpisodeAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::episode(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, image) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                Buffa, FnResult, ImageAsked, ImageAnswer, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_image(
+                Buffa(asked): Buffa<ImageAsked>,
+            ) -> FnResult<Buffa<ImageAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::image(asked)?))
+            }
+        };
+    };
+    (@export $source:ty, artwork) => {
+        const _: () = {
+            // `plugin_fn` expands to paths starting with `extism_pdk`.
+            use $crate::{
+                ArtworkAnswer, ArtworkAsked, Buffa, FnResult, TitleSource, extism_pdk, plugin_fn,
+            };
+
+            #[plugin_fn]
+            pub fn title_artwork(
+                Buffa(asked): Buffa<ArtworkAsked>,
+            ) -> FnResult<Buffa<ArtworkAnswer>> {
+                Ok(Buffa(<$source as TitleSource>::artwork(asked)?))
             }
         };
     };
@@ -415,6 +744,30 @@ where
     }
 }
 
+/// The Library ids the `SETTING_KIND_LIBRARIES` setting `key` holds, in the order the admin gave
+/// them; none if it isn't set. A Library deleted since may be among them: skip an id the Kernel no
+/// longer lists.
+///
+/// # Errors
+///
+/// When the config can't be read, or the setting holds something other than ids, which the Kernel
+/// never writes.
+pub fn setting_library_ids(key: &str) -> Result<Vec<i64>, Error> {
+    library_ids(key, &extism_pdk::config::get(key)?.unwrap_or_default())
+}
+
+/// `text`, the setting `key`'s config, as Library ids: each in decimal, joined by `,`.
+fn library_ids(key: &str, text: &str) -> Result<Vec<i64>, Error> {
+    text.split(',')
+        .filter(|id| !id.is_empty())
+        .map(|id| {
+            id.parse().map_err(|_not_a_number| {
+                Error::msg(format!("the setting {key} holds {id:?}, not Library ids"))
+            })
+        })
+        .collect()
+}
+
 /// Sends `request` with `body`, as [`extism_pdk::http::request`] does. If the Server can't send
 /// it, such as when nothing answers at its host, the call fails with `unreachable` as its error,
 /// in place of the HTTP client's own words.
@@ -433,6 +786,31 @@ pub fn http_request<T: ToMemory>(
     let response = extism_pdk::http::request(request, body);
     clear_error();
     response
+}
+
+/// The time by the Server's clock, since `SystemTime::now()` panics on wasm32-unknown-unknown.
+/// Off wasm32, as in a Plugin's unit tests, it is `SystemTime::now()`.
+///
+/// ```
+/// let elapsed = nama_pdk::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+/// assert!(elapsed.as_secs() > 0);
+/// ```
+#[must_use]
+pub fn now() -> std::time::SystemTime {
+    #[cfg(target_arch = "wasm32")]
+    {
+        #[expect(unsafe_code, reason = "the Server's clock is a Wasm import")]
+        #[link(wasm_import_module = "nama")]
+        unsafe extern "C" {
+            #[link_name = "now"]
+            safe fn nama_now() -> i64;
+        }
+        // Milliseconds since the Unix epoch; the Server's clock is never before it.
+        let millis = u64::try_from(nama_now()).unwrap_or_default();
+        std::time::UNIX_EPOCH + Duration::from_millis(millis)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    std::time::SystemTime::now()
 }
 
 /// Installs the panic hook. Extism calls a guest's `_initialize` export whenever it instantiates
@@ -473,4 +851,39 @@ fn clear_error() {
     unsafe {
         extism_pdk::extism::error_set(0);
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{SearchQuery, SearchResults, TitleSource, extism_pdk::Error, library_ids};
+
+    #[test]
+    fn library_ids_are_read_from_their_config_text() {
+        assert_eq!(library_ids("keep", "3,1,12").ok(), Some(vec![3, 1, 12]));
+        assert_eq!(library_ids("keep", "").ok(), Some(Vec::new()));
+        assert_eq!(
+            library_ids("keep", "3,Movies").map_err(|err| err.to_string()),
+            Err("the setting keep holds \"Movies\", not Library ids".to_owned())
+        );
+    }
+
+    struct Searcher;
+
+    impl TitleSource for Searcher {
+        fn search(_query: SearchQuery) -> Result<SearchResults, Error> {
+            Ok(SearchResults::default())
+        }
+    }
+
+    struct EverythingElse;
+
+    impl TitleSource for EverythingElse {}
+
+    // Each export is a `no_mangle` symbol, so these two link only if `title_source!` exports
+    // nothing but the methods it lists: an unlisted `title_search` would be defined twice.
+    crate::title_source!(Searcher, [search]);
+    crate::title_source!(
+        EverythingElse,
+        [movie, show, season, episode, image, artwork]
+    );
 }

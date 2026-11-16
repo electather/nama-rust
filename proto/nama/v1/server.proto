@@ -48,6 +48,18 @@ service ServerService {
   rpc UpdateImageSettings(UpdateImageSettingsRequest) returns (UpdateImageSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Moves the stored images (fetched artwork, Custom Images and Plugin logos) to another store
+  // and makes it the one in use: local disk in the data directory for an empty `plugin_id`, or
+  // the enabled Plugin with that id serving `EXTENSION_POINT_BLOB_STORE`. Needs
+  // `PERMISSION_MANAGE_SETTINGS`. The new store is first checked by writing an object, reading it
+  // back and deleting it. The images are then copied across in the background, one at a time,
+  // which `GetImageSettingsResponse.switching` follows; until every one is copied, and if the
+  // copy fails, the old store stays in use. The old store keeps its copies. Refused with
+  // `REFUSAL_REASON_NOT_A_BLOB_STORE` for an id of no enabled Plugin serving the point,
+  // `REFUSAL_REASON_IMAGE_STORE_IN_USE` for the store already in use, as a no-op that changes
+  // nothing, `REFUSAL_REASON_IMAGE_STORE_SWITCHING` while another switch runs, and
+  // `REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK` for a store that fails its check.
+  rpc SwitchImageStore(SwitchImageStoreRequest) returns (SwitchImageStoreResponse) {}
 }
 
 message GetServerInfoRequest {}
@@ -226,6 +238,9 @@ message GetImageSettingsRequest {}
 
 message GetImageSettingsResponse {
   ImageSettings settings = 1;
+  // The running switch to another image store (`SwitchImageStore`), or the last one if it
+  // failed. Unset when none has run since the Server started, or the last one succeeded.
+  ImageStoreSwitch switching = 2;
 }
 
 message UpdateImageSettingsRequest {
@@ -246,4 +261,30 @@ message ImageSettings {
   // takes them past it, those least recently sent are deleted until they fit. Unset for the
   // default, 1024.
   optional uint32 resized_cache_mib = 2;
+  // The id of the Plugin keeping the stored images, or empty for local disk in the data
+  // directory, the default. `UpdateImageSettings` ignores it; `SwitchImageStore` changes it.
+  string store_plugin_id = 3;
+}
+
+message SwitchImageStoreRequest {
+  // The id of the Plugin to keep the stored images, or empty for local disk.
+  string plugin_id = 1;
+}
+
+message SwitchImageStoreResponse {
+  // The switch just started, as `GetImageSettingsResponse.switching` follows it, or unset if it
+  // already finished.
+  ImageStoreSwitch switching = 1;
+}
+
+// How far a switch to another image store has got.
+message ImageStoreSwitch {
+  // The id of the Plugin the images are moving to, or empty for local disk.
+  string to_plugin_id = 1;
+  // The images handled so far, those the new store already held included.
+  uint32 copied = 2;
+  // The images to handle, 0 until they are listed.
+  uint32 total = 3;
+  // Why the switch stopped, the old store still in use, or empty while it runs.
+  string failure = 4;
 }

@@ -14,7 +14,6 @@
 
 use std::{collections::BTreeMap, fmt};
 
-use nama_proto::nama::v1::{self as proto, setting_value};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -60,6 +59,9 @@ pub enum SettingKind {
     /// An http or https URL with a host, such as a Sonarr address. An Installed Plugin may send
     /// HTTP requests to its host.
     Url,
+    /// The ids of Libraries, which an admin picks from the Server's Library list. A Library
+    /// deleted later stays in the value, so a Plugin ignores an id the Kernel no longer lists.
+    Libraries,
 }
 
 /// A setting's value.
@@ -73,6 +75,14 @@ pub enum SettingValue {
     /// Text, for [`SettingKind::Text`], [`SettingKind::Secret`], [`SettingKind::Choice`] and
     /// [`SettingKind::Url`].
     Text(String),
+    /// Library ids, for [`SettingKind::Libraries`].
+    Libraries(Vec<i64>),
+}
+
+impl From<Vec<i64>> for SettingValue {
+    fn from(ids: Vec<i64>) -> Self {
+        Self::Libraries(ids)
+    }
 }
 
 impl SettingValue {
@@ -83,6 +93,7 @@ impl SettingValue {
             (Self::Text(text), SettingKind::Url) => web_url(text).is_some(),
             (Self::Bool(_), SettingKind::Bool)
             | (Self::Integer(_), SettingKind::Integer)
+            | (Self::Libraries(_), SettingKind::Libraries)
             | (Self::Text(_), SettingKind::Text | SettingKind::Secret | SettingKind::Choice) => {
                 true
             }
@@ -98,63 +109,9 @@ impl fmt::Debug for SettingValue {
             Self::Bool(_) => "Bool",
             Self::Integer(_) => "Integer",
             Self::Text(_) => "Text",
+            Self::Libraries(_) => "Libraries",
         };
         write!(f, "{kind}(..)")
-    }
-}
-
-impl SettingKind {
-    /// The kind `kind` names in the schema, or `None` for `SETTING_KIND_UNSPECIFIED`.
-    #[must_use]
-    pub const fn from_proto(kind: proto::SettingKind) -> Option<Self> {
-        Some(match kind {
-            proto::SettingKind::SETTING_KIND_UNSPECIFIED => return None,
-            proto::SettingKind::SETTING_KIND_TEXT => Self::Text,
-            proto::SettingKind::SETTING_KIND_SECRET => Self::Secret,
-            proto::SettingKind::SETTING_KIND_BOOL => Self::Bool,
-            proto::SettingKind::SETTING_KIND_INTEGER => Self::Integer,
-            proto::SettingKind::SETTING_KIND_CHOICE => Self::Choice,
-            proto::SettingKind::SETTING_KIND_URL => Self::Url,
-        })
-    }
-}
-
-impl From<SettingKind> for proto::SettingKind {
-    fn from(kind: SettingKind) -> Self {
-        match kind {
-            SettingKind::Text => Self::SETTING_KIND_TEXT,
-            SettingKind::Secret => Self::SETTING_KIND_SECRET,
-            SettingKind::Bool => Self::SETTING_KIND_BOOL,
-            SettingKind::Integer => Self::SETTING_KIND_INTEGER,
-            SettingKind::Choice => Self::SETTING_KIND_CHOICE,
-            SettingKind::Url => Self::SETTING_KIND_URL,
-        }
-    }
-}
-
-impl SettingValue {
-    /// The value `value` holds in the schema, or `None` if it holds none.
-    #[must_use]
-    pub fn from_proto(value: &proto::SettingValue) -> Option<Self> {
-        Some(match value.value.as_ref()? {
-            setting_value::Value::TextValue(text) => Self::Text(text.clone()),
-            setting_value::Value::BoolValue(on) => Self::Bool(*on),
-            setting_value::Value::IntegerValue(number) => Self::Integer(*number),
-        })
-    }
-}
-
-impl From<&SettingValue> for proto::SettingValue {
-    fn from(value: &SettingValue) -> Self {
-        let value = match value {
-            SettingValue::Text(text) => setting_value::Value::TextValue(text.clone()),
-            SettingValue::Bool(on) => setting_value::Value::BoolValue(*on),
-            SettingValue::Integer(number) => setting_value::Value::IntegerValue(*number),
-        };
-        Self {
-            value: Some(value),
-            ..Default::default()
-        }
     }
 }
 
@@ -180,7 +137,17 @@ impl Settings {
     pub fn text(&self, key: &str) -> Option<&str> {
         match self.get(key)? {
             SettingValue::Text(text) => Some(text),
-            SettingValue::Bool(_) | SettingValue::Integer(_) => None,
+            SettingValue::Bool(_) | SettingValue::Integer(_) | SettingValue::Libraries(_) => None,
+        }
+    }
+
+    /// The value of `key`, if it holds Library ids, as a [`SettingKind::Libraries`] setting's
+    /// does.
+    #[must_use]
+    pub fn library_ids(&self, key: &str) -> Option<&[i64]> {
+        match self.get(key)? {
+            SettingValue::Libraries(ids) => Some(ids),
+            SettingValue::Bool(_) | SettingValue::Integer(_) | SettingValue::Text(_) => None,
         }
     }
 
@@ -285,8 +252,6 @@ pub trait SettingsCheck: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use nama_proto::nama::v1 as proto;
-
     use super::{SettingField, SettingKind, SettingValue, Settings, SettingsError, SettingsSchema};
 
     fn text(text: &str) -> SettingValue {
@@ -332,6 +297,26 @@ mod tests {
     }
 
     #[test]
+    fn a_libraries_setting_takes_only_library_ids() {
+        assert!(SettingValue::from(vec![1, 2]).is(SettingKind::Libraries));
+        assert!(SettingValue::Libraries(Vec::new()).is(SettingKind::Libraries));
+
+        assert!(!text("1,2").is(SettingKind::Libraries));
+        assert!(!SettingValue::Integer(1).is(SettingKind::Libraries));
+        assert!(!SettingValue::Libraries(vec![1]).is(SettingKind::Text));
+    }
+
+    #[test]
+    fn a_libraries_setting_is_read_as_ids() {
+        let settings =
+            Settings::new([("keep".to_owned(), SettingValue::Libraries(vec![4, 2]))].into());
+
+        assert_eq!(settings.library_ids("keep"), Some([4, 2].as_slice()));
+        assert_eq!(settings.text("keep"), None);
+        assert_eq!(settings.library_ids("missing"), None);
+    }
+
+    #[test]
     fn a_url_setting_is_read_as_a_url() {
         let settings =
             Settings::new([("sonarr".to_owned(), text("http://sonarr.lan:8989/"))].into());
@@ -344,38 +329,5 @@ mod tests {
             Some("sonarr.lan")
         );
         assert_eq!(settings.url("missing"), None);
-    }
-
-    #[test]
-    fn each_kind_and_value_comes_back_from_the_schema_as_it_went() {
-        let kinds = [
-            SettingKind::Text,
-            SettingKind::Secret,
-            SettingKind::Bool,
-            SettingKind::Integer,
-            SettingKind::Choice,
-            SettingKind::Url,
-        ];
-        let values = [
-            text("en"),
-            SettingValue::Bool(true),
-            SettingValue::Integer(-3),
-        ];
-
-        let kinds_back = kinds.map(|kind| SettingKind::from_proto(kind.into()));
-        let values_back = values
-            .each_ref()
-            .map(|value| SettingValue::from_proto(&value.into()));
-
-        assert_eq!(kinds_back, kinds.map(Some));
-        assert_eq!(values_back, values.map(Some));
-        assert_eq!(
-            SettingKind::from_proto(proto::SettingKind::SETTING_KIND_UNSPECIFIED),
-            None
-        );
-        assert_eq!(
-            SettingValue::from_proto(&proto::SettingValue::default()),
-            None
-        );
     }
 }

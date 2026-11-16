@@ -1,39 +1,39 @@
 //! Browse: the Movies and Shows a Library holds, as a User sees them.
 //!
 //! [`Browse`] finds titles through [`Contents`], never in the content tables itself (see
-//! `AGENTS.md`), and attaches their Versions' Tracks and the User's [`WatchState`]s. It writes only
-//! Watch State, for what a reported Version or a marked title stands for (ADR 0013).
+//! `src/library/AGENTS.md`), and attaches their Versions' Tracks and the User's [`WatchState`]s.
+//! It writes only Watch State, for what a reported Version or a marked title stands for (ADR 0013).
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
-use nama_plugin_api::{
-    fulfiller::{
-        EpisodeNumber, EpisodeNumbers, ShowDeleted, show_deleted::Deleted, stop_monitoring::Title,
-    },
-    metadata::ExternalId,
-};
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use crate::{
-    contents::{self, Contents, Found, MatchedTo, Stored},
     db::Database,
-    libraries::{self, Kind, Libraries, Library},
-    requests::RequestTitle,
-    scanner::{Doomed, deleting},
-    tracks::{Probe, Track, Tracks},
-    watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
+    library::{
+        Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
+        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Stored, WatchState,
+        WatchStateKind, WatchStates,
+    },
+    playback::{Probe, Track, Tracks},
+    scanner::read_only_folder,
 };
 
+mod doomed;
+mod watching;
+
+pub(crate) use doomed::ToDelete;
+use doomed::names;
+pub(crate) use watching::Started;
+
 /// A Movie whose Versions have their Tracks.
-pub(crate) type Movie = contents::Movie<Version>;
+pub(crate) type Movie = LibraryMovie<Version>;
 /// A Show whose Episodes' Versions have their Tracks.
-pub(crate) type Show = contents::Show<Version>;
+pub(crate) type Show = LibraryShow<Version>;
 /// A Season whose Episodes' Versions have their Tracks.
-pub(crate) type Season = contents::Season<Version>;
+pub(crate) type Season = LibrarySeason<Version>;
 /// An Episode whose Versions have their Tracks.
-pub(crate) type Episode = contents::Episode<Version>;
+pub(crate) type Episode = LibraryEpisode<Version>;
 
 /// A stored file that a Movie or Episode is available in, with its Tracks.
 #[derive(Debug, Clone)]
@@ -51,10 +51,10 @@ pub(crate) enum Error {
     #[error("there is no Library {0}")]
     NoSuchLibrary(i64),
     #[error("the Library isn't a {} Library", match .wanted {
-        Kind::Movies => "Movies",
-        Kind::Shows => "Shows",
+        LibraryKind::Movies => "Movies",
+        LibraryKind::Shows => "Shows",
     })]
-    WrongKind { wanted: Kind },
+    WrongKind { wanted: LibraryKind },
     /// No Movie, Show or Episode in the Library has the id asked for.
     #[error("nothing in the Library is Matched to that id")]
     NothingMatched,
@@ -64,23 +64,6 @@ pub(crate) enum Error {
     NoSuchVersion,
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
-}
-
-/// A Movie or Episode a User has started and not played, in the Library Continue Watching lists
-/// it under.
-#[derive(Debug)]
-pub(crate) enum Started {
-    Movie {
-        library: i64,
-        movie: Movie,
-        state: WatchState,
-    },
-    Episode {
-        library: i64,
-        show: Show,
-        episode: Episode,
-        state: WatchState,
-    },
 }
 
 /// A title of a Library, which a User marks played or unplayed ([`Browse::mark`]) or deletes
@@ -93,26 +76,10 @@ pub(crate) enum Target {
     Show(ExternalId),
 }
 
-/// What a User deletes: see [`Browse::doomed`].
-#[derive(Debug)]
-pub(crate) enum ToDelete {
-    /// Every Version of a title of a Library: a Movie, or a Show's every Episode, a Season's or
-    /// one Episode.
-    Title { library: i64, title: Target },
-    /// One Version of a Movie.
-    Version(i64),
-    /// One Version of an Episode of a Shows Library.
-    EpisodeVersion {
-        library: i64,
-        episode: ExternalId,
-        version: i64,
-    },
-}
-
 /// A Library's titles, read whole, with Versions of the form `V`.
 enum Titles<V = Version> {
-    Movies(Vec<contents::Movie<V>>),
-    Shows(Vec<contents::Show<V>>),
+    Movies(Vec<LibraryMovie<V>>),
+    Shows(Vec<LibraryShow<V>>),
 }
 
 /// Reads the Libraries' titles and the Users' Watch States of them, and records Watch State.
@@ -142,10 +109,8 @@ impl Browse {
         library: i64,
     ) -> Result<Vec<(Movie, Option<WatchState>)>, Error> {
         let movies = self.read(&self.library(library).await?).await?.movies()?;
-        let ids: Vec<_> = (movies.iter())
-            .map(|movie| MovieOrEpisode::movie(&movie.id))
-            .collect();
-        let states = self.watch_states.of(user, &ids).await?;
+        let titles = movies.iter().map(movie_ids).collect();
+        let states = self.states_of(user, titles).await?;
         Ok(movies.into_iter().zip(states).collect())
     }
 
@@ -161,12 +126,8 @@ impl Browse {
         let library = self.library(library).await?;
         let movie = self.read(&library).await?.movie(id)?;
         let paths = movie.versions.iter().map(|version| version.path.as_str());
-        let read_only_folder = deleting::read_only_folder(&library, paths).map(str::to_owned);
-        let state = self
-            .watch_states
-            .of(user, &[MovieOrEpisode::movie(id)])
-            .await?
-            .pop();
+        let read_only_folder = read_only_folder(&library, paths).map(str::to_owned);
+        let state = self.states_of(user, vec![movie_ids(&movie)]).await?.pop();
         Ok((movie, state.flatten(), read_only_folder))
     }
 
@@ -180,10 +141,8 @@ impl Browse {
         season: i64,
     ) -> Result<Vec<(Episode, Option<WatchState>)>, Error> {
         let episodes = self.season(library, show, season).await?.episodes;
-        let ids: Vec<_> = (episodes.iter())
-            .map(|episode| MovieOrEpisode::episode(&episode.id))
-            .collect();
-        let states = self.watch_states.of(user, &ids).await?;
+        let titles = episodes.iter().map(episode_ids).collect();
+        let states = self.states_of(user, titles).await?;
         Ok(episodes.into_iter().zip(states).collect())
     }
 
@@ -209,132 +168,23 @@ impl Browse {
             .season(show, number)
     }
 
-    /// Records, as of now, that the User `user` has got as far as `progress` through the Version
-    /// `version`: through its Movie, or split across each Episode its file holds. An Unmatched
-    /// Item has no Watch State, so progress on it stores nothing (ADR 0013).
-    pub(crate) async fn report(
-        &self,
-        user: i64,
-        version: i64,
-        progress: Progress,
-    ) -> Result<(), Error> {
-        let titles = match self.contents.matched_to(version).await? {
-            MatchedTo::NoSuchVersion => return Err(Error::NoSuchVersion),
-            MatchedTo::Nothing => return Ok(()),
-            MatchedTo::Movie(movie) => vec![Some(MovieOrEpisode::movie(&movie))],
-            // An Item that isn't Matched keeps its share of the file, so the others' shares don't
-            // move.
-            MatchedTo::Episodes { episodes, .. } => (episodes.iter())
-                .map(|episode| episode.as_ref().map(MovieOrEpisode::episode))
-                .collect(),
-        };
-        Ok(self.watch_states.report(user, titles, progress).await?)
-    }
-
-    /// Marks, as of now, `target` of the Library `library` played or unplayed for the User
-    /// `user`: a Season or Show is each of its Episodes. Fails as browsing to it does if the
-    /// Library has no such title.
-    pub(crate) async fn mark(
-        &self,
-        user: i64,
-        library: i64,
-        target: Target,
-        played: bool,
-    ) -> Result<(), Error> {
-        let titles = self.titles(&self.library(library).await?).await?;
-        let episode = |episode: &contents::Episode| MovieOrEpisode::episode(&episode.id);
-        let marked = match target {
-            Target::Movie(id) => vec![MovieOrEpisode::movie(&titles.movie(&id)?.id)],
-            Target::Episode(id) => vec![episode(&titles.episode(&id)?)],
-            Target::Season { show, number } => (titles.season(&show, number)?.episodes.iter())
-                .map(episode)
-                .collect(),
-            Target::Show(id) => titles.show(&id)?.episodes().map(episode).collect(),
-        };
-        Ok(self.watch_states.mark(user, marked, played).await?)
-    }
-
-    /// The Versions `target` names, each file once, with their Library, their title and the
-    /// other Episodes those files hold. Fails as browsing to the title does, or with
-    /// [`Error::NoSuchVersion`] for a Version of no Movie, or not of the Episode named.
-    pub(crate) async fn doomed(&self, target: ToDelete) -> Result<Doomed, Error> {
-        let (library, title, only) = match target {
-            ToDelete::Version(version) => return self.doomed_version(version).await,
-            ToDelete::Title { library, title } => (library, title, None),
-            ToDelete::EpisodeVersion {
-                library,
-                episode,
-                version,
-            } => (library, Target::Episode(episode), Some(version)),
-        };
-        let library = self.library(library).await?;
-        let titles = self.titles(&library).await?;
-        if let Target::Movie(id) = title {
-            let movie = titles.movie(&id)?;
-            let tmdb_id = tmdb_id_of(&movie.id);
-            return Ok(Doomed {
-                library,
-                to_unmonitor: tmdb_id.map(Title::MovieTmdbId),
-                title: movie.title,
-                requested: movie_requested(tmdb_id, &movie.versions),
-                versions: movie.versions,
-                taken_along: Vec::new(),
-            });
-        }
-        doomed_episodes(library, &titles.shows()?, &title, only)
-    }
-
-    /// The Version `version` of a Movie, with its Library and the Movie's title.
-    async fn doomed_version(&self, version: i64) -> Result<Doomed, Error> {
-        let library = self.contents.library_of_version(version).await?;
-        let library = self.library(library.ok_or(Error::NoSuchVersion)?).await?;
-        let Titles::Movies(movies) = self.titles(&library).await? else {
-            return Err(Error::NoSuchVersion);
-        };
-        let (title, tmdb_id, version) = (movies.into_iter())
-            .find_map(|movie| {
-                let version = movie.versions.into_iter().find(|v| v.file.id == version)?;
-                Some((movie.title, tmdb_id_of(&movie.id), version))
-            })
-            .ok_or(Error::NoSuchVersion)?;
-        let versions = vec![version];
-        Ok(Doomed {
-            library,
-            to_unmonitor: tmdb_id.map(Title::MovieTmdbId),
-            title,
-            requested: movie_requested(tmdb_id, &versions),
-            versions,
-            taken_along: Vec::new(),
-        })
-    }
-
-    /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
-    /// played, most recent first. Each is in the oldest Library that has it, and one no Library
-    /// has is left out.
-    pub(crate) async fn continue_watching(&self, user: i64) -> Result<Vec<Started>, Error> {
-        let started = self.watch_states.continue_watching(user).await?;
-        if started.is_empty() {
-            return Ok(Vec::new());
-        }
-        let mut unfound: HashMap<MovieOrEpisode, WatchState> = started.iter().cloned().collect();
-        let mut found = HashMap::new();
-        // Oldest first, so a title in two Libraries is found in the older.
-        for library in self.libraries.list().await.map_err(finding_failed)? {
-            found.extend(match self.read(&library).await? {
-                Titles::Movies(movies) => started_movies(library.id, movies, &mut unfound),
-                Titles::Shows(shows) => started_episodes(library.id, &shows, &mut unfound),
-            });
-        }
-        Ok(started
-            .into_iter()
-            .filter_map(|(watched, _)| found.remove(&watched))
-            .collect())
-    }
-
     /// The Movies, Shows and Episodes of every Library that a search for `query` finds: see
     /// [`Contents::search`].
     pub(crate) async fn search(&self, query: &str) -> Result<Found, Error> {
         Ok(self.contents.search(query).await?)
+    }
+
+    /// The User `user`'s Watch State of each of `titles`, in the same order, kept under any of
+    /// its ids (ADR 0042): `None` for one they haven't started.
+    async fn states_of(
+        &self,
+        user: i64,
+        titles: Vec<(WatchStateKind, ExternalIds)>,
+    ) -> Result<Vec<Option<WatchState>>, sqlx::Error> {
+        let states = self.watch_states.of_titles(Some(user), &titles).await?;
+        Ok((states.into_iter())
+            .map(|of_title| of_title.first().map(|&(_, state)| state))
+            .collect())
     }
 
     /// Every title of `library`, its Versions with the Tracks probing read from their files as
@@ -344,14 +194,14 @@ impl Browse {
             Titles::Movies(movies) => {
                 let files = movies.iter().flat_map(|movie| &movie.versions);
                 let probes = self.probes(files).await?;
-                let tracked = |movie: contents::Movie| movie.map_versions(with_tracks(&probes));
+                let tracked = |movie: LibraryMovie| movie.map_versions(with_tracks(&probes));
                 Titles::Movies(movies.into_iter().map(tracked).collect())
             }
             Titles::Shows(shows) => {
-                let files = (shows.iter().flat_map(contents::Show::episodes))
+                let files = (shows.iter().flat_map(LibraryShow::episodes))
                     .flat_map(|episode| &episode.versions);
                 let probes = self.probes(files).await?;
-                let tracked = |show: contents::Show| show.map_versions(with_tracks(&probes));
+                let tracked = |show: LibraryShow| show.map_versions(with_tracks(&probes));
                 Titles::Shows(shows.into_iter().map(tracked).collect())
             }
         })
@@ -360,17 +210,17 @@ impl Browse {
     /// Every title of `library`, as [`Contents`] has it, without Tracks. Every finder reads
     /// through here.
     // ponytail: whole-Library read (see AGENTS.md).
-    async fn titles(&self, library: &Library) -> Result<Titles<contents::Version>, Error> {
+    async fn titles(&self, library: &Library) -> Result<Titles<LibraryVersion>, Error> {
         Ok(match library.kind {
-            Kind::Movies => Titles::Movies(self.contents.movies(library.id).await?),
-            Kind::Shows => Titles::Shows(self.contents.shows(library.id).await?),
+            LibraryKind::Movies => Titles::Movies(self.contents.movies(library.id).await?),
+            LibraryKind::Shows => Titles::Shows(self.contents.shows(library.id).await?),
         })
     }
 
     /// What probing read from the files of `versions` as they are now, by file id.
     async fn probes(
         &self,
-        versions: impl Iterator<Item = &contents::Version>,
+        versions: impl Iterator<Item = &LibraryVersion>,
     ) -> Result<HashMap<i64, Probe>, sqlx::Error> {
         let files: Vec<Stored> = versions.map(|version| version.file).collect();
         self.tracks.of(&files).await
@@ -382,42 +232,44 @@ impl Browse {
 }
 
 impl<V> Titles<V> {
-    fn movies(self) -> Result<Vec<contents::Movie<V>>, Error> {
+    fn movies(self) -> Result<Vec<LibraryMovie<V>>, Error> {
         match self {
             Self::Movies(movies) => Ok(movies),
             Self::Shows(_) => Err(Error::WrongKind {
-                wanted: Kind::Movies,
+                wanted: LibraryKind::Movies,
             }),
         }
     }
 
-    fn shows(self) -> Result<Vec<contents::Show<V>>, Error> {
+    fn shows(self) -> Result<Vec<LibraryShow<V>>, Error> {
         match self {
             Self::Shows(shows) => Ok(shows),
             Self::Movies(_) => Err(Error::WrongKind {
-                wanted: Kind::Shows,
+                wanted: LibraryKind::Shows,
             }),
         }
     }
 
-    fn movie(self, id: &ExternalId) -> Result<contents::Movie<V>, Error> {
+    /// The Movie with `id` among its ids: any one identifies it (ADR 0042).
+    fn movie(self, id: &ExternalId) -> Result<LibraryMovie<V>, Error> {
         (self.movies()?.into_iter())
-            .find(|movie| &movie.id == id)
+            .find(|movie| names(&movie.ids, id))
             .ok_or(Error::NothingMatched)
     }
 
-    fn show(self, id: &ExternalId) -> Result<contents::Show<V>, Error> {
+    /// The Show with `id` among its ids: any one identifies it (ADR 0042).
+    fn show(self, id: &ExternalId) -> Result<LibraryShow<V>, Error> {
         (self.shows()?.into_iter())
-            .find(|show| &show.id == id)
+            .find(|show| names(&show.ids, id))
             .ok_or(Error::NothingMatched)
     }
 
-    fn season(self, show: &ExternalId, number: i64) -> Result<contents::Season<V>, Error> {
+    fn season(self, show: &ExternalId, number: i64) -> Result<LibrarySeason<V>, Error> {
         (self.show(show)?.seasons.remove(&number)).ok_or(Error::NoSuchSeason)
     }
 
     /// The Episode `id` of any of its Shows.
-    fn episode(self, id: &ExternalId) -> Result<contents::Episode<V>, Error> {
+    fn episode(self, id: &ExternalId) -> Result<LibraryEpisode<V>, Error> {
         (self.shows()?.into_iter())
             .flat_map(|show| show.seasons.into_values())
             .flat_map(|season| season.episodes)
@@ -426,229 +278,26 @@ impl<V> Titles<V> {
     }
 }
 
-/// The Versions of `shows`, a Shows Library's, that `target` names, or only its Version `only`,
-/// each file once, with the other Episodes those files hold.
-fn doomed_episodes(
-    library: Library,
-    shows: &[contents::Show],
-    target: &Target,
-    only: Option<i64>,
-) -> Result<Doomed, Error> {
-    let (title, show, named) = named_episodes(shows, target)?;
-    let mut versions: Vec<contents::Version> = (named.iter())
-        .flat_map(|episode| &episode.versions)
-        .filter(|version| only.is_none_or(|only| version.file.id == only))
-        .cloned()
-        .collect();
-    // A file holding two Episodes is a Version of each, and goes once.
-    versions.sort_unstable_by_key(|version| version.file.id);
-    versions.dedup_by_key(|version| version.file.id);
-    if versions.is_empty() {
-        return Err(Error::NoSuchVersion);
-    }
-    let files: HashSet<i64> = versions.iter().map(|version| version.file.id).collect();
-    let taken_along: Vec<contents::Episode> = (shows.iter().flat_map(contents::Show::episodes))
-        .filter(|episode| !named.iter().any(|named| named.id == episode.id))
-        .filter(|episode| (episode.versions.iter()).any(|v| files.contains(&v.file.id)))
-        .cloned()
-        .collect();
-    let episodes = named.into_iter().chain(&taken_along);
-    Ok(Doomed {
-        library,
-        to_unmonitor: to_unmonitor_of(show, target, episodes),
-        title,
-        requested: seasons_requested(shows, &files),
-        versions,
-        taken_along,
-    })
+/// A Movie as Watch State reads it: by any of its ids.
+fn movie_ids<V>(movie: &LibraryMovie<V>) -> (WatchStateKind, ExternalIds) {
+    (WatchStateKind::Movie, movie.ids.clone())
 }
 
-/// Each of `versions` with the Movie `tmdb_id` it is of, as a Request names it. None without one.
-fn movie_requested(
-    tmdb_id: Option<i64>,
-    versions: &[contents::Version],
-) -> Vec<(i64, RequestTitle)> {
-    let Some(tmdb_id) = tmdb_id else {
-        return Vec::new();
-    };
-    let title = RequestTitle {
-        tmdb_id,
-        season: None,
-    };
-    (versions.iter())
-        .map(|version| (version.file.id, title))
-        .collect()
-}
-
-/// Each of `files` with the Season of each Episode of `shows` it holds, as a Request names it.
-fn seasons_requested(shows: &[contents::Show], files: &HashSet<i64>) -> Vec<(i64, RequestTitle)> {
-    let mut requested = Vec::new();
-    for show in shows {
-        let Some(tmdb_id) = tmdb_id_of(&show.id) else {
-            continue;
-        };
-        for episode in show.episodes() {
-            let Ok(season) = u32::try_from(episode.season) else {
-                continue;
-            };
-            let title = RequestTitle {
-                tmdb_id,
-                season: Some(season),
-            };
-            let held = (episode.versions.iter()).filter(|version| files.contains(&version.file.id));
-            requested.extend(held.map(|version| (version.file.id, title)));
-        }
-    }
-    requested
-}
-
-/// What a delete of `target`, Episodes of `show`, asks Fulfillers to stop monitoring: the
-/// Episodes `episodes`, a whole Season or every current Season. `None` if the Show has neither id
-/// they know it by.
-fn to_unmonitor_of<'a>(
-    show: &contents::Show,
-    target: &Target,
-    episodes: impl Iterator<Item = &'a contents::Episode>,
-) -> Option<Title> {
-    let show_tmdb_id = tmdb_id_of(&show.id);
-    if show_tmdb_id.is_none() && show.tvdb_id.is_none() {
-        return None;
-    }
-    // A scan parses season and episode numbers from digits, so they are never negative.
-    let number = |n: i64| u32::try_from(n).unwrap_or_default();
-    let deleted = match target {
-        Target::Show(_) => Deleted::EveryCurrentSeason(true),
-        // Its files take along only its own Episodes: a scan reads one Season per file name.
-        Target::Season { number: season, .. } => Deleted::SeasonNumber(number(*season)),
-        // A Movie never gets here: `named_episodes` refused it.
-        Target::Episode(_) | Target::Movie(_) => {
-            let episodes = (episodes.map(|episode| EpisodeNumber {
-                season_number: number(episode.season),
-                episode_number: number(episode.number),
-                ..Default::default()
-            }))
-            .collect();
-            Deleted::from(EpisodeNumbers {
-                episodes,
-                ..Default::default()
-            })
-        }
-    };
-    let show = ShowDeleted {
-        show_tmdb_id,
-        show_tvdb_id: show.tvdb_id,
-        deleted: Some(deleted),
-        ..Default::default()
-    };
-    Some(Title::from(show))
-}
-
-/// The Episodes of `shows` that `target` names, with its name for the log and their Show. A Movie
-/// is in no Shows Library.
-fn named_episodes<'a>(
-    shows: &'a [contents::Show],
-    target: &Target,
-) -> Result<(String, &'a contents::Show, Vec<&'a contents::Episode>), Error> {
-    let show_of =
-        |id: &ExternalId| (shows.iter().find(|show| &show.id == id)).ok_or(Error::NothingMatched);
-    match target {
-        Target::Movie(_) => Err(Error::WrongKind {
-            wanted: Kind::Movies,
-        }),
-        Target::Show(id) => {
-            let show = show_of(id)?;
-            Ok((show.title.clone(), show, show.episodes().collect()))
-        }
-        Target::Season { show, number } => {
-            let show = show_of(show)?;
-            let season = show.seasons.get(number).ok_or(Error::NoSuchSeason)?;
-            let name = format!("{} Season {number}", show.title);
-            Ok((name, show, season.episodes.iter().collect()))
-        }
-        Target::Episode(id) => (shows.iter())
-            .find_map(|show| {
-                let episode = show.episodes().find(|episode| &episode.id == id)?;
-                let name = format!(
-                    "{} S{:02}E{:02}",
-                    show.title, episode.season, episode.number
-                );
-                Some((name, show, vec![episode]))
-            })
-            .ok_or(Error::NothingMatched),
-    }
+/// An Episode as Watch State reads it: by any of its ids.
+fn episode_ids<V>(episode: &LibraryEpisode<V>) -> (WatchStateKind, ExternalIds) {
+    (WatchStateKind::Episode, episode.ids.clone())
 }
 
 /// Makes a Version from Contents into one with the Tracks `probes` has of its file.
-fn with_tracks(probes: &HashMap<i64, Probe>) -> impl Fn(contents::Version) -> Version {
+fn with_tracks(probes: &HashMap<i64, Probe>) -> impl Fn(LibraryVersion) -> Version {
     |version| {
         // A file holding two Episodes is a Version of each, so its Tracks are cloned.
-        let tracks = (probes.get(&version.file.id))
-            .map(|probe| probe.tracks.clone())
-            .unwrap_or_default();
+        let tracks = (probes.get(&version.file.id)).map_or_default(|probe| probe.tracks.clone());
         Version {
             file: version.file,
             path: version.path,
             tracks,
         }
-    }
-}
-
-/// The `movies` of the Library `library` that `unfound` has the Watch State of, each taken out
-/// of `unfound`.
-fn started_movies(
-    library: i64,
-    movies: Vec<Movie>,
-    unfound: &mut HashMap<MovieOrEpisode, WatchState>,
-) -> Vec<(MovieOrEpisode, Started)> {
-    movies
-        .into_iter()
-        .filter_map(|movie| {
-            let watched = MovieOrEpisode::movie(&movie.id);
-            let state = unfound.remove(&watched)?;
-            Some((
-                watched,
-                Started::Movie {
-                    library,
-                    movie,
-                    state,
-                },
-            ))
-        })
-        .collect()
-}
-
-/// The Episodes of `shows`, of the Library `library`, that `unfound` has the Watch State of, each
-/// taken out of `unfound`.
-fn started_episodes(
-    library: i64,
-    shows: &[Show],
-    unfound: &mut HashMap<MovieOrEpisode, WatchState>,
-) -> Vec<(MovieOrEpisode, Started)> {
-    let mut started = Vec::new();
-    for show in shows {
-        for episode in show.episodes() {
-            let watched = MovieOrEpisode::episode(&episode.id);
-            let Some(state) = unfound.remove(&watched) else {
-                continue;
-            };
-            // ponytail: a Show cloned per started Episode; `Arc<Show>` if a profile ever
-            // points here.
-            let episode = Started::Episode {
-                library,
-                show: show.clone(),
-                episode: episode.clone(),
-                state,
-            };
-            started.push((watched, episode));
-        }
-    }
-    started
-}
-
-const fn tmdb_id_of(id: &ExternalId) -> Option<i64> {
-    match id {
-        ExternalId::Tmdb(tmdb) => Some(*tmdb),
-        ExternalId::Imdb(_) | ExternalId::Tvdb(_) => None,
     }
 }
 
@@ -658,524 +307,20 @@ const fn tmdb_id_of(id: &ExternalId) -> Option<i64> {
     reason = "`Libraries::get` and `Libraries::list` only find Libraries; they never refuse a \
               change"
 )]
-fn finding_failed(err: libraries::Error) -> Error {
+fn finding_failed(err: LibraryError) -> Error {
     match err {
-        libraries::Error::NotFound(id) => Error::NoSuchLibrary(id),
-        libraries::Error::Database(err) => Error::Database(err),
-        libraries::Error::NameBlank
-        | libraries::Error::FoldersEmpty
-        | libraries::Error::Folder { .. }
-        | libraries::Error::FolderTaken { .. } => {
+        LibraryError::NotFound(id) => Error::NoSuchLibrary(id),
+        LibraryError::Database(err) => Error::Database(err),
+        LibraryError::NameBlank
+        | LibraryError::FoldersEmpty
+        | LibraryError::Folder { .. }
+        | LibraryError::FolderTaken { .. }
+        | LibraryError::TitleSources { .. } => {
             unreachable!("finding a Library refused a change: {err}")
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use nama_plugin_api::metadata::{ExternalId, ExternalIds};
-    use tempfile::TempDir;
-
-    use super::{Browse, Error, Started, Target};
-    use crate::{
-        contents::{
-            Change, Contents, Decided, Item, Metadata, Stored,
-            fixture::{MatchedMovie, decide, tmdb_movie},
-        },
-        db::Database,
-        libraries::{Kind, Libraries},
-        plugins::Registry,
-        tracks::{Probe, Track, TrackKind, Tracks},
-        users::{Permissions, User, Users},
-        watch_states::{Progress, WatchStates},
-    };
-
-    const ALIEN_TMDB_ID: i64 = 348;
-    const KNIGHT_TMDB_ID: i64 = 224_372;
-    const KNIGHT_PILOT_TMDB_ID: i64 = 5_000_001;
-    const KNIGHT_SECOND_TMDB_ID: i64 = 5_000_002;
-    const KNIGHT_SEASON_2_TMDB_ID: i64 = 5_000_003;
-
-    /// Creates a Library of `kind` on `folder`, with its canonical path.
-    async fn library(
-        db: &Arc<Database>,
-        name: &str,
-        kind: Kind,
-        folder: &TempDir,
-    ) -> (i64, String) {
-        let root = folder.path().canonicalize().unwrap();
-        let root = root.to_str().unwrap().to_owned();
-        let library = Libraries::new(Arc::clone(db))
-            .create(name, kind, vec![root.clone()])
-            .await
-            .unwrap()
-            .id;
-        (library, root)
-    }
-
-    /// Stores the file at `path` in `library`, holding each Item of `items` with what was decided
-    /// about it, and returns its id, the id of its Version.
-    async fn store(
-        db: &Arc<Database>,
-        library: i64,
-        path: String,
-        items: Vec<(Item, Decided)>,
-    ) -> i64 {
-        let contents = Contents::new(Arc::clone(db));
-        let (items, decided): (Vec<_>, Vec<_>) = items.into_iter().unzip();
-        let file = Change::Store {
-            path: path.clone(),
-            size: 10,
-            modified_ns: 0,
-            items,
-        };
-        contents.apply(library, vec![file]).await.unwrap();
-        let (version, _items) = decide(&contents, library, &path, decided).await;
-        version
-    }
-
-    /// Stores the file at `path` in `library`, holding `item`, and Matches the Item to `matched`.
-    async fn store_matched(
-        db: &Arc<Database>,
-        library: i64,
-        path: String,
-        item: Item,
-        matched: Metadata,
-    ) -> i64 {
-        let matched = Decided::Matched(Box::new(matched));
-        store(db, library, path, vec![(item, matched)]).await
-    }
-
-    /// Ada, a User of `db`.
-    async fn ada(db: &Arc<Database>) -> i64 {
-        let root = User {
-            id: 0,
-            name: "Root".to_owned(),
-            permissions: Permissions::ADMIN,
-            created_at: 0,
-        };
-        let plugins = Registry::new();
-        plugins
-            .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
-            .unwrap();
-        Users::new(Arc::clone(db), plugins.extension_points())
-            .create(&root, "Ada", "correct horse battery staple")
-            .await
-            .unwrap()
-    }
-
-    /// A Movies Library on `folder` with one file, Matched to Alien.
-    async fn library_with_alien(db: &Arc<Database>, folder: &TempDir) -> MatchedMovie {
-        MatchedMovie::new(db, folder.path(), tmdb_movie(ALIEN_TMDB_ID, "Alien")).await
-    }
-
-    fn knight_episode(season: i64, episode: i64) -> Item {
-        Item::Episode {
-            show: "A Knight of the Seven Kingdoms".to_owned(),
-            year: Some(2026),
-            hint: None,
-            season,
-            episode,
-        }
-    }
-
-    /// A Match of an Episode of A Knight of the Seven Kingdoms with the TMDB id `tmdb`.
-    fn knight_match(tmdb: i64) -> Decided {
-        Decided::Matched(Box::new(Metadata {
-            show_ids: ExternalIds {
-                tmdb: Some(KNIGHT_TMDB_ID),
-                ..ExternalIds::default()
-            },
-            show_title: Some("A Knight of the Seven Kingdoms".to_owned()),
-            ..tmdb_movie(tmdb, "An Episode")
-        }))
-    }
-
-    /// Creates a Shows Library holding A Knight of the Seven Kingdoms' Season 1 Episodes 1 and 2,
-    /// in one file, and Season 2 Episode 1, and returns the Library and the first file's id.
-    async fn library_with_knight(db: &Arc<Database>, folder: &TempDir) -> (i64, i64) {
-        let (library, root) = library(db, "Shows", Kind::Shows, folder).await;
-        let show = format!("{root}/A Knight of the Seven Kingdoms");
-        let both = vec![
-            (knight_episode(1, 1), knight_match(KNIGHT_PILOT_TMDB_ID)),
-            (knight_episode(1, 2), knight_match(KNIGHT_SECOND_TMDB_ID)),
-        ];
-        let two_episodes = store(
-            db,
-            library,
-            format!("{show}/Season 01/S01E01-E02.mkv"),
-            both,
-        )
-        .await;
-        let path = format!("{show}/Season 02/S02E01.mkv");
-        let second_season = vec![(knight_episode(2, 1), knight_match(KNIGHT_SEASON_2_TMDB_ID))];
-        store(db, library, path, second_season).await;
-        (library, two_episodes)
-    }
-
-    /// How far the User `user` has got through each Episode of A Knight of the Seven Kingdoms in
-    /// `library`, by Season, and whether they've played it: `None` for one they haven't started.
-    async fn knight_states(
-        browse: &Browse,
-        user: i64,
-        library: i64,
-    ) -> Vec<Vec<Option<(i64, bool)>>> {
-        let mut states = Vec::new();
-        for number in [1, 2] {
-            let episodes = browse
-                .episodes(user, library, &ExternalId::Tmdb(KNIGHT_TMDB_ID), number)
-                .await
-                .unwrap();
-            let season = episodes
-                .into_iter()
-                .map(|(_, state)| state.map(|state| (state.position_ms, state.played)));
-            states.push(season.collect());
-        }
-        states
-    }
-
-    async fn only_file(db: &Arc<Database>, library: i64) -> Stored {
-        let stored = Contents::new(Arc::clone(db)).stored(library).await.unwrap();
-        *stored.values().next().unwrap()
-    }
-
-    fn stereo() -> Track {
-        Track {
-            codec: "ac3".to_owned(),
-            language: None,
-            title: None,
-            default: false,
-            forced: false,
-            sdh: false,
-            kind: TrackKind::Audio { channels: Some(2) },
-        }
-    }
-
-    fn probe_of(tracks: Vec<Track>) -> Probe {
-        Probe {
-            container: "matroska,webm".to_owned(),
-            duration_ms: None,
-            bitrate: None,
-            tracks,
-            font_attachments: vec![],
-        }
-    }
-
-    #[tokio::test]
-    async fn an_episode_has_the_same_tracks_however_it_is_reached() {
-        let data = tempfile::tempdir().unwrap();
-        let folder = tempfile::tempdir().unwrap();
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let (library, root) = library(&db, "Shows", Kind::Shows, &folder).await;
-        let pilot_file = Item::Episode {
-            show: "A Knight of the Seven Kingdoms".to_owned(),
-            year: Some(2026),
-            hint: None,
-            season: 1,
-            episode: 1,
-        };
-        let matched = Metadata {
-            show_ids: ExternalIds {
-                tmdb: Some(KNIGHT_TMDB_ID),
-                ..ExternalIds::default()
-            },
-            show_title: Some("A Knight of the Seven Kingdoms".to_owned()),
-            ..tmdb_movie(KNIGHT_PILOT_TMDB_ID, "The Hedge Knight")
-        };
-        let path = format!("{root}/A Knight of the Seven Kingdoms/Season 01/S01E01.mkv");
-        store_matched(&db, library, path, pilot_file, matched).await;
-        let file = only_file(&db, library).await;
-        Tracks::new(Arc::clone(&db))
-            .store(file, probe_of(vec![stereo()]))
-            .await
-            .unwrap();
-        let browse = Browse::new(db);
-        let (show, pilot) = (
-            ExternalId::Tmdb(KNIGHT_TMDB_ID),
-            ExternalId::Tmdb(KNIGHT_PILOT_TMDB_ID),
-        );
-
-        let (listed, _) = browse
-            .episodes(0, library, &show, 1)
-            .await
-            .unwrap()
-            .remove(0);
-        let in_season = browse
-            .season(library, &show, 1)
-            .await
-            .unwrap()
-            .episodes
-            .remove(0);
-        let in_show = browse.show(library, &show).await.unwrap();
-        let in_show = in_show.episodes().next().unwrap().clone();
-
-        let tracks = [listed, in_season, in_show].map(|episode| {
-            assert_eq!(episode.id, pilot);
-            episode.versions[0].tracks.clone()
-        });
-        assert_eq!(tracks, [[stereo()], [stereo()], [stereo()]]);
-    }
-
-    #[tokio::test]
-    async fn a_movie_matched_in_two_libraries_is_listed_in_continue_watching_under_the_older_one() {
-        let data = tempfile::tempdir().unwrap();
-        let (older_folder, newer_folder) =
-            (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let older = library_with_alien(&db, &older_folder).await;
-        library_with_alien(&db, &newer_folder).await;
-        let user = ada(&db).await;
-        let browse = Browse::new(db);
-        let halfway = Progress::new(1_000, 2_000).unwrap();
-        browse.report(user, older.version, halfway).await.unwrap();
-
-        let started = browse.continue_watching(user).await.unwrap();
-
-        let listed: Vec<_> = started
-            .iter()
-            .map(|started| match started {
-                Started::Movie { library, movie, .. } => (*library, movie.id.clone()),
-                Started::Episode { .. } => panic!("Alien is a Movie"),
-            })
-            .collect();
-        assert_eq!(listed, [(older.library, ExternalId::Tmdb(ALIEN_TMDB_ID))]);
-    }
-
-    #[tokio::test]
-    async fn continue_watching_reads_no_library_for_a_user_who_started_nothing() {
-        let (data, unreadable_data) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let unreadable = Arc::new(Database::open(unreadable_data.path()).await.unwrap());
-        unreadable.reader().close().await;
-        let browse = Browse {
-            libraries: Libraries::new(Arc::clone(&unreadable)),
-            contents: Contents::new(Arc::clone(&unreadable)),
-            tracks: Tracks::new(unreadable),
-            watch_states: WatchStates::new(db),
-        };
-
-        let started = browse.continue_watching(1).await.unwrap();
-
-        assert!(started.is_empty(), "{started:?}");
-    }
-
-    #[tokio::test]
-    async fn a_version_has_no_tracks_read_from_its_file_before_it_changed() {
-        let data = tempfile::tempdir().unwrap();
-        let folder = tempfile::tempdir().unwrap();
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let library = library_with_alien(&db, &folder).await.library;
-        let file = only_file(&db, library).await;
-        let before_it_changed = Stored {
-            modified_ns: file.modified_ns - 1,
-            ..file
-        };
-        Tracks::new(Arc::clone(&db))
-            .store(before_it_changed, probe_of(vec![stereo()]))
-            .await
-            .unwrap();
-
-        let (movie, _, _) = Browse::new(db)
-            .movie(0, library, &ExternalId::Tmdb(ALIEN_TMDB_ID))
-            .await
-            .unwrap();
-
-        assert_eq!(movie.versions[0].tracks, []);
-    }
-
-    #[tokio::test]
-    async fn progress_on_a_movies_version_is_progress_through_the_movie() {
-        let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let MatchedMovie {
-            library,
-            version: alien,
-            ..
-        } = library_with_alien(&db, &folder).await;
-        let user = ada(&db).await;
-        let browse = Browse::new(db);
-
-        let halfway = Progress::new(1_000, 2_000).unwrap();
-        browse.report(user, alien, halfway).await.unwrap();
-
-        let (_, state, _) = browse
-            .movie(user, library, &ExternalId::Tmdb(ALIEN_TMDB_ID))
-            .await
-            .unwrap();
-        let state = state.unwrap();
-        assert_eq!((state.position_ms, state.duration_ms), (1_000, 2_000));
-    }
-
-    #[tokio::test]
-    async fn progress_on_a_file_holding_two_episodes_is_split_across_them() {
-        let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let (library, two_episodes) = library_with_knight(&db, &folder).await;
-        let user = ada(&db).await;
-        let browse = Browse::new(db);
-
-        let three_quarters = Progress::new(1_500, 2_000).unwrap();
-        browse
-            .report(user, two_episodes, three_quarters)
-            .await
-            .unwrap();
-
-        assert_eq!(
-            knight_states(&browse, user, library).await,
-            [vec![Some((1_000, true)), Some((500, false))], vec![None]]
-        );
-    }
-
-    #[tokio::test]
-    async fn progress_on_an_unmatched_item_stores_nothing() {
-        let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let (library, root) = library(&db, "Movies", Kind::Movies, &folder).await;
-        let unknown = Item::Movie {
-            title: "Unknown".to_owned(),
-            year: None,
-            hint: None,
-        };
-        let unmatched = vec![(unknown, Decided::Unmatched(None))];
-        let file = store(&db, library, format!("{root}/Unknown.mkv"), unmatched).await;
-        let user = ada(&db).await;
-
-        let halfway = Progress::new(1_000, 2_000).unwrap();
-        Browse::new(Arc::clone(&db))
-            .report(user, file, halfway)
-            .await
-            .unwrap();
-
-        // Watch States' own Continue Watching lists every started title, in a Library or not.
-        let started = WatchStates::new(db).continue_watching(user).await.unwrap();
-        assert!(started.is_empty(), "{started:?}");
-    }
-
-    #[tokio::test]
-    async fn progress_on_a_version_that_doesnt_exist_is_refused() {
-        let data = tempfile::tempdir().unwrap();
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let user = ada(&db).await;
-
-        let halfway = Progress::new(1_000, 2_000).unwrap();
-        let reported = Browse::new(db).report(user, 1, halfway).await;
-
-        assert!(
-            matches!(reported, Err(Error::NoSuchVersion)),
-            "{reported:?}"
-        );
-    }
-
-    #[tokio::test]
-    async fn a_movie_marked_played_stays_played_until_marked_unplayed() {
-        let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let library = library_with_alien(&db, &folder).await.library;
-        let user = ada(&db).await;
-        let browse = Browse::new(db);
-        let alien = ExternalId::Tmdb(ALIEN_TMDB_ID);
-        let played = async || {
-            let (_, state, _) = browse.movie(user, library, &alien).await.unwrap();
-            state.map(|state| state.played)
-        };
-
-        let target = || Target::Movie(alien.clone());
-        browse.mark(user, library, target(), true).await.unwrap();
-        assert_eq!(played().await, Some(true));
-
-        browse.mark(user, library, target(), false).await.unwrap();
-        assert_eq!(played().await, None);
-    }
-
-    #[tokio::test]
-    async fn marking_an_episode_a_season_or_a_show_marks_each_of_its_episodes() {
-        let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let (library, _) = library_with_knight(&db, &folder).await;
-        let user = ada(&db).await;
-        let browse = Browse::new(db);
-        let show = ExternalId::Tmdb(KNIGHT_TMDB_ID);
-        let played = Some((0, true));
-
-        let pilot = Target::Episode(ExternalId::Tmdb(KNIGHT_PILOT_TMDB_ID));
-        browse.mark(user, library, pilot, true).await.unwrap();
-        assert_eq!(
-            knight_states(&browse, user, library).await,
-            [vec![played, None], vec![None]]
-        );
-
-        let first_season = Target::Season {
-            show: show.clone(),
-            number: 1,
-        };
-        browse
-            .mark(user, library, first_season, true)
-            .await
-            .unwrap();
-        assert_eq!(
-            knight_states(&browse, user, library).await,
-            [vec![played, played], vec![None]]
-        );
-
-        browse
-            .mark(user, library, Target::Show(show.clone()), true)
-            .await
-            .unwrap();
-        assert_eq!(
-            knight_states(&browse, user, library).await,
-            [vec![played, played], vec![played]]
-        );
-
-        browse
-            .mark(user, library, Target::Show(show), false)
-            .await
-            .unwrap();
-        assert_eq!(
-            knight_states(&browse, user, library).await,
-            [vec![None, None], vec![None]]
-        );
-    }
-
-    #[tokio::test]
-    async fn marking_a_title_the_library_doesnt_have_is_refused_as_browsing_to_it_is() {
-        let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let (library, _) = library_with_knight(&db, &folder).await;
-        let user = ada(&db).await;
-        let browse = Browse::new(db);
-        let (show, elsewhere) = (ExternalId::Tmdb(KNIGHT_TMDB_ID), ExternalId::Tmdb(1));
-
-        let marks = [
-            Target::Episode(elsewhere.clone()),
-            Target::Show(elsewhere),
-            Target::Season { show, number: 3 },
-            Target::Movie(ExternalId::Tmdb(ALIEN_TMDB_ID)),
-        ];
-        let mut refused = Vec::new();
-        for target in marks {
-            match browse.mark(user, library, target, true).await {
-                Err(err) => refused.push(err.to_string()),
-                Ok(()) => panic!("marked a title the Library doesn't have"),
-            }
-        }
-
-        assert_eq!(
-            refused,
-            [
-                Error::NothingMatched.to_string(),
-                Error::NothingMatched.to_string(),
-                Error::NoSuchSeason.to_string(),
-                Error::WrongKind {
-                    wanted: Kind::Movies
-                }
-                .to_string(),
-            ]
-        );
-        assert_eq!(
-            knight_states(&browse, user, library).await,
-            [vec![None, None], vec![None]]
-        );
-    }
-}
+#[path = "browse/browse_tests.rs"]
+mod tests;

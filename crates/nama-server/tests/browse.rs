@@ -628,17 +628,16 @@ async fn a_movie_has_its_title_logo_genres_and_content_rating() {
     for movie in [&listed[0], &got] {
         assert_eq!(
             movie.title_logo_url.as_deref(),
-            Some("/media/artwork/tmdb/%2FfzbFBy8eTB3hbmHDgSrbNdhDzA9.png")
+            Some("/media/artwork/tmdb/%2FqH7nHxlGlKvK3vqSRtrjtE4ZQgW.png")
         );
         assert_eq!(movie.genres, ["Horror", "Science Fiction"]);
         assert_eq!(movie.content_rating.as_deref(), Some("R"));
     }
 }
 
-/// TMDB has a Title Logo for Heat only in German, and rates it only in Germany.
+/// Heat has no Title Logo in TMDB's artwork list, and TMDB rates it only in Germany.
 #[tokio::test]
-async fn a_movie_with_no_title_logo_in_the_providers_language_or_rating_in_its_country_has_neither()
-{
+async fn a_movie_with_no_title_logo_or_rating_in_the_settings_country_has_neither() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
     fx.write("Heat {tmdb-949}/Heat.mkv", b"video");
     fx.scan_and_match().await;
@@ -664,7 +663,7 @@ async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_and_conten
     assert_eq!(show.first_air_date.as_deref(), Some("2017-12-01"));
     assert_eq!(
         show.title_logo_url.as_deref(),
-        Some("/media/artwork/tmdb/%2F7l3H2B3ofXWDNfjX9XvZf2cdUOT.png")
+        Some("/media/artwork/tmdb/%2Fb3eMvXwALgdBkBd2zZpDmpDWBbX.png")
     );
     assert_eq!(show.genres, ["Crime", "Drama", "Mystery"]);
     assert_eq!(show.content_rating.as_deref(), Some("TV-MA"));

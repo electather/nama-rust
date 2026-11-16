@@ -1,0 +1,41 @@
+{
+  "air_date": "2010-05-03",
+  "episodes": [
+    {
+      "air_date": "2010-05-03",
+      "episode_number": 1,
+      "episode_type": "standard",
+      "id": 900001001,
+      "name": "Episode 1",
+      "overview": "",
+      "runtime": null,
+      "season_number": 1,
+      "show_id": 900001,
+      "still_path": null
+    },
+    {
+      "air_date": "2010-05-03",
+      "episode_number": 2,
+      "episode_type": "standard",
+      "id": 900001002,
+      "name": "Episode 2",
+      "overview": "",
+      "runtime": null,
+      "season_number": 1,
+      "show_id": 900001,
+      "still_path": null
+    }
+  ],
+  "name": "Season 1",
+  "overview": "",
+  "id": 9000011,
+  "poster_path": null,
+  "season_number": 1,
+  "external_ids": {
+    "tvdb_id": null,
+    "freebase_mid": null,
+    "freebase_id": null,
+    "tvrage_id": null,
+    "wikidata_id": null
+  }
+}

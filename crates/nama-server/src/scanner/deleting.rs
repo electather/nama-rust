@@ -1,23 +1,77 @@
 //! Deleting media from disk: each Version's file, its sidecars, and the folders that leaves empty,
 //! never a Library's own folder or one above it (ADR 0038). Blocks, so call it from
-//! `spawn_blocking`.
+//! `spawn_blocking`. Also asking a Fulfiller again to stop monitoring what a delete took, when it
+//! said to try again.
 
 use std::{
     collections::BTreeSet,
     ffi::OsStr,
     fs, io,
     path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
 };
 
-use nama_plugin_api::fulfiller::stop_monitoring::Title;
+use nama_plugin_api::{
+    PluginId,
+    fulfiller::{Fulfiller, StopMonitoring, stop_monitoring::Title},
+};
 use nama_proto::nama::v1::Request;
 
 use super::is_video;
 use crate::{
-    contents::{Episode, Version},
-    libraries::Library,
+    library::{Library, LibraryEpisode, LibraryVersion},
+    plugins::{ExtensionPoints, Failure, RETRIES},
     requests::RequestTitle,
 };
+
+// Kept: `scanner.rs` takes it from here for the first stop-monitoring ask `StopAgain` retries.
+pub(super) use crate::plugins::Retryable;
+
+/// A deleted title the Plugin `plugin`'s Fulfiller said to ask it again to stop monitoring:
+/// `title`, which the log calls `name`.
+pub(super) struct StopAgain {
+    pub(super) plugin: PluginId,
+    pub(super) title: StopMonitoring,
+    pub(super) name: String,
+}
+
+impl StopAgain {
+    /// Asks the Fulfiller of `K` again after `wait`, as it said to, the `retry`th time in a row.
+    /// Waits in the Plugin's scope in `plugins`, so disabling it ends the wait at once (ADR 0047),
+    /// and logs giving up.
+    pub(super) fn after<K: 'static>(self, plugins: &ExtensionPoints, wait: Duration, retry: u32) {
+        let points = plugins.clone();
+        let plugin = self.plugin.clone();
+        // Not spawned if the Plugin was disabled meanwhile, which leaves nothing to tell.
+        plugins.spawn_in(&plugin, async move {
+            tokio::time::sleep(wait).await;
+            let title = &self.title;
+            let stop = |fulfiller: Arc<dyn Fulfiller<K>>| async move {
+                fulfiller.stop_monitoring(title).await.map_err(Retryable)
+            };
+            let answer = points.ask(&self.plugin, stop).await;
+            let reason = match answer.map(|answer| answer.result) {
+                Some(Ok(())) => return,
+                Some(Err(Failure {
+                    kind: Some(again), ..
+                })) if retry < RETRIES => {
+                    self.after::<K>(&points, again, retry + 1);
+                    return;
+                }
+                Some(Err(failure)) => failure.message,
+                None => "it panicked or was disabled".to_owned(),
+            };
+            tracing::warn!(
+                plugin = %self.plugin,
+                title = self.name,
+                reason,
+                retry,
+                "a Fulfiller didn't stop monitoring a deleted title, so it may download it again"
+            );
+        });
+    }
+}
 
 /// Versions of one title of a Library, which a delete removes, with the title, for its log.
 #[derive(Debug)]
@@ -28,16 +82,16 @@ pub(crate) struct Doomed {
     /// without the ids they know it by.
     pub(crate) to_unmonitor: Option<Title>,
     /// Each file once.
-    pub(crate) versions: Vec<Version>,
+    pub(crate) versions: Vec<LibraryVersion>,
     /// The Episodes the title isn't, that a file of `versions` holds too.
-    pub(crate) taken_along: Vec<Episode>,
+    pub(crate) taken_along: Vec<LibraryEpisode>,
     /// What each Version is of, by its id, as a Request names it: its Movie, or the Season of each
-    /// Episode it holds. One with no TMDB id, which no Request names, isn't here.
+    /// Episode it holds.
     pub(crate) requested: Vec<(i64, RequestTitle)>,
 }
 
 impl Doomed {
-    pub(crate) fn version_ids(&self) -> Vec<i64> {
+    pub(super) fn version_ids(&self) -> Vec<i64> {
         self.versions
             .iter()
             .map(|version| version.file.id)
@@ -45,9 +99,9 @@ impl Doomed {
     }
 
     /// What the Versions `gone` are of, as Requests name it, each once.
-    pub(crate) fn request_titles(&self, gone: &[i64]) -> Vec<RequestTitle> {
+    pub(super) fn request_titles(&self, gone: &[i64]) -> Vec<RequestTitle> {
         let titles = (self.requested.iter()).filter(|(version, _)| gone.contains(version));
-        let titles: BTreeSet<RequestTitle> = titles.map(|&(_, title)| title).collect();
+        let titles: BTreeSet<RequestTitle> = titles.map(|(_, title)| title.clone()).collect();
         titles.into_iter().collect()
     }
 }
@@ -86,7 +140,7 @@ pub(crate) struct Deleted {
     /// Each file that couldn't be deleted, and why.
     pub(crate) failed: Vec<(PathBuf, io::Error)>,
     /// The Versions whose own files went.
-    pub(crate) versions: Vec<i64>,
+    pub(super) versions: Vec<i64>,
     /// The name of each Fulfiller that couldn't be told to stop monitoring the title.
     pub(crate) fulfillers_not_told: Vec<String>,
     /// How many Playback Plans play the Versions, as a preview finds them.
@@ -102,14 +156,14 @@ impl Deleted {
 }
 
 /// What [`delete`] would delete, deleting nothing.
-pub(crate) fn preview(doomed: &Doomed) -> Deleted {
+pub(super) fn preview(doomed: &Doomed) -> Deleted {
     each_file(doomed, |_| Ok(()))
 }
 
 /// Deletes each Version's file, then its sidecars, then the folders that leaves empty, stopping
 /// below any of `kept`, every Library's folders. A Version whose file can't be deleted keeps its
 /// sidecars; the rest still go, and nothing is put back.
-pub(crate) fn delete(doomed: &Doomed, kept: &[&Path]) -> Deleted {
+pub(super) fn delete(doomed: &Doomed, kept: &[&Path]) -> Deleted {
     let deleted = each_file(doomed, |path| fs::remove_file(path));
     for version in &doomed.versions {
         let video = Path::new(&version.path);
@@ -236,224 +290,5 @@ fn remove_empty_folders(folder: &Path, root: &Path, kept: &[&Path]) {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{fs, io, path::Path};
-
-    use tempfile::TempDir;
-
-    use super::{Doomed, delete, each_file, preview};
-    use crate::{
-        contents::{Stored, Version},
-        libraries::{Kind, Library},
-        requests::RequestTitle,
-    };
-
-    /// A Library over a scratch folder.
-    struct Fixture {
-        root: TempDir,
-    }
-
-    impl Fixture {
-        fn new() -> Self {
-            Self {
-                root: tempfile::tempdir().unwrap(),
-            }
-        }
-
-        fn write(&self, relative: &str) {
-            let path = self.root.path().join(relative);
-            fs::create_dir_all(path.parent().unwrap()).unwrap();
-            fs::write(path, relative).unwrap();
-        }
-
-        fn exists(&self, relative: &str) -> bool {
-            self.root.path().join(relative).exists()
-        }
-
-        /// The Versions at `videos` of this Library, numbered from 1.
-        fn doomed(&self, videos: &[&str]) -> Doomed {
-            let versions = (1..).zip(videos).map(|(id, video)| Version {
-                file: Stored {
-                    id,
-                    size: 0,
-                    modified_ns: 0,
-                    parser_version: 0,
-                },
-                path: self.path(video),
-            });
-            Doomed {
-                library: Library {
-                    id: 1,
-                    name: "Media".to_owned(),
-                    kind: Kind::Movies,
-                    folders: vec![self.path("")],
-                    read_only: Vec::new(),
-                },
-                title: "Title".to_owned(),
-                to_unmonitor: None,
-                versions: versions.collect(),
-                taken_along: Vec::new(),
-                requested: Vec::new(),
-            }
-        }
-
-        fn path(&self, relative: &str) -> String {
-            let path = self.root.path().join(relative);
-            path.to_str().unwrap().trim_end_matches('/').to_owned()
-        }
-    }
-
-    /// The names of `files`, sorted.
-    fn names(files: &[super::File]) -> Vec<String> {
-        let mut names: Vec<_> = (files.iter())
-            .map(|file| file.path.file_name().unwrap().to_str().unwrap().to_owned())
-            .collect();
-        names.sort_unstable();
-        names
-    }
-
-    #[test]
-    fn a_sidecar_is_named_after_the_video_then_a_dot_or_a_dash() {
-        let fx = Fixture::new();
-        for file in [
-            "Up/Up.mkv",
-            "Up/Up.en.srt",
-            "Up/Up-thumb.jpg",
-            "Up/Up.nfo",
-            "Up/Upside.nfo",
-            "Up/Up Close.jpg",
-            "Up/folder.jpg",
-        ] {
-            fx.write(file);
-        }
-
-        let planned = preview(&fx.doomed(&["Up/Up.mkv"]));
-
-        assert_eq!(
-            names(&planned.files),
-            ["Up-thumb.jpg", "Up.en.srt", "Up.mkv", "Up.nfo"]
-        );
-    }
-
-    #[test]
-    fn a_video_or_a_file_named_after_a_video_that_stays_is_no_sidecar() {
-        let fx = Fixture::new();
-        for file in [
-            "Up/Up.mkv",
-            "Up/Up.srt",
-            "Up/Up-1080p.mkv",
-            "Up/Up-1080p.srt",
-        ] {
-            fx.write(file);
-        }
-
-        let deleted = delete(&fx.doomed(&["Up/Up.mkv"]), &[]);
-
-        assert_eq!(names(&deleted.files), ["Up.mkv", "Up.srt"]);
-        assert!(fx.exists("Up/Up-1080p.mkv") && fx.exists("Up/Up-1080p.srt"));
-    }
-
-    #[test]
-    fn a_sidecar_named_after_two_versions_is_listed_once() {
-        let fx = Fixture::new();
-        for file in ["Up/Up.mkv", "Up/Up-1080p.mkv", "Up/Up-1080p.srt"] {
-            fx.write(file);
-        }
-
-        let planned = preview(&fx.doomed(&["Up/Up.mkv", "Up/Up-1080p.mkv"]));
-
-        assert_eq!(
-            names(&planned.files),
-            ["Up-1080p.mkv", "Up-1080p.srt", "Up.mkv"]
-        );
-    }
-
-    #[test]
-    fn a_version_that_cant_be_deleted_keeps_a_sidecar_named_after_another_too() {
-        let fx = Fixture::new();
-        for file in ["Up/Up.mkv", "Up/Up-1080p.mkv", "Up/Up-1080p.srt"] {
-            fx.write(file);
-        }
-        let stuck = Path::new("Up-1080p.mkv");
-
-        let deleted = each_file(&fx.doomed(&["Up/Up.mkv", "Up/Up-1080p.mkv"]), |path| {
-            if path.ends_with(stuck) {
-                Err(io::Error::from(io::ErrorKind::PermissionDenied))
-            } else {
-                fs::remove_file(path)
-            }
-        });
-
-        assert_eq!(names(&deleted.files), ["Up.mkv"]);
-        assert_eq!(deleted.versions, [1]);
-        assert!(fx.exists("Up/Up-1080p.srt"));
-    }
-
-    #[test]
-    fn another_librarys_folder_left_empty_stays() {
-        let fx = Fixture::new();
-        fx.write("Movies/Up/Up.mkv");
-        let other = fx.root.path().join("Movies");
-
-        delete(&fx.doomed(&["Movies/Up/Up.mkv"]), &[&other]);
-
-        assert!(!fx.exists("Movies/Up"));
-        assert!(other.is_dir());
-    }
-
-    #[test]
-    fn folders_left_empty_go_up_to_but_not_including_the_librarys_folder() {
-        let fx = Fixture::new();
-        fx.write("Up/Disc 1/Up.mkv");
-
-        let deleted = delete(&fx.doomed(&["Up/Disc 1/Up.mkv"]), &[]);
-
-        assert_eq!(deleted.versions, [1]);
-        assert!(!fx.exists("Up"));
-        assert!(fx.root.path().is_dir());
-    }
-
-    #[test]
-    fn a_folder_with_something_else_left_in_it_stays() {
-        let fx = Fixture::new();
-        fx.write("Up/Disc 1/Up.mkv");
-        fx.write("Up/folder.jpg");
-
-        delete(&fx.doomed(&["Up/Disc 1/Up.mkv"]), &[]);
-
-        assert!(!fx.exists("Up/Disc 1"));
-        assert!(fx.exists("Up/folder.jpg"));
-    }
-
-    #[test]
-    fn a_file_outside_the_librarys_folders_is_left_and_reported() {
-        let fx = Fixture::new();
-        let elsewhere = tempfile::tempdir().unwrap();
-        let outside = elsewhere.path().join("Up.mkv");
-        fs::write(&outside, "video").unwrap();
-        let mut doomed = fx.doomed(&["Up.mkv"]);
-        outside
-            .to_str()
-            .unwrap()
-            .clone_into(&mut doomed.versions.first_mut().unwrap().path);
-
-        let deleted = delete(&doomed, &[]);
-
-        assert!(Path::new(&outside).exists());
-        assert_eq!(deleted.failed.len(), 1);
-        assert_eq!(deleted.versions, [0; 0]);
-    }
-
-    #[test]
-    fn only_the_versions_that_went_name_the_requests_to_cancel_each_once() {
-        let fx = Fixture::new();
-        let mut doomed = fx.doomed(&["S01E01-E02.mkv", "S01E01.mkv", "S02E01.mkv"]);
-        let season = |number| RequestTitle {
-            tmdb_id: 1,
-            season: Some(number),
-        };
-        doomed.requested = vec![(1, season(1)), (2, season(1)), (3, season(2))];
-
-        assert_eq!(doomed.request_titles(&[1, 2]), [season(1)]);
-    }
-}
+#[path = "deleting_tests.rs"]
+mod tests;

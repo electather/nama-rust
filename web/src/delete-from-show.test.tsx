@@ -21,16 +21,16 @@ type Target = MessageInitShape<typeof MediaToDeleteSchema>["target"];
 
 const TWO_EPISODES = { id: 3n, fileName: "Dark - S01E01-E02.mkv", size: 4_000_000_000n };
 const SECRETS_ONLY = { id: 4n, fileName: "Dark - S01E01.mkv", size: 2_000_000_000n };
-const darkId = { id: { case: "tmdb" as const, value: 70_523n } };
+const darkId = { namespace: "tmdb", value: "70523" };
 const secrets = {
-  id: { id: { case: "tmdb" as const, value: 1_388_538n } },
+  id: { namespace: "tmdb", value: "1388538" },
   seasonNumber: 1,
   episodeNumber: 1,
   title: "Secrets",
   versions: [TWO_EPISODES, SECRETS_ONLY],
 };
 const lies = {
-  id: { id: { case: "tmdb" as const, value: 1_388_539n } },
+  id: { namespace: "tmdb", value: "1388539" },
   seasonNumber: 1,
   episodeNumber: 2,
   title: "Lies",

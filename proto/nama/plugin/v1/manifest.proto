@@ -4,7 +4,7 @@ syntax = "proto3";
 // `.wasm` file whose exports take and return these, encoded as protobuf.
 package nama.plugin.v1;
 
-import "nama/v1/plugin.proto";
+import "nama/plugin/v1/automation.proto";
 
 // What an Installed Plugin is and what it needs from the Server. The Plugin returns it from its
 // `manifest()` export, which takes no input.
@@ -19,10 +19,11 @@ message Manifest {
   string id = 1;
   // The Plugin's own version, such as "1.2.0".
   string version = 2;
-  // The versions of the Nama API the Plugin works with, as a Cargo-style semver requirement
-  // such as "^0.2.0". A Server whose Nama API version doesn't match refuses the Plugin. A Server
-  // reads this field before the rest of the Manifest, so it keeps field number 3 in every version.
-  string nama_api = 3;
+  // The versions of the Plugin contract the Plugin works with, as a Cargo-style semver
+  // requirement such as "^0.3.0". A Server whose Plugin contract version doesn't match refuses the
+  // Plugin. A Server reads this field before the rest of the Manifest, so it keeps field number 3
+  // in every version.
+  string contract = 3;
   // The settings the Plugin takes, in the order a form shows them. The Plugin reads each one's
   // value from its Extism config under its key, as text: a bool as "true" or "false", a number in
   // decimal.
@@ -31,21 +32,60 @@ message Manifest {
   // "*.example.com". Ports aren't part of the match, so a host allows every port on it, and a
   // Server refuses a Plugin naming a host with one.
   repeated string allowed_hosts = 5;
-  // The Extension Points the Plugin registers an Observer at. A Server refuses a Plugin naming
-  // one it doesn't know, or lacking an export one needs.
-  repeated ObservePoint observers = 6;
-  // The capabilities the Plugin registers a Provider for. A Server refuses a Plugin naming one it
-  // doesn't know, or lacking an export one needs.
-  repeated ProvidePoint providers = 7;
+  reserved 6, 7;
+  reserved "observers", "providers";
   // What admins know the Plugin by, such as "Sonarr". Optional: its `id` stands in.
   string name = 8;
   // What the Plugin does, in one sentence. Optional.
   string description = 9;
   // The Plugin's logo: an SVG document's text, not base64, such as "<svg xmlns=...>...</svg>".
-  // A Server keeps it as `svg-hush` cleans it, without scripts or outside loads, and serves it by URL.
-  // It drops one over 64 KiB, or that isn't well-formed SVG, logging why, and still loads the Plugin.
+  // A Server keeps it as `svg-hush` cleans it, without scripts or outside loads, and serves it by
+  // URL. It drops one over 64 KiB, or that isn't well-formed SVG, logging why, and still loads the
+  // Plugin.
   // Admins see it as an image on a neutral tile in either colour scheme, so it should read on both.
   string logo_svg = 10;
+  // The id namespaces the Plugin's `MovieFulfillerService` can find a title by, such as "tmdb",
+  // each one or more of a-z and 0-9. The Kernel hands it a Request only when the title has an id
+  // in at least one of them, and otherwise fails the Request saying which id is missing. Empty
+  // means any title. Ignored unless `points` names `MovieFulfillerService`.
+  repeated string movie_id_namespaces = 11;
+  // The id namespaces the Plugin's `ShowFulfillerService` can find a title by, such as "tvdb", as
+  // `movie_id_namespaces` is for Movies. Ignored unless `points` names `ShowFulfillerService`.
+  repeated string show_id_namespaces = 12;
+  // The Extension Points the Plugin serves. A Server refuses a Plugin naming none, naming one it
+  // doesn't serve, at a version it doesn't serve, or lacking an export one needs.
+  repeated Point points = 13;
+  // The namespace the Plugin's `TitleSourceService` keeps titles under, such as "tvdb": one or
+  // more of a-z and 0-9. A Server refuses a Plugin whose `points` name `TitleSourceService`
+  // without one. Ignored unless `points` names `TitleSourceService`.
+  string title_namespace = 14;
+  // The id namespaces besides `title_namespace` that the Plugin's `TitleSourceService` can look a
+  // title up by, such as "imdb", each one or more of a-z and 0-9. A Server refuses a Plugin naming
+  // a malformed one. Ignored unless `points` names `TitleSourceService`.
+  repeated string title_lookup_namespaces = 15;
+  // The Personal settings the Plugin takes: settings each User sets for themself, such as a
+  // topic to be notified on, in the order a form shows them. Only the TEXT, SECRET, BOOL and
+  // INTEGER kinds: a Server refuses a Plugin with a URL or CHOICE one, since a User's value must
+  // not widen the hosts a Plugin reaches, or with a key that repeats or that `settings` also
+  // names. The Kernel hands their values to the Plugin only in a call for that User, such as a
+  // `Delivery` to `UserRecipient`. Plugin-wide settings stay in `settings`.
+  repeated SettingField personal_settings = 16;
+  // The Plugin Permissions it requests. The Admin grants some or all when enabling it, and only
+  // the Kernel functions the granted ones cover answer.
+  repeated Permission permissions = 17;
+  // How often the Kernel calls the Plugin's `tick` export, in seconds, at least 60. Required when
+  // `points` names `AutomationService`, and a Server refuses one below 60 then. Ignored otherwise.
+  uint32 tick_every_seconds = 18;
+}
+
+// An Extension Point an Installed Plugin serves: a service of this package, whose rpcs name the
+// WASM exports the Kernel calls.
+message Point {
+  // The service's full name, such as "nama.plugin.v1.MovieFulfillerService".
+  string service = 1;
+  // The versions of the service the Plugin works with, as a Cargo-style semver requirement such
+  // as "^1.0.0". Each service has a version of its own, apart from `Manifest.contract`.
+  string version = 2;
 }
 
 // One setting an Installed Plugin takes.
@@ -57,45 +97,70 @@ message SettingField {
   // What the setting does, for a form's help text.
   string description = 3;
   // What kind of value it takes.
-  nama.v1.SettingKind kind = 4;
+  SettingKind kind = 4;
   // Whether the Plugin can't be enabled without it.
   bool required = 5;
   // The value used when none is given. Unset if there is none.
-  nama.v1.SettingValue default_value = 6;
+  SettingValue default_value = 6;
 }
 
 // What an Installed Plugin's `check_settings()` returns when its settings work.
 message CheckedSettings {
   // The choices for each `SETTING_KIND_CHOICE` setting, by key.
-  map<string, nama.v1.SettingChoices> choices = 1;
+  map<string, SettingChoices> choices = 1;
 }
 
-// An Observe Extension Point an Installed Plugin can register an Observer at.
-enum ObservePoint {
-  OBSERVE_POINT_UNSPECIFIED = 0;
-  // Things happened on the Server: the same Events `nama.v1.EventService.Subscribe` streams. The
-  // Plugin's `observe_events` export takes each batch as `ObservedEvents` and returns nothing.
-  OBSERVE_POINT_EVENTS = 1;
+// What kind of value a setting takes.
+enum SettingKind {
+  SETTING_KIND_UNSPECIFIED = 0;
+  // Text.
+  SETTING_KIND_TEXT = 1;
+  // Text that admins never see again once saved and the Server never logs, such as an API key.
+  SETTING_KIND_SECRET = 2;
+  // On or off.
+  SETTING_KIND_BOOL = 3;
+  // A whole number.
+  SETTING_KIND_INTEGER = 4;
+  // Text picked from the choices the Plugin's `check_settings()` export offers in
+  // `CheckedSettings`.
+  SETTING_KIND_CHOICE = 5;
+  // An http or https URL, such as a Sonarr address. The Plugin may send HTTP requests to its host,
+  // as if `Manifest.allowed_hosts` named it.
+  SETTING_KIND_URL = 6;
+  // The ids of Libraries, which an admin picks from the Server's Library list. A Library deleted
+  // later stays in the value, and the Plugin ignores an id the Kernel no longer lists.
+  SETTING_KIND_LIBRARIES = 7;
 }
 
-// A capability an Installed Plugin can register a Provider for.
-enum ProvidePoint {
-  PROVIDE_POINT_UNSPECIFIED = 0;
-  // The Fulfiller for Movie Requests. The Plugin's `fulfill` export takes each Request as a
-  // `nama.v1.Request` and returns `Fulfilled`, and its `progress` export takes `ProgressAsked` and
-  // returns `Progress`. Its `stop_monitoring` export, which takes `StopMonitoring`, is optional: a
-  // Plugin without it isn't asked.
-  PROVIDE_POINT_MOVIE_FULFILLER = 1;
-  // The Fulfiller for Season Requests, with the same exports as PROVIDE_POINT_MOVIE_FULFILLER and
-  // an `unfollow` export, which takes a Season Request of a Followed Show that ended as a
-  // `nama.v1.Request`, stops following the Show and returns nothing. A Plugin providing both tells a
-  // Movie Request from a Season one by which it holds.
-  PROVIDE_POINT_SHOW_FULFILLER = 2;
-  // A Notifier. The Plugin's `deliver` export takes each notification as `Delivery` and returns
-  // `Delivered`, or fails with why the service didn't take it, which the Server logs.
-  PROVIDE_POINT_NOTIFIER = 3;
-  // A Connector, which connects Users to the outside service. The Plugin's `start_connection`
-  // export takes `ConnectionStart` and returns `ConnectionStarted`, and its `poll_connection` export
-  // takes `ConnectionPoll` and returns `ConnectionPolled`.
-  PROVIDE_POINT_CONNECTOR = 4;
+// A setting's value, of the setting's kind.
+message SettingValue {
+  oneof value {
+    // Text, for SETTING_KIND_TEXT, SETTING_KIND_SECRET, SETTING_KIND_CHOICE and SETTING_KIND_URL.
+    string text_value = 1;
+    // On or off, for SETTING_KIND_BOOL.
+    bool bool_value = 2;
+    // A whole number, for SETTING_KIND_INTEGER.
+    int64 integer_value = 3;
+    // Library ids, for SETTING_KIND_LIBRARIES.
+    LibraryIds library_ids = 4;
+  }
+}
+
+// The ids of Libraries a SETTING_KIND_LIBRARIES setting names, in the order the admin gave them.
+message LibraryIds {
+  repeated int64 ids = 1;
+}
+
+// The values a SETTING_KIND_CHOICE setting may take, in the order a form offers them.
+message SettingChoices {
+  repeated Choice choices = 1;
+}
+
+// One value a SETTING_KIND_CHOICE setting may take.
+message Choice {
+  // What the setting's value holds as its `text_value` when an admin picks it, such as a quality
+  // profile's id.
+  string value = 1;
+  // What an admin picks it by, such as the profile's name.
+  string label = 2;
 }

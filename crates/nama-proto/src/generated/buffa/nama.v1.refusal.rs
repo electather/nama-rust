@@ -70,12 +70,12 @@ pub enum RefusalReason {
     REFUSAL_REASON_DURATION_OUT_OF_RANGE = 26i32,
     /// `not_found`: there is no item with the ID. Params: `itemId`.
     REFUSAL_REASON_ITEM_NOT_FOUND = 27i32,
-    /// `invalid_argument`: the metadata source has no title with the id, or can't look titles up by
+    /// `invalid_argument`: the title source has no title with the id, or can't look titles up by
     /// it. Params: `titleId`, as the message shows it (`tmdb-949`), and for a Season of a Show
     /// `seasonNumber`.
     REFUSAL_REASON_UNKNOWN_TITLE = 28i32,
-    /// `unavailable`: no metadata Provider is enabled, or it failed.
-    REFUSAL_REASON_NO_METADATA_PROVIDER = 29i32,
+    /// `unavailable`: no title source is enabled, or one failed.
+    REFUSAL_REASON_NO_TITLE_SOURCE = 29i32,
     /// `invalid_argument`: a User's or Device's name, trimmed, is too short or too long. Params:
     /// `minLength`, `maxLength`, in characters.
     REFUSAL_REASON_NAME_LENGTH = 30i32,
@@ -99,8 +99,8 @@ pub enum RefusalReason {
     /// `not_found`: there is no Request with the ID, or none the caller may see. Params: `requestId`.
     REFUSAL_REASON_REQUEST_NOT_FOUND = 38i32,
     /// `failed_precondition`: the Movie, or every aired Episode of the Season, is already Matched in a
-    /// Library, so it can't be Requested. Params: `tmdbId` (a Season's Show's), and for a Season
-    /// `seasonNumber`.
+    /// Library, so it can't be Requested. Params: `titleId`, as the message shows it (`tmdb-949`; a
+    /// Season's Show's), and for a Season `seasonNumber`.
     REFUSAL_REASON_ALREADY_IN_LIBRARY = 39i32,
     /// `failed_precondition`: the Request isn't Pending, so it can't be approved, declined or withdrawn
     /// from. Params: `requestId`.
@@ -140,8 +140,9 @@ pub enum RefusalReason {
     /// withdraw from it. Params: `followedShowId`.
     REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER = 51i32,
     /// `failed_precondition`: the Server refused the Plugin, such as an Installed Plugin built for
-    /// another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
-    /// `reason` (in plain words, as `PluginSummary.refused_reason`).
+    /// another Plugin contract version, so it can't be enabled. Not for a Plugin that refuses to start
+    /// itself, which is `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. The message says why. Params:
+    /// `pluginId`, `reason` (in plain words, as `PluginSummary.refused_reason`).
     REFUSAL_REASON_PLUGIN_REFUSED = 52i32,
     /// `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
     /// where links are added to its end.
@@ -187,6 +188,42 @@ pub enum RefusalReason {
     /// audio in another language, but forced-only Tracks are for audio in their own. `field` is
     /// `subtitle.foreign_audio_only`.
     REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL = 65i32,
+    /// `failed_precondition`: the Plugin itself refused to start with its stored settings, such as a
+    /// key its service turned down, so it stays disabled. The message says why in the Plugin's words.
+    /// `field` is `id`. Params: `pluginId`, `reason`.
+    REFUSAL_REASON_PLUGIN_REFUSED_TO_START = 66i32,
+    /// `invalid_argument`: a title's id has a namespace that isn't lowercase ASCII letters and
+    /// digits, or an empty value. `field` names the id.
+    REFUSAL_REASON_TITLE_ID_MALFORMED = 70i32,
+    /// `not_found`: no title source has a title with the id, or none can look titles up by it.
+    /// Params: `titleId`.
+    REFUSAL_REASON_TITLE_NOT_FOUND = 71i32,
+    /// `failed_precondition`: the Fulfiller needs an id of the title in one of the namespaces named
+    /// and the title has none, so the Request wasn't handed to it. Params: `pluginId`, `namespaces`
+    /// (comma-separated).
+    REFUSAL_REASON_TITLE_ID_MISSING = 72i32,
+    /// `invalid_argument`: a Library's title sources name a namespace that isn't lowercase ASCII
+    /// letters and digits, or name one twice. `field` is `title_sources`. Params: `namespace`.
+    REFUSAL_REASON_TITLE_SOURCES_INVALID = 73i32,
+    /// `invalid_argument`: a Library's Recognisers name an id of no Plugin with
+    /// `EXTENSION_POINT_RECOGNISER`, or name one twice. `field` is `recogniser_ids` or
+    /// `recogniser_order`. Params: `pluginId`.
+    REFUSAL_REASON_RECOGNISERS_INVALID = 74i32,
+    /// `invalid_argument`: a Plugin Permission the Admin grants is one the Plugin's Manifest doesn't
+    /// request. `field` is `granted_permissions`. Params: `pluginId`, `permission`.
+    REFUSAL_REASON_PERMISSION_NOT_REQUESTED = 75i32,
+    /// `failed_precondition`: no enabled Plugin with the id serves `EXTENSION_POINT_BLOB_STORE`, so
+    /// it can't keep the stored images. `field` is `plugin_id`. Params: `pluginId`.
+    REFUSAL_REASON_NOT_A_BLOB_STORE = 76i32,
+    /// `failed_precondition`: the store named already keeps the stored images, so there is nothing
+    /// to switch. `field` is `plugin_id`. Params: `pluginId`, empty for local disk.
+    REFUSAL_REASON_IMAGE_STORE_IN_USE = 77i32,
+    /// `failed_precondition`: another switch to an image store hasn't finished.
+    REFUSAL_REASON_IMAGE_STORE_SWITCHING = 78i32,
+    /// `failed_precondition`: the store failed its check, writing an object, reading it back and
+    /// deleting it, so the images stay where they are. The message says what failed. `field` is
+    /// `plugin_id`. Params: `pluginId`, empty for local disk, and `reason`, in plain words.
+    REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK = 79i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -276,9 +313,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNKNOWN_TITLE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const UnknownTitle: Self = Self::REFUSAL_REASON_UNKNOWN_TITLE;
-    ///Idiomatic alias for [`Self::REFUSAL_REASON_NO_METADATA_PROVIDER`]; `Debug` prints the variant name.
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NO_TITLE_SOURCE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
-    pub const NoMetadataProvider: Self = Self::REFUSAL_REASON_NO_METADATA_PROVIDER;
+    pub const NoTitleSource: Self = Self::REFUSAL_REASON_NO_TITLE_SOURCE;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_NAME_LENGTH`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const NameLength: Self = Self::REFUSAL_REASON_NAME_LENGTH;
@@ -387,6 +424,39 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ForeignAudioOnlyNotFull: Self = Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PluginRefusedToStart: Self = Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_TITLE_ID_MALFORMED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const TitleIdMalformed: Self = Self::REFUSAL_REASON_TITLE_ID_MALFORMED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_TITLE_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const TitleNotFound: Self = Self::REFUSAL_REASON_TITLE_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_TITLE_ID_MISSING`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const TitleIdMissing: Self = Self::REFUSAL_REASON_TITLE_ID_MISSING;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_TITLE_SOURCES_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const TitleSourcesInvalid: Self = Self::REFUSAL_REASON_TITLE_SOURCES_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_RECOGNISERS_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RecognisersInvalid: Self = Self::REFUSAL_REASON_RECOGNISERS_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PermissionNotRequested: Self = Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NOT_A_BLOB_STORE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NotABlobStore: Self = Self::REFUSAL_REASON_NOT_A_BLOB_STORE;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_IMAGE_STORE_IN_USE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ImageStoreInUse: Self = Self::REFUSAL_REASON_IMAGE_STORE_IN_USE;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ImageStoreSwitching: Self = Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ImageStoreFailedCheck: Self = Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -533,9 +603,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             27i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_ITEM_NOT_FOUND),
             28i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_TITLE),
-            29i32 => {
-                ::core::option::Option::Some(Self::REFUSAL_REASON_NO_METADATA_PROVIDER)
-            }
+            29i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NO_TITLE_SOURCE),
             30i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NAME_LENGTH),
             31i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PASSWORD_REJECTED),
             32i32 => {
@@ -620,6 +688,39 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL,
                 )
             }
+            66i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
+                )
+            }
+            70i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_ID_MALFORMED)
+            }
+            71i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_NOT_FOUND),
+            72i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_ID_MISSING),
+            73i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_SOURCES_INVALID)
+            }
+            74i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_RECOGNISERS_INVALID)
+            }
+            75i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
+                )
+            }
+            76i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_BLOB_STORE),
+            77i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_IMAGE_STORE_IN_USE)
+            }
+            78i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING)
+            }
+            79i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -675,9 +776,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_ITEM_NOT_FOUND => "REFUSAL_REASON_ITEM_NOT_FOUND",
             Self::REFUSAL_REASON_UNKNOWN_TITLE => "REFUSAL_REASON_UNKNOWN_TITLE",
-            Self::REFUSAL_REASON_NO_METADATA_PROVIDER => {
-                "REFUSAL_REASON_NO_METADATA_PROVIDER"
-            }
+            Self::REFUSAL_REASON_NO_TITLE_SOURCE => "REFUSAL_REASON_NO_TITLE_SOURCE",
             Self::REFUSAL_REASON_NAME_LENGTH => "REFUSAL_REASON_NAME_LENGTH",
             Self::REFUSAL_REASON_PASSWORD_REJECTED => "REFUSAL_REASON_PASSWORD_REJECTED",
             Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE => {
@@ -749,6 +848,33 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_UNKNOWN_LANGUAGE => "REFUSAL_REASON_UNKNOWN_LANGUAGE",
             Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL => {
                 "REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL"
+            }
+            Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START => {
+                "REFUSAL_REASON_PLUGIN_REFUSED_TO_START"
+            }
+            Self::REFUSAL_REASON_TITLE_ID_MALFORMED => {
+                "REFUSAL_REASON_TITLE_ID_MALFORMED"
+            }
+            Self::REFUSAL_REASON_TITLE_NOT_FOUND => "REFUSAL_REASON_TITLE_NOT_FOUND",
+            Self::REFUSAL_REASON_TITLE_ID_MISSING => "REFUSAL_REASON_TITLE_ID_MISSING",
+            Self::REFUSAL_REASON_TITLE_SOURCES_INVALID => {
+                "REFUSAL_REASON_TITLE_SOURCES_INVALID"
+            }
+            Self::REFUSAL_REASON_RECOGNISERS_INVALID => {
+                "REFUSAL_REASON_RECOGNISERS_INVALID"
+            }
+            Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED => {
+                "REFUSAL_REASON_PERMISSION_NOT_REQUESTED"
+            }
+            Self::REFUSAL_REASON_NOT_A_BLOB_STORE => "REFUSAL_REASON_NOT_A_BLOB_STORE",
+            Self::REFUSAL_REASON_IMAGE_STORE_IN_USE => {
+                "REFUSAL_REASON_IMAGE_STORE_IN_USE"
+            }
+            Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING => {
+                "REFUSAL_REASON_IMAGE_STORE_SWITCHING"
+            }
+            Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK => {
+                "REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK"
             }
         }
     }
@@ -845,8 +971,8 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_UNKNOWN_TITLE" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_TITLE)
             }
-            "REFUSAL_REASON_NO_METADATA_PROVIDER" => {
-                ::core::option::Option::Some(Self::REFUSAL_REASON_NO_METADATA_PROVIDER)
+            "REFUSAL_REASON_NO_TITLE_SOURCE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NO_TITLE_SOURCE)
             }
             "REFUSAL_REASON_NAME_LENGTH" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_NAME_LENGTH)
@@ -968,6 +1094,45 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL,
                 )
             }
+            "REFUSAL_REASON_PLUGIN_REFUSED_TO_START" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
+                )
+            }
+            "REFUSAL_REASON_TITLE_ID_MALFORMED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_ID_MALFORMED)
+            }
+            "REFUSAL_REASON_TITLE_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_NOT_FOUND)
+            }
+            "REFUSAL_REASON_TITLE_ID_MISSING" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_ID_MISSING)
+            }
+            "REFUSAL_REASON_TITLE_SOURCES_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_SOURCES_INVALID)
+            }
+            "REFUSAL_REASON_RECOGNISERS_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_RECOGNISERS_INVALID)
+            }
+            "REFUSAL_REASON_PERMISSION_NOT_REQUESTED" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
+                )
+            }
+            "REFUSAL_REASON_NOT_A_BLOB_STORE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_BLOB_STORE)
+            }
+            "REFUSAL_REASON_IMAGE_STORE_IN_USE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_IMAGE_STORE_IN_USE)
+            }
+            "REFUSAL_REASON_IMAGE_STORE_SWITCHING" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING)
+            }
+            "REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1002,7 +1167,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_DURATION_OUT_OF_RANGE,
             Self::REFUSAL_REASON_ITEM_NOT_FOUND,
             Self::REFUSAL_REASON_UNKNOWN_TITLE,
-            Self::REFUSAL_REASON_NO_METADATA_PROVIDER,
+            Self::REFUSAL_REASON_NO_TITLE_SOURCE,
             Self::REFUSAL_REASON_NAME_LENGTH,
             Self::REFUSAL_REASON_PASSWORD_REJECTED,
             Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
@@ -1039,6 +1204,17 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_FOLDER_READ_ONLY,
             Self::REFUSAL_REASON_UNKNOWN_LANGUAGE,
             Self::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL,
+            Self::REFUSAL_REASON_PLUGIN_REFUSED_TO_START,
+            Self::REFUSAL_REASON_TITLE_ID_MALFORMED,
+            Self::REFUSAL_REASON_TITLE_NOT_FOUND,
+            Self::REFUSAL_REASON_TITLE_ID_MISSING,
+            Self::REFUSAL_REASON_TITLE_SOURCES_INVALID,
+            Self::REFUSAL_REASON_RECOGNISERS_INVALID,
+            Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
+            Self::REFUSAL_REASON_NOT_A_BLOB_STORE,
+            Self::REFUSAL_REASON_IMAGE_STORE_IN_USE,
+            Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING,
+            Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
         ]
     }
 }

@@ -31,14 +31,14 @@ export type Movie = Message<"nama.v1.Movie"> & {
   id?: ExternalId | undefined;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 2;
    */
   title: string;
 
   /**
-   * The title in its original language, if the metadata source has it.
+   * The title in its original language, if the title source has it.
    *
    * @generated from field: optional string original_title = 3;
    */
@@ -92,8 +92,8 @@ export type Movie = Message<"nama.v1.Movie"> & {
 
   /**
    * Whether `poster_url` is a Custom Image, which `DELETE /custom-images/movie/<id>/poster`
-   * removes, `<id>` being `id` as `tmdb-348`, `imdb-tt0078748` or `tvdb-81189`. `PUT` there
-   * uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
+   * removes, `<id>` being `id` as `<namespace>-<value>`, the value percent-encoded, such as
+   * `tmdb-348`. `PUT` there uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
    *
    * @generated from field: bool custom_poster = 11;
    */
@@ -122,22 +122,22 @@ export type Movie = Message<"nama.v1.Movie"> & {
   backdropThumbhash?: Uint8Array | undefined;
 
   /**
-   * Its Title Logo's URL on this Server, lettered in the metadata Provider's language. Unset if
-   * the Provider has none in that language: show `title` as text instead.
+   * Its Title Logo's URL on this Server, picked from its title sources' artwork. Unset if none
+   * has one: show `title` as text instead.
    *
    * @generated from field: optional string title_logo_url = 15;
    */
   titleLogoUrl?: string | undefined;
 
   /**
-   * Its genres' names, in the metadata Provider's language.
+   * Its genres' names, in its title source's language.
    *
    * @generated from field: repeated string genres = 16;
    */
   genres: string[];
 
   /**
-   * Its Content Rating in the metadata Provider's country, such as `R`. Unset if it has none
+   * Its Content Rating in its title source's country, such as `R`. Unset if it has none
    * there.
    *
    * @generated from field: optional string content_rating = 17;
@@ -502,7 +502,7 @@ export type Show = Message<"nama.v1.Show"> & {
   id?: ExternalId | undefined;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 2;
    */
@@ -660,7 +660,7 @@ export type Episode = Message<"nama.v1.Episode"> & {
   episodeNumber: number;
 
   /**
-   * The title, in the metadata Provider's language.
+   * The title, in its title source's language.
    *
    * @generated from field: string title = 4;
    */
@@ -700,7 +700,7 @@ export type Episode = Message<"nama.v1.Episode"> & {
   watchState?: WatchState | undefined;
 
   /**
-   * Its Still's URL on this Server. Unset if the metadata Provider has none.
+   * Its Still's URL on this Server. Unset if its title source has none.
    *
    * @generated from field: optional string still_url = 10;
    */

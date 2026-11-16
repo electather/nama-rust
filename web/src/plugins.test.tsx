@@ -114,7 +114,9 @@ test("a refused Plugin's details page shows its file name and why, and no settin
   const page = await plugin("out-of-range.wasm");
   expect(page.getByText("Refused")).toBeDefined();
   expect(
-    page.getByText("The Server can’t run it: it wants nama-api <0.1, and this Server has 0.1.0."),
+    page.getByText(
+      "The Server can’t run it: it wants Plugin contract <0.1, and this Server has 0.1.0.",
+    ),
   ).toBeDefined();
   expect(page.queryByRole("heading", { name: "Settings" })).toBeNull();
   expect(page.queryByRole("button")).toBeNull();
@@ -242,6 +244,30 @@ test("enabling a second Movie Fulfiller names the Plugin that is the Fulfiller",
   const alert = await testPlugin.findByText(
     "It can’t be enabled while radarr is the Movie Fulfiller. Disable radarr first.",
   );
+  expect(alert.getAttribute("role")).toBe("alert");
+});
+
+test.each([
+  [
+    "says why in its words",
+    { reason: "the key was turned down" },
+    "It refused to start: the key was turned down.",
+  ],
+  ["without a reason says so plainly", {}, "It refused to start."],
+])("enabling a Plugin that refuses to start %s", async (_, params, text) => {
+  openPlugins({
+    enablePlugin: () => {
+      throw refused(Code.FailedPrecondition, "test-plugin refused to start", {
+        reason: RefusalReason.PLUGIN_REFUSED_TO_START,
+        field: "id",
+        params: { pluginId: "test-plugin", ...params },
+      });
+    },
+  });
+  const testPlugin = await row("test-plugin");
+  fireEvent.click(testPlugin.getByRole("button", { name: "Enable test-plugin" }));
+
+  const alert = await testPlugin.findByText(text);
   expect(alert.getAttribute("role")).toBe("alert");
 });
 

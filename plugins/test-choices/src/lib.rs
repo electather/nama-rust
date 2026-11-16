@@ -6,12 +6,12 @@ use std::{collections::HashMap, future, sync::Arc};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Shows},
+    contract::{TitleId, request::MovieOrSeason},
+    fulfiller::{Download, Fulfilled, Fulfiller, Movies, Request, Shows},
     settings::{
         Choice, Choices, SettingField, SettingKind, Settings, SettingsCheck, SettingsSchema,
     },
 };
-use nama_proto::nama::v1::{Request, request::MovieOrSeason};
 
 /// The test Plugin's id.
 pub const ID: &str = "test-choices";
@@ -24,6 +24,10 @@ pub const PANIC: &str = "panic";
 
 /// What `fail_with` is set to for the check never to finish.
 pub const HANG: &str = "hang";
+
+/// What `fail_with` is set to for `register` to refuse to start, after registering its Fulfillers,
+/// with an error that quotes its `api_key` setting. The check passes it, so it saves.
+pub const REFUSE: &str = "refuse";
 
 /// The test Plugin. It registers its Fulfillers.
 #[derive(Debug)]
@@ -51,7 +55,8 @@ impl Plugin for TestChoices {
                 field(
                     "fail_with",
                     "Fail with",
-                    "Makes the check fail with this error, or panic or hang for those words.",
+                    "Makes the check fail with this error, or panic or hang for those words; refuse makes \
+                     it refuse to start, quoting its API key.",
                     SettingKind::Text,
                     false,
                 ),
@@ -72,11 +77,14 @@ impl Plugin for TestChoices {
                     .to_owned(),
             version: "0.0.0".to_owned(),
             settings,
+            personal_settings: SettingsSchema::default(),
             extension_points: vec![
                 PointKey::provide::<dyn Fulfiller<Movies>>(),
                 PointKey::provide::<dyn Fulfiller<Shows>>(),
             ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
+            permissions: Vec::new(),
+            tick_every: None,
         }
     }
 
@@ -84,10 +92,23 @@ impl Plugin for TestChoices {
         Some(self)
     }
 
-    fn register(&self, registrar: &mut Registrar) {
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn Fulfiller<Movies>>(Priority::DEFAULT, Arc::new(Self));
         registrar.provide::<dyn Fulfiller<Shows>>(Priority::DEFAULT, Arc::new(Self));
+        let settings = registrar.settings();
+        if settings.text("fail_with") == Some(REFUSE) {
+            let key = settings.text("api_key").unwrap_or_default();
+            return Err(format!("the key {key} was turned down").into());
+        }
+        Ok(())
     }
+}
+
+/// The value of the `tmdb` id among `ids`, or empty without one.
+fn tmdb(ids: &[TitleId]) -> &str {
+    (ids.iter())
+        .find(|id| id.namespace == "tmdb")
+        .map_or("", |id| id.value.as_str())
 }
 
 /// Takes every Request, giving `movie-<TMDB id>` as its reference.
@@ -98,7 +119,7 @@ impl Fulfiller<Movies> for TestChoices {
     ) -> BoxFuture<'a, Result<Fulfilled, PluginError>> {
         let fulfilled = match &request.movie_or_season {
             Some(MovieOrSeason::Movie(movie)) => Ok(Fulfilled {
-                reference: format!("movie-{}", movie.tmdb_id),
+                reference: format!("movie-{}", tmdb(&movie.ids)),
                 ..Fulfilled::default()
             }),
             _ => Err("not a Movie Request".into()),
@@ -124,7 +145,8 @@ impl Fulfiller<Shows> for TestChoices {
             Some(MovieOrSeason::Season(season)) => Ok(Fulfilled {
                 reference: format!(
                     "show-{}-season-{}",
-                    season.show_tmdb_id, season.season_number
+                    tmdb(&season.show_ids),
+                    season.season_number
                 ),
                 ..Fulfilled::default()
             }),
@@ -151,8 +173,8 @@ impl SettingsCheck for TestChoices {
             match settings.text("fail_with") {
                 Some(PANIC) => panic!("the test Plugin was told to panic"),
                 Some(HANG) => future::pending().await,
+                Some(REFUSE) | None => {}
                 Some(error) => return Err(error.into()),
-                None => {}
             }
             if settings.text("api_key") != Some(API_KEY) {
                 return Err("the service refused the API key".into());

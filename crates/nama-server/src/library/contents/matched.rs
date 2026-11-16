@@ -1,0 +1,786 @@
+//! What the Items of a Library are Matched to, as browsing, playback, Requests and artwork read it.
+
+use std::collections::{BTreeMap, HashMap, HashSet, btree_map::Entry};
+
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use sqlx::SqliteConnection;
+
+use super::{Contents, ImageRef, ItemKind, Stored, ids_from_json, ids_sql, primary_id_in};
+
+/// A Library's downloaded Backdrop: see [`Contents::newest_backdrops`].
+#[derive(Debug)]
+pub(crate) struct NewestBackdrop {
+    /// The Plugin whose title source serves the path, which may differ from the Match's.
+    pub(crate) plugin: String,
+    pub(crate) path: String,
+    /// The Movie's id, or for an Episode its Show's, whose own Custom Backdrop goes first.
+    pub(crate) title: ExternalId,
+    /// Every id of that title, any of which a Custom Backdrop may be kept under.
+    pub(crate) ids: ExternalIds,
+}
+
+/// A Movie some Items of a Library are Matched to, with the metadata the Match of its first
+/// Version stores. Browse hands it out with Versions of its own, which have Tracks.
+#[derive(Debug)]
+pub(crate) struct Movie<V = Version> {
+    /// Which of the Match's ids identifies the Movie: see [`primary_id`](super::primary_id).
+    pub(crate) id: ExternalId,
+    /// Every id the Match of its first Version gives it.
+    pub(crate) ids: ExternalIds,
+    /// The Plugin whose title source made the Match.
+    pub(crate) plugin: String,
+    pub(crate) title: String,
+    pub(crate) original_title: Option<String>,
+    pub(crate) overview: Option<String>,
+    pub(crate) release_date: Option<String>,
+    pub(crate) runtime_minutes: Option<i64>,
+    pub(crate) poster: Option<ImageRef>,
+    pub(crate) backdrop: Option<ImageRef>,
+    pub(crate) logo: Option<ImageRef>,
+    pub(crate) genres: Vec<String>,
+    pub(crate) content_rating: Option<String>,
+    /// The files Matched to it, by path.
+    pub(crate) versions: Vec<V>,
+}
+
+impl<V> Movie<V> {
+    /// The Movie with each of its Versions made into `version(it)`.
+    pub(crate) fn map_versions<W>(self, version: impl FnMut(V) -> W) -> Movie<W> {
+        Movie {
+            id: self.id,
+            ids: self.ids,
+            plugin: self.plugin,
+            title: self.title,
+            original_title: self.original_title,
+            overview: self.overview,
+            release_date: self.release_date,
+            runtime_minutes: self.runtime_minutes,
+            poster: self.poster,
+            backdrop: self.backdrop,
+            logo: self.logo,
+            genres: self.genres,
+            content_rating: self.content_rating,
+            versions: self.versions.into_iter().map(version).collect(),
+        }
+    }
+}
+
+/// A stored file that a Movie or Episode is available in.
+#[derive(Debug, Clone)]
+pub(crate) struct Version {
+    /// Its file as stored now.
+    pub(crate) file: Stored,
+    pub(crate) path: String,
+}
+
+/// What [`Contents::matched_to`] found a Version Matched to.
+#[derive(Debug)]
+pub(crate) enum MatchedTo {
+    /// No stored file has that id.
+    NoSuchVersion,
+    /// The file holds a Movie or nothing, and no Match: its Item is Unmatched or not Matched yet.
+    Nothing,
+    /// The Movie's id, as browsing identifies it: see [`primary_id`](super::primary_id).
+    Movie(ExternalId),
+    /// The file holds Episodes.
+    Episodes {
+        /// The id of the Show its first Matched Episode is of, as browsing identifies it. `None`
+        /// if none is Matched.
+        show: Option<ExternalId>,
+    },
+}
+
+/// What [`Contents::titles_in`] found a Version Matched to, each title by its id as browsing
+/// identifies it and every id its Match gives it.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum TitlesIn {
+    /// No stored file has that id.
+    NoSuchVersion,
+    /// The file holds a Movie or nothing: the Movie, unless its Item isn't Matched.
+    Movie(Option<(ExternalId, ExternalIds)>),
+    /// Each Episode the file holds, by season and episode number, `None` if its Item isn't
+    /// Matched.
+    Episodes(Vec<Option<(ExternalId, ExternalIds)>>),
+}
+
+/// A Show some Items of a Library are Matched to Episodes of, with the metadata the Match of its
+/// first Episode, by season, episode and path, stores.
+#[derive(Debug, Clone)]
+pub(crate) struct Show<V = Version> {
+    /// Which of its Episodes' Show ids identifies it: see [`primary_id`](super::primary_id).
+    pub(crate) id: ExternalId,
+    /// Every Show id that Match gives it.
+    pub(crate) ids: ExternalIds,
+    pub(crate) title: String,
+    /// Its own Poster: see [`Show::poster`] for the one it shows.
+    pub(crate) own_poster: Option<ImageRef>,
+    /// The [`METADATA_VERSION`](crate::library::versions::METADATA_VERSION) that stored `own_poster`.
+    pub(crate) metadata_version: i64,
+    pub(crate) backdrop: Option<ImageRef>,
+    pub(crate) logo: Option<ImageRef>,
+    pub(crate) overview: Option<String>,
+    pub(crate) first_air_date: Option<String>,
+    pub(crate) genres: Vec<String>,
+    pub(crate) content_rating: Option<String>,
+    /// The Seasons the Library has Episodes of, by number.
+    pub(crate) seasons: BTreeMap<i64, Season<V>>,
+}
+
+/// The metadata version whose Matches first stored a Show's own Poster.
+const SHOW_POSTERS_SINCE: i64 = 3;
+
+/// A Show's Poster: `own`, from a Match stored at metadata version `version`. A Match stored
+/// before Matches had a Show's own has, until refreshed, the Poster of the lowest-numbered Season
+/// after the Specials (Season 0) that has one, or else the Specials'. `seasons` are Season numbers
+/// with their Posters, in any order. A Season's Custom Poster never stands for its Show.
+pub(crate) fn show_poster<P>(
+    own: Option<P>,
+    version: i64,
+    seasons: impl IntoIterator<Item = (i64, Option<P>)>,
+) -> Option<P> {
+    if version < SHOW_POSTERS_SINCE {
+        first_season_poster(seasons)
+    } else {
+        own
+    }
+}
+
+fn first_season_poster<P>(seasons: impl IntoIterator<Item = (i64, Option<P>)>) -> Option<P> {
+    (seasons.into_iter())
+        .filter_map(|(number, poster)| Some((number, poster?)))
+        .min_by_key(|&(number, _)| (number == 0, number))
+        .map(|(_, poster)| poster)
+}
+
+impl<V> Show<V> {
+    /// The Poster it is shown by: see [`show_poster`].
+    pub(crate) fn poster(&self) -> Option<&ImageRef> {
+        let seasons =
+            (self.seasons.iter()).map(|(&number, season)| (number, season.poster.as_ref()));
+        show_poster(self.own_poster.as_ref(), self.metadata_version, seasons)
+    }
+
+    /// Every Episode of every Season, by season and episode number.
+    pub(crate) fn episodes(&self) -> impl Iterator<Item = &Episode<V>> {
+        self.seasons.values().flat_map(|season| &season.episodes)
+    }
+
+    /// The Show with each of its Episodes' Versions made into `version(it)`.
+    pub(crate) fn map_versions<W>(self, mut version: impl FnMut(V) -> W) -> Show<W> {
+        let seasons = (self.seasons.into_iter())
+            .map(|(number, season)| {
+                let episodes = (season.episodes.into_iter())
+                    .map(|episode| episode.map_versions(&mut version))
+                    .collect();
+                let season = Season {
+                    poster: season.poster,
+                    episodes,
+                };
+                (number, season)
+            })
+            .collect();
+        Show {
+            id: self.id,
+            ids: self.ids,
+            title: self.title,
+            own_poster: self.own_poster,
+            metadata_version: self.metadata_version,
+            backdrop: self.backdrop,
+            logo: self.logo,
+            overview: self.overview,
+            first_air_date: self.first_air_date,
+            genres: self.genres,
+            content_rating: self.content_rating,
+            seasons,
+        }
+    }
+}
+
+/// The Episodes of a Show's Season that some Items of a Library are Matched to.
+#[derive(Debug, Clone)]
+pub(crate) struct Season<V = Version> {
+    /// The poster the Match of its first Episode stores.
+    pub(crate) poster: Option<ImageRef>,
+    /// By episode number.
+    pub(crate) episodes: Vec<Episode<V>>,
+}
+
+/// An Episode some Items of a Library are Matched to, with the metadata the Match of its first
+/// Version stores.
+#[derive(Debug, Clone)]
+pub(crate) struct Episode<V = Version> {
+    /// Which of the Match's ids identifies the Episode: see [`primary_id`](super::primary_id).
+    pub(crate) id: ExternalId,
+    /// Every id the Match of its first Version gives it.
+    pub(crate) ids: ExternalIds,
+    /// Its Season's number.
+    pub(crate) season: i64,
+    /// The episode number within its Season.
+    pub(crate) number: i64,
+    pub(crate) title: String,
+    pub(crate) overview: Option<String>,
+    pub(crate) air_date: Option<String>,
+    pub(crate) runtime_minutes: Option<i64>,
+    /// The Plugin whose title source made the Match, which the Still's path is for.
+    pub(crate) plugin: String,
+    pub(crate) still: Option<String>,
+    /// The files Matched to it, by path. A file holding two Episodes is a Version of each.
+    pub(crate) versions: Vec<V>,
+}
+
+impl<V> Episode<V> {
+    /// The Episode with each of its Versions made into `version(it)`.
+    pub(crate) fn map_versions<W>(self, version: impl FnMut(V) -> W) -> Episode<W> {
+        Episode {
+            id: self.id,
+            ids: self.ids,
+            season: self.season,
+            number: self.number,
+            title: self.title,
+            overview: self.overview,
+            air_date: self.air_date,
+            runtime_minutes: self.runtime_minutes,
+            plugin: self.plugin,
+            still: self.still,
+            versions: self.versions.into_iter().map(version).collect(),
+        }
+    }
+}
+
+impl Contents {
+    /// What the Version `version` is Matched to, each title by its id as browsing identifies it:
+    /// its Movie, or for a file of Episodes only the Show of its first Matched one, by season and
+    /// number. [`Contents::titles_in`] gives each Episode, with every id.
+    pub(crate) async fn matched_to(&self, version: i64) -> Result<MatchedTo, sqlx::Error> {
+        // This query and `titles_in`'s must change together: it reads the same rows, adding only
+        // the Show's ids.
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_items.kind AS "kind?: ItemKind", "#
+                        + $ids
+                        + r#"'title') AS "ids?: String", "#
+                        + $ids
+                        + r#"'show') AS "show_ids?: String", libraries.title_sources
+                       FROM library_files
+                       JOIN libraries ON libraries.id = library_files.library_id
+                       LEFT JOIN library_items ON library_items.file_id = library_files.id
+                       LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+                                             AND item_matches.state = 'matched'
+                       WHERE library_files.id = ?
+                       ORDER BY library_items.season, library_items.episode"#,
+                    version
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
+        let Some(first) = rows.first() else {
+            return Ok(MatchedTo::NoSuchVersion);
+        };
+        let holds_episodes = first.kind == Some(ItemKind::Episode);
+        let ids: Vec<_> = (rows.into_iter())
+            .map(|row| {
+                let id = primary_id_in(&ids_from_json(row.ids.as_deref()), &row.title_sources);
+                let show =
+                    primary_id_in(&ids_from_json(row.show_ids.as_deref()), &row.title_sources);
+                (id, show)
+            })
+            .collect();
+        if holds_episodes {
+            return Ok(MatchedTo::Episodes {
+                show: ids.iter().find_map(|(_, show)| show.clone()),
+            });
+        }
+        Ok((ids.into_iter())
+            .find_map(|(id, _)| id)
+            .map_or(MatchedTo::Nothing, MatchedTo::Movie))
+    }
+
+    /// What the Version `version` is Matched to, as [`Contents::matched_to`] finds it, with every
+    /// id of each title, so Watch State is found under any of them.
+    pub(crate) async fn titles_in(&self, version: i64) -> Result<TitlesIn, sqlx::Error> {
+        // This query and `matched_to`'s must change together: it reads the same rows, leaving out
+        // only the Show's ids.
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_items.kind AS "kind?: ItemKind", "#
+                        + $ids
+                        + r#"'title') AS "ids?: String", libraries.title_sources
+                       FROM library_files
+                       JOIN libraries ON libraries.id = library_files.library_id
+                       LEFT JOIN library_items ON library_items.file_id = library_files.id
+                       LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+                                             AND item_matches.state = 'matched'
+                       WHERE library_files.id = ?
+                       ORDER BY library_items.season, library_items.episode"#,
+                    version
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
+        let Some(first) = rows.first() else {
+            return Ok(TitlesIn::NoSuchVersion);
+        };
+        let holds_episodes = first.kind == Some(ItemKind::Episode);
+        let mut titles = rows.into_iter().map(|row| {
+            let ids = ids_from_json(row.ids.as_deref());
+            Some((primary_id_in(&ids, &row.title_sources)?, ids))
+        });
+        Ok(if holds_episodes {
+            TitlesIn::Episodes(titles.collect())
+        } else {
+            TitlesIn::Movie(titles.find_map(|title| title))
+        })
+    }
+
+    /// The path of the Version `version` and the file stored there, or `None` unless some Item of
+    /// the file is Matched, so unmatched files are never served or probed.
+    pub(crate) async fn version_file(
+        &self,
+        version: i64,
+    ) -> Result<Option<(String, Stored)>, sqlx::Error> {
+        let row = sqlx::query!(
+            "SELECT path, size, modified_ns, parser_version FROM library_files
+             WHERE id = ?
+               AND EXISTS (SELECT 1 FROM library_items
+                           JOIN item_matches ON item_matches.item_id = library_items.id
+                           WHERE library_items.file_id = library_files.id
+                             AND item_matches.state = 'matched')",
+            version
+        )
+        .fetch_optional(self.db.reader())
+        .await?;
+        Ok(row.map(|row| {
+            let stored = Stored {
+                id: version,
+                size: row.size,
+                modified_ns: row.modified_ns,
+                parser_version: row.parser_version,
+            };
+            (row.path, stored)
+        }))
+    }
+
+    pub(crate) async fn stores_image(
+        &self,
+        plugin: &str,
+        image: &str,
+    ) -> Result<bool, sqlx::Error> {
+        sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM item_matches
+                              WHERE state = 'matched'
+                                AND ((poster_plugin = ?1 AND poster = ?2)
+                                     OR (backdrop_plugin = ?1 AND backdrop = ?2)
+                                     OR (logo_plugin = ?1 AND logo = ?2)
+                                     OR (show_poster_plugin = ?1 AND show_poster = ?2)
+                                     OR (plugin = ?1 AND still = ?2)))
+               AS "stored!: bool""#,
+            plugin,
+            image
+        )
+        .fetch_one(self.db.reader())
+        .await
+    }
+
+    /// Each image a Match stores, as its Plugin and path, in the Library `library` or else in
+    /// every Library.
+    pub(crate) async fn images(
+        &self,
+        library: Option<i64>,
+    ) -> Result<Vec<(String, String)>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"WITH matched AS (
+                   SELECT item_matches.plugin, item_matches.poster, item_matches.poster_plugin,
+                          item_matches.backdrop, item_matches.backdrop_plugin, item_matches.logo,
+                          item_matches.logo_plugin, item_matches.still, item_matches.show_poster,
+                          item_matches.show_poster_plugin
+                   FROM item_matches
+                   JOIN library_items ON library_items.id = item_matches.item_id
+                   JOIN library_files ON library_files.id = library_items.file_id
+                   WHERE item_matches.state = 'matched'
+                     AND (?1 IS NULL OR library_files.library_id = ?1))
+               SELECT poster_plugin AS "plugin!", poster AS "path!" FROM matched
+               WHERE poster IS NOT NULL
+               UNION
+               SELECT backdrop_plugin, backdrop FROM matched WHERE backdrop IS NOT NULL
+               UNION
+               SELECT logo_plugin, logo FROM matched WHERE logo IS NOT NULL
+               UNION
+               SELECT show_poster_plugin, show_poster FROM matched WHERE show_poster IS NOT NULL
+               UNION
+               SELECT plugin, still FROM matched WHERE still IS NOT NULL"#,
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
+    }
+
+    /// The downloaded Backdrop of the Matched title most recently added to each Library, of
+    /// those with one, by Library id. A Library with no such title has none.
+    pub(crate) async fn newest_backdrops(
+        &self,
+    ) -> Result<HashMap<i64, NewestBackdrop>, sqlx::Error> {
+        // Item ids are AUTOINCREMENT, so the highest is the Item added last.
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_id AS "library!", plugin AS "plugin!",
+                              backdrop AS "backdrop!", ids AS "ids?: String",
+                              title_sources AS "title_sources!"
+                       FROM (SELECT library_files.library_id,
+                                    item_matches.backdrop_plugin AS plugin,
+                                    item_matches.backdrop, libraries.title_sources, "#
+                        + $ids
+                        + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS ids,
+                                    ROW_NUMBER() OVER (PARTITION BY library_files.library_id
+                                                       ORDER BY library_items.id DESC) AS newest
+                             FROM item_matches
+                             JOIN library_items ON library_items.id = item_matches.item_id
+                             JOIN library_files ON library_files.id = library_items.file_id
+                             JOIN libraries ON libraries.id = library_files.library_id
+                             WHERE item_matches.state = 'matched'
+                               AND item_matches.backdrop IS NOT NULL)
+                       WHERE newest = 1"#
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| {
+                let ids = ids_from_json(row.ids.as_deref());
+                let backdrop = NewestBackdrop {
+                    title: primary_id_in(&ids, &row.title_sources)?,
+                    ids,
+                    plugin: row.plugin,
+                    path: row.backdrop,
+                };
+                Some((row.library, backdrop))
+            })
+            .collect())
+    }
+
+    /// The oldest Library with an Item Matched to the Movie `id`, by any of its ids, if any.
+    pub(crate) async fn library_with_movie(
+        &self,
+        id: &ExternalId,
+    ) -> Result<Option<i64>, sqlx::Error> {
+        let mut conn = self.db.reader().acquire().await?;
+        library_with_movie(&mut conn, id).await
+    }
+
+    /// By title, grouped by [`primary_id`](super::primary_id).
+    pub(crate) async fn movies(&self, library: i64) -> Result<Vec<Movie>, sqlx::Error> {
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
+                              library_files.modified_ns, library_files.parser_version,
+                              item_matches.plugin AS "plugin!", "#
+                        + $ids
+                        + r#"'title') AS "ids?: String", item_matches.title AS "title!",
+                              item_matches.original_title, item_matches.overview,
+                              item_matches.release_date, item_matches.runtime_minutes,
+                              item_matches.poster, item_matches.poster_plugin,
+                              item_matches.backdrop, item_matches.backdrop_plugin,
+                              item_matches.logo, item_matches.logo_plugin, item_matches.genres,
+                              item_matches.content_rating, libraries.title_sources
+                       FROM item_matches
+                       JOIN library_items ON library_items.id = item_matches.item_id
+                       JOIN library_files ON library_files.id = library_items.file_id
+                       JOIN libraries ON libraries.id = library_files.library_id
+                       WHERE library_files.library_id = ?
+                         AND library_items.kind = 'movie'
+                         AND item_matches.state = 'matched'
+                       ORDER BY library_files.path"#,
+                    library
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
+        // Ordered by path, so each Movie's Versions are by path and its first Version's row comes
+        // first.
+        let mut movies: BTreeMap<ExternalId, Movie> = BTreeMap::new();
+        for row in rows {
+            let ids = ids_from_json(row.ids.as_deref());
+            let Some(id) = primary_id_in(&ids, &row.title_sources) else {
+                continue;
+            };
+            let version = version(
+                row.file,
+                row.path,
+                row.size,
+                row.modified_ns,
+                row.parser_version,
+            );
+            let movie = match movies.entry(id.clone()) {
+                Entry::Occupied(movie) => movie.into_mut(),
+                Entry::Vacant(entry) => entry.insert(Movie {
+                    id,
+                    ids,
+                    plugin: row.plugin,
+                    title: row.title,
+                    original_title: row.original_title,
+                    overview: row.overview,
+                    release_date: row.release_date,
+                    runtime_minutes: row.runtime_minutes,
+                    poster: ImageRef::stored(row.poster, row.poster_plugin),
+                    backdrop: ImageRef::stored(row.backdrop, row.backdrop_plugin),
+                    logo: ImageRef::stored(row.logo, row.logo_plugin),
+                    genres: genres(row.genres.as_deref())?,
+                    content_rating: row.content_rating,
+                    versions: Vec::new(),
+                }),
+            };
+            movie.versions.push(version);
+        }
+        let mut movies: Vec<Movie> = movies.into_values().collect();
+        movies.sort_by(|a, b| a.title.cmp(&b.title));
+        Ok(movies)
+    }
+
+    /// By title, grouped by the Episodes' Show ids' [`primary_id`](super::primary_id), each
+    /// Season's Episodes by their own.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one query's columns, and the Show, Season and Episode each row fills"
+    )]
+    pub(crate) async fn shows(&self, library: i64) -> Result<Vec<Show>, sqlx::Error> {
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_files.id AS "file!", library_files.path, library_files.size,
+                              library_files.modified_ns, library_files.parser_version,
+                              library_items.season AS "season!",
+                              library_items.episode AS "episode!",
+                              item_matches.plugin AS "plugin!", "#
+                        + $ids
+                        + r#"'title') AS "ids?: String", "#
+                        + $ids
+                        + r#"'show') AS "show_ids?: String",
+                              item_matches.title AS "title!",
+                              item_matches.show_title AS "show_title!",
+                              overview, release_date, runtime_minutes, poster, poster_plugin,
+                              backdrop, backdrop_plugin, logo, logo_plugin, still, genres,
+                              content_rating, show_poster, show_poster_plugin, show_overview,
+                              show_first_air_date, metadata_version, libraries.title_sources
+                       FROM item_matches
+                       JOIN library_items ON library_items.id = item_matches.item_id
+                       JOIN library_files ON library_files.id = library_items.file_id
+                       JOIN libraries ON libraries.id = library_files.library_id
+                       WHERE library_files.library_id = ?
+                         AND library_items.kind = 'episode'
+                         AND item_matches.state = 'matched'
+                       ORDER BY library_items.season, library_items.episode, library_files.path"#,
+                    library
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
+        // Ordered by season, episode, then path, so within a Season the rows of one Episode are
+        // adjacent, by path.
+        let mut shows: BTreeMap<ExternalId, Show> = BTreeMap::new();
+        for row in rows {
+            let show_ids = ids_from_json(row.show_ids.as_deref());
+            let ids = ids_from_json(row.ids.as_deref());
+            let order = &row.title_sources;
+            let (Some(show_id), Some(id)) =
+                (primary_id_in(&show_ids, order), primary_id_in(&ids, order))
+            else {
+                continue;
+            };
+            let show = match shows.entry(show_id.clone()) {
+                Entry::Occupied(show) => show.into_mut(),
+                Entry::Vacant(entry) => entry.insert(Show {
+                    id: show_id,
+                    ids: show_ids,
+                    title: row.show_title,
+                    own_poster: ImageRef::stored(row.show_poster, row.show_poster_plugin),
+                    metadata_version: row.metadata_version,
+                    backdrop: ImageRef::stored(row.backdrop, row.backdrop_plugin),
+                    logo: ImageRef::stored(row.logo, row.logo_plugin),
+                    overview: row.show_overview,
+                    first_air_date: row.show_first_air_date,
+                    genres: genres(row.genres.as_deref())?,
+                    content_rating: row.content_rating,
+                    seasons: BTreeMap::new(),
+                }),
+            };
+            let season = show.seasons.entry(row.season).or_insert_with(|| Season {
+                poster: ImageRef::stored(row.poster, row.poster_plugin),
+                episodes: Vec::new(),
+            });
+            let version = version(
+                row.file,
+                row.path,
+                row.size,
+                row.modified_ns,
+                row.parser_version,
+            );
+            match season.episodes.last_mut() {
+                Some(episode) if episode.id == id => episode.versions.push(version),
+                _ => season.episodes.push(Episode {
+                    id,
+                    ids,
+                    season: row.season,
+                    number: row.episode,
+                    title: row.title,
+                    overview: row.overview,
+                    air_date: row.release_date,
+                    runtime_minutes: row.runtime_minutes,
+                    plugin: row.plugin,
+                    still: row.still,
+                    versions: vec![version],
+                }),
+            }
+        }
+        let mut shows: Vec<Show> = shows.into_values().collect();
+        shows.sort_by(|a, b| a.title.cmp(&b.title));
+        Ok(shows)
+    }
+}
+
+impl Contents {
+    /// Every id of each of the `named` Movies, or Episodes, of the Library `library`, in the same
+    /// order, each found by the id it is named by. One the Library doesn't have keeps only that
+    /// id. Reads only the named titles' Matches, however large the Library.
+    pub(crate) async fn every_id(
+        &self,
+        library: i64,
+        kind: ItemKind,
+        named: &[ExternalId],
+    ) -> Result<Vec<ExternalIds>, sqlx::Error> {
+        let asked: Vec<[&str; 2]> = (named.iter())
+            .map(|id| [id.namespace(), id.value()])
+            .collect();
+        let asked = serde_json::Value::from(asked).to_string();
+        // Where more than one Match has a named id, as Versions of one title or two titles sharing
+        // an id, the first row by the ORDER BY below keeps it: by Show title (a Movie has none),
+        // season and episode number, then the Match's own title, and only then path, so a title
+        // that sorts first keeps the id even where its path sorts last. An Episode without a Show
+        // id is left out, as `shows` leaves it out.
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT CAST(asked.key AS INTEGER) AS "position!: i64", "#
+                        + $ids
+                        + r#"'title') AS "ids?: String"
+                       FROM json_each(?2) AS asked
+                       JOIN item_match_ids AS named
+                           ON named.scope = 'title'
+                          AND named.namespace = json_extract(asked.value, '$[0]')
+                          AND named.value = json_extract(asked.value, '$[1]')
+                       JOIN item_matches ON item_matches.item_id = named.item_id
+                       JOIN library_items ON library_items.id = item_matches.item_id
+                       JOIN library_files ON library_files.id = library_items.file_id
+                       WHERE library_files.library_id = ?1
+                         AND library_items.kind = ?3
+                         AND item_matches.state = 'matched'
+                         AND (library_items.kind = 'movie'
+                              OR EXISTS (SELECT 1 FROM item_match_ids AS show
+                                         WHERE show.item_id = item_matches.item_id
+                                           AND show.scope = 'show'))
+                       ORDER BY asked.key, item_matches.show_title, library_items.season,
+                                library_items.episode, item_matches.title, library_files.path"#,
+                    library,
+                    asked,
+                    kind
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
+        let mut found: Vec<Option<ExternalIds>> = vec![None; named.len()];
+        for row in rows {
+            let first = usize::try_from(row.position)
+                .ok()
+                .and_then(|position| found.get_mut(position))
+                .filter(|found| found.is_none());
+            if let Some(first) = first {
+                *first = Some(ids_from_json(row.ids.as_deref()));
+            }
+        }
+        Ok((named.iter().zip(found))
+            .map(|(named, found)| found.unwrap_or_else(|| ExternalIds::from_iter([named.clone()])))
+            .collect())
+    }
+}
+
+/// The oldest Library with an Item Matched to the Movie `id`, by any of its ids, if any, read
+/// on `conn` so a write can act on the answer before a scan changes it.
+pub(crate) async fn library_with_movie(
+    conn: &mut SqliteConnection,
+    id: &ExternalId,
+) -> Result<Option<i64>, sqlx::Error> {
+    let (namespace, value) = (id.namespace(), id.value());
+    sqlx::query_scalar!(
+        r#"SELECT MIN(library_files.library_id) AS "library: i64"
+           FROM item_match_ids
+           JOIN item_matches ON item_matches.item_id = item_match_ids.item_id
+           JOIN library_items ON library_items.id = item_matches.item_id
+           JOIN library_files ON library_files.id = library_items.file_id
+           WHERE item_match_ids.scope = 'title'
+             AND item_match_ids.namespace = ?
+             AND item_match_ids.value = ?
+             AND item_matches.state = 'matched'
+             AND library_items.kind = 'movie'"#,
+        namespace,
+        value
+    )
+    .fetch_one(&mut *conn)
+    .await
+}
+
+/// The numbers of the Episodes of Season `season` of the Show `show`, by any of its ids,
+/// Matched in any Library.
+pub(crate) async fn matched_episodes(
+    conn: &mut SqliteConnection,
+    show: &ExternalId,
+    season: i64,
+) -> Result<HashSet<i64>, sqlx::Error> {
+    let (namespace, value) = (show.namespace(), show.value());
+    // Matching finds an Episode by the numbers its file's name gives, so they are the Episode's.
+    let numbers = sqlx::query_scalar!(
+        r#"SELECT library_items.episode AS "episode!"
+           FROM item_match_ids
+           JOIN item_matches ON item_matches.item_id = item_match_ids.item_id
+           JOIN library_items ON library_items.id = item_matches.item_id
+           WHERE item_match_ids.scope = 'show'
+             AND item_match_ids.namespace = ?
+             AND item_match_ids.value = ?
+             AND item_matches.state = 'matched'
+             AND library_items.kind = 'episode'
+             AND library_items.season = ?"#,
+        namespace,
+        value,
+        season
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    Ok(numbers.into_iter().collect())
+}
+
+/// The genres in the `genres` column's JSON, `json`: none where it's NULL, as for a Match stored
+/// before Matches had them.
+fn genres(json: Option<&str>) -> Result<Vec<String>, sqlx::Error> {
+    json.map_or(Ok(Vec::new()), |json| {
+        serde_json::from_str(json).map_err(|err| sqlx::Error::Decode(err.into()))
+    })
+}
+
+/// The Version of a file that [`Contents::movies`] and [`Contents::shows`] read, its columns
+/// in the order both select them.
+fn version(id: i64, path: String, size: i64, modified_ns: i64, parser_version: i64) -> Version {
+    let file = Stored {
+        id,
+        size,
+        modified_ns,
+        parser_version,
+    };
+    Version { file, path }
+}
+
+#[cfg(test)]
+#[path = "matched_tests.rs"]
+mod tests;

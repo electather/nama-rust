@@ -1,0 +1,19 @@
+{
+  "name": "Severance",
+  "thetvdb_id": "371980",
+  "clearlogo": [
+    {"id": "2001", "url": "https://assets.fanart.tv/fanart/tv/371980/clearlogo/severance-61a.png", "lang": "en", "likes": "1"}
+  ],
+  "hdtvlogo": [
+    {"id": "2002", "url": "https://assets.fanart.tv/fanart/tv/371980/hdtvlogo/severance-61b.png", "lang": "en", "likes": "5"}
+  ],
+  "showbackground": [
+    {"id": "2003", "url": "https://assets.fanart.tv/fanart/tv/371980/showbackground/severance-61c.jpg", "lang": "", "likes": "2", "season": "all"}
+  ],
+  "tvthumb": [
+    {"id": "2004", "url": "https://assets.fanart.tv/fanart/tv/371980/tvthumb/severance-61d.jpg", "lang": "en", "likes": "0"}
+  ],
+  "seasonposter": [
+    {"id": "2005", "url": "https://assets.fanart.tv/fanart/tv/371980/seasonposter/severance-61e.jpg", "lang": "en", "likes": "1", "season": "1"}
+  ]
+}

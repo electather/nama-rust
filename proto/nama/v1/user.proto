@@ -2,10 +2,12 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/plugin.proto";
 import "nama/v1/sign_in.proto";
 
-// Managing the Server's Users, their Devices and Plugin Connections. Every RPC but `ListDevices`,
-// `RevokeDevice`, `ChangePassword` and the Plugin Connection ones needs `PERMISSION_MANAGE_USERS`,
+// Managing the Server's Users, their Devices, Plugin Connections and Personal settings. Every RPC
+// but `ListDevices`, `RevokeDevice`, `ChangePassword`, the Plugin Connection ones and the Personal
+// settings ones needs `PERMISSION_MANAGE_USERS`,
 // and fails with `permission_denied` without it.
 // Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
 // User with it, grant it, put it in the default Permissions or create a User while they hold it, or
@@ -83,6 +85,26 @@ service UserService {
   // Disconnects the caller from a Plugin, deleting their Plugin Connection, or the link they are
   // waiting on. Disconnecting what isn't connected does nothing.
   rpc DeletePluginConnection(DeletePluginConnectionRequest) returns (DeletePluginConnectionResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Lists the caller's own Personal settings (ADR 0046): one entry per enabled Plugin whose
+  // Manifest declares any, sorted by Plugin id. Any signed-in User may list their own, and only
+  // their own. A secret's value is never sent, only whether it is set.
+  rpc ListPersonalSettings(ListPersonalSettingsRequest) returns (ListPersonalSettingsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Replaces the caller's own Personal settings for one Plugin. A secret left out or blank keeps
+  // its stored value, and a key the Plugin doesn't declare is ignored. Fails with
+  // `REFUSAL_REASON_PLUGIN_NOT_FOUND` for a Plugin that isn't enabled or declares no Personal
+  // settings, `REFUSAL_REASON_FIELD_REQUIRED` for a required one left out or blank, and
+  // `REFUSAL_REASON_SETTING_WRONG_KIND` for a value of the wrong kind, each naming the setting as
+  // `settings.<key>`.
+  rpc UpdatePersonalSettings(UpdatePersonalSettingsRequest) returns (UpdatePersonalSettingsResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Forgets the caller's own Personal settings for one Plugin. Forgetting what isn't set does
+  // nothing.
+  rpc DeletePersonalSettings(DeletePersonalSettingsRequest) returns (DeletePersonalSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
 }
@@ -216,3 +238,43 @@ message DeletePluginConnectionRequest {
 }
 
 message DeletePluginConnectionResponse {}
+
+message ListPersonalSettingsRequest {}
+
+message ListPersonalSettingsResponse {
+  // One per enabled Plugin that declares Personal settings, sorted by Plugin id.
+  repeated PersonalSettings plugins = 1;
+}
+
+// One Plugin's Personal settings, with the caller's own values.
+message PersonalSettings {
+  // The Plugin's id, such as `ntfy`.
+  string plugin_id = 1;
+  // The Plugin's name, from its Manifest.
+  string name = 2;
+  // Where to fetch the Plugin's logo, or empty if it has none.
+  string logo_url = 3;
+  // Each Personal setting the Manifest declares, in its order, with the caller's value. A
+  // secret's value is never set: see `Setting.secret_set`.
+  repeated Setting settings = 4;
+}
+
+message UpdatePersonalSettingsRequest {
+  // The Plugin's id, such as `ntfy`.
+  string plugin_id = 1;
+  // Every value the caller is to have, by key, replacing those they had but for a secret left out
+  // or blank.
+  map<string, SettingValue> settings = 2;
+}
+
+message UpdatePersonalSettingsResponse {
+  // The Plugin's Personal settings as they are now.
+  PersonalSettings plugin = 1;
+}
+
+message DeletePersonalSettingsRequest {
+  // The Plugin's id, such as `ntfy`.
+  string plugin_id = 1;
+}
+
+message DeletePersonalSettingsResponse {}

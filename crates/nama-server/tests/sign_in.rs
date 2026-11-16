@@ -23,12 +23,12 @@ use nama_proto::nama::v1::{
     LibraryServiceClient, RefusalReason, ScanLibraryRequest, SubscribeRequest, SubscribeResponse,
 };
 use nama_server::{
-    codes::SetupCode,
     config::Config,
     db::{self, Database},
     ffmpeg::Ffmpeg,
     plugin_settings::PluginSettings,
     plugins::Registry,
+    users::SetupCode,
 };
 use refused::assert_refused;
 use serde_json::{Value, json};
@@ -114,7 +114,7 @@ async fn start_with(setup_code: Option<SetupCode>, config: &Config) -> TestServe
 /// A `Setup` request with the Server's Setup Code, asking for `delivery`.
 fn setup_request(server: &TestServer, delivery: &str) -> Value {
     json!({
-        "setupCode": server.setup_code.as_ref().map(ToString::to_string).unwrap_or_default(),
+        "setupCode": server.setup_code.as_ref().map_or_default(ToString::to_string),
         "name": "Ada",
         "password": PASSWORD,
         "deviceName": "Laptop",

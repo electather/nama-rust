@@ -1,0 +1,24 @@
+{
+  "name": "Heat",
+  "tmdb_id": "949",
+  "imdb_id": "tt0113277",
+  "hdmovielogo": [
+    {"id": "1001", "url": "https://assets.fanart.tv/fanart/movies/949/hdmovielogo/heat-5e1a.png", "lang": "en", "likes": "7"},
+    {"id": "1002", "url": "https://assets.fanart.tv/fanart/movies/949/hdmovielogo/heat-5e1b.png", "lang": "00", "likes": "2"}
+  ],
+  "movielogo": [
+    {"id": "1003", "url": "https://assets.fanart.tv/fanart/movies/949/movielogo/heat-4f2a.png", "lang": "en", "likes": "1"}
+  ],
+  "movieposter": [
+    {"id": "1004", "url": "https://assets.fanart.tv/fanart/movies/949/movieposter/heat-52c1.jpg", "lang": "de", "likes": "0"}
+  ],
+  "moviebackground": [
+    {"id": "1005", "url": "https://assets.fanart.tv/fanart/movies/949/moviebackground/heat-50d3.jpg", "lang": "", "likes": "4"}
+  ],
+  "hdmovieclearart": [
+    {"id": "1006", "url": "https://assets.fanart.tv/fanart/movies/949/hdmovieclearart/heat-53aa.png", "lang": "en", "likes": "3"}
+  ],
+  "moviedisc": [
+    {"id": "1007", "url": "https://assets.fanart.tv/fanart/movies/949/moviedisc/heat-51bb.png", "lang": "en", "likes": "1", "disc": "1", "disc_type": "bluray"}
+  ]
+}

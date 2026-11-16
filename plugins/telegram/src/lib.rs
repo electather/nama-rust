@@ -4,9 +4,14 @@
 //! its binary.
 
 use nama_pdk::{
-    Notification,
-    nama_proto::nama::v1::{Request, RequestState, event::Event, request::MovieOrSeason},
+    Manifest, Notification,
+    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
+    services,
 };
+
+const BOT_TOKEN: &str = "bot_token";
+const CHANNEL: &str = "channel";
+const API_URL: &str = "api_url";
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -21,10 +26,6 @@ mod exports {
         Buffa, ConnectionStarted, Connector, FnResult, Manifest, Notification, Notifier, Recipient,
         RecipientGone,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
-        nama_proto::nama::{
-            plugin::v1::{ProvidePoint, SettingField},
-            v1::{SettingKind, SettingValue, setting_value},
-        },
         plugin_fn,
     };
     use serde::{
@@ -32,67 +33,11 @@ mod exports {
         de::{DeserializeOwned, IgnoredAny},
     };
 
-    const BOT_TOKEN: &str = "bot_token";
-    const CHANNEL: &str = "channel";
-    const API_URL: &str = "api_url";
+    use super::{API_URL, BOT_TOKEN, CHANNEL};
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
-        let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-            key: key.to_owned(),
-            label: label.to_owned(),
-            description: description.to_owned(),
-            kind: kind.into(),
-            ..SettingField::default()
-        };
-        Ok(Buffa(Manifest {
-            logo_svg: include_str!("../logo.svg").to_owned(),
-            providers: vec![
-                ProvidePoint::PROVIDE_POINT_NOTIFIER.into(),
-                ProvidePoint::PROVIDE_POINT_CONNECTOR.into(),
-            ],
-            allowed_hosts: vec!["api.telegram.org".to_owned()],
-            settings: vec![
-                SettingField {
-                    required: true,
-                    ..setting(
-                        BOT_TOKEN,
-                        "Bot token",
-                        "The token BotFather gave your bot, such as 123456:ABC-DEF1234ghIkl.",
-                        SettingKind::SETTING_KIND_SECRET,
-                    )
-                },
-                setting(
-                    CHANNEL,
-                    "Channel",
-                    "Where every Request event is posted: a chat id, such as -1001234567890, or a \
-                     public channel's @name. The bot must be an admin there. Leave it empty to \
-                     post nothing.",
-                    SettingKind::SETTING_KIND_TEXT,
-                ),
-                SettingField {
-                    default_value: SettingValue {
-                        value: Some(setting_value::Value::TextValue(
-                            "https://api.telegram.org".to_owned(),
-                        )),
-                        ..SettingValue::default()
-                    }
-                    .into(),
-                    ..setting(
-                        API_URL,
-                        "Bot API URL",
-                        "Where the Telegram Bot API is. Change it only for a Bot API server of \
-                         your own.",
-                        SettingKind::SETTING_KIND_URL,
-                    )
-                },
-            ],
-            name: "Telegram".to_owned(),
-            description:
-                "Posts Requests to a Telegram channel and tells Users about theirs in a chat."
-                    .to_owned(),
-            ..nama_pdk::manifest("telegram", env!("CARGO_PKG_VERSION"))
-        }))
+        Ok(Buffa(super::manifest()))
     }
 
     /// Posts each notification for the channel to it, if one is set, and sends each one for a
@@ -113,6 +58,11 @@ mod exports {
                     Err(error) if error.is::<Forbidden>() => Err(RecipientGone.into()),
                     sent => sent,
                 },
+                // Telegram declares no Personal settings, so a User sent this way has nothing to
+                // be reached by.
+                Recipient::User(_) => Err(Error::msg(
+                    "Telegram has no Personal settings, so it can't reach a User by them",
+                )),
             }
         }
     }
@@ -267,330 +217,74 @@ mod exports {
     }
 }
 
+/// What `manifest()` returns, kept apart from the export so a unit test can read it.
+fn manifest() -> Manifest {
+    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        description: description.to_owned(),
+        kind: kind.into(),
+        ..SettingField::default()
+    };
+    Manifest {
+        logo_svg: include_str!("../logo.svg").to_owned(),
+        points: vec![
+            nama_pdk::point(services::NOTIFIER),
+            nama_pdk::point(services::CONNECTOR),
+        ],
+        allowed_hosts: vec!["api.telegram.org".to_owned()],
+        settings: vec![
+            SettingField {
+                required: true,
+                ..setting(
+                    BOT_TOKEN,
+                    "Bot token",
+                    "The token BotFather gave your bot, such as 123456:ABC-DEF1234ghIkl.",
+                    SettingKind::SETTING_KIND_SECRET,
+                )
+            },
+            setting(
+                CHANNEL,
+                "Channel",
+                "Where every Request event is posted: a chat id, such as -1001234567890, or a \
+                 public channel's @name. The bot must be an admin there. Leave it empty to \
+                 post nothing.",
+                SettingKind::SETTING_KIND_TEXT,
+            ),
+            SettingField {
+                default_value: SettingValue {
+                    value: Some(setting_value::Value::TextValue(
+                        "https://api.telegram.org".to_owned(),
+                    )),
+                    ..SettingValue::default()
+                }
+                .into(),
+                ..setting(
+                    API_URL,
+                    "Bot API URL",
+                    "Where the Telegram Bot API is. Change it only for a Bot API server of \
+                     your own.",
+                    SettingKind::SETTING_KIND_URL,
+                )
+            },
+        ],
+        name: "Telegram".to_owned(),
+        description: "Posts Requests to a Telegram channel and tells Users about theirs in a chat."
+            .to_owned(),
+        ..nama_pdk::manifest("telegram", env!("CARGO_PKG_VERSION"))
+    }
+}
+
 /// What to post about `notification`, in the Glossary's words, then the link to its Request if
 /// the Server gives one, or `None` for what the channel isn't told.
 fn message(notification: &Notification) -> Option<String> {
-    let text = what_happened(notification)?;
+    let text = nama_pdk::what_happened(notification)?;
     Some(match &notification.request_url {
         Some(link) => format!("{text}\n{link}"),
         None => text,
     })
 }
 
-/// What happened, or `None` for what the channel isn't told: download progress, which changes
-/// every minute, and a state this Plugin doesn't know.
-fn what_happened(notification: &Notification) -> Option<String> {
-    let request = notification.request.as_option()?;
-    let title = title(request);
-    let name = |user_id: i64| {
-        request
-            .requesters
-            .iter()
-            .find(|requester| requester.user_id == user_id)
-            .map_or("Someone", |requester| requester.name.as_str())
-    };
-    Some(match notification.event.as_option()?.event.as_ref()? {
-        Event::RequestCreated(_) => {
-            let asker = request
-                .requesters
-                .first()
-                .map_or("someone", |requester| requester.name.as_str());
-            format!(
-                "New Request: {title}, from {asker}, is {}.",
-                state(request)?
-            )
-        }
-        Event::RequesterAdded(added) => format!("{} also asked for {title}.", name(added.user_id)),
-        Event::RequestStateChanged(_) => {
-            let reason = request
-                .failure_reason
-                .as_ref()
-                .or(request.decline_reason.as_ref());
-            let reason = reason.map_or_else(String::new, |reason| format!(" Reason: {reason}"));
-            let quality = approved_at(request);
-            format!("{title} is now {}{quality}.{reason}", state(request)?)
-        }
-        Event::RequestCancelled(cancelled) => match &cancelled.deleted_by {
-            Some(by) => format!("{by} deleted {title}, so its Request was cancelled."),
-            None => format!("The Request for {title} was cancelled."),
-        },
-        Event::RequesterRemoved(removed) => format!(
-            "{} withdrew from the Request for {title}.",
-            name(removed.user_id)
-        ),
-        Event::RequestWithdrawn(_) => format!("The Request for {title} was withdrawn."),
-        Event::RequestProgress(_)
-        | Event::ScanStarted(_)
-        | Event::ScanProgress(_)
-        | Event::ScanFinished(_)
-        | Event::LibraryItemAdded(_)
-        | Event::LibraryItemRemoved(_)
-        | Event::ItemMatched(_)
-        | Event::MatchingFinished(_)
-        | Event::ProbingFinished(_)
-        | Event::FollowedShowCreated(_)
-        | Event::FollowedShowRequesterAdded(_)
-        | Event::FollowedShowStateChanged(_)
-        | Event::FollowedShowCancelled(_)
-        | Event::FollowedShowRequesterRemoved(_)
-        | Event::FollowedShowWithdrawn(_)
-        | Event::PlaybackStarted(_)
-        | Event::PlaybackEnded(_)
-        | Event::PlaybackChanged(_) => return None,
-    })
-}
-
-/// What `request` asks for, with the year it came out if known: `Dune (2021)` or
-/// `Dark Season 2 (2019)`.
-fn title(request: &Request) -> String {
-    let (title, date) = match &request.movie_or_season {
-        Some(MovieOrSeason::Movie(movie)) => (movie.title.clone(), movie.release_date.as_deref()),
-        Some(MovieOrSeason::Season(season)) => (
-            format!("{} Season {}", season.show_title, season.season_number),
-            season.air_date.as_deref(),
-        ),
-        // The Server sets one on every Request it sends.
-        None => (String::new(), None),
-    };
-    // Dates are `YYYY-MM-DD`.
-    match date.and_then(|date| date.get(..4)) {
-        Some(year) => format!("{title} ({year})"),
-        None => title,
-    }
-}
-
-/// What an Approved `request` is downloaded at, and who last changed that from what, such as
-/// ` at HD, changed from 4K by Sam`, or nothing if it has no Quality or isn't Approved.
-fn approved_at(request: &Request) -> String {
-    let Some(quality) = request.quality.as_option() else {
-        return String::new();
-    };
-    if request.state != RequestState::REQUEST_STATE_APPROVED {
-        return String::new();
-    }
-    let Some(change) = request.quality_change.as_option() else {
-        return format!(" at {}", quality.name);
-    };
-    let from = change
-        .previous_name
-        .as_ref()
-        .map_or_else(String::new, |previous| format!(" from {previous}"));
-    let by = change.changed_by.as_deref().unwrap_or("a Request manager");
-    format!(" at {}, changed{from} by {by}", quality.name)
-}
-
-/// The Glossary's name for `request`'s state.
-fn state(request: &Request) -> Option<&'static str> {
-    Some(match request.state.as_known()? {
-        RequestState::REQUEST_STATE_PENDING => "Pending",
-        RequestState::REQUEST_STATE_APPROVED => "Approved",
-        RequestState::REQUEST_STATE_DECLINED => "Declined",
-        RequestState::REQUEST_STATE_PROCESSING => "Processing",
-        RequestState::REQUEST_STATE_PARTIALLY_AVAILABLE => "Partially Available",
-        RequestState::REQUEST_STATE_AVAILABLE => "Available",
-        RequestState::REQUEST_STATE_FAILED => "Failed",
-        RequestState::REQUEST_STATE_UNSPECIFIED => return None,
-    })
-}
-
 #[cfg(test)]
-mod tests {
-    use nama_pdk::{
-        Notification,
-        nama_proto::nama::v1::{
-            Event, QualityChange, Request, RequestCancelled, RequestProgress, RequestState,
-            RequestStateChanged, RequestedMovie, RequestedQuality, RequestedSeason, Requester,
-            RequesterAdded, event,
-        },
-    };
-
-    use super::message;
-
-    fn requester(user_id: i64, name: &str) -> Requester {
-        Requester {
-            user_id,
-            name: name.to_owned(),
-            ..Requester::default()
-        }
-    }
-
-    /// Dune, released in 2021, in `state`, asked for by Sam then Ada.
-    fn dune(state: RequestState) -> Request {
-        Request {
-            movie_or_season: RequestedMovie {
-                title: "Dune".to_owned(),
-                release_date: Some("2021-09-15".to_owned()),
-                ..RequestedMovie::default()
-            }
-            .into(),
-            state: state.into(),
-            requesters: vec![requester(1, "Sam"), requester(2, "Ada")],
-            ..Request::default()
-        }
-    }
-
-    fn notify(event: impl Into<Option<event::Event>>, request: Request) -> Option<String> {
-        let event = Event {
-            event: event.into(),
-            ..Event::default()
-        };
-        message(&Notification {
-            event: event.into(),
-            request: request.into(),
-            ..Notification::default()
-        })
-    }
-
-    #[test]
-    fn a_failed_request_says_why() {
-        let request = Request {
-            failure_reason: Some("Radarr didn't answer".to_owned()),
-            ..dune(RequestState::REQUEST_STATE_FAILED)
-        };
-
-        let posted = notify(RequestStateChanged::default(), request);
-
-        assert_eq!(
-            posted.as_deref(),
-            Some("Dune (2021) is now Failed. Reason: Radarr didn't answer")
-        );
-    }
-
-    /// Dune Approved at `name`.
-    fn dune_approved_at(name: &str) -> Request {
-        Request {
-            quality: RequestedQuality {
-                name: name.to_owned(),
-                ..RequestedQuality::default()
-            }
-            .into(),
-            ..dune(RequestState::REQUEST_STATE_APPROVED)
-        }
-    }
-
-    #[test]
-    fn an_approved_request_names_its_quality_and_who_changed_it_from_what() {
-        let changed = Request {
-            quality_change: QualityChange {
-                changed_by: Some("Sam".to_owned()),
-                previous_name: Some("4K".to_owned()),
-                ..QualityChange::default()
-            }
-            .into(),
-            ..dune_approved_at("HD")
-        };
-
-        let unchanged = notify(RequestStateChanged::default(), dune_approved_at("HD"));
-        let changed = notify(RequestStateChanged::default(), changed);
-
-        assert_eq!(
-            unchanged.as_deref(),
-            Some("Dune (2021) is now Approved at HD.")
-        );
-        assert_eq!(
-            changed.as_deref(),
-            Some("Dune (2021) is now Approved at HD, changed from 4K by Sam.")
-        );
-    }
-
-    #[test]
-    fn a_quality_changed_from_none_by_a_deleted_user_says_a_request_manager_changed_it() {
-        let request = Request {
-            quality_change: QualityChange::default().into(),
-            ..dune_approved_at("HD")
-        };
-
-        let posted = notify(RequestStateChanged::default(), request);
-
-        assert_eq!(
-            posted.as_deref(),
-            Some("Dune (2021) is now Approved at HD, changed by a Request manager.")
-        );
-    }
-
-    #[test]
-    fn a_season_is_named_by_its_show_and_number() {
-        let request = Request {
-            movie_or_season: RequestedSeason {
-                show_title: "Dark".to_owned(),
-                season_number: 2,
-                air_date: Some("2019-06-21".to_owned()),
-                ..RequestedSeason::default()
-            }
-            .into(),
-            ..dune(RequestState::REQUEST_STATE_PARTIALLY_AVAILABLE)
-        };
-
-        let posted = notify(RequestStateChanged::default(), request);
-
-        assert_eq!(
-            posted.as_deref(),
-            Some("Dark Season 2 (2019) is now Partially Available.")
-        );
-    }
-
-    #[test]
-    fn a_requester_joining_is_named() {
-        let added = RequesterAdded {
-            user_id: 2,
-            ..RequesterAdded::default()
-        };
-
-        let posted = notify(added, dune(RequestState::REQUEST_STATE_PENDING));
-
-        assert_eq!(posted.as_deref(), Some("Ada also asked for Dune (2021)."));
-    }
-
-    #[test]
-    fn a_message_ends_with_the_link_to_the_request_the_server_gives() {
-        let notification = Notification {
-            event: Event {
-                event: Some(RequestStateChanged::default().into()),
-                ..Event::default()
-            }
-            .into(),
-            request: dune(RequestState::REQUEST_STATE_PENDING).into(),
-            request_url: Some("https://nama.example.com/requests/7".to_owned()),
-            ..Notification::default()
-        };
-
-        let posted = message(&notification);
-
-        assert_eq!(
-            posted.as_deref(),
-            Some(
-                "Dune (2021) is now Pending.\n\
-                 https://nama.example.com/requests/7"
-            )
-        );
-    }
-
-    #[test]
-    fn a_cancelled_request_is_posted_but_download_progress_is_not() {
-        let request = dune(RequestState::REQUEST_STATE_PROCESSING);
-
-        let cancelled = notify(RequestCancelled::default(), request.clone());
-        let progress = notify(RequestProgress::default(), request);
-
-        assert_eq!(
-            cancelled.as_deref(),
-            Some("The Request for Dune (2021) was cancelled.")
-        );
-        assert_eq!(progress, None);
-    }
-
-    #[test]
-    fn a_request_deleting_cancelled_names_who_deleted_it() {
-        let deleted = RequestCancelled {
-            deleted_by: Some("Grace".to_owned()),
-            ..Default::default()
-        };
-
-        let posted = notify(deleted, dune(RequestState::REQUEST_STATE_PROCESSING));
-
-        assert_eq!(
-            posted.as_deref(),
-            Some("Grace deleted Dune (2021), so its Request was cancelled.")
-        );
-    }
-}
+#[path = "lib_tests.rs"]
+mod tests;

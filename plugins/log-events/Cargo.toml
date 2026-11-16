@@ -6,10 +6,9 @@ license = "AGPL-3.0-only"
 edition.workspace = true
 repository.workspace = true
 
-# Built-in Plugins depend on no workspace crate but nama-plugin-api and nama-proto (ADR 0006).
+# Built-in Plugins depend on no workspace crate but nama-plugin-api (ADR 0006).
 [dependencies]
-nama-plugin-api = { version = "0.1.0", path = "../../crates/nama-plugin-api" }
-nama-proto = { version = "0.2.0", path = "../../crates/nama-proto" }
+nama-plugin-api = { version = "0.2.0", path = "../../crates/nama-plugin-api" }
 tracing = "0.1"
 
 [dev-dependencies]

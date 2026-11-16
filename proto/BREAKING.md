@@ -1,14 +1,35 @@
 # Declared schema breaks
 
-CI runs `buf breaking` against main on every change (ADR 0007). A change that breaks the schema on purpose declares it here, and CI then prints the breaks and passes (ADR 0032). How to add one is in [`crates/nama-proto/README.md`](../crates/nama-proto/README.md).
+CI runs `buf breaking` on the client API, `proto/nama/v1/`, against main on every change (ADR 0007). A change that breaks it on purpose declares it here, and CI then prints the breaks and passes (ADR 0032). A change under `proto/nama/plugin/` needs no entry: the Plugin contract carries its own version, which says what a Plugin built before can still use (ADR 0041). How to add one is in [`crates/nama-proto/README.md`](../crates/nama-proto/README.md).
 
 Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the day the change merges, followed by:
 
 - each rule and file `buf breaking` reports;
 - what changed in the schema;
-- what a client or an Installed Plugin built before the change must do.
+- what a client built before the change must do.
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
+
+## 2026-11-16, #833
+
+- `RPC_NO_DELETE`, `nama/v1/match.proto`: `MatchService.SearchMetadata`.
+- `MESSAGE_NO_DELETE`, `nama/v1/match.proto`: `SearchMetadataRequest` and `SearchMetadataResponse`.
+- `ENUM_VALUE_SAME_NAME`, `nama/v1/plugin.proto`: `ExtensionPoint` 6.
+- `ENUM_VALUE_SAME_NAME`, `nama/v1/refusal.proto`: `RefusalReason` 29.
+- The client API says title source, as `GLOSSARY.md` does, in place of metadata provider or source. `MatchService.SearchMetadata` is now `SearchTitles`, taking `SearchTitlesRequest` and answering `SearchTitlesResponse`, with the same fields. `EXTENSION_POINT_METADATA_PROVIDER` is now `EXTENSION_POINT_TITLE_SOURCE` and `REFUSAL_REASON_NO_METADATA_PROVIDER` is now `REFUSAL_REASON_NO_TITLE_SOURCE`, keeping their numbers, 6 and 29.
+- A client built before calls a search path the Server no longer serves. Over JSON, it drops `EXTENSION_POINT_TITLE_SOURCE` from a Plugin's extension points, because it doesn't know the new name. It still reads `REFUSAL_REASON_NO_TITLE_SOURCE` by its number, since refusal details are binary. It must regenerate and call `SearchTitles`. The web app is the only client.
+
+## 2026-11-13, #833
+
+- `ONEOF_NO_DELETE`, `nama/v1/match.proto`: `ExternalId.id`.
+- Not reported by `buf breaking`: in `nama/v1/request.proto`, `RequestedMovie.tmdb_id` (1), `RequestedSeason.show_tmdb_id` (1), `show_imdb_id` (5) and `show_tvdb_id` (6), `FollowedShow.show_tmdb_id` (2), `CreateRequestRequest.movie_tmdb_id` (1), `CreateSeasonRequestsRequest.show_tmdb_id` (1) and `CreateFollowedShowRequest.show_tmdb_id` (1) are deleted with their numbers and names reserved.
+- Not reported by `buf breaking`: in `nama/v1/request.proto`, `MovieHit.tmdb_id`, `FoundMovie.tmdb_id`, `ShowHit.tmdb_id` and `FoundShow.tmdb_id` (each 1), `LookUpMovieRequest.movie_tmdb_id` (1) and `LookUpShowRequest.show_tmdb_id` (1) are deleted with their numbers and names reserved.
+- A title's `ExternalId` is now a `namespace` (4) and a `value` (5), such as `tmdb` and `603`, in place of the oneof of `tmdb` (1), `imdb` (2) and `tvdb` (3), whose numbers and names are reserved (ADR 0042). The Server refuses an id with a malformed namespace or an empty value with `REFUSAL_REASON_TITLE_ID_MALFORMED`.
+- A Request's title is an `ExternalId`: `RequestedMovie.id` (4) with every id the metadata source gave in `ids` (5), `RequestedSeason.show_id` (7) with `show_ids` (8), and `FollowedShow.show_id` (9). `CreateRequest` takes `movie_id` (3), `CreateSeasonRequests` and `CreateFollowedShow` take `show_id` (4 and 3); an id the Server can't look up is refused with `REFUSAL_REASON_UNKNOWN_TITLE` (ADR 0042). `REFUSAL_REASON_ALREADY_IN_LIBRARY`'s `tmdbId` param is now `titleId`, the id's text form (`tmdb-949`).
+- A search hit and a looked-up title carry their `ExternalId` in `id` (12 in each), and `LookUpMovie` and `LookUpShow` take `movie_id` and `show_id` (2) (ADR 0042). A look-up of an id no metadata source has, or can look titles up by, is answered `not_found` with the new `REFUSAL_REASON_TITLE_NOT_FOUND` (71) and its `titleId`, in place of `invalid_argument` with `REFUSAL_REASON_UNKNOWN_TITLE`.
+- A client built before reads no id from a title and sends none the Server takes; it must regenerate and read and send an id as `namespace` and `value`. The web app is the only client.
+- A client built before reads no title id from a Request or Followed Show, and every create it sends is refused for a missing id; it must regenerate and send and read `ExternalId`s. The web app is the only client.
+- A client built before reads no id from a hit or a looked-up title, and every look-up it sends is refused for a missing id; it must regenerate and send and read `ExternalId`s. The web app is the only client.
 
 ## 2026-11-12, #727
 

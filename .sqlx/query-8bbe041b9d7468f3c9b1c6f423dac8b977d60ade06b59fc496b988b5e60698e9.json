@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO watch_states\n                 (user_id, kind, title_id, position_ms, duration_ms, played, updated_at)\n             VALUES (?1, ?2, ?3, ?4, ?5,\n                     ?6 OR EXISTS (SELECT 1 FROM watch_states\n                                   WHERE user_id = ?1 AND kind = ?2 AND played\n                                     AND title_id IN (SELECT value FROM json_each(?8))),\n                     ?7)\n             ON CONFLICT (user_id, kind, title_id) DO UPDATE\n             SET position_ms = excluded.position_ms,\n                 duration_ms = excluded.duration_ms,\n                 played = watch_states.played OR excluded.played,\n                 updated_at = excluded.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "8bbe041b9d7468f3c9b1c6f423dac8b977d60ade06b59fc496b988b5e60698e9"
+}

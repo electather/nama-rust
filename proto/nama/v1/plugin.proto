@@ -4,8 +4,9 @@ package nama.v1;
 
 // The Server's Plugins and their settings. Needs `PERMISSION_MANAGE_SETTINGS`, and fails with
 // `permission_denied` without it. A secret setting's value never leaves the Server. Every call
-// but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails with
-// `REFUSAL_REASON_PLUGIN_REFUSED`.
+// but `GetPlugin` naming a Plugin the Server refused (see `PluginSummary.refused_reason`) fails
+// with `REFUSAL_REASON_PLUGIN_REFUSED`. A Plugin the Server took may still refuse to start with its
+// settings, which fails `EnablePlugin` with `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`.
 service PluginService {
   // Lists every Plugin on the Server, by id, without its settings.
   rpc ListPlugins(ListPluginsRequest) returns (ListPluginsResponse) {
@@ -18,10 +19,15 @@ service PluginService {
   }
   // Replaces a Plugin's settings and, if it is meant to be enabled, enables it again with them,
   // without a restart. Settings that don't fit its schema are refused with a Refusal naming
-  // `settings.<key>`, and nothing changes. If a choice setting has a value, the Plugin's settings
-  // check runs on the new settings first, and a check that fails, or doesn't offer that value, is
-  // refused with `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or `REFUSAL_REASON_CHOICE_NOT_OFFERED`
-  // naming the setting, and nothing changes. Fails with `not_found` for an unknown Plugin.
+  // `settings.<key>`, and nothing changes; so is a `SETTING_KIND_LIBRARIES` setting naming an id
+  // no Library has, with `REFUSAL_REASON_LIBRARY_NOT_FOUND` and the id in `libraryId`. If a choice
+  // setting has a value, the Plugin's settings check runs on the new settings first, and a check
+  // that fails, or doesn't offer that value, is refused with
+  // `REFUSAL_REASON_SETTINGS_CHECK_FAILED` or `REFUSAL_REASON_CHOICE_NOT_OFFERED` naming the
+  // setting, and nothing changes. A Plugin that then refuses to start with them
+  // doesn't fail the call: the settings are saved and it comes back not running
+  // (`plugin.summary.enabled` false); `EnablePlugin` says why with
+  // `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. Fails with `not_found` for an unknown Plugin.
   rpc UpdatePluginSettings(UpdatePluginSettingsRequest) returns (UpdatePluginSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -29,7 +35,8 @@ service PluginService {
   // Enabling one that is enabled already only saves that. If its stored settings don't fit its
   // schema, fails with `REFUSAL_REASON_FIELD_REQUIRED` or `REFUSAL_REASON_SETTING_WRONG_KIND`,
   // naming the setting in `field` as `settings.<key>` and in the `settingKey` param; the Plugin
-  // stays disabled and nothing is saved.
+  // stays disabled and nothing is saved. A Plugin that refuses to start with them fails with
+  // `REFUSAL_REASON_PLUGIN_REFUSED_TO_START` and stays disabled.
   rpc EnablePlugin(EnablePluginRequest) returns (EnablePluginResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -103,6 +110,10 @@ message UpdatePluginSettingsResponse {
 message EnablePluginRequest {
   // The Plugin's id, such as `tmdb`.
   string id = 1;
+  // The Plugin Permissions the Admin grants it, replacing those granted before. Each must be one
+  // its `requested_permissions` lists, or the call is refused with
+  // `REFUSAL_REASON_PERMISSION_NOT_REQUESTED`. Empty grants none.
+  repeated PluginPermission granted_permissions = 2;
 }
 
 message EnablePluginResponse {}
@@ -224,23 +235,58 @@ message PluginSummary {
   // `PUT` there uploads one, a JPEG, PNG or WebP, or an SVG of at most 64 KiB, for a User with
   // `PERMISSION_MANAGE_SETTINGS`.
   bool custom_logo = 12;
+  // The Plugin Permissions it asks for, which an Admin grants some or all of in `EnablePlugin`.
+  repeated PluginPermission requested_permissions = 13;
+  // The Plugin Permissions an Admin granted it, kept across restarts until it is enabled again.
+  repeated PluginPermission granted_permissions = 14;
 }
 
 // A unit of trusted functionality that plugs into a Server.
 message Plugin {
   // Held what `summary` holds now.
   reserved 1, 2, 3, 4, 7, 8, 9, 10, 11;
-  reserved "id", "version", "kind", "enabled", "refused_reason", "name", "description", "extension_points", "logo_svg";
+  reserved "id", "version", "kind", "enabled", "refused_reason";
+  reserved "name", "description", "extension_points", "logo_svg";
   // Its id, name, whether it is enabled and the rest that `ListPlugins` lists.
   PluginSummary summary = 12;
   // Every setting it takes, in the order a form shows them.
   repeated Setting settings = 5;
   // Whether it has a settings check, which `TestPluginSettings` runs.
   bool checks_settings = 6;
+  // Set while its Recogniser's last call failed, so the Admin sees one that keeps failing.
+  RecogniserFailure recogniser_failure = 13;
 }
 
-// A place in the Server a Plugin takes part at. Unlike the Plugin-facing `ProvidePoint` and
-// `ObservePoint` in `nama.plugin.v1`, this is what an admin is shown.
+// A Recogniser whose last call failed (ADR 0050). The Server keeps it in memory only: a call that
+// answers clears it, and so do disabling the Plugin and a restart.
+message RecogniserFailure {
+  // What the last failure said.
+  string last_error = 1;
+  // When it failed, in milliseconds since the Unix epoch.
+  int64 at_ms = 2;
+  // How many calls in a row have failed, the last included.
+  uint32 failed_in_a_row = 3;
+}
+
+// What an Admin lets a Plugin do in the Server, as its Manifest requests (ADR 0049). These are
+// not a User's Permissions: they say what the Plugin itself may read or change.
+enum PluginPermission {
+  PLUGIN_PERMISSION_UNSPECIFIED = 0;
+  // Keep its own notes in the Server, such as which titles it has already looked at.
+  PLUGIN_PERMISSION_STORE = 1;
+  // See every Library and the Movies and Episodes in it.
+  PLUGIN_PERMISSION_READ_LIBRARIES = 2;
+  // See what every User has watched, and when.
+  PLUGIN_PERMISSION_READ_WATCH_STATES = 3;
+  // Delete Movies and Episodes, with their files on disk.
+  PLUGIN_PERMISSION_DELETE_MEDIA = 4;
+  // See every User's id and display name.
+  PLUGIN_PERMISSION_READ_USERS = 5;
+}
+
+// A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin
+// names the points it serves by their `nama.plugin.v1` service, such as
+// `nama.plugin.v1.MovieFulfillerService` (ADR 0043).
 enum ExtensionPoint {
   EXTENSION_POINT_UNSPECIFIED = 0;
   // Hands Approved Movie Requests to an outside service, such as Radarr.
@@ -253,16 +299,23 @@ enum ExtensionPoint {
   EXTENSION_POINT_CONNECTOR = 4;
   // Checks the credentials people sign in with.
   EXTENSION_POINT_AUTHENTICATOR = 5;
-  // Finds metadata for Movies and Shows, such as TMDB.
-  EXTENSION_POINT_METADATA_PROVIDER = 6;
+  // A title source: searches for and describes Movies and Shows, such as TMDB.
+  EXTENSION_POINT_TITLE_SOURCE = 6;
   // Observes the Server's Events.
   EXTENSION_POINT_EVENTS_OBSERVER = 7;
   // Observes the Server starting.
   EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8;
+  // Proposes what a file is, which a Library lists to ask it (ADR 0050).
+  EXTENSION_POINT_RECOGNISER = 9;
+  // Keeps the Server's stored images, such as in S3, once an Admin picks it with
+  // `ServerService.SwitchImageStore`.
+  EXTENSION_POINT_BLOB_STORE = 10;
+  // Ticks on a schedule and asks the Server's Automation service, as far as the Permissions an
+  // Admin granted it allow, such as Cleanup (ADR 0048).
+  EXTENSION_POINT_AUTOMATION = 11;
 }
 
-// What kind of value a setting takes. An Installed Plugin's Manifest declares its settings' kinds
-// with it too (`nama.plugin.v1.SettingField`).
+// What kind of value a setting takes.
 enum SettingKind {
   SETTING_KIND_UNSPECIFIED = 0;
   // Text.
@@ -279,6 +332,9 @@ enum SettingKind {
   // An http or https URL, such as a Sonarr address. An Installed Plugin may send HTTP requests
   // to its host, as if its Manifest's `allowed_hosts` named it.
   SETTING_KIND_URL = 6;
+  // The ids of Libraries, picked from the Server's Library list (`ListLibraries`). Saving an id
+  // that names no Library is refused; a Library deleted later stays in the value.
+  SETTING_KIND_LIBRARIES = 7;
 }
 
 // One setting a Plugin takes, as its schema declares it, and its stored value.
@@ -309,5 +365,12 @@ message SettingValue {
     bool bool_value = 2;
     // A whole number, for SETTING_KIND_INTEGER.
     int64 integer_value = 3;
+    // Library ids, for SETTING_KIND_LIBRARIES.
+    LibraryIds library_ids = 4;
   }
+}
+
+// The ids of Libraries a SETTING_KIND_LIBRARIES setting names, in the order the admin gave them.
+message LibraryIds {
+  repeated int64 ids = 1;
 }

@@ -1,0 +1,176 @@
+use nama_plugin_api::PluginId;
+use tempfile::TempDir;
+
+use super::{Error, delete, get, put, put_within};
+use crate::db::Database;
+
+async fn open() -> (TempDir, Database) {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Database::open(data_dir.path()).await.unwrap();
+    (data_dir, db)
+}
+
+async fn insert_user(db: &Database, name: &str) -> i64 {
+    let name = name.to_owned();
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query_scalar(
+                "INSERT INTO users (username, display_username, permissions, created_at,
+                                    updated_at)
+                 VALUES (?, ?, 0, 0, 0) RETURNING id",
+            )
+            .bind(&name)
+            .bind(&name)
+            .fetch_one(&mut **tx)
+            .await
+        })
+    })
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn values_round_trip_plugin_wide_and_per_user_apart() {
+    let (_dir, db) = open().await;
+    let ada = insert_user(&db, "ada").await;
+    let cleanup = PluginId::from_static("cleanup");
+
+    put(&db, &cleanup, None, "seen".into(), b"all".to_vec())
+        .await
+        .unwrap();
+    put(&db, &cleanup, Some(ada), "seen".into(), b"ada".to_vec())
+        .await
+        .unwrap();
+    put(&db, &cleanup, None, "seen".into(), b"all again".to_vec())
+        .await
+        .unwrap();
+    let plugin_wide = get(&db, &cleanup, None, "seen").await.unwrap();
+    let adas = get(&db, &cleanup, Some(ada), "seen").await.unwrap();
+    delete(&db, &cleanup, Some(ada), "seen".into())
+        .await
+        .unwrap();
+
+    assert_eq!(plugin_wide.as_deref(), Some(&b"all again"[..]));
+    assert_eq!(adas.as_deref(), Some(&b"ada"[..]));
+    assert_eq!(get(&db, &cleanup, Some(ada), "seen").await.unwrap(), None);
+    assert!(get(&db, &cleanup, None, "seen").await.unwrap().is_some());
+}
+
+#[tokio::test]
+async fn one_plugin_cant_read_anothers_entries() {
+    let (_dir, db) = open().await;
+    put(
+        &db,
+        &PluginId::from_static("cleanup"),
+        None,
+        "seen".into(),
+        b"1".to_vec(),
+    )
+    .await
+    .unwrap();
+
+    let other = get(&db, &PluginId::from_static("other"), None, "seen")
+        .await
+        .unwrap();
+
+    assert_eq!(other, None);
+}
+
+#[tokio::test]
+async fn a_long_key_or_a_large_value_is_refused() {
+    let (_dir, db) = open().await;
+    let cleanup = PluginId::from_static("cleanup");
+
+    let key = put(&db, &cleanup, None, "k".repeat(257), Vec::new()).await;
+    let value = put(&db, &cleanup, None, "k".into(), vec![0; 64 * 1024 + 1]).await;
+    let largest = put(&db, &cleanup, None, "k".repeat(256), vec![0; 64 * 1024]).await;
+
+    assert!(matches!(key, Err(Error::KeyTooLong(257))), "{key:?}");
+    assert_eq!(
+        key.unwrap_err().to_string(),
+        "a Store key can't be over 256 bytes, and this one is 257"
+    );
+    assert!(
+        matches!(value, Err(Error::ValueTooLarge(65_537))),
+        "{value:?}"
+    );
+    largest.unwrap();
+}
+
+#[tokio::test]
+async fn deleting_a_user_deletes_their_entries() {
+    let (_dir, db) = open().await;
+    let ada = insert_user(&db, "ada").await;
+    let cleanup = PluginId::from_static("cleanup");
+    put(&db, &cleanup, Some(ada), "seen".into(), b"1".to_vec())
+        .await
+        .unwrap();
+
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query("DELETE FROM users WHERE id = ?")
+                .bind(ada)
+                .execute(&mut **tx)
+                .await
+        })
+    })
+    .await
+    .unwrap();
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM plugin_store")
+        .fetch_one(db.reader())
+        .await
+        .unwrap();
+
+    assert_eq!(left, 0);
+}
+
+#[tokio::test]
+async fn an_entry_for_no_user_is_refused() {
+    let (_dir, db) = open().await;
+
+    let put = put(
+        &db,
+        &PluginId::from_static("cleanup"),
+        Some(42),
+        "seen".into(),
+        Vec::new(),
+    )
+    .await;
+
+    assert!(matches!(put, Err(Error::NoUser(42))), "{put:?}");
+}
+
+#[tokio::test]
+async fn at_the_cap_a_new_key_is_refused_and_a_replacement_allowed() {
+    let (_dir, db) = open().await;
+    let ada = insert_user(&db, "ada").await;
+    let cleanup = PluginId::from_static("cleanup");
+    let put = |user, key: &str, value: &[u8]| {
+        put_within(&db, &cleanup, user, key.into(), value.to_vec(), 2)
+    };
+    put(None, "seen", b"1").await.unwrap();
+    put(Some(ada), "seen", b"1").await.unwrap();
+
+    let new_key = put(None, "other", b"1").await;
+    let replaced = put(Some(ada), "seen", b"2").await;
+    let other_plugin = put_within(
+        &db,
+        &PluginId::from_static("other"),
+        None,
+        "seen".into(),
+        Vec::new(),
+        2,
+    )
+    .await;
+
+    assert!(matches!(new_key, Err(Error::Full(2))), "{new_key:?}");
+    assert_eq!(
+        new_key.unwrap_err().to_string(),
+        "a Plugin can't keep over 2 entries in its Store; delete one to keep a new key"
+    );
+    replaced.unwrap();
+    other_plugin.unwrap();
+    let adas = get(&db, &cleanup, Some(ada), "seen").await.unwrap();
+    assert_eq!(adas.as_deref(), Some(&b"2"[..]));
+    assert_eq!(get(&db, &cleanup, None, "other").await.unwrap(), None);
+}

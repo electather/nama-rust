@@ -16,6 +16,8 @@ export interface FormErrors {
   signInCode?: string;
   newPassword?: string;
   folders?: string;
+  titleSources?: string;
+  recognisers?: string;
   serverUrl?: string;
   segmentFolder?: string;
   maxTranscodes?: string;
@@ -138,7 +140,7 @@ export function askRefusal(
   return refusal(
     error,
     attempt,
-    { [Code.Unavailable]: { form: "The metadata source didn’t answer. Try again in a moment." } },
+    { [Code.Unavailable]: { form: "The title source didn’t answer. Try again in a moment." } },
     byReason,
   ).form;
 }

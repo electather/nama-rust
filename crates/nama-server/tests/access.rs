@@ -31,13 +31,14 @@ const DELETE_MEDIA: [&str; 2] = [
 ];
 
 /// Every RPC that manages Libraries or Matches, which needs `PERMISSION_MANAGE_LIBRARIES`.
-const MANAGE_LIBRARIES: [&str; 9] = [
+const MANAGE_LIBRARIES: [&str; 10] = [
     "/nama.v1.LibraryService/CreateLibrary",
     "/nama.v1.LibraryService/GetLibrary",
     "/nama.v1.LibraryService/UpdateLibrary",
     "/nama.v1.LibraryService/DeleteLibrary",
     "/nama.v1.LibraryService/ScanLibrary",
-    "/nama.v1.MatchService/SearchMetadata",
+    "/nama.v1.LibraryService/ListTitleSources",
+    "/nama.v1.MatchService/SearchTitles",
     "/nama.v1.MatchService/SetMatch",
     "/nama.v1.MatchService/ClearMatch",
     "/nama.v1.MatchService/ListUnmatchedItems",
@@ -55,11 +56,12 @@ const MANAGE_USERS: [&str; 7] = [
 ];
 
 /// Every RPC that manages the Server's settings, which needs `PERMISSION_MANAGE_SETTINGS`.
-const MANAGE_SETTINGS: [&str; 12] = [
+const MANAGE_SETTINGS: [&str; 13] = [
     "/nama.v1.ServerService/GetServerSettings",
     "/nama.v1.ServerService/UpdateServerSettings",
     "/nama.v1.ServerService/GetImageSettings",
     "/nama.v1.ServerService/UpdateImageSettings",
+    "/nama.v1.ServerService/SwitchImageStore",
     "/nama.v1.PluginService/ListPlugins",
     "/nama.v1.PluginService/GetPlugin",
     "/nama.v1.PluginService/UpdatePluginSettings",
@@ -124,7 +126,7 @@ const BROWSE: [&str; 9] = [
 ];
 
 /// Every other unary RPC that needs a session.
-const SIGNED_IN: [&str; 12] = [
+const SIGNED_IN: [&str; 15] = [
     SIGN_OUT,
     "/nama.v1.SignInService/WhoAmI",
     "/nama.v1.SignInService/Reauthenticate",
@@ -137,6 +139,9 @@ const SIGNED_IN: [&str; 12] = [
     "/nama.v1.UserService/ChangePassword",
     "/nama.v1.RequestService/ListRequests",
     "/nama.v1.RequestService/GetRequest",
+    "/nama.v1.UserService/ListPersonalSettings",
+    "/nama.v1.UserService/UpdatePersonalSettings",
+    "/nama.v1.UserService/DeletePersonalSettings",
 ];
 
 /// Each Permission some RPC needs, with every RPC that needs it: kept by hand, as a second

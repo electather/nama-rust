@@ -330,7 +330,7 @@ pub struct Movie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -339,7 +339,7 @@ pub struct Movie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub title: ::buffa::alloc::string::String,
-    /// The title in its original language, if the metadata source has it.
+    /// The title in its original language, if the title source has it.
     ///
     /// Field 3: `original_title`
     #[serde(
@@ -409,8 +409,8 @@ pub struct Movie {
     )]
     pub watch_state: ::buffa::MessageField<WatchState, ::buffa::Inline<WatchState>>,
     /// Whether `poster_url` is a Custom Image, which `DELETE /custom-images/movie/<id>/poster`
-    /// removes, `<id>` being `id` as `tmdb-348`, `imdb-tt0078748` or `tvdb-81189`. `PUT` there
-    /// uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
+    /// removes, `<id>` being `id` as `<namespace>-<value>`, the value percent-encoded, such as
+    /// `tmdb-348`. `PUT` there uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
     ///
     /// Field 11: `custom_poster`
     #[serde(
@@ -451,8 +451,8 @@ pub struct Movie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub backdrop_thumbhash: ::core::option::Option<::buffa::alloc::vec::Vec<u8>>,
-    /// Its Title Logo's URL on this Server, lettered in the metadata Provider's language. Unset if
-    /// the Provider has none in that language: show `title` as text instead.
+    /// Its Title Logo's URL on this Server, picked from its title sources' artwork. Unset if none
+    /// has one: show `title` as text instead.
     ///
     /// Field 15: `title_logo_url`
     #[serde(
@@ -461,7 +461,7 @@ pub struct Movie {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub title_logo_url: ::core::option::Option<::buffa::alloc::string::String>,
-    /// Its genres' names, in the metadata Provider's language.
+    /// Its genres' names, in its title source's language.
     ///
     /// Field 16: `genres`
     #[serde(
@@ -470,7 +470,7 @@ pub struct Movie {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub genres: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
-    /// Its Content Rating in the metadata Provider's country, such as `R`. Unset if it has none
+    /// Its Content Rating in its title source's country, such as `R`. Unset if it has none
     /// there.
     ///
     /// Field 17: `content_rating`
@@ -3180,7 +3180,7 @@ pub struct Show {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -3991,7 +3991,7 @@ pub struct Episode {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub episode_number: u32,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 4: `title`
     #[serde(
@@ -4043,7 +4043,7 @@ pub struct Episode {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub watch_state: ::buffa::MessageField<WatchState, ::buffa::Inline<WatchState>>,
-    /// Its Still's URL on this Server. Unset if the metadata Provider has none.
+    /// Its Still's URL on this Server. Unset if its title source has none.
     ///
     /// Field 10: `still_url`
     #[serde(

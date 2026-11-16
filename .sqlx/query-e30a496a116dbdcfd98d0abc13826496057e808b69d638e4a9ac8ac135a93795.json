@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO match_pins (\n             library_id, kind, title, year, hint,\n             pinned_id, pinned_at)\n         SELECT library_id, kind, ?, ?, ?, pinned_id, pinned_at\n         FROM match_pins\n         WHERE library_id = ? AND kind = ? AND title = ? AND year IS ? AND hint IS ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "e30a496a116dbdcfd98d0abc13826496057e808b69d638e4a9ac8ac135a93795"
+}

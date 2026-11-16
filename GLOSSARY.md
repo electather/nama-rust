@@ -88,25 +88,37 @@ _Avoid_: third-party plugin, external plugin, WASM plugin
 The file an Installed Plugin is loaded from, which gives its Manifest and its code.
 _Avoid_: wasm file, module, binary
 
+**Plugin contract**:
+What an Installed Plugin is built against, with a version of its own that a Manifest's requirement is matched against.
+_Avoid_: plugin API, SDK, Nama API
+
 **Manifest**:
-What a Plugin says about itself before it is enabled: its id, name, version, description and logo, the Nama API versions it works with, its settings, the hosts it may reach, and its Extension Points. A Built-in Plugin's comes from its code, an Installed Plugin's from its package. A Server outside those Nama API versions refuses the Plugin, as it refuses an Installed Plugin naming an Extension Point it doesn't know or lacking an export one needs, and a Plugin may take part only at the Extension Points it names.
+What a Plugin says about itself before it is enabled: its id, name, version, description and logo, the Plugin contract versions it works with, its settings, the hosts it may reach, its Extension Points, and the ids its Fulfiller needs. A Built-in Plugin's comes from its code, an Installed Plugin's from its package. An Installed Plugin's names each Extension Point by its service's full name with the versions of it the Plugin works with. A Server outside those Plugin contract versions refuses the Plugin, as it refuses an Installed Plugin naming none or naming an Extension Point it doesn't serve, at a version it doesn't serve, or lacking an export one needs, and a Plugin may take part only at the Extension Points it names.
 _Avoid_: descriptor, plugin.json, metadata
 
 **Extension Point**:
-A named place where the Kernel lets Plugins take part, declared as one of Observe, Intercept or Provide.
+A named place where the Kernel lets Plugins take part, declared as Observe or Provide. One an Installed Plugin can serve is a service of the Plugin contract, such as `nama.plugin.v1.NotifierService`, with a version of its own (ADR 0043).
 _Avoid_: hook, seam, slot
 
 **Observer**:
 A Plugin's handler that is told something happened and can't change it.
 _Avoid_: listener, subscriber
 
-**Interceptor**:
-A Plugin's handler that can let an action continue, modify it, or veto it before it takes effect.
-_Avoid_: middleware, filter
-
 **Provider**:
-A Plugin's implementation of a capability the Server needs, such as metadata, checking a User's credentials, or Request fulfillment.
+A Plugin's implementation of a capability the Server needs, such as finding titles, checking a User's credentials, or Request fulfillment.
 _Avoid_: driver, backend, adapter
+
+**Title source**:
+A Provider that finds and fetches Movies and Shows by a Namespace of External IDs, such as TMDB or TVDB. It keeps its titles under one Namespace and may look them up by others. Each Library asks its own title sources in its own order (ADR 0044).
+_Avoid_: metadata provider, metadata agent, scraper
+
+**Recogniser**:
+A Provider that proposes what a file is, such as an Episode numbered from the start of its Show, or which title an Item names. The Kernel decides: it alone writes Matches and marks an Item Unmatched, and its own Matching is what it falls back to. Each Library asks its own Recognisers in its own order (ADR 0050).
+_Avoid_: matcher (the code's `matching::Matcher` fixes Matches by hand), parser, identifier
+
+**Blob store**:
+Where the Kernel's own stored files live, such as the originals of its images, Custom Images and Plugin logos: local disk under the data directory by default, or a Provider such as an S3 Plugin, which the Admin picks. It never holds media files, and resized copies stay a local cache (ADR 0052).
+_Avoid_: storage backend, bucket, object store, file host
 
 **Fulfiller**:
 A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, reports how they're progressing, and has the service stop monitoring what's been deleted, so it doesn't download it again.
@@ -124,10 +136,30 @@ _Avoid_: linker, integration
 A User's identity at an outside service, such as their Telegram chat, that a Plugin acts on for them.
 _Avoid_: integration, link, account
 
+**Personal setting**:
+A setting a Plugin's Manifest declares for each User to set for themself, such as their ntfy topic or Discord webhook. The Admin sets the Plugin's own settings; only the User sees their Personal settings, and a Plugin gets them only in a call for that User (ADR 0046).
+_Avoid_: user setting (confused with Settings preferences)
+
+**Automation lane**:
+Where a Plugin asks the Kernel rather than the Kernel asking it: the Kernel sends it Event batches and its Tick, and during those calls it calls the Kernel's few functions, each gated by a Plugin Permission the Admin granted, such as reading Watch State or deleting a title's media (ADR 0048).
+_Avoid_: automation API, scripting, host functions
+
+**Tick**:
+The Kernel's call to an Automation Plugin on the schedule its Manifest sets, at most once a minute, carrying the Kernel's clock.
+_Avoid_: cron, timer, heartbeat, job
+
+**Plugin Permission**:
+One thing a Plugin may ask the Kernel for, such as reading Watch State or deleting media. Its Manifest requests some, and an Admin grants some or all of them when enabling it; the grants survive restarts. Not a User's Permission: it says what the Plugin itself may do, whoever it acts for (ADR 0049).
+_Avoid_: scope, capability, Permission (alone, which is a User's)
+
+**Plugin Store**:
+The key and value entries the Kernel keeps for one Plugin, each the Plugin's alone or scoped to one User, read and written through the Automation lane.
+_Avoid_: plugin database, KV, cache, plugin state
+
 ## Media
 
 **Library**:
-A named collection of one kind of media (Movies or Shows) on a Server, backed by one or more folders.
+A named collection of one kind of media (Movies or Shows) on a Server, backed by one or more folders, whose titles come from its title sources, asked in its own order.
 _Avoid_: collection, section
 
 **Item**:
@@ -135,11 +167,11 @@ What a file in a Library holds, going by its name: one Movie, or one or more Epi
 _Avoid_: entry, media item, title
 
 **Movie**:
-A film, as a metadata source describes it.
+A film, as a title source describes it.
 _Avoid_: film, title, item
 
 **Show**:
-A TV series, as a metadata source describes it, made up of Seasons of Episodes.
+A TV series, as a title source describes it, made up of Seasons of Episodes.
 _Avoid_: series, TV show, title
 
 **Season**:
@@ -171,23 +203,35 @@ The wide image that stands for an Episode: a frame from it.
 _Avoid_: thumbnail, thumb, screenshot
 
 **Title Logo**:
-The image of a Movie's or Show's title, lettered as its artwork letters it, shown in place of the title's text.
+The image of a Movie's or Show's title, lettered as its artwork letters it, shown in place of the title's text. It comes from the artwork lists of its Library's title sources.
 _Avoid_: logo, title treatment, clearlogo, wordmark
+
+**Artwork list**:
+What a title source has for one title, of every kind, from which Artwork picks a Poster, Backdrop and Title Logo.
+_Avoid_: image list, artwork set, gallery
 
 **Custom Image**:
 An image an admin uploaded to show in place of the one the Server would otherwise show, such as a Movie's Poster or a Plugin's logo. Everyone sees it until it is removed, which brings the other back. A title's stays with the title, whatever happens to its files.
 _Avoid_: override, variant, replacement
 
 **Match**:
-The link between an Item in a Library and a title in a metadata source. An Item without one is Unmatched.
+The link between an Item in a Library and a title in a title source. An Item without one is Unmatched.
 _Avoid_: identification, lookup
 
 **Pinned Match**:
 A Match an admin set or cleared by hand. Automatic Matching follows it instead of searching, so it isn't overwritten.
 _Avoid_: locked match, override, manual lock
 
+**External ID**:
+A title's id at a title source: a Namespace and a value that Namespace's owner defines, written `tmdb-603`. A title may have several, at most one per Namespace, and any one of them identifies it.
+_Avoid_: title id (for an id the Server makes up), TMDB id (as the general word)
+
+**Namespace**:
+Who owns an External ID's values, such as `tmdb`, `imdb` or `tvdb`: one or more lowercase ASCII letters and digits. A title source keeps its titles under one Namespace and may look titles up by others.
+_Avoid_: source id, id type
+
 **ID Hint**:
-A title's id at a metadata source, written in a file or folder name, such as `{tmdb-78}` or `[tvdbid-433631]`. An Item with one is Matched by that id without a search.
+An External ID written in a file or folder name, such as `{tmdb-78}` or `[tvdbid-433631]`. An Item with one is Matched by that id without a search, by the title source that keeps or looks up its Namespace; while no enabled source does, the Item waits undecided.
 _Avoid_: id tag, provider id
 
 **Scan**:

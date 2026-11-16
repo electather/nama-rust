@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM personal_settings WHERE user_id = ? AND plugin_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "11fa8cfcfb58ccd2ba552a673e7514784072b74dd49abaf4835228392b7e6b22"
+}

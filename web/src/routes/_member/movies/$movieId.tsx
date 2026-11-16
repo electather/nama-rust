@@ -6,25 +6,28 @@ import { NotFound } from "@/components/route-error";
 import { TitlePage } from "@/components/title-page";
 import { RequestService } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { externalIdFromParam, metadataLine, queryOrNotFound, runtimeOf } from "@/lib/browse";
+import {
+  externalIdFromParam,
+  metadataLine,
+  queryOrNotFound,
+  runtimeOf,
+  titleParam,
+} from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
-/** A Movie from the metadata source, for Requesting it. One a Library has opens there instead. */
+/** A Movie from the title source, for Requesting it. One a Library has opens there instead. */
 export const Route = createFileRoute("/_member/movies/$movieId")({
   beforeLoad: ({ context }) => {
     // Only search results link here, and only for those who may Request.
     if (!may(context.signedIn.user, Permission.REQUEST_MOVIE)) throw notFound();
   },
   loader: async ({ context, params }) => {
-    const { id } = externalIdFromParam(params.movieId);
-    // Requests name Movies by TMDB id.
-    if (id.case !== "tmdb") throw notFound();
-    const input = { movieTmdbId: id.value };
+    const input = { movieId: externalIdFromParam(params.movieId) };
     const { movie } = await queryOrNotFound(context, RequestService.method.lookUpMovie, input);
     if (movie?.libraryId !== undefined) {
       throw redirect({
         to: "/libraries/$libraryId/movies/$movieId",
-        params: { libraryId: String(movie.libraryId), movieId: params.movieId },
+        params: { libraryId: String(movie.libraryId), movieId: titleParam(movie.id) },
         replace: true,
       });
     }

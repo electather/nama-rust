@@ -8,20 +8,21 @@
     reason = "an export returns `FnResult` even when it can't fail"
 )]
 mod exports {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, time::UNIX_EPOCH};
 
     use nama_pdk::{
         Buffa, CheckedSettings, Download, FnResult, Fulfilled, Fulfiller, Manifest, Notification,
         Notifier, Recipient, Request,
         extism_pdk::{self, Error, HttpRequest, config, http},
-        nama_proto::nama::{
-            plugin::v1::{ObservePoint, ObservedEvents, ProvidePoint, SettingField},
-            v1::{SettingKind, SettingValue, request::MovieOrSeason, setting_value},
+        nama_plugin_proto::nama::plugin::v1::{
+            ObservedEvents, SettingField, SettingKind, SettingValue, request::MovieOrSeason,
+            setting_value,
         },
-        plugin_fn,
+        plugin_fn, services,
     };
 
-    /// The setting that picks what its Observer does: `log`, `loop` or `panic`.
+    /// The setting that picks what its Observer does: `log`, `clock`, `hoard`, `loop` or
+    /// `panic`.
     const OBSERVER: &str = "observer";
 
     /// The setting that picks what its Fulfiller does: `take`, `error`, `loop` or `panic`.
@@ -30,15 +31,21 @@ mod exports {
     /// The setting that picks what its Notifier does: `post`, `error`, `loop` or `panic`.
     const NOTIFIER: &str = "notifier";
 
-    /// The setting that makes its settings check fail with its text, or loop forever or panic for
-    /// `loop` or `panic`.
+    /// The Personal setting naming whom a User's notifications go to.
+    const HANDLE: &str = "handle";
+
+    /// The setting that makes its settings check fail with its text, or hoard 256 MiB, loop
+    /// forever or panic for `hoard`, `loop` or `panic`.
     const FAIL_WITH: &str = "fail_with";
 
     // Says who the Plugin is, that it observes Events, fulfills Movie Requests and notifies, and
     // its settings: a URL whose host it may reach, one it requests, how its Observer, Fulfiller
-    // and Notifier behave, a profile its check offers, and how its check fails, and its logo. With
-    // the `unexported-connector` feature it names a Connector it doesn't export, with `nama-api-0-1`
-    // it wants Nama API 0.1, and with `panic` it panics instead.
+    // and Notifier behave, a profile its check offers, and how its check fails, its Personal
+    // settings, a `handle` and a `token`, and its logo. With the `unexported-connector` feature it
+    // names a Connector it doesn't export, with `contract-0-1` it wants Plugin contract 0.1, with
+    // `empty-points` it names no Extension Points, with `automation` it ticks every minute and
+    // requests the Store and Library Permissions, with `recogniser` it recognises files, and with
+    // `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -51,10 +58,10 @@ mod exports {
             Manifest {
                 name: "Test Plugin".to_owned(),
                 description: "Stands in for an Installed Plugin in the Server's tests.".to_owned(),
-                observers: vec![ObservePoint::OBSERVE_POINT_EVENTS.into()],
-                providers: vec![
-                    ProvidePoint::PROVIDE_POINT_MOVIE_FULFILLER.into(),
-                    ProvidePoint::PROVIDE_POINT_NOTIFIER.into(),
+                points: vec![
+                    nama_pdk::point(services::MOVIE_FULFILLER),
+                    nama_pdk::point(services::NOTIFIER),
+                    nama_pdk::point(services::EVENT_OBSERVER),
                 ],
                 settings: vec![
                     setting("url", SettingKind::SETTING_KIND_URL),
@@ -62,7 +69,7 @@ mod exports {
                     behaviour_setting(
                         OBSERVER,
                         "log",
-                        "when told about Events: log, loop or panic",
+                        "when told about Events: log, clock, hoard, loop or panic",
                     ),
                     behaviour_setting(
                         FULFILLER,
@@ -77,18 +84,48 @@ mod exports {
                     setting("profile", SettingKind::SETTING_KIND_CHOICE),
                     setting(FAIL_WITH, SettingKind::SETTING_KIND_TEXT),
                 ],
+                personal_settings: vec![
+                    SettingField {
+                        required: true,
+                        ..setting(HANDLE, SettingKind::SETTING_KIND_TEXT)
+                    },
+                    setting("token", SettingKind::SETTING_KIND_SECRET),
+                ],
                 logo_svg: include_str!("../logo.svg").to_owned(),
                 ..nama_pdk::manifest("test-plugin", env!("CARGO_PKG_VERSION"))
             }
         };
         #[cfg(feature = "unexported-connector")]
         let manifest = Manifest {
-            providers: vec![ProvidePoint::PROVIDE_POINT_CONNECTOR.into()],
+            points: vec![
+                nama_pdk::point(services::CONNECTOR),
+                nama_pdk::point(services::EVENT_OBSERVER),
+            ],
             ..manifest
         };
-        #[cfg(feature = "nama-api-0-1")]
+        #[cfg(feature = "empty-points")]
         let manifest = Manifest {
-            nama_api: "^0.1.0".to_owned(),
+            points: Vec::new(),
+            ..manifest
+        };
+        #[cfg(feature = "automation")]
+        let manifest = Manifest {
+            points: [manifest.points, vec![nama_pdk::point(services::AUTOMATION)]].concat(),
+            permissions: vec![
+                nama_pdk::Permission::PERMISSION_STORE.into(),
+                nama_pdk::Permission::PERMISSION_READ_LIBRARIES.into(),
+            ],
+            tick_every_seconds: 60,
+            ..manifest
+        };
+        #[cfg(feature = "recogniser")]
+        let manifest = Manifest {
+            points: [manifest.points, vec![nama_pdk::point(services::RECOGNISER)]].concat(),
+            ..manifest
+        };
+        #[cfg(feature = "contract-0-1")]
+        let manifest = Manifest {
+            contract: "^0.1.0".to_owned(),
             ..manifest
         };
         Ok(Buffa(manifest))
@@ -120,10 +157,21 @@ mod exports {
 
     // Logs each Event it is told about, so a test can see them arrive, then requests its `fetch`
     // setting's URL, if it has one, and logs the response's status. Its `observer` setting can
-    // make it loop forever or panic instead, so a test can see the Server survive that.
+    // make it log the time by `nama_pdk::now` instead, or hoard 256 MiB, loop forever or panic, so
+    // a test can see the Server survive that.
     #[plugin_fn]
     pub fn observe_events(Buffa(observed): Buffa<ObservedEvents>) -> FnResult<()> {
         match config::get(OBSERVER)?.as_deref() {
+            Some("clock") => {
+                let since_epoch = nama_pdk::now().duration_since(UNIX_EPOCH)?;
+                extism_pdk::info!("test-plugin's clock reads {}", since_epoch.as_millis());
+                Ok(())
+            }
+            Some("hoard") => {
+                std::hint::black_box(vec![1_u8; 256 << 20]);
+                extism_pdk::info!("test-plugin hoarded");
+                Ok(())
+            }
             Some("loop") => loop_forever(),
             #[expect(clippy::panic, reason = "it panics on purpose")]
             Some("panic") => panic!("the test Plugin's Observer was set to panic"),
@@ -161,7 +209,10 @@ mod exports {
                 Some("panic") => panic!("the test Plugin's Fulfiller was set to panic"),
                 _ => match request.movie_or_season {
                     Some(MovieOrSeason::Movie(movie)) => Ok(Fulfilled {
-                        reference: format!("test-{}", movie.tmdb_id),
+                        reference: format!(
+                            "test-{}",
+                            nama_pdk::title_id(&movie.ids, "tmdb").unwrap_or_default()
+                        ),
                         ..Fulfilled::default()
                     }),
                     _ => Err(Error::msg("the test Plugin takes only Movie Requests")),
@@ -184,45 +235,61 @@ mod exports {
 
     nama_pdk::fulfiller!(TestFulfiller);
 
-    /// A Notifier that, as its `notifier` setting says, posts each notification for its channel,
-    /// encoded as protobuf, to its `url` setting's URL if it has one, fails, loops forever or
-    /// panics.
+    /// A Notifier that, as its `notifier` setting says, posts each notification for its channel
+    /// or for a User, encoded as protobuf, to its `url` setting's URL if it has one, fails, loops
+    /// forever or panics. A User's post names their `handle` in a `Recipient` header.
     struct TestNotifier;
 
     impl Notifier for TestNotifier {
         fn deliver(notification: Notification, recipient: Recipient) -> Result<(), Error> {
-            let Recipient::Channel(_) = recipient else {
-                return Ok(());
+            let target = match recipient {
+                Recipient::Channel(_) => None,
+                Recipient::User(user) => Some(
+                    user.personal_settings
+                        .get(HANDLE)
+                        .cloned()
+                        .ok_or_else(|| Error::msg("the User set no handle"))?,
+                ),
+                Recipient::Connection(_) => return Ok(()),
             };
             match config::get(NOTIFIER)?.as_deref() {
                 Some("error") => Err(Error::msg("the test Plugin's Notifier was set to error")),
                 Some("loop") => loop_forever(),
                 #[expect(clippy::panic, reason = "it panics on purpose")]
                 Some("panic") => panic!("the test Plugin's Notifier was set to panic"),
-                _ => post(notification),
+                _ => post(notification, target.as_deref()),
             }
         }
     }
 
     nama_pdk::notifier!(TestNotifier);
 
-    /// Posts `notification`, encoded as protobuf, to its `url` setting's URL, if it has one.
-    fn post(notification: Notification) -> Result<(), Error> {
+    /// Posts `notification`, encoded as protobuf, to its `url` setting's URL, if it has one,
+    /// naming `target` in a `Recipient` header if there is one.
+    fn post(notification: Notification, target: Option<&str>) -> Result<(), Error> {
         if let Some(url) = config::get("url")? {
-            let request = HttpRequest::new(&url).with_method("POST");
+            let mut request = HttpRequest::new(&url).with_method("POST");
+            if let Some(target) = target {
+                request = request.with_header("Recipient", target);
+            }
             http::request(&request, Some(Buffa(notification)))?;
         }
         Ok(())
     }
 
     // Requests its `url` setting's URL, if it has one, as Sonarr's check would, then offers two
-    // profiles. Its `fail_with` setting makes it fail, loop forever or panic instead.
+    // profiles. Its `fail_with` setting makes it fail, hoard 256 MiB, loop forever or panic
+    // instead.
     #[plugin_fn]
     pub fn check_settings() -> FnResult<Buffa<CheckedSettings>> {
         match config::get(FAIL_WITH)?.as_deref() {
             Some("loop") => loop_forever(),
             #[expect(clippy::panic, reason = "it panics on purpose")]
             Some("panic") => panic!("the test Plugin's check was set to panic"),
+            Some("hoard") => {
+                std::hint::black_box(vec![1_u8; 256 << 20]);
+                Err(Error::msg("test-plugin hoarded").into())
+            }
             Some(error) => Err(Error::msg(error.to_owned()).into()),
             None => {
                 if let Some(url) = config::get("url")? {
@@ -233,4 +300,71 @@ mod exports {
             }
         }
     }
+
+    /// An Automation whose tick keeps a value in its Store, reads it back and lists the
+    /// Libraries, failing with the Kernel's words when it refuses any of them. With the
+    /// `looping-tick` feature its tick loops forever instead.
+    #[cfg(feature = "automation")]
+    struct TestAutomation;
+
+    #[cfg(feature = "automation")]
+    impl nama_pdk::Automation for TestAutomation {
+        fn tick(_tick: nama_pdk::Tick) -> Result<(), Error> {
+            if cfg!(feature = "looping-tick") {
+                loop_forever();
+            }
+            nama_pdk::kernel::store_put("ticked", None, b"yes")?;
+            let kept = nama_pdk::kernel::store_get("ticked", None)?;
+            extism_pdk::info!("test-plugin's Store keeps {kept:?}");
+            let libraries = nama_pdk::kernel::libraries()?;
+            extism_pdk::info!("test-plugin sees {} Libraries", libraries.len());
+            Ok(())
+        }
+    }
+
+    #[cfg(feature = "automation")]
+    nama_pdk::automation!(TestAutomation);
+
+    /// A Recogniser reading `<Show> - <n>.<ext>` as Episode n of the Show's Season 1, numbered
+    /// from the start of the Show as anime often is. A `(<year>)` ending the Show's name is the
+    /// year it first aired. It can't tell anything else.
+    #[cfg(feature = "recogniser")]
+    struct TestRecogniser;
+
+    #[cfg(feature = "recogniser")]
+    impl nama_pdk::Recogniser for TestRecogniser {
+        fn recognise_file(
+            file: nama_pdk::FileToRecognise,
+        ) -> Result<nama_pdk::FileRecognised, Error> {
+            let name = file.path.rsplit('/').next().unwrap_or_default();
+            let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
+            let Some((show, number)) = stem.rsplit_once(" - ") else {
+                return Ok(nama_pdk::FileRecognised::default());
+            };
+            let Ok(episode) = number.trim().parse() else {
+                return Ok(nama_pdk::FileRecognised::default());
+            };
+            let (show_title, show_year) = match show.trim_end().strip_suffix(')') {
+                Some(rest) => match rest.rsplit_once(" (") {
+                    Some((title, year)) => (title, year.parse().ok()),
+                    None => (show, None),
+                },
+                None => (show, None),
+            };
+            let episodes = nama_pdk::RecognisedEpisodes {
+                show_title: show_title.to_owned(),
+                show_year,
+                season: 1,
+                episodes: vec![episode],
+                ..nama_pdk::RecognisedEpisodes::default()
+            };
+            Ok(nama_pdk::FileRecognised {
+                recognised: Some(episodes.into()),
+                ..nama_pdk::FileRecognised::default()
+            })
+        }
+    }
+
+    #[cfg(feature = "recogniser")]
+    nama_pdk::recogniser!(TestRecogniser, [recognise_file]);
 }

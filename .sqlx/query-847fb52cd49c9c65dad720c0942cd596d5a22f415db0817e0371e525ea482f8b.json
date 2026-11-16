@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT followed_shows.id AS \"id!\" FROM followed_shows\n                   JOIN followed_show_ids AS known ON known.followed_show_id = followed_shows.id\n                   JOIN json_each(?) AS wanted\n                       ON known.namespace = wanted.key AND known.value = wanted.value\n                   WHERE state != 'declined'",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "847fb52cd49c9c65dad720c0942cd596d5a22f415db0817e0371e525ea482f8b"
+}

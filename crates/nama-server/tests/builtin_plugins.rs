@@ -122,7 +122,7 @@ fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_na
             SettingValue::Text(nama_plugin_test_choices::API_KEY.to_owned()),
         )]);
         let mut registrar = Registrar::with_settings(Settings::new(api_key));
-        plugin.register(&mut registrar);
+        plugin.register(&mut registrar).unwrap();
 
         let registered: Vec<_> = registrar
             .into_registrations()
@@ -191,7 +191,7 @@ fn plugin_crates_depend_only_on_the_workspace_crates_they_may() {
         let allowed: &[&str] = if installed_or_shared {
             &pdk_and_shared
         } else {
-            &["nama-plugin-api", "nama-proto"]
+            &["nama-plugin-api"]
         };
         for dependency in package["dependencies"].as_array().unwrap() {
             let name = dependency["name"].as_str().unwrap();

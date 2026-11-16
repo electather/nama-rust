@@ -20,6 +20,7 @@ use connectrpc::{
     ConnectError,
     client::{ClientConfig, HttpClient, ServerStream},
 };
+use nama_plugin_api::PluginId;
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_tmdb::testing::FakeTmdb;
 use nama_proto::nama::v1::{
@@ -31,8 +32,8 @@ use nama_proto::nama::v1::{
     subscribe_response,
 };
 use nama_server::{
-    codes::SetupCode, config::Config, db::Database, ffmpeg::Ffmpeg,
-    plugin_settings::PluginSettings, plugins::Registry,
+    config::Config, db::Database, ffmpeg::Ffmpeg, plugin_settings::PluginSettings,
+    plugins::Registry, users::SetupCode,
 };
 use tempfile::TempDir;
 use tokio::{net::TcpListener, sync::oneshot};
@@ -52,6 +53,8 @@ pub(crate) struct TestServer {
     /// The session token of the Admin's Device.
     pub(crate) admin_token: String,
     db: Arc<Database>,
+    /// The Registry the Server was started with, for running a Plugin's tick now.
+    plugins: Registry,
     tmdb: Option<FakeTmdb>,
     fulfiller: Option<FakeFulfiller>,
     _stop: oneshot::Sender<()>,
@@ -158,9 +161,13 @@ impl Builder {
         };
         let config = Config {
             data_dir: data_dir.path().to_owned(),
+            // On macOS each Library change would wait on fseventsd, which parallel builds slow to
+            // a minute a test; no API test needs folder watching, which the scanner's tests cover.
+            watch_folders: false,
             ..config
         };
         let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+        let registry = plugins.clone();
         let plugins = PluginSettings::start(Arc::clone(&db), plugins, &config)
             .await
             .unwrap();
@@ -187,6 +194,7 @@ impl Builder {
             addr,
             admin_token,
             db,
+            plugins: registry,
             tmdb,
             fulfiller,
             _stop: stop,
@@ -322,6 +330,25 @@ impl TestServer {
         self.tmdb = None;
     }
 
+    /// Moves the Server's clock, and so every Plugin's, ahead by `by`, as for a test that ages a
+    /// Watch State. The Admin's session lasts `DEVICE_LIFETIME`, 90 days, so stay under it, and do
+    /// what needs Recent Authentication before advancing, or sign in again.
+    #[expect(
+        clippy::unused_self,
+        reason = "the clock is process-wide, but a test moves it as this Server's"
+    )]
+    pub(crate) fn advance_clock(&self, by: Duration) {
+        nama_server::db::advance_clock(by);
+    }
+
+    /// Ticks the enabled Plugin `plugin`'s Automation once, now, returning the tick's failure
+    /// message, or why the Plugin can't tick.
+    pub(crate) async fn tick(&self, plugin: &str) -> Result<(), String> {
+        self.plugins
+            .tick_now(&PluginId::from(plugin.to_owned()))
+            .await
+    }
+
     /// The Server's data directory, such as for its Installed Plugins.
     pub(crate) fn data_dir(&self) -> &Path {
         self.data_dir.path()
@@ -384,11 +411,22 @@ impl TestServer {
     }
 
     /// [`Self::library`] without the scan, for a test that watches or times the scan itself.
+    pub(crate) async fn create_library(&self, kind: LibraryKind, files: &[&str]) -> Library {
+        self.create_library_searching(kind, files, &[]).await
+    }
+
+    /// [`Self::create_library`], searching the title sources `title_sources` names in order, or
+    /// TMDB alone if it names none.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    pub(crate) async fn create_library(&self, kind: LibraryKind, files: &[&str]) -> Library {
+    pub(crate) async fn create_library_searching(
+        &self,
+        kind: LibraryKind,
+        files: &[&str],
+        title_sources: &[&str],
+    ) -> Library {
         let dir = tempfile::tempdir().unwrap();
         // The Server stores and sends a folder's canonical path, which a temp dir's may not be.
         let folder = dir.path().canonicalize().unwrap();
@@ -398,6 +436,10 @@ impl TestServer {
                 name: "Media".to_owned(),
                 kind: kind.into(),
                 folders: vec![folder.to_str().unwrap().to_owned()],
+                title_sources: title_sources
+                    .iter()
+                    .map(|&source| source.to_owned())
+                    .collect(),
                 ..Default::default()
             })
             .await

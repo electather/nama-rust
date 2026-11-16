@@ -16,12 +16,23 @@ panic = []
 # Builds the Plugin naming the Connector Extension Point without its exports, so the Server
 # refuses it.
 unexported-connector = []
-# Builds the Plugin for Nama API 0.1, before `nama.plugin.v1` took `nama.v1`'s setting kinds, so
-# the Server refuses it.
-nama-api-0-1 = []
+# Builds the Plugin for Plugin contract 0.1, which no Server matches any more, so the Server
+# refuses it.
+contract-0-1 = []
+# Builds the Plugin naming no Extension Points, as one built before they became services reads,
+# so the Server refuses it.
+empty-points = []
+# Builds the Plugin naming the Automation Extension Point and requesting the Store and Library
+# Permissions; its tick calls the Kernel's functions.
+automation = []
+# Builds the Plugin as `automation` does, with a tick that loops until the Server interrupts it.
+looping-tick = ["automation"]
+# Builds the Plugin naming the Recogniser Extension Point and exporting `recognise_file`, which
+# reads `<Show> - <n>.<ext>`, or `<Show> (<year>) - <n>.<ext>`, as that Show's Season 1, Episode n.
+recogniser = []
 
 [dependencies]
-nama-pdk = { version = "0.1.0", path = "../nama-pdk" }
+nama-pdk = { version = "0.2.0", path = "../nama-pdk" }
 
 [lints]
 workspace = true

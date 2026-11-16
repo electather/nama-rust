@@ -138,7 +138,7 @@ function RequestList() {
         <ul className="mt-4 flex max-w-2xl flex-col">
           {groupShows(requests, followedShows).map((entry) =>
             "seasons" in entry ? (
-              <ShowRequests key={`show-${entry.showTmdbId}`} {...entry} />
+              <ShowRequests key={`show-${keyOf(entry)}`} {...entry} />
             ) : (
               <RequestRow key={String(entry.id)} request={entry} />
             ),
@@ -155,17 +155,17 @@ function RequestList() {
  * newest one was: its Followed Shows, then its Season Requests in Season order.
  */
 function groupShows(requests: Request[], followedShows: FollowedShow[]) {
-  const shows = new Map<bigint, ShowGroup>();
+  const shows = new Map<string, ShowGroup>();
   const newestFirst = [...requests, ...followedShows];
   // Sorting is stable, so Requests opened in the same second keep the Server's order.
   newestFirst.sort((a, b) => Number(b.createdAt - a.createdAt));
   const grouped = newestFirst.flatMap((asked): (Request | FollowedShow | ShowGroup)[] => {
     const show = showOf(asked);
     if (show === undefined) return [asked];
-    const known = shows.get(show.showTmdbId);
+    const known = shows.get(keyOf(show));
     const group = known ?? newGroup(show);
     addTo(group, asked);
-    shows.set(show.showTmdbId, group);
+    shows.set(keyOf(show), group);
     return known ? [] : [group];
   });
   for (const { seasons } of shows.values()) {
@@ -174,7 +174,7 @@ function groupShows(requests: Request[], followedShows: FollowedShow[]) {
   return grouped;
 }
 
-type Show = Pick<ShowGroup, "showTmdbId" | "showTitle">;
+type Show = Pick<ShowGroup, "showId" | "showTitle">;
 
 /** The Show a Followed Show or a Season Request is of; a Movie's Request has none. */
 function showOf(asked: Request | FollowedShow): Show | undefined {
@@ -183,8 +183,13 @@ function showOf(asked: Request | FollowedShow): Show | undefined {
   return movieOrSeason.case === "season" ? movieOrSeason.value : undefined;
 }
 
-function newGroup({ showTmdbId, showTitle }: Show): ShowGroup {
-  return { showTmdbId, showTitle, followed: [], seasons: [] };
+/** What tells `show` apart from other Shows. */
+function keyOf({ showId }: Show) {
+  return `${showId?.namespace}-${showId?.value}`;
+}
+
+function newGroup({ showId, showTitle }: Show): ShowGroup {
+  return { showId, showTitle, followed: [], seasons: [] };
 }
 
 function addTo(group: ShowGroup, asked: Request | FollowedShow) {

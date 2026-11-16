@@ -175,7 +175,7 @@ fn history_of<'a, 'b>(
     earlier: &'b HashMap<&TestId, Vec<&'a HistoryLine>>,
     test: &TestId,
 ) -> &'b [&'a HistoryLine] {
-    earlier.get(test).map(Vec::as_slice).unwrap_or_default()
+    earlier.get(test).map_or_default(Vec::as_slice)
 }
 
 /// The tests that flaked in this run, each once: a report can name a test twice, and each test

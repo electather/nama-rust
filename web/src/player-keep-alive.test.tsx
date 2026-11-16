@@ -53,7 +53,7 @@ const planning = (method: PlaybackMethod, url: string, stopped: bigint[] = []) =
       router.service(BrowseService, {
         getMovie: () => ({
           movie: {
-            id: { id: { case: "tmdb", value: 603n } },
+            id: { namespace: "tmdb", value: "603" },
             title: "The Matrix",
             versions: [{ id: 7n, fileName: "The Matrix (1999).mkv", size: 1n }],
           },

@@ -90,12 +90,12 @@ enum RefusalReason {
 
   // `not_found`: there is no item with the ID. Params: `itemId`.
   REFUSAL_REASON_ITEM_NOT_FOUND = 27;
-  // `invalid_argument`: the metadata source has no title with the id, or can't look titles up by
+  // `invalid_argument`: the title source has no title with the id, or can't look titles up by
   // it. Params: `titleId`, as the message shows it (`tmdb-949`), and for a Season of a Show
   // `seasonNumber`.
   REFUSAL_REASON_UNKNOWN_TITLE = 28;
-  // `unavailable`: no metadata Provider is enabled, or it failed.
-  REFUSAL_REASON_NO_METADATA_PROVIDER = 29;
+  // `unavailable`: no title source is enabled, or one failed.
+  REFUSAL_REASON_NO_TITLE_SOURCE = 29;
 
   // `invalid_argument`: a User's or Device's name, trimmed, is too short or too long. Params:
   // `minLength`, `maxLength`, in characters.
@@ -122,8 +122,8 @@ enum RefusalReason {
   // `not_found`: there is no Request with the ID, or none the caller may see. Params: `requestId`.
   REFUSAL_REASON_REQUEST_NOT_FOUND = 38;
   // `failed_precondition`: the Movie, or every aired Episode of the Season, is already Matched in a
-  // Library, so it can't be Requested. Params: `tmdbId` (a Season's Show's), and for a Season
-  // `seasonNumber`.
+  // Library, so it can't be Requested. Params: `titleId`, as the message shows it (`tmdb-949`; a
+  // Season's Show's), and for a Season `seasonNumber`.
   REFUSAL_REASON_ALREADY_IN_LIBRARY = 39;
   // `failed_precondition`: the Request isn't Pending, so it can't be approved, declined or withdrawn
   // from. Params: `requestId`.
@@ -171,8 +171,9 @@ enum RefusalReason {
   REFUSAL_REASON_NOT_A_FOLLOWED_SHOW_REQUESTER = 51;
 
   // `failed_precondition`: the Server refused the Plugin, such as an Installed Plugin built for
-  // another Nama API version, so it can't be enabled. The message says why. Params: `pluginId`,
-  // `reason` (in plain words, as `PluginSummary.refused_reason`).
+  // another Plugin contract version, so it can't be enabled. Not for a Plugin that refuses to start
+  // itself, which is `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. The message says why. Params:
+  // `pluginId`, `reason` (in plain words, as `PluginSummary.refused_reason`).
   REFUSAL_REASON_PLUGIN_REFUSED = 52;
 
   // `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
@@ -219,4 +220,40 @@ enum RefusalReason {
   // audio in another language, but forced-only Tracks are for audio in their own. `field` is
   // `subtitle.foreign_audio_only`.
   REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL = 65;
+  // `failed_precondition`: the Plugin itself refused to start with its stored settings, such as a
+  // key its service turned down, so it stays disabled. The message says why in the Plugin's words.
+  // `field` is `id`. Params: `pluginId`, `reason`.
+  REFUSAL_REASON_PLUGIN_REFUSED_TO_START = 66;
+  // `invalid_argument`: a title's id has a namespace that isn't lowercase ASCII letters and
+  // digits, or an empty value. `field` names the id.
+  REFUSAL_REASON_TITLE_ID_MALFORMED = 70;
+  // `not_found`: no title source has a title with the id, or none can look titles up by it.
+  // Params: `titleId`.
+  REFUSAL_REASON_TITLE_NOT_FOUND = 71;
+  // `failed_precondition`: the Fulfiller needs an id of the title in one of the namespaces named
+  // and the title has none, so the Request wasn't handed to it. Params: `pluginId`, `namespaces`
+  // (comma-separated).
+  REFUSAL_REASON_TITLE_ID_MISSING = 72;
+  // `invalid_argument`: a Library's title sources name a namespace that isn't lowercase ASCII
+  // letters and digits, or name one twice. `field` is `title_sources`. Params: `namespace`.
+  REFUSAL_REASON_TITLE_SOURCES_INVALID = 73;
+  // `invalid_argument`: a Library's Recognisers name an id of no Plugin with
+  // `EXTENSION_POINT_RECOGNISER`, or name one twice. `field` is `recogniser_ids` or
+  // `recogniser_order`. Params: `pluginId`.
+  REFUSAL_REASON_RECOGNISERS_INVALID = 74;
+  // `invalid_argument`: a Plugin Permission the Admin grants is one the Plugin's Manifest doesn't
+  // request. `field` is `granted_permissions`. Params: `pluginId`, `permission`.
+  REFUSAL_REASON_PERMISSION_NOT_REQUESTED = 75;
+  // `failed_precondition`: no enabled Plugin with the id serves `EXTENSION_POINT_BLOB_STORE`, so
+  // it can't keep the stored images. `field` is `plugin_id`. Params: `pluginId`.
+  REFUSAL_REASON_NOT_A_BLOB_STORE = 76;
+  // `failed_precondition`: the store named already keeps the stored images, so there is nothing
+  // to switch. `field` is `plugin_id`. Params: `pluginId`, empty for local disk.
+  REFUSAL_REASON_IMAGE_STORE_IN_USE = 77;
+  // `failed_precondition`: another switch to an image store hasn't finished.
+  REFUSAL_REASON_IMAGE_STORE_SWITCHING = 78;
+  // `failed_precondition`: the store failed its check, writing an object, reading it back and
+  // deleting it, so the images stay where they are. The message says what failed. `field` is
+  // `plugin_id`. Params: `pluginId`, empty for local disk, and `reason`, in plain words.
+  REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK = 79;
 }

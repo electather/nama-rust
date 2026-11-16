@@ -1,10 +1,10 @@
-///Shorthand for `OwnedView<SearchMetadataRequestView<'static>>`.
-pub type OwnedSearchMetadataRequestView = ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SearchMetadataRequestView<'static>,
+///Shorthand for `OwnedView<SearchTitlesRequestView<'static>>`.
+pub type OwnedSearchTitlesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SearchTitlesRequestView<'static>,
 >;
-///Shorthand for `OwnedView<SearchMetadataResponseView<'static>>`.
-pub type OwnedSearchMetadataResponseView = ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SearchMetadataResponseView<'static>,
+///Shorthand for `OwnedView<SearchTitlesResponseView<'static>>`.
+pub type OwnedSearchTitlesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SearchTitlesResponseView<'static>,
 >;
 ///Shorthand for `OwnedView<SetMatchRequestView<'static>>`.
 pub type OwnedSetMatchRequestView = ::buffa::view::OwnedView<
@@ -30,8 +30,8 @@ pub type OwnedListUnmatchedItemsRequestView = ::buffa::view::OwnedView<
 pub type OwnedListUnmatchedItemsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListUnmatchedItemsResponseView<'static>,
 >;
-impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchMetadataResponse>
-for crate::messages::nama::v1::__buffa::view::SearchMetadataResponseView<'_> {
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchTitlesResponse>
+for crate::messages::nama::v1::__buffa::view::SearchTitlesResponseView<'_> {
     fn encode(
         &self,
         codec: ::connectrpc::CodecFormat,
@@ -39,9 +39,9 @@ for crate::messages::nama::v1::__buffa::view::SearchMetadataResponseView<'_> {
         ::connectrpc::__codegen::encode_view_body(self, codec)
     }
 }
-impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchMetadataResponse>
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SearchTitlesResponse>
 for ::buffa::view::OwnedView<
-    crate::messages::nama::v1::__buffa::view::SearchMetadataResponseView<'static>,
+    crate::messages::nama::v1::__buffa::view::SearchTitlesResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -168,9 +168,9 @@ for ::buffa::view::OwnedView<
 }
 /// Full service name for this service.
 pub const MATCH_SERVICE_SERVICE_NAME: &str = "nama.v1.MatchService";
-/// Static [`Spec`](::connectrpc::Spec) for the `SearchMetadata` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
-pub const MATCH_SERVICE_SEARCH_METADATA_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
-        "/nama.v1.MatchService/SearchMetadata",
+/// Static [`Spec`](::connectrpc::Spec) for the `SearchTitles` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const MATCH_SERVICE_SEARCH_TITLES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.MatchService/SearchTitles",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
@@ -192,7 +192,7 @@ pub const MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC: ::connectrpc::Spec = ::connec
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
-/// Fixing Matches by hand: finding titles in the metadata source, and Matching items to them.
+/// Fixing Matches by hand: finding titles in the title sources, and Matching items to them.
 ///
 /// A Match set or cleared here is pinned to what the item's file names: the title and year (and
 /// ID hint) of a Movie, or of the Show an Episode is in. Automatic Matching follows the pin instead
@@ -248,9 +248,9 @@ pub const MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC: ::connectrpc::Spec = ::connec
 /// example` doc.
 #[allow(clippy::type_complexity)]
 pub trait MatchService: Send + Sync + 'static {
-    /// Searches the enabled metadata Provider for titles, best fit first. Fails with
+    /// Searches the enabled title sources for titles, best fit first. Fails with
     /// `invalid_argument` if the kind is unspecified or the title blank, and with `unavailable` if
-    /// no metadata Provider is enabled or it failed.
+    /// no title source is enabled or one failed.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -259,17 +259,17 @@ pub trait MatchService: Send + Sync + 'static {
     /// (zero-copy). The response cannot borrow from `request` — use
     /// `.to_owned_message()` (or copy the specific fields) for anything
     /// returned, stored, or moved into `tokio::spawn`.
-    fn search_metadata<'a>(
+    fn search_titles<'a>(
         &'a self,
         ctx: ::connectrpc::RequestContext,
         request: ::connectrpc::ServiceRequest<
             '_,
-            crate::messages::nama::v1::SearchMetadataRequest,
+            crate::messages::nama::v1::SearchTitlesRequest,
         >,
     ) -> impl ::std::future::Future<
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
-                crate::messages::nama::v1::SearchMetadataResponse,
+                crate::messages::nama::v1::SearchTitlesResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -278,7 +278,7 @@ pub trait MatchService: Send + Sync + 'static {
     /// Show, and every Episode in the Library named as being in the same Show is Matched again
     /// through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Fails with
     /// `not_found` if there is no such item, with `invalid_argument` if the id is missing or names
-    /// no title, and with `unavailable` if the metadata Provider can't answer, in which case nothing
+    /// no title, and with `unavailable` if no title source can answer, in which case nothing
     /// changes.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
@@ -328,7 +328,7 @@ pub trait MatchService: Send + Sync + 'static {
         >,
     > + Send;
     /// Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
-    /// those it hasn't Matched yet, such as when no metadata Provider was enabled. Items pinned
+    /// those it hasn't Matched yet, such as when no title source was enabled. Items pinned
     /// Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
     /// Also lists the Library's files whose names didn't parse, which an Admin fixes by renaming.
     /// Fails with `not_found` if there is no such Library.
@@ -388,13 +388,13 @@ impl<S: MatchService> MatchServiceExt for S {
         router
             .route_view_idempotent(
                 MATCH_SERVICE_SERVICE_NAME,
-                "SearchMetadata",
+                "SearchTitles",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
                     ::connectrpc::view_handler_fn(move |
                         ctx,
                         req: ::buffa::view::OwnedView<
-                            crate::messages::nama::v1::__buffa::view::SearchMetadataRequestView<
+                            crate::messages::nama::v1::__buffa::view::SearchTitlesRequestView<
                                 'static,
                             >,
                         >,
@@ -403,18 +403,18 @@ impl<S: MatchService> MatchServiceExt for S {
                         let svc = ::std::sync::Arc::clone(&svc);
                         async move {
                             let sreq = ::connectrpc::ServiceRequest::<
-                                crate::messages::nama::v1::SearchMetadataRequest,
+                                crate::messages::nama::v1::SearchTitlesRequest,
                             >::from_parts(req.reborrow(), req.bytes());
-                            svc.search_metadata(ctx, sreq)
+                            svc.search_titles(ctx, sreq)
                                 .await?
                                 .encode::<
-                                    crate::messages::nama::v1::SearchMetadataResponse,
+                                    crate::messages::nama::v1::SearchTitlesResponse,
                                 >(format)
                         }
                     })
                 },
             )
-            .with_spec(MATCH_SERVICE_SEARCH_METADATA_SPEC)
+            .with_spec(MATCH_SERVICE_SEARCH_TITLES_SPEC)
             .route_view(
                 MATCH_SERVICE_SERVICE_NAME,
                 "SetMatch",
@@ -556,10 +556,10 @@ impl<T: MatchService> ::connectrpc::Dispatcher for MatchServiceServer<T> {
     ) -> Option<::connectrpc::dispatcher::codegen::MethodDescriptor> {
         let method = path.strip_prefix("nama.v1.MatchService/")?;
         match method {
-            "SearchMetadata" => {
+            "SearchTitles" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
-                        .with_spec(MATCH_SERVICE_SEARCH_METADATA_SPEC),
+                        .with_spec(MATCH_SERVICE_SEARCH_TITLES_SPEC),
                 )
             }
             "SetMatch" => {
@@ -595,25 +595,25 @@ impl<T: MatchService> ::connectrpc::Dispatcher for MatchServiceServer<T> {
         };
         let _ = (&ctx, &request, &format);
         match method {
-            "SearchMetadata" => {
+            "SearchTitles" => {
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
                     let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
-                        crate::messages::nama::v1::SearchMetadataRequest,
+                        crate::messages::nama::v1::SearchTitlesRequest,
                     >(request.encoded()?, format)?;
-                    let req: crate::messages::nama::v1::__buffa::view::SearchMetadataRequestView<
+                    let req: crate::messages::nama::v1::__buffa::view::SearchTitlesRequestView<
                         '_,
                     > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
                         &body,
                         ctx.decode_options(),
                     )?;
                     let req = ::connectrpc::ServiceRequest::<
-                        crate::messages::nama::v1::SearchMetadataRequest,
+                        crate::messages::nama::v1::SearchTitlesRequest,
                     >::from_parts(&req, &body);
-                    svc.search_metadata(ctx, req)
+                    svc.search_titles(ctx, req)
                         .await?
                         .encode::<
-                            crate::messages::nama::v1::SearchMetadataResponse,
+                            crate::messages::nama::v1::SearchTitlesResponse,
                         >(format)
                 })
             }
@@ -746,7 +746,7 @@ impl<T: MatchService> ::connectrpc::Dispatcher for MatchServiceServer<T> {
 /// let config = ClientConfig::new(uri).with_protocol(Protocol::Grpc);
 ///
 /// let client = MatchServiceClient::new(conn, config);
-/// let response = client.search_metadata(request).await?;
+/// let response = client.search_titles(request).await?;
 /// ```
 ///
 /// # Example (Connect / HTTP/1.1 or ALPN)
@@ -758,7 +758,7 @@ impl<T: MatchService> ::connectrpc::Dispatcher for MatchServiceServer<T> {
 /// let config = ClientConfig::new("http://localhost:8080".parse()?);
 ///
 /// let client = MatchServiceClient::new(http, config);
-/// let response = client.search_metadata(request).await?;
+/// let response = client.search_titles(request).await?;
 /// ```
 ///
 /// # Working with the response
@@ -768,7 +768,7 @@ impl<T: MatchService> ::connectrpc::Dispatcher for MatchServiceServer<T> {
 /// message, so field access is zero-copy:
 ///
 /// ```rust,ignore
-/// let resp = client.search_metadata(request).await?;
+/// let resp = client.search_titles(request).await?;
 /// let name: &str = resp.view().name;  // borrow into the response buffer
 /// ```
 ///
@@ -776,7 +776,7 @@ impl<T: MatchService> ::connectrpc::Dispatcher for MatchServiceServer<T> {
 /// [`into_owned()`](::connectrpc::client::UnaryResponse::into_owned):
 ///
 /// ```rust,ignore
-/// let owned = client.search_metadata(request).await?.into_owned();
+/// let owned = client.search_titles(request).await?.into_owned();
 /// ```
 ///
 /// [`into_view()`](::connectrpc::client::UnaryResponse::into_view) keeps the
@@ -807,35 +807,35 @@ where
     pub fn config_mut(&mut self) -> &mut ::connectrpc::client::ClientConfig {
         &mut self.config
     }
-    /// Call the SearchMetadata RPC. Sends a request to /nama.v1.MatchService/SearchMetadata.
-    pub async fn search_metadata(
+    /// Call the SearchTitles RPC. Sends a request to /nama.v1.MatchService/SearchTitles.
+    pub async fn search_titles(
         &self,
-        request: crate::messages::nama::v1::SearchMetadataRequest,
+        request: crate::messages::nama::v1::SearchTitlesRequest,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                crate::messages::nama::v1::__buffa::view::SearchMetadataResponseView<
+                crate::messages::nama::v1::__buffa::view::SearchTitlesResponseView<
                     'static,
                 >,
             >,
         >,
         ::connectrpc::ConnectError,
     > {
-        self.search_metadata_with_options(
+        self.search_titles_with_options(
                 request,
                 ::connectrpc::client::CallOptions::default(),
             )
             .await
     }
-    /// Call the SearchMetadata RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
-    pub async fn search_metadata_with_options(
+    /// Call the SearchTitles RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn search_titles_with_options(
         &self,
-        request: crate::messages::nama::v1::SearchMetadataRequest,
+        request: crate::messages::nama::v1::SearchTitlesRequest,
         options: ::connectrpc::client::CallOptions,
     ) -> Result<
         ::connectrpc::client::UnaryResponse<
             ::buffa::view::OwnedView<
-                crate::messages::nama::v1::__buffa::view::SearchMetadataResponseView<
+                crate::messages::nama::v1::__buffa::view::SearchTitlesResponseView<
                     'static,
                 >,
             >,
@@ -845,7 +845,7 @@ where
         ::connectrpc::client::call_unary(
                 &self.transport,
                 &self.config,
-                MATCH_SERVICE_SEARCH_METADATA_SPEC
+                MATCH_SERVICE_SEARCH_TITLES_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

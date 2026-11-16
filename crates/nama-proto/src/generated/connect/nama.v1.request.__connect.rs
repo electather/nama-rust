@@ -1209,8 +1209,8 @@ pub trait RequestService: Send + Sync + 'static {
     /// Requester, which changes nothing if they already are one. Otherwise a new Request opens:
     /// Approved if the caller has `PERMISSION_AUTO_APPROVE_MOVIE`, else Pending. Needs
     /// `PERMISSION_REQUEST_MOVIE`. Fails with `failed_precondition` if a Library already has the
-    /// Movie, `invalid_argument` if the metadata source has no Movie with the id, and `unavailable`
-    /// if no metadata Provider is enabled, or it failed. A new Request takes the Quality named in
+    /// Movie, `invalid_argument` if the title source has no Movie with the id, and `unavailable`
+    /// if no title source is enabled, or one failed. A new Request takes the Quality named in
     /// `quality`, else the caller's default from `SetDefaultQuality` if they have
     /// `PERMISSION_CHOOSE_QUALITY` and the list still has it, else the Movie Fulfiller's default;
     /// joining one keeps its Quality. Naming a Quality without `PERMISSION_CHOOSE_QUALITY` is refused
@@ -1319,8 +1319,8 @@ pub trait RequestService: Send + Sync + 'static {
     /// asks for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs
     /// `PERMISSION_REQUEST_TV`. A Season is in a Library once it has aired and every one of its aired
     /// Episodes is Matched, and asking for such a Season fails with `failed_precondition`. Fails with
-    /// `invalid_argument` if no Season is named or the metadata source has no such Show or Season,
-    /// and `unavailable` if no metadata Provider is enabled, or it failed. A failure changes no
+    /// `invalid_argument` if no Season is named or the title source has no such Show or Season,
+    /// and `unavailable` if no title source is enabled, or one failed. A failure changes no
     /// Request. A new Request takes the Show's Quality (`FoundShow.quality`) if it has one, else one
     /// picked as `CreateRequest` picks a Movie's, refusing a Quality as `CreateRequest` does, and one
     /// other than the Show's with `REFUSAL_REASON_SHOW_HAS_QUALITY`.
@@ -1377,8 +1377,8 @@ pub trait RequestService: Send + Sync + 'static {
     /// Show is Approved, a scan Matching Episodes of a Season that came out after it was opened opens
     /// a Request for its Requesters at the Show's Quality. A new Followed Show takes the Show's Quality
     /// if it has one, else one picked and refused as `CreateSeasonRequests` picks and refuses one;
-    /// joining one keeps its Quality. Fails with `invalid_argument` if the metadata source has no Show
-    /// with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+    /// joining one keeps its Quality. Fails with `invalid_argument` if the title source has no Show
+    /// with the id, and `unavailable` if no title source is enabled, or one failed.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1476,10 +1476,10 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Searches the metadata source for Movies to ask for, best fit first. Unlike
-    /// `MatchService.SearchMetadata`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
-    /// `invalid_argument` if the title is blank, and `unavailable` if no metadata Provider is
-    /// enabled, or it failed.
+    /// Searches the title source for Movies to ask for, best fit first. Unlike
+    /// `MatchService.SearchTitles`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
+    /// `invalid_argument` if the title is blank, and `unavailable` if no title source is
+    /// enabled, or one failed.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1502,9 +1502,10 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Returns one Movie from the metadata source, for its page when no Library has it. Needs
-    /// `PERMISSION_REQUEST_MOVIE`. Fails with `invalid_argument` if the metadata source has no Movie
-    /// with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+    /// Returns one Movie from the title source, for its page when no Library has it. Needs
+    /// `PERMISSION_REQUEST_MOVIE`. Fails with `not_found` if no title source has a Movie with the
+    /// id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if no
+    /// title source is enabled, or one failed.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1527,7 +1528,7 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Searches the metadata source for Shows to ask for Seasons of, best fit first. Needs
+    /// Searches the title source for Shows to ask for Seasons of, best fit first. Needs
     /// `PERMISSION_REQUEST_TV`. Fails as `SearchMovies` does.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
@@ -1551,9 +1552,10 @@ pub trait RequestService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Returns one Show from the metadata source with each of its Seasons, for picking which to ask
-    /// for. Needs `PERMISSION_REQUEST_TV`. Fails with `invalid_argument` if the metadata source has no
-    /// Show with the id, and `unavailable` if no metadata Provider is enabled, or it failed.
+    /// Returns one Show from the title source with each of its Seasons, for picking which to ask
+    /// for. Needs `PERMISSION_REQUEST_TV`. Fails with `not_found` if no title source has a Show
+    /// with the id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if
+    /// no title source is enabled, or one failed.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

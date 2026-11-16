@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO followed_shows (show_id, title, state, latest_season, created_at, quality_id,\n                                     quality_name, quality_profile_id)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "followed_shows",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1000be0910537180e6035c1264b125486edf3f1df8106460b9f6df47365e1c02"
+}

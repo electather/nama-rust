@@ -11,14 +11,14 @@ vp env install   # the pinned Node and pnpm
 vp install       # dependencies
 ```
 
-| Job                                              | Command                                        | Tool underneath                    |
-| ------------------------------------------------ | ---------------------------------------------- | ---------------------------------- |
-| Dev server                                       | `vp dev`                                       | Vite                               |
-| Build                                            | `vp build`                                     | Vite (Rolldown), output in `dist/` |
-| Format, lint, type-check                         | `vp check` (`vp check --fix` to apply fixes)   | oxfmt, oxlint, tsgo                |
-| Tests                                            | `vp test`                                      | Vitest on happy-dom                |
-| Unused code, duplication, complexity, boundaries | `vp run fallow`                                | Fallow                             |
-| Design check                                     | `impeccable detect --json <files>` (repo root) | impeccable                         |
+| Job                                              | Command                                                     | Tool underneath                    |
+| ------------------------------------------------ | ----------------------------------------------------------- | ---------------------------------- |
+| Dev server                                       | `vp dev`                                                    | Vite                               |
+| Build                                            | `vp build`                                                  | Vite (Rolldown), output in `dist/` |
+| Format, lint, type-check                         | `vp check` (`vp check --fix` to apply fixes)                | oxfmt, oxlint, tsgo                |
+| Tests                                            | `vp test`                                                   | Vitest on happy-dom                |
+| Unused code, duplication, complexity, boundaries | `vp run fallow`                                             | Fallow                             |
+| Design check                                     | `vp dlx impeccable@4.8.0 detect --json <files>` (repo root) | impeccable                         |
 
 All lint, type-check and Fallow config lives in `vite.config.ts`, `tsconfig.json` and the Fallow config. There is no `.oxlintrc`. pnpm's own settings (`minimumReleaseAge`, the allowlist for dependency build scripts, and `runtimeOnFail`/`pmOnFail` set to `ignore` so pnpm leaves Node and pnpm versions to `vp`) are in `pnpm-workspace.yaml`.
 
@@ -31,7 +31,7 @@ vp check
 vp test
 vp build
 vp run fallow   # fallow --ci
-(cd .. && impeccable detect --json web/src)
+(cd .. && vp dlx impeccable@4.8.0 detect --json web/src)
 ```
 
 impeccable runs from the repo root because that's where it finds `.impeccable/config.json`, which ignores `src/gen/`, and `DESIGN.md`. From `web/` it reads neither.
@@ -44,7 +44,7 @@ How strict they are:
 
 ## Generated client
 
-`src/gen/` holds the TypeScript messages and service descriptors that `protoc-gen-es` generates from `proto/` (ADR 0007). Like the Rust code in `crates/nama-proto`, it's checked in, and CI's `lint` job fails if it's stale. After changing the schema, run `vp install` here (that installs the plugin), then `buf generate` in `proto/`. Calls go through `@connectrpc/connect-query` with the generated descriptors, so there's no `protoc-gen-connect-query`.
+`src/gen/` holds the TypeScript messages and service descriptors that `protoc-gen-es` generates from `proto/` (ADR 0007). It holds the client API only, not the Plugin contract. Like the Rust code in `crates/nama-proto`, it's checked in, and CI's `lint` job fails if it's stale. After changing the schema, run `vp install` here (that installs the plugin), then `buf generate` in `proto/`. Calls go through `@connectrpc/connect-query` with the generated descriptors, so there's no `protoc-gen-connect-query`.
 
 ## Running against a Server
 

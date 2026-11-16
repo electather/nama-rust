@@ -15,8 +15,8 @@ use nama_proto::nama::v1::{
     BrowseServiceClient, ClearMatchRequest, CreateRequestRequest, CreateSeasonRequestsRequest,
     ExternalId, GetRequestRequest, LibraryKind, ListEpisodesRequest, ListMoviesRequest,
     ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, MatchServiceClient, RefusalReason,
-    RequestServiceClient, RequestState, SearchMetadataRequest, SetMatchRequest, SetMatchResponse,
-    TitleCandidate, TitleKind, UnmatchedItem, UnmatchedReason, external_id,
+    RequestServiceClient, RequestState, SearchTitlesRequest, SetMatchRequest, SetMatchResponse,
+    TitleCandidate, TitleKind, UnmatchedItem, UnmatchedReason,
 };
 use refused::assert_refused;
 use server::{Builder, Library, TestServer};
@@ -48,7 +48,7 @@ impl Fixture {
         Self::start_with(kind, TestServer::builder().tmdb()).await
     }
 
-    /// Starts a Server with a Library of `kind` and no metadata Provider, so nothing is Matched.
+    /// Starts a Server with a Library of `kind` and no title source, so nothing is Matched.
     async fn start_without_metadata(kind: LibraryKind) -> Self {
         Self::start_with(kind, TestServer::builder()).await
     }
@@ -119,11 +119,19 @@ impl Fixture {
     }
 
     async fn set_match(&self, item: i64, tmdb: i64) -> Result<SetMatchResponse, ConnectError> {
+        self.set_match_to(item, tmdb_id(tmdb)).await
+    }
+
+    async fn set_match_to(
+        &self,
+        item: i64,
+        title: ExternalId,
+    ) -> Result<SetMatchResponse, ConnectError> {
         Ok(self
             .matches
             .set_match(SetMatchRequest {
                 item_id: item,
-                title_id: tmdb_id(tmdb).into(),
+                title_id: title.into(),
                 ..Default::default()
             })
             .await?
@@ -159,8 +167,13 @@ impl Fixture {
 }
 
 fn tmdb_id(id: i64) -> ExternalId {
+    title_id("tmdb", &id.to_string())
+}
+
+fn title_id(namespace: &str, value: &str) -> ExternalId {
     ExternalId {
-        id: Some(external_id::Id::Tmdb(id)),
+        namespace: namespace.to_owned(),
+        value: value.to_owned(),
         ..Default::default()
     }
 }
@@ -207,12 +220,12 @@ async fn a_cleared_match_is_unmatched() {
 }
 
 #[tokio::test]
-async fn search_metadata_passes_the_search_to_the_metadata_provider() {
+async fn search_titles_passes_the_search_to_the_title_source() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
     let response = fx
         .matches
-        .search_metadata(SearchMetadataRequest {
+        .search_titles(SearchTitlesRequest {
             kind: TitleKind::TITLE_KIND_MOVIE.into(),
             title: "Alien".to_owned(),
             year: Some(1979),
@@ -224,18 +237,22 @@ async fn search_metadata_passes_the_search_to_the_metadata_provider() {
 
     let best = &response.candidates[0];
     assert_eq!(
-        (best.id.id.clone(), best.title.as_str(), best.year),
-        (Some(external_id::Id::Tmdb(348)), "Alien", Some(1979))
+        (
+            best.id.clone().into_option(),
+            best.title.as_str(),
+            best.year
+        ),
+        (Some(tmdb_id(348)), "Alien", Some(1979))
     );
 }
 
 #[tokio::test]
-async fn search_metadata_without_a_kind_is_invalid() {
+async fn search_titles_without_a_kind_is_invalid() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
     let refused = fx
         .matches
-        .search_metadata(SearchMetadataRequest {
+        .search_titles(SearchTitlesRequest {
             title: "Alien".to_owned(),
             ..Default::default()
         })
@@ -250,12 +267,12 @@ async fn search_metadata_without_a_kind_is_invalid() {
 }
 
 #[tokio::test]
-async fn search_metadata_without_a_metadata_provider_is_unavailable() {
+async fn search_titles_without_a_title_source_is_unavailable() {
     let fx = Fixture::start_without_metadata(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
     let refused = fx
         .matches
-        .search_metadata(SearchMetadataRequest {
+        .search_titles(SearchTitlesRequest {
             kind: TitleKind::TITLE_KIND_MOVIE.into(),
             title: "Alien".to_owned(),
             ..Default::default()
@@ -265,7 +282,7 @@ async fn search_metadata_without_a_metadata_provider_is_unavailable() {
     assert_refused(
         refused,
         ErrorCode::Unavailable,
-        RefusalReason::REFUSAL_REASON_NO_METADATA_PROVIDER,
+        RefusalReason::REFUSAL_REASON_NO_TITLE_SOURCE,
     );
 }
 
@@ -277,7 +294,7 @@ async fn matching_a_file_by_hand_to_a_requested_movie_makes_its_request_availabl
     let requests = RequestServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
     let heat = requests
         .create_request(CreateRequestRequest {
-            movie_tmdb_id: 949,
+            movie_id: tmdb_id(949).into(),
             ..Default::default()
         })
         .await
@@ -318,7 +335,7 @@ async fn matching_one_of_two_aired_episodes_by_hand_makes_its_processing_season_
     let requests = RequestServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
     let season_1 = requests
         .create_season_requests(CreateSeasonRequestsRequest {
-            show_tmdb_id: 2316,
+            show_id: tmdb_id(2316).into(),
             season_numbers: vec![1],
             ..Default::default()
         })
@@ -374,6 +391,83 @@ async fn set_match_to_a_title_tmdb_does_not_have_is_invalid() {
     assert_eq!(refusal.field, "title_id");
     let title_id = refusal.params.get("titleId").map(String::as_str);
     assert_eq!(title_id, Some("tmdb-1"));
+}
+
+#[tokio::test]
+async fn set_match_to_an_id_of_a_namespace_tmdb_does_not_know_is_an_unknown_title() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_MOVIES, VIDEO);
+    let item = fx.scan_and_match().await[HOME_MOVIES];
+
+    let refused = fx.set_match_to(item, title_id("anidb", "123")).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+    );
+    assert_eq!(refusal.field, "title_id");
+}
+
+#[tokio::test]
+async fn set_match_to_a_malformed_id_is_invalid() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_MOVIES, VIDEO);
+    let item = fx.scan_and_match().await[HOME_MOVIES];
+
+    for (namespace, value) in [("Tmdb", "603"), ("", "603"), ("tmdb", "")] {
+        let refused = fx.set_match_to(item, title_id(namespace, value)).await;
+
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_TITLE_ID_MALFORMED,
+        );
+        assert_eq!(refusal.field, "title_id", "{namespace:?} {value:?}");
+    }
+}
+
+#[tokio::test]
+async fn requesting_a_movie_by_an_id_no_source_knows_or_a_malformed_one_is_refused() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    let requests = RequestServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+
+    for (id, reason) in [
+        (
+            title_id("anidb", "1"),
+            RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+        ),
+        (
+            title_id("AniDB", "1"),
+            RefusalReason::REFUSAL_REASON_TITLE_ID_MALFORMED,
+        ),
+    ] {
+        let refused = requests
+            .create_request(CreateRequestRequest {
+                movie_id: id.into(),
+                ..Default::default()
+            })
+            .await;
+
+        let refusal = assert_refused(refused, ErrorCode::InvalidArgument, reason);
+        assert_eq!(refusal.field, "movie_id");
+    }
+}
+
+#[tokio::test]
+async fn set_match_to_an_id_with_neither_part_is_missing_a_title() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
+    fx.write(HOME_MOVIES, VIDEO);
+    let item = fx.scan_and_match().await[HOME_MOVIES];
+
+    let refused = fx.set_match_to(item, title_id("", "")).await;
+
+    let refusal = assert_refused(
+        refused,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+    );
+    assert_eq!(refusal.field, "title_id");
 }
 
 #[tokio::test]

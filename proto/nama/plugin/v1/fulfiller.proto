@@ -2,20 +2,53 @@ syntax = "proto3";
 
 package nama.plugin.v1;
 
-import "nama/v1/request.proto";
+import "nama/plugin/v1/request.proto";
 
-// What an Installed Plugin's `fulfill` export returns once its Fulfiller took the Request it was
-// handed as a `nama.v1.Request`. If the service didn't take it, the export fails instead, and its
-// error is the reason the Request shows as Failed.
+// The Extension Point for a Fulfiller of Movie Requests. An Installed Plugin serves it through
+// the WASM exports each rpc names, each taking and returning its messages encoded as protobuf.
+service MovieFulfillerService {
+  // The `fulfill` export: hands the Fulfiller an Approved `Request` for a Movie. Required.
+  rpc Fulfill(Request) returns (Fulfilled);
+  // The `stop_monitoring` export: a delete asks the service to stop monitoring a title. Optional:
+  // a Plugin without it isn't asked.
+  rpc StopMonitoring(nama.plugin.v1.StopMonitoring) returns (StoppedMonitoring);
+  // The `progress` export: what the service is downloading for the Fulfiller's references.
+  // Required.
+  rpc Progress(ProgressAsked) returns (nama.plugin.v1.Progress);
+}
+
+// The Extension Point for a Fulfiller of Season Requests, with the exports of
+// `MovieFulfillerService` and `unfollow`. A Plugin serving both tells a Movie Request from a Season
+// one by which it holds.
+service ShowFulfillerService {
+  // The `fulfill` export, as for `MovieFulfillerService`, for a Season. Required.
+  rpc Fulfill(Request) returns (Fulfilled);
+  // The `stop_monitoring` export, as for `MovieFulfillerService`. Optional: a Plugin without it
+  // isn't asked.
+  rpc StopMonitoring(nama.plugin.v1.StopMonitoring) returns (StoppedMonitoring);
+  // The `progress` export, as for `MovieFulfillerService`. Required.
+  rpc Progress(ProgressAsked) returns (nama.plugin.v1.Progress);
+  // The `unfollow` export: takes the `Request` for a Season of a Followed Show that ended, and
+  // stops following the Show. Required.
+  rpc Unfollow(Request) returns (Unfollowed);
+}
+
+// What an Installed Plugin's `fulfill` export returns once its Fulfiller took the `Request` it was
+// handed. If the service didn't take it, the export fails instead, and its error is the reason the
+// Request shows as Failed.
 message Fulfilled {
   // An opaque reference the Kernel keeps with the Request and passes back to `progress`.
   string reference = 1;
-  // The service's quality profile the title is downloaded at, as `nama.v1.Quality.profile_id`:
-  // the one asked for, or the service's own when it already had the title and kept it. Empty if
-  // the Fulfiller doesn't say.
+  // The service's quality profile the title is downloaded at, as `RequestedQuality.profile_id`
+  // names it: the one asked for, or the service's own when it already had the title and kept it.
+  // Empty if the Fulfiller doesn't say.
   string profile_id = 2;
   // The service's name for that profile, such as Radarr's `HD-1080p`.
   string profile_name = 3;
+  // Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+  // with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+  // enabled. When set, the message's other fields are ignored.
+  optional uint32 retry_after_seconds = 4;
 }
 
 // What an Installed Plugin's `progress` export is asked about: the references its Fulfiller gave
@@ -32,27 +65,66 @@ message Progress {
 
 // What the service is downloading for one reference.
 message Downloads {
-  repeated nama.v1.Download downloads = 1;
+  repeated Download downloads = 1;
+}
+
+// One thing the service is downloading for a Request, as the Kernel shows it on that Request.
+message Download {
+  // What is downloading, as the service names it.
+  string title = 1;
+  // How much is done, from 0 to 100.
+  float percent = 2;
+  // How big it is, in bytes, if the service knows.
+  optional uint64 size_bytes = 3;
+  // How long until it is done, in seconds, if the service knows.
+  optional uint64 eta_seconds = 4;
+  // Where the download stands.
+  DownloadStatus status = 5;
+  // Why it needs attention, in the service's own words, if it says. Set it only on a download
+  // whose status is `DOWNLOAD_STATUS_NEEDS_ATTENTION`.
+  optional string attention_reason = 6;
+}
+
+// Where a download stands. A Kernel that doesn't know a status shows it as unspecified.
+enum DownloadStatus {
+  DOWNLOAD_STATUS_UNSPECIFIED = 0;
+  // Waiting for its turn to download.
+  DOWNLOAD_STATUS_QUEUED = 1;
+  // Downloading now.
+  DOWNLOAD_STATUS_DOWNLOADING = 2;
+  // Downloaded, and being moved into the Library's folder.
+  DOWNLOAD_STATUS_IMPORTING = 3;
+  // Stopped until someone looks at it in the service, such as when it stalled, failed or can't be
+  // imported.
+  DOWNLOAD_STATUS_NEEDS_ATTENTION = 4;
 }
 
 // What a delete asks a Fulfiller to stop monitoring, so its service doesn't download it again.
 // The service keeps the title, and one it doesn't have means nothing to do. An Installed Plugin's
-// `stop_monitoring` export takes it and returns nothing.
+// `stop_monitoring` export takes it and returns `StoppedMonitoring`.
 message StopMonitoring {
+  reserved 1;
+  reserved "movie_tmdb_id";
   oneof title {
-    // A Movie, by its TMDB id.
-    int64 movie_tmdb_id = 1;
     // Some or all of a Show.
     ShowDeleted show = 2;
+    // A Movie.
+    MovieDeleted movie = 3;
   }
+}
+
+// A Movie a delete takes.
+message MovieDeleted {
+  // Every id the Kernel knows the Movie by, at most one per namespace. Any one identifies it.
+  repeated TitleId ids = 1;
 }
 
 // What a delete takes of a Show, which keeps its new Seasons coming.
 message ShowDeleted {
-  // The Show's TMDB id, if the metadata source has one.
-  optional int64 show_tmdb_id = 1;
-  // The Show's TVDB id, if the metadata source has one.
-  optional int64 show_tvdb_id = 2;
+  reserved 1, 2;
+  reserved "show_tmdb_id", "show_tvdb_id";
+  // Every id the Kernel knows the Show by, at most one per namespace. Any one identifies it.
+  repeated TitleId show_ids = 6;
   oneof deleted {
     // Every Season the service has of the Show now, and their Episodes. Always true when set.
     bool every_current_season = 3;
@@ -73,4 +145,22 @@ message EpisodeNumber {
   // Its Season's number. Season 0 holds specials.
   uint32 season_number = 1;
   uint32 episode_number = 2;
+}
+
+// What an Installed Plugin's `stop_monitoring` export returns. Empty unless it asks to be asked
+// again, so an export returning nothing returns it.
+message StoppedMonitoring {
+  // Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+  // with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+  // enabled. When set, the message's other fields are ignored.
+  optional uint32 retry_after_seconds = 1;
+}
+
+// What an Installed Plugin's `unfollow` export returns. Empty unless it asks to be asked again, as
+// `StoppedMonitoring` is.
+message Unfollowed {
+  // Set when the service can't act yet, such as Sonarr still adding a Show: the Kernel asks again
+  // with the same input after that many seconds, clamped to 1 to 300, while the Plugin stays
+  // enabled. When set, the message's other fields are ignored.
+  optional uint32 retry_after_seconds = 1;
 }

@@ -102,7 +102,7 @@ const serverPlanning = ({
     router.service(BrowseService, {
       getMovie: () => ({
         movie: {
-          id: { id: { case: "tmdb", value: 603n } },
+          id: { namespace: "tmdb", value: "603" },
           title: "The Matrix",
           watchState,
           versions: [

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_items.id AS \"id!\", library_files.path\n               FROM library_items\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?\n                 AND NOT EXISTS (SELECT 1 FROM item_matches\n                                 WHERE item_matches.item_id = library_items.id)",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "path",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "path"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b09dd554a5d7a40d4e2b21063e18ce789d7da7b2d4555b9baf9b341a958c149d"
+}

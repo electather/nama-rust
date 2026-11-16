@@ -37,7 +37,7 @@ use server::{
 /// Where the store keeps Alien's Poster, as the fake TMDB names it.
 const POSTER: &str = "artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg";
 /// Where the store keeps Alien's Title Logo, as the fake TMDB names it.
-const TITLE_LOGO: &str = "artwork/tmdb/%2FfzbFBy8eTB3hbmHDgSrbNdhDzA9.png";
+const TITLE_LOGO: &str = "artwork/tmdb/%2FqH7nHxlGlKvK3vqSRtrjtE4ZQgW.png";
 /// Where the store keeps the Still of Dark's S01E01, as the fake TMDB names it.
 const STILL: &str = "artwork/tmdb/%2FgNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
 

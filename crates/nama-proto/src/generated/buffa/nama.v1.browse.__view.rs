@@ -9,11 +9,11 @@ pub struct MovieView<'a> {
     ///
     /// Field 1: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     pub title: &'a str,
-    /// The title in its original language, if the metadata source has it.
+    /// The title in its original language, if the title source has it.
     ///
     /// Field 3: `original_title`
     pub original_title: ::core::option::Option<&'a str>,
@@ -48,8 +48,8 @@ pub struct MovieView<'a> {
         super::super::__buffa::view::WatchStateView<'a>,
     >,
     /// Whether `poster_url` is a Custom Image, which `DELETE /custom-images/movie/<id>/poster`
-    /// removes, `<id>` being `id` as `tmdb-348`, `imdb-tt0078748` or `tvdb-81189`. `PUT` there
-    /// uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
+    /// removes, `<id>` being `id` as `<namespace>-<value>`, the value percent-encoded, such as
+    /// `tmdb-348`. `PUT` there uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
     ///
     /// Field 11: `custom_poster`
     pub custom_poster: bool,
@@ -66,16 +66,16 @@ pub struct MovieView<'a> {
     ///
     /// Field 14: `backdrop_thumbhash`
     pub backdrop_thumbhash: ::core::option::Option<&'a [u8]>,
-    /// Its Title Logo's URL on this Server, lettered in the metadata Provider's language. Unset if
-    /// the Provider has none in that language: show `title` as text instead.
+    /// Its Title Logo's URL on this Server, picked from its title sources' artwork. Unset if none
+    /// has one: show `title` as text instead.
     ///
     /// Field 15: `title_logo_url`
     pub title_logo_url: ::core::option::Option<&'a str>,
-    /// Its genres' names, in the metadata Provider's language.
+    /// Its genres' names, in its title source's language.
     ///
     /// Field 16: `genres`
     pub genres: ::buffa::RepeatedView<'a, &'a str>,
-    /// Its Content Rating in the metadata Provider's country, such as `R`. Unset if it has none
+    /// Its Content Rating in its title source's country, such as `R`. Unset if it has none
     /// there.
     ///
     /// Field 17: `content_rating`
@@ -672,14 +672,14 @@ impl MovieOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[must_use]
     pub fn title(&self) -> &'_ str {
         self.0.reborrow().title
     }
-    /// The title in its original language, if the metadata source has it.
+    /// The title in its original language, if the title source has it.
     ///
     /// Field 3: `original_title`
     #[must_use]
@@ -737,8 +737,8 @@ impl MovieOwnedView {
         &self.0.reborrow().watch_state
     }
     /// Whether `poster_url` is a Custom Image, which `DELETE /custom-images/movie/<id>/poster`
-    /// removes, `<id>` being `id` as `tmdb-348`, `imdb-tt0078748` or `tvdb-81189`. `PUT` there
-    /// uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
+    /// removes, `<id>` being `id` as `<namespace>-<value>`, the value percent-encoded, such as
+    /// `tmdb-348`. `PUT` there uploads one, for a User with `PERMISSION_MANAGE_LIBRARIES`.
     ///
     /// Field 11: `custom_poster`
     #[must_use]
@@ -767,22 +767,22 @@ impl MovieOwnedView {
     pub fn backdrop_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
         self.0.reborrow().backdrop_thumbhash
     }
-    /// Its Title Logo's URL on this Server, lettered in the metadata Provider's language. Unset if
-    /// the Provider has none in that language: show `title` as text instead.
+    /// Its Title Logo's URL on this Server, picked from its title sources' artwork. Unset if none
+    /// has one: show `title` as text instead.
     ///
     /// Field 15: `title_logo_url`
     #[must_use]
     pub fn title_logo_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().title_logo_url
     }
-    /// Its genres' names, in the metadata Provider's language.
+    /// Its genres' names, in its title source's language.
     ///
     /// Field 16: `genres`
     #[must_use]
     pub fn genres(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().genres
     }
-    /// Its Content Rating in the metadata Provider's country, such as `R`. Unset if it has none
+    /// Its Content Rating in its title source's country, such as `R`. Unset if it has none
     /// there.
     ///
     /// Field 17: `content_rating`
@@ -4184,7 +4184,7 @@ pub struct ShowView<'a> {
     ///
     /// Field 1: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     pub title: &'a str,
@@ -4693,7 +4693,7 @@ impl ShowOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[must_use]
@@ -5154,7 +5154,7 @@ pub struct EpisodeView<'a> {
     pub season_number: u32,
     /// Field 3: `episode_number`
     pub episode_number: u32,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 4: `title`
     pub title: &'a str,
@@ -5181,7 +5181,7 @@ pub struct EpisodeView<'a> {
     pub watch_state: ::buffa::MessageFieldView<
         super::super::__buffa::view::WatchStateView<'a>,
     >,
-    /// Its Still's URL on this Server. Unset if the metadata Provider has none.
+    /// Its Still's URL on this Server. Unset if its title source has none.
     ///
     /// Field 10: `still_url`
     pub still_url: ::core::option::Option<&'a str>,
@@ -5691,7 +5691,7 @@ impl EpisodeOwnedView {
     pub fn episode_number(&self) -> u32 {
         self.0.reborrow().episode_number
     }
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 4: `title`
     #[must_use]
@@ -5735,7 +5735,7 @@ impl EpisodeOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::WatchStateView<'_>> {
         &self.0.reborrow().watch_state
     }
-    /// Its Still's URL on this Server. Unset if the metadata Provider has none.
+    /// Its Still's URL on this Server. Unset if its title source has none.
     ///
     /// Field 10: `still_url`
     #[must_use]

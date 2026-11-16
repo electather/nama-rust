@@ -1,0 +1,196 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_files.path, library_files.size,\n                              library_items.id AS \"item?\", library_items.kind AS \"kind?: ItemKind\",\n                              library_items.title AS \"item_title?\", library_items.year,\n                              library_items.hint, library_items.season,\n                              library_items.episode,\n                              item_matches.state AS \"state?: MatchState\", item_matches.plugin, (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'title') AS \"ids?: String\", (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = 'show') AS \"show_ids?: String\", item_matches.title,\n                              item_matches.show_title, item_matches.poster\n                       FROM library_files\n                       LEFT JOIN library_items ON library_items.file_id = library_files.id\n                       LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n                       WHERE library_files.library_id = ?\n                       ORDER BY library_files.path, library_items.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "path",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_files",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "item?",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "kind?: ItemKind",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "item_title?",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "year",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "year"
+          }
+        }
+      },
+      {
+        "name": "hint",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "hint"
+          }
+        }
+      },
+      {
+        "name": "season",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "season"
+          }
+        }
+      },
+      {
+        "name": "episode",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "episode"
+          }
+        }
+      },
+      {
+        "name": "state?: MatchState",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "name": "plugin",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "ids?: String",
+        "ordinal": 11,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "show_ids?: String",
+        "ordinal": 12,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "title",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "show_title",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_title"
+          }
+        }
+      },
+      {
+        "name": "poster",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "poster"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      null,
+      null,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "6fd65f1dbca6368cedf0a60347a6ff0f2d35e99f07ba845dce786f6e0a8816f7"
+}

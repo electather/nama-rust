@@ -157,7 +157,7 @@ pub enum UnmatchedReason {
     UNMATCHED_REASON_AMBIGUOUS = 1i32,
     /// No title the search found fits well enough. A rename or an ID Hint may fix it.
     UNMATCHED_REASON_NO_TITLE_FITS = 2i32,
-    /// The item's ID Hint names no title the metadata source has.
+    /// The item's ID Hint names no title the title source has.
     UNMATCHED_REASON_UNKNOWN_ID_HINT = 3i32,
 }
 impl UnmatchedReason {
@@ -314,20 +314,40 @@ impl ::buffa::Enumeration for UnmatchedReason {
         ]
     }
 }
-/// An id of a title in a metadata source. Movies and Shows have separate id spaces.
+/// An id of a title in a title source: a namespace and a value, such as `tmdb` and `603`.
+/// Movies and Shows have separate id spaces.
 #[derive(Clone, PartialEq, Default)]
-#[derive(::serde::Serialize)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ExternalId {
-    #[serde(flatten)]
-    pub id: ::core::option::Option<__buffa::oneof::external_id::Id>,
+    /// Who defines the value: lowercase ASCII letters and digits, such as `tmdb`, `imdb` or `tvdb`.
+    ///
+    /// Field 4: `namespace`
+    #[serde(
+        rename = "namespace",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub namespace: ::buffa::alloc::string::String,
+    /// The id there. Never empty; the Server passes it on without reading it.
+    ///
+    /// Field 5: `value`
+    #[serde(
+        rename = "value",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub value: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ExternalId {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ExternalId").field("id", &self.id).finish()
+        f.debug_struct("ExternalId")
+            .field("namespace", &self.namespace)
+            .field("value", &self.value)
+            .finish()
     }
 }
 impl ExternalId {
@@ -357,18 +377,11 @@ impl ::buffa::Message for ExternalId {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if let ::core::option::Option::Some(ref v) = self.id {
-            match v {
-                __buffa::oneof::external_id::Id::Tmdb(v) => {
-                    size += 1u64 + ::buffa::types::int64_encoded_len(*v) as u64;
-                }
-                __buffa::oneof::external_id::Id::Imdb(x) => {
-                    size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
-                }
-                __buffa::oneof::external_id::Id::Tvdb(v) => {
-                    size += 1u64 + ::buffa::types::int64_encoded_len(*v) as u64;
-                }
-            }
+        if !self.namespace.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.namespace) as u64;
+        }
+        if !self.value.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.value) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -380,18 +393,11 @@ impl ::buffa::Message for ExternalId {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if let ::core::option::Option::Some(ref v) = self.id {
-            match v {
-                __buffa::oneof::external_id::Id::Tmdb(x) => {
-                    ::buffa::types::put_int64_field(1u32, *x, buf);
-                }
-                __buffa::oneof::external_id::Id::Imdb(x) => {
-                    ::buffa::types::put_string_field(2u32, x, buf);
-                }
-                __buffa::oneof::external_id::Id::Tvdb(x) => {
-                    ::buffa::types::put_int64_field(3u32, *x, buf);
-                }
-            }
+        if !self.namespace.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.namespace, buf);
+        }
+        if !self.value.is_empty() {
+            ::buffa::types::put_string_field(5u32, &self.value, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -406,38 +412,19 @@ impl ::buffa::Message for ExternalId {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
-            1u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.id = ::core::option::Option::Some(
-                    __buffa::oneof::external_id::Id::Tmdb(
-                        ::buffa::types::decode_int64(buf)?,
-                    ),
-                );
-            }
-            2u32 => {
+            4u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                self.id = ::core::option::Option::Some(
-                    __buffa::oneof::external_id::Id::Imdb(
-                        ::buffa::types::decode_string(buf)?,
-                    ),
-                );
+                ::buffa::types::merge_string(&mut self.namespace, buf)?;
             }
-            3u32 => {
+            5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
-                    ::buffa::encoding::WireType::Varint,
+                    ::buffa::encoding::WireType::LengthDelimited,
                 )?;
-                self.id = ::core::option::Option::Some(
-                    __buffa::oneof::external_id::Id::Tvdb(
-                        ::buffa::types::decode_int64(buf)?,
-                    ),
-                );
+                ::buffa::types::merge_string(&mut self.value, buf)?;
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -447,7 +434,8 @@ impl ::buffa::Message for ExternalId {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.id = ::core::option::Option::None;
+        self.namespace.clear();
+        self.value.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -458,116 +446,6 @@ impl ::buffa::ExtensionSet for ExternalId {
     }
     fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
         &mut self.__buffa_unknown_fields
-    }
-}
-impl<'de> ::serde::Deserialize<'de> for ExternalId {
-    fn deserialize<D: ::serde::Deserializer<'de>>(
-        d: D,
-    ) -> ::core::result::Result<Self, D::Error> {
-        struct _V;
-        impl<'de> ::serde::de::Visitor<'de> for _V {
-            type Value = ExternalId;
-            fn expecting(
-                &self,
-                f: &mut ::core::fmt::Formatter<'_>,
-            ) -> ::core::fmt::Result {
-                f.write_str("struct ExternalId")
-            }
-            #[allow(clippy::field_reassign_with_default)]
-            fn visit_map<A: ::serde::de::MapAccess<'de>>(
-                self,
-                mut map: A,
-            ) -> ::core::result::Result<ExternalId, A::Error> {
-                let mut __oneof_id: ::core::option::Option<
-                    __buffa::oneof::external_id::Id,
-                > = None;
-                while let Some(key) = map.next_key::<::buffa::alloc::string::String>()? {
-                    match key.as_str() {
-                        "tmdb" => {
-                            struct _DeserSeed;
-                            impl<'de> ::serde::de::DeserializeSeed<'de> for _DeserSeed {
-                                type Value = i64;
-                                fn deserialize<D: ::serde::Deserializer<'de>>(
-                                    self,
-                                    d: D,
-                                ) -> ::core::result::Result<i64, D::Error> {
-                                    ::buffa::json_helpers::int64::deserialize(d)
-                                }
-                            }
-                            let v: ::core::option::Option<i64> = map
-                                .next_value_seed(
-                                    ::buffa::json_helpers::NullableDeserializeSeed(_DeserSeed),
-                                )?;
-                            if let Some(v) = v {
-                                if __oneof_id.is_some() {
-                                    return Err(
-                                        ::serde::de::Error::custom(
-                                            "multiple oneof fields set for 'id'",
-                                        ),
-                                    );
-                                }
-                                __oneof_id = Some(__buffa::oneof::external_id::Id::Tmdb(v));
-                            }
-                        }
-                        "imdb" => {
-                            let v: ::core::option::Option<
-                                ::buffa::alloc::string::String,
-                            > = map
-                                .next_value_seed(
-                                    ::buffa::json_helpers::NullableDeserializeSeed(
-                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
-                                            ::buffa::alloc::string::String,
-                                        >::new(),
-                                    ),
-                                )?;
-                            if let Some(v) = v {
-                                if __oneof_id.is_some() {
-                                    return Err(
-                                        ::serde::de::Error::custom(
-                                            "multiple oneof fields set for 'id'",
-                                        ),
-                                    );
-                                }
-                                __oneof_id = Some(__buffa::oneof::external_id::Id::Imdb(v));
-                            }
-                        }
-                        "tvdb" => {
-                            struct _DeserSeed;
-                            impl<'de> ::serde::de::DeserializeSeed<'de> for _DeserSeed {
-                                type Value = i64;
-                                fn deserialize<D: ::serde::Deserializer<'de>>(
-                                    self,
-                                    d: D,
-                                ) -> ::core::result::Result<i64, D::Error> {
-                                    ::buffa::json_helpers::int64::deserialize(d)
-                                }
-                            }
-                            let v: ::core::option::Option<i64> = map
-                                .next_value_seed(
-                                    ::buffa::json_helpers::NullableDeserializeSeed(_DeserSeed),
-                                )?;
-                            if let Some(v) = v {
-                                if __oneof_id.is_some() {
-                                    return Err(
-                                        ::serde::de::Error::custom(
-                                            "multiple oneof fields set for 'id'",
-                                        ),
-                                    );
-                                }
-                                __oneof_id = Some(__buffa::oneof::external_id::Id::Tvdb(v));
-                            }
-                        }
-                        _ => {
-                            map.next_value::<::serde::de::IgnoredAny>()?;
-                        }
-                    }
-                }
-                let mut __r = <ExternalId as ::core::default::Default>::default();
-                __r.id = __oneof_id;
-                Ok(__r)
-            }
-        }
-        d.deserialize_map(_V)
     }
 }
 impl ::buffa::json_helpers::ProtoElemJson for ExternalId {
@@ -590,14 +468,6 @@ pub const __EXTERNAL_ID_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
     from_json: ::buffa::type_registry::any_from_json::<ExternalId>,
     is_wkt: false,
 };
-pub mod external_id {
-    #[allow(unused_imports)]
-    use super::*;
-    #[doc(inline)]
-    pub use super::__buffa::oneof::external_id::Id;
-    #[doc(inline)]
-    pub use super::__buffa::view::oneof::external_id::Id as IdView;
-}
 /// A title a search found.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
@@ -611,7 +481,7 @@ pub struct TitleCandidate {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The title, in the metadata Provider's language.
+    /// The title, in its title source's language.
     ///
     /// Field 2: `title`
     #[serde(
@@ -620,7 +490,7 @@ pub struct TitleCandidate {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub title: ::buffa::alloc::string::String,
-    /// The title in its original language, if the metadata source has it.
+    /// The title in its original language, if the title source has it.
     ///
     /// Field 3: `original_title`
     #[serde(
@@ -841,7 +711,7 @@ pub const __TITLE_CANDIDATE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
-pub struct SearchMetadataRequest {
+pub struct SearchTitlesRequest {
     /// Must not be `TITLE_KIND_UNSPECIFIED`.
     ///
     /// Field 1: `kind`
@@ -873,23 +743,23 @@ pub struct SearchMetadataRequest {
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
-impl ::core::fmt::Debug for SearchMetadataRequest {
+impl ::core::fmt::Debug for SearchTitlesRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SearchMetadataRequest")
+        f.debug_struct("SearchTitlesRequest")
             .field("kind", &self.kind)
             .field("title", &self.title)
             .field("year", &self.year)
             .finish()
     }
 }
-impl SearchMetadataRequest {
+impl SearchTitlesRequest {
     /// Protobuf type URL for this message, for use with `Any::pack` and
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchMetadataRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchTitlesRequest";
 }
-impl SearchMetadataRequest {
+impl SearchTitlesRequest {
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
     #[inline]
     ///Sets [`Self::year`] to `Some(value)`, consuming and returning `self`.
@@ -898,14 +768,14 @@ impl SearchMetadataRequest {
         self
     }
 }
-::buffa::impl_default_instance!(SearchMetadataRequest);
-impl ::buffa::MessageName for SearchMetadataRequest {
+::buffa::impl_default_instance!(SearchTitlesRequest);
+impl ::buffa::MessageName for SearchTitlesRequest {
     const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "SearchMetadataRequest";
-    const FULL_NAME: &'static str = "nama.v1.SearchMetadataRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchMetadataRequest";
+    const NAME: &'static str = "SearchTitlesRequest";
+    const FULL_NAME: &'static str = "nama.v1.SearchTitlesRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchTitlesRequest";
 }
-impl ::buffa::Message for SearchMetadataRequest {
+impl ::buffa::Message for SearchTitlesRequest {
     /// Returns the total encoded size in bytes.
     ///
     /// Accumulates in `u64` (which cannot overflow for in-memory
@@ -1002,8 +872,8 @@ impl ::buffa::Message for SearchMetadataRequest {
         self.__buffa_unknown_fields.clear();
     }
 }
-impl ::buffa::ExtensionSet for SearchMetadataRequest {
-    const PROTO_FQN: &'static str = "nama.v1.SearchMetadataRequest";
+impl ::buffa::ExtensionSet for SearchTitlesRequest {
+    const PROTO_FQN: &'static str = "nama.v1.SearchTitlesRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1011,7 +881,7 @@ impl ::buffa::ExtensionSet for SearchMetadataRequest {
         &mut self.__buffa_unknown_fields
     }
 }
-impl ::buffa::json_helpers::ProtoElemJson for SearchMetadataRequest {
+impl ::buffa::json_helpers::ProtoElemJson for SearchTitlesRequest {
     fn serialize_proto_json<S: ::serde::Serializer>(
         v: &Self,
         s: S,
@@ -1025,16 +895,16 @@ impl ::buffa::json_helpers::ProtoElemJson for SearchMetadataRequest {
     }
 }
 #[doc(hidden)]
-pub const __SEARCH_METADATA_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.SearchMetadataRequest",
-    to_json: ::buffa::type_registry::any_to_json::<SearchMetadataRequest>,
-    from_json: ::buffa::type_registry::any_from_json::<SearchMetadataRequest>,
+pub const __SEARCH_TITLES_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.SearchTitlesRequest",
+    to_json: ::buffa::type_registry::any_to_json::<SearchTitlesRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<SearchTitlesRequest>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
-pub struct SearchMetadataResponse {
+pub struct SearchTitlesResponse {
     /// Field 1: `candidates`
     #[serde(
         rename = "candidates",
@@ -1046,28 +916,28 @@ pub struct SearchMetadataResponse {
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
-impl ::core::fmt::Debug for SearchMetadataResponse {
+impl ::core::fmt::Debug for SearchTitlesResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SearchMetadataResponse")
+        f.debug_struct("SearchTitlesResponse")
             .field("candidates", &self.candidates)
             .finish()
     }
 }
-impl SearchMetadataResponse {
+impl SearchTitlesResponse {
     /// Protobuf type URL for this message, for use with `Any::pack` and
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchMetadataResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchTitlesResponse";
 }
-::buffa::impl_default_instance!(SearchMetadataResponse);
-impl ::buffa::MessageName for SearchMetadataResponse {
+::buffa::impl_default_instance!(SearchTitlesResponse);
+impl ::buffa::MessageName for SearchTitlesResponse {
     const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "SearchMetadataResponse";
-    const FULL_NAME: &'static str = "nama.v1.SearchMetadataResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchMetadataResponse";
+    const NAME: &'static str = "SearchTitlesResponse";
+    const FULL_NAME: &'static str = "nama.v1.SearchTitlesResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchTitlesResponse";
 }
-impl ::buffa::Message for SearchMetadataResponse {
+impl ::buffa::Message for SearchTitlesResponse {
     /// Returns the total encoded size in bytes.
     ///
     /// Accumulates in `u64` (which cannot overflow for in-memory
@@ -1143,8 +1013,8 @@ impl ::buffa::Message for SearchMetadataResponse {
         self.__buffa_unknown_fields.clear();
     }
 }
-impl ::buffa::ExtensionSet for SearchMetadataResponse {
-    const PROTO_FQN: &'static str = "nama.v1.SearchMetadataResponse";
+impl ::buffa::ExtensionSet for SearchTitlesResponse {
+    const PROTO_FQN: &'static str = "nama.v1.SearchTitlesResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1152,7 +1022,7 @@ impl ::buffa::ExtensionSet for SearchMetadataResponse {
         &mut self.__buffa_unknown_fields
     }
 }
-impl ::buffa::json_helpers::ProtoElemJson for SearchMetadataResponse {
+impl ::buffa::json_helpers::ProtoElemJson for SearchTitlesResponse {
     fn serialize_proto_json<S: ::serde::Serializer>(
         v: &Self,
         s: S,
@@ -1166,10 +1036,10 @@ impl ::buffa::json_helpers::ProtoElemJson for SearchMetadataResponse {
     }
 }
 #[doc(hidden)]
-pub const __SEARCH_METADATA_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.SearchMetadataResponse",
-    to_json: ::buffa::type_registry::any_to_json::<SearchMetadataResponse>,
-    from_json: ::buffa::type_registry::any_from_json::<SearchMetadataResponse>,
+pub const __SEARCH_TITLES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.SearchTitlesResponse",
+    to_json: ::buffa::type_registry::any_to_json::<SearchTitlesResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<SearchTitlesResponse>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]
@@ -1186,7 +1056,7 @@ pub struct SetMatchRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub item_id: i64,
-    /// The Movie, or for an Episode the Show, to Match it to, as `SearchMetadata` gave it.
+    /// The Movie, or for an Episode the Show, to Match it to, as `SearchTitles` gave it.
     ///
     /// Field 2: `title_id`
     #[serde(
@@ -2046,7 +1916,7 @@ pub const __LIST_UNMATCHED_ITEMS_RESPONSE_JSON_ANY: ::buffa::type_registry::Json
     is_wkt: false,
 };
 /// An item that needs a Match, and what its file's name was parsed as. `kind`, `title` and `year`
-/// are what to pass to `SearchMetadata` to find its title.
+/// are what to pass to `SearchTitles` to find its title.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

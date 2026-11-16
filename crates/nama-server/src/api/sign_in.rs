@@ -19,12 +19,9 @@ use nama_proto::nama::v1::{
     WhoAmIResponse, reauthenticate_request::Proof,
 };
 
-use crate::{
-    rate_limits::Blocked,
-    sessions::session_cookie,
-    sign_in::{self, Polled, SignIn},
-    sign_in_codes::{self, Delivery},
-    users::{Caller, NewDevice, SignedIn},
+use crate::users::{
+    self, Blocked, Caller, Delivery, NewDevice, Polled, SignIn, SignInCodeError, SignInError,
+    SignedIn, session_cookie,
 };
 
 use super::{
@@ -81,7 +78,7 @@ impl SignInService for SignInServiceHandler {
     ) -> ServiceResult<SignInResponse> {
         let request = request.to_owned_message();
         let delivery = delivery(request.delivery)?;
-        let proof = sign_in::Proof::Password {
+        let proof = users::Proof::Password {
             name: request.name,
             password: request.password,
         };
@@ -137,7 +134,7 @@ impl SignInService for SignInServiceHandler {
         let proof = request
             .to_owned_message()
             .proof
-            .map(|Proof::Password(password)| sign_in::Proof::Password {
+            .map(|Proof::Password(password)| users::Proof::Password {
                 name: caller.user.name.clone(),
                 password,
             });
@@ -323,24 +320,24 @@ impl From<Blocked> for ConnectError {
 
 /// The Connect error a client gets for a Sign-in Code that couldn't be started, looked up,
 /// approved or polled. A random number generator that failed is logged, not sent.
-impl From<sign_in_codes::Error> for ConnectError {
-    fn from(err: sign_in_codes::Error) -> Self {
+impl From<SignInCodeError> for ConnectError {
+    fn from(err: SignInCodeError) -> Self {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            sign_in_codes::Error::NotFound => {
+            SignInCodeError::NotFound => {
                 refuse(R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND, message).field("code")
             }
-            sign_in_codes::Error::AlreadyApproved => {
+            SignInCodeError::AlreadyApproved => {
                 refuse(R::REFUSAL_REASON_SIGN_IN_CODE_ALREADY_APPROVED, message).field("code")
             }
-            sign_in_codes::Error::HandleNotFound => {
+            SignInCodeError::HandleNotFound => {
                 refuse(R::REFUSAL_REASON_HANDLE_NOT_FOUND, message).field("handle")
             }
-            sign_in_codes::Error::TooManyPending => {
+            SignInCodeError::TooManyPending => {
                 refuse(R::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS, message)
             }
-            sign_in_codes::Error::Random(_) => {
+            SignInCodeError::Random(_) => {
                 tracing::error!("starting a Sign-in Code failed: {err}");
                 return Self::internal("the Server failed");
             }
@@ -350,19 +347,19 @@ impl From<sign_in_codes::Error> for ConnectError {
 }
 
 /// The Connect error a client gets for a sign-in attempt that was refused or failed.
-impl From<sign_in::Error> for ConnectError {
-    fn from(err: sign_in::Error) -> Self {
+impl From<SignInError> for ConnectError {
+    fn from(err: SignInError) -> Self {
         match err {
-            sign_in::Error::Blocked(blocked) => blocked.into(),
-            sign_in::Error::WrongSetupCode => refuse(
+            SignInError::Blocked(blocked) => blocked.into(),
+            SignInError::WrongSetupCode => refuse(
                 RefusalReason::REFUSAL_REASON_WRONG_SETUP_CODE,
                 err.to_string(),
             )
             .field("setup_code")
             .into(),
-            sign_in::Error::Users(err) => err.into(),
-            sign_in::Error::Code(err) => err.into(),
-            err @ sign_in::Error::ProofMissing => refuse(
+            SignInError::Users(err) => err.into(),
+            SignInError::Code(err) => err.into(),
+            err @ SignInError::ProofMissing => refuse(
                 RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
                 err.to_string(),
             )
