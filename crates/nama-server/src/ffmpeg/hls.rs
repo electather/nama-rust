@@ -126,11 +126,10 @@ fn transcoded_video(
             filter_value(path)
         )),
     };
-    let filters: Vec<String> = [before, drawn, after].into_iter().flatten().collect();
     let mut args: Vec<String> = ["-map", "0:V:0"].map(str::to_owned).into();
-    if !filters.is_empty() {
+    if let Some(filters) = filter_chain([before, drawn, after]) {
         // One `-vf`: a second would replace the first.
-        args.extend(["-vf".to_owned(), filters.join(",")]);
+        args.extend(["-vf".to_owned(), filters]);
     }
     args
 }
@@ -253,24 +252,29 @@ pub(super) fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
             codec,
         };
     }
-    // Subtitles are drawn after tone-mapping, which would dim them, and before scaling, so they
-    // shrink with the picture.
-    let before = (video.tone_map.is_some()).then(|| TONE_MAP.to_owned());
+    let tone_map = (video.tone_map.is_some()).then(|| TONE_MAP.to_owned());
     // ponytail: the size is from the stored picture, so a rotated phone clip is stretched; swap
     // its sides once probing reads rotation.
     let scale = size.map(|(width, height)| format!("scale={width}:{height}"));
     let upload = accel.map(|accel| accel.upload().to_owned());
-    let after: Vec<String> = [scale, upload].into_iter().flatten().collect();
+    // Scaling down first spares tone-mapping the pixels it drops. A subtitle instead goes after
+    // tone-mapping, which would dim it, and before scaling, so it shrinks with the picture and an
+    // image subtitle still fits the source size `overlay_graph` is given.
+    let (before, after) = match video.burn_in {
+        None => (filter_chain([scale, tone_map, upload]), None),
+        Some(_) => (tone_map, filter_chain([scale, upload])),
+    };
     VideoArgs {
         input: accel.map_or_default(|accel| accel.input(gpu, false)),
-        video: transcoded_video(
-            path,
-            before,
-            video.burn_in,
-            (!after.is_empty()).then(|| after.join(",")),
-        ),
+        video: transcoded_video(path, before, video.burn_in, after),
         codec,
     }
+}
+
+/// The `filters` given, comma-joined in order into one chain, or `None` if none is.
+fn filter_chain<const N: usize>(filters: [Option<String>; N]) -> Option<String> {
+    let filters: Vec<String> = filters.into_iter().flatten().collect();
+    (!filters.is_empty()).then(|| filters.join(","))
 }
 
 /// Has `command` take the `audio`th audio Track, if given.
