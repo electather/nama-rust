@@ -72,10 +72,10 @@ use crate::{
     scanner::{ScanLock, ScanLocks},
 };
 
-/// The version of what a Match stores from the metadata Provider, stored with each Match. See the
-/// crate's `AGENTS.md` for when to bump it. Version 2 adds artwork picked across the Library's
-/// sources, Title Logos among it; version 3 genres, Content Ratings and a Show's own Poster,
-/// overview and first air date.
+/// The version of what a Match stores from the metadata Provider, stored with each Match. See
+/// `src/matching/AGENTS.md` for when to bump it. Version 2 adds artwork picked across the
+/// Library's sources, Title Logos among it; version 3 genres, Content Ratings and a Show's own
+/// Poster, overview and first air date.
 pub(crate) const METADATA_VERSION: i64 = 3;
 
 /// What one pass of Matching decided.
@@ -731,3 +731,11 @@ fn matched_events(library: i64, decided: &[(i64, Decided)]) -> Vec<Event> {
 #[cfg(test)]
 #[path = "matching_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "matching/refresh_tests.rs"]
+mod refresh_tests;
+
+#[cfg(test)]
+#[path = "matching/manual_tests.rs"]
+mod manual_tests;

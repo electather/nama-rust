@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, fs, path::PathBuf, sync::Arc};
 
 use futures_util::{FutureExt, StreamExt};
 use nama_plugin_api::{
@@ -13,13 +13,13 @@ use nama_plugin_tmdb::{
 use nama_proto::nama::v1::{EventType, ItemMatched, subscribe_response};
 use tempfile::TempDir;
 
-use super::{ManualError, Matcher, Summary};
+use super::Matcher;
 use crate::{
     db::Database,
     events::{EventBus, Filter, event},
     images::ImageStore,
-    library::artwork::{Artwork, Picked},
-    library::contents::{Change, Contents, Decided, FileItem, ImageRef, Item, Recorded, Show},
+    library::artwork::Artwork,
+    library::contents::{Change, Contents, Decided, FileItem, Item, Recorded, Show},
     library::custom_images::CustomImages,
     library::libraries::{Kind, Libraries},
     plugins::{ExtensionPoints, Registry},
@@ -28,45 +28,45 @@ use crate::{
 };
 
 /// A Movies Library and a Shows Library in scratch folders, a scanner, and a fake TMDB.
-struct Fixture {
-    scanner: Scanner,
-    matcher: Matcher,
-    contents: Contents,
-    plugins: Registry,
+pub(super) struct Fixture {
+    pub(super) scanner: Scanner,
+    pub(super) matcher: Matcher,
+    pub(super) contents: Contents,
+    pub(super) plugins: Registry,
     events: EventBus,
-    tmdb: FakeTmdb,
-    movies: Library,
-    shows: Library,
+    pub(super) tmdb: FakeTmdb,
+    pub(super) movies: Library,
+    pub(super) shows: Library,
     _media: TempDir,
     _data: TempDir,
 }
 
-struct Library {
-    id: i64,
+pub(super) struct Library {
+    pub(super) id: i64,
     root: PathBuf,
 }
 
 impl Library {
-    fn write(&self, relative: &str) {
+    pub(super) fn write(&self, relative: &str) {
         let path = self.root.join(relative);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, b"video").unwrap();
     }
 
     /// Replaces the file at `relative` with one of another size, as an upgrade would.
-    fn replace(&self, relative: &str) {
+    pub(super) fn replace(&self, relative: &str) {
         fs::write(self.root.join(relative), b"a better copy of the video").unwrap();
     }
 }
 
 impl Fixture {
-    async fn new() -> Self {
+    pub(super) async fn new() -> Self {
         let fixture = Self::without_tmdb().await;
         fixture.enable_tmdb();
         fixture
     }
 
-    async fn without_tmdb() -> Self {
+    pub(super) async fn without_tmdb() -> Self {
         let data = tempfile::tempdir().unwrap();
         let media = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(data.path()).await.unwrap());
@@ -116,7 +116,7 @@ impl Fixture {
         }
     }
 
-    fn enable_tmdb(&self) {
+    pub(super) fn enable_tmdb(&self) {
         let settings = Settings::new(BTreeMap::from([(
             "api_key".to_owned(),
             SettingValue::Text(API_KEY.to_owned()),
@@ -129,7 +129,7 @@ impl Fixture {
             .unwrap();
     }
 
-    async fn scan(&self, library: &Library) {
+    pub(super) async fn scan(&self, library: &Library) {
         self.scanner.scan(library.id).await.unwrap();
     }
 
@@ -166,7 +166,7 @@ impl Fixture {
             .collect()
     }
 
-    async fn outcomes(&self, library: &Library) -> Vec<Outcome> {
+    pub(super) async fn outcomes(&self, library: &Library) -> Vec<Outcome> {
         self.stored(library)
             .await
             .into_iter()
@@ -178,7 +178,7 @@ impl Fixture {
         self.items(library).await.remove(0).1.recorded.unwrap()
     }
 
-    async fn item(&self, library: &Library, relative: &str) -> i64 {
+    pub(super) async fn item(&self, library: &Library, relative: &str) -> i64 {
         self.items(library)
             .await
             .into_iter()
@@ -189,7 +189,7 @@ impl Fixture {
     }
 
     /// The Still of each Episode Matched in `library`, by Season and Episode.
-    async fn stills(&self, library: &Library) -> Vec<Option<String>> {
+    pub(super) async fn stills(&self, library: &Library) -> Vec<Option<String>> {
         let shows = self.contents.shows(library.id).await.unwrap();
         (shows.iter().flat_map(Show::episodes))
             .map(|episode| episode.still.clone())
@@ -197,7 +197,7 @@ impl Fixture {
     }
 
     /// Enables TMDB with a key it rejects, so every fetch fails.
-    fn enable_tmdb_rejecting(&self) {
+    pub(super) fn enable_tmdb_rejecting(&self) {
         let settings = Settings::new(BTreeMap::from([(
             "api_key".to_owned(),
             SettingValue::Text("rejected".to_owned()),
@@ -210,7 +210,7 @@ impl Fixture {
             .unwrap();
     }
 
-    fn searches(&self) -> usize {
+    pub(super) fn searches(&self) -> usize {
         self.tmdb
             .requests()
             .iter()
@@ -220,7 +220,7 @@ impl Fixture {
 
     /// How many questions TMDB was asked about titles, leaving out the images a Match
     /// downloads in the background.
-    fn lookups(&self) -> usize {
+    pub(super) fn lookups(&self) -> usize {
         self.tmdb
             .requests()
             .iter()
@@ -243,7 +243,7 @@ impl Library {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Outcome {
+pub(super) enum Outcome {
     /// Matched to the title with this TMDB id and name.
     Matched(i64, String),
     Unmatched,
@@ -263,7 +263,7 @@ impl Outcome {
     }
 }
 
-fn matched(id: i64, title: &str) -> Outcome {
+pub(super) fn matched(id: i64, title: &str) -> Outcome {
     Outcome::Matched(id, title.to_owned())
 }
 
@@ -657,182 +657,6 @@ async fn a_failing_metadata_provider_stops_the_pass_and_leaves_items_undecided()
     );
 }
 
-const SECRETS: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
-/// TMDB has no Still for it.
-const BEGINNINGS_AND_ENDINGS: &str = "Dark (2017)/Season 02/Dark - S02E01.mkv";
-const SECRETS_STILL: &str = "/gNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
-
-#[tokio::test]
-async fn a_match_stored_at_an_older_metadata_version_gets_its_still_on_the_next_scan() {
-    let media = Fixture::new().await;
-    let shows = &media.shows;
-    shows.write(SECRETS);
-    shows.write(BEGINNINGS_AND_ENDINGS);
-    media.scan(shows).await;
-    let matched = media.outcomes(shows).await;
-    media.contents.stored_by_older_metadata(shows.id).await;
-    let searches = media.searches();
-
-    media.scan(shows).await;
-
-    assert_eq!(
-        media.stills(shows).await,
-        [Some(SECRETS_STILL.to_owned()), None]
-    );
-    assert_eq!(media.outcomes(shows).await, matched);
-    assert_eq!(media.searches(), searches);
-}
-
-#[tokio::test]
-async fn a_movie_stored_at_an_older_metadata_version_is_fetched_again_by_its_id() {
-    let media = Fixture::new().await;
-    let movies = &media.movies;
-    movies.write("Alien (1979)/Alien (1979).mkv");
-    media.scan(movies).await;
-    media.contents.stored_by_older_metadata(movies.id).await;
-    let searches = media.searches();
-    let movie_fetches = || {
-        let requests = media.tmdb.requests().into_iter();
-        requests.filter(|r| r.starts_with("/3/movie/348?")).count()
-    };
-    let before = movie_fetches();
-
-    media.scan(movies).await;
-
-    assert_eq!(media.outcomes(movies).await, [matched(348, "Alien")]);
-    assert_eq!(media.searches(), searches);
-    assert_eq!(movie_fetches(), before + 1);
-    let alien = media.contents.movies(movies.id).await.unwrap().remove(0);
-    assert_eq!(
-        (alien.genres, alien.content_rating),
-        (
-            vec!["Horror".to_owned(), "Science Fiction".to_owned()],
-            Some("R".to_owned())
-        )
-    );
-}
-
-#[tokio::test]
-async fn a_show_stored_at_an_older_metadata_version_gets_its_own_details_on_the_next_scan() {
-    let media = Fixture::new().await;
-    let shows = &media.shows;
-    shows.write(SECRETS);
-    media.scan(shows).await;
-    media.contents.stored_by_older_metadata(shows.id).await;
-    let older = media.contents.shows(shows.id).await.unwrap().remove(0);
-    let searches = media.searches();
-
-    media.scan(shows).await;
-
-    let dark = media.contents.shows(shows.id).await.unwrap().remove(0);
-    // Until then, it is shown by its first Season's Poster.
-    let path = |poster: Option<&ImageRef>| poster.map(|it| it.path.clone());
-    assert_eq!(
-        path(older.poster()).as_deref(),
-        Some("/5LoHuHWA4H8jElFlZDvsmU2n63b.jpg")
-    );
-    assert_eq!(
-        path(dark.poster()).as_deref(),
-        Some("/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg")
-    );
-    assert!(
-        dark.overview
-            .is_some_and(|it| it.starts_with("A missing child"))
-    );
-    assert_eq!(dark.first_air_date.as_deref(), Some("2017-12-01"));
-    assert_eq!(dark.genres, ["Crime", "Drama", "Mystery"]);
-    assert_eq!(dark.content_rating.as_deref(), Some("TV-MA"));
-    assert_eq!(media.searches(), searches);
-}
-
-#[tokio::test]
-async fn a_match_at_the_current_metadata_version_is_not_fetched_again() {
-    let media = Fixture::new().await;
-    let shows = &media.shows;
-    shows.write(SECRETS);
-    shows.write(BEGINNINGS_AND_ENDINGS);
-    media.scan(shows).await;
-    media.contents.stored_by_older_metadata(shows.id).await;
-    media.scan(shows).await;
-    let looked_up = media.lookups();
-
-    media.scan(shows).await;
-
-    assert_eq!(media.lookups(), looked_up);
-}
-
-#[tokio::test]
-async fn a_pinned_match_stored_at_an_older_metadata_version_stays_pinned_once_refreshed() {
-    let media = Fixture::new().await;
-    let shows = &media.shows;
-    shows.write(SECRETS);
-    media.scan(shows).await;
-    let item = media.item(shows, SECRETS).await;
-    media
-        .matcher
-        .set_match(item, &ExternalId::tmdb(70523))
-        .await
-        .unwrap();
-    media.contents.stored_by_older_metadata(shows.id).await;
-    let searches = media.searches();
-
-    media.scan(shows).await;
-    let refreshed = media.stills(shows).await;
-    // A changed file is Matched again, which follows a pin rather than searching.
-    shows.replace(SECRETS);
-    media.scan(shows).await;
-
-    assert_eq!(refreshed, [Some(SECRETS_STILL.to_owned())]);
-    assert_eq!(media.outcomes(shows).await, [matched(1_388_538, "Secrets")]);
-    assert_eq!(media.searches(), searches);
-}
-
-#[tokio::test]
-async fn a_match_the_provider_fails_to_refresh_stays_as_it_was_until_a_later_scan() {
-    let media = Fixture::new().await;
-    let shows = &media.shows;
-    shows.write(SECRETS);
-    media.scan(shows).await;
-    media.contents.stored_by_older_metadata(shows.id).await;
-    let tmdb = PluginId::from_static("tmdb");
-    media.plugins.disable(&tmdb).await;
-    media.enable_tmdb_rejecting();
-
-    media.scan(shows).await;
-    let failed = media.stills(shows).await;
-    let outcome = media.outcomes(shows).await;
-    media.plugins.disable(&tmdb).await;
-    media.scan(shows).await;
-    let disabled = media.stills(shows).await;
-    media.enable_tmdb();
-    media.scan(shows).await;
-
-    assert_eq!(failed, [None]);
-    assert_eq!(outcome, [matched(1_388_538, "Secrets")]);
-    assert_eq!(disabled, [None]);
-    assert_eq!(media.stills(shows).await, [Some(SECRETS_STILL.to_owned())]);
-}
-
-#[tokio::test]
-async fn a_match_from_a_gone_plugin_does_not_stop_others_being_refreshed() {
-    let media = Fixture::new().await;
-    let shows = &media.shows;
-    shows.write(SECRETS);
-    shows.write(BEGINNINGS_AND_ENDINGS);
-    media.scan(shows).await;
-    media.contents.stored_by_older_metadata(shows.id).await;
-    // Sorts before `tmdb`, so its title is asked about first.
-    let gone = media.item(shows, BEGINNINGS_AND_ENDINGS).await;
-    media.contents.matched_by(gone, "gone").await;
-
-    media.scan(shows).await;
-
-    assert_eq!(
-        media.stills(shows).await,
-        [Some(SECRETS_STILL.to_owned()), None]
-    );
-}
-
 #[tokio::test]
 async fn a_rescan_does_not_look_up_items_already_decided() {
     let media = Fixture::new().await;
@@ -951,281 +775,4 @@ async fn items_stay_undecided_until_a_metadata_provider_can_match_them() {
             .enabled()
             .contains(&PluginId::from_static("tmdb"))
     );
-}
-
-#[tokio::test]
-async fn a_manual_match_survives_a_rescan_after_its_file_changes() {
-    let media = Fixture::new().await;
-    let movies = &media.movies;
-    // TMDB finds nothing for it.
-    let home_movies = "Home Movies (2019)/Home Movies (2019).mkv";
-    movies.write(home_movies);
-    media.scan(movies).await;
-    let unmatched = media.outcomes(movies).await;
-    let item = media.item(movies, home_movies).await;
-
-    media
-        .matcher
-        .set_match(item, &ExternalId::tmdb(949))
-        .await
-        .unwrap();
-    let searches = media.searches();
-    movies.replace(home_movies);
-    media.scan(movies).await;
-
-    assert_eq!(unmatched, [Outcome::Unmatched]);
-    assert_eq!(media.outcomes(movies).await, [matched(949, "Heat")]);
-    // The rescan followed the pin rather than searching again.
-    assert_eq!(media.searches(), searches);
-}
-
-#[tokio::test]
-async fn a_manual_match_replaces_an_automatic_one_for_every_file_named_alike() {
-    let media = Fixture::new().await;
-    let movies = &media.movies;
-    movies.write("Alien (1979)/Alien (1979).mkv");
-    movies.write("Alien (1979)/Alien (1979) - Director's Cut.mkv");
-    media.scan(movies).await;
-    let item = media.item(movies, "Alien (1979)/Alien (1979).mkv").await;
-
-    let summary = media
-        .matcher
-        .set_match(item, &ExternalId::tmdb(949))
-        .await
-        .unwrap();
-
-    assert_eq!(summary.matched, 2);
-    assert_eq!(
-        media.outcomes(movies).await,
-        [matched(949, "Heat"), matched(949, "Heat")]
-    );
-}
-
-#[tokio::test]
-async fn re_matching_a_show_re_matches_its_episodes() {
-    let media = Fixture::new().await;
-    let shows = &media.shows;
-    // Both the US and the UK Office fit, so the scan leaves them Unmatched.
-    shows.write("The Office/Season 01/The Office - S01E01.mkv");
-    shows.write("The Office/Season 01/The Office - S01E02.mkv");
-    media.scan(shows).await;
-    let pilot = media
-        .item(shows, "The Office/Season 01/The Office - S01E01.mkv")
-        .await;
-
-    media
-        .matcher
-        .set_match(pilot, &ExternalId::tmdb(2316))
-        .await
-        .unwrap();
-    let us = media.outcomes(shows).await;
-    media
-        .matcher
-        .set_match(pilot, &ExternalId::tmdb(2996))
-        .await
-        .unwrap();
-
-    assert_eq!(
-        us,
-        [
-            matched(2_316_001, "Pilot"),
-            matched(2_316_002, "Diversity Day")
-        ]
-    );
-    assert_eq!(
-        media.outcomes(shows).await,
-        [
-            matched(2_996_001, "Downsize"),
-            matched(2_996_002, "Work Experience")
-        ]
-    );
-}
-
-#[tokio::test]
-async fn a_new_episode_of_a_pinned_show_matches_the_pinned_show() {
-    let media = Fixture::new().await;
-    let shows = &media.shows;
-    shows.write("The Office/Season 01/The Office - S01E01.mkv");
-    media.scan(shows).await;
-    let pilot = media
-        .item(shows, "The Office/Season 01/The Office - S01E01.mkv")
-        .await;
-    media
-        .matcher
-        .set_match(pilot, &ExternalId::tmdb(2316))
-        .await
-        .unwrap();
-
-    shows.write("The Office/Season 01/The Office - S01E02.mkv");
-    media.scan(shows).await;
-
-    assert_eq!(
-        media.outcomes(shows).await[1],
-        matched(2_316_002, "Diversity Day")
-    );
-}
-
-#[tokio::test]
-async fn a_match_fixed_while_its_librarys_scan_lock_is_held_waits_then_applies() {
-    let media = Fixture::new().await;
-    let movies = &media.movies;
-    let alien = "Alien (1979)/Alien (1979).mkv";
-    movies.write(alien);
-    media.scan(movies).await;
-    let item = media.item(movies, alien).await;
-    let scan = media.scanner.lock(movies.id).await;
-
-    let matcher = media.matcher.clone();
-    let mut clearing = tokio::spawn(async move { matcher.clear_match(item).await });
-    let waited = tokio::time::timeout(Duration::from_millis(100), &mut clearing).await;
-    assert!(waited.is_err(), "the Match was fixed during the scan");
-    let during_scan = media.outcomes(movies).await;
-    drop(scan);
-    let cleared = clearing.await.unwrap().unwrap();
-
-    assert_eq!(during_scan, [matched(348, "Alien")]);
-    assert_eq!(
-        cleared,
-        Summary {
-            unmatched: 1,
-            ..Summary::default()
-        }
-    );
-    assert_eq!(media.outcomes(movies).await, [Outcome::Unmatched]);
-}
-
-#[tokio::test]
-async fn a_cleared_match_stays_unmatched_after_its_file_changes() {
-    let media = Fixture::new().await;
-    let movies = &media.movies;
-    let alien = "Alien (1979)/Alien (1979).mkv";
-    movies.write(alien);
-    media.scan(movies).await;
-    let item = media.item(movies, alien).await;
-
-    media.matcher.clear_match(item).await.unwrap();
-    let cleared = media.outcomes(movies).await;
-    movies.replace(alien);
-    media.scan(movies).await;
-
-    assert_eq!(cleared, [Outcome::Unmatched]);
-    assert_eq!(media.outcomes(movies).await, [Outcome::Unmatched]);
-}
-
-#[tokio::test]
-async fn a_match_to_a_title_the_source_does_not_have_is_refused_and_changes_nothing() {
-    let media = Fixture::new().await;
-    let movies = &media.movies;
-    movies.write("Alien (1979)/Alien (1979).mkv");
-    media.scan(movies).await;
-    let item = media.item(movies, "Alien (1979)/Alien (1979).mkv").await;
-
-    let result = media.matcher.set_match(item, &ExternalId::tmdb(1)).await;
-
-    assert!(
-        matches!(result, Err(ManualError::NoSuchTitle(ref id)) if *id == ExternalId::tmdb(1)),
-        "{result:?}"
-    );
-    assert_eq!(media.outcomes(movies).await, [matched(348, "Alien")]);
-}
-
-#[tokio::test]
-async fn a_match_for_an_item_that_does_not_exist_is_refused() {
-    let media = Fixture::new().await;
-
-    let result = media.matcher.set_match(42, &ExternalId::tmdb(949)).await;
-
-    assert!(
-        matches!(result, Err(ManualError::NoSuchItem(42))),
-        "{result:?}"
-    );
-}
-
-#[tokio::test]
-async fn a_match_set_while_no_metadata_provider_is_enabled_is_unavailable() {
-    let media = Fixture::without_tmdb().await;
-    media.movies.write("Alien (1979)/Alien (1979).mkv");
-    media.scan(&media.movies).await;
-    let item = media
-        .item(&media.movies, "Alien (1979)/Alien (1979).mkv")
-        .await;
-
-    let result = media.matcher.set_match(item, &ExternalId::tmdb(348)).await;
-
-    assert!(
-        matches!(result, Err(ManualError::Unavailable)),
-        "{result:?}"
-    );
-}
-
-fn picked_poster(path: Option<&str>) -> Picked {
-    let fanart = PluginId::from_static("fanart");
-    let poster = path.and_then(|path| ImageRef::of(&fanart, Some(&path.to_owned())));
-    Picked {
-        poster,
-        ..Picked::default()
-    }
-}
-
-fn episode_artwork(season_poster: Option<&str>, picked: Option<&str>) -> super::Metadata {
-    use crate::library::title_source::{Episode, Season, Show as SourceShow};
-    let show = SourceShow {
-        ids: ExternalIds::default(),
-        title: "Severance".into(),
-        original_title: None,
-        overview: None,
-        first_air_date: None,
-        poster: Some("/show.jpg".into()),
-        backdrop: Some("/show-backdrop.jpg".into()),
-        seasons: vec![1],
-        genres: Vec::new(),
-        content_rating: None,
-    };
-    let episode = Episode {
-        ids: ExternalIds::default(),
-        season: 1,
-        number: 1,
-        title: "Good News About Hell".into(),
-        overview: None,
-        air_date: None,
-        runtime_minutes: None,
-        still: None,
-    };
-    let season = Season {
-        ids: ExternalIds::default(),
-        number: 1,
-        title: "Season 1".into(),
-        overview: None,
-        air_date: None,
-        poster: season_poster.map(Into::into),
-        episodes: Vec::new(),
-    };
-    let tmdb = &PluginId::from_static("tmdb");
-    super::Metadata::episode(tmdb, (&show, &picked_poster(picked)), &season, &episode)
-}
-
-#[test]
-fn an_episode_keeps_its_season_poster_over_the_picked_show_poster() {
-    let poster = episode_artwork(Some("/season.jpg"), Some("/picked.jpg")).poster;
-    assert_eq!(poster.unwrap().path, "/season.jpg");
-}
-
-#[test]
-fn an_episode_without_a_season_poster_takes_the_picked_show_poster() {
-    let poster = episode_artwork(None, Some("/picked.jpg")).poster;
-    assert_eq!(poster, picked_poster(Some("/picked.jpg")).poster);
-}
-
-#[test]
-fn an_episode_with_no_season_or_picked_poster_takes_the_show_poster() {
-    let poster = episode_artwork(None, None).poster;
-    assert_eq!(poster.unwrap().path, "/show.jpg");
-}
-
-#[test]
-fn a_shows_picked_poster_wins_over_its_own_and_keeps_its_own_backdrop() {
-    let own = episode_artwork(None, None);
-    let picked = picked_poster(Some("/picked.jpg"));
-    let with = own.clone().with_picked(&picked);
-    assert_eq!((with.poster, with.backdrop), (picked.poster, own.backdrop));
 }

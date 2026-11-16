@@ -13,7 +13,6 @@ const MAX_LINES: usize = 800;
 const CEILINGS: &[(&str, usize)] = &[
     ("src/browse.rs", 1200),
     ("src/ffmpeg.rs", 2600),
-    ("src/matching_tests.rs", 1300),
     ("src/playback.rs", 2000),
     ("src/playback/running.rs", 1200),
     ("src/playback/running_tests.rs", 1200),

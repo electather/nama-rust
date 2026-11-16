@@ -22,7 +22,7 @@ use regex::Regex;
 
 use crate::{library::contents::Item, library::libraries::Kind};
 
-/// The version of this parser, stored with each file it reads. See the crate's `AGENTS.md` for
+/// The version of this parser, stored with each file it reads. See `src/matching/AGENTS.md` for
 /// when to bump it.
 pub(crate) const PARSER_VERSION: i64 = 7;
 
