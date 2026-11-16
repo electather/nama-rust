@@ -1,6 +1,6 @@
 //! The Cleanup Installed Plugin, bundled in the Server, ticking its real WASM against the real
-//! Kernel over a real socket, with TMDB on against a fake: it deletes a Movie every User played
-//! long enough ago, and only through what the Admin granted it (ADR 0048).
+//! Kernel over a real socket, with TMDB on against a fake: it deletes a Movie or Episode every
+//! User played long enough ago, and only through what the Admin granted it (ADR 0048).
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
@@ -9,22 +9,31 @@ mod server;
 use std::time::Duration;
 
 use buffa::EnumValue;
+use connectrpc::client::ClientConfig;
 use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{
     BrowseServiceClient, EnablePluginRequest, ExternalId, LibraryKind, LibraryServiceClient,
-    ListMoviesRequest, PluginPermission, PluginServiceClient, SetPlayedRequest, SettingValue,
-    UpdateLibraryRequest, UpdatePluginSettingsRequest, WatchStateServiceClient, event,
-    set_played_request, setting_value::Value,
+    ListEpisodesRequest, ListMoviesRequest, Movie, PluginPermission, PluginServiceClient,
+    ReportProgressRequest, SetPlayedRequest, SettingValue, UpdateLibraryRequest,
+    UpdatePluginSettingsRequest, WatchStateServiceClient, event, set_played_request::Target,
+    setting_value::Value,
 };
 use nama_server::plugins::Registry;
 use server::{
     Library, TestServer, WAIT,
-    tmdb::{ALIEN, DUNE},
+    tmdb::{ALIEN, DARK, DUNE},
 };
 
 const CLEANUP: &str = "cleanup";
 const ALIEN_FILE: &str = "Alien (1979)/Alien (1979).mkv";
 const DUNE_FILE: &str = "Dune (2021)/Dune (2021).mkv";
+const DARK_S01E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
+const DARK_S01E02: &str = "Dark (2017)/Season 01/Dark - S01E02.mkv";
+/// The TMDB ids of Dark's Episodes S01E01 and S01E02.
+const SECRETS: i64 = 1_388_538;
+const LIES: i64 = 1_388_539;
+/// Two hours, in milliseconds: the length a test's player reports.
+const TWO_HOURS: u64 = 7_200_000;
 /// The Cleanup's `days` setting in these tests.
 const DAYS: u64 = 30;
 
@@ -90,26 +99,92 @@ async fn enable_cleanup(server: &TestServer, granted: &[PluginPermission]) {
         .unwrap();
 }
 
-/// Marks the Movie with the TMDB id `tmdb` in `library` played, as the Admin.
+/// The title with the TMDB id `tmdb`, as browsing identifies it.
+fn tmdb_id(tmdb: i64) -> ExternalId {
+    ExternalId {
+        namespace: "tmdb".to_owned(),
+        value: tmdb.to_string(),
+        ..Default::default()
+    }
+}
+
+fn movie(tmdb: i64) -> Target {
+    Target::MovieId(Box::new(tmdb_id(tmdb)))
+}
+
+fn episode(tmdb: i64) -> Target {
+    Target::EpisodeId(Box::new(tmdb_id(tmdb)))
+}
+
+/// Marks `target` in `library` played or unplayed, as the User whose session `who` carries.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn mark_played(server: &TestServer, library: &Library, tmdb: i64) {
-    let movie = ExternalId {
-        namespace: "tmdb".to_owned(),
-        value: tmdb.to_string(),
-        ..Default::default()
-    };
-    WatchStateServiceClient::new(HttpClient::plaintext(), server.client_config())
+async fn mark(who: ClientConfig, library: &Library, target: Target, played: bool) {
+    WatchStateServiceClient::new(HttpClient::plaintext(), who)
         .set_played(SetPlayedRequest {
             library_id: library.id,
-            target: Some(set_played_request::Target::MovieId(Box::new(movie))),
-            played: true,
+            target: Some(target),
+            played,
             ..Default::default()
         })
         .await
         .unwrap();
+}
+
+/// Marks the Movie with the TMDB id `tmdb` in `library` played, as the Admin.
+async fn mark_played(server: &TestServer, library: &Library, tmdb: i64) {
+    mark(server.client_config(), library, movie(tmdb), true).await;
+}
+
+/// Reports `position_ms` into the Version `version`, [`TWO_HOURS`] long, as the User whose
+/// session `who` carries.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn report_progress(who: ClientConfig, version: i64, position_ms: u64) {
+    WatchStateServiceClient::new(HttpClient::plaintext(), who)
+        .report_progress(ReportProgressRequest {
+            version_id: version,
+            position_ms,
+            duration_ms: TWO_HOURS,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+/// The Movies `library` lists.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn listed_movies(server: &TestServer, library: &Library) -> Vec<Movie> {
+    BrowseServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .list_movies(ListMoviesRequest {
+            library_id: library.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .movies
+}
+
+/// The id of the one Version of the Movie with the TMDB id `tmdb` in `library`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn version_of(server: &TestServer, library: &Library, tmdb: i64) -> i64 {
+    let listed = listed_movies(server, library).await;
+    let movie = (listed.iter())
+        .find(|movie| movie.id.as_option() == Some(&tmdb_id(tmdb)))
+        .unwrap();
+    assert_eq!(movie.versions.len(), 1, "the Movie has one Version");
+    movie.versions.first().unwrap().id
 }
 
 /// The TMDB ids of the Movies `library` lists, sorted.
@@ -118,26 +193,41 @@ async fn mark_played(server: &TestServer, library: &Library, tmdb: i64) {
     reason = "a test helper fails its test by panicking"
 )]
 async fn movies(server: &TestServer, library: &Library) -> Vec<i64> {
-    let listed = BrowseServiceClient::new(HttpClient::plaintext(), server.client_config())
-        .list_movies(ListMoviesRequest {
-            library_id: library.id,
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned();
-    let mut ids: Vec<i64> = (listed.movies.into_iter())
+    let mut ids: Vec<i64> = (listed_movies(server, library).await.into_iter())
         .map(|movie| movie.id.into_option().unwrap().value.parse().unwrap())
         .collect();
     ids.sort_unstable();
     ids
 }
 
-/// Waits until `library` lists exactly the Movies `tmdb` names, as a delete running in the
-/// background leaves it, failing the test after [`WAIT`].
-async fn wait_for_movies(server: &TestServer, library: &Library, tmdb: &[i64]) {
+/// The TMDB ids of the Episodes of Dark's Season 1 that `library` lists, sorted.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn dark_episodes(server: &TestServer, library: &Library) -> Vec<i64> {
+    let listed = BrowseServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .list_episodes(ListEpisodesRequest {
+            library_id: library.id,
+            show_id: tmdb_id(DARK).into(),
+            season_number: 1,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned();
+    let mut ids: Vec<i64> = (listed.episodes.into_iter())
+        .map(|episode| episode.id.into_option().unwrap().value.parse().unwrap())
+        .collect();
+    ids.sort_unstable();
+    ids
+}
+
+/// Waits until `listed` gives exactly the TMDB ids `tmdb`, as a delete running in the background
+/// leaves the Library, failing the test after [`WAIT`].
+async fn wait_until_listed(listed: impl AsyncFn() -> Vec<i64>, tmdb: &[i64]) {
     let waited = tokio::time::timeout(WAIT, async {
-        while movies(server, library).await != tmdb {
+        while listed().await != tmdb {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     })
@@ -145,8 +235,13 @@ async fn wait_for_movies(server: &TestServer, library: &Library, tmdb: &[i64]) {
     assert!(
         waited.is_ok(),
         "the Library lists {:?}, not {tmdb:?}",
-        movies(server, library).await
+        listed().await
     );
+}
+
+/// Waits until `library` lists exactly the Movies `tmdb` names.
+async fn wait_for_movies(server: &TestServer, library: &Library, tmdb: &[i64]) {
+    wait_until_listed(async || movies(server, library).await, tmdb).await;
 }
 
 /// Renames `library` to `name`, as the Admin, keeping its folder.
@@ -169,6 +264,29 @@ async fn rename(server: &TestServer, library: &Library, name: &str) {
 /// Moves the clock past the `days` setting, so a Movie played before is due.
 fn past_the_limit(server: &TestServer) {
     server.advance_clock(Duration::from_hours((DAYS + 1) * 24));
+}
+
+/// Makes Dune due, played by each User whose session `everyone` carries, ticks, and waits until
+/// the Library lists Alien alone, so the test can tell Alien was kept without waiting a set time.
+/// Deletes of one Library wait for its scan lock, a `tokio::sync::Mutex`, which is handed out in
+/// the order asked; so a delete of Alien an earlier tick started would have run before Dune's.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn dune_alone_is_deleted_next(
+    server: &TestServer,
+    library: &Library,
+    everyone: &[ClientConfig],
+) {
+    for who in everyone {
+        mark(who.clone(), library, movie(DUNE), true).await;
+    }
+    past_the_limit(server);
+
+    server.tick(CLEANUP).await.unwrap();
+
+    wait_for_movies(server, library, &[ALIEN]).await;
 }
 
 #[tokio::test]
@@ -218,23 +336,62 @@ async fn without_the_delete_permission_it_deletes_nothing_and_says_why() {
         .expect_err("the delete was never granted");
 
     assert!(refused.contains("Delete media"), "{refused}");
-    // A delete that started would show soon; give it the time one takes.
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    // The Kernel refuses before it starts a delete, so none is running in the background.
     assert_eq!(movies(&server, &library).await, [ALIEN, DUNE]);
 }
 
 #[tokio::test]
 async fn a_movie_one_user_has_not_watched_is_kept() {
     let (server, library) = alien_and_dune().await;
-    server.user_with_default_permissions("Ada").await;
+    let ada = server.user_with_default_permissions("Ada").await;
     enable_cleanup(&server, &EVERY_PERMISSION).await;
     mark_played(&server, &library, ALIEN).await;
     past_the_limit(&server);
 
     server.tick(CLEANUP).await.unwrap();
 
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    assert_eq!(movies(&server, &library).await, [ALIEN, DUNE]);
+    let everyone = [server.client_config(), ada.client_config()];
+    dune_alone_is_deleted_next(&server, &library, &everyone).await;
+}
+
+#[tokio::test]
+async fn a_movie_one_user_has_started_again_is_kept() {
+    let (server, library) = alien_and_dune().await;
+    let ada = server.user_with_default_permissions("Ada").await;
+    let everyone = [server.client_config(), ada.client_config()];
+    enable_cleanup(&server, &EVERY_PERMISSION).await;
+    for who in &everyone {
+        mark(who.clone(), &library, movie(ALIEN), true).await;
+    }
+    past_the_limit(&server);
+    // A played title stays played, so starting it again from the beginning unmarks it first.
+    mark(ada.client_config(), &library, movie(ALIEN), false).await;
+    let alien = version_of(&server, &library, ALIEN).await;
+    report_progress(ada.client_config(), alien, 600_000).await;
+
+    server.tick(CLEANUP).await.unwrap();
+
+    dune_alone_is_deleted_next(&server, &library, &everyone).await;
+}
+
+#[tokio::test]
+async fn an_episode_every_user_watched_past_the_limit_is_deleted_and_a_recent_one_kept() {
+    let server = TestServer::builder()
+        .plugins(Registry::with_builtins())
+        .tmdb()
+        .start()
+        .await;
+    let library = server
+        .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01, DARK_S01E02])
+        .await;
+    enable_cleanup(&server, &EVERY_PERMISSION).await;
+    mark(server.client_config(), &library, episode(SECRETS), true).await;
+    past_the_limit(&server);
+    mark(server.client_config(), &library, episode(LIES), true).await;
+
+    server.tick(CLEANUP).await.unwrap();
+
+    wait_until_listed(async || dark_episodes(&server, &library).await, &[LIES]).await;
 }
 
 /// Sets the mode of the folder `folder` to `mode`.
