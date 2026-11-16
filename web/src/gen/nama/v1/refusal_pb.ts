@@ -140,7 +140,9 @@ export const RefusalReason = {
   SIGN_IN_CODE_ALREADY_APPROVED: 10,
 
   /**
-   * `resource_exhausted`: too many sign-ins with a Sign-in Code are waiting.
+   * `resource_exhausted`: too many sign-ins with a Sign-in Code are waiting, or too many were
+   * started lately from the client's IP. Params, for the second: `retryAfterSeconds`, also sent as
+   * the `Retry-After` header.
    *
    * @generated from enum value: REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS = 11;
    */

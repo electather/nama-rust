@@ -960,18 +960,14 @@ async fn signing_out_ends_that_devices_event_streams_and_leaves_other_devices_op
     assert!(phone_next.is_some(), "the other Device's stream ended");
 }
 
-/// Asserts `reply` was refused as rate limited, with a retry delay of at most 15 minutes, given in
-/// both the `Retry-After` header and the Refusal.
+/// Asserts `reply` was refused as rate limited for `reason`, with a retry delay of at most 15
+/// minutes, given in both the `Retry-After` header and the Refusal.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-fn assert_blocked(reply: &Reply) {
-    let refusal = assert_refused(
-        reply.refused(),
-        ErrorCode::ResourceExhausted,
-        RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
-    );
+fn assert_blocked(reply: &Reply, reason: RefusalReason) {
+    let refusal = assert_refused(reply.refused(), ErrorCode::ResourceExhausted, reason);
     let retry_after: u64 = reply
         .headers
         .get("retry-after")
@@ -1038,7 +1034,7 @@ async fn x_forwarded_for_from_an_untrusted_peer_doesnt_change_which_ip_is_counte
     )
     .await;
 
-    assert_blocked(&blocked);
+    assert_blocked(&blocked, RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS);
 }
 
 #[tokio::test]
@@ -1061,7 +1057,7 @@ async fn through_a_trusted_proxy_failures_count_against_the_forwarded_ip() {
     )
     .await;
 
-    assert_blocked(&blocked);
+    assert_blocked(&blocked, RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS);
     assert_eq!(set_up.status, 200, "{}", set_up.body);
 }
 
@@ -1082,7 +1078,7 @@ async fn a_forged_x_forwarded_for_chain_counts_against_the_ip_the_trusted_proxie
     )
     .await;
 
-    assert_blocked(&blocked);
+    assert_blocked(&blocked, RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS);
 }
 
 /// Starts a Sign-in Code sign-in for the Device "Living room TV", asking for `delivery`, and
@@ -1097,6 +1093,38 @@ async fn start_sign_in_code(server: &TestServer, delivery: &str) -> (String, Str
     assert_eq!(started.status, 200, "{}", started.body);
     let field = |name: &str| started.body.get(name).unwrap().as_str().unwrap().to_owned();
     (field("code"), field("handle"))
+}
+
+/// Starts a Sign-in Code for the Device "Living room TV" through the proxy, which forwards it as
+/// from `ip`.
+async fn start_sign_in_code_from(server: &TestServer, ip: &str) -> Reply {
+    let request = json!({ "deviceName": "Living room TV", "delivery": "SESSION_DELIVERY_TOKEN" });
+    call(
+        server,
+        "StartSignInCode",
+        &request,
+        &[("x-forwarded-for", ip)],
+    )
+    .await
+}
+
+#[tokio::test]
+async fn one_ip_starting_too_many_codes_is_refused_but_not_another() {
+    let server = start_behind_proxy().await;
+    for _ in 0..20 {
+        let started = start_sign_in_code_from(&server, "203.0.113.7").await;
+        assert_eq!(started.status, 200, "{}", started.body);
+    }
+
+    let blocked = start_sign_in_code_from(&server, "203.0.113.7").await;
+    let other = start_sign_in_code_from(&server, "203.0.113.8").await;
+
+    assert_blocked(
+        &blocked,
+        RefusalReason::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS,
+    );
+    assert_eq!(other.status, 200, "{}", other.body);
+    assert!(other.body.get("code").is_some(), "{}", other.body);
 }
 
 /// Calls `method`, `LookUpSignInCode` or `ApproveSignInCode`, with `code` as the Device whose

@@ -11,7 +11,7 @@ use super::{
     self as users, ApprovingDevice, Caller, NewDevice, Proved, SignedIn, Users,
     codes::SetupCode,
     device_names,
-    rate_limits::{Blocked, SignInCodeLimits, SignInLimits},
+    rate_limits::{Blocked, SignInCodeLimits, SignInCodeStartLimits, SignInLimits},
     sign_in_codes::{self, Delivery, Poll, SignInCodes, Started},
 };
 
@@ -26,6 +26,8 @@ pub(crate) struct SignIn {
     codes: SignInCodes,
     /// The recent failed Sign-in Code lookups and approvals, which slow guessing codes down.
     code_limits: SignInCodeLimits,
+    /// The recent Sign-in Code starts, which keep one client IP from filling `codes`.
+    code_start_limits: SignInCodeStartLimits,
 }
 
 /// Who a Device claims to be, and what proves it, when it signs in or reauthenticates. Not `Debug`,
@@ -56,6 +58,13 @@ pub(crate) enum Error {
     /// Too many attempts failed recently from the client IP or for the name.
     #[error(transparent)]
     Blocked(#[from] Blocked),
+    /// Too many Sign-in Codes were started recently from the client IP. Not [`Error::Blocked`]:
+    /// no attempt failed.
+    #[error(
+        "too many Sign-in Codes were started from your address; try again in {} seconds",
+        .0.retry_after_secs()
+    )]
+    TooManyCodeStarts(Blocked),
     /// Setup was given a code other than the Server's Setup Code.
     #[error("the Setup Code is wrong")]
     WrongSetupCode,
@@ -81,6 +90,7 @@ impl SignIn {
             limits: SignInLimits::default(),
             codes: SignInCodes::default(),
             code_limits: SignInCodeLimits::default(),
+            code_start_limits: SignInCodeStartLimits::default(),
         }
     }
 
@@ -140,17 +150,21 @@ impl SignIn {
             .await?)
     }
 
-    /// Starts signing in, with a Sign-in Code, the Device `device_name` that sent `user_agent`, at
-    /// `now`. `delivery` is kept for the poll that signs it in, unread.
+    /// Starts signing in `device` with a Sign-in Code at `now`, unless its IP started too many
+    /// recently. Of `device`, only its name is kept; `delivery` is kept, unread, for the poll that
+    /// signs it in.
     pub(crate) fn start_code(
         &self,
-        device_name: String,
-        user_agent: Option<&str>,
+        device: NewDevice,
         delivery: Delivery,
         now: Instant,
     ) -> Result<Started, Error> {
-        let device_name = checked_device_name(device_name, user_agent)?;
-        Ok(self.codes.start(device_name, delivery, now)?)
+        // Before `admit`, so a start refused for its name isn't counted.
+        let device = named(device)?;
+        self.code_start_limits
+            .admit(device.ip_address, now)
+            .map_err(Error::TooManyCodeStarts)?;
+        Ok(self.codes.start(device.name, delivery, now)?)
     }
 
     /// The name of the Device that the code `entered` would sign in, looked up by `caller` at
@@ -259,18 +273,13 @@ impl SignIn {
 
 /// `device` with its name checked, made from its `User-Agent` if it gave none.
 fn named(device: NewDevice) -> Result<NewDevice, users::Error> {
-    let name = checked_device_name(device.name, device.user_agent.as_deref())?;
-    Ok(NewDevice { name, ..device })
-}
-
-/// `name` checked as a Device's, or made from `user_agent` if it is blank.
-fn checked_device_name(name: String, user_agent: Option<&str>) -> Result<String, users::Error> {
-    let name = if name.trim().is_empty() {
-        device_names::from_user_agent(user_agent)
+    let name = if device.name.trim().is_empty() {
+        device_names::from_user_agent(device.user_agent.as_deref())
     } else {
-        name
+        device.name
     };
-    users::checked_name("device_name", "a Device's name", &name)
+    let name = users::checked_name("device_name", "a Device's name", &name)?;
+    Ok(NewDevice { name, ..device })
 }
 
 #[cfg(test)]

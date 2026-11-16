@@ -32,7 +32,9 @@ pub enum RefusalReason {
     REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND = 9i32,
     /// `failed_precondition`: the Sign-in Code was already approved.
     REFUSAL_REASON_SIGN_IN_CODE_ALREADY_APPROVED = 10i32,
-    /// `resource_exhausted`: too many sign-ins with a Sign-in Code are waiting.
+    /// `resource_exhausted`: too many sign-ins with a Sign-in Code are waiting, or too many were
+    /// started lately from the client's IP. Params, for the second: `retryAfterSeconds`, also sent as
+    /// the `Retry-After` header.
     REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS = 11i32,
     /// `not_found`: no sign-in is waiting on the handle.
     REFUSAL_REASON_HANDLE_NOT_FOUND = 12i32,
