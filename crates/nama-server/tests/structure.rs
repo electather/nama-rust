@@ -255,7 +255,12 @@ const UNCHECKED_QUERIES: &[&str] = &[
     "sqlx::query(",
     "sqlx::query_as(",
     "sqlx::query_scalar(",
+    "sqlx::query::<",
+    "sqlx::query_as::<",
+    "sqlx::query_scalar::<",
     "query_with(",
+    "query_as_with(",
+    "query_scalar_with(",
 ];
 
 /// Whether the file at `path` is test code by its name.
@@ -263,14 +268,26 @@ fn is_test_file(path: &str) -> bool {
     path.ends_with("_tests.rs") || path.ends_with("/testing.rs")
 }
 
+/// Whether `line` is a `#[cfg(test)]` or `#[cfg(all(test, ...))]` attribute, which turns its
+/// item on only under test.
+// ponytail: `test` nested inside an `any(...)` within the `all(...)` is not seen.
+fn is_test_only_cfg(line: &str) -> bool {
+    let line = line.trim();
+    line == "#[cfg(test)]"
+        || line
+            .strip_prefix("#[cfg(all(")
+            .and_then(|rest| rest.strip_suffix("))]"))
+            .is_some_and(|terms| terms.split(',').any(|term| term.trim() == "test"))
+}
+
 /// Each `(line number, call)` in `text` that calls one of `UNCHECKED_QUERIES`, up to a
-/// trailing inline `#[cfg(test)] mod tests` block.
+/// trailing inline `mod tests` block behind a test-only `#[cfg(...)]`.
 // ponytail: a text scan; a call split across lines or reached through a `use` alias is not seen.
 fn unchecked_queries(text: &str) -> Vec<(usize, &'static str)> {
     let tests_start = text
         .lines()
         .zip(text.lines().skip(1))
-        .position(|(line, next)| line.trim() == "#[cfg(test)]" && next.trim() == "mod tests {")
+        .position(|(line, next)| is_test_only_cfg(line) && next.trim() == "mod tests {")
         .unwrap_or(usize::MAX);
     text.lines()
         .take(tests_start)
@@ -294,7 +311,7 @@ fn production_code_calls_only_sqlxs_checked_query_macros() {
                 .into_iter()
                 .map(|(line, call)| {
                     format!(
-                        "{}:{line}: {call} is unchecked: use its `!` macro",
+                        "{}:{line}: {call} is unchecked: use a checked macro such as sqlx::query!",
                         file.path
                     )
                 })
@@ -308,14 +325,29 @@ fn unchecked_queries_finds_calls_before_an_inline_test_module() {
     let text = "let a = sqlx::query!(\"x\");\n\
                 let b = sqlx::query_scalar(\"x\");\n\
                 let c = sqlx::query_with(\"x\", args);\n\
-                #[cfg(test)]\n\
+                let d = sqlx::query::<Sqlite>(\"x\");\n\
+                let e = sqlx::query_as::<_, Row>(\"x\");\n\
+                let f = sqlx::query_scalar::<_, i64>(\"x\");\n\
+                let g = sqlx::query_as_with(\"x\", args);\n\
+                let h = sqlx::query_scalar_with(\"x\", args);\n\
+                #[cfg(all(test, unix))]\n\
                 mod tests {\n\
-                    let d = sqlx::query_as(\"x\");\n\
+                    let i = sqlx::query_as(\"x\");\n\
                 }";
     assert_eq!(
         unchecked_queries(text),
-        [(2, "sqlx::query_scalar("), (3, "query_with(")]
+        [
+            (2, "sqlx::query_scalar("),
+            (3, "query_with("),
+            (4, "sqlx::query::<"),
+            (5, "sqlx::query_as::<"),
+            (6, "sqlx::query_scalar::<"),
+            (7, "query_as_with("),
+            (8, "query_scalar_with("),
+        ]
     );
+    let plain_cfg = "#[cfg(test)]\nmod tests {\nlet a = sqlx::query(\"x\");\n}";
+    assert_eq!(unchecked_queries(plain_cfg), []);
     assert!(is_test_file("src/a_tests.rs") && is_test_file("src/requests/testing.rs"));
     assert!(!is_test_file("src/automation/store.rs"));
 }
