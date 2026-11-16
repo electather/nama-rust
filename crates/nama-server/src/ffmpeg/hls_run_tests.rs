@@ -62,6 +62,12 @@ fn value_of<'a>(args: &'a [String], option: &str) -> Option<&'a str> {
     args.get(at + 1).map(String::as_str)
 }
 
+/// What `args` gives the input's `-ss`, if anything.
+fn input_seek(args: &[String]) -> Option<&str> {
+    let input = args.iter().position(|arg| arg == "-i").unwrap();
+    value_of(&args[..input], "-ss")
+}
+
 const fn keyframe(n: usize, ms: i64, previous_ms: Option<i64>) -> Keyframe {
     Keyframe { n, ms, previous_ms }
 }
@@ -87,7 +93,7 @@ fn a_remux_copies_the_video_and_converts_the_audio_from_its_keyframe_on() {
         "error",
         "-nostdin",
         "-ss",
-        "5.500",
+        "5.917",
         "-itsoffset",
         "1.000",
         "-i",
@@ -108,6 +114,8 @@ fn a_remux_copies_the_video_and_converts_the_audio_from_its_keyframe_on() {
         "aac",
         "-ac",
         "2",
+        "-af",
+        "atrim=start=6.941",
         "-f",
         "hls",
         "-hls_segment_type",
@@ -202,26 +210,62 @@ fn a_transcode_converts_the_video_and_audio_from_its_cut_on() {
 }
 
 #[test]
-fn a_remux_seeks_halfway_back_to_the_keyframe_before_and_at_most_half_a_second() {
-    let input_seek = |from| {
-        let args = remux_args(Remux { audio: None }, from);
-        let input = args.iter().position(|arg| arg == "-i").unwrap();
-        value_of(&args[..input], "-ss").map(str::to_owned)
-    };
+fn a_remux_without_audio_seeks_halfway_back_to_the_keyframe_before_and_at_most_half_a_second() {
+    let seek_from = |from| input_seek(&remux_args(Remux { audio: None }, from)).map(str::to_owned);
 
     assert_eq!(
-        input_seek(keyframe(3, 6000, Some(5600))).as_deref(),
+        seek_from(keyframe(3, 6000, Some(5600))).as_deref(),
         Some("5.800")
     );
     assert_eq!(
-        input_seek(keyframe(3, 6000, Some(2000))).as_deref(),
+        seek_from(keyframe(3, 6000, Some(2000))).as_deref(),
         Some("5.500")
     );
     assert_eq!(
-        input_seek(keyframe(0, 400, None)),
+        seek_from(keyframe(0, 400, None)),
         None,
         "from the file's start"
     );
+}
+
+#[test]
+fn a_remux_past_the_first_keyframe_starts_its_audio_at_the_keyframes_decode_time() {
+    let audio = |aac_channels| Remux {
+        audio: Some(RemuxAudio {
+            track: 0,
+            aac_channels,
+        }),
+    };
+    let third = keyframe(3, 6000, Some(4000));
+
+    let copied = remux_args(audio(None), third);
+    let converted = remux_args(audio(Some(2)), third);
+    let silent = remux_args(Remux { audio: None }, third);
+
+    assert_eq!(input_seek(&copied), Some("5.917"));
+    assert_eq!(value_of(&copied, "-copypriorss:a"), Some("0"));
+    assert_eq!(value_of(&copied, "-af"), None);
+    assert_eq!(input_seek(&converted), Some("5.917"));
+    assert_eq!(value_of(&converted, "-af"), Some("atrim=start=6.941"));
+    assert_eq!(value_of(&converted, "-copypriorss:a"), None);
+    assert_eq!(input_seek(&silent), Some("5.500"));
+    assert_eq!(value_of(&silent, "-copypriorss:a"), None);
+    assert_eq!(value_of(&silent, "-af"), None);
+}
+
+#[test]
+fn a_remux_from_the_first_keyframe_keeps_the_audio_from_the_files_start() {
+    let remux = Remux {
+        audio: Some(RemuxAudio {
+            track: 0,
+            aac_channels: None,
+        }),
+    };
+
+    let args = remux_args(remux, keyframe(0, 0, None));
+
+    assert_eq!(input_seek(&args), None);
+    assert_eq!(value_of(&args, "-copypriorss:a"), None);
 }
 
 #[test]
@@ -234,6 +278,58 @@ fn hdr_is_tone_mapped_to_sdr_in_software_with_zscale() {
     let args = transcode_args(tone_mapped);
 
     assert_eq!(value_of(&args, "-vf"), Some(ZSCALE_TONE_MAP));
+}
+
+/// A playback limit of 720p at 4 Mb/s.
+const LIMIT_720P: Option<VideoLimit> = Some(VideoLimit {
+    size: Some((1280, 720)),
+    bits_per_second: 4_000_000,
+});
+
+#[test]
+fn a_limited_tone_map_with_nothing_burned_in_scales_down_first() {
+    let tone_mapped = VideoConversion {
+        tone_map: Some(ToneMapper::Software),
+        limit: LIMIT_720P,
+        ..SOFTWARE
+    };
+    let on_vaapi = VideoConversion {
+        hardware: Some(on_default_gpu(Accel::Vaapi)),
+        ..tone_mapped
+    };
+
+    let args = transcode_args(tone_mapped);
+    let vaapi_args = transcode_args(on_vaapi);
+
+    let scaled_first = format!("scale=1280:720,{ZSCALE_TONE_MAP}");
+    assert_eq!(value_of(&args, "-vf"), Some(scaled_first.as_str()));
+    let uploaded_last = format!("{scaled_first},format=nv12,hwupload");
+    assert_eq!(value_of(&vaapi_args, "-vf"), Some(uploaded_last.as_str()));
+}
+
+#[test]
+fn a_limited_tone_map_with_a_burn_in_scales_down_after_the_subtitle() {
+    let burned = |burn_in| VideoConversion {
+        tone_map: Some(ToneMapper::Software),
+        limit: LIMIT_720P,
+        burn_in: Some(burn_in),
+        ..SOFTWARE
+    };
+
+    let image = transcode_args(burned(BurnIn::Image {
+        subtitle: 1,
+        picture: None,
+    }));
+    let text = transcode_args(burned(BurnIn::Text { subtitle: 2 }));
+
+    let graph = format!(
+        "[0:V:0]{ZSCALE_TONE_MAP}[picture];[0:s:1]null[subtitle];\
+         [picture][subtitle]overlay=(W-w)/2:(H-h)/2,scale=1280:720[video]"
+    );
+    assert_eq!(value_of(&image, "-filter_complex"), Some(graph.as_str()));
+    let filters =
+        format!(r"{ZSCALE_TONE_MAP},subtitles=filename=\'alien.mkv\':si=2,scale=1280:720");
+    assert_eq!(value_of(&text, "-vf"), Some(filters.as_str()));
 }
 
 #[test]
