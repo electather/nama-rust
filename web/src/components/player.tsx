@@ -47,7 +47,8 @@ export interface PlayerProps {
  * here. While the Server works a plan out, which the first time can take minutes, it says so.
  */
 export function Player(props: PlayerProps) {
-  // Above the plan's owner, so a later plan suspends it mounted and it keeps what it asked for.
+  // Above the component owning `usePlaybackPlan`'s state: a later plan then suspends it mounted, and
+  // React keeps the Tracks and Playback Limit it asked for.
   return (
     <Suspense fallback={<GettingReady title={props.title} back={props.back} />}>
       <PlannedPlayer {...props} />
@@ -211,7 +212,8 @@ function BottomBar({
 }
 
 // React keeps a Suspense fallback up for at least 300 ms, so without this wait a quick plan, as most
-// later ones are, would flash this and have it announced.
+// later ones are, would flash this and have it announced. Shorter, it is also the status
+// `player-limit.test.tsx` finds during a quick plan, where it expects `DroppedChoice`'s or none.
 const NOTICEABLE_WAIT_MS = 1000;
 
 /** The title bar, and once the wait is noticeable, that the Server is getting the Version ready. */
