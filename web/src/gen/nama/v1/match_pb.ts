@@ -325,7 +325,7 @@ export type UnmatchedItem = Message<"nama.v1.UnmatchedItem"> & {
   episode?: number | undefined;
 
   /**
-   * Why automatic Matching left the item Unmatched.
+   * Why the item is Unmatched.
    *
    * @generated from field: nama.v1.UnmatchedReason reason = 8;
    */
@@ -383,7 +383,7 @@ export const TitleKindSchema: GenEnum<TitleKind> = /*@__PURE__*/
   enumDesc(file_nama_v1_match, 0);
 
 /**
- * Why Matching left an item Unmatched, which says how to fix it.
+ * Why an item is Unmatched, which says how to fix it.
  *
  * @generated from enum nama.v1.UnmatchedReason
  */
@@ -434,7 +434,7 @@ export const UnmatchedReason = {
 } as const;
 
 /**
- * Why Matching left an item Unmatched, which says how to fix it.
+ * Why an item is Unmatched, which says how to fix it.
  *
  * @generated from enum nama.v1.UnmatchedReason
  */

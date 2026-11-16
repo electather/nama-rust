@@ -145,7 +145,7 @@ impl ::buffa::Enumeration for TitleKind {
         &[Self::TITLE_KIND_UNSPECIFIED, Self::TITLE_KIND_MOVIE, Self::TITLE_KIND_SHOW]
     }
 }
-/// Why Matching left an item Unmatched, which says how to fix it.
+/// Why an item is Unmatched, which says how to fix it.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]
@@ -2008,7 +2008,7 @@ pub struct UnmatchedItem {
         skip_serializing_if = "::core::option::Option::is_none"
     )]
     pub episode: ::core::option::Option<i32>,
-    /// Why automatic Matching left the item Unmatched.
+    /// Why the item is Unmatched.
     ///
     /// Field 8: `reason`
     #[serde(
