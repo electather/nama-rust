@@ -62,6 +62,12 @@ fn value_of<'a>(args: &'a [String], option: &str) -> Option<&'a str> {
     args.get(at + 1).map(String::as_str)
 }
 
+/// What `args` gives the input's `-ss`, if anything.
+fn input_seek(args: &[String]) -> Option<&str> {
+    let input = args.iter().position(|arg| arg == "-i").unwrap();
+    value_of(&args[..input], "-ss")
+}
+
 const fn keyframe(n: usize, ms: i64, previous_ms: Option<i64>) -> Keyframe {
     Keyframe { n, ms, previous_ms }
 }
@@ -87,7 +93,7 @@ fn a_remux_copies_the_video_and_converts_the_audio_from_its_keyframe_on() {
         "error",
         "-nostdin",
         "-ss",
-        "5.500",
+        "5.917",
         "-itsoffset",
         "1.000",
         "-i",
@@ -108,6 +114,8 @@ fn a_remux_copies_the_video_and_converts_the_audio_from_its_keyframe_on() {
         "aac",
         "-ac",
         "2",
+        "-af",
+        "atrim=start=6.941",
         "-f",
         "hls",
         "-hls_segment_type",
@@ -203,25 +211,61 @@ fn a_transcode_converts_the_video_and_audio_from_its_cut_on() {
 
 #[test]
 fn a_remux_seeks_halfway_back_to_the_keyframe_before_and_at_most_half_a_second() {
-    let input_seek = |from| {
-        let args = remux_args(Remux { audio: None }, from);
-        let input = args.iter().position(|arg| arg == "-i").unwrap();
-        value_of(&args[..input], "-ss").map(str::to_owned)
-    };
+    let seek_from = |from| input_seek(&remux_args(Remux { audio: None }, from)).map(str::to_owned);
 
     assert_eq!(
-        input_seek(keyframe(3, 6000, Some(5600))).as_deref(),
+        seek_from(keyframe(3, 6000, Some(5600))).as_deref(),
         Some("5.800")
     );
     assert_eq!(
-        input_seek(keyframe(3, 6000, Some(2000))).as_deref(),
+        seek_from(keyframe(3, 6000, Some(2000))).as_deref(),
         Some("5.500")
     );
     assert_eq!(
-        input_seek(keyframe(0, 400, None)),
+        seek_from(keyframe(0, 400, None)),
         None,
         "from the file's start"
     );
+}
+
+#[test]
+fn a_remux_past_the_first_keyframe_starts_its_audio_at_the_keyframes_decode_time() {
+    let audio = |aac_channels| Remux {
+        audio: Some(RemuxAudio {
+            track: 0,
+            aac_channels,
+        }),
+    };
+    let third = keyframe(3, 6000, Some(4000));
+
+    let copied = remux_args(audio(None), third);
+    let converted = remux_args(audio(Some(2)), third);
+    let silent = remux_args(Remux { audio: None }, third);
+
+    assert_eq!(input_seek(&copied), Some("5.917"));
+    assert_eq!(value_of(&copied, "-copypriorss:a"), Some("0"));
+    assert_eq!(value_of(&copied, "-af"), None);
+    assert_eq!(input_seek(&converted), Some("5.917"));
+    assert_eq!(value_of(&converted, "-af"), Some("atrim=start=6.941"));
+    assert_eq!(value_of(&converted, "-copypriorss:a"), None);
+    assert_eq!(input_seek(&silent), Some("5.500"));
+    assert_eq!(value_of(&silent, "-copypriorss:a"), None);
+    assert_eq!(value_of(&silent, "-af"), None);
+}
+
+#[test]
+fn a_remux_from_the_first_keyframe_keeps_the_audio_from_the_files_start() {
+    let remux = Remux {
+        audio: Some(RemuxAudio {
+            track: 0,
+            aac_channels: None,
+        }),
+    };
+
+    let args = remux_args(remux, keyframe(0, 0, None));
+
+    assert_eq!(input_seek(&args), None);
+    assert_eq!(value_of(&args, "-copypriorss:a"), None);
 }
 
 #[test]
