@@ -435,19 +435,30 @@ async fn a_folder_inside_or_holding_another_librarys_is_refused_as_overlapping()
         .await
         .unwrap();
 
-    for (case, folder) in [("inside", &hamlet), ("holding", &media)] {
+    for (relation, folder) in [("is inside", &hamlet), ("holds", &media)] {
         let created = fx
             .create("Hamlet", LibraryKind::LIBRARY_KIND_SHOWS, &[folder])
             .await;
-        assert_overlaps(created, folder, &films, case);
+        assert_overlaps(created, folder, &films, relation);
         let updated = fx.update(shows.id, "Shows", &[&tv, folder]).await;
-        assert_overlaps(updated, folder, &films, case);
+        assert_overlaps(updated, folder, &films, relation);
     }
     assert_eq!(
         fx.list().await,
-        [movies.clone(), shows],
+        [movies, shows],
         "a refused change was kept"
     );
+}
+
+#[tokio::test]
+async fn a_folder_beside_another_librarys_or_inside_its_own_old_one_is_accepted() {
+    let fx = Fixture::start().await;
+    let films = fx.folder("media/movies");
+    let hamlet = fx.folder("media/movies/Hamlet");
+    let movies = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
 
     let beside = fx.folder("media/movies2");
     fx.create("Movies 2", LibraryKind::LIBRARY_KIND_MOVIES, &[&beside])
@@ -458,23 +469,30 @@ async fn a_folder_inside_or_holding_another_librarys_is_refused_as_overlapping()
         .expect("a Library's own old folder doesn't overlap it");
 }
 
-/// Asserts `result` was refused because `folder` overlaps `library_folder`, the Movies Library's.
+/// Asserts `result` was refused because `folder` overlaps `library_folder`, the Movies Library's,
+/// with a message saying it `relation` ("is inside" or "holds") that folder.
 fn assert_overlaps<T>(
     result: Result<T, ConnectError>,
     folder: &str,
     library_folder: &str,
-    case: &str,
+    relation: &str,
 ) {
+    let message = result.as_ref().err().and_then(|err| err.message.clone());
+    let expected = format!("{folder} {relation} {library_folder}");
+    assert!(
+        message.as_deref().is_some_and(|m| m.contains(&expected)),
+        "{message:?} should say {expected:?}"
+    );
     let refusal = assert_refused(
         result,
         ErrorCode::FailedPrecondition,
         RefusalReason::REFUSAL_REASON_FOLDER_OVERLAPS,
     );
-    assert_eq!(refusal.field, "folders", "{case}");
+    assert_eq!(refusal.field, "folders", "{relation}");
     let param = |key: &str| refusal.params.get(key).map(String::as_str);
-    assert_eq!(param("folder"), Some(folder), "{case}");
-    assert_eq!(param("library"), Some("Movies"), "{case}");
-    assert_eq!(param("libraryFolder"), Some(library_folder), "{case}");
+    assert_eq!(param("folder"), Some(folder), "{relation}");
+    assert_eq!(param("library"), Some("Movies"), "{relation}");
+    assert_eq!(param("libraryFolder"), Some(library_folder), "{relation}");
 }
 
 /// Directories the Server can't fully read: one it can't list, and one it can list but not

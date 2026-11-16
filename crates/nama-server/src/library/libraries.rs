@@ -579,6 +579,7 @@ async fn ensure_folders_free(
     .fetch_all(&mut *conn)
     .await?;
     for folder in folders {
+        // First, as a path `starts_with` itself and the overlap check would take this for one.
         if let Some(other) = others.iter().find(|other| other.path == *folder) {
             return Err(Error::FolderTaken {
                 folder: folder.clone(),
