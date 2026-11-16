@@ -4,6 +4,7 @@
 mod blob_store;
 mod builtin;
 mod contract;
+mod failing;
 mod points;
 mod registry;
 mod retrying;
@@ -32,6 +33,7 @@ use crate::images::{MAX_SVG_BYTES, clean_svg};
 
 pub(crate) use blob_store::PluginBlobs;
 pub(crate) use contract::{download, notification, observed, request};
+pub use failing::Failing;
 pub use points::ExtensionPoints;
 pub use registry::Registry;
 pub(crate) use retrying::{RETRIES, Retryable};

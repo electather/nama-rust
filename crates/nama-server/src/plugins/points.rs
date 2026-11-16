@@ -12,9 +12,12 @@ use nama_proto::nama::v1::PluginKind;
 use tracing::{error, info, warn};
 
 use super::{
-    Answer, ProviderError, contain, contain_sync, formatted,
+    Answer, ProviderError, contain, contain_sync,
+    failing::{Failing, Failures},
+    formatted,
     registry::{Enabled, Entry, MakeKernel, State},
 };
+
 /// How the Kernel calls the Plugins enabled in a [`Registry`](super::Registry): observing,
 /// asking Providers and who provides a capability. It can't enable, disable or list Plugins; only a
 /// Provider or an Observer that panics disables its own Plugin, as it would through the
@@ -24,6 +27,8 @@ use super::{
 #[derive(Clone, Default)]
 pub struct ExtensionPoints {
     state: Arc<RwLock<State>>,
+    /// Which Providers' last calls failed, which callers record and the Admin is shown.
+    failures: Arc<Failures>,
 }
 
 impl ExtensionPoints {
@@ -193,6 +198,45 @@ impl ExtensionPoints {
         }
     }
 
+    /// Records that the Plugin `plugin`'s Provider at `point` failed with `message`, a
+    /// [`Failure`](super::Failure)'s, and returns its run of failures so far, so a caller can log
+    /// only the first of a run. Records nothing and returns `None` once the Plugin is disabled,
+    /// such as a call its disabling interrupted. The record lives in memory: a success or disabling
+    /// the Plugin clears it, and a restart forgets it.
+    #[expect(
+        clippy::must_use_candidate,
+        reason = "a caller that logs each scan's tally itself only records the failure"
+    )]
+    pub fn provider_failed(
+        &self,
+        plugin: &PluginId,
+        point: PointKey,
+        message: &str,
+    ) -> Option<Failing> {
+        // Checked under the state lock, which `remove_if` holds while it forgets, so a call that
+        // ends after its Plugin was disabled can't leave a record behind for the next enablement.
+        // ponytail: a call that outlives a disable and the next enable still records against the
+        // new one; telling them apart would need the enablement's generation in `Answer`.
+        self.read(|state| {
+            state
+                .plugins
+                .contains_key(plugin)
+                .then(|| self.failures.failed(plugin, point, message))
+        })
+    }
+
+    /// Records that the Plugin `plugin`'s Provider at `point` answered, which clears what
+    /// [`Self::provider_failed`] recorded.
+    pub fn provider_answered(&self, plugin: &PluginId, point: PointKey) {
+        self.failures.answered(plugin, point);
+    }
+
+    /// The Plugin `plugin`'s Provider at `point`, if its last recorded call failed.
+    #[must_use]
+    pub fn failing(&self, plugin: &PluginId, point: PointKey) -> Option<Failing> {
+        self.failures.get(plugin, point)
+    }
+
     /// What people know the Plugin `id` by: its name, or its id when it gives none or the Server
     /// has no such Plugin.
     #[must_use]
@@ -307,6 +351,8 @@ impl ExtensionPoints {
                 handlers.extend(entries.extract_if(.., |entry| entry.plugin == *id));
             }
             state.points.retain(|_, entries| !entries.is_empty());
+            // A Plugin enabled again, perhaps with its settings fixed, starts with a clean slate.
+            self.failures.forget(id);
             Ok(Some(Removed {
                 enabled,
                 _handlers: handlers,

@@ -363,3 +363,92 @@ async fn a_scan_does_not_count_a_new_file_a_recogniser_failed_on_as_added() {
 
     assert_eq!((summary.added, summary.updated), (1, 0));
 }
+
+#[tokio::test]
+async fn a_recogniser_failing_on_several_files_is_counted_and_logged_once() {
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(ProposingPlugin(|| None))).unwrap();
+    let points = plugins.extension_points();
+    let unread = |name: &str| Planned {
+        change: Change::Store {
+            path: format!("/media/{name}"),
+            size: 1,
+            modified_ns: 1,
+            items: Vec::new(),
+        },
+        unread: Some(PathBuf::from(name)),
+        added: true,
+    };
+    let planned = ["Show - 1.mkv", "Show - 2.mkv", "Show - 3.mkv"].map(unread);
+    let log = tempfile::NamedTempFile::new().unwrap();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(Arc::new(log.reopen().unwrap()))
+        .with_ansi(false)
+        .finish();
+    // The test's runtime has one thread, so the scan logs to it. A thread-local subscriber, as in
+    // `scanner_tests.rs`: nextest runs each test in a process of its own.
+    let logging = tracing::subscriber::set_default(subscriber);
+
+    let (_, dropped) = recognise(
+        &points,
+        LibraryKind::Shows,
+        &["proposing".to_owned()],
+        planned.into(),
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+
+    drop(logging);
+    assert_eq!(dropped.len(), 3);
+    let failing = points
+        .failing(
+            &PluginId::from_static("proposing"),
+            PointKey::provide::<dyn Recogniser>(),
+        )
+        .unwrap();
+    assert_eq!(
+        (failing.in_a_row, failing.last_error.as_str()),
+        (3, "the Recogniser is down")
+    );
+    let log = std::fs::read_to_string(log.path()).unwrap();
+    let warned: Vec<&str> = log.lines().filter(|line| line.contains("WARN")).collect();
+    assert_eq!(warned.len(), 1, "{log}");
+    assert!(warned[0].contains("files=3"), "{log}");
+}
+
+#[tokio::test]
+async fn a_recogniser_answering_clears_its_failure() {
+    let plugins = Registry::new();
+    plugins
+        .enable(Arc::new(ProposingPlugin(|| Some(episodes([2])))))
+        .unwrap();
+    let points = plugins.extension_points();
+    let (plugin, point) = (
+        PluginId::from_static("proposing"),
+        PointKey::provide::<dyn Recogniser>(),
+    );
+    points.provider_failed(&plugin, point, "the Recogniser is down");
+    let planned = vec![Planned {
+        change: Change::Store {
+            path: "/media/Show - 2.mkv".to_owned(),
+            size: 1,
+            modified_ns: 1,
+            items: Vec::new(),
+        },
+        unread: Some(PathBuf::from("Show - 2.mkv")),
+        added: true,
+    }];
+
+    recognise(
+        &points,
+        LibraryKind::Shows,
+        &["proposing".to_owned()],
+        planned,
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(points.failing(&plugin, point), None);
+}

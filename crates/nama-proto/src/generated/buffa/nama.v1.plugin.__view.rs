@@ -6405,6 +6405,12 @@ pub struct PluginView<'a> {
     ///
     /// Field 6: `checks_settings`
     pub checks_settings: bool,
+    /// Set while its Recogniser's last call failed, so the Admin sees one that keeps failing.
+    ///
+    /// Field 13: `recogniser_failure`
+    pub recogniser_failure: ::buffa::MessageFieldView<
+        super::super::__buffa::view::RecogniserFailureView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
@@ -6465,6 +6471,27 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                 )?;
                 view.checks_settings = ::buffa::types::decode_bool(&mut cur)?;
             }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.recogniser_failure.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.recogniser_failure = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::RecogniserFailureView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             5u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -6520,6 +6547,15 @@ impl<'a> ::buffa::MessageView<'a> for PluginView<'a> {
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             checks_settings: self.checks_settings,
+            recogniser_failure: match self.recogniser_failure.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::RecogniserFailure,
+                        ::buffa::Inline<super::super::RecogniserFailure>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -6545,6 +6581,14 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
         if self.summary.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.summary.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.recogniser_failure.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.recogniser_failure.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -6580,6 +6624,14 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginView<'a> {
             );
             self.summary.write_to(__cache, buf);
         }
+        if self.recogniser_failure.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                13u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.recogniser_failure.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -6611,6 +6663,14 @@ impl<'__a> ::serde::Serialize for PluginView<'__a> {
         }
         if self.checks_settings {
             __map.serialize_entry("checksSettings", &self.checks_settings)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self
+                .recogniser_failure
+                .as_option()
+            {
+                __map.serialize_entry("recogniserFailure", __v)?;
+            }
         }
         __map.end()
     }
@@ -6724,6 +6784,17 @@ impl PluginOwnedView {
     pub fn checks_settings(&self) -> bool {
         self.0.reborrow().checks_settings
     }
+    /// Set while its Recogniser's last call failed, so the Admin sees one that keeps failing.
+    ///
+    /// Field 13: `recogniser_failure`
+    #[must_use]
+    pub fn recogniser_failure(
+        &self,
+    ) -> &::buffa::MessageFieldView<
+        super::super::__buffa::view::RecogniserFailureView<'_>,
+    > {
+        &self.0.reborrow().recogniser_failure
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<PluginView<'static>>> for PluginOwnedView {
     fn from(inner: ::buffa::OwnedView<PluginView<'static>>) -> Self {
@@ -6746,6 +6817,327 @@ impl ::buffa::HasMessageView for super::super::Plugin {
     type ViewHandle = PluginOwnedView;
 }
 impl ::serde::Serialize for PluginOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// A Recogniser whose last call failed (ADR 0050). The Server keeps it in memory only: a call that
+/// answers clears it, and so do disabling the Plugin and a restart.
+#[derive(Clone, Debug, Default)]
+pub struct RecogniserFailureView<'a> {
+    /// What the last failure said.
+    ///
+    /// Field 1: `last_error`
+    pub last_error: &'a str,
+    /// When it failed, in milliseconds since the Unix epoch.
+    ///
+    /// Field 2: `at_ms`
+    pub at_ms: i64,
+    /// How many calls in a row have failed, the last included.
+    ///
+    /// Field 3: `failed_in_a_row`
+    pub failed_in_a_row: u32,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for RecogniserFailureView<'a> {
+    type Owned = super::super::RecogniserFailure;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.last_error = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.at_ms = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.failed_in_a_row = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::RecogniserFailure, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::RecogniserFailure, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::RecogniserFailure {
+            last_error: self.last_error.to_string(),
+            at_ms: self.at_ms,
+            failed_in_a_row: self.failed_in_a_row,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for RecogniserFailureView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.last_error.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.last_error) as u64;
+        }
+        if self.at_ms != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.at_ms) as u64;
+        }
+        if self.failed_in_a_row != 0u32 {
+            size
+                += 1u64
+                    + ::buffa::types::uint32_encoded_len(self.failed_in_a_row) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.last_error.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.last_error, buf);
+        }
+        if self.at_ms != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.at_ms, buf);
+        }
+        if self.failed_in_a_row != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.failed_in_a_row, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for RecogniserFailureView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.last_error) {
+            __map.serialize_entry("lastError", self.last_error)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.at_ms) {
+            __map
+                .serialize_entry(
+                    "atMs",
+                    &::buffa::json_helpers::ProtoJson(&self.at_ms),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.failed_in_a_row) {
+            __map
+                .serialize_entry(
+                    "failedInARow",
+                    &::buffa::json_helpers::ProtoJson(&self.failed_in_a_row),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for RecogniserFailureView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "RecogniserFailure";
+    const FULL_NAME: &'static str = "nama.v1.RecogniserFailure";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RecogniserFailure";
+}
+::buffa::impl_default_view_instance!(RecogniserFailureView);
+::buffa::impl_view_reborrow!(RecogniserFailureView);
+/** Self-contained, `'static` owned view of a `RecogniserFailure` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`RecogniserFailureView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`RecogniserFailureView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct RecogniserFailureOwnedView(
+    ::buffa::OwnedView<RecogniserFailureView<'static>>,
+);
+impl RecogniserFailureOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RecogniserFailureOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RecogniserFailureOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::RecogniserFailure,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            RecogniserFailureOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`RecogniserFailureView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &RecogniserFailureView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::RecogniserFailure {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// What the last failure said.
+    ///
+    /// Field 1: `last_error`
+    #[must_use]
+    pub fn last_error(&self) -> &'_ str {
+        self.0.reborrow().last_error
+    }
+    /// When it failed, in milliseconds since the Unix epoch.
+    ///
+    /// Field 2: `at_ms`
+    #[must_use]
+    pub fn at_ms(&self) -> i64 {
+        self.0.reborrow().at_ms
+    }
+    /// How many calls in a row have failed, the last included.
+    ///
+    /// Field 3: `failed_in_a_row`
+    #[must_use]
+    pub fn failed_in_a_row(&self) -> u32 {
+        self.0.reborrow().failed_in_a_row
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<RecogniserFailureView<'static>>>
+for RecogniserFailureOwnedView {
+    fn from(inner: ::buffa::OwnedView<RecogniserFailureView<'static>>) -> Self {
+        RecogniserFailureOwnedView(inner)
+    }
+}
+impl ::core::convert::From<RecogniserFailureOwnedView>
+for ::buffa::OwnedView<RecogniserFailureView<'static>> {
+    fn from(wrapper: RecogniserFailureOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<RecogniserFailureView<'static>>>
+for RecogniserFailureOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<RecogniserFailureView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::RecogniserFailure {
+    type View<'a> = RecogniserFailureView<'a>;
+    type ViewHandle = RecogniserFailureOwnedView;
+}
+impl ::serde::Serialize for RecogniserFailureOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

@@ -5,7 +5,7 @@
 use std::{ffi::OsStr, path::Path, sync::Arc};
 
 use nama_plugin_api::{
-    PluginId,
+    PluginId, PointKey,
     contract::{self as wire, TitleRecognised, TitleToRecognise},
     metadata::{ExternalId, ExternalIds},
     recogniser::{Recogniser, RecogniserMethod},
@@ -92,7 +92,9 @@ impl Recognisers {
     }
 
     /// The well-formed ids the Plugin `plugin`'s Recogniser names for `asked`, in its order;
-    /// `None` when it is no longer enabled.
+    /// `None` when it is no longer enabled or doesn't serve `recognise_title`. Records whether
+    /// the call failed for the Admin to see, and logs a failure only when a run of them starts:
+    /// Matching has no scan to log a tally at the end of, as the Scanner does.
     async fn ask(
         &self,
         plugin: &PluginId,
@@ -101,25 +103,43 @@ impl Recognisers {
         let answered = (self.plugins)
             .ask(plugin, |recogniser: Arc<dyn Recogniser>| async move {
                 if !recogniser.recognises(RecogniserMethod::Title) {
-                    return Ok(TitleRecognised::default());
+                    return Ok(None);
                 }
-                recogniser.recognise_title(asked).await
+                recogniser.recognise_title(asked).await.map(Some)
             })
             .await;
+        let point = PointKey::provide::<dyn Recogniser>();
         match answered {
             Some(Answer {
-                result: Ok(recognised),
+                result: Ok(Some(recognised)),
                 ..
-            }) => Ok(Some(well_formed(plugin, &recognised))),
+            }) => {
+                self.plugins.provider_answered(plugin, point);
+                Ok(Some(well_formed(plugin, &recognised)))
+            }
             Some(Answer {
                 result: Err(failure),
                 ..
             }) => {
-                tracing::warn!(%plugin, error = failure.message, "the Recogniser failed");
+                let failing = self
+                    .plugins
+                    .provider_failed(plugin, point, &failure.message);
+                // A Plugin disabled meanwhile starts no run, so nothing is logged for it.
+                if failing.is_some_and(|failing| failing.in_a_row == 1) {
+                    tracing::warn!(
+                        %plugin,
+                        error = failure.message,
+                        "the Recogniser failed; its failures in a row are shown on its Plugin page"
+                    );
+                }
                 Err(Miss::RecogniserFailed)
             }
-            // Not enabled, not a Recogniser, or it panicked, which disabled it.
-            None => Ok(None),
+            // Doesn't serve `recognise_title`, isn't enabled or a Recogniser, or it panicked,
+            // which disabled it.
+            Some(Answer {
+                result: Ok(None), ..
+            })
+            | None => Ok(None),
         }
     }
 }

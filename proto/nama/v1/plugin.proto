@@ -253,6 +253,19 @@ message Plugin {
   repeated Setting settings = 5;
   // Whether it has a settings check, which `TestPluginSettings` runs.
   bool checks_settings = 6;
+  // Set while its Recogniser's last call failed, so the Admin sees one that keeps failing.
+  RecogniserFailure recogniser_failure = 13;
+}
+
+// A Recogniser whose last call failed (ADR 0050). The Server keeps it in memory only: a call that
+// answers clears it, and so do disabling the Plugin and a restart.
+message RecogniserFailure {
+  // What the last failure said.
+  string last_error = 1;
+  // When it failed, in milliseconds since the Unix epoch.
+  int64 at_ms = 2;
+  // How many calls in a row have failed, the last included.
+  uint32 failed_in_a_row = 3;
 }
 
 // What an Admin lets a Plugin do in the Server, as its Manifest requests (ADR 0049). These are

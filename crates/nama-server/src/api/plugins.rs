@@ -28,7 +28,7 @@ use crate::{
     images::PluginLogos,
     library::{CustomImageUrls, CustomImages, Slot},
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
-    plugins::{CheckError, EnableError, Listed},
+    plugins::{CheckError, EnableError, Failing, Listed},
     requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
 };
 
@@ -218,16 +218,16 @@ impl PluginServiceHandler {
             .ok_or_else(|| plugin_not_found(id))
     }
 
-    /// `stored` as `Plugin`, with its logo.
+    /// `stored` as `Plugin`, with its logo and whether its Recogniser's last call failed.
     async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let logo = logo(&self.plugin_logos, &stored.plugin, &custom).await;
-        Ok(plugin_to_proto(
-            stored.plugin,
-            stored.stored.settings,
-            &stored.granted,
-            logo,
-        ))
+        let failing = (self.plugin_settings.extension_points())
+            .failing(&stored.plugin.id, PointKey::provide::<dyn Recogniser>());
+        Ok(proto::Plugin {
+            recogniser_failure: failing.map(failing_to_proto).into(),
+            ..plugin_to_proto(stored.plugin, stored.stored.settings, &stored.granted, logo)
+        })
     }
 }
 
@@ -462,6 +462,15 @@ fn plugin_to_proto(
         checks_settings: plugin.checks_settings,
         settings,
         summary: plugin_summary_to_proto(plugin, stored, granted, logo).into(),
+        ..Default::default()
+    }
+}
+
+fn failing_to_proto(failing: Failing) -> proto::RecogniserFailure {
+    proto::RecogniserFailure {
+        last_error: failing.last_error,
+        at_ms: failing.at_ms,
+        failed_in_a_row: failing.in_a_row,
         ..Default::default()
     }
 }

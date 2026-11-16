@@ -10,14 +10,22 @@ mod server;
 #[path = "support/test_plugin.rs"]
 mod test_plugin;
 
+use std::sync::Arc;
+
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
+use nama_plugin_api::{
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    contract::{FileRecognised, FileToRecognise},
+    recogniser::{self, RecogniserMethod},
+};
 use nama_proto::nama::v1::{
     BrowseServiceClient, CreateLibraryRequest, EnablePluginRequest, Episode, ExtensionPoint,
-    ExternalId, GetLibraryRequest, LibraryKind, LibraryServiceClient, ListEpisodesRequest,
-    ListLibrariesRequest, ListPluginsRequest, ListUnmatchedItemsRequest, MatchServiceClient,
-    PluginServiceClient, RecogniserOrder, RefusalReason, UpdateLibraryRequest,
+    ExternalId, GetLibraryRequest, GetPluginRequest, LibraryKind, LibraryServiceClient,
+    ListEpisodesRequest, ListLibrariesRequest, ListPluginsRequest, ListUnmatchedItemsRequest,
+    MatchServiceClient, PluginServiceClient, RecogniserOrder, RefusalReason, UpdateLibraryRequest,
     UpdateLibraryResponse, event,
 };
+use nama_server::plugins::Registry;
 use refused::assert_refused;
 use server::{Library, TestServer, tmdb::DARK};
 
@@ -430,4 +438,76 @@ async fn list_plugins_says_which_plugins_are_recognisers() {
         .map(|plugin| plugin.id.as_str())
         .collect();
     assert_eq!(recognisers, [RECOGNISER]);
+}
+
+/// The id of [`Down`]'s Plugin.
+const DOWN: &str = "down";
+
+/// What [`Down`] fails every file with.
+const DOWN_ERROR: &str = "the recognising service is down";
+
+/// A Built-in Recogniser serving only `recognise_file`, which fails on every file.
+struct Down;
+
+impl recogniser::Recogniser for Down {
+    fn recognise_file<'a>(
+        &'a self,
+        _file: &'a FileToRecognise,
+    ) -> BoxFuture<'a, Result<FileRecognised, PluginError>> {
+        Box::pin(async { Err(DOWN_ERROR.into()) })
+    }
+
+    fn recognises(&self, method: RecogniserMethod) -> bool {
+        method == RecogniserMethod::File
+    }
+}
+
+impl Plugin for Down {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            version: "0.0.0".to_owned(),
+            extension_points: vec![PointKey::provide::<dyn recogniser::Recogniser>()],
+            ..Manifest::new(PluginId::from_static(DOWN))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.provide::<dyn recogniser::Recogniser>(Priority::DEFAULT, Arc::new(Self));
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_recogniser_failing_in_a_scan_shows_its_failure_on_the_plugin() {
+    let plugins = Registry::new();
+    plugins.describe_builtin(|| Arc::new(Down));
+    plugins.enable(Arc::new(Down)).unwrap();
+    let server = TestServer::builder().plugins(plugins).tmdb().start().await;
+    let second = "Dark (2017)/Dark (2017) - 3.mkv";
+    let library = server
+        .create_library(LibraryKind::LIBRARY_KIND_SHOWS, &[ABSOLUTE, second])
+        .await;
+    update_recognisers(&server, &library, Some(&[DOWN]))
+        .await
+        .unwrap();
+
+    server.scan_and_match(&library).await;
+
+    let plugin = PluginServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .get_plugin(GetPluginRequest {
+            id: DOWN.to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .plugin
+        .into_option()
+        .unwrap();
+    let failure = plugin.recogniser_failure.into_option().unwrap();
+    assert_eq!(failure.last_error, DOWN_ERROR);
+    // Both files fail in each scan: the one updating the order queued, and this one.
+    assert!(failure.failed_in_a_row >= 2, "{}", failure.failed_in_a_row);
+    assert!(failure.at_ms > 0);
+    assert_eq!(unparsed(&server, &library).await, Vec::<String>::new());
 }

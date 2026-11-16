@@ -3,13 +3,13 @@
 //! Matching then decides as it does a parsed name's; the Kernel only takes it as a hint.
 
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use nama_plugin_api::{
-    PluginId,
+    PluginId, PointKey,
     contract::{
         self, FileRecognised, FileToRecognise, RecognisedEpisodes, RecognisedMovie, TitleId,
         file_recognised::Recognised,
@@ -46,6 +46,9 @@ pub(super) struct Planned {
 /// so the next scan reads it again: a new file stays unstored, a changed one keeps its old record
 /// and a re-read one its old parser version. Returns the changes to store and those left out. A
 /// scan calls it under the Library's scan lock, as Matching asks title sources.
+///
+/// Each call's failure or success is recorded for the Admin to see, and each Recogniser that
+/// failed is logged once, at the end, with how many files it failed on and its last error.
 pub(super) async fn recognise(
     plugins: &ExtensionPoints,
     kind: LibraryKind,
@@ -56,12 +59,14 @@ pub(super) async fn recognise(
     let recognisers = listed(plugins, order);
     let mut changes = Vec::with_capacity(planned.len());
     let mut dropped = Vec::new();
+    let mut failed = Failed::default();
     for mut file in planned {
         let Some(relative) = file.unread.as_ref().filter(|_| !recognisers.is_empty()) else {
             changes.push(file.change);
             continue;
         };
         if cancel.is_cancelled() {
+            failed.log();
             return Err(Error::Cancelled);
         }
         match ask(plugins, &recognisers, kind, relative).await {
@@ -70,10 +75,39 @@ pub(super) async fn recognise(
                 changes.push(file.change);
             }
             Ok(None) => changes.push(file.change),
-            Err(()) => dropped.push(file),
+            Err((plugin, message)) => {
+                failed.add(plugin, message);
+                dropped.push(file);
+            }
         }
     }
+    failed.log();
     Ok((changes, dropped))
+}
+
+/// The Recognisers that failed during one [`recognise`]: how many files each failed on, and its
+/// last error.
+#[derive(Default)]
+struct Failed(BTreeMap<PluginId, (usize, String)>);
+
+impl Failed {
+    fn add(&mut self, plugin: PluginId, message: String) {
+        let (files, last) = self.0.entry(plugin).or_default();
+        *files = files.saturating_add(1);
+        *last = message;
+    }
+
+    /// Logs each Recogniser that failed, once.
+    fn log(&self) {
+        for (plugin, (files, last)) in &self.0 {
+            tracing::warn!(
+                %plugin,
+                files,
+                last_error = last,
+                "a Recogniser failed, so the files it failed on are read again on the next scan"
+            );
+        }
+    }
 }
 
 /// Has Contents read `library`'s unparsed files again and forget what Matching left Unmatched
@@ -109,13 +143,14 @@ pub(super) fn listed(plugins: &ExtensionPoints, order: &[String]) -> Vec<PluginI
 }
 
 /// The Items the first of `recognisers` to propose usable ones gives the file at `relative`, or
-/// `None` if none does. `Err` if one fails before any proposes, having logged why.
+/// `None` if none does. `Err` with the Recogniser and its error if one fails before any proposes.
+/// Records each call that failed or answered.
 async fn ask(
     plugins: &ExtensionPoints,
     recognisers: &[PluginId],
     kind: LibraryKind,
     relative: &Path,
-) -> Result<Option<Vec<Item>>, ()> {
+) -> Result<Option<Vec<Item>>, (PluginId, String)> {
     let file = &FileToRecognise {
         path: slashed(relative),
         library_kind: match kind {
@@ -125,6 +160,7 @@ async fn ask(
         .into(),
         ..FileToRecognise::default()
     };
+    let point = PointKey::provide::<dyn Recogniser>();
     for plugin in recognisers {
         let answered = plugins
             .ask(plugin, |recogniser: Arc<dyn Recogniser>| async move {
@@ -140,15 +176,11 @@ async fn ask(
             Ok(Some(recognised)) => recognised,
             Ok(None) => continue,
             Err(failure) => {
-                tracing::warn!(
-                    plugin = %answer.plugin,
-                    path = file.path,
-                    error = failure.message,
-                    "a Recogniser failed, so the file is read again on the next scan"
-                );
-                return Err(());
+                plugins.provider_failed(&answer.plugin, point, &failure.message);
+                return Err((answer.plugin, failure.message));
             }
         };
+        plugins.provider_answered(&answer.plugin, point);
         if recognised.recognised.is_none() {
             continue;
         }
