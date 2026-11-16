@@ -324,8 +324,8 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
         Database(err) => return database_failed(err),
         Refused(Invalid::NotAUrl) => refuse(
             RefusalReason::REFUSAL_REASON_NOT_A_URL,
-            "the Server URL must be an http or https URL with no ? or #, such as \
-             https://nama.example.com",
+            "the Server URL must be an http or https URL with no user name, password, ? or #, \
+             such as https://nama.example.com",
         )
         .field("settings.url"),
         Refused(Invalid::FolderNotAbsolute { folder }) => refuse(

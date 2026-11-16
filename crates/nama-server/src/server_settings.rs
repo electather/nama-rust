@@ -19,6 +19,7 @@ use nama_plugin_api::{
 };
 use sqlx::{Sqlite, Transaction};
 use thiserror::Error;
+use url::Url;
 
 use crate::{
     db::{BoxFuture, Database},
@@ -87,9 +88,9 @@ pub(crate) enum ChangeError {
 /// Which rule a proposed value broke.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum Invalid {
-    /// The Server URL isn't empty or an http or https URL, or has a query or fragment, which a
-    /// link added to its end would break.
-    #[error("the Server URL must be an http or https URL with no ? or #")]
+    /// The Server URL isn't empty or an http or https URL. Or it has a user name or password,
+    /// which links would leak, or a query or fragment, which a link added to its end would break.
+    #[error("the Server URL must be an http or https URL with no user name, password, ? or #")]
     NotAUrl,
     /// The segment folder isn't empty or absolute: a relative one would depend on where the
     /// Server was started.
@@ -431,10 +432,14 @@ impl Settings {
 }
 
 /// Whether `url` may be the Server URL: empty, or an http or https URL as a URL setting takes,
-/// with no query or fragment, since links are added to its end.
+/// with no query or fragment, since links are added to its end, and no user name or password,
+/// which those links would carry to every recipient.
 fn is_server_url(url: &str) -> bool {
     url.is_empty()
-        || (SettingValue::Text(url.to_owned()).is(SettingKind::Url) && !url.contains(['?', '#']))
+        || (SettingValue::Text(url.to_owned()).is(SettingKind::Url)
+            && !url.contains(['?', '#'])
+            && Url::parse(url)
+                .is_ok_and(|parsed| parsed.username().is_empty() && parsed.password().is_none()))
 }
 
 /// The Plugin `stored` names, or `None` for an empty one.

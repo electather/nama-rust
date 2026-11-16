@@ -13,7 +13,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::{NAME_LENGTH, name_key};
+use super::{
+    NAME_LENGTH,
+    names::{name_key, normalised},
+};
 
 const WINDOW: Duration = Duration::from_mins(15);
 
@@ -150,9 +153,13 @@ impl Blocked {
 
 /// What failures for the User name `name` are counted under: the key sign-in looks it up by, of
 /// the name cut short past the longest a User can have, so a request can't have a huge name kept
-/// for the whole window. Names that long are no User's, so cutting them short loses nothing.
+/// for the whole window. Names that long are no User's, so cutting them short loses nothing. It is
+/// cut once in NFC, as names are measured, so a name typed decomposed is counted whole.
 fn counted_name_key(name: &str) -> String {
-    let capped: String = name.trim().chars().take(NAME_LENGTH.end() + 1).collect();
+    let capped: String = normalised(name)
+        .chars()
+        .take(NAME_LENGTH.end() + 1)
+        .collect();
     name_key(&capped)
 }
 

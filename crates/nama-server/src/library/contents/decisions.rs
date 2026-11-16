@@ -43,6 +43,8 @@ pub(crate) enum UnmatchedReason {
     NoTitleFits,
     /// The Item's ID Hint names no title the title source has.
     UnknownIdHint,
+    /// The Episode's Show, found by Matching or picked by hand, has no such Season or Episode.
+    NotInShow,
 }
 
 /// A title that fit an Ambiguous Item about as well as the others.
@@ -442,6 +444,7 @@ enum ReasonColumn {
     Ambiguous,
     NoTitleFits,
     UnknownIdHint,
+    NotInShow,
 }
 
 impl ReasonColumn {
@@ -450,6 +453,7 @@ impl ReasonColumn {
             UnmatchedReason::Ambiguous(_) => Self::Ambiguous,
             UnmatchedReason::NoTitleFits => Self::NoTitleFits,
             UnmatchedReason::UnknownIdHint => Self::UnknownIdHint,
+            UnmatchedReason::NotInShow => Self::NotInShow,
         }
     }
 
@@ -459,6 +463,7 @@ impl ReasonColumn {
             Self::Ambiguous => UnmatchedReason::Ambiguous(parse_tied(tied_titles.unwrap_or("[]"))?),
             Self::NoTitleFits => UnmatchedReason::NoTitleFits,
             Self::UnknownIdHint => UnmatchedReason::UnknownIdHint,
+            Self::NotInShow => UnmatchedReason::NotInShow,
         })
     }
 }
@@ -549,9 +554,12 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                 unmatched_reason: reason.as_ref().map(ReasonColumn::of),
                 tied_titles: match reason {
                     Some(UnmatchedReason::Ambiguous(tied)) => Some(tied_json(tied)),
-                    Some(UnmatchedReason::NoTitleFits | UnmatchedReason::UnknownIdHint) | None => {
-                        None
-                    }
+                    Some(
+                        UnmatchedReason::NoTitleFits
+                        | UnmatchedReason::UnknownIdHint
+                        | UnmatchedReason::NotInShow,
+                    )
+                    | None => None,
                 },
             },
             Decided::Matched(metadata) => Self {

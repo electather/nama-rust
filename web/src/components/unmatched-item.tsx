@@ -7,6 +7,7 @@ import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import {
   MatchService,
+  type SetMatchResponse,
   type TitleCandidate,
   TitleKind,
   type UnmatchedItem,
@@ -90,6 +91,8 @@ const unmatchedBecause: Partial<Record<UnmatchedReason, string>> = {
   [UnmatchedReason.NO_TITLE_FITS]:
     "No title fits its name. Renaming the file or adding an ID Hint may help.",
   [UnmatchedReason.UNKNOWN_ID_HINT]: "Its ID Hint names no title.",
+  [UnmatchedReason.NOT_IN_SHOW]:
+    "Its Show has no such Episode. Matching it to another Show may help.",
 };
 
 function withYear(title: string, year: number | undefined) {
@@ -189,11 +192,29 @@ function Candidates({
           />
         ))}
       </ul>
+      <output className="block text-sm text-pretty empty:hidden">
+        {setMatch.data && notInShow(item, setMatch.data)}
+      </output>
       <p role="alert" className="text-sm text-destructive empty:hidden">
         {setMatch.error && setMatchRefusal(setMatch.error)}
       </p>
     </>
   );
+}
+
+/**
+ * What Matching `item`, an Episode, to a Show without it did, or "" if the Show has it. The row
+ * closes once its Item is Matched, so it shows this only while its own Episode is still Unmatched.
+ */
+function notInShow(item: UnmatchedItem, { matched, unmatched }: SetMatchResponse) {
+  if (unmatched === 0n || item.season === undefined || item.episode === undefined) return "";
+  return `That Show has no ${episodeName(item.season, item.episode, "full")}.${alsoMatched(matched)}`;
+}
+
+function alsoMatched(othersMatched: bigint) {
+  if (othersMatched === 0n) return "";
+  const others = othersMatched === 1n ? "1 other Episode" : `${othersMatched} other Episodes`;
+  return ` ${others} Matched to it.`;
 }
 
 function CandidateRow({

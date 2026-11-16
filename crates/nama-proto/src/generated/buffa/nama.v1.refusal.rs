@@ -79,6 +79,11 @@ pub enum RefusalReason {
     /// `invalid_argument`: a User's or Device's name, trimmed, is too short or too long. Params:
     /// `minLength`, `maxLength`, in characters.
     REFUSAL_REASON_NAME_LENGTH = 30i32,
+    /// `invalid_argument`: a User's or Device's name holds a character that can't be seen, such as a
+    /// tab, a line break, a zero-width or format character, a space other than U+0020, or a
+    /// private-use or unassigned one, so it could pass for another name. `field` is set. Params:
+    /// `character`, the first such one as `U+XXXX`.
+    REFUSAL_REASON_NAME_CHARACTER = 80i32,
     /// `invalid_argument`: the Authenticator Plugin rejects the password. Its own text is the message.
     REFUSAL_REASON_PASSWORD_REJECTED = 31i32,
     /// `invalid_argument`: a Library's folder, or the segment folder, isn't an absolute path. Params:
@@ -146,8 +151,8 @@ pub enum RefusalReason {
     /// itself, which is `REFUSAL_REASON_PLUGIN_REFUSED_TO_START`. The message says why. Params:
     /// `pluginId`, `reason` (in plain words, as `PluginSummary.refused_reason`).
     REFUSAL_REASON_PLUGIN_REFUSED = 52i32,
-    /// `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
-    /// where links are added to its end.
+    /// `invalid_argument`: the field isn't an http or https URL with a host, or has a user name,
+    /// password, query or fragment where links are added to its end.
     REFUSAL_REASON_NOT_A_URL = 53i32,
     /// `invalid_argument`: a Fulfiller's Qualities name the same profile twice, or two Qualities
     /// share a name, ignoring case. `field` names the second, such as `qualities[1].name`.
@@ -321,6 +326,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_NAME_LENGTH`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const NameLength: Self = Self::REFUSAL_REASON_NAME_LENGTH;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NAME_CHARACTER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NameCharacter: Self = Self::REFUSAL_REASON_NAME_CHARACTER;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_PASSWORD_REJECTED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const PasswordRejected: Self = Self::REFUSAL_REASON_PASSWORD_REJECTED;
@@ -607,6 +615,7 @@ impl ::buffa::Enumeration for RefusalReason {
             28i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_TITLE),
             29i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NO_TITLE_SOURCE),
             30i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NAME_LENGTH),
+            80i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NAME_CHARACTER),
             31i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PASSWORD_REJECTED),
             32i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE)
@@ -780,6 +789,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_UNKNOWN_TITLE => "REFUSAL_REASON_UNKNOWN_TITLE",
             Self::REFUSAL_REASON_NO_TITLE_SOURCE => "REFUSAL_REASON_NO_TITLE_SOURCE",
             Self::REFUSAL_REASON_NAME_LENGTH => "REFUSAL_REASON_NAME_LENGTH",
+            Self::REFUSAL_REASON_NAME_CHARACTER => "REFUSAL_REASON_NAME_CHARACTER",
             Self::REFUSAL_REASON_PASSWORD_REJECTED => "REFUSAL_REASON_PASSWORD_REJECTED",
             Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE => {
                 "REFUSAL_REASON_FOLDER_NOT_ABSOLUTE"
@@ -979,6 +989,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_NAME_LENGTH" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_NAME_LENGTH)
             }
+            "REFUSAL_REASON_NAME_CHARACTER" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NAME_CHARACTER)
+            }
             "REFUSAL_REASON_PASSWORD_REJECTED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_PASSWORD_REJECTED)
             }
@@ -1171,6 +1184,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_UNKNOWN_TITLE,
             Self::REFUSAL_REASON_NO_TITLE_SOURCE,
             Self::REFUSAL_REASON_NAME_LENGTH,
+            Self::REFUSAL_REASON_NAME_CHARACTER,
             Self::REFUSAL_REASON_PASSWORD_REJECTED,
             Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,
             Self::REFUSAL_REASON_FOLDER_NOT_FOUND,
