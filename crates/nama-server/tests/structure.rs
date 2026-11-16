@@ -21,7 +21,6 @@ const CEILINGS: &[(&str, usize)] = &[
     ("src/playback/playback_tests.rs", 2900),
     ("src/playback/running.rs", 1200),
     ("src/playback/running_tests.rs", 1200),
-    ("src/scanner.rs", 900),
     ("src/users.rs", 1400),
     ("tests/access.rs", 900),
     ("tests/api.rs", 900),
