@@ -5,7 +5,7 @@
 ## Where the rules live
 
 - **`AGENTS.md` files** hold the rules code must follow, each rule once, in the file nearest the code it governs: [the workspace's](AGENTS.md), then each package's (such as [`crates/nama-server/AGENTS.md`](crates/nama-server/AGENTS.md) or [`web/AGENTS.md`](web/AGENTS.md)), then each Server area's (such as [`crates/nama-server/src/scanner/AGENTS.md`](crates/nama-server/src/scanner/AGENTS.md)). Read every one on the way from the root to the files you change.
-- **[`docs/adr/`](docs/adr)** records the decisions behind the design and the options they rejected. A change that reverses one adds a new ADR.
+- **[`docs/adr/`](docs/adr)** records the decisions behind the design and the options they rejected. A change that reverses one adds a new ADR; a change that refines or extends one may edit it in place, as 0042 and 0048 were.
 - **[`GLOSSARY.md`](GLOSSARY.md)** defines the words used in code, docs and the UI, and the words to avoid.
 
 ## The Server's layout
@@ -26,4 +26,4 @@ Commit messages are 10 words or fewer.
 
 ## Writing a Plugin
 
-A Plugin builds against the Plugin contract through `nama-pdk` alone. [`crates/nama-pdk/README.md`](crates/nama-pdk/README.md) walks through writing one, and [`plugins/template/`](plugins/template) is the Plugin to copy. A Plugin in this repository also follows [`plugins/AGENTS.md`](plugins/AGENTS.md).
+An Installed Plugin builds against the Plugin contract through `nama-pdk` alone; a Built-in builds on `nama-plugin-api`. [`crates/nama-pdk/README.md`](crates/nama-pdk/README.md) walks through writing one, and [`plugins/template/`](plugins/template) is the Plugin to copy. A Plugin in this repository also follows [`plugins/AGENTS.md`](plugins/AGENTS.md).
