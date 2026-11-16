@@ -393,6 +393,12 @@ impl PluginSettings {
             .collect())
     }
 
+    /// Whether a Plugin has the id `id`, refused or not, as [`PluginSettings::get`] decides.
+    #[must_use]
+    pub fn has(&self, id: &PluginId) -> bool {
+        self.registry.plugin(id).is_some()
+    }
+
     /// The Plugin `id`, refused or not, with what is stored for it, or `None` if no Plugin has
     /// the id. Doesn't read the Installed Plugins again as [`PluginSettings::list`] does.
     ///

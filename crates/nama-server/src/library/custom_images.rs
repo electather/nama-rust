@@ -41,7 +41,7 @@ use crate::{
     },
     library::{
         artwork::{Artwork, Error as ArtworkError},
-        contents::parse_hint,
+        contents::{library_with_movie, library_with_show, matched_episodes, parse_hint},
     },
     server_settings::ImageSettings,
 };
@@ -70,6 +70,19 @@ pub(crate) enum Role {
 /// web builds these paths with it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Slot(String);
+
+/// What a [`Slot`] stands in for an image of, which the Server must have for an upload there.
+#[derive(Debug, PartialEq, Eq)]
+enum Subject {
+    Movie(ExternalId),
+    Show(ExternalId),
+    Season(ExternalId, i64),
+    Plugin(PluginId),
+    Library,
+}
+
+/// Whether the Server has the Plugin a [`Subject`] names, refused or not, as Plugin settings say.
+type HasPlugin = Arc<dyn Fn(&PluginId) -> bool + Send + Sync>;
 
 /// The URL of every Custom Image, by slot: see [`CustomImages::urls`].
 #[derive(Debug, Default)]
@@ -139,9 +152,9 @@ impl Slot {
         id.parse().ok()
     }
 
-    /// The slot `path` names, if it names one, and only as [`Slot`]'s constructors write it, so
-    /// each image has one path.
-    fn parse(path: &str) -> Option<Self> {
+    /// The slot `path` names, and what it stands in for an image of, if it names one, and only as
+    /// [`Slot`]'s constructors write it, so each image has one path.
+    fn parse(path: &str) -> Option<(Self, Subject)> {
         let role = |name| match name {
             "poster" => Some(Role::Poster),
             "backdrop" => Some(Role::Backdrop),
@@ -149,19 +162,30 @@ impl Slot {
         };
         let title = |segment| parse_hint(&percent_decode(segment)?);
         let parts: Vec<&str> = path.split('/').collect();
-        let slot = match parts[..] {
-            ["movie", id, name] => Self::movie(&title(id)?, role(name)?),
-            ["show", id, name] => Self::show(&title(id)?, role(name)?),
+        let (slot, subject) = match parts[..] {
+            ["movie", id, name] => {
+                let id = title(id)?;
+                (Self::movie(&id, role(name)?), Subject::Movie(id))
+            }
+            ["show", id, name] => {
+                let id = title(id)?;
+                (Self::show(&id, role(name)?), Subject::Show(id))
+            }
             ["show", id, "season", number, "poster"] => {
-                Self::season(&title(id)?, number.parse::<u32>().ok()?.into())
+                let (id, number) = (title(id)?, number.parse::<u32>().ok()?.into());
+                (Self::season(&id, number), Subject::Season(id, number))
             }
             ["plugin", id, "logo"] if !id.is_empty() => {
-                Self::plugin(&PluginId::from(percent_decode(id)?))
+                let id = PluginId::from(percent_decode(id)?);
+                (Self::plugin(&id), Subject::Plugin(id))
             }
-            ["library", id, "backdrop"] => Self::library(id.parse::<u32>().ok()?.into()),
+            ["library", id, "backdrop"] => (
+                Self::library(id.parse::<u32>().ok()?.into()),
+                Subject::Library,
+            ),
             _ => return None,
         };
-        (slot.0 == path).then_some(slot)
+        (slot.0 == path).then_some((slot, subject))
     }
 
     /// Its folder in the store, which holds one file per version.
@@ -257,6 +281,21 @@ impl CustomImages {
                 Some((url(&slot.join("/"), version), thumbhash))
             })
             .collect())
+    }
+
+    /// Whether the Server has the Movie, Show, Season or Plugin `subject`, as `has_plugin` says of
+    /// a Plugin. A Library is always had here: the write that keeps its image checks it.
+    async fn server_has(&self, subject: &Subject, has_plugin: &HasPlugin) -> sqlx::Result<bool> {
+        let conn = &mut *self.db.reader().acquire().await?;
+        Ok(match subject {
+            Subject::Movie(id) => library_with_movie(conn, id).await?.is_some(),
+            Subject::Show(id) => library_with_show(conn, id).await?.is_some(),
+            Subject::Season(show, number) => {
+                !matched_episodes(conn, show, *number).await?.is_empty()
+            }
+            Subject::Plugin(id) => has_plugin(id),
+            Subject::Library => true,
+        })
     }
 
     /// Keeps `body` as the Custom Image at `slot`, in place of any there before.
@@ -412,20 +451,23 @@ fn url(slot: &str, version: &str) -> String {
 
 /// Serves uploads to and removals from `/custom-images/<slot>`, picks from `artwork`'s offered
 /// images, and the images under `/media/custom-images/<slot>/<version>`, resized as `images` says.
-/// Who may make each request is up to the layers the router is put behind.
+/// An upload is only for a Plugin `has_plugin` says the Server has. Who may make each request is up
+/// to the layers the router is put behind.
 pub(crate) fn router(
     custom_images: CustomImages,
     artwork: Artwork,
     images: ImageSettings,
+    has_plugin: impl Fn(&PluginId) -> bool + Send + Sync + 'static,
 ) -> Router {
+    let has_plugin: HasPlugin = Arc::new(has_plugin);
     Router::new()
         .route(&format!("{UPLOADS}{{*slot}}"), put(upload).delete(remove))
         .route(&format!("{IMAGES}{{*path}}"), get(serve))
-        .with_state((custom_images, artwork, images))
+        .with_state((custom_images, artwork, images, has_plugin))
 }
 
 /// What the router's handlers share.
-type Handles = (CustomImages, Artwork, ImageSettings);
+type Handles = (CustomImages, Artwork, ImageSettings, HasPlugin);
 
 /// An upload's query: the URL of an offered image to keep in place of the body.
 #[derive(Deserialize)]
@@ -443,14 +485,27 @@ fn raw_path<'a>(uri: &'a Uri, prefix: &str) -> &'a str {
 }
 
 async fn upload(
-    State((custom_images, artwork, _)): State<Handles>,
+    State((custom_images, artwork, _, has_plugin)): State<Handles>,
     uri: Uri,
     Query(picked): Query<UploadQuery>,
     body: Body,
 ) -> Response {
-    let Some(slot) = Slot::parse(raw_path(&uri, UPLOADS)) else {
+    let Some((slot, subject)) = Slot::parse(raw_path(&uri, UPLOADS)) else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    // Before the body is read, so a refusal costs no upload, and not in the write: a title that
+    // leaves before it commits keeps its image, as one leaving after would (ADR 0036).
+    match custom_images.server_has(&subject, &has_plugin).await {
+        Ok(true) => {}
+        Ok(false) => {
+            return (
+                StatusCode::NOT_FOUND,
+                "there is no such title, Season or Plugin",
+            )
+                .into_response();
+        }
+        Err(err) => return failed("keep", &err.into()),
+    }
     // The write commits even if the client goes away, so deleting what it replaced must follow
     // (ADR 0029).
     let uploaded = tokio::spawn(async move {
@@ -487,7 +542,7 @@ async fn upload(
 }
 
 async fn remove(State((custom_images, ..)): State<Handles>, uri: Uri) -> Response {
-    let Some(slot) = Slot::parse(raw_path(&uri, UPLOADS)) else {
+    let Some((slot, _)) = Slot::parse(raw_path(&uri, UPLOADS)) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     // As for an upload, deleting the file follows the committed write (ADR 0029).
@@ -499,7 +554,7 @@ async fn remove(State((custom_images, ..)): State<Handles>, uri: Uri) -> Respons
 }
 
 async fn serve(
-    State((custom_images, _, images)): State<Handles>,
+    State((custom_images, _, images, _)): State<Handles>,
     Query(asked): Query<Asked>,
     request: Request,
 ) -> Response {
@@ -507,7 +562,7 @@ async fn serve(
     let Some((slot, version)) = raw_path(&uri, IMAGES).rsplit_once('/') else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Some(slot) = Slot::parse(slot) else {
+    let Some((slot, _)) = Slot::parse(slot) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let resize = match asked.resize(&images) {
