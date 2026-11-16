@@ -327,7 +327,7 @@ A User with the Manage Requests Permission, who approves, declines, retries and 
 _Avoid_: approver, admin, moderator
 
 **Followed Show**:
-Users asking for a whole Show, approved once, so its Seasons, including ones that come out later, are Requested without asking again. A Season Request appears for a new Season when its Fulfiller fetches it and a Library scan Matches its Episodes. A Season it asked for that was then declined, cancelled or withdrawn, or that was once Available, isn't asked for again.
+Users asking for a whole Show, approved once, so every numbered Season, and new ones as they come out, is Requested without asking again. Specials, Season 0, are left out: a User who wants them asks for them on their own. A Season Request appears for a new Season when its Fulfiller fetches it and a Library scan Matches its Episodes. A Season it asked for that was then declined, cancelled or withdrawn, or that was once Available, isn't asked for again.
 _Avoid_: monitored show, subscription, series request
 
 **Hand-off**:
