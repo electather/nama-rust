@@ -380,15 +380,15 @@ impl RunningPlans {
         tokio::fs::create_dir_all(&dir).await?;
         // Its segment's first keyframe, not the one nearest: a run starting partway into a
         // segment is restarted as soon as the player asks for that segment.
-        let starting = timeline.segment_at(start_ms);
-        let first_keyframe = timeline.keyframes_of(starting).start;
+        let start_segment = timeline.segment_at(start_ms);
+        let first_keyframe = timeline.keyframes_of(start_segment).start;
         let running = Arc::new(Running {
             id,
             method,
             timeline,
             dir,
             run,
-            last_asked: AtomicUsize::new(starting),
+            last_asked: AtomicUsize::new(start_segment),
             closed: AtomicBool::new(false),
             fallback,
             fell_back: AtomicBool::new(false),
