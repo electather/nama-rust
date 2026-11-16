@@ -370,6 +370,32 @@ fn an_image_subtitle_is_burned_in_fitted_and_centred_over_the_picture() {
 }
 
 #[test]
+fn a_run_that_seeks_reads_its_image_subtitle_from_an_input_that_doesnt() {
+    let burned = VideoConversion {
+        burn_in: Some(BurnIn::Image {
+            subtitle: 1,
+            picture: None,
+        }),
+        ..SOFTWARE
+    };
+    let transcode = Transcode {
+        audio: None,
+        video: burned,
+    };
+    let from = FromCut {
+        n: 1,
+        cuts: &[6000, 12_000],
+    };
+    let run = ffmpeg("7.1.1").transcode("alien.mkv", &transcode, Path::new("plan"), from);
+    let args = args(&run.unwrap());
+
+    let graph = value_of(&args, "-filter_complex").unwrap();
+    assert!(graph.contains("[1:s:1]"), "{graph}");
+    assert_eq!(args.iter().filter(|arg| *arg == "-i").count(), 2);
+    assert_eq!(input_seek(&args), Some("6.000"));
+}
+
+#[test]
 fn a_text_subtitle_is_burned_in_from_the_file_by_libass() {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Text { subtitle: 2 }),
