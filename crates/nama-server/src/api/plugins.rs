@@ -264,7 +264,7 @@ fn change_refused(err: ChangeError) -> ConnectError {
         ChangeError::NotRequested { plugin, permission } => {
             let name = permission_to_proto(permission).proto_name();
             refuse(
-                RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
+                RefusalReason::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
                 format!("{plugin} doesn't ask for the Plugin Permission {name}"),
             )
             .field(GRANTED_PERMISSIONS)

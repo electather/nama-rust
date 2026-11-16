@@ -110,7 +110,7 @@ async fn granting_a_permission_the_plugin_does_not_request_is_refused() {
             .enable_plugin(enable_granting(&[STORE, DELETE_MEDIA]))
             .await,
         ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
+        RefusalReason::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
     );
 
     assert_eq!(refusal.field, "granted_permissions");

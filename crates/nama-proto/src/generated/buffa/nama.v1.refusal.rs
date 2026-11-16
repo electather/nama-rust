@@ -209,6 +209,9 @@ pub enum RefusalReason {
     /// `EXTENSION_POINT_RECOGNISER`, or name one twice. `field` is `recogniser_ids` or
     /// `recogniser_order`. Params: `pluginId`.
     REFUSAL_REASON_RECOGNISERS_INVALID = 74i32,
+    /// `invalid_argument`: a Plugin Permission the Admin grants is one the Plugin's Manifest doesn't
+    /// request. `field` is `granted_permissions`. Params: `pluginId`, `permission`.
+    REFUSAL_REASON_PERMISSION_NOT_REQUESTED = 75i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -427,6 +430,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_RECOGNISERS_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RecognisersInvalid: Self = Self::REFUSAL_REASON_RECOGNISERS_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PermissionNotRequested: Self = Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -676,6 +682,11 @@ impl ::buffa::Enumeration for RefusalReason {
             74i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_RECOGNISERS_INVALID)
             }
+            75i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -819,6 +830,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_RECOGNISERS_INVALID => {
                 "REFUSAL_REASON_RECOGNISERS_INVALID"
+            }
+            Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED => {
+                "REFUSAL_REASON_PERMISSION_NOT_REQUESTED"
             }
         }
     }
@@ -1058,6 +1072,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_RECOGNISERS_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_RECOGNISERS_INVALID)
             }
+            "REFUSAL_REASON_PERMISSION_NOT_REQUESTED" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1135,6 +1154,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_TITLE_ID_MISSING,
             Self::REFUSAL_REASON_TITLE_SOURCES_INVALID,
             Self::REFUSAL_REASON_RECOGNISERS_INVALID,
+            Self::REFUSAL_REASON_PERMISSION_NOT_REQUESTED,
         ]
     }
 }

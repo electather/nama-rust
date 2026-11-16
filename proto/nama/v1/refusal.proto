@@ -241,4 +241,7 @@ enum RefusalReason {
   // `EXTENSION_POINT_RECOGNISER`, or name one twice. `field` is `recogniser_ids` or
   // `recogniser_order`. Params: `pluginId`.
   REFUSAL_REASON_RECOGNISERS_INVALID = 74;
+  // `invalid_argument`: a Plugin Permission the Admin grants is one the Plugin's Manifest doesn't
+  // request. `field` is `granted_permissions`. Params: `pluginId`, `permission`.
+  REFUSAL_REASON_PERMISSION_NOT_REQUESTED = 75;
 }
