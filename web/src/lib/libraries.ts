@@ -4,7 +4,7 @@ import { createConnectQueryKey } from "@connectrpc/connect-query";
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 
-import { type FormErrors, refusedFieldErrors, refusal, serverMessage } from "./forms";
+import { type FormErrors, refusalOf, refusedFieldErrors, refusal, serverMessage } from "./forms";
 
 /** The query key of the Libraries, and of each one, to refetch after a change to them. */
 export const librariesKey = createConnectQueryKey({
@@ -36,6 +36,16 @@ export function libraryErrors(error: unknown, attempt: string): FormErrors {
     },
     {
       [RefusalReason.TITLE_SOURCES_INVALID]: { titleSources: serverMessage(error) },
+      [RefusalReason.RECOGNISERS_INVALID]: recognisersRefused(error),
     },
   );
+}
+
+/**
+ * Where a Recognisers refusal shows: on the Recognisers field when it names `recogniser_ids` (a
+ * create) or `recogniser_order` (an update), else for the whole form.
+ */
+function recognisersRefused(error: unknown): FormErrors {
+  const onTheField = /^recogniser_(?:ids|order)\b/u.test(refusalOf(error).field);
+  return onTheField ? { recognisers: serverMessage(error) } : { form: serverMessage(error) };
 }

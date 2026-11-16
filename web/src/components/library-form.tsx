@@ -1,10 +1,10 @@
 import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import type { ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Choices, FormEnd, FormField, FormTextarea } from "@/components/form-field";
+import { RecognisersField } from "@/components/recognisers-field";
 import { TitleSourcesField } from "@/components/title-sources-field";
 import { type Library, LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { type FormErrors, formText, onSubmitted } from "@/lib/forms";
@@ -32,6 +32,7 @@ export function CreateLibrary() {
             kind: formText(typed, "kind") === "shows" ? LibraryKind.SHOWS : LibraryKind.MOVIES,
             folders: foldersTyped(formText(typed, "folders")),
             titleSources: titleSourcesTyped(typed),
+            recogniserIds: recognisersTyped(typed),
           },
           {
             onSuccess: () => {
@@ -41,9 +42,8 @@ export function CreateLibrary() {
         );
       })}
     >
-      <NameAndFolders errors={errors}>
-        <Choices legend="Holds" name="kind" choices={kinds} />
-      </NameAndFolders>
+      <NameAndFolders errors={errors} />
+      <RecognisersField error={errors.recognisers} />
       <FormEnd
         action={create.isPending ? "Creating Library…" : "Create Library"}
         pending={create.isPending}
@@ -73,10 +73,13 @@ export function EditLibrary({ library }: { library: Library }) {
           name: formText(typed, "name"),
           folders: foldersTyped(formText(typed, "folders")),
           titleSources: titleSourcesTyped(typed),
+          // Always set, so the Library keeps exactly the Recognisers the form shows, even none.
+          recogniserOrder: { ids: recognisersTyped(typed) },
         });
       })}
     >
       <NameAndFolders errors={errors} library={library} />
+      <RecognisersField initial={library.recogniserIds} error={errors.recognisers} />
       <FormEnd
         action={update.isPending ? "Saving…" : "Save changes"}
         pending={update.isPending}
@@ -109,16 +112,8 @@ export function DeleteLibrary({ library }: { library: Library }) {
   );
 }
 
-/** The name, folders and title sources fields, with any `children` between them. */
-function NameAndFolders({
-  errors,
-  library,
-  children,
-}: {
-  errors: FormErrors;
-  library?: Library;
-  children?: ReactNode;
-}) {
+/** The name, folders and title sources fields, and for a new Library what it holds. */
+function NameAndFolders({ errors, library }: { errors: FormErrors; library?: Library }) {
   return (
     <>
       <FormField
@@ -128,7 +123,7 @@ function NameAndFolders({
         defaultValue={library?.name}
         error={errors.name}
       />
-      {children}
+      <KindChoice library={library} />
       <FormTextarea
         label="Folders"
         name="folders"
@@ -142,7 +137,17 @@ function NameAndFolders({
   );
 }
 
+/** What a new Library, without `library`, holds, which can't change after. */
+function KindChoice({ library }: { library: Library | undefined }) {
+  return library === undefined ? <Choices legend="Holds" name="kind" choices={kinds} /> : null;
+}
+
 /** The title sources the form holds, in the order the Admin set. */
 function titleSourcesTyped(typed: FormData) {
   return typed.getAll("titleSources").filter((each) => typeof each === "string");
+}
+
+/** The ids of the Recogniser Plugins the form holds, in the order the Admin set. */
+function recognisersTyped(typed: FormData) {
+  return typed.getAll("recognisers").filter((each) => typeof each === "string");
 }

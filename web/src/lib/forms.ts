@@ -17,6 +17,7 @@ export interface FormErrors {
   newPassword?: string;
   folders?: string;
   titleSources?: string;
+  recognisers?: string;
   serverUrl?: string;
   segmentFolder?: string;
   maxTranscodes?: string;
