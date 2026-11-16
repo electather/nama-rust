@@ -46,8 +46,9 @@ pub struct Config {
     /// The `[plugins.<id>]` tables in the file, imported into the database on the first start and
     /// ignored after.
     pub plugins: PluginTables,
-    /// Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` headers the Server believes
-    /// (ADR 0018). Empty by default, so the headers are ignored.
+    /// Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` headers the Server believes.
+    /// Empty by default, so the headers are ignored.
+    // ADR 0018; kept out of the doc comment, which editors show users.
     pub trusted_proxies: Vec<IpRange>,
     /// The ffmpeg to run, such as a container's own. Unset, the default, looks for it on `PATH`.
     pub ffmpeg: Option<PathBuf>,

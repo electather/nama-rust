@@ -49,7 +49,7 @@
     },
     "trusted_proxies": {
       "default": [],
-      "description": "Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` headers the Server believes\n(ADR 0018). Empty by default, so the headers are ignored.",
+      "description": "Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` headers the Server believes.\nEmpty by default, so the headers are ignored.",
       "items": {
         "description": "An IP address, or a CIDR range such as `10.0.0.0/8`, written as such in the config.",
         "type": "string"

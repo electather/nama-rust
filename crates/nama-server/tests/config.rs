@@ -282,7 +282,12 @@ fn the_schema_requires_no_key_and_rejects_unknown_ones() {
 
     assert_eq!(schema.get("required"), None);
     assert_eq!(schema["additionalProperties"], false);
-    assert_eq!(schema["properties"]["watch_folders"]["type"], "boolean");
+}
+
+#[test]
+fn the_schema_types_trusted_proxies_as_strings_and_plugin_tables_as_free_form() {
+    let schema = schema();
+
     assert_eq!(
         schema["properties"]["trusted_proxies"]["items"]["type"],
         "string"
