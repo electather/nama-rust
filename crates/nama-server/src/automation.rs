@@ -522,6 +522,9 @@ impl Kernel for PluginKernel {
                 }
                 Err(err) => return Err(KernelRefused(err.to_string())),
             };
+            // `start_delete` refuses this too, as the Scanner's own guard for every caller.
+            // Checked here first so a read-only title is refused for that before the taken-along
+            // check reads the Episodes' Shows and refuses it for something else.
             if let Some(folder) = doomed.read_only_folder() {
                 return Err(KernelRefused(
                     scanner::Error::ReadOnly(folder.to_owned()).to_string(),

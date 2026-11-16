@@ -149,6 +149,10 @@ impl Found {
         watched: impl Fn(&ExternalId) -> MovieOrEpisode,
         title: impl FnOnce(WatchState) -> Started,
     ) {
+        // ponytail: a title in two Libraries with different id sets, started both under an id
+        // the older one has and under one only the newer one has, is listed twice: the older
+        // Library's copy takes the ids it has and the newer one's takes the rest. Joining a
+        // title whose ids include one already placed to that place would list it once.
         let place = self.titles.len();
         let mut started = None;
         for id in ids.iter() {

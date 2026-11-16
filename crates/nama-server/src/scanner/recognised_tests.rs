@@ -206,7 +206,7 @@ fn a_proposed_id_is_read_as_the_name_parser_reads_an_id_hint() {
     assert_eq!(hint_of("edition", "Director's Cut"), None);
 }
 
-/// The year of the first Item proposed for `proposal` in a Library of `kind`.
+/// The year of the last Item proposed for `proposal` in a Library of `kind`.
 fn year_of(kind: LibraryKind, proposal: FileRecognised) -> Option<i64> {
     match items(kind, proposal)?.pop()? {
         Item::Movie { year, .. } | Item::Episode { year, .. } => year,
