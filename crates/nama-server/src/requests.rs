@@ -2,7 +2,7 @@
 //! to it (ADR 0012).
 //!
 //! Followed Shows sit beside them: Users asking for a whole Show, whose later Seasons get Season
-//! Requests as a Library scan Matches their Episodes, never by asking a metadata source.
+//! Requests as a Library scan Matches their Episodes, never by asking a title source.
 //!
 //! This area is the only code that reads or writes `requests`, `requesters`, `followed_shows`
 //! and `followed_show_requesters`. It hands Requests out as their proto messages, since those are
@@ -68,11 +68,11 @@ pub(crate) enum Error {
     InLibrary(ExternalId),
     #[error("every aired Episode of Season {season} of the Show {show} is in a Library")]
     SeasonInLibrary { show: ExternalId, season: u32 },
-    #[error("the metadata source has no Movie {0}")]
+    #[error("the title source has no Movie {0}")]
     NoSuchMovie(ExternalId),
-    #[error("the metadata source has no Show {0}")]
+    #[error("the title source has no Show {0}")]
     NoSuchShow(ExternalId),
-    #[error("the metadata source has no Season {season} of the Show {show}")]
+    #[error("the title source has no Season {season} of the Show {show}")]
     NoSuchSeason { show: ExternalId, season: u32 },
     /// No title source is enabled, or each failed.
     #[error("no title source could answer")]

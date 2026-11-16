@@ -41,7 +41,7 @@ pub(crate) enum UnmatchedReason {
     Ambiguous(Vec<TiedTitle>),
     /// No title the search found fits well enough.
     NoTitleFits,
-    /// The Item's ID Hint names no title the metadata source has.
+    /// The Item's ID Hint names no title the title source has.
     UnknownIdHint,
 }
 
@@ -70,7 +70,7 @@ impl From<Candidate> for TiedTitle {
 pub(crate) struct Decisions {
     /// Each Item, with what was decided about it.
     pub(crate) items: Vec<(i64, Decided)>,
-    /// The Seasons fetched to decide about Episodes, as the metadata source gave them, with every
+    /// The Seasons fetched to decide about Episodes, as the title source gave them, with every
     /// id of their Show. Their Requests follow how much of them a Library has.
     pub(crate) seasons: Vec<(ExternalIds, Season)>,
 }

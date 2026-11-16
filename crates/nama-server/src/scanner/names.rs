@@ -256,7 +256,7 @@ struct Named {
 }
 
 impl Named {
-    /// The ID Hint Matching goes by: TMDB's, which the metadata source is, or else TVDB's, which
+    /// The ID Hint Matching goes by: TMDB's, the Built-in title source's, or else TVDB's, which
     /// Sonarr writes, or else IMDb's, or else the first of any other namespace.
     fn hint(&self) -> Option<ExternalId> {
         [TMDB, TVDB, IMDB]

@@ -1,4 +1,4 @@
-//! Looking titles up in the metadata source for Requests, as a viewer sees them.
+//! Looking titles up in the title source for Requests, as a viewer sees them.
 
 use nama_plugin_api::{
     PluginId,
@@ -20,7 +20,7 @@ use crate::{
     users::User,
 };
 
-/// A Movie the metadata source has, and how close it is to being on the Server.
+/// A Movie the title source has, and how close it is to being on the Server.
 #[derive(Debug)]
 pub(crate) struct Found<M> {
     /// The id its Request is kept under.
@@ -43,7 +43,7 @@ pub(crate) struct Hit {
     pub(crate) candidate: Candidate,
 }
 
-/// A Show looked up in the metadata source, and how close it is to being on the Server.
+/// A Show looked up in the title source, and how close it is to being on the Server.
 #[derive(Debug)]
 pub(crate) struct FoundShow {
     /// The id its Season Requests are kept under.
@@ -60,7 +60,7 @@ pub(crate) struct FoundShow {
 }
 
 impl Requests {
-    /// The Movies the metadata source finds titled like `title`, best fit first, as `viewer`
+    /// The Movies the title source finds titled like `title`, best fit first, as `viewer`
     /// sees them.
     pub(crate) async fn search(
         &self,
@@ -85,7 +85,7 @@ impl Requests {
         Ok(found)
     }
 
-    /// The Shows the metadata source finds titled like `title`, best fit first.
+    /// The Shows the title source finds titled like `title`, best fit first.
     pub(crate) async fn search_shows(&self, title: String) -> Result<Vec<Hit>, Error> {
         self.find(TitleKind::Show, title).await
     }
@@ -275,7 +275,7 @@ impl Requests {
     }
 }
 
-/// `err` from looking a title up, which is `missing` if the metadata source doesn't have it.
+/// `err` from looking a title up, which is `missing` if the title source doesn't have it.
 pub(super) fn looking_up(err: Unanswered, missing: Error) -> Error {
     match err {
         Unanswered::NotFound => missing,

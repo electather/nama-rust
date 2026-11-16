@@ -104,8 +104,8 @@ pub(crate) enum Error {
 pub(crate) enum ManualError {
     #[error("there is no item {0}")]
     NoSuchItem(i64),
-    /// The metadata source has no title with this id, or can't look titles up by it.
-    #[error("the metadata source has no title {0}")]
+    /// The title source has no title with this id, or can't look titles up by it.
+    #[error("the title source has no title {0}")]
     NoSuchTitle(ExternalId),
     /// No title source is enabled, or one failed.
     #[error("no title source could answer")]

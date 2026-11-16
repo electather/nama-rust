@@ -327,7 +327,7 @@ pub(super) fn matched(ids: ExternalIds, show_ids: ExternalIds) -> Decided {
     }))
 }
 
-/// Season 1, as the metadata source gives it: Episode 1 aired in 2017, and Episode 2 airs on
+/// Season 1, as the title source gives it: Episode 1 aired in 2017, and Episode 2 airs on
 /// `episode_2_airs`.
 pub(super) fn season_1(episode_2_airs: &str) -> SourceSeason {
     SourceSeason {
@@ -344,7 +344,7 @@ pub(super) fn season_1(episode_2_airs: &str) -> SourceSeason {
     }
 }
 
-/// The Movie with the TMDB id `tmdb_id`, as the metadata source gives it.
+/// The Movie with the TMDB id `tmdb_id`, as the title source gives it.
 pub(super) fn movie(tmdb_id: i64) -> Wanted {
     Wanted {
         id: ExternalId::tmdb(tmdb_id),
@@ -392,7 +392,7 @@ pub(super) fn requests_on(db: Arc<Database>, plugins: ExtensionPoints) -> Reques
 }
 
 /// [`ada`] holding `permissions` asks for the Movie `tmdb_id`, as [`Requests::create`] does
-/// once the metadata source has answered. Returns the Request's id.
+/// once the title source has answered. Returns the Request's id.
 pub(super) async fn ask_as(requests: &Requests, permissions: Permissions, tmdb_id: i64) -> i64 {
     let asker = ada(permissions);
     let state = opening_state(&asker, Permission::AutoApproveMovie);
@@ -629,7 +629,7 @@ pub(super) fn fulfilled() -> Fulfilled {
 /// Dark's TMDB id.
 pub(super) const DARK: i64 = 70523;
 
-/// Seasons 1 and 2 of Dark, as the metadata source gives them.
+/// Seasons 1 and 2 of Dark, as the title source gives them.
 pub(super) fn dark() -> WantedSeasons {
     WantedSeasons {
         show_id: ExternalId::tmdb(DARK),
@@ -646,7 +646,7 @@ pub(super) fn dark() -> WantedSeasons {
     }
 }
 
-/// Season `number` of Dark, as the metadata source gives it: both its Episodes have aired.
+/// Season `number` of Dark, as the title source gives it: both its Episodes have aired.
 pub(super) fn dark_season(number: u32) -> SourceSeason {
     SourceSeason {
         number,

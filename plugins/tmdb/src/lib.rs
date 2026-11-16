@@ -1,5 +1,5 @@
 //! A Built-in Plugin that provides metadata from [TMDB](https://www.themoviedb.org), the only
-//! metadata source built into the Server.
+//! title source built into the Server.
 //!
 //! Enabled with an API key in its settings, it registers a title source,
 //! [`nama_plugin_api::metadata::TitleSource`], that searches TMDB and fetches

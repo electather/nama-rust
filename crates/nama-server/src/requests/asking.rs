@@ -29,7 +29,7 @@ use crate::{
     users::User,
 };
 
-/// What a new Request asks for, as the metadata source gave it.
+/// What a new Request asks for, as the title source gave it.
 #[derive(Debug)]
 pub(super) struct Wanted {
     /// The Movie's id, or for a Season its Show's: the one the Request is kept under.
@@ -40,7 +40,7 @@ pub(super) struct Wanted {
     pub(super) title: String,
     /// The Movie's `YYYY-MM-DD` release date, or the Season's first air date.
     pub(super) release_date: Option<String>,
-    /// Every id the metadata source gave for the Movie, or for a Season its Show, if its asker
+    /// Every id the title source gave for the Movie, or for a Season its Show, if its asker
     /// knows them. The Request stores these and [`Self::id`].
     pub(super) ids: ExternalIds,
     /// The Followed Show a new Request for it is opened for, if any.
@@ -49,7 +49,7 @@ pub(super) struct Wanted {
     pub(super) quality: qualities::Ask,
 }
 
-/// Seasons of a Show to ask for, as the metadata source gave them.
+/// Seasons of a Show to ask for, as the title source gave them.
 #[derive(Debug)]
 pub(super) struct WantedSeasons {
     pub(super) show_id: ExternalId,
@@ -138,14 +138,14 @@ impl Requests {
 
 /// The id a Request for the title asked for by `asked` is kept under, and found by: its preferred
 /// one among `ids` in [`DEFAULT_ORDER`], since a Request belongs to no Library, or
-/// `asked` if the metadata source gave none. So asking by any of a title's ids joins the one
+/// `asked` if the title source gave none. So asking by any of a title's ids joins the one
 /// Request.
 pub(super) fn kept_under(asked: &ExternalId, ids: &ExternalIds) -> ExternalId {
     primary_id(ids, &DEFAULT_ORDER).unwrap_or_else(|| asked.clone())
 }
 
 impl Wanted {
-    /// The Movie asked for by `asked`, as the metadata source gave it, at `quality`.
+    /// The Movie asked for by `asked`, as the title source gave it, at `quality`.
     pub(super) fn movie(asked: &ExternalId, movie: Metadata, quality: qualities::Ask) -> Self {
         Self {
             id: kept_under(asked, &movie.ids),

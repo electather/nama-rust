@@ -122,7 +122,7 @@ pub(crate) async fn make_available(
     Ok(happened)
 }
 
-/// Makes the open Request for each of `seasons`, as the metadata source gave them just now with
+/// Makes the open Request for each of `seasons`, as the title source gave them just now with
 /// every id their Show's Match gave it, Partially Available (if Processing) or Available by how
 /// many of its aired Episodes a Library has, and returns an event for each Request that changed
 /// (ADR 0012). A Request sharing any id with the Show is for it, as [`make_available`] says.

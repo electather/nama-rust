@@ -221,7 +221,7 @@ async fn search(
     };
     let mut candidates = searched(metadata, &query, country).await?;
     let mut decision = confidence::decide(title, year, &candidates);
-    // A metadata source may only return titles from exactly the year searched for, so a year
+    // A title source may only return titles from exactly the year searched for, so a year
     // off by one (release dates differ by country) finds nothing. Search again without it,
     // and let the confidence score weigh the year.
     if decision == Decision::NoMatch && year.is_some() {
