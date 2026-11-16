@@ -32,7 +32,7 @@ async fn movie(metadata: &TitleSources, key: &TitleKey) -> Result<Metadata, Miss
 
 /// The Show `key` names, with no Recogniser enabled.
 async fn show(metadata: &TitleSources, key: &TitleKey) -> Result<FoundShow, Miss> {
-    super::show(metadata, &Recognisers::default(), key, &[]).await
+    super::show(metadata, &Recognisers::default(), key, &[], &[]).await
 }
 
 /// How a [`Fake`] title source answers a search, or a lookup by id.

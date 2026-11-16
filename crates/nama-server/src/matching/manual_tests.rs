@@ -156,7 +156,7 @@ async fn a_match_fixed_while_its_librarys_scan_lock_is_held_waits_then_applies()
 async fn an_episode_matched_to_a_show_without_its_season_is_unmatched_as_not_in_show() {
     let media = Fixture::new().await;
     let shows = &media.shows;
-    // The US Office has only Season 1 at TMDB.
+    // The US Office has no Season 10 at TMDB.
     let episode = "The Office/Season 10/The Office - S10E01.mkv";
     shows.write(episode);
     media.scan(shows).await;

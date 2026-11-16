@@ -10,8 +10,9 @@
 //!   ignored.
 //! - Otherwise its title and year are searched for with the first source that finds any, and it
 //!   Matches only a result that fits confidently and unambiguously (see [`confidence`]). Anything
-//!   else is Unmatched. A Show's country tag, as in `The Office (UK)`, is left out of the search
-//!   and keeps only Shows from that country.
+//!   else is Unmatched, except that among Shows that tie, the one that alone has every Season and
+//!   Episode its files name Matches. A Show's country tag, as in `The Office (UK)`, is left out of
+//!   the search and keeps only Shows from that country.
 //! - Before acting on what the search decided, it asks the enabled Recognisers (see
 //!   [`recognisers`]) with the search's results and the item's paths. A title the first of them
 //!   names by an id a source keeps or looks titles up by is fetched as an ID hint's is.
@@ -618,7 +619,7 @@ impl Matcher {
         episodes: &[PendingEpisode],
         paths: &[String],
     ) -> Outcomes {
-        match sources::show(&self.metadata, &self.recognisers, key, paths).await {
+        match sources::show(&self.metadata, &self.recognisers, key, paths, episodes).await {
             Ok(show) => {
                 let picked = self.pick_show(&self.metadata, &show).await;
                 self.match_in_show(&show, &picked, episodes).await

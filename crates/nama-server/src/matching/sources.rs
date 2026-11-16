@@ -2,12 +2,16 @@
 //! ids): a pin or an ID Hint is fetched from the source keeping its namespace, then those looking
 //! titles up by it, and a title and year are searched for with the first source that answers.
 //! Before acting on what the search decided, Matching asks the Recognisers, and a title one names
-//! is fetched as an ID Hint's is.
+//! is fetched as an ID Hint's is. Where the search ties Shows, each is fetched with the Seasons its
+//! Episodes name, and the one that alone has every Episode is the Show; a tied Show or Season the
+//! source can't find only drops out (ADR 0044).
+
+use std::collections::BTreeSet;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
-    FoundShow, Miss, TitleKey,
+    FoundShow, Miss, PendingEpisode, TitleKey,
     confidence::{self, Decision},
     recognisers::{Recognisers, Searched},
 };
@@ -79,14 +83,21 @@ pub(super) async fn movie(
         .map_err(|err| found.missed(err))
 }
 
-/// The Show `key` names, from `metadata`'s sources in their order, its Episodes' files at `paths`.
+/// The Show `key` names, from `metadata`'s sources in their order, its `episodes`' files at
+/// `paths`. Of Shows the search ties, the one that alone has every one of `episodes` is it.
 pub(super) async fn show(
     metadata: &TitleSources,
     recognisers: &Recognisers,
     key: &TitleKey,
     paths: &[String],
+    episodes: &[PendingEpisode],
 ) -> Result<FoundShow, Miss> {
-    let mut found = find(metadata, recognisers, TitleKind::Show, key, paths).await?;
+    let mut found = match find(metadata, recognisers, TitleKind::Show, key, paths).await {
+        Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(tied)))) => {
+            return break_tie(metadata, tied, episodes).await;
+        }
+        found => found?,
+    };
     let routed = found.route(metadata, TitleKind::Show).await;
     show_from(metadata, routed, &found.id, found.ids.clone())
         .await
@@ -159,6 +170,65 @@ pub(super) async fn season(
         Err(Unanswered::NotFound) => Err(Miss::NOT_IN_SHOW),
         answer => Ok(answer?),
     }
+}
+
+/// The one Show of `tied` that has every one of `episodes`; else, as Ambiguous, those that have
+/// them all if two or more do, or `tied` if none does.
+async fn break_tie(
+    metadata: &TitleSources,
+    tied: Vec<TiedTitle>,
+    episodes: &[PendingEpisode],
+) -> Result<FoundShow, Miss> {
+    let mut fitting = Vec::new();
+    for title in &tied {
+        if let Some(found) = show_having(metadata, &title.id, episodes).await? {
+            fitting.push((title, found));
+        }
+    }
+    let still_tied = match fitting.len() {
+        0 => tied,
+        1 => return Ok(fitting.remove(0).1),
+        _ => fitting
+            .into_iter()
+            .map(|(title, _)| title.clone())
+            .collect(),
+    };
+    Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(
+        still_tied,
+    ))))
+}
+
+/// The Show `id`, if its source has it and every one of `episodes`. A Show or Season the source
+/// can't find only means it doesn't fit (ADR 0044).
+async fn show_having(
+    metadata: &TitleSources,
+    id: &ExternalId,
+    episodes: &[PendingEpisode],
+) -> Result<Option<FoundShow>, Miss> {
+    let found = match fetch_show(metadata, id, ExternalIds::default()).await {
+        Err(Unanswered::NotFound) => return Ok(None),
+        found => found?,
+    };
+    let numbers: BTreeSet<i64> = episodes.iter().map(|pending| pending.season).collect();
+    let listed = |number: &i64| (found.show.seasons.iter()).any(|&n| i64::from(n) == *number);
+    // Every Season listed first, so a Show missing one costs no Season fetches.
+    if !numbers.iter().all(listed) {
+        return Ok(None);
+    }
+    for number in numbers {
+        let season = match season(metadata, &found, number).await {
+            Err(Miss::Unmatched(_)) => return Ok(None),
+            season => season?,
+        };
+        let in_season = |pending: &&PendingEpisode| pending.season == number;
+        let has = |pending: &PendingEpisode| {
+            (season.episodes.iter()).any(|episode| i64::from(episode.number) == pending.episode)
+        };
+        if !episodes.iter().filter(in_season).all(has) {
+            return Ok(None);
+        }
+    }
+    Ok(Some(found))
 }
 
 /// Every id a title is known by: `known`, the id `asked` that a source answered for, and the
@@ -261,7 +331,7 @@ async fn search(
             tracing::info!(
                 title = %name.title,
                 year = ?name.year,
-                "more than one title fits; left Unmatched"
+                "more than one title fits the search"
             );
             let tied = tied.into_iter().map(TiedTitle::from).collect();
             Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(tied))))
@@ -291,3 +361,7 @@ async fn searched(
 #[cfg(test)]
 #[path = "sources_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tie_break_tests.rs"]
+mod tie_break_tests;
