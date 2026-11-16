@@ -496,3 +496,11 @@ impl Probing {
 #[cfg(test)]
 #[path = "probing_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "probing/retry_tests.rs"]
+mod retry_tests;
+
+#[cfg(test)]
+#[path = "probing/keyframes_tests.rs"]
+mod keyframes_tests;
