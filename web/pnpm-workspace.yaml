@@ -11,7 +11,7 @@ pmOnFail: ignore
 
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@1.5.0
-  vite-plus: 1.5.0
+  vite-plus: 1.6.0
 overrides:
   vite@*: "catalog:"
   # GHSA-g3hv-75wg-m249: shadcn's ts-morph still asks for minimatch 10, which has no patched release.
