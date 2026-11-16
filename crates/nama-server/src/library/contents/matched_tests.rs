@@ -6,7 +6,7 @@ use nama_plugin_api::{
 use super::{
     super::{
         Change, Decided, ImageRef, Item, ItemKind,
-        fixture::tmdb_movie,
+        fixture::{MatchedMovie, tmdb_movie},
         testing::{ALIEN, Fixture, movie},
     },
     TitlesIn, library_with_movie, matched_episodes, show_poster,
@@ -631,15 +631,7 @@ async fn a_versions_titles_come_with_every_id_and_an_unmatched_episode_as_none()
 async fn match_movies(fx: &Fixture, titles: &[(&str, i64)]) {
     for &(title, tmdb) in titles {
         let path = format!("/media/{title}/{title}.mkv");
-        fx.store(&path, 10, movie(title, 2000)).await;
-        let item = fx.item(&path).await;
-        fx.contents
-            .record(vec![(
-                item,
-                Decided::Matched(Box::new(tmdb_movie(tmdb, title))),
-            )])
-            .await
-            .unwrap();
+        MatchedMovie::store(&fx.contents, fx.library, &path, tmdb_movie(tmdb, title)).await;
     }
 }
 
@@ -664,19 +656,19 @@ async fn movies_come_in_title_order_ignoring_case() {
 }
 
 #[tokio::test]
-async fn movies_whose_titles_differ_only_in_case_come_in_the_same_order_every_time() {
+async fn movies_whose_titles_differ_only_in_case_come_in_their_order_as_written() {
     let fx = Fixture::new().await;
+    // Stored and numbered against the expected order, so only the tie-break by title as
+    // written can pass: a stable sort on the lowercased title alone would keep "Up" first.
     match_movies(&fx, &[("Up", 1), ("UP", 2)]).await;
 
-    for _ in 0..2 {
-        assert_eq!(movie_titles(&fx).await, ["UP", "Up"]);
-    }
+    assert_eq!(movie_titles(&fx).await, ["UP", "Up"]);
 }
 
 #[tokio::test]
 async fn shows_come_in_title_order_ignoring_case() {
     let fx = Fixture::new().await;
-    for (show, value) in [("BEEF", "1"), ("Band of Brothers", "2")] {
+    for (show, mal_id) in [("BEEF", "1"), ("Band of Brothers", "2")] {
         let path = format!("/media/{show}/Season 01/{show} - S01E01.mkv");
         let episode = Item::Episode {
             show: show.to_owned(),
@@ -688,8 +680,8 @@ async fn shows_come_in_title_order_ignoring_case() {
         fx.store(&path, 10, episode).await;
         let item = fx.item(&path).await;
         let metadata = super::super::Metadata {
-            ids: ExternalIds::from_iter([made_up("mal", &format!("e-{value}"))]),
-            show_ids: ExternalIds::from_iter([made_up("mal", value)]),
+            ids: ExternalIds::from_iter([made_up("mal", &format!("e-{mal_id}"))]),
+            show_ids: ExternalIds::from_iter([made_up("mal", mal_id)]),
             show_title: Some(show.to_owned()),
             ..tmdb_movie(0, "Pilot")
         };
