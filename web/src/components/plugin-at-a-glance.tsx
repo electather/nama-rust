@@ -1,7 +1,18 @@
 // What both the Plugins list and a Plugin's page show of it, and how its page changes its logo, kept
 // in one module so each page stays within oxlint's `import/max-dependencies`.
 import { createConnectQueryKey } from "@connectrpc/connect-query";
-import { Activity, Bell, Film, KeyRound, Link, Puzzle, ScanSearch, Server, Tv } from "lucide-react";
+import {
+  Activity,
+  Bell,
+  Database,
+  Film,
+  KeyRound,
+  Link,
+  Puzzle,
+  ScanSearch,
+  Server,
+  Tv,
+} from "lucide-react";
 
 import { ChangeImage, type ImageRules } from "@/components/edit-images";
 import type { Shown } from "@/components/state-label";
@@ -23,6 +34,7 @@ const points: Partial<Record<ExtensionPoint, Shown>> = {
   [ExtensionPoint.METADATA_PROVIDER]: { label: "Metadata Provider", Icon: ScanSearch },
   [ExtensionPoint.EVENTS_OBSERVER]: { label: "Observes Events", Icon: Activity },
   [ExtensionPoint.SERVER_STARTED_OBSERVER]: { label: "Observes Server start", Icon: Server },
+  [ExtensionPoint.BLOB_STORE]: { label: "Blob store", Icon: Database },
 };
 
 /**
