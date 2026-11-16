@@ -281,3 +281,7 @@ pub(super) fn file_audio(probe: &Probe) -> Option<usize> {
 pub(super) const fn is_audio(track: &Track) -> bool {
     matches!(track.kind, TrackKind::Audio { .. })
 }
+
+#[cfg(test)]
+#[path = "codecs_tests.rs"]
+mod tests;

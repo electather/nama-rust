@@ -154,3 +154,7 @@ pub(super) fn fitted((width, height): (i64, i64), limit: PlaybackLimit) -> Optio
     // H.264 in 4:2:0 needs even sides.
     Some((width / 2 * 2, height / 2 * 2))
 }
+
+#[cfg(test)]
+#[path = "limits_tests.rs"]
+mod tests;

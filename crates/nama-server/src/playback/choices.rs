@@ -317,3 +317,7 @@ pub(super) fn shown_subtitles(
         })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "choices_tests.rs"]
+mod tests;

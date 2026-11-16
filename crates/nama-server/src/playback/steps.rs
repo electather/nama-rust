@@ -445,3 +445,7 @@ pub(super) fn failed_on_device(facts: &Facts, _: Option<&Candidates>) -> Vec<Rea
         })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "steps_tests.rs"]
+mod tests;
