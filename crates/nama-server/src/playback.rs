@@ -1900,5 +1900,5 @@ async fn serve(
 }
 
 #[cfg(test)]
-#[path = "playback_tests.rs"]
+#[path = "playback/playback_tests.rs"]
 mod tests;
