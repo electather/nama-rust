@@ -90,8 +90,8 @@ pub fn fulfilled(
         .find(|profile| Some(profile.id) == profile_id);
     Fulfilled {
         reference,
-        profile_id: profile_id.map(|id| id.to_string()).unwrap_or_default(),
-        profile_name: used.map(|used| used.name).unwrap_or_default(),
+        profile_id: profile_id.map_or_default(|id| id.to_string()),
+        profile_name: used.map_or_default(|used| used.name),
         ..Fulfilled::default()
     }
 }

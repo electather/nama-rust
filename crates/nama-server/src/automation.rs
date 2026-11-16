@@ -205,10 +205,7 @@ impl PluginKernel {
         let next_page_token = match size {
             Some(size) if listed.len() > size => {
                 listed.truncate(size);
-                listed
-                    .last()
-                    .map(|last| last.id.to_string())
-                    .unwrap_or_default()
+                listed.last().map_or_default(|last| last.id.to_string())
             }
             _ => String::new(),
         };

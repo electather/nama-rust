@@ -125,9 +125,8 @@ async fn answer(
     body: Bytes,
 ) -> Response {
     lock(&requests).push(uri.to_string());
-    let query: HashMap<String, String> = Query::try_from_uri(&uri)
-        .map(|Query(query)| query)
-        .unwrap_or_default();
+    let query: HashMap<String, String> =
+        Query::try_from_uri(&uri).map_or_default(|Query(query)| query);
     let path = uri.path();
     if path.starts_with("/banners/") {
         let jpeg = image(ImageFormat::Jpeg, 2, 3);

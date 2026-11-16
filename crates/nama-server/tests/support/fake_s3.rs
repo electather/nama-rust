@@ -199,9 +199,8 @@ async fn answer(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    let query: Vec<(String, String)> = Query::try_from_uri(&uri)
-        .map(|Query(query)| query)
-        .unwrap_or_default();
+    let query: Vec<(String, String)> =
+        Query::try_from_uri(&uri).map_or_default(|Query(query)| query);
     let host = headers
         .get(header::HOST)
         .and_then(|host| host.to_str().ok())

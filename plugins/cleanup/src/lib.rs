@@ -315,8 +315,8 @@ impl Key {
         let id = title.id.as_option();
         Self {
             kind: title.kind.to_i32(),
-            namespace: id.map(|id| id.namespace.clone()).unwrap_or_default(),
-            value: id.map(|id| id.value.clone()).unwrap_or_default(),
+            namespace: id.map_or_default(|id| id.namespace.clone()),
+            value: id.map_or_default(|id| id.value.clone()),
         }
     }
 

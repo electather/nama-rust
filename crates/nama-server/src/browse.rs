@@ -292,9 +292,7 @@ fn episode_ids<V>(episode: &LibraryEpisode<V>) -> (WatchStateKind, ExternalIds) 
 fn with_tracks(probes: &HashMap<i64, Probe>) -> impl Fn(LibraryVersion) -> Version {
     |version| {
         // A file holding two Episodes is a Version of each, so its Tracks are cloned.
-        let tracks = (probes.get(&version.file.id))
-            .map(|probe| probe.tracks.clone())
-            .unwrap_or_default();
+        let tracks = (probes.get(&version.file.id)).map_or_default(|probe| probe.tracks.clone());
         Version {
             file: version.file,
             path: version.path,

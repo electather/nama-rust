@@ -421,7 +421,7 @@ impl TitleSource for Client {
             let path = format!("/{section}/{id}/images");
             let images: Option<Images> = self.api_in(None, &path, &[]).await?;
             Ok(ArtworkAnswer {
-                artwork: images.map(Vec::from).unwrap_or_default(),
+                artwork: images.map_or_default(Vec::from),
                 ..Default::default()
             })
         })

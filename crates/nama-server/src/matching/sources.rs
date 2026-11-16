@@ -245,8 +245,7 @@ async fn search(
         Decision::Match(id) => {
             let ids = (candidates.into_iter())
                 .find(|candidate| candidate.id == id)
-                .map(|candidate| candidate.ids)
-                .unwrap_or_default();
+                .map_or_default(|candidate| candidate.ids);
             Ok(Found {
                 id,
                 ids,

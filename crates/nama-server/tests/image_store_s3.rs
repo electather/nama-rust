@@ -393,10 +393,7 @@ async fn s3_settings_with_another_secret_fail_their_test_on_the_signature() {
     let refused = plugins.test_plugin_settings(test("another secret")).await;
     let passed = plugins.test_plugin_settings(test(SECRET)).await;
 
-    let err = refused
-        .err()
-        .map(|err| format!("{err:?}"))
-        .unwrap_or_default();
+    let err = refused.err().map_or_default(|err| format!("{err:?}"));
     assert!(err.contains("SignatureDoesNotMatch"), "{err}");
     assert!(passed.is_ok(), "{:?}", passed.err());
 }

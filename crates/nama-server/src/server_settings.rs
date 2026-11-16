@@ -358,7 +358,7 @@ impl Settings {
     ///
     /// If storing it fails.
     pub(crate) async fn set_image_store(&self, plugin: Option<PluginId>) -> sqlx::Result<()> {
-        let stored = plugin.as_ref().map(ToString::to_string).unwrap_or_default();
+        let stored = plugin.as_ref().map_or_default(ToString::to_string);
         self.store(
             move |tx| {
                 Box::pin(async move {

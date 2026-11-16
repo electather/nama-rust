@@ -168,8 +168,7 @@ fn parse_movie(folders: &[String], stem: &str) -> Option<Item> {
                     folder.year == file.year
                         && folder.title.to_lowercase() == file.title.to_lowercase()
                 })
-                .map(|folder| folder.hints)
-                .unwrap_or_default();
+                .map_or_default(|folder| folder.hints);
             Named {
                 hints: file_wins(&file.hints, folder_hints),
                 ..file

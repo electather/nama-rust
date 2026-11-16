@@ -259,8 +259,7 @@ impl ServerServiceHandler {
             resize_images: values.resize,
             resized_cache_mib: values.resized_cache_mib.map(NonZeroU32::get),
             store_plugin_id: (self.settings.now().image_store)
-                .map(|plugin| plugin.to_string())
-                .unwrap_or_default(),
+                .map_or_default(|plugin| plugin.to_string()),
             ..Default::default()
         }
     }

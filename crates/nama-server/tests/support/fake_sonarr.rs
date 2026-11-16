@@ -176,9 +176,8 @@ impl DerefMut for FakeSonarr {
 }
 
 async fn answer(State(fake): State<Arc<Fake>>, method: Method, uri: Uri, body: Bytes) -> Response {
-    let query: HashMap<String, String> = Query::try_from_uri(&uri)
-        .map(|Query(query)| query)
-        .unwrap_or_default();
+    let query: HashMap<String, String> =
+        Query::try_from_uri(&uri).map_or_default(|Query(query)| query);
     let body: Value = serde_json::from_slice(&body).unwrap_or_default();
     let param = |key: &str| query.get(key).map_or("", String::as_str);
     lock(&fake.calls).push(format!("{method} {}", uri.path()));

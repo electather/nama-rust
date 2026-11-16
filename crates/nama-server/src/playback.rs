@@ -609,8 +609,7 @@ fn build(facts: &mut Facts) -> Plan {
         )
     });
     let tracks = (facts.probe.as_ref())
-        .map(|probe| played_by(playing.as_ref(), played_tracks(probe, audio)))
-        .unwrap_or_default();
+        .map_or_default(|probe| played_by(playing.as_ref(), played_tracks(probe, audio)));
     Plan {
         version: facts.version,
         playing,
@@ -619,8 +618,7 @@ fn build(facts: &mut Facts) -> Plan {
         subtitles: facts
             .probe
             .as_ref()
-            .map(|probe| shown_subtitles(facts.version, probe, &facts.device))
-            .unwrap_or_default(),
+            .map_or_default(|probe| shown_subtitles(facts.version, probe, &facts.device)),
         limit: limit_in_effect(facts),
         audio,
         burn_in: burned_in,

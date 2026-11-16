@@ -114,7 +114,7 @@ async fn start_with(setup_code: Option<SetupCode>, config: &Config) -> TestServe
 /// A `Setup` request with the Server's Setup Code, asking for `delivery`.
 fn setup_request(server: &TestServer, delivery: &str) -> Value {
     json!({
-        "setupCode": server.setup_code.as_ref().map(ToString::to_string).unwrap_or_default(),
+        "setupCode": server.setup_code.as_ref().map_or_default(ToString::to_string),
         "name": "Ada",
         "password": PASSWORD,
         "deviceName": "Laptop",

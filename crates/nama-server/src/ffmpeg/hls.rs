@@ -152,7 +152,7 @@ fn overlay_graph(
     });
     let or_null = |filter: Option<String>| filter.unwrap_or_else(|| "null".to_owned());
     let (before, fit) = (or_null(before), or_null(fit));
-    let after: String = after.map(|after| format!(",{after}")).unwrap_or_default();
+    let after: String = after.map_or_default(|after| format!(",{after}"));
     format!(
         "[0:V:0]{before}[picture];[0:s:{subtitle}]{fit}[subtitle];\
          [picture][subtitle]overlay=(W-w)/2:(H-h)/2{after}[video]"
@@ -255,9 +255,7 @@ pub(super) fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
     let upload = accel.map(|accel| accel.upload().to_owned());
     let after: Vec<String> = [scale, upload].into_iter().flatten().collect();
     VideoArgs {
-        input: accel
-            .map(|accel| accel.input(gpu, false))
-            .unwrap_or_default(),
+        input: accel.map_or_default(|accel| accel.input(gpu, false)),
         video: transcoded_video(
             path,
             before,
