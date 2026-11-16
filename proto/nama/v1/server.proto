@@ -215,8 +215,9 @@ message PlaybackSettings {
   // plan was last asked for. Empty, the default, for `transcodes` in the Server's data folder.
   string segment_folder = 1;
   // The most Transcodes the Server runs at once, at least 1; Remuxes don't count. A plan that
-  // only a Transcode would play is refused while that many run. Unset for the default: no limit
-  // while Transcodes use hardware acceleration, and 2 while they run in software.
+  // only a Transcode would play is refused while that many run. Unset for the default: 2 at once
+  // of those that run on the CPU, in software or tone-mapping HDR in software, and no limit for
+  // those that run fully on a GPU.
   optional uint32 max_transcodes = 2;
   // The Playback Limit for a Device whose address isn't on the local network, until its User
   // picks one in the player. `PLAYBACK_LIMIT_ORIGINAL`, the default, for none; unset is taken as

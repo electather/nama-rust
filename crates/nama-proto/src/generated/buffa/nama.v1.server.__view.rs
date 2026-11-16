@@ -4923,8 +4923,9 @@ pub struct PlaybackSettingsView<'a> {
     /// Field 1: `segment_folder`
     pub segment_folder: &'a str,
     /// The most Transcodes the Server runs at once, at least 1; Remuxes don't count. A plan that
-    /// only a Transcode would play is refused while that many run. Unset for the default: no limit
-    /// while Transcodes use hardware acceleration, and 2 while they run in software.
+    /// only a Transcode would play is refused while that many run. Unset for the default: 2 at once
+    /// of those that run on the CPU, in software or tone-mapping HDR in software, and no limit for
+    /// those that run fully on a GPU.
     ///
     /// Field 2: `max_transcodes`
     pub max_transcodes: ::core::option::Option<u32>,
@@ -5322,8 +5323,9 @@ impl PlaybackSettingsOwnedView {
         self.0.reborrow().segment_folder
     }
     /// The most Transcodes the Server runs at once, at least 1; Remuxes don't count. A plan that
-    /// only a Transcode would play is refused while that many run. Unset for the default: no limit
-    /// while Transcodes use hardware acceleration, and 2 while they run in software.
+    /// only a Transcode would play is refused while that many run. Unset for the default: 2 at once
+    /// of those that run on the CPU, in software or tone-mapping HDR in software, and no limit for
+    /// those that run fully on a GPU.
     ///
     /// Field 2: `max_transcodes`
     #[must_use]

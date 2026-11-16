@@ -1,7 +1,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, atomic::Ordering},
     time::Duration,
 };
 
@@ -10,7 +10,9 @@ use nama_proto::nama::v1::{
     Playback, PlaybackEnded, PlaybackMethod, PlaybackReason, PlaybackReasonKind, PlaybackStarted,
 };
 
-use super::{Method, Running, RunningPlans, Runs, Timeline, lock, sweep_leftovers};
+use super::{
+    Method, Running, RunningPlans, RunningTranscodes, Runs, Timeline, lock, sweep_leftovers,
+};
 use crate::{
     db::Database,
     events::{EventBus, Filter, event},
@@ -121,6 +123,7 @@ pub(super) async fn start_method_writing_nothing(
             Runs {
                 run: Box::new(run),
                 fallback: None,
+                cpu_bound: false,
             },
         )
         .await
@@ -143,7 +146,7 @@ async fn a_running_plan_is_marked_with_its_method_and_found_only_by_its_device()
 // The fake ffmpeg is `sleep`.
 #[cfg(unix)]
 #[tokio::test]
-async fn another_devices_transcodes_fill_the_cap_until_one_stops_and_remuxes_never_do() {
+async fn another_devices_transcodes_count_until_one_stops_and_remuxes_never_do() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
     let transcode = || {
@@ -152,19 +155,19 @@ async fn another_devices_transcodes_fill_the_cap_until_one_stops_and_remuxes_nev
     };
     let (first, _) = transcode().await;
     start_writing_nothing(&plans).await;
-    assert_eq!(plans.transcodes_full(8, 2), None, "a Remux doesn't count");
+    assert_eq!(plans.running_transcodes(8).all, 1, "a Remux doesn't count");
     transcode().await;
 
-    let full = plans.transcodes_full(8, 2);
-    let for_its_own_device = plans.transcodes_full(7, 2);
+    let for_another_device = plans.running_transcodes(8).all;
+    let for_its_own_device = plans.running_transcodes(7).all;
     plans.stop_for(first, 7).await;
 
-    assert_eq!(full, Some(2), "out of the box");
+    assert_eq!(for_another_device, 2);
     assert_eq!(
-        for_its_own_device, None,
+        for_its_own_device, 1,
         "the one its new plan replaces doesn't count"
     );
-    assert_eq!(plans.transcodes_full(8, 2), None);
+    assert_eq!(plans.running_transcodes(8).all, 1);
 }
 
 // The fake ffmpeg is `sleep`.
@@ -177,25 +180,35 @@ async fn a_device_leaves_only_one_of_its_own_transcodes_out_of_the_count() {
         start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
     }
 
-    assert_eq!(plans.transcodes_full(7, 2), Some(2));
+    assert_eq!(plans.running_transcodes(7).all, 2);
 }
 
+// The fake ffmpeg is `sleep`.
 #[cfg(unix)]
 #[tokio::test]
-async fn transcodes_are_full_once_as_many_as_the_cap_run() {
+async fn a_transcode_on_hardware_counts_as_cpu_bound_once_it_fell_back_and_a_remux_never_does() {
     let data = tempfile::tempdir().unwrap();
-    let db = database(data.path()).await;
-    let plans = plans_in(
-        &db,
-        settings(&db, data.path().join("transcodes")).playback(),
-    );
-    for _ in 0..2 {
+    let plans = running_plans(data.path()).await;
+    let (on_hardware, _) =
         start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
-    }
+    let (remux, _) = start_writing_nothing(&plans).await;
+    let before = plans.running_transcodes(8);
 
-    assert_eq!(plans.transcodes_full(8, u32::MAX), None);
-    assert_eq!(plans.transcodes_full(8, 3), None);
-    assert_eq!(plans.transcodes_full(8, 2), Some(2));
+    hls(&plans, on_hardware, 7)
+        .fell_back
+        .store(true, Ordering::Release);
+    hls(&plans, remux, 7)
+        .fell_back
+        .store(true, Ordering::Release);
+
+    assert_eq!(before.cpu_bound, 0);
+    assert_eq!(
+        plans.running_transcodes(8),
+        RunningTranscodes {
+            all: 1,
+            cpu_bound: 1
+        }
+    );
 }
 
 /// Starts a plan for the Device `device` whose ffmpeg is `sleep`, and returns its id.
@@ -213,6 +226,7 @@ async fn start_sleeping(plans: &RunningPlans, device: i64) -> u64 {
                         .spawn()
                 }),
                 fallback: None,
+                cpu_bound: false,
             },
         )
         .await
@@ -243,7 +257,7 @@ async fn a_plan_unused_for_long_enough_is_stopped_and_its_files_deleted() {
     plans.stop_unused(Duration::from_millis(50)).await;
 
     assert!(plans.ask(unused, device).is_none());
-    assert!(plan.closed.load(std::sync::atomic::Ordering::Acquire));
+    assert!(plan.closed.load(Ordering::Acquire));
     assert!(!unused_dir.exists());
     assert!(plans.ask(used, device).is_some());
     assert!(used_dir.exists());
