@@ -2,7 +2,7 @@
 
 use std::{future, io, num::NonZeroU32, path::PathBuf, sync::Arc};
 
-use buffa::EnumValue;
+use buffa::{EnumValue, MessageFieldView};
 use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult,
 };
@@ -29,7 +29,7 @@ use crate::{
     users::Users,
 };
 
-use super::{database_failed, playback::limit_from_proto, refuse};
+use super::{database_failed, playback::limit_from_proto, refuse, unknown_enum_value};
 
 /// `nama.v1.ServerService`: facts about this Server, its settings, and the ffmpeg it found.
 pub(super) struct ServerServiceHandler {
@@ -83,8 +83,8 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, UpdateServerSettingsRequest>,
     ) -> ServiceResult<UpdateServerSettingsResponse> {
-        let url =
-            (self.settings.set_url(request.settings.url).await).map_err(settings_change_failed)?;
+        let settings = required_settings(&request.settings)?;
+        let url = (self.settings.set_url(settings.url).await).map_err(settings_change_failed)?;
         Response::ok(UpdateServerSettingsResponse {
             settings: server_settings_to_proto(url).into(),
             ..Default::default()
@@ -151,13 +151,20 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, UpdatePlaybackSettingsRequest>,
     ) -> ServiceResult<UpdatePlaybackSettingsResponse> {
-        let settings = &request.settings;
+        let settings = required_settings(&request.settings)?;
         // An empty id is no GPU, as one stored with none reads back.
         let gpu = (settings.gpu.as_option())
             .map(|gpu| gpu.id)
             .filter(|id| !id.is_empty());
-        let hardware = hardware_choice(settings.hardware_acceleration, gpu)
-            .map_err(|invalid| settings_change_failed(invalid.into()))?;
+        let hardware = hardware_choice(settings.hardware_acceleration, gpu)?;
+        // `limit_from_proto` takes an unknown limit as Original, right for a User's pick but not
+        // for a setting an Admin saves.
+        if let EnumValue::Unknown(_) = settings.remote_playback_limit {
+            return Err(unknown_enum_value(
+                "settings.remote_playback_limit",
+                "the remote Playback Limit must be Original, 1080p, 720p or 480p",
+            ));
+        }
         let change = PlaybackChange {
             segment_folder: settings.segment_folder,
             max_transcodes: settings.max_transcodes,
@@ -195,7 +202,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, UpdateImageSettingsRequest>,
     ) -> ServiceResult<UpdateImageSettingsResponse> {
-        let settings = &request.settings;
+        let settings = required_settings(&request.settings)?;
         let stored = (self.settings)
             .change_images(settings.resize_images, settings.resized_cache_mib)
             .await
@@ -317,6 +324,23 @@ fn playback_settings_to_proto(settings: PlaybackValues) -> proto::PlaybackSettin
     }
 }
 
+/// The `settings` message an update carries.
+///
+/// # Errors
+///
+/// `FIELD_REQUIRED` naming `settings` when the request left it out, which buffa would otherwise
+/// read as every field's default and save as a reset.
+fn required_settings<T>(settings: &MessageFieldView<T>) -> Result<&T, ConnectError> {
+    settings.as_option().ok_or_else(|| {
+        refuse(
+            RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+            "the settings to save are missing",
+        )
+        .field("settings")
+        .into()
+    })
+}
+
 /// The refusal naming the field whose value broke a rule, or a generic error if storing failed.
 fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
     use server_settings::ChangeError::{Database, Invalid as Refused};
@@ -363,27 +387,38 @@ fn settings_change_failed(err: server_settings::ChangeError) -> ConnectError {
     .into()
 }
 
-/// The choice of what Transcodes run on that `choice` names, Automatic for one this Server
-/// doesn't know, on the GPU at the PCI address `gpu` if given, which [`Settings`] names.
+/// The choice of what Transcodes run on that `choice` names, on the GPU at the PCI address `gpu`
+/// if given, which [`Settings`] names.
 ///
 /// # Errors
 ///
-/// [`Invalid::GpuNotOffered`] for a GPU with Automatic or Off.
+/// `UNKNOWN_ENUM_VALUE` for a `choice` this Server doesn't know, checked first, and
+/// `GPU_NOT_OFFERED` for a GPU with Automatic or Off.
 ///
 /// [`Settings`]: server_settings::Settings
 fn hardware_choice(
     choice: EnumValue<HardwareAccelerationProto>,
     gpu: Option<&str>,
-) -> Result<HardwareChoice, Invalid> {
+) -> Result<HardwareChoice, ConnectError> {
     use HardwareAccelerationProto as P;
     let accel = match choice {
+        EnumValue::Unknown(_) => {
+            return Err(unknown_enum_value(
+                "settings.hardware_acceleration",
+                "the hardware acceleration must be Automatic, Off, VAAPI, QSV, NVENC or \
+                 VideoToolbox",
+            ));
+        }
         EnumValue::Known(P::HARDWARE_ACCELERATION_VAAPI) => Accel::Vaapi,
         EnumValue::Known(P::HARDWARE_ACCELERATION_QSV) => Accel::Qsv,
         EnumValue::Known(P::HARDWARE_ACCELERATION_NVENC) => Accel::Nvenc,
         EnumValue::Known(P::HARDWARE_ACCELERATION_VIDEOTOOLBOX) => Accel::VideoToolbox,
-        _ if let Some(id) = gpu => return Err(Invalid::GpuNotOffered { id: id.to_owned() }),
+        _ if let Some(id) = gpu => {
+            let invalid = Invalid::GpuNotOffered { id: id.to_owned() };
+            return Err(settings_change_failed(invalid.into()));
+        }
         EnumValue::Known(P::HARDWARE_ACCELERATION_OFF) => return Ok(HardwareChoice::Off),
-        EnumValue::Known(P::HARDWARE_ACCELERATION_UNSPECIFIED) | EnumValue::Unknown(_) => {
+        EnumValue::Known(P::HARDWARE_ACCELERATION_UNSPECIFIED) => {
             return Ok(HardwareChoice::Automatic);
         }
     };
