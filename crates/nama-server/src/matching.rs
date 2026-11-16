@@ -25,7 +25,8 @@
 //!   plus Season and Episode numbers (ADR 0008).
 //!
 //! Matching stores why it left an item Unmatched, so an admin knows how to fix it: more than one
-//! title fits about as well (and which), none does, or its ID hint names none.
+//! title fits about as well (and which), none does, its ID hint names none, or, for an Episode,
+//! its Show has no such Season or Episode.
 //!
 //! An admin can fix a Match by hand ([`Matcher::set_match`], [`Matcher::clear_match`]). That pins
 //! the Match to what the item's file names, its title, year and ID hint, for every item in the
@@ -209,7 +210,8 @@ impl PendingEpisode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Miss {
-    /// With why, or `None` where Matching stores none: a pin, or an Episode its Show doesn't have.
+    /// With why, or `None` where Matching stores none: a pin, or a title a source can't find
+    /// that no ID Hint named.
     Unmatched(Option<UnmatchedReason>),
     /// The title sources couldn't answer: the item is Unmatched for now, but undecided, so
     /// the next scan tries again.
@@ -220,6 +222,10 @@ enum Miss {
     /// The item's pin names a title no source the Library asks looks titles up by: undecided until
     /// one does, while the sources go on Matching the Library's other titles.
     Unserved,
+}
+
+impl Miss {
+    const NOT_IN_SHOW: Self = Self::Unmatched(Some(UnmatchedReason::NotInShow));
 }
 
 impl From<Unanswered> for Miss {
@@ -652,7 +658,7 @@ impl Matcher {
                         .iter()
                         .find(|e| i64::from(e.number) == pending.episode)
                         .map(|episode| in_show(season, episode))
-                        .ok_or(Miss::Unmatched(None)),
+                        .ok_or(Miss::NOT_IN_SHOW),
                     Err(miss) => Err(miss.clone()),
                 };
                 (pending.item, outcome)

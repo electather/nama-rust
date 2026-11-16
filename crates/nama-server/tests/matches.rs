@@ -577,6 +577,30 @@ async fn an_item_whose_id_hint_names_no_title_is_listed_as_such() {
 }
 
 #[tokio::test]
+async fn an_episode_matched_by_hand_to_a_show_without_it_is_listed_as_not_in_show() {
+    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
+    // The US Office has only Season 1 at TMDB.
+    let episode = "The Office/Season 10/The Office - S10E01.mkv";
+    fx.write(episode, VIDEO);
+    let item = fx.scan_and_match().await[episode];
+
+    let response = fx.set_match(item, 2316).await.unwrap();
+    let listed = fx.listed().await;
+
+    assert_eq!((response.matched, response.unmatched), (0, 1));
+    assert_eq!(
+        listed
+            .iter()
+            .map(|listed| (listed.item_id, listed.reason))
+            .collect::<Vec<_>>(),
+        [(
+            item,
+            EnumValue::from(UnmatchedReason::UNMATCHED_REASON_NOT_IN_SHOW)
+        )]
+    );
+}
+
+#[tokio::test]
 async fn an_item_not_matched_yet_is_listed_without_a_reason() {
     let fx = Fixture::start_without_metadata(LibraryKind::LIBRARY_KIND_MOVIES).await;
     fx.write(HOME_MOVIES, VIDEO);

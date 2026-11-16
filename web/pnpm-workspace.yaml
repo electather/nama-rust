@@ -10,7 +10,8 @@ runtimeOnFail: ignore
 pmOnFail: ignore
 
 catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@1.5.0
+  # vp refuses to run unless the alias matches vite-plus. Dependabot bumps only vite-plus, so bump both.
+  vite: npm:@voidzero-dev/vite-plus-core@1.6.0
   vite-plus: 1.6.0
 overrides:
   vite@*: "catalog:"

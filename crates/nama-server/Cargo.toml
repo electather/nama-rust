@@ -27,6 +27,9 @@ figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 getrandom = "0.4"
 glob = "0.3"
+# Its defaults add UTF-8 and UTF-16 input the Server never normalises, and two crates for them.
+icu_normalizer = { version = "2.4.0", default-features = false, features = ["compiled_data"] }
+icu_properties = "2.4.0"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 isolang = { version = "2.4", default-features = false }
 # Its defaults add `extraslow`, which pulls in two crates for speeds the Server never uses (ADR 0039).

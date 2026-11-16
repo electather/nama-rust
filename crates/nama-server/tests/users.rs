@@ -368,7 +368,40 @@ async fn a_name_or_password_outside_the_rules_is_refused_and_nobody_is_created()
             assert_eq!(refusal.params["maxLength"], "64");
         }
     }
+    let invisible = [
+        ('\t', "U+0009"),
+        ('\n', "U+000A"),
+        ('\u{200B}', "U+200B"),
+        ('\u{200D}', "U+200D"),
+        ('\u{202E}', "U+202E"),
+        ('\u{A0}', "U+00A0"),
+        ('\u{3164}', "U+3164"),
+        ('\u{FE0F}', "U+FE0F"),
+        ('\u{E000}', "U+E000"),
+    ];
+    for (character, code_point) in invisible {
+        let refused = fixture.create(&format!("Gr{character}ace"), PASSWORD).await;
+
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_NAME_CHARACTER,
+        );
+        assert_eq!(refusal.field, "name");
+        assert_eq!(refusal.params["character"], code_point);
+    }
     assert_eq!(fixture.list().await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn a_name_typed_decomposed_is_listed_composed() {
+    let fixture = Fixture::start().await;
+
+    let remy = fixture.create("Re\u{301}my", PASSWORD).await.unwrap();
+
+    let users = fixture.list().await.unwrap();
+    let listed = users.iter().find(|user| user.id == remy).unwrap();
+    assert_eq!(listed.name, "R\u{E9}my");
 }
 
 #[tokio::test]
@@ -561,9 +594,10 @@ async fn a_user_who_manages_users_cant_make_anyone_an_admin_or_change_their_own_
 }
 
 #[tokio::test]
-async fn a_user_who_manages_users_cant_change_reset_or_delete_an_admin() {
+async fn a_user_who_manages_users_cant_change_reset_delete_or_sign_out_an_admin() {
     let fixture = Fixture::start().await;
     let admin = fixture.first_admin_id().await;
+    let admin_device = list_devices(&fixture.client, None).await.unwrap()[0].id;
     let token = fixture
         .server
         .user("Grace", &[Permission::ManageUsers])
@@ -574,6 +608,7 @@ async fn a_user_who_manages_users_cant_change_reset_or_delete_an_admin() {
     assert_admin_required(set_permissions(&as_grace, admin, &[]).await);
     assert_admin_required(reset_password(&as_grace, admin, "battery staple horse").await);
     assert_admin_required(delete_user(&as_grace, admin).await);
+    assert_admin_required(revoke_device(&as_grace, Some(admin), admin_device).await);
     assert!(
         fixture
             .signed_in(&fixture.server.admin_token)
@@ -866,6 +901,25 @@ async fn an_admin_lists_and_revokes_another_users_device() {
     let names: Vec<_> = listed.iter().map(|device| device.name.as_str()).collect();
     assert_eq!(names, ["Phone", "Laptop"]);
     assert!(listed.iter().all(|device| !device.is_current));
+    assert!(!fixture.signed_in(&laptop.token).await.unwrap());
+    assert!(fixture.signed_in(&phone.token).await.unwrap());
+}
+
+#[tokio::test]
+async fn a_user_who_manages_users_revokes_a_non_admins_device() {
+    let fixture = Fixture::start().await;
+    let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
+    let (grace, laptop_id) = ids(&laptop);
+    let token = fixture
+        .server
+        .user("Kim", &[Permission::ManageUsers])
+        .await
+        .token;
+
+    revoke_device(&fixture.client_as(&token), Some(grace), laptop_id)
+        .await
+        .unwrap();
+
     assert!(!fixture.signed_in(&laptop.token).await.unwrap());
     assert!(fixture.signed_in(&phone.token).await.unwrap());
 }
