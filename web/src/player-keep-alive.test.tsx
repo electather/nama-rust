@@ -185,6 +185,21 @@ test("leaving the page tells the Server the plan stopped", async () => {
   });
 });
 
+// It may come back from the back/forward cache, still playing the plan.
+test("a page kept to come back to leaves the plan running", async () => {
+  const stopped: bigint[] = [];
+  openApp("/libraries/1/movies/tmdb-603/play", planning(PlaybackMethod.REMUX, PLAYLIST, stopped));
+  await screen.findByLabelText("The Matrix");
+
+  fireEvent(window, Object.assign(new Event("pagehide"), { persisted: true }));
+  // Long enough for a stop to arrive.
+  await new Promise((resolve) => {
+    setTimeout(resolve, 50);
+  });
+
+  expect(stopped).toEqual([]);
+});
+
 test("seeking neither asks for a new plan nor stops the one playing", async () => {
   const stopped: bigint[] = [];
   const stoppedWhenAsked: bigint[][] = [];

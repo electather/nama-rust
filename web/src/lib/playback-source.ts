@@ -93,10 +93,10 @@ function keepPlaying(transport: Transport, planId: bigint, url: string) {
     fetch(url, { method: "HEAD" }).catch(() => {});
   }, KEEP_ALIVE_MS);
   // Closing or reloading the tab unmounts nothing, and a reloaded one no longer knows this plan,
-  // whose Transcode would count toward the limit for that minute. ponytail: best effort, as the
-  // page may go before it's sent.
-  const leaving = () => {
-    void stopPlan(transport, planId);
+  // whose Transcode would count toward the limit for that minute. A page the browser keeps to go
+  // back to plays on when it does. ponytail: best effort, as the page may go before it's sent.
+  const leaving = ({ persisted }: PageTransitionEvent) => {
+    if (!persisted) void stopPlan(transport, planId);
   };
   window.addEventListener("pagehide", leaving);
   return () => {

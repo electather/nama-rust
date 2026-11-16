@@ -162,22 +162,6 @@ async fn transcodes_fill_the_cap_for_every_device_until_one_stops_and_remuxes_ne
     assert_eq!(plans.transcodes_full(2), None);
 }
 
-// The fake ffmpeg is `sleep`.
-#[cfg(unix)]
-#[tokio::test]
-async fn a_devices_own_transcode_fills_the_cap_until_it_stops() {
-    let data = tempfile::tempdir().unwrap();
-    let plans = running_plans(data.path()).await;
-    let (id, _) =
-        start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
-
-    let full = plans.transcodes_full(1);
-    plans.stop_for(id, 7).await;
-
-    assert_eq!(full, Some(1));
-    assert_eq!(plans.transcodes_full(1), None);
-}
-
 #[cfg(unix)]
 #[tokio::test]
 async fn transcodes_are_full_once_as_many_as_the_cap_run() {

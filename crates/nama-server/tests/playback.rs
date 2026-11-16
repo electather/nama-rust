@@ -458,6 +458,31 @@ async fn with_the_cap_at_1_a_second_device_that_needs_a_transcode_is_told_the_se
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[tokio::test]
+async fn with_the_cap_at_1_a_device_needing_a_second_transcode_is_busy_until_it_stops_its_first() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [_, hevc]) = Fixture::alien_with_room_for_one_transcode(bin.path()).await;
+    let first = fx.transcode(hevc).await;
+
+    let while_it_runs = fx.plan(hevc).await;
+    PlaybackServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        .stop_playback(StopPlaybackRequest {
+            plan_id: first.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_refused(
+        while_it_runs,
+        ErrorCode::ResourceExhausted,
+        RefusalReason::REFUSAL_REASON_SERVER_BUSY,
+    );
+    fx.transcode(hevc).await;
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
 async fn with_the_cap_full_a_device_that_plays_a_remux_gets_one_and_the_plan_says_why() {
     let bin = tempfile::tempdir().unwrap();
     let (fx, [h264, hevc]) = Fixture::alien_with_room_for_one_transcode(bin.path()).await;
