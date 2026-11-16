@@ -735,5 +735,5 @@ fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
 }
 
 #[cfg(test)]
-#[path = "api_tests.rs"]
+#[path = "api/api_tests.rs"]
 mod tests;
