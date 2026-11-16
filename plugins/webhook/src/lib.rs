@@ -119,9 +119,10 @@ fn manifest() -> Manifest {
     }
 }
 
-/// What a webhook gets: the Plugin `Notification`, its fields in their proto names, and `text`.
+/// What a webhook gets: the Plugin `Notification`'s fields under their proto names, and `text`.
+/// `event` and `request` take protobuf's JSON form, so their own fields are camelCase.
 #[derive(Serialize)]
-struct Posted<'a> {
+struct Payload<'a> {
     event: Option<&'a Event>,
     request: Option<&'a Request>,
     request_url: Option<&'a str>,
@@ -130,13 +131,13 @@ struct Posted<'a> {
 
 /// The JSON body posted about `notification`, saying `text`.
 fn body(notification: &Notification, text: &str) -> json::Result<Vec<u8>> {
-    let posted = Posted {
+    let payload = Payload {
         event: notification.event.as_option(),
         request: notification.request.as_option(),
         request_url: notification.request_url.as_deref(),
         text,
     };
-    json::to_vec(&posted)
+    json::to_vec(&payload)
 }
 
 /// The `X-Nama-Signature` of `body` signed with `secret`: `sha256=` and its hex HMAC-SHA256.
