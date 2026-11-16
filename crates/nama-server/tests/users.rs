@@ -561,9 +561,10 @@ async fn a_user_who_manages_users_cant_make_anyone_an_admin_or_change_their_own_
 }
 
 #[tokio::test]
-async fn a_user_who_manages_users_cant_change_reset_or_delete_an_admin() {
+async fn a_user_who_manages_users_cant_change_reset_delete_or_sign_out_an_admin() {
     let fixture = Fixture::start().await;
     let admin = fixture.first_admin_id().await;
+    let admin_device = list_devices(&fixture.client, None).await.unwrap()[0].id;
     let token = fixture
         .server
         .user("Grace", &[Permission::ManageUsers])
@@ -574,6 +575,7 @@ async fn a_user_who_manages_users_cant_change_reset_or_delete_an_admin() {
     assert_admin_required(set_permissions(&as_grace, admin, &[]).await);
     assert_admin_required(reset_password(&as_grace, admin, "battery staple horse").await);
     assert_admin_required(delete_user(&as_grace, admin).await);
+    assert_admin_required(revoke_device(&as_grace, Some(admin), admin_device).await);
     assert!(
         fixture
             .signed_in(&fixture.server.admin_token)
@@ -866,6 +868,25 @@ async fn an_admin_lists_and_revokes_another_users_device() {
     let names: Vec<_> = listed.iter().map(|device| device.name.as_str()).collect();
     assert_eq!(names, ["Phone", "Laptop"]);
     assert!(listed.iter().all(|device| !device.is_current));
+    assert!(!fixture.signed_in(&laptop.token).await.unwrap());
+    assert!(fixture.signed_in(&phone.token).await.unwrap());
+}
+
+#[tokio::test]
+async fn a_user_who_manages_users_revokes_a_non_admins_device() {
+    let fixture = Fixture::start().await;
+    let (phone, laptop) = fixture.grace_on_phone_and_laptop().await;
+    let (grace, laptop_id) = ids(&laptop);
+    let token = fixture
+        .server
+        .user("Kim", &[Permission::ManageUsers])
+        .await
+        .token;
+
+    revoke_device(&fixture.client_as(&token), Some(grace), laptop_id)
+        .await
+        .unwrap();
+
     assert!(!fixture.signed_in(&laptop.token).await.unwrap());
     assert!(fixture.signed_in(&phone.token).await.unwrap());
 }

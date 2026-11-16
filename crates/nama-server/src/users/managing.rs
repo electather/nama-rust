@@ -127,9 +127,9 @@ async fn delete_user(conn: &mut SqliteConnection, user: i64) -> Result<Vec<i64>,
 }
 
 /// Fails with [`Error::AdminRequired`] if `by`, without `PERMISSION_ADMIN`, would change the User
-/// `user`, who has it. Only an Admin changes an Admin, as in Seerr, so `PERMISSION_MANAGE_USERS`
-/// can't become `PERMISSION_ADMIN` by taking over an Admin. Read in the write's transaction, so
-/// `user` can't be made an Admin between the check and the change.
+/// `user`, who has it. Only an Admin changes an Admin, or signs their Devices out, as in Seerr, so
+/// `PERMISSION_MANAGE_USERS` can't become `PERMISSION_ADMIN` by taking over an Admin. Read in the
+/// write's transaction, so `user` can't be made an Admin between the check and the change.
 pub(super) async fn ensure_may_change(
     conn: &mut SqliteConnection,
     by: &User,
