@@ -322,5 +322,5 @@ fn finding_failed(err: libraries::Error) -> Error {
 }
 
 #[cfg(test)]
-#[path = "browse_tests.rs"]
+#[path = "browse/browse_tests.rs"]
 mod tests;
