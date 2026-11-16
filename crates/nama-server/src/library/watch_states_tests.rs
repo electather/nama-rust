@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use super::{Kind, MovieOrEpisode, Progress, WatchState, WatchStates};
+use super::{Kind, MovieOrEpisode, Progress, WatchState, WatchStates, Watched};
 use crate::{
     db::{self, Database},
     plugins::Registry,
@@ -256,4 +256,52 @@ fn a_position_past_the_duration_is_the_end_and_a_zero_duration_is_refused() {
     assert_eq!(Progress::new(5_000, 1_000), Progress::new(1_000, 1_000));
     assert_eq!(Progress::new(0, 0), None);
     assert_eq!(Progress::new(0, u64::MAX), None);
+}
+
+fn alien_imdb() -> ExternalId {
+    ExternalId::new("imdb", "tt0078748").unwrap()
+}
+
+/// Alien under its TMDB id, known by its IMDb id too.
+fn alien_by_both_ids() -> Watched {
+    let ids = ExternalIds::from_iter([alien_id(), alien_imdb()]);
+    alien().known_as(&ids)
+}
+
+#[tokio::test]
+async fn progress_on_a_movie_played_under_another_of_its_ids_is_stored_played() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let under_imdb = MovieOrEpisode::movie(&alien_imdb());
+    watch_states
+        .mark(user, vec![under_imdb], true)
+        .await
+        .unwrap();
+    let near_the_start = Progress::new(100, 2_000).unwrap();
+
+    (watch_states.report(user, vec![Some(alien_by_both_ids())], near_the_start))
+        .await
+        .unwrap();
+
+    let state = movie_state(&watch_states, user, alien_id()).await.unwrap();
+    assert_eq!((state.position_ms, state.played), (100, true));
+}
+
+#[tokio::test]
+async fn marking_a_movie_unplayed_forgets_it_under_every_id() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let halfway = Progress::new(1_000, 2_000).unwrap();
+    for id in [alien_id(), alien_imdb()] {
+        (watch_states.report(user, vec![Some(MovieOrEpisode::movie(&id))], halfway))
+            .await
+            .unwrap();
+    }
+
+    (watch_states.mark(user, vec![alien_by_both_ids()], false))
+        .await
+        .unwrap();
+
+    assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
+    assert_eq!(movie_state(&watch_states, user, alien_imdb()).await, None);
 }

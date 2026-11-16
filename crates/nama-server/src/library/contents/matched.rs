@@ -87,10 +87,20 @@ pub(crate) enum MatchedTo {
         /// The id of the Show its first Matched Episode is of, as browsing identifies it. `None`
         /// if none is Matched.
         show: Option<ExternalId>,
-        /// Each Episode the file holds, by season and episode number: its id, as browsing
-        /// identifies it, or `None` if its Item isn't Matched.
-        episodes: Vec<Option<ExternalId>>,
     },
+}
+
+/// What [`Contents::titles_in`] found a Version Matched to, each title by its id as browsing
+/// identifies it and every id its Match gives it.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum TitlesIn {
+    /// No stored file has that id.
+    NoSuchVersion,
+    /// The file holds a Movie or nothing: the Movie, unless its Item isn't Matched.
+    Movie(Option<(ExternalId, ExternalIds)>),
+    /// Each Episode the file holds, by season and episode number, `None` if its Item isn't
+    /// Matched.
+    Episodes(Vec<Option<(ExternalId, ExternalIds)>>),
 }
 
 /// A Show some Items of a Library are Matched to Episodes of, with the metadata the Match of its
@@ -274,12 +284,47 @@ impl Contents {
         if holds_episodes {
             return Ok(MatchedTo::Episodes {
                 show: ids.iter().find_map(|(_, show)| show.clone()),
-                episodes: ids.into_iter().map(|(id, _)| id).collect(),
             });
         }
         Ok((ids.into_iter())
             .find_map(|(id, _)| id)
             .map_or(MatchedTo::Nothing, MatchedTo::Movie))
+    }
+
+    /// What the Version `version` is Matched to, as [`Contents::matched_to`] finds it, with every
+    /// id of each title, so Watch State is found under any of them.
+    pub(crate) async fn titles_in(&self, version: i64) -> Result<TitlesIn, sqlx::Error> {
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT library_items.kind AS "kind?: ItemKind", "#
+                        + $ids
+                        + r#"'title') AS "ids?: String", libraries.title_sources
+                       FROM library_files
+                       JOIN libraries ON libraries.id = library_files.library_id
+                       LEFT JOIN library_items ON library_items.file_id = library_files.id
+                       LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+                                             AND item_matches.state = 'matched'
+                       WHERE library_files.id = ?
+                       ORDER BY library_items.season, library_items.episode"#,
+                    version
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
+        let Some(first) = rows.first() else {
+            return Ok(TitlesIn::NoSuchVersion);
+        };
+        let holds_episodes = first.kind == Some(ItemKind::Episode);
+        let mut titles = rows.into_iter().map(|row| {
+            let ids = ids_from_json(row.ids.as_deref());
+            Some((primary_id_in(&ids, &row.title_sources)?, ids))
+        });
+        Ok(if holds_episodes {
+            TitlesIn::Episodes(titles.collect())
+        } else {
+            TitlesIn::Movie(titles.find_map(|title| title))
+        })
     }
 
     /// The path of the Version `version` and the file stored there, or `None` unless some Item of

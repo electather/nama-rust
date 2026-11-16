@@ -624,3 +624,48 @@ async fn a_movie_played_under_one_id_after_it_was_started_under_another_is_not_c
     assert_eq!(continuing, []);
     assert_eq!(position(state), Some((1_950, true)));
 }
+
+#[tokio::test]
+async fn a_movie_played_under_an_id_its_library_doesnt_prefer_is_marked_unplayed() {
+    let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let library = library_with_alien_by_two_ids(&db, &folder).await;
+    let user = ada(&db).await;
+    let imdb = MovieOrEpisode::movie(&alien_imdb());
+    report_under(&db, user, imdb, Progress::new(1_950, 2_000).unwrap()).await;
+    let browse = Browse::new(db);
+    let alien = ExternalId::tmdb(ALIEN_TMDB_ID);
+
+    (browse.mark(user, library, Target::Movie(alien.clone()), false))
+        .await
+        .unwrap();
+
+    let (_, state, _) = browse.movie(user, library, &alien).await.unwrap();
+    assert_eq!(position(state), None);
+}
+
+#[tokio::test]
+async fn progress_on_a_movie_played_under_an_id_its_library_doesnt_prefer_keeps_it_played() {
+    let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let library = library_with_alien_by_two_ids(&db, &folder).await;
+    let user = ada(&db).await;
+    let imdb = MovieOrEpisode::movie(&alien_imdb());
+    report_under(&db, user, imdb, Progress::new(1_950, 2_000).unwrap()).await;
+    let browse = Browse::new(db);
+    let alien = ExternalId::tmdb(ALIEN_TMDB_ID);
+    let (movie, _, _) = browse.movie(user, library, &alien).await.unwrap();
+    // `imdb` sorts first, so only being more recent shows the new report's position.
+    db::advance_clock(Duration::from_secs(2));
+
+    (browse.report(
+        user,
+        movie.versions[0].file.id,
+        Progress::new(100, 2_000).unwrap(),
+    ))
+    .await
+    .unwrap();
+
+    let (_, state, _) = browse.movie(user, library, &alien).await.unwrap();
+    assert_eq!(position(state), Some((100, true)));
+}

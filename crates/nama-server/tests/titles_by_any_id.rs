@@ -9,12 +9,12 @@ mod browsing;
 mod server;
 
 use browsing::{Fixture, tmdb_id};
-use connectrpc::client::HttpClient;
+use connectrpc::{ConnectError, client::HttpClient};
 use nama_proto::nama::v1::{
     ExternalId, GetLibraryRequest, GetMovieRequest, GetShowRequest, LibraryKind,
     LibraryServiceClient, ListEpisodesRequest, MediaToDelete, PreviewDeleteMediaRequest,
-    SeasonToDelete, SetPlayedRequest, ShowToDelete, UpdateLibraryRequest, WatchStateServiceClient,
-    media_to_delete, set_played_request::Target,
+    ReportProgressRequest, SeasonToDelete, SetPlayedRequest, ShowToDelete, UpdateLibraryRequest,
+    WatchStateServiceClient, media_to_delete, set_played_request::Target,
 };
 use nama_server::ffmpeg::Ffmpeg;
 use server::tmdb::{DARK, DARK_TVDB};
@@ -65,47 +65,97 @@ async fn a_movie_opened_and_marked_by_its_imdb_id_is_the_library_movie() {
     assert!(by_tmdb.watch_state.as_option().unwrap().played);
 }
 
-#[tokio::test]
-async fn a_movie_marked_played_stays_played_after_its_librarys_title_source_order_changes() {
-    let fx = Fixture::alien().await;
-    let config = fx.server.client_config();
-    let watch_states = WatchStateServiceClient::new(HttpClient::plaintext(), config.clone());
-    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config);
-    watch_states
+/// Marks Alien in `fx`'s Library played or unplayed, by the id `named`.
+async fn set_alien_played(
+    fx: &Fixture,
+    named: ExternalId,
+    played: bool,
+) -> Result<(), ConnectError> {
+    WatchStateServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
         .set_played(SetPlayedRequest {
             library_id: fx.library,
-            target: Some(Target::MovieId(Box::new(tmdb_id(348)))),
-            played: true,
+            target: Some(Target::MovieId(Box::new(named))),
+            played,
             ..Default::default()
         })
-        .await
-        .unwrap();
+        .await?;
+    Ok(())
+}
 
+/// Makes `fx`'s Library prefer IMDb ids to TMDB's, as when an Admin reorders its title sources.
+async fn prefer_imdb(fx: &Fixture) -> Result<(), ConnectError> {
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+    // A Library missing here has no name or folders, so the update below refuses it.
     let library = libraries
         .get_library(GetLibraryRequest {
             id: fx.library,
             ..Default::default()
         })
-        .await
-        .unwrap()
+        .await?
         .into_owned()
         .library
         .into_option()
-        .unwrap();
+        .unwrap_or_default();
     libraries
         .update_library(UpdateLibraryRequest {
-            id: library.id,
+            id: fx.library,
             name: library.name,
             folders: library.folders,
             title_sources: vec!["imdb".to_owned(), "tmdb".to_owned()],
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_movie_marked_played_stays_played_after_its_librarys_title_source_order_changes() {
+    let fx = Fixture::alien().await;
+    set_alien_played(&fx, tmdb_id(348), true).await.unwrap();
+
+    prefer_imdb(&fx).await.unwrap();
+    let movie = fx.get_movie(fx.library, 348).await.unwrap();
+
+    assert_eq!(movie.id.as_option(), Some(&id("imdb", ALIEN_IMDB)));
+    assert!(movie.watch_state.as_option().unwrap().played);
+}
+
+#[tokio::test]
+async fn a_movie_marked_unplayed_under_its_new_preferred_id_forgets_its_old_ids_state() {
+    let fx = Fixture::alien().await;
+    set_alien_played(&fx, tmdb_id(348), true).await.unwrap();
+    prefer_imdb(&fx).await.unwrap();
+
+    set_alien_played(&fx, id("imdb", ALIEN_IMDB), false)
+        .await
+        .unwrap();
+    let movie = fx.get_movie(fx.library, 348).await.unwrap();
+
+    assert_eq!(movie.watch_state.as_option(), None);
+}
+
+#[tokio::test]
+async fn progress_on_a_movie_played_under_its_old_preferred_id_keeps_it_played() {
+    let fx = Fixture::alien().await;
+    set_alien_played(&fx, tmdb_id(348), true).await.unwrap();
+    prefer_imdb(&fx).await.unwrap();
+    let [version] = fx.version_ids(348).await[..] else {
+        panic!("Alien has one Version");
+    };
+
+    WatchStateServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        .report_progress(ReportProgressRequest {
+            version_id: version,
+            position_ms: 60_000,
+            duration_ms: 7_200_000,
             ..Default::default()
         })
         .await
         .unwrap();
     let movie = fx.get_movie(fx.library, 348).await.unwrap();
 
-    assert_eq!(movie.id.as_option(), Some(&id("imdb", ALIEN_IMDB)));
-    assert!(movie.watch_state.as_option().unwrap().played);
+    let state = movie.watch_state.as_option().unwrap();
+    assert_eq!((state.position_ms, state.played), (60_000, true));
 }
 
 #[tokio::test]

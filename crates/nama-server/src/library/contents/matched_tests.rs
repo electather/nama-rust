@@ -9,7 +9,7 @@ use super::{
         fixture::tmdb_movie,
         testing::{ALIEN, Fixture, movie},
     },
-    library_with_movie, matched_episodes, show_poster,
+    TitlesIn, library_with_movie, matched_episodes, show_poster,
 };
 use crate::library::versions::METADATA_VERSION;
 
@@ -543,4 +543,55 @@ async fn an_id_two_movies_share_gives_the_ids_of_the_first_by_title() {
         found,
         [ExternalIds::from_iter([ExternalId::tmdb(348), shared])]
     );
+}
+
+#[tokio::test]
+async fn a_versions_titles_come_with_every_id_and_an_unmatched_episode_as_none() {
+    let fx = Fixture::new().await;
+    let alien_ids = ExternalIds::from_iter([ExternalId::tmdb(348), imdb("tt0078748")]);
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    match_movie(&fx, ALIEN, alien_ids.clone()).await;
+    let path = "/media/Firefly/Season 01/Firefly - S01E01-E02.mkv";
+    let episode = |number| Item::Episode {
+        show: "Firefly".to_owned(),
+        year: None,
+        hint: None,
+        season: 1,
+        episode: number,
+    };
+    let change = Change::Store {
+        path: path.to_owned(),
+        size: 10,
+        modified_ns: 0,
+        items: vec![episode(1), episode(2)],
+    };
+    fx.contents.apply(fx.library, vec![change]).await.unwrap();
+    let second = fx.items(path).await[1].id;
+    let train_job_ids = ExternalIds::from_iter([ExternalId::tmdb(1001), ExternalId::tvdb(297_989)]);
+    let metadata = super::super::Metadata {
+        ids: train_job_ids.clone(),
+        show_ids: ExternalIds::from_iter([ExternalId::tmdb(1437)]),
+        ..tmdb_movie(0, "The Train Job")
+    };
+    fx.contents
+        .record(vec![(second, Decided::Matched(Box::new(metadata)))])
+        .await
+        .unwrap();
+    let alien = fx.contents.movies(fx.library).await.unwrap()[0].versions[0]
+        .file
+        .id;
+    let shows = fx.contents.shows(fx.library).await.unwrap();
+    let both = shows[0].seasons[&1].episodes[0].versions[0].file.id;
+
+    let movie = fx.contents.titles_in(alien).await.unwrap();
+    let episodes = fx.contents.titles_in(both).await.unwrap();
+    let unknown = fx.contents.titles_in(both.max(alien) + 1).await.unwrap();
+
+    assert_eq!(
+        movie,
+        TitlesIn::Movie(Some((ExternalId::tmdb(348), alien_ids)))
+    );
+    let train_job = (ExternalId::tmdb(1001), train_job_ids);
+    assert_eq!(episodes, TitlesIn::Episodes(vec![None, Some(train_job)]));
+    assert_eq!(unknown, TitlesIn::NoSuchVersion);
 }

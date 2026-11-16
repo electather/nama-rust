@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM watch_states\n         WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "718fc959dcbed6482c219daaa2c48cb1a272698d69fc4bc5dd79b4c1966b2c77"
+}

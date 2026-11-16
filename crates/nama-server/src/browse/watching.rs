@@ -6,7 +6,7 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{Browse, Episode, Error, Movie, Show, Target, Titles, finding_failed};
 use crate::library::{
-    contents::{self, MatchedTo},
+    contents::{self, TitlesIn},
     watch_states::{self, MovieOrEpisode, Progress, WatchState},
 };
 
@@ -29,29 +29,33 @@ pub(crate) enum Started {
 
 impl Browse {
     /// Records, as of now, that the User `user` has got as far as `progress` through the Version
-    /// `version`: through its Movie, or split across each Episode its file holds. An Unmatched
-    /// Item has no Watch State, so progress on it stores nothing (ADR 0013).
+    /// `version`: through its Movie, or split across each Episode its file holds, under each one's
+    /// preferred id. An Unmatched Item has no Watch State, so progress on it stores nothing (ADR
+    /// 0013).
     pub(crate) async fn report(
         &self,
         user: i64,
         version: i64,
         progress: Progress,
     ) -> Result<(), Error> {
-        let titles = match self.contents.matched_to(version).await? {
-            MatchedTo::NoSuchVersion => return Err(Error::NoSuchVersion),
-            MatchedTo::Nothing => return Ok(()),
-            MatchedTo::Movie(movie) => vec![Some(MovieOrEpisode::movie(&movie))],
+        let titles = match self.contents.titles_in(version).await? {
+            TitlesIn::NoSuchVersion => return Err(Error::NoSuchVersion),
+            TitlesIn::Movie(None) => return Ok(()),
+            TitlesIn::Movie(Some((id, ids))) => {
+                vec![Some(MovieOrEpisode::movie(&id).known_as(&ids))]
+            }
             // An Item that isn't Matched keeps its share of the file, so the others' shares don't
             // move.
-            MatchedTo::Episodes { episodes, .. } => (episodes.iter())
-                .map(|episode| episode.as_ref().map(MovieOrEpisode::episode))
+            TitlesIn::Episodes(episodes) => (episodes.into_iter())
+                .map(|episode| episode.map(|(id, ids)| MovieOrEpisode::episode(&id).known_as(&ids)))
                 .collect(),
         };
         Ok(self.watch_states.report(user, titles, progress).await?)
     }
 
     /// Marks, as of now, `target` of the Library `library` played or unplayed for the User
-    /// `user`: a Season or Show is each of its Episodes. Fails as browsing to it does if the
+    /// `user`: a Season or Show is each of its Episodes. Played is written under each one's
+    /// preferred id; unplayed forgets it under every id. Fails as browsing to it does if the
     /// Library has no such title.
     pub(crate) async fn mark(
         &self,
@@ -61,9 +65,14 @@ impl Browse {
         played: bool,
     ) -> Result<(), Error> {
         let titles = self.titles(&self.library(library).await?).await?;
-        let episode = |episode: &contents::Episode| MovieOrEpisode::episode(&episode.id);
+        let episode = |episode: &contents::Episode| {
+            MovieOrEpisode::episode(&episode.id).known_as(&episode.ids)
+        };
         let marked = match target {
-            Target::Movie(id) => vec![MovieOrEpisode::movie(&titles.movie(&id)?.id)],
+            Target::Movie(id) => {
+                let movie = titles.movie(&id)?;
+                vec![MovieOrEpisode::movie(&movie.id).known_as(&movie.ids)]
+            }
             Target::Episode(id) => vec![episode(&titles.episode(&id)?)],
             Target::Season { show, number } => (titles.season(&show, number)?.episodes.iter())
                 .map(episode)
