@@ -13,8 +13,10 @@ use nama_plugin_api::{
 };
 use nama_plugin_proto::nama::plugin::v1::Ticked;
 
+use crate::plugins::{Registry, tick};
+
 use super::{
-    Running,
+    CRASHES_BEFORE_DISABLING, Running,
     calls::Calls,
     load::{CALL_TIMEOUT, TICK_TIMEOUT, compile_with_kernel, load, write_cache_config},
     services::{Method, POINTS, TICK},
@@ -153,27 +155,73 @@ async fn a_looping_tick_past_its_limit_times_out_and_counts_as_a_crash() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn cancelling_a_plugins_calls_fails_a_running_one_as_a_timeout() {
+async fn stopping_a_plugins_calls_fails_a_running_one_as_disabled_and_not_as_a_crash() {
     let data_dir = tempfile::tempdir().unwrap();
     let running = running("looping-tick", &data_dir, None);
-    let started = Instant::now();
+    // One crash short of disabling, so counting the stop as one would unwind here.
+    running
+        .crashes
+        .store(CRASHES_BEFORE_DISABLING - 1, Ordering::Relaxed);
     let calling = running.clone();
     let call = tokio::spawn(async move {
         calling
             .call_method::<_, Ticked>(&TICK, &Tick::default())
             .await
     });
+    tokio::time::sleep(SHORT).await;
+    let stopped = Instant::now();
 
-    // Again until it ends, since a cancel before the call has started misses it.
-    while !call.is_finished() {
-        running.cancel_calls();
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    running.compiled.calls.stop();
 
     let failed = call.await.unwrap().unwrap_err();
-    assert_eq!(failed.to_string(), "timeout");
-    assert_eq!(running.crashes.load(Ordering::Relaxed), 1);
-    assert!(started.elapsed() < CALL_TIMEOUT, "{:?}", started.elapsed());
+    assert_eq!(failed.to_string(), "the Plugin was disabled");
+    assert_eq!(
+        running.crashes.load(Ordering::Relaxed),
+        CRASHES_BEFORE_DISABLING - 1
+    );
+    assert!(stopped.elapsed() < CALL_TIMEOUT, "{:?}", stopped.elapsed());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_call_after_its_plugins_calls_are_stopped_fails_as_disabled_without_running() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let running = running("automation", &data_dir, Some(Arc::new(Slow)));
+    running.compiled.calls.stop();
+
+    let failed = running
+        .call_method::<_, Ticked>(&TICK, &Tick::default())
+        .await
+        .unwrap_err();
+
+    assert_eq!(failed.to_string(), "the Plugin was disabled");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn disabling_a_plugin_while_its_tick_runs_ends_the_wasm_call_promptly() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let cache_config = write_cache_config(data_dir.path()).unwrap();
+    let plugin = load(test_plugin::build("looping-tick"), &cache_config).unwrap();
+    let id = plugin.manifest.id.clone();
+    let registry = Registry::new();
+    registry.enable(Arc::new(plugin)).unwrap();
+    // Outside the Plugin's scope, so only the stop, not the scope's cancel, can end it.
+    let ticking = tokio::spawn({
+        let (points, id) = (registry.extension_points(), id.clone());
+        async move { tick::once(&points, &id).await }
+    });
+    tokio::time::sleep(SHORT).await;
+
+    let disabled = tokio::time::timeout(CALL_TIMEOUT, registry.disable(&id)).await;
+
+    assert_eq!(disabled.ok(), Some(true));
+    let ticked = tokio::time::timeout(CALL_TIMEOUT, ticking)
+        .await
+        .expect("the tick ran on past the disable")
+        .unwrap();
+    assert_eq!(
+        ticked.map(|ticked| ticked.map_err(|failure| failure.message)),
+        Some(Err("the Plugin was disabled".to_owned()))
+    );
 }
 
 #[test]

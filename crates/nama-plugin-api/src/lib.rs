@@ -35,7 +35,7 @@ use std::{
     fmt,
     future::Future,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
 
@@ -315,12 +315,82 @@ impl fmt::Debug for Registration {
     }
 }
 
+/// The signal that one enablement of a Plugin is ending: it is disabled, enabled again with
+/// other settings or grants, or the Server is stopping.
+///
+/// The Kernel fires it when it cancels the enablement's scope, before it waits for the tasks in
+/// that scope (ADR 0047), so a Plugin can interrupt work the Kernel isn't awaiting, such as a
+/// call running on a thread of its own. A Built-in Plugin whose work is all futures the Kernel
+/// awaits needs none: the Kernel stops awaiting them. Cloning gives another handle to the same
+/// signal.
+#[derive(Clone, Default)]
+pub struct Stop(Arc<Mutex<Stopping>>);
+
+#[derive(Default)]
+struct Stopping {
+    stopped: bool,
+    callbacks: Vec<Box<dyn FnOnce() + Send>>,
+}
+
+impl Stop {
+    /// A signal that hasn't fired.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Stopping> {
+        // A callback runs outside the lock, so a poisoned lock's state is still whole.
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Runs `callback` once when the signal fires, or now if it has. It runs on the thread that
+    /// fires it, so it must return quickly; the Kernel contains a panic in it.
+    pub fn on_stop(&self, callback: impl FnOnce() + Send + 'static) {
+        let mut stopping = self.lock();
+        if stopping.stopped {
+            drop(stopping);
+            callback();
+        } else {
+            stopping.callbacks.push(Box::new(callback));
+        }
+    }
+
+    /// Whether the signal has fired.
+    #[must_use]
+    pub fn is_stopped(&self) -> bool {
+        self.lock().stopped
+    }
+
+    /// Fires the signal: runs each callback [`Self::on_stop`] took, once. Only the Kernel calls
+    /// it; a second call runs nothing.
+    pub fn stop(&self) {
+        let callbacks = {
+            let mut stopping = self.lock();
+            stopping.stopped = true;
+            std::mem::take(&mut stopping.callbacks)
+        };
+        for callback in callbacks {
+            callback();
+        }
+    }
+}
+
+impl fmt::Debug for Stop {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Stop")
+            .field("stopped", &self.is_stopped())
+            .finish_non_exhaustive()
+    }
+}
+
 /// Collects what one Plugin registers while it is being enabled.
 #[derive(Default)]
 pub struct Registrar {
     settings: Settings,
     registrations: Vec<Registration>,
     kernel: Option<Arc<dyn Kernel>>,
+    stop: Stop,
 }
 
 impl fmt::Debug for Registrar {
@@ -329,6 +399,7 @@ impl fmt::Debug for Registrar {
             .field("settings", &self.settings)
             .field("registrations", &self.registrations)
             .field("kernel", &self.kernel.is_some())
+            .field("stop", &self.stop)
             .finish()
     }
 }
@@ -357,6 +428,20 @@ impl Registrar {
             kernel: Some(kernel),
             ..self
         }
+    }
+
+    /// Hands the Plugin `stop`, which fires when this enablement ends. Only the Kernel calls it,
+    /// when enabling a Plugin.
+    #[must_use]
+    pub fn with_stop(self, stop: Stop) -> Self {
+        Self { stop, ..self }
+    }
+
+    /// The signal that this enablement of the Plugin is ending. A Registrar the Kernel didn't hand
+    /// one has a signal that never fires.
+    #[must_use]
+    pub fn stop(&self) -> Stop {
+        self.stop.clone()
     }
 
     /// The functions the Plugin may call on the Kernel, if it is handed them; `None` for a Plugin

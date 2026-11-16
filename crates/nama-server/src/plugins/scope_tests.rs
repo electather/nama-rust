@@ -7,7 +7,10 @@ use std::{
     time::Duration,
 };
 
-use nama_plugin_api::{Manifest, Plugin, PluginError, PluginId, Registrar};
+use nama_plugin_api::{
+    Manifest, Plugin, PluginError, PluginId, Registrar,
+    automation::{Kernel, KernelRefused, StoreKey},
+};
 
 use super::Scope;
 use crate::plugins::Registry;
@@ -171,4 +174,53 @@ async fn shutdown_joins_every_plugins_scope_and_leaves_them_enabled() {
         registry.enabled(),
         [PluginId::from_static("a"), PluginId::from_static("b")]
     );
+}
+
+/// A Plugin that keeps the Kernel's functions each enablement of it is handed.
+#[derive(Default)]
+struct Keeping {
+    kernels: Arc<Mutex<Vec<Arc<dyn Kernel>>>>,
+}
+
+impl Plugin for Keeping {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            version: "0.0.0".to_owned(),
+            ..Manifest::new(PluginId::from_static("keeping"))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        self.kernels.lock().unwrap().extend(registrar.kernel());
+        Ok(())
+    }
+}
+
+/// What `kernel` answers asking for a Store entry: the refusal's words, or `None` if it answered.
+async fn refusal(kernel: &Arc<dyn Kernel>) -> Option<String> {
+    let asked = kernel.store_get(&StoreKey::default()).await;
+    asked.err().map(|KernelRefused(words)| words)
+}
+
+#[tokio::test]
+async fn once_disabled_an_enablements_kernel_functions_refuse_and_the_next_ones_do_not() {
+    let registry = Registry::new();
+    let id = PluginId::from_static("keeping");
+    let plugin = Keeping::default();
+    let kernels = Arc::clone(&plugin.kernels);
+    registry.enable(Arc::new(plugin)).unwrap();
+    let old = Arc::clone(&kernels.lock().unwrap()[0]);
+
+    assert!(registry.disable(&id).await);
+    registry
+        .enable(Arc::new(Keeping {
+            kernels: Arc::clone(&kernels),
+        }))
+        .unwrap();
+    let new = Arc::clone(&kernels.lock().unwrap()[1]);
+
+    let disabled = Some("the Plugin is disabled".to_owned());
+    assert_eq!(refusal(&old).await, disabled);
+    // The Kernel isn't served in this test, so the new one refuses only for that.
+    assert_ne!(refusal(&new).await, disabled);
 }

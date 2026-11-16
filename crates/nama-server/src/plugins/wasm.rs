@@ -176,16 +176,6 @@ impl Running {
         compiled.calls.run(&compiled.plugin, name, input, limit)
     }
 
-    /// Cancels every call running in the Plugin now, at any of its points; each fails as a
-    /// timeout.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "disabling a Plugin will cancel its running calls")
-    )]
-    pub(super) fn cancel_calls(&self) {
-        self.compiled.calls.cancel_all();
-    }
-
     /// [`Self::call`] on a blocking thread. A panic there unwinds here, so the registry disables
     /// the Plugin as it does one whose Rust code panics.
     async fn call_blocking(
@@ -236,8 +226,12 @@ impl Running {
 
     /// Counts the crashes in a row, `err` among them if it is one. On the
     /// [`CRASHES_BEFORE_DISABLING`]th, unwinds with why, `cause`, so the registry disables the
-    /// Plugin as it does one whose Rust code panics.
+    /// Plugin as it does one whose Rust code panics. A call interrupted because the enablement is
+    /// ending leaves the count as it was.
     fn count_crash(&self, err: &extism::Error, cause: &str) {
+        if calls::is_interrupted(err) {
+            return;
+        }
         if !is_crash(err) {
             self.crashes.store(0, Ordering::Relaxed);
         } else if self.crashes.fetch_add(1, Ordering::Relaxed) + 1 == CRASHES_BEFORE_DISABLING {
@@ -318,6 +312,12 @@ impl Plugin for Installed {
         let config = extism_config(schema, settings);
         let kernel = registrar.kernel();
         let calls = calls::Calls::default();
+        // The Kernel stops awaiting a call when it cancels the enablement's scope, but the call
+        // runs on in its blocking thread, with this enablement's Kernel functions, until stopped.
+        registrar.stop().on_stop({
+            let calls = calls.clone();
+            move || calls.stop()
+        });
         let compile = || {
             let (hosts, config, kernel) = (hosts.clone(), config.clone(), kernel.clone());
             compile_with_kernel(

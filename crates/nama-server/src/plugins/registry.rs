@@ -9,7 +9,7 @@ use std::{
 };
 
 use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginId, PointKey, Priority, Registrar, Registration,
+    BoxFuture, Manifest, Plugin, PluginId, PointKey, Priority, Registrar, Registration, Stop,
     automation::{
         DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked, Permission,
         StoreEntry, StoreKey, StoreValue, Stored, Titles, TitlesAsked, Users, UsersAsked,
@@ -238,8 +238,7 @@ impl Registry {
                 error,
             })?;
         let secrets: Arc<[String]> = secret_values(schema, &settings).into();
-        let mut registrar =
-            Registrar::with_settings(settings).with_kernel(self.kernel_for(manifest, granted));
+        let mut registrar = self.registrar_for(manifest, settings, granted);
         // The error and the half-filled registrar are Plugin values, dropped here inside the
         // containment the caller runs this in.
         if let Err(err) = plugin.register(&mut registrar) {
@@ -248,6 +247,7 @@ impl Registry {
                 reason: without_secrets(err.to_string(), &secrets),
             });
         }
+        let stop = registrar.stop();
         let registrations = registrar.into_registrations();
         let declared = &manifest.extension_points;
         if let Some(point) = registrations
@@ -282,7 +282,7 @@ impl Registry {
                 Enabled {
                     _plugin: plugin,
                     generation,
-                    scope: tick::scope(&self.points, manifest, &registrations),
+                    scope: tick::scope(&self.points, manifest, &registrations).with_stop(stop),
                 },
             );
             for (index, registration) in registrations.into_iter().enumerate() {
@@ -312,15 +312,26 @@ impl Registry {
         Ok(())
     }
 
-    /// The Kernel's functions for an enablement of `manifest`'s Plugin, granted those of `granted`
-    /// its Manifest requests.
-    fn kernel_for(&self, manifest: &Manifest, mut granted: HashSet<Permission>) -> Arc<dyn Kernel> {
+    /// The Registrar for an enablement of `manifest`'s Plugin with `settings`: it hands the
+    /// enablement a fresh [`Stop`], and the Kernel's functions granted those of `granted` its
+    /// Manifest requests, which refuse once that `Stop` fires.
+    fn registrar_for(
+        &self,
+        manifest: &Manifest,
+        settings: Settings,
+        mut granted: HashSet<Permission>,
+    ) -> Registrar {
         granted.retain(|permission| manifest.permissions.contains(permission));
-        Arc::new(EnabledKernel {
+        let stop = Stop::new();
+        let kernel = Arc::new(EnabledKernel {
             slot: self.read(|state| Arc::clone(&state.kernel)),
             plugin: manifest.id.clone(),
             granted,
-        })
+            stop: stop.clone(),
+        });
+        Registrar::with_settings(settings)
+            .with_kernel(kernel)
+            .with_stop(stop)
     }
 
     /// Disables the Plugin `id` and removes everything it registered, then cancels its scope and
@@ -511,10 +522,18 @@ struct EnabledKernel {
     slot: Arc<watch::Sender<Option<MakeKernel>>>,
     plugin: PluginId,
     granted: HashSet<Permission>,
+    /// The enablement's stop signal, which its scope's cancel fires.
+    stop: Stop,
 }
 
 impl EnabledKernel {
+    /// The functions to answer one call with. Checked on each call, so nothing an enablement asks
+    /// after its disable, or after a grant change enabled it again, reaches the Kernel; a call
+    /// already past here, such as a delete that started, goes on.
     fn resolve(&self) -> Result<Arc<dyn Kernel>, KernelRefused> {
+        if self.stop.is_stopped() {
+            return Err(KernelRefused("the Plugin is disabled".to_owned()));
+        }
         let make = self
             .slot
             .borrow()

@@ -11,26 +11,45 @@ use std::{
 };
 
 use extism::{CancelHandle, CompiledPlugin};
+use thiserror::Error;
 
 /// How often a watchdog cancels its call again until the call ends: Extism drops a cancel that
 /// reaches its timer before the call has started there, as one may right after the instance is
 /// made.
 const CANCEL_AGAIN_EVERY: Duration = Duration::from_millis(10);
 
+/// How a call [`Calls::stop`] interrupted, or that started after it, fails: its caller gets a
+/// plain failure, and it isn't a crash.
+#[derive(Debug, Error)]
+#[error("the Plugin was disabled")]
+pub(super) struct Interrupted;
+
+/// Whether a call failed as [`Interrupted`].
+pub(super) fn is_interrupted(err: &extism::Error) -> bool {
+    err.is::<Interrupted>()
+}
+
 /// The calls running in one enablement, by their instance's id, which a `nama` import reads from
-/// its `CurrentPlugin`. Every compile of the enablement shares one, so cancelling them reaches
+/// its `CurrentPlugin`. Every compile of the enablement shares one, so stopping them reaches
 /// every call of the Plugin, whichever point it is at.
 #[derive(Clone, Default)]
-pub(super) struct Calls(Arc<Mutex<HashMap<u128, Arc<Call>>>>);
+pub(super) struct Calls(Arc<Mutex<Running>>);
+
+#[derive(Default)]
+struct Running {
+    calls: HashMap<u128, Arc<Call>>,
+    /// Whether [`Calls::stop`] was called, after which no call starts.
+    stopped: bool,
+}
 
 impl Calls {
-    fn lock(&self) -> MutexGuard<'_, HashMap<u128, Arc<Call>>> {
+    fn lock(&self) -> MutexGuard<'_, Running> {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Calls the export `name` with `input` on a fresh instance of `compiled`, cancelling it as a
-    /// timeout once the Plugin's own time passes `limit` or [`Self::cancel_all`] is called.
-    /// Blocks while the Plugin runs.
+    /// timeout once the Plugin's own time passes `limit`, or as [`Interrupted`] once
+    /// [`Self::stop`] is called. Blocks while the Plugin runs.
     // ponytail: one watchdog thread per call; one thread for every call, as Extism's own timer
     // is, if calls get so many that the threads cost.
     pub(super) fn run(
@@ -54,20 +73,33 @@ impl Calls {
             }),
             changed: Condvar::new(),
         });
-        self.lock().insert(id, Arc::clone(&call));
+        {
+            // Under the one lock `stop` takes, so a call either is stopped or never starts.
+            let mut running = self.lock();
+            if running.stopped {
+                return Err(Interrupted.into());
+            }
+            running.calls.insert(id, Arc::clone(&call));
+        }
         let _registered = Registered { calls: self, id };
-        thread::scope(|scope| {
+        let called = thread::scope(|scope| {
             scope.spawn(|| call.watch());
             // Ends the watchdog however the call ends, a panic included, so the scope can join it.
             let _ended = Ended(&call);
             plugin.call(name, input)
-        })
+        });
+        // Extism words a stop as it does a timeout. Any failure once stopped is put down to the
+        // stop: the enablement is ending, so it no longer counts as a crash.
+        match called {
+            Err(_) if call.lock().cancelled => Err(Interrupted.into()),
+            called => called,
+        }
     }
 
     /// Pauses the Plugin's clock of the call on instance `id`, if it is running, until the
     /// returned guard drops: the Kernel's time answering a `nama` import isn't the Plugin's.
     pub(super) fn pause(&self, id: u128) -> Option<impl Drop> {
-        let call = Arc::clone(self.lock().get(&id)?);
+        let call = Arc::clone(self.lock().calls.get(&id)?);
         call.update(|clock| {
             if let Some(since) = clock.since.take() {
                 clock.used += since.elapsed();
@@ -76,10 +108,12 @@ impl Calls {
         Some(Paused(call))
     }
 
-    /// Cancels every call running now, which then fails as a timeout. A call started after it
-    /// returns runs as usual.
-    pub(super) fn cancel_all(&self) {
-        for call in self.lock().values() {
+    /// Interrupts every call running now, and refuses every call after, each failing as
+    /// [`Interrupted`]: the enablement is ending.
+    pub(super) fn stop(&self) {
+        let mut running = self.lock();
+        running.stopped = true;
+        for call in running.calls.values() {
             call.update(|clock| clock.cancelled = true);
         }
     }
@@ -100,7 +134,7 @@ struct Clock {
     used: Duration,
     /// When the Plugin's clock last started; `None` while the Kernel answers an import.
     since: Option<Instant>,
-    /// Whether [`Calls::cancel_all`] cancelled it.
+    /// Whether [`Calls::stop`] interrupted it.
     cancelled: bool,
     ended: bool,
 }
@@ -151,7 +185,7 @@ struct Registered<'a> {
 
 impl Drop for Registered<'_> {
     fn drop(&mut self) {
-        self.calls.lock().remove(&self.id);
+        self.calls.lock().calls.remove(&self.id);
     }
 }
 
