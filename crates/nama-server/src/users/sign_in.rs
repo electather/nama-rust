@@ -104,8 +104,8 @@ impl SignIn {
         let attempt = self.limits.admit(device.ip_address, None, now)?;
         let server_code = match &self.setup_code {
             Some(code) if !self.users.any().await.map_err(users::Error::from)? => code,
-            // No code means the Server started with Users. Whether a Server is set up is public
-            // (`ServerInfo`), so asking again is no guess.
+            // The Server has Users, or started with them and so made no code. Whether a Server is
+            // set up is public (`ServerInfo`), so asking again is no guess.
             _ => {
                 self.limits.succeeded(&attempt);
                 return Err(users::Error::AlreadySetUp.into());
