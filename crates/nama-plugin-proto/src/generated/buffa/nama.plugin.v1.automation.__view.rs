@@ -1058,6 +1058,8 @@ impl ::serde::Serialize for StoreKeyOwnedView {
     }
 }
 /// What `store_put` keeps in the Plugin's Store, replacing any value under the same key and User.
+/// A Plugin keeps at most 10 000 entries, Plugin-wide and per-User together: at that cap the Kernel
+/// refuses a new key, though it still replaces the value under a key the Plugin holds.
 #[derive(Clone, Debug, Default)]
 pub struct StoreEntryView<'a> {
     /// Up to 256 bytes.
@@ -2629,11 +2631,21 @@ impl ::serde::Serialize for LibraryOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What `list_titles` takes.
+/// What `list_titles` takes: a page of a Library's titles, by kind and then id.
 #[derive(Clone, Debug, Default)]
 pub struct TitlesAskedView<'a> {
     /// Field 1: `library_id`
     pub library_id: i64,
+    /// How many titles a page holds, at most 1000. 0 asks for every title in one answer, without a
+    /// `next_page_token`.
+    ///
+    /// Field 2: `page_size`
+    pub page_size: u32,
+    /// The `next_page_token` of the page before, or empty for the first page. The Kernel refuses one
+    /// it didn't hand out.
+    ///
+    /// Field 3: `page_token`
+    pub page_token: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for TitlesAskedView<'a> {
@@ -2673,6 +2685,20 @@ impl<'a> ::buffa::MessageView<'a> for TitlesAskedView<'a> {
                 )?;
                 view.library_id = ::buffa::types::decode_int64(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.page_size = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.page_token = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -2696,6 +2722,8 @@ impl<'a> ::buffa::MessageView<'a> for TitlesAskedView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::TitlesAsked {
             library_id: self.library_id,
+            page_size: self.page_size,
+            page_token: self.page_token.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2710,6 +2738,12 @@ impl<'a> ::buffa::ViewEncode<'a> for TitlesAskedView<'a> {
         if self.library_id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
         }
+        if self.page_size != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.page_size) as u64;
+        }
+        if !self.page_token.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.page_token) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2723,6 +2757,12 @@ impl<'a> ::buffa::ViewEncode<'a> for TitlesAskedView<'a> {
         use ::buffa::Enumeration as _;
         if self.library_id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        if self.page_size != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.page_size, buf);
+        }
+        if !self.page_token.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.page_token, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2751,6 +2791,16 @@ impl<'__a> ::serde::Serialize for TitlesAskedView<'__a> {
                     "libraryId",
                     &::buffa::json_helpers::ProtoJson(&self.library_id),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.page_size) {
+            __map
+                .serialize_entry(
+                    "pageSize",
+                    &::buffa::json_helpers::ProtoJson(&self.page_size),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.page_token) {
+            __map.serialize_entry("pageToken", self.page_token)?;
         }
         __map.end()
     }
@@ -2848,6 +2898,22 @@ impl TitlesAskedOwnedView {
     pub fn library_id(&self) -> i64 {
         self.0.reborrow().library_id
     }
+    /// How many titles a page holds, at most 1000. 0 asks for every title in one answer, without a
+    /// `next_page_token`.
+    ///
+    /// Field 2: `page_size`
+    #[must_use]
+    pub fn page_size(&self) -> u32 {
+        self.0.reborrow().page_size
+    }
+    /// The `next_page_token` of the page before, or empty for the first page. The Kernel refuses one
+    /// it didn't hand out.
+    ///
+    /// Field 3: `page_token`
+    #[must_use]
+    pub fn page_token(&self) -> &'_ str {
+        self.0.reborrow().page_token
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<TitlesAskedView<'static>>>
 for TitlesAskedOwnedView {
@@ -2879,11 +2945,15 @@ impl ::serde::Serialize for TitlesAskedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What `list_titles` answers: the Library's Movies, or its Shows' Episodes.
+/// What `list_titles` answers: a page of the Library's Movies, or its Shows' Episodes.
 #[derive(Clone, Debug, Default)]
 pub struct TitlesView<'a> {
     /// Field 1: `titles`
     pub titles: ::buffa::RepeatedView<'a, super::super::__buffa::view::TitleView<'a>>,
+    /// What `page_token` asks for the next page with. Empty on the last page.
+    ///
+    /// Field 2: `next_page_token`
+    pub next_page_token: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for TitlesView<'a> {
@@ -2916,6 +2986,13 @@ impl<'a> ::buffa::MessageView<'a> for TitlesView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.next_page_token = ::buffa::types::borrow_str(&mut cur)?;
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -2961,6 +3038,7 @@ impl<'a> ::buffa::MessageView<'a> for TitlesView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            next_page_token: self.next_page_token.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -2980,6 +3058,11 @@ impl<'a> ::buffa::ViewEncode<'a> for TitlesView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.next_page_token.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.next_page_token) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2998,6 +3081,9 @@ impl<'a> ::buffa::ViewEncode<'a> for TitlesView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if !self.next_page_token.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.next_page_token, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3022,6 +3108,9 @@ impl<'__a> ::serde::Serialize for TitlesView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !self.titles.is_empty() {
             __map.serialize_entry("titles", &*self.titles)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.next_page_token) {
+            __map.serialize_entry("nextPageToken", self.next_page_token)?;
         }
         __map.end()
     }
@@ -3116,6 +3205,13 @@ impl TitlesOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleView<'_>> {
         &self.0.reborrow().titles
+    }
+    /// What `page_token` asks for the next page with. Empty on the last page.
+    ///
+    /// Field 2: `next_page_token`
+    #[must_use]
+    pub fn next_page_token(&self) -> &'_ str {
+        self.0.reborrow().next_page_token
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<TitlesView<'static>>> for TitlesOwnedView {
@@ -5908,6 +6004,12 @@ pub struct DeleteAskedView<'a> {
     pub title_ref: ::buffa::MessageFieldView<
         super::super::__buffa::view::TitleRefView<'a>,
     >,
+    /// Other titles the Plugin agrees to lose with it. A file holding two Episodes goes with either,
+    /// so the Kernel refuses, deleting nothing, a delete that would take along an Episode not named
+    /// here, and its refusal names each such Episode.
+    ///
+    /// Field 2: `also`
+    pub also: ::buffa::RepeatedView<'a, super::super::__buffa::view::TitleRefView<'a>>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DeleteAskedView<'a> {
@@ -5961,6 +6063,24 @@ impl<'a> ::buffa::MessageView<'a> for DeleteAskedView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleRefView>(),
+                )?;
+                view.also
+                    .push(
+                        <super::super::__buffa::view::TitleRefView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -5992,6 +6112,11 @@ impl<'a> ::buffa::MessageView<'a> for DeleteAskedView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            also: self
+                .also
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -6006,6 +6131,14 @@ impl<'a> ::buffa::ViewEncode<'a> for DeleteAskedView<'a> {
         if self.title_ref.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.title_ref.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.also {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -6029,6 +6162,14 @@ impl<'a> ::buffa::ViewEncode<'a> for DeleteAskedView<'a> {
                 buf,
             );
             self.title_ref.write_to(__cache, buf);
+        }
+        for v in &self.also {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6055,6 +6196,9 @@ impl<'__a> ::serde::Serialize for DeleteAskedView<'__a> {
             if let ::core::option::Option::Some(__v) = self.title_ref.as_option() {
                 __map.serialize_entry("titleRef", __v)?;
             }
+        }
+        if !self.also.is_empty() {
+            __map.serialize_entry("also", &*self.also)?;
         }
         __map.end()
     }
@@ -6154,6 +6298,17 @@ impl DeleteAskedOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::TitleRefView<'_>> {
         &self.0.reborrow().title_ref
     }
+    /// Other titles the Plugin agrees to lose with it. A file holding two Episodes goes with either,
+    /// so the Kernel refuses, deleting nothing, a delete that would take along an Episode not named
+    /// here, and its refusal names each such Episode.
+    ///
+    /// Field 2: `also`
+    #[must_use]
+    pub fn also(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleRefView<'_>> {
+        &self.0.reborrow().also
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<DeleteAskedView<'static>>>
 for DeleteAskedOwnedView {
@@ -6188,6 +6343,13 @@ impl ::serde::Serialize for DeleteAskedOwnedView {
 /// What `delete_media` answers: the Kernel checked the delete and it goes on in the background.
 #[derive(Clone, Debug, Default)]
 pub struct DeleteStartedView<'a> {
+    /// The other titles that go with this delete, since a file of the title holds them too.
+    ///
+    /// Field 1: `taken_along`
+    pub taken_along: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TitleRefView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DeleteStartedView<'a> {
@@ -6220,6 +6382,24 @@ impl<'a> ::buffa::MessageView<'a> for DeleteStartedView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleRefView>(),
+                )?;
+                view.taken_along
+                    .push(
+                        <super::super::__buffa::view::TitleRefView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -6242,6 +6422,11 @@ impl<'a> ::buffa::MessageView<'a> for DeleteStartedView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::DeleteStarted {
+            taken_along: self
+                .taken_along
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -6249,21 +6434,37 @@ impl<'a> ::buffa::MessageView<'a> for DeleteStartedView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for DeleteStartedView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        for v in &self.taken_along {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        for v in &self.taken_along {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -6285,6 +6486,9 @@ impl<'__a> ::serde::Serialize for DeleteStartedView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !self.taken_along.is_empty() {
+            __map.serialize_entry("takenAlong", &*self.taken_along)?;
+        }
         __map.end()
     }
 }
@@ -6375,6 +6579,15 @@ impl DeleteStartedOwnedView {
     #[must_use]
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
+    }
+    /// The other titles that go with this delete, since a file of the title holds them too.
+    ///
+    /// Field 1: `taken_along`
+    #[must_use]
+    pub fn taken_along(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleRefView<'_>> {
+        &self.0.reborrow().taken_along
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DeleteStartedView<'static>>>

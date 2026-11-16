@@ -1,7 +1,7 @@
 use nama_plugin_api::PluginId;
 use tempfile::TempDir;
 
-use super::{Error, delete, get, put};
+use super::{Error, delete, get, put, put_within};
 use crate::db::Database;
 
 async fn open() -> (TempDir, Database) {
@@ -138,4 +138,39 @@ async fn an_entry_for_no_user_is_refused() {
     .await;
 
     assert!(matches!(put, Err(Error::NoUser(42))), "{put:?}");
+}
+
+#[tokio::test]
+async fn at_the_cap_a_new_key_is_refused_and_a_replacement_allowed() {
+    let (_dir, db) = open().await;
+    let ada = insert_user(&db, "ada").await;
+    let cleanup = PluginId::from_static("cleanup");
+    let put = |user, key: &str, value: &[u8]| {
+        put_within(&db, &cleanup, user, key.into(), value.to_vec(), 2)
+    };
+    put(None, "seen", b"1").await.unwrap();
+    put(Some(ada), "seen", b"1").await.unwrap();
+
+    let new_key = put(None, "other", b"1").await;
+    let replaced = put(Some(ada), "seen", b"2").await;
+    let other_plugin = put_within(
+        &db,
+        &PluginId::from_static("other"),
+        None,
+        "seen".into(),
+        Vec::new(),
+        2,
+    )
+    .await;
+
+    assert!(matches!(new_key, Err(Error::Full(2))), "{new_key:?}");
+    assert_eq!(
+        new_key.unwrap_err().to_string(),
+        "a Plugin can't keep over 2 entries in its Store; delete one to keep a new key"
+    );
+    replaced.unwrap();
+    other_plugin.unwrap();
+    let adas = get(&db, &cleanup, Some(ada), "seen").await.unwrap();
+    assert_eq!(adas.as_deref(), Some(&b"2"[..]));
+    assert_eq!(get(&db, &cleanup, None, "other").await.unwrap(), None);
 }

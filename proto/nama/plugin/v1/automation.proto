@@ -77,6 +77,8 @@ message StoreKey {
 }
 
 // What `store_put` keeps in the Plugin's Store, replacing any value under the same key and User.
+// A Plugin keeps at most 10 000 entries, Plugin-wide and per-User together: at that cap the Kernel
+// refuses a new key, though it still replaces the value under a key the Plugin holds.
 message StoreEntry {
   // Up to 256 bytes.
   string key = 1;
@@ -116,14 +118,22 @@ enum LibraryKind {
   LIBRARY_KIND_SHOWS = 2;
 }
 
-// What `list_titles` takes.
+// What `list_titles` takes: a page of a Library's titles, by kind and then id.
 message TitlesAsked {
   int64 library_id = 1;
+  // How many titles a page holds, at most 1000. 0 asks for every title in one answer, without a
+  // `next_page_token`.
+  uint32 page_size = 2;
+  // The `next_page_token` of the page before, or empty for the first page. The Kernel refuses one
+  // it didn't hand out.
+  string page_token = 3;
 }
 
-// What `list_titles` answers: the Library's Movies, or its Shows' Episodes.
+// What `list_titles` answers: a page of the Library's Movies, or its Shows' Episodes.
 message Titles {
   repeated Title titles = 1;
+  // What `page_token` asks for the next page with. Empty on the last page.
+  string next_page_token = 2;
 }
 
 // A Movie or an Episode in a Library.
@@ -199,7 +209,14 @@ message User {
 // What `delete_media` takes: the title whose media files to delete.
 message DeleteAsked {
   TitleRef title_ref = 1;
+  // Other titles the Plugin agrees to lose with it. A file holding two Episodes goes with either,
+  // so the Kernel refuses, deleting nothing, a delete that would take along an Episode not named
+  // here, and its refusal names each such Episode.
+  repeated TitleRef also = 2;
 }
 
 // What `delete_media` answers: the Kernel checked the delete and it goes on in the background.
-message DeleteStarted {}
+message DeleteStarted {
+  // The other titles that go with this delete, since a file of the title holds them too.
+  repeated TitleRef taken_along = 1;
+}

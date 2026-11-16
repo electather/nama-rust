@@ -2,8 +2,8 @@
 
 use extism_pdk::Error;
 pub use nama_plugin_proto::nama::plugin::v1::{
-    Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind, TitleWatchStates, User,
-    WatchState,
+    Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind, TitleWatchStates,
+    Titles, User, WatchState,
 };
 
 /// An Automation Plugin: the Kernel calls [`Automation::tick`] every `tick_every_seconds` its
@@ -92,8 +92,8 @@ pub mod kernel {
     ///
     /// # Errors
     ///
-    /// When the Kernel refused, such as a key over 256 bytes or a value over 64 KiB, or couldn't
-    /// be called.
+    /// When the Kernel refused, such as a key over 256 bytes, a value over 64 KiB or a new key
+    /// once the Plugin keeps 10 000 entries, or couldn't be called.
     pub fn store_put(key: &str, user: Option<i64>, value: &[u8]) -> Result<(), Error> {
         let entry = StoreEntry {
             key: key.to_owned(),
@@ -128,18 +128,45 @@ pub mod kernel {
         Ok(call::<Libraries>("list_libraries", &LibrariesAsked::default())?.libraries)
     }
 
-    /// The Movies of the Library `library_id`, or its Shows' Episodes. Needs
-    /// `PERMISSION_READ_LIBRARIES`.
+    /// The Movies of the Library `library_id`, or its Shows' Episodes, by kind and then id,
+    /// asked for a page at a time. Needs `PERMISSION_READ_LIBRARIES`.
     ///
     /// # Errors
     ///
     /// When the Kernel refused or couldn't be called.
     pub fn titles(library_id: i64) -> Result<Vec<Title>, Error> {
+        let mut titles = Vec::new();
+        let mut token = String::new();
+        loop {
+            let page = titles_page(library_id, MAX_PAGE_SIZE, &token)?;
+            titles.extend(page.titles);
+            if page.next_page_token.is_empty() {
+                return Ok(titles);
+            }
+            token = page.next_page_token;
+        }
+    }
+
+    /// The most titles one page of [`titles_page`] holds.
+    const MAX_PAGE_SIZE: u32 = 1000;
+
+    /// A page of up to `page_size` of the Library `library_id`'s titles, by kind and then id,
+    /// from `page_token`: empty for the first page, or the `next_page_token` of the page before,
+    /// which is empty on the last. A `page_size` of 0 asks for every title at once, and the
+    /// Kernel holds one over 1000 to 1000. Needs `PERMISSION_READ_LIBRARIES`.
+    ///
+    /// # Errors
+    ///
+    /// When the Kernel refused, such as for a `page_token` it didn't hand out, or couldn't be
+    /// called.
+    pub fn titles_page(library_id: i64, page_size: u32, page_token: &str) -> Result<Titles, Error> {
         let asked = TitlesAsked {
             library_id,
+            page_size,
+            page_token: page_token.to_owned(),
             ..TitlesAsked::default()
         };
-        Ok(call::<Titles>("list_titles", &asked)?.titles)
+        call::<Titles>("list_titles", &asked)
     }
 
     /// Each of `titles` with every User's Watch State of it. Needs
@@ -168,17 +195,21 @@ pub mod kernel {
     }
 
     /// Deletes the media files of `title`, as an Admin's delete does. It returns once the Kernel
-    /// checked the delete, which goes on in the background. Needs `PERMISSION_DELETE_MEDIA`.
+    /// checked the delete, which goes on in the background, with the other titles that go with
+    /// it: Episodes a file of `title` holds too, each of which `also` must name. Needs
+    /// `PERMISSION_DELETE_MEDIA`.
     ///
     /// # Errors
     ///
-    /// When the Kernel refused, such as for a title it doesn't have, or couldn't be called.
-    pub fn delete_media(title: TitleRef) -> Result<(), Error> {
+    /// When the Kernel refused, such as for a title it doesn't have or a file holding an Episode
+    /// `also` doesn't name, which the refusal names, or couldn't be called.
+    pub fn delete_media(title: TitleRef, also: &[TitleRef]) -> Result<Vec<TitleRef>, Error> {
         let asked = DeleteAsked {
             title_ref: title.into(),
+            also: also.to_vec(),
             ..DeleteAsked::default()
         };
-        call::<DeleteStarted>("delete_media", &asked).map(drop)
+        Ok(call::<DeleteStarted>("delete_media", &asked)?.taken_along)
     }
 
     /// Calls the Kernel function `name` with `request` and decodes its answer.

@@ -37,7 +37,7 @@ During any of its calls, a Plugin whose `points` name `AutomationService` may ca
 
 The functions are not a service of their own: they are not an Extension Point and no Manifest names them, so they are versioned with `AutomationService`.
 
-The Store keeps bytes per Plugin under a key of up to 256 bytes, with a value of up to 64 KiB; an entry with `user_id` set belongs to that User. A `TitleRef` names a Movie or an Episode in a Library by the `TitleId` its Watch State is kept by. `Users` holds every User, with their id and display name only: every User sees every Library, so these are every User a title is for, including those without a Watch State. `DeleteStarted` means the Kernel checked the delete and it goes on in the background.
+The Store keeps bytes per Plugin under a key of up to 256 bytes, with a value of up to 64 KiB; an entry with `user_id` set belongs to that User. A Plugin keeps at most 10 000 entries, Plugin-wide and per-User together: at that cap the Kernel refuses a new key, though it still replaces the value under a key the Plugin holds. `list_titles` answers a Library's titles by kind and then id, a page of up to `page_size` (at most 1000) at a time, from the `page_token` the page before handed out in `next_page_token`, which is empty on the last; a `page_size` of 0 answers every title at once. A `TitleRef` names a Movie or an Episode in a Library by the `TitleId` its Watch State is kept by. `Users` holds every User, with their id and display name only: every User sees every Library, so these are every User a title is for, including those without a Watch State. `DeleteStarted` means the Kernel checked the delete and it goes on in the background; its `taken_along` holds the other titles that go with it. A file holding two Episodes goes with either, so the Kernel refuses, deleting nothing, a delete that would take along an Episode `DeleteAsked.also` doesn't name, and its refusal names each such Episode.
 
 ## Versions
 
@@ -48,7 +48,7 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
   `MovieFulfillerService` and `ShowFulfillerService` 1.1.0 add `retry_after_seconds` to `Fulfilled`, `StoppedMonitoring` and `Unfollowed`: a Fulfiller that can't act yet asks the Kernel to ask again after that many seconds.
   `TitleSourceService` 1.2.0 adds `genres` and `content_rating` to `Movie` and `Show`.
   `recogniser.proto` adds `RecogniserService` 1.0.0, a Recogniser proposing what a file is or which title an Item names.
-  `AutomationService` 1.1.0 adds the Kernel function `list_users`, answering every User's id and display name, with `UsersAsked`, `Users`, `User` and `PERMISSION_READ_USERS`.
+  `AutomationService` 1.1.0 adds the Kernel function `list_users`, answering every User's id and display name, with `UsersAsked`, `Users`, `User` and `PERMISSION_READ_USERS`; pages `list_titles` with `TitlesAsked.page_size` and `page_token` and `Titles.next_page_token`; adds `DeleteAsked.also` and `DeleteStarted.taken_along`, refusing a delete that would take along an Episode `also` doesn't name; and caps a Plugin's Store at 10 000 entries.
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 
 ## Title ids

@@ -1140,6 +1140,8 @@ pub const __STORE_KEY_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::
     is_wkt: false,
 };
 /// What `store_put` keeps in the Plugin's Store, replacing any value under the same key and User.
+/// A Plugin keeps at most 10 000 entries, Plugin-wide and per-User together: at that cap the Kernel
+/// refuses a new key, though it still replaces the value under a key the Plugin holds.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -1990,7 +1992,7 @@ pub const __LIBRARY_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::ty
     from_json: ::buffa::type_registry::any_from_json::<Library>,
     is_wkt: false,
 };
-/// What `list_titles` takes.
+/// What `list_titles` takes: a page of a Library's titles, by kind and then id.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -2003,13 +2005,39 @@ pub struct TitlesAsked {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub library_id: i64,
+    /// How many titles a page holds, at most 1000. 0 asks for every title in one answer, without a
+    /// `next_page_token`.
+    ///
+    /// Field 2: `page_size`
+    #[serde(
+        rename = "pageSize",
+        alias = "page_size",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub page_size: u32,
+    /// The `next_page_token` of the page before, or empty for the first page. The Kernel refuses one
+    /// it didn't hand out.
+    ///
+    /// Field 3: `page_token`
+    #[serde(
+        rename = "pageToken",
+        alias = "page_token",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub page_token: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for TitlesAsked {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("TitlesAsked").field("library_id", &self.library_id).finish()
+        f.debug_struct("TitlesAsked")
+            .field("library_id", &self.library_id)
+            .field("page_size", &self.page_size)
+            .field("page_token", &self.page_token)
+            .finish()
     }
 }
 impl TitlesAsked {
@@ -2042,6 +2070,12 @@ impl ::buffa::Message for TitlesAsked {
         if self.library_id != 0i64 {
             size += 1u64 + ::buffa::types::int64_encoded_len(self.library_id) as u64;
         }
+        if self.page_size != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.page_size) as u64;
+        }
+        if !self.page_token.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.page_token) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2054,6 +2088,12 @@ impl ::buffa::Message for TitlesAsked {
         use ::buffa::Enumeration as _;
         if self.library_id != 0i64 {
             ::buffa::types::put_int64_field(1u32, self.library_id, buf);
+        }
+        if self.page_size != 0u32 {
+            ::buffa::types::put_uint32_field(2u32, self.page_size, buf);
+        }
+        if !self.page_token.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.page_token, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2075,6 +2115,20 @@ impl ::buffa::Message for TitlesAsked {
                 )?;
                 self.library_id = ::buffa::types::decode_int64(buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.page_size = ::buffa::types::decode_uint32(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.page_token, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2084,6 +2138,8 @@ impl ::buffa::Message for TitlesAsked {
     }
     fn clear(&mut self) {
         self.library_id = 0i64;
+        self.page_size = 0u32;
+        self.page_token.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2116,7 +2172,7 @@ pub const __TITLES_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buff
     from_json: ::buffa::type_registry::any_from_json::<TitlesAsked>,
     is_wkt: false,
 };
-/// What `list_titles` answers: the Library's Movies, or its Shows' Episodes.
+/// What `list_titles` answers: a page of the Library's Movies, or its Shows' Episodes.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -2128,13 +2184,26 @@ pub struct Titles {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub titles: ::buffa::alloc::vec::Vec<Title>,
+    /// What `page_token` asks for the next page with. Empty on the last page.
+    ///
+    /// Field 2: `next_page_token`
+    #[serde(
+        rename = "nextPageToken",
+        alias = "next_page_token",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub next_page_token: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for Titles {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("Titles").field("titles", &self.titles).finish()
+        f.debug_struct("Titles")
+            .field("titles", &self.titles)
+            .field("next_page_token", &self.next_page_token)
+            .finish()
     }
 }
 impl Titles {
@@ -2172,6 +2241,11 @@ impl ::buffa::Message for Titles {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.next_page_token.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.next_page_token) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2189,6 +2263,9 @@ impl ::buffa::Message for Titles {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if !self.next_page_token.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.next_page_token, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2215,6 +2292,13 @@ impl ::buffa::Message for Titles {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.titles.push(elem);
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.next_page_token, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2224,6 +2308,7 @@ impl ::buffa::Message for Titles {
     }
     fn clear(&mut self) {
         self.titles.clear();
+        self.next_page_token.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3811,13 +3896,27 @@ pub struct DeleteAsked {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub title_ref: ::buffa::MessageField<TitleRef, ::buffa::Inline<TitleRef>>,
+    /// Other titles the Plugin agrees to lose with it. A file holding two Episodes goes with either,
+    /// so the Kernel refuses, deleting nothing, a delete that would take along an Episode not named
+    /// here, and its refusal names each such Episode.
+    ///
+    /// Field 2: `also`
+    #[serde(
+        rename = "also",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub also: ::buffa::alloc::vec::Vec<TitleRef>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for DeleteAsked {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("DeleteAsked").field("title_ref", &self.title_ref).finish()
+        f.debug_struct("DeleteAsked")
+            .field("title_ref", &self.title_ref)
+            .field("also", &self.also)
+            .finish()
     }
 }
 impl DeleteAsked {
@@ -3855,6 +3954,14 @@ impl ::buffa::Message for DeleteAsked {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.also {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3872,6 +3979,14 @@ impl ::buffa::Message for DeleteAsked {
                 buf,
             );
             self.title_ref.write_to(__cache, buf);
+        }
+        for v in &self.also {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3897,6 +4012,18 @@ impl ::buffa::Message for DeleteAsked {
                     ctx,
                 )?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.also.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3906,6 +4033,7 @@ impl ::buffa::Message for DeleteAsked {
     }
     fn clear(&mut self) {
         self.title_ref = ::buffa::MessageField::none();
+        self.also.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3943,13 +4071,23 @@ pub const __DELETE_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buff
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct DeleteStarted {
+    /// The other titles that go with this delete, since a file of the title holds them too.
+    ///
+    /// Field 1: `taken_along`
+    #[serde(
+        rename = "takenAlong",
+        alias = "taken_along",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub taken_along: ::buffa::alloc::vec::Vec<TitleRef>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for DeleteStarted {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("DeleteStarted").finish()
+        f.debug_struct("DeleteStarted").field("taken_along", &self.taken_along).finish()
     }
 }
 impl DeleteStarted {
@@ -3975,20 +4113,36 @@ impl ::buffa::Message for DeleteStarted {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        for v in &self.taken_along {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        for v in &self.taken_along {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -4002,6 +4156,18 @@ impl ::buffa::Message for DeleteStarted {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.taken_along.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4010,6 +4176,7 @@ impl ::buffa::Message for DeleteStarted {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
+        self.taken_along.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

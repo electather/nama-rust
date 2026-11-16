@@ -8,7 +8,7 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use buffa::{EnumValue, Inline, MessageField};
+use buffa::{EnumValue, MessageField};
 use nama_plugin_api::{
     BoxFuture, PluginId,
     automation::{
@@ -34,6 +34,9 @@ use crate::{
     scanner::{self, Doomed, Scanner},
     users,
 };
+
+/// The most titles one page of `list_titles` holds.
+const MAX_PAGE_SIZE: usize = 1000;
 
 /// What makes the Kernel's functions for each enabled Automation Plugin.
 ///
@@ -154,7 +157,8 @@ impl PluginKernel {
         KernelRefused(format!("the Kernel failed {doing}"))
     }
 
-    /// The Matched Movies, or Episodes, of the Library `library`.
+    /// The Matched Movies, or Episodes, of the Library `library`, by kind and then id.
+    // ponytail: whole-Library read, even for one page of `list_titles`.
     async fn titles(
         &self,
         automation: &Automation,
@@ -175,7 +179,11 @@ impl PluginKernel {
         let titles = match kind {
             Kind::Movies => (contents.movies(library).await.map_err(read)?.into_iter())
                 .map(|movie| Title {
-                    title_ref: title_ref(library, TitleRefKind::TITLE_REF_KIND_MOVIE, &movie.id),
+                    title_ref: MessageField::some(title_ref(
+                        library,
+                        TitleRefKind::TITLE_REF_KIND_MOVIE,
+                        &movie.id,
+                    )),
                     title: movie.title,
                     ..Title::default()
                 })
@@ -187,11 +195,11 @@ impl PluginKernel {
                         .into_values()
                         .flat_map(|season| season.episodes);
                     episodes.map(move |episode| Title {
-                        title_ref: title_ref(
+                        title_ref: MessageField::some(title_ref(
                             library,
                             TitleRefKind::TITLE_REF_KIND_EPISODE,
                             &episode.id,
-                        ),
+                        )),
                         title: episode.title,
                         show_title: Some(show.title.clone()),
                         season_number: u32::try_from(episode.season).ok(),
@@ -201,17 +209,110 @@ impl PluginKernel {
                 })
                 .collect(),
         };
+        let mut titles: Vec<Title> = titles;
+        titles.sort_by_cached_key(|title| {
+            let id = title.title_ref.id.as_option();
+            (
+                title.title_ref.kind.to_i32(),
+                id.map(|id| id.namespace.clone()),
+                id.map(|id| id.value.clone()),
+            )
+        });
         Ok(titles)
+    }
+
+    /// The page of the Library's titles `asked` names.
+    async fn titles_page(
+        &self,
+        automation: &Automation,
+        asked: &TitlesAsked,
+    ) -> Result<Titles, KernelRefused> {
+        let start = match asked.page_token.as_str() {
+            "" => 0,
+            token => token.parse::<usize>().map_err(|_malformed| {
+                KernelRefused(format!(
+                    "the page token {token:?} isn't one the Kernel handed out"
+                ))
+            })?,
+        };
+        let mut titles = self.titles(automation, asked.library_id).await?;
+        if asked.page_size == 0 {
+            return Ok(Titles {
+                titles,
+                ..Titles::default()
+            });
+        }
+        let size = usize::try_from(asked.page_size)
+            .unwrap_or(MAX_PAGE_SIZE)
+            .clamp(1, MAX_PAGE_SIZE);
+        let end = start.saturating_add(size);
+        let next_page_token = if end < titles.len() {
+            end.to_string()
+        } else {
+            String::new()
+        };
+        titles.truncate(end);
+        let page = titles.split_off(start.min(titles.len()));
+        Ok(Titles {
+            titles: page,
+            next_page_token,
+            ..Titles::default()
+        })
+    }
+
+    /// Refuses a delete that would take along an Episode `also` doesn't name, naming each one.
+    async fn check_taken_along(
+        &self,
+        automation: &Automation,
+        library: i64,
+        taken_along: &[TitleRef],
+        also: &[TitleRef],
+    ) -> Result<(), KernelRefused> {
+        let unnamed: Vec<&TitleRef> = (taken_along.iter())
+            .filter(|title| !also.iter().any(|named| same_title(named, title)))
+            .collect();
+        if unnamed.is_empty() {
+            return Ok(());
+        }
+        // Only for the refusal, so the Plugin can tell which Episodes they are.
+        let titles = self.titles(automation, library).await?;
+        let named: Vec<String> = (unnamed.into_iter())
+            .map(|unnamed| {
+                (titles.iter())
+                    .find(|title| same_title(&title.title_ref, unnamed))
+                    .map_or_else(|| "an Episode".to_owned(), episode_name)
+            })
+            .collect();
+        Err(KernelRefused(format!(
+            "the title's files also hold {}; name each in `also` to delete it too, or keep the \
+             files",
+            named.join(", ")
+        )))
     }
 }
 
+/// Whether `a` and `b` name the same title of the same Library.
+fn same_title(a: &TitleRef, b: &TitleRef) -> bool {
+    let id = |title: &TitleRef| {
+        (title.id.as_option()).map(|id| (id.namespace.clone(), id.value.clone()))
+    };
+    a.library_id == b.library_id && a.kind == b.kind && id(a) == id(b)
+}
+
+/// An Episode as a refusal names it, such as `Dark S01E02 (Lies)`.
+fn episode_name(episode: &Title) -> String {
+    format!(
+        "{} S{:02}E{:02} ({})",
+        episode.show_title.as_deref().unwrap_or_default(),
+        episode.season_number.unwrap_or_default(),
+        episode.episode_number.unwrap_or_default(),
+        episode.title
+    )
+}
+
 /// `id` of a Movie or Episode of the Library `library`, as a Plugin names it.
-fn title_ref(
-    library: i64,
-    kind: TitleRefKind,
-    id: &ExternalId,
-) -> MessageField<TitleRef, Inline<TitleRef>> {
-    MessageField::some(TitleRef {
+fn title_ref(library: i64, kind: TitleRefKind, id: &ExternalId) -> TitleRef {
+    TitleRef {
         library_id: library,
         kind: kind.into(),
         id: MessageField::some(TitleId {
@@ -220,7 +321,7 @@ fn title_ref(
             ..TitleId::default()
         }),
         ..TitleRef::default()
-    })
+    }
 }
 
 /// The Movie or Episode `title` names, as `movie(id)` or `episode(id)`, or why it names none.
@@ -350,10 +451,7 @@ impl Kernel for PluginKernel {
     ) -> BoxFuture<'a, Result<Titles, KernelRefused>> {
         Box::pin(async move {
             let automation = self.check(Method::ListTitles)?;
-            Ok(Titles {
-                titles: self.titles(&automation, asked.library_id).await?,
-                ..Titles::default()
-            })
+            self.titles_page(&automation, asked).await
         })
     }
 
@@ -438,16 +536,29 @@ impl Kernel for PluginKernel {
                     scanner::Error::ReadOnly(folder.to_owned()).to_string(),
                 ));
             }
+            let taken_along: Vec<TitleRef> = (doomed.taken_along.iter())
+                .map(|episode| {
+                    let kind = TitleRefKind::TITLE_REF_KIND_EPISODE;
+                    title_ref(title.library_id, kind, &episode.id)
+                })
+                .collect();
+            (self.check_taken_along(&automation, title.library_id, &taken_along, &asked.also))
+                .await?;
             let by = format!("the {} Plugin", automation.points.name(&self.plugin));
             // Not awaited: the delete waits for the Library's scan lock, which could outrun the
-            // Plugin's call limit, and it goes on in a task of its own anyway (ADR 0029).
+            // Plugin's call limit, and it goes on in a task of its own anyway (ADR 0029). Outside
+            // the Plugin's scope, since it never calls the Plugin back, so disabling the Plugin
+            // doesn't stop a delete it started (ADR 0048).
             tokio::spawn(delete(
                 automation.scanner.clone(),
                 doomed,
                 by,
                 self.plugin.clone(),
             ));
-            Ok(DeleteStarted::default())
+            Ok(DeleteStarted {
+                taken_along,
+                ..DeleteStarted::default()
+            })
         })
     }
 }

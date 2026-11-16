@@ -28,7 +28,7 @@ mod recogniser;
 
 pub use automation::{
     Automation, Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind,
-    TitleWatchStates, User, WatchState, kernel,
+    TitleWatchStates, Titles, User, WatchState, kernel,
 };
 pub use recogniser::{
     FileRecognised, FileToRecognise, Recognised, RecognisedEpisodes, RecognisedMovie, Recogniser,

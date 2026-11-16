@@ -50,8 +50,8 @@ pub trait Kernel: Send + Sync + 'static {
         key: &'a StoreKey,
     ) -> BoxFuture<'a, Result<StoreValue, KernelRefused>>;
 
-    /// Keeps `entry` in the Plugin's Store, replacing any value under its key and User. Needs
-    /// `PERMISSION_STORE`.
+    /// Keeps `entry` in the Plugin's Store, replacing any value under its key and User, and
+    /// refuses a new key once the Plugin keeps 10 000 entries. Needs `PERMISSION_STORE`.
     fn store_put<'a>(
         &'a self,
         entry: &'a StoreEntry,
@@ -69,7 +69,8 @@ pub trait Kernel: Send + Sync + 'static {
         asked: &'a LibrariesAsked,
     ) -> BoxFuture<'a, Result<Libraries, KernelRefused>>;
 
-    /// A Library's Movies, or its Shows' Episodes. Needs `PERMISSION_READ_LIBRARIES`.
+    /// A page of a Library's Movies, or its Shows' Episodes, by kind and then id, or every one
+    /// for a `page_size` of 0. Needs `PERMISSION_READ_LIBRARIES`.
     fn list_titles<'a>(
         &'a self,
         asked: &'a TitlesAsked,
@@ -87,8 +88,9 @@ pub trait Kernel: Send + Sync + 'static {
         asked: &'a UsersAsked,
     ) -> BoxFuture<'a, Result<Users, KernelRefused>>;
 
-    /// Starts deleting a title's media files, once the Kernel checked the delete. Needs
-    /// `PERMISSION_DELETE_MEDIA`.
+    /// Starts deleting a title's media files, once the Kernel checked the delete, and answers the
+    /// other titles its files take along. Refuses, deleting nothing, one taking along an Episode
+    /// `asked.also` doesn't name. Needs `PERMISSION_DELETE_MEDIA`.
     fn delete_media<'a>(
         &'a self,
         asked: &'a DeleteAsked,
