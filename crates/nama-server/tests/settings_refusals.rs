@@ -47,7 +47,7 @@ fn update_playback(settings: PlaybackSettings) -> UpdatePlaybackSettingsRequest 
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn playback(client: &ServerServiceClient<HttpClient>) -> PlaybackSettings {
+async fn read_playback(client: &ServerServiceClient<HttpClient>) -> PlaybackSettings {
     (client.get_playback_settings(GetPlaybackSettingsRequest::default()))
         .await
         .unwrap()
@@ -74,7 +74,7 @@ async fn with_playback_saved() -> (TestServer, ServerServiceClient<HttpClient>) 
 #[tokio::test]
 async fn playback_settings_without_settings_are_refused_naming_it_and_nothing_changes() {
     let (_server, client) = with_playback_saved().await;
-    let before = playback(&client).await;
+    let before = read_playback(&client).await;
 
     let updated = client
         .update_playback_settings(UpdatePlaybackSettingsRequest::default())
@@ -86,7 +86,7 @@ async fn playback_settings_without_settings_are_refused_naming_it_and_nothing_ch
         RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
     );
     assert_eq!(refusal.field, "settings");
-    assert_eq!(playback(&client).await, before);
+    assert_eq!(read_playback(&client).await, before);
 }
 
 #[tokio::test]
@@ -147,7 +147,7 @@ async fn image_settings_without_settings_are_refused_naming_it_and_nothing_chang
 #[tokio::test]
 async fn an_unknown_hardware_acceleration_is_refused_naming_it_and_nothing_changes() {
     let (_server, client) = with_playback_saved().await;
-    let before = playback(&client).await;
+    let before = read_playback(&client).await;
     let on_a_gpu = Gpu {
         id: "0000:00:02.0".to_owned(),
         ..Default::default()
@@ -169,13 +169,13 @@ async fn an_unknown_hardware_acceleration_is_refused_naming_it_and_nothing_chang
         );
         assert_eq!(refusal.field, "settings.hardware_acceleration");
     }
-    assert_eq!(playback(&client).await, before);
+    assert_eq!(read_playback(&client).await, before);
 }
 
 #[tokio::test]
 async fn an_unknown_remote_playback_limit_is_refused_naming_it_and_nothing_changes() {
     let (_server, client) = with_playback_saved().await;
-    let before = playback(&client).await;
+    let before = read_playback(&client).await;
 
     let updated = client
         .update_playback_settings(update_playback(PlaybackSettings {
@@ -190,7 +190,7 @@ async fn an_unknown_remote_playback_limit_is_refused_naming_it_and_nothing_chang
         RefusalReason::REFUSAL_REASON_UNKNOWN_ENUM_VALUE,
     );
     assert_eq!(refusal.field, "settings.remote_playback_limit");
-    assert_eq!(playback(&client).await, before);
+    assert_eq!(read_playback(&client).await, before);
 }
 
 #[tokio::test]
@@ -206,7 +206,7 @@ async fn unspecified_hardware_acceleration_and_limit_are_saved_as_automatic_and_
         .await
         .unwrap();
 
-    let saved = playback(&client).await;
+    let saved = read_playback(&client).await;
     assert_eq!(
         (saved.hardware_acceleration, saved.remote_playback_limit),
         (
