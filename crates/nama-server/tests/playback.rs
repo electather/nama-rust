@@ -143,6 +143,17 @@ impl Fixture {
         .await
     }
 
+    /// Tells the Server the Admin's player stopped the plan `plan_id`.
+    async fn stop(&self, plan_id: u64) {
+        PlaybackServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+            .stop_playback(StopPlaybackRequest {
+                plan_id,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
     async fn ask_for_plan(
         &self,
         request: PlanPlaybackRequest,
@@ -464,13 +475,7 @@ async fn with_the_cap_at_1_a_device_needing_a_second_transcode_is_busy_until_it_
     let first = fx.transcode(hevc).await;
 
     let while_it_runs = fx.plan(hevc).await;
-    PlaybackServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
-        .stop_playback(StopPlaybackRequest {
-            plan_id: first.id,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    fx.stop(first.id).await;
 
     assert_refused(
         while_it_runs,
@@ -506,13 +511,7 @@ async fn when_a_transcodes_session_ends_its_slot_frees_up_for_the_next() {
     let bishop = fx.server.user_with_default_permissions("Bishop").await;
     let admins = fx.transcode(hevc).await;
 
-    PlaybackServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
-        .stop_playback(StopPlaybackRequest {
-            plan_id: admins.id,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    fx.stop(admins.id).await;
 
     let plan = plan_as(&bishop, hevc).await.unwrap();
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
@@ -722,13 +721,7 @@ async fn a_direct_play_its_player_stops_tells_subscribers_its_playback_ended() {
     let plan = fx.plan(version).await.unwrap();
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
 
-    PlaybackServiceClient::new(HttpClient::plaintext(), config)
-        .stop_playback(StopPlaybackRequest {
-            plan_id: plan.id,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    fx.stop(plan.id).await;
 
     let told = PlaybackEnded {
         playback: admins_playback(version, plan).into(),

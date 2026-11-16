@@ -485,7 +485,7 @@ struct Facts {
     /// The audio Track the User chose, or the Server chose by their Audio Preference, by its place
     /// in the Version's Tracks, if one was.
     audio: Option<usize>,
-    /// The most Transcodes the Server may run at once, if other Devices already run that many.
+    /// The most Transcodes the Server may run at once, if that many already run.
     transcodes_full: Option<u32>,
     picked_limit: PickedLimit,
     network: Network,

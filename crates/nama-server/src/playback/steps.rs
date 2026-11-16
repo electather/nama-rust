@@ -402,7 +402,7 @@ pub(super) fn transcode(facts: &Facts, audio: Option<(usize, &Track)>) -> Transc
     }
 }
 
-/// The step for how busy the Server is: no Transcode while other Devices run as many as it may.
+/// The step for how busy the Server is: no Transcode while as many run as it may.
 pub(super) fn server_busy(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
     let busy = facts.transcodes_full.map(|max| {
         Reason::new(

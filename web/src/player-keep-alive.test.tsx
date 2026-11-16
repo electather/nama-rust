@@ -29,9 +29,9 @@ const FILE = "/media/versions/7";
 
 /**
  * A Server whose first plan for The Matrix plays from `url` by `method`, and whose plan once that
- * fails is a Remux, each offering a 720p Playback Limit, and numbered from 1 in the order asked. The id of each plan
- * the player says it stopped goes in `stopped`, and for each plan asked for, those stopped by then
- * go in `stoppedWhenAsked`.
+ * fails is a Remux, each offering a 720p Playback Limit, and numbered from 1 in the order asked.
+ * The id of each plan the player says it stopped goes in `stopped`, and for each plan asked for,
+ * those stopped by then go in `stoppedWhenAsked`.
  */
 const planning = (
   method: PlaybackMethod,
@@ -71,6 +71,19 @@ const planning = (
     },
   );
 
+/** Waits long enough for a stop or a new ask the player sent to reach the Server. */
+async function afterAWhile() {
+  await new Promise((resolve) => {
+    setTimeout(resolve, 50);
+  });
+}
+
+/** Chooses the 720p Playback Limit in the player's menu. */
+function choose720p() {
+  fireEvent.click(screen.getByRole("button", { name: "Playback Limit" }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "720p" }));
+}
+
 /** Waits for the player to play a new plan in a `<video>` other than `before`. */
 async function newVideo(before: HTMLElement) {
   await waitFor(() => {
@@ -108,10 +121,7 @@ test("a plan its player still plays is never stopped, though React sets up its e
   );
   await screen.findByLabelText("The Matrix");
 
-  // Long enough for a stop sent on the effect's first cleanup to arrive.
-  await new Promise((resolve) => {
-    setTimeout(resolve, 50);
-  });
+  await afterAWhile();
 
   expect(stopped).toEqual([]);
 });
@@ -143,8 +153,7 @@ test("choosing a Playback Limit tells the Server the plan stopped before asking 
   );
   const first = await screen.findByLabelText("The Matrix");
 
-  fireEvent.click(screen.getByRole("button", { name: "Playback Limit" }));
-  fireEvent.click(screen.getByRole("menuitemradio", { name: "720p" }));
+  choose720p();
 
   await waitFor(() => {
     expect(stoppedWhenAsked).toEqual([[], [1n]]);
@@ -164,8 +173,7 @@ test("the plan being replaced failing once the Server stops it asks for nothing 
   );
   const first = await screen.findByLabelText("The Matrix");
 
-  fireEvent.click(screen.getByRole("button", { name: "Playback Limit" }));
-  fireEvent.click(screen.getByRole("menuitemradio", { name: "720p" }));
+  choose720p();
   fireEvent.error(first);
   await newVideo(first);
 
@@ -192,10 +200,7 @@ test("a page kept to come back to leaves the plan running", async () => {
   await screen.findByLabelText("The Matrix");
 
   fireEvent(window, Object.assign(new Event("pagehide"), { persisted: true }));
-  // Long enough for a stop to arrive.
-  await new Promise((resolve) => {
-    setTimeout(resolve, 50);
-  });
+  await afterAWhile();
 
   expect(stopped).toEqual([]);
 });
@@ -211,10 +216,7 @@ test("seeking neither asks for a new plan nor stops the one playing", async () =
 
   video.currentTime = 600;
   fireEvent(video, new Event("seeked"));
-  // Long enough for a stop or a new ask to arrive.
-  await new Promise((resolve) => {
-    setTimeout(resolve, 50);
-  });
+  await afterAWhile();
 
   expect(stoppedWhenAsked).toEqual([[]]);
   expect(stopped).toEqual([]);
