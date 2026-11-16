@@ -306,6 +306,8 @@ pub(crate) struct Asked {
     pub(crate) audio: AskedAudio,
     pub(crate) subtitle: AskedSubtitle,
     pub(crate) limit: PickedLimit,
+    /// Where playing starts, in milliseconds, which a Remux's or a Transcode's ffmpeg starts at.
+    pub(crate) start_ms: i64,
     /// The Device's address, which says whether it's on the local network.
     pub(crate) client: IpAddr,
 }
@@ -356,6 +358,7 @@ pub(crate) async fn plan(
         audio,
         subtitle,
         limit,
+        start_ms,
         client,
     } = asked;
     let probe = match probing.current(version).await {
@@ -408,7 +411,7 @@ pub(crate) async fn plan(
             None => Ok(Some(Planned::Unplayable(plan))),
         };
     }
-    let started = running.start(caller, plan).await?;
+    let started = running.start(caller, plan, start_ms).await?;
     Ok(started.map(Planned::Started))
 }
 

@@ -95,14 +95,16 @@ pub(super) fn every_two_seconds() -> Timeline {
 /// Starts a Remux for the Device 7 whose ffmpeg writes nothing, and returns its id with the
 /// keyframes each run of ffmpeg started at.
 pub(super) async fn start_writing_nothing(plans: &RunningPlans) -> (u64, Arc<Mutex<Vec<usize>>>) {
-    start_method_writing_nothing(plans, Method::Remux, every_two_seconds()).await
+    start_method_writing_nothing(plans, Method::Remux, every_two_seconds(), 0).await
 }
 
-/// As [`start_writing_nothing`], for a plan by `method` cut as `timeline` says.
+/// As [`start_writing_nothing`], for a plan by `method` cut as `timeline` says, played from
+/// `start_ms`.
 pub(super) async fn start_method_writing_nothing(
     plans: &RunningPlans,
     method: Method,
     timeline: Timeline,
+    start_ms: i64,
 ) -> (u64, Arc<Mutex<Vec<usize>>>) {
     let starts = Arc::new(Mutex::new(vec![]));
     let started = Arc::clone(&starts);
@@ -118,6 +120,7 @@ pub(super) async fn start_method_writing_nothing(
             playback(7),
             method,
             timeline,
+            start_ms,
             Runs {
                 run: Box::new(run),
                 fallback: None,
@@ -148,7 +151,7 @@ async fn another_devices_transcodes_fill_the_cap_until_one_stops_and_remuxes_nev
     let plans = running_plans(data.path()).await;
     let transcode = || {
         let timeline = every_two_seconds();
-        start_method_writing_nothing(&plans, Method::Transcode, timeline)
+        start_method_writing_nothing(&plans, Method::Transcode, timeline, 0)
     };
     let (first, _) = transcode().await;
     start_writing_nothing(&plans).await;
@@ -174,7 +177,7 @@ async fn a_device_leaves_only_one_of_its_own_transcodes_out_of_the_count() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
     for _ in 0..3 {
-        start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
+        start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds(), 0).await;
     }
 
     assert_eq!(plans.transcodes_full(7, 2), Some(2));
@@ -190,7 +193,7 @@ async fn transcodes_are_full_once_as_many_as_the_cap_run() {
         settings(&db, data.path().join("transcodes")).playback(),
     );
     for _ in 0..2 {
-        start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
+        start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds(), 0).await;
     }
 
     assert_eq!(plans.transcodes_full(8, u32::MAX), None);
@@ -205,6 +208,7 @@ async fn start_sleeping(plans: &RunningPlans, device: i64) -> u64 {
             playback(device),
             Method::Remux,
             every_two_seconds(),
+            0,
             Runs {
                 run: Box::new(|_: &Path, _: Keyframe| {
                     tokio::process::Command::new("sleep")
@@ -469,9 +473,9 @@ async fn a_version_being_deleted_starts_no_plan_until_it_is_gone() {
     let plans = running_plans(data.path()).await;
     let deleting = plans.end_for_deleting(&[4]).await;
 
-    let while_deleting = plans.start(&ripley(), direct_play_of(4)).await.unwrap();
+    let while_deleting = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
     drop(deleting);
-    let after = plans.start(&ripley(), direct_play_of(4)).await.unwrap();
+    let after = plans.start(&ripley(), direct_play_of(4), 0).await.unwrap();
 
     assert!(while_deleting.is_none());
     assert!(after.is_some());

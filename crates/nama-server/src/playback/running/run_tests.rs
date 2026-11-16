@@ -12,7 +12,7 @@ use futures_util::StreamExt;
 use nama_proto::nama::v1::{Playback, PlaybackChanged, PlaybackEnded, PlaybackReasonKind};
 
 use super::super::{
-    lock,
+    RunningPlans, lock,
     tests::{
         database, event_bus, every_two_seconds, hls, only_reason, plans_in, plans_with, playback,
         running_plans, settings, start_method_writing_nothing, start_writing_nothing,
@@ -33,7 +33,7 @@ async fn seeking_a_transcode_past_the_segment_ffmpeg_is_on_restarts_it_there() {
     let plans = running_plans(data.path()).await;
     let every_six_seconds = Timeline::new((0..167).map(|n| n * 6000).collect(), 1_000_000);
     let (id, starts) =
-        start_method_writing_nothing(&plans, Method::Transcode, every_six_seconds).await;
+        start_method_writing_nothing(&plans, Method::Transcode, every_six_seconds, 0).await;
     let plan = hls(&plans, id, 7);
 
     // A Remux would wait for this, 18 seconds on.
@@ -93,6 +93,65 @@ async fn seeking_past_what_ffmpeg_has_written_restarts_it_at_the_segment_asked_f
     write_keyframes(data.path(), id, 399..402);
     let segment = answer(eighty_percent).await.unwrap().unwrap();
     assert_eq!(segment, b"399400401");
+}
+
+/// Starts a Remux like [`start_writing_nothing`]'s, played from 800.5 seconds: in segment 133,
+/// which keyframes 399 to 401 make, past keyframe 400.
+async fn resume_writing_nothing(plans: &RunningPlans) -> (u64, Arc<Mutex<Vec<usize>>>) {
+    start_method_writing_nothing(plans, Method::Remux, every_two_seconds(), 800_500).await
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_resumed_plan_runs_ffmpeg_once_from_the_first_keyframe_of_the_segment_resumed_in() {
+    let data = tempfile::tempdir().unwrap();
+    let plans = running_plans(data.path()).await;
+    let (id, starts) = resume_writing_nothing(&plans).await;
+    let plan = hls(&plans, id, 7);
+    let (first, second) = (Arc::clone(&plan), plan);
+
+    let both = tokio::spawn(async move { tokio::join!(first.segment(133), second.segment(134)) });
+
+    assert_eq!(until_started(&starts, 1).await, [399]);
+    write_keyframes(data.path(), id, 399..405);
+    let (resumed_in, after) = answer(both).await;
+    assert_eq!(resumed_in.unwrap().unwrap(), b"399400401");
+    assert_eq!(after.unwrap().unwrap(), b"402403404");
+    assert_eq!(*lock(&starts), [399]);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_init_segment_of_a_resumed_plan_is_served_once_ffmpeg_has_written_its_first_file() {
+    let data = tempfile::tempdir().unwrap();
+    let plans = running_plans(data.path()).await;
+    let (id, starts) = resume_writing_nothing(&plans).await;
+    let plan = hls(&plans, id, 7);
+    let dir = plan.dir.clone();
+
+    let init = tokio::spawn(async move { plan.init().await });
+
+    tokio::time::sleep(POLL_EVERY * 3).await;
+    assert!(!init.is_finished());
+    fs::write(dir.join(hls_init(399)), "init").unwrap();
+    write_keyframes(data.path(), id, 399..400);
+    assert_eq!(answer(init).await.unwrap().unwrap(), b"init");
+    assert_eq!(*lock(&starts), [399]);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn seeking_back_before_where_a_plan_resumed_restarts_ffmpeg_there_and_is_served() {
+    let data = tempfile::tempdir().unwrap();
+    let plans = running_plans(data.path()).await;
+    let (id, starts) = resume_writing_nothing(&plans).await;
+    let plan = hls(&plans, id, 7);
+
+    let back = tokio::spawn(async move { plan.segment(10).await });
+
+    assert_eq!(until_started(&starts, 2).await, [399, 30]);
+    write_keyframes(data.path(), id, 30..33);
+    assert_eq!(answer(back).await.unwrap().unwrap(), b"303132");
 }
 
 #[cfg(unix)]
@@ -156,6 +215,7 @@ async fn a_restart_that_fails_leaves_the_next_request_to_start_ffmpeg_again() {
             playback(7),
             Method::Remux,
             every_two_seconds(),
+            0,
             Runs {
                 run: Box::new(second_fails),
                 fallback: None,
@@ -538,6 +598,7 @@ async fn a_fallback_starts_where_the_failed_run_stopped_writing_though_its_start
             playback(7),
             Method::Transcode,
             every_two_seconds(),
+            0,
             Runs {
                 run: Box::new(hardware),
                 fallback: Some(FallbackRun {
@@ -599,6 +660,7 @@ async fn a_transcode_whose_hardware_fails_carries_on_in_software_and_says_so() {
             started,
             Method::Transcode,
             every_two_seconds(),
+            0,
             Runs {
                 run: Box::new(hardware),
                 fallback: Some(FallbackRun {
