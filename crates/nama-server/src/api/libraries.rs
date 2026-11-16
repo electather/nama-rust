@@ -4,6 +4,7 @@ use std::{collections::HashMap, path::Path};
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use nama_plugin_api::{PluginId, PointKey, recogniser::Recogniser};
 use nama_proto::nama::v1::{
     self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
     DeleteLibraryResponse, DeleteMediaRequest, DeleteMediaResponse, EpisodeTakenAlong,
@@ -19,8 +20,9 @@ use crate::{
     library::artwork,
     library::contents::{Contents, Episode, NewestBackdrop},
     library::custom_images::{Role, Slot},
-    library::libraries::{self, FolderProblem, Kind, Libraries, Library},
+    library::libraries::{self, FolderProblem, Kind, Libraries, Library, Order},
     library::title_source::TitleSources,
+    plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
     scanner::{self, Deleted, Scanner},
 };
@@ -47,6 +49,8 @@ pub(super) struct LibraryServiceHandler {
     pub(super) title_sources: TitleSources,
     /// Names the Plugins serving them.
     pub(super) plugins: ExtensionPoints,
+    /// Says which Plugins a Library may list as Recognisers.
+    pub(super) plugin_settings: PluginSettings,
 }
 
 /// What each Library is shown by: see [`Backdrops::of`].
@@ -78,6 +82,33 @@ impl LibraryServiceHandler {
                 .field("title_sources")
                 .into(),
         )
+    }
+
+    /// Refuses Recogniser `ids`, sent in the request field `field`, that name an id twice or of
+    /// no Plugin the Server has whose Manifest names the Recogniser point.
+    async fn check_recognisers(&self, ids: &[String], field: &str) -> Result<(), ConnectError> {
+        for (seen, id) in (1..).zip(ids) {
+            let repeated = ids.iter().take(seen).filter(|other| *other == id).count() > 1;
+            // A stored order is comma-separated.
+            if repeated || id.contains(',') || !self.is_recogniser(id).await? {
+                let message = format!("{id:?} is no Recogniser's Plugin, or is named twice");
+                let refused = refuse(RefusalReason::REFUSAL_REASON_RECOGNISERS_INVALID, message);
+                return Err(refused.field(field).param("pluginId", id).into());
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether the Plugin `id`, enabled or not, says in its Manifest it serves the Recogniser
+    /// point.
+    async fn is_recogniser(&self, id: &str) -> Result<bool, ConnectError> {
+        let plugin = PluginId::from(id.to_owned());
+        let stored = (self.plugin_settings.get(&plugin).await).map_err(database_failed)?;
+        let point = PointKey::provide::<dyn Recogniser>();
+        Ok(stored.is_some_and(|stored| {
+            (stored.plugin.manifest)
+                .is_ok_and(|manifest| manifest.extension_points.contains(&point))
+        }))
     }
 }
 
@@ -117,9 +148,13 @@ impl LibraryService for LibraryServiceHandler {
         let request = request.to_owned_message();
         let kind = kind_from_proto(request.kind)?;
         self.check_searches(&request.title_sources).await?;
-        let library = self
-            .scanner
-            .create_library(request.name, kind, request.folders, request.title_sources)
+        (self.check_recognisers(&request.recogniser_ids, "recogniser_ids")).await?;
+        let order = Order {
+            title_sources: request.title_sources,
+            recognisers: Some(request.recogniser_ids),
+        };
+        let library = (self.scanner)
+            .create_library(request.name, kind, request.folders, order)
             .await?;
         let backdrops = self.backdrops().await?;
         Response::ok(CreateLibraryResponse {
@@ -177,14 +212,19 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<UpdateLibraryResponse> {
         let request = request.to_owned_message();
         self.check_searches(&request.title_sources).await?;
-        let library = self
-            .scanner
-            .update_library(
-                request.id,
-                request.name,
-                request.folders,
-                request.title_sources,
-            )
+        let recognisers = request
+            .recogniser_order
+            .into_option()
+            .map(|order| order.ids);
+        if let Some(ids) = &recognisers {
+            self.check_recognisers(ids, "recogniser_order").await?;
+        }
+        let order = Order {
+            title_sources: request.title_sources,
+            recognisers,
+        };
+        let library = (self.scanner)
+            .update_library(request.id, request.name, request.folders, order)
             .await?;
         let backdrops = self.backdrops().await?;
         Response::ok(UpdateLibraryResponse {
@@ -446,6 +486,7 @@ fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
         backdrop_url,
         custom_backdrop,
         title_sources: library.title_sources,
+        recogniser_ids: library.recognisers,
         ..Default::default()
     }
 }

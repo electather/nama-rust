@@ -168,13 +168,20 @@ fn dark() -> TitleKey {
     }
 }
 
-/// What Matching finds for [`dark`] with a Recogniser answering `answers`.
-async fn dark_with(answers: Answers) -> (Result<String, Miss>, Asked) {
+/// What Matching finds for [`dark`] with a Recogniser answering `answers`, asking those of
+/// `listed`.
+async fn dark_listing(listed: &[&str], answers: Answers) -> (Result<String, Miss>, Asked) {
     let (plugins, asked) = enabled(answers);
     let metadata = TitleSources::new(plugins.extension_points());
-    let recognisers = Recognisers::new(plugins.extension_points());
+    let order: Vec<String> = listed.iter().map(|&id| id.to_owned()).collect();
+    let recognisers = Recognisers::new(plugins.extension_points()).in_order(&order);
     let found = sources::movie(&metadata, &recognisers, &dark(), &[]).await;
     (found.map(|movie| movie.title), asked)
+}
+
+/// [`dark_listing`] with the Recogniser listed.
+async fn dark_with(answers: Answers) -> (Result<String, Miss>, Asked) {
+    dark_listing(&["rr"], answers).await
 }
 
 #[tokio::test]
@@ -201,6 +208,25 @@ async fn a_recogniser_naming_an_id_no_source_serves_is_ignored() {
 }
 
 #[tokio::test]
+async fn a_recogniser_the_library_doesnt_list_isnt_asked() {
+    let (found, asked) = dark_listing(&["gone"], Answers::Names(&[("aa", "1")])).await;
+
+    assert!(
+        matches!(
+            found,
+            Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(_))))
+        ),
+        "{found:?}"
+    );
+    assert!(
+        asked
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_empty()
+    );
+}
+
+#[tokio::test]
 async fn a_recogniser_that_cant_tell_leaves_the_search_s_decision() {
     let (found, _) = dark_with(Answers::Names(&[])).await;
 
@@ -220,8 +246,11 @@ async fn match_dark_file(answers: Answers) -> (Summary, usize, Asked) {
     let media = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let library = fixture::movies_library(&db, media.path()).await;
-    Libraries::new(Arc::clone(&db))
-        .set_title_sources(library, vec!["aa".to_owned()])
+    let libraries = Libraries::new(Arc::clone(&db));
+    (libraries.set_title_sources(library, vec!["aa".to_owned()]))
+        .await
+        .unwrap();
+    (libraries.set_recognisers(library, vec!["rr".to_owned()]))
         .await
         .unwrap();
     let contents = Contents::new(Arc::clone(&db));

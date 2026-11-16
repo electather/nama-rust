@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT name, kind AS \"kind: Kind\", title_sources FROM libraries WHERE id = ?",
+  "query": "SELECT name, kind AS \"kind: Kind\", title_sources, recognisers FROM libraries\n               WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -35,6 +35,17 @@
             "name": "title_sources"
           }
         }
+      },
+      {
+        "name": "recognisers",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "recognisers"
+          }
+        }
       }
     ],
     "parameters": {
@@ -43,8 +54,9 @@
     "nullable": [
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "c1d2da5a65db947783dc68f7d26bd3d370f1f54e2679d512996414935f70c6c0"
+  "hash": "507df83b221f03033646b7786447a3f2ce91a8c098469f5314c65bbb7aa1847b"
 }

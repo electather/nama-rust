@@ -35,19 +35,20 @@ pub(super) struct Planned {
     pub(super) unread: Option<PathBuf>,
 }
 
-/// The changes `planned` makes, with each unread file's Items as the first Recogniser serving
-/// `recognise_file` proposes them, in the Admin's precedence. A file none proposes usable Items
-/// for stays unparsed. A file a Recogniser fails on is left out, so the next scan reads it again:
-/// a new file stays unstored, a changed one keeps its old record and a re-read one its old parser
-/// version. A scan calls it under the Library's scan lock, as Matching asks title sources.
+/// The changes `planned` makes to a Library of `kind`, with each unread file's Items as the first
+/// of the enabled Recognisers in the Library's `order` serving `recognise_file` proposes them. A
+/// file none proposes usable Items for stays unparsed. A file a Recogniser fails on is left out,
+/// so the next scan reads it again: a new file stays unstored, a changed one keeps its old record
+/// and a re-read one its old parser version. A scan calls it under the Library's scan lock, as
+/// Matching asks title sources.
 pub(super) async fn recognise(
     plugins: &ExtensionPoints,
     kind: Kind,
+    order: &[String],
     planned: Vec<Planned>,
     cancel: &CancellationToken,
 ) -> Result<Vec<Change>, Error> {
-    // ponytail: asks in the Admin's precedence; a Library's own order of Recognisers comes later.
-    let recognisers = plugins.ranked::<dyn Recogniser>();
+    let recognisers = listed(plugins, order);
     let mut changes = Vec::with_capacity(planned.len());
     for Planned { mut change, unread } in planned {
         let Some(relative) = unread.filter(|_| !recognisers.is_empty()) else {
@@ -67,6 +68,14 @@ pub(super) async fn recognise(
         }
     }
     Ok(changes)
+}
+
+/// Those of `order` that are enabled Recognisers, in its order.
+pub(super) fn listed(plugins: &ExtensionPoints, order: &[String]) -> Vec<PluginId> {
+    let enabled = plugins.providers::<dyn Recogniser>();
+    (order.iter().map(|id| PluginId::from(id.clone())))
+        .filter(|id| enabled.contains(id))
+        .collect()
 }
 
 /// The Items the first of `recognisers` to propose usable ones gives the file at `relative`, or

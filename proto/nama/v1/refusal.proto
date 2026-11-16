@@ -237,4 +237,8 @@ enum RefusalReason {
   // `invalid_argument`: a Library's title sources name a namespace that isn't lowercase ASCII
   // letters and digits, or name one twice. `field` is `title_sources`. Params: `namespace`.
   REFUSAL_REASON_TITLE_SOURCES_INVALID = 73;
+  // `invalid_argument`: a Library's Recognisers name an id of no Plugin with
+  // `EXTENSION_POINT_RECOGNISER`, or name one twice. `field` is `recogniser_ids` or
+  // `recogniser_order`. Params: `pluginId`.
+  REFUSAL_REASON_RECOGNISERS_INVALID = 74;
 }

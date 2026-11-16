@@ -362,6 +362,7 @@ mod tests {
                     folders: vec![self.path("")],
                     read_only: Vec::new(),
                     title_sources: vec!["tmdb".to_owned()],
+                    recognisers: Vec::new(),
                 },
                 title: "Title".to_owned(),
                 to_unmonitor: None,

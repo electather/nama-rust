@@ -165,6 +165,7 @@ pub(crate) fn router(
             images,
             title_sources: TitleSources::new(plugins.clone()),
             plugins,
+            plugin_settings: plugin_settings.clone(),
         }))
         .add_service(Arc::new(EventServiceHandler {
             events,
@@ -568,7 +569,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_UNKNOWN_LANGUAGE
         | R::REFUSAL_REASON_FOREIGN_AUDIO_ONLY_NOT_FULL
         | R::REFUSAL_REASON_TITLE_ID_MALFORMED
-        | R::REFUSAL_REASON_TITLE_SOURCES_INVALID => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_TITLE_SOURCES_INVALID
+        | R::REFUSAL_REASON_RECOGNISERS_INVALID => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD

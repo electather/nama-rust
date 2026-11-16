@@ -13,6 +13,7 @@ use nama_plugin_api::{
     metadata::TitleSource,
     notifier::Notifier,
     points::{Events, ServerStarted},
+    recogniser::Recogniser,
     settings::{self, SettingField, Settings, SettingsError},
 };
 use nama_proto::nama::v1::{
@@ -547,6 +548,10 @@ fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::Extens
         (
             PointKey::observe::<ServerStarted>(),
             Public::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
+        ),
+        (
+            PointKey::provide::<dyn Recogniser>(),
+            Public::EXTENSION_POINT_RECOGNISER,
         ),
     ];
     points

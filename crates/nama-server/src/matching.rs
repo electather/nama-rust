@@ -380,13 +380,15 @@ impl Matcher {
         cancel: &CancellationToken,
     ) -> Result<Summary, Error> {
         let library = scan.library();
-        let (order, folders) = match self.libraries.get(library).await {
-            Ok(found) => (found.title_sources, found.folders),
+        let (this, folders) = match self.libraries.get(library).await {
+            Ok(found) => (
+                self.in_order(found.title_sources, &found.recognisers),
+                found.folders,
+            ),
             Err(libraries::Error::Database(err)) => return Err(err.into()),
             // The only other failure of a read is the Library being gone, with nothing to Match.
             Err(_) => return Ok(Summary::default()),
         };
-        let this = self.in_order(order);
         let Pending {
             movies,
             shows,
@@ -537,10 +539,12 @@ impl Matcher {
         Ok(outdated)
     }
 
-    /// This Matcher, asking only the title sources whose namespace is in `order`, in that order.
-    fn in_order(&self, order: Vec<String>) -> Self {
+    /// This Matcher, asking only the title sources whose namespace is in `order`, and the enabled
+    /// Recognisers whose Plugin id is in `recognisers`, each in its order.
+    fn in_order(&self, order: Vec<String>, recognisers: &[String]) -> Self {
         Self {
             metadata: self.metadata.in_order(order),
+            recognisers: self.recognisers.in_order(recognisers),
             ..self.clone()
         }
     }

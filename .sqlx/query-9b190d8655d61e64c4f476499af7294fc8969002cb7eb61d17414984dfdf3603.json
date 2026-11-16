@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "UPDATE libraries SET name = ? WHERE id = ?\n           RETURNING kind AS \"kind: Kind\", title_sources",
+  "query": "UPDATE libraries SET name = ? WHERE id = ?\n           RETURNING kind AS \"kind: Kind\", title_sources, recognisers",
   "describe": {
     "columns": [
       {
@@ -24,6 +24,17 @@
             "name": "title_sources"
           }
         }
+      },
+      {
+        "name": "recognisers",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "libraries",
+            "name": "recognisers"
+          }
+        }
       }
     ],
     "parameters": {
@@ -31,8 +42,9 @@
     },
     "nullable": [
       false,
+      false,
       false
     ]
   },
-  "hash": "15bcee94253bc2096e57dee2d04952c861a4d57d7c5be15987c065acb15f8fb7"
+  "hash": "9b190d8655d61e64c4f476499af7294fc8969002cb7eb61d17414984dfdf3603"
 }

@@ -58,7 +58,7 @@ use crate::{
     library::artwork::Artwork,
     library::contents::{Change, Contents, Stored},
     library::custom_images::CustomImages,
-    library::libraries::{self, Kind, Libraries, Library},
+    library::libraries::{self, Kind, Libraries, Library, Order},
     library::scan_locks::{ScanLock, ScanLocks},
     library::versions::PARSER_VERSION,
     matching::{self, Matcher, count},
@@ -229,46 +229,46 @@ impl Scanner {
         }
     }
 
-    /// Creates a Library searching `title_sources` in order, or TMDB alone if it names none, and
-    /// watches its folders. The watch follows even if the caller stops waiting (ADR 0029);
-    /// scanning the new Library is left to the caller.
+    /// Creates a Library asking its Plugins in `order`, and watches its folders. The watch follows
+    /// even if the caller stops waiting (ADR 0029); scanning the new Library is left to the
+    /// caller.
     pub(crate) async fn create_library(
         &self,
         name: String,
         kind: Kind,
         folders: Vec<String>,
-        title_sources: Vec<String>,
+        order: Order,
     ) -> Result<Library, libraries::Error> {
         let scanner = self.clone();
         detached(async move {
             let libraries = &scanner.inner.libraries;
-            if !title_sources.is_empty() {
-                libraries::check_title_sources(&title_sources)?;
+            if !order.title_sources.is_empty() {
+                libraries::check_title_sources(&order.title_sources)?;
             }
-            let library = (libraries.create_in_order(&name, kind, folders, title_sources)).await?;
+            let library = (libraries.create_in_order(&name, kind, folders, order)).await?;
             scanner.rewatch().await;
             Ok(library)
         })
         .await
     }
 
-    /// Renames the Library `id`, replaces its folders and, unless `title_sources` is empty, the
-    /// order of its title sources, then watches its new folders and not its old ones, even if the
-    /// caller stops waiting (ADR 0029). A new order doesn't Match its titles again.
+    /// Renames the Library `id`, replaces its folders and whichever of its orders `order` gives,
+    /// then watches its new folders and not its old ones, even if the caller stops waiting (ADR
+    /// 0029). A new order doesn't Match its titles again.
     pub(crate) async fn update_library(
         &self,
         id: i64,
         name: String,
         folders: Vec<String>,
-        title_sources: Vec<String>,
+        order: Order,
     ) -> Result<Library, libraries::Error> {
         let scanner = self.clone();
         detached(async move {
             let libraries = &scanner.inner.libraries;
-            if !title_sources.is_empty() {
-                libraries::check_title_sources(&title_sources)?;
+            if !order.title_sources.is_empty() {
+                libraries::check_title_sources(&order.title_sources)?;
             }
-            let library = libraries.update(id, &name, folders, title_sources).await?;
+            let library = libraries.update(id, &name, folders, order).await?;
             scanner.rewatch().await;
             Ok(library)
         })
@@ -508,6 +508,10 @@ impl Scanner {
         });
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one scan's steps in the order they run; split, it would be read in pieces"
+    )]
     async fn scan_locked(&self, scan: &ScanLock) -> Result<Summary, Error> {
         let id = scan.library();
         let cancel = self.inner.cancel.clone();
@@ -524,7 +528,8 @@ impl Scanner {
             self.inner.libraries.set_read_only(id, read_only).await?;
         }
         let (planned, summary) = plan(library.kind, stored, found);
-        let changes = recognise(&self.inner.plugins, library.kind, planned, &cancel).await?;
+        let order = &library.recognisers;
+        let changes = recognise(&self.inner.plugins, library.kind, order, planned, &cancel).await?;
         let files_total = count(changes.len());
         let mut files_done = 0;
         let mut changes = changes.into_iter();
@@ -831,7 +836,7 @@ mod tests {
         library::artwork::Artwork,
         library::contents::{Contents, File, Item, Version},
         library::custom_images::CustomImages,
-        library::libraries::{self, Kind, Libraries},
+        library::libraries::{self, Kind, Libraries, Order},
         playback::subtitles,
         plugins::ExtensionPoints,
         probing::Probing,
@@ -1408,7 +1413,7 @@ mod tests {
                 "More".to_owned(),
                 Kind::Shows,
                 vec![first.to_str().unwrap().to_owned()],
-                Vec::new(),
+                Order::default(),
             )
             .await
             .unwrap();
@@ -1423,7 +1428,7 @@ mod tests {
                 created.id,
                 "More".to_owned(),
                 vec![second.to_str().unwrap().to_owned()],
-                Vec::new(),
+                Order::default(),
             )
             .await
             .unwrap();
@@ -1445,7 +1450,12 @@ mod tests {
         watch(&media).await;
         let created = media
             .scanner
-            .create_library("Inner".to_owned(), Kind::Shows, vec![inner], Vec::new())
+            .create_library(
+                "Inner".to_owned(),
+                Kind::Shows,
+                vec![inner],
+                Order::default(),
+            )
             .await
             .unwrap();
 

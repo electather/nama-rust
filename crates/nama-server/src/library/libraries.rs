@@ -34,6 +34,20 @@ pub(crate) struct Library {
     /// The namespaces of the title sources its titles are searched and Matched with, first
     /// asked first.
     pub(crate) title_sources: Vec<String>,
+    /// The ids of the Plugins whose Recognisers it asks, first asked first; none asks only the
+    /// Kernel's own Matching (ADR 0050).
+    pub(crate) recognisers: Vec<String>,
+}
+
+/// The orders a Library asks its Plugins in, as a create or an update gives them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Order {
+    /// Title source namespaces, first asked first; empty keeps the stored order, or TMDB alone
+    /// for a new Library.
+    pub(crate) title_sources: Vec<String>,
+    /// Recogniser Plugin ids, first asked first; `None` keeps the stored order, or none for a
+    /// new Library. The caller checks each names a Recogniser.
+    pub(crate) recognisers: Option<Vec<String>>,
 }
 
 /// Why a change to the Libraries was refused or failed.
@@ -102,25 +116,24 @@ impl Libraries {
         kind: Kind,
         folders: Vec<String>,
     ) -> Result<Library, Error> {
-        self.create_in_order(name, kind, folders, Vec::new()).await
+        (self.create_in_order(name, kind, folders, Order::default())).await
     }
 
-    /// Creates a Library searching `title_sources` in order, or TMDB alone if it names none, in
-    /// one write.
+    /// Creates a Library asking its Plugins in `order`, in one write.
     pub(crate) async fn create_in_order(
         &self,
         name: &str,
         kind: Kind,
         folders: Vec<String>,
-        title_sources: Vec<String>,
+        order: Order,
     ) -> Result<Library, Error> {
         let name = check_name(name)?;
         let folders = check_folders(folders).await?;
-        if !title_sources.is_empty() {
-            check_title_sources(&title_sources)?;
+        if !order.title_sources.is_empty() {
+            check_title_sources(&order.title_sources)?;
         }
         self.db
-            .write(move |tx| Box::pin(create(tx, name, kind, folders, title_sources)))
+            .write(move |tx| Box::pin(create(tx, name, kind, folders, order)))
             .await
     }
 
@@ -128,8 +141,8 @@ impl Libraries {
     pub(crate) async fn list(&self) -> Result<Vec<Library>, Error> {
         let mut tx = self.db.reader().begin().await?;
         let rows = sqlx::query!(
-            r#"SELECT id AS "id!", name, kind AS "kind: Kind", title_sources FROM libraries
-               ORDER BY id"#
+            r#"SELECT id AS "id!", name, kind AS "kind: Kind", title_sources, recognisers
+               FROM libraries ORDER BY id"#
         )
         .fetch_all(&mut *tx)
         .await?;
@@ -161,6 +174,7 @@ impl Libraries {
                 name: row.name,
                 kind: row.kind,
                 title_sources: split_sources(&row.title_sources),
+                recognisers: split_recognisers(&row.recognisers),
             })
             .collect())
     }
@@ -168,7 +182,8 @@ impl Libraries {
     pub(crate) async fn get(&self, id: i64) -> Result<Library, Error> {
         let mut tx = self.db.reader().begin().await?;
         let row = sqlx::query!(
-            r#"SELECT name, kind AS "kind: Kind", title_sources FROM libraries WHERE id = ?"#,
+            r#"SELECT name, kind AS "kind: Kind", title_sources, recognisers FROM libraries
+               WHERE id = ?"#,
             id
         )
         .fetch_optional(&mut *tx)
@@ -192,6 +207,7 @@ impl Libraries {
             folders: rows.into_iter().map(|folder| folder.path).collect(),
             read_only,
             title_sources: split_sources(&row.title_sources),
+            recognisers: split_recognisers(&row.recognisers),
         })
     }
 
@@ -213,22 +229,31 @@ impl Libraries {
             .await
     }
 
-    /// Renames the Library, replaces its folders and, unless `title_sources` is empty, the order
-    /// of its title sources, in one write; its kind can't change.
+    /// Sets the order of the Library `id`'s Recognisers, by Plugin id.
+    #[cfg(test)]
+    pub(crate) async fn set_recognisers(&self, id: i64, order: Vec<String>) -> Result<(), Error> {
+        let order = order.join(",");
+        self.db
+            .write(move |tx| Box::pin(set_recognisers(tx, id, order)))
+            .await
+    }
+
+    /// Renames the Library, replaces its folders and whichever of its orders `order` gives, in
+    /// one write; its kind can't change.
     pub(crate) async fn update(
         &self,
         id: i64,
         name: &str,
         folders: Vec<String>,
-        title_sources: Vec<String>,
+        order: Order,
     ) -> Result<Library, Error> {
         let name = check_name(name)?;
         let folders = check_folders(folders).await?;
-        if !title_sources.is_empty() {
-            check_title_sources(&title_sources)?;
+        if !order.title_sources.is_empty() {
+            check_title_sources(&order.title_sources)?;
         }
         self.db
-            .write(move |tx| Box::pin(update(tx, id, name, folders, title_sources)))
+            .write(move |tx| Box::pin(update(tx, id, name, folders, order)))
             .await
     }
 
@@ -238,15 +263,19 @@ impl Libraries {
     }
 }
 
-/// `name`, `folders` and `title_sources` must already be checked; an empty `title_sources` keeps
-/// the column's default.
+/// `name`, `folders` and `order` must already be checked; what `order` leaves empty keeps the
+/// column's default.
 async fn create(
     conn: &mut SqliteConnection,
     name: String,
     kind: Kind,
     folders: Vec<String>,
-    mut title_sources: Vec<String>,
+    order: Order,
 ) -> Result<Library, Error> {
+    let Order {
+        mut title_sources,
+        recognisers,
+    } = order;
     ensure_folders_free(conn, &folders, None).await?;
     let id = sqlx::query_scalar!(
         r#"INSERT INTO libraries (name, kind) VALUES (?, ?) RETURNING id AS "id!""#,
@@ -261,6 +290,10 @@ async fn create(
     } else {
         set_title_sources(conn, id, title_sources.join(",")).await?;
     }
+    let recognisers = recognisers.unwrap_or_default();
+    if !recognisers.is_empty() {
+        set_recognisers(conn, id, recognisers.join(",")).await?;
+    }
     Ok(Library {
         id,
         name,
@@ -268,21 +301,26 @@ async fn create(
         folders,
         read_only: Vec::new(),
         title_sources,
+        recognisers,
     })
 }
 
-/// `name`, `folders` and `title_sources` must already be checked; an empty `title_sources` keeps
-/// the stored order.
+/// `name`, `folders` and `order` must already be checked; what `order` leaves out keeps the
+/// stored order.
 async fn update(
     conn: &mut SqliteConnection,
     id: i64,
     name: String,
     folders: Vec<String>,
-    title_sources: Vec<String>,
+    order: Order,
 ) -> Result<Library, Error> {
+    let Order {
+        title_sources,
+        recognisers,
+    } = order;
     let row = sqlx::query!(
         r#"UPDATE libraries SET name = ? WHERE id = ?
-           RETURNING kind AS "kind: Kind", title_sources"#,
+           RETURNING kind AS "kind: Kind", title_sources, recognisers"#,
         name,
         id,
     )
@@ -312,6 +350,13 @@ async fn update(
         set_title_sources(conn, id, title_sources.join(",")).await?;
         title_sources
     };
+    let recognisers = match recognisers {
+        Some(recognisers) => {
+            set_recognisers(conn, id, recognisers.join(",")).await?;
+            recognisers
+        }
+        None => split_recognisers(&row.recognisers),
+    };
     Ok(Library {
         id,
         name,
@@ -319,6 +364,7 @@ async fn update(
         folders,
         read_only,
         title_sources,
+        recognisers,
     })
 }
 
@@ -375,6 +421,21 @@ async fn set_title_sources(
     Ok(())
 }
 
+/// `order` must be Plugin ids joined with commas, none if empty.
+async fn set_recognisers(conn: &mut SqliteConnection, id: i64, order: String) -> Result<(), Error> {
+    let updated = sqlx::query!(
+        "UPDATE libraries SET recognisers = ? WHERE id = ?",
+        order,
+        id
+    )
+    .execute(&mut *conn)
+    .await?;
+    if updated.rows_affected() == 0 {
+        return Err(Error::NotFound(id));
+    }
+    Ok(())
+}
+
 /// Fails unless `order` is one or more namespaces by `ExternalId`'s rule, each named once, as
 /// [`Libraries::set_title_sources`] needs, so a caller can check before it changes anything else.
 pub(crate) fn check_title_sources(order: &[String]) -> Result<(), Error> {
@@ -400,6 +461,14 @@ pub(crate) fn check_title_sources(order: &[String]) -> Result<(), Error> {
 /// The stored, comma-separated `title_sources`, as a list. A well-formed namespace has no comma.
 fn split_sources(stored: &str) -> Vec<String> {
     stored.split(',').map(str::to_owned).collect()
+}
+
+/// The stored, comma-separated `recognisers`, as a list; empty names none. A Plugin id has no
+/// comma.
+fn split_recognisers(stored: &str) -> Vec<String> {
+    (stored.split(',').filter(|id| !id.is_empty()))
+        .map(str::to_owned)
+        .collect()
 }
 
 fn check_name(name: &str) -> Result<String, Error> {

@@ -290,6 +290,8 @@ enum ExtensionPoint {
   EXTENSION_POINT_EVENTS_OBSERVER = 7;
   // Observes the Server starting.
   EXTENSION_POINT_SERVER_STARTED_OBSERVER = 8;
+  // Proposes what a file is, which a Library lists to ask it (ADR 0050).
+  EXTENSION_POINT_RECOGNISER = 9;
 }
 
 // What kind of value a setting takes.

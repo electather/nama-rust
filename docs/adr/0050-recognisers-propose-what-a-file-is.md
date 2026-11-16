@@ -9,11 +9,14 @@ A Recogniser only proposes. The Kernel owns every Match, which Contents writes, 
 
 An empty answer means the Recogniser can't tell, and the Kernel asks the next one. A Recogniser that fails leaves the Item or file undecided for the next Scan, as a failing title source does (ADR 0044), so a Recogniser being down never stores an Unmatched it would have decided otherwise.
 
-The Kernel asks on a new or changed file, and once for a Library's Unmatched and unparsed files when its Recognisers change: one is enabled or the Library's order of them changes. Nothing else already matched is re-decided. Each Library holds its Recognisers in an order the Admin sets, stored and shown as its title source order is.
+The Kernel asks on a new or changed file, and once for a Library's Unmatched and unparsed files when its Recognisers change: one is enabled or the Library's order of them changes. Nothing else already matched is re-decided.
+
+Each Library holds its Recognisers in an order the Admin sets, stored and shown as its title source order is (ADR 0044): `libraries.recognisers` keeps the Plugin ids comma-separated, and the client API's `Library.recogniser_ids` sends them. The Kernel asks only the Recognisers a Library lists that are enabled, in its order; the Admin's precedence between Providers plays no part. A new Library lists none, and every Library from before keeps none, so an Admin lists a Recogniser on each Library that should use it: enabling one changes nothing until a Library names it. An update that leaves `recogniser_order` unset keeps the Library's order, and one that sets it with no ids clears it, so a client built before this keeps working. The Server refuses an id of no Plugin whose Manifest names the Recogniser point, or one named twice, with `REFUSAL_REASON_RECOGNISERS_INVALID`; `ListPlugins` marks the Plugins a Library may name with `EXTENSION_POINT_RECOGNISER`.
 
 ## Considered Options
 
 - **One Extension Point per level**, a title recogniser and a file recogniser: rejected. Both levels serve the same knowledge of a naming scheme, and optional methods on one point let a Plugin serve either or both, as a title source serves only some of its methods.
+- **One Server-wide order**, the Admin's precedence between Providers: rejected. A Recogniser for one naming scheme, such as anime's, would be asked about every Library's files, and an Admin couldn't keep it off a Library whose files it misreads.
 - **Recognisers writing Matches**: rejected. The Kernel would lose the one place that decides a Match and what is Unmatched, a pin could be overwritten, and a failing or wrong Recogniser could leave a Library in a state no Admin chose.
 
 ## Consequences
@@ -21,3 +24,4 @@ The Kernel asks on a new or changed file, and once for a Library's Unmatched and
 - The contract adds `RecogniserService` 1.0.0 and `CONTRACT_VERSION` takes a patch bump; a Plugin built before it is unaffected.
 - A Recogniser's title-level proposal is only as good as the Library's title sources: ids in a namespace none of them serves are ignored.
 - Files already matched stay as they are when a Recogniser is enabled; only Unmatched and unparsed files are asked again.
+- A Recogniser does nothing for a Library that doesn't list it, so a Plugin for anime names never touches a Movies Library the Admin keeps it off. A Library's order outlives its Plugins: an id whose Plugin is disabled or removed stays listed and is skipped until it comes back.

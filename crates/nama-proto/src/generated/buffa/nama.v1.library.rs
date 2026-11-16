@@ -244,6 +244,19 @@ pub struct Library {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub title_sources: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The ids of the Plugins whose Recognisers the Library asks what a file is, in order: the
+    /// first that proposes something wins (ADR 0050). None unless an Admin set it, which leaves the
+    /// Server's own Matching alone. `ListPlugins` lists the Plugins with
+    /// `EXTENSION_POINT_RECOGNISER` that may be named.
+    ///
+    /// Field 9: `recogniser_ids`
+    #[serde(
+        rename = "recogniserIds",
+        alias = "recogniser_ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub recogniser_ids: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -259,6 +272,7 @@ impl ::core::fmt::Debug for Library {
             .field("custom_backdrop", &self.custom_backdrop)
             .field("backdrop_thumbhash", &self.backdrop_thumbhash)
             .field("title_sources", &self.title_sources)
+            .field("recogniser_ids", &self.recogniser_ids)
             .finish()
     }
 }
@@ -338,6 +352,9 @@ impl ::buffa::Message for Library {
         for v in &self.title_sources {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.recogniser_ids {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -374,6 +391,9 @@ impl ::buffa::Message for Library {
         }
         for v in &self.title_sources {
             ::buffa::types::put_string_field(8u32, v, buf);
+        }
+        for v in &self.recogniser_ids {
+            ::buffa::types::put_string_field(9u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -462,6 +482,17 @@ impl ::buffa::Message for Library {
                 )?;
                 self.title_sources.push(__elem);
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.recogniser_ids.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -478,6 +509,7 @@ impl ::buffa::Message for Library {
         self.custom_backdrop = false;
         self.backdrop_thumbhash = ::core::option::Option::None;
         self.title_sources.clear();
+        self.recogniser_ids.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -552,6 +584,17 @@ pub struct CreateLibraryRequest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub title_sources: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The Library's `recogniser_ids`, each the id of a Plugin with `EXTENSION_POINT_RECOGNISER`,
+    /// named once. Empty names none.
+    ///
+    /// Field 5: `recogniser_ids`
+    #[serde(
+        rename = "recogniserIds",
+        alias = "recogniser_ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub recogniser_ids: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -563,6 +606,7 @@ impl ::core::fmt::Debug for CreateLibraryRequest {
             .field("kind", &self.kind)
             .field("folders", &self.folders)
             .field("title_sources", &self.title_sources)
+            .field("recogniser_ids", &self.recogniser_ids)
             .finish()
     }
 }
@@ -608,6 +652,9 @@ impl ::buffa::Message for CreateLibraryRequest {
         for v in &self.title_sources {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        for v in &self.recogniser_ids {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -632,6 +679,9 @@ impl ::buffa::Message for CreateLibraryRequest {
         }
         for v in &self.title_sources {
             ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        for v in &self.recogniser_ids {
+            ::buffa::types::put_string_field(5u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -682,6 +732,17 @@ impl ::buffa::Message for CreateLibraryRequest {
                 )?;
                 self.title_sources.push(__elem);
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.recogniser_ids.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -694,6 +755,7 @@ impl ::buffa::Message for CreateLibraryRequest {
         self.kind = ::buffa::EnumValue::from(0);
         self.folders.clear();
         self.title_sources.clear();
+        self.recogniser_ids.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1413,6 +1475,19 @@ pub struct UpdateLibraryRequest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub title_sources: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The new `recogniser_ids`, under the same rules as `CreateLibraryRequest.recogniser_ids`.
+    /// Unset keeps the Library's; set with no ids clears them.
+    ///
+    /// Field 5: `recogniser_order`
+    #[serde(
+        rename = "recogniserOrder",
+        alias = "recogniser_order",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub recogniser_order: ::buffa::MessageField<
+        RecogniserOrder,
+        ::buffa::Inline<RecogniserOrder>,
+    >,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -1424,6 +1499,7 @@ impl ::core::fmt::Debug for UpdateLibraryRequest {
             .field("name", &self.name)
             .field("folders", &self.folders)
             .field("title_sources", &self.title_sources)
+            .field("recogniser_order", &self.recogniser_order)
             .finish()
     }
 }
@@ -1450,7 +1526,7 @@ impl ::buffa::Message for UpdateLibraryRequest {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -1466,12 +1542,20 @@ impl ::buffa::Message for UpdateLibraryRequest {
         for v in &self.title_sources {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.recogniser_order.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.recogniser_order.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -1487,6 +1571,14 @@ impl ::buffa::Message for UpdateLibraryRequest {
         }
         for v in &self.title_sources {
             ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        if self.recogniser_order.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                5u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.recogniser_order.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1537,6 +1629,17 @@ impl ::buffa::Message for UpdateLibraryRequest {
                 )?;
                 self.title_sources.push(__elem);
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.recogniser_order.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -1549,6 +1652,7 @@ impl ::buffa::Message for UpdateLibraryRequest {
         self.name.clear();
         self.folders.clear();
         self.title_sources.clear();
+        self.recogniser_order = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1579,6 +1683,135 @@ pub const __UPDATE_LIBRARY_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntr
     type_url: "type.googleapis.com/nama.v1.UpdateLibraryRequest",
     to_json: ::buffa::type_registry::any_to_json::<UpdateLibraryRequest>,
     from_json: ::buffa::type_registry::any_from_json::<UpdateLibraryRequest>,
+    is_wkt: false,
+};
+/// A Library's `recogniser_ids` as an update sets them, so an empty list can be told from none.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct RecogniserOrder {
+    /// Field 1: `ids`
+    #[serde(
+        rename = "ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub ids: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for RecogniserOrder {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("RecogniserOrder").field("ids", &self.ids).finish()
+    }
+}
+impl RecogniserOrder {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RecogniserOrder";
+}
+::buffa::impl_default_instance!(RecogniserOrder);
+impl ::buffa::MessageName for RecogniserOrder {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "RecogniserOrder";
+    const FULL_NAME: &'static str = "nama.v1.RecogniserOrder";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.RecogniserOrder";
+}
+impl ::buffa::Message for RecogniserOrder {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.ids {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.ids {
+            ::buffa::types::put_string_field(1u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.ids.push(__elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.ids.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for RecogniserOrder {
+    const PROTO_FQN: &'static str = "nama.v1.RecogniserOrder";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for RecogniserOrder {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __RECOGNISER_ORDER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.RecogniserOrder",
+    to_json: ::buffa::type_registry::any_to_json::<RecogniserOrder>,
+    from_json: ::buffa::type_registry::any_from_json::<RecogniserOrder>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]

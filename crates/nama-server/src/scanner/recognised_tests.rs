@@ -8,7 +8,7 @@ use nama_plugin_api::{
 };
 use tokio_util::sync::CancellationToken;
 
-use super::{Planned, items, recognise};
+use super::{Planned, items, listed, recognise};
 use crate::{
     library::contents::{Change, Item},
     library::libraries::Kind,
@@ -86,9 +86,13 @@ impl Plugin for ProposingPlugin {
     }
 }
 
-/// What a scan of a Shows Library stores when a Recogniser answering as `answer` does is
-/// enabled: an unread new file, a parsed one and a removed one.
-async fn recognised_with(answer: fn() -> Option<FileRecognised>) -> Vec<Change> {
+/// What a scan of a Shows Library listing the Recognisers `listing` stores when a Recogniser
+/// answering as `answer` does is enabled as `proposing`: an unread new file, a parsed one and a
+/// removed one.
+async fn recognised_listing(
+    listing: &[&str],
+    answer: fn() -> Option<FileRecognised>,
+) -> Vec<Change> {
     let plugins = Registry::new();
     plugins.enable(Arc::new(ProposingPlugin(answer))).unwrap();
     let store = |path: &str, items: Vec<Item>| Change::Store {
@@ -111,10 +115,22 @@ async fn recognised_with(answer: fn() -> Option<FileRecognised>) -> Vec<Change> 
             unread: None,
         },
     ];
+    let order: Vec<String> = listing.iter().map(|&id| id.to_owned()).collect();
     let cancel = CancellationToken::new();
-    recognise(&plugins.extension_points(), Kind::Shows, planned, &cancel)
-        .await
-        .unwrap()
+    recognise(
+        &plugins.extension_points(),
+        Kind::Shows,
+        &order,
+        planned,
+        &cancel,
+    )
+    .await
+    .unwrap()
+}
+
+/// [`recognised_listing`] with the Library listing the Recogniser.
+async fn recognised_with(answer: fn() -> Option<FileRecognised>) -> Vec<Change> {
+    recognised_listing(&["proposing"], answer).await
 }
 
 /// The paths of the files `changes` stores, with their Items.
@@ -183,4 +199,28 @@ async fn a_recogniser_failure_drops_the_files_change_and_keeps_the_rest() {
         [("/media/Show/Show - S01E01.mkv", &[episode(1)][..])]
     );
     assert!(matches!(changes.last(), Some(Change::Remove(7))));
+}
+
+#[tokio::test]
+async fn a_library_not_listing_the_recogniser_leaves_the_file_unread() {
+    let changes = recognised_listing(&[], || Some(episodes([2]))).await;
+
+    assert_eq!(
+        stored(&changes),
+        [
+            ("/media/Show - 2.mkv", &[][..]),
+            ("/media/Show/Show - S01E01.mkv", &[episode(1)][..]),
+        ]
+    );
+}
+
+#[test]
+fn listed_keeps_the_librarys_order_of_enabled_recognisers_only() {
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(ProposingPlugin(|| None))).unwrap();
+    let order = ["gone", "proposing"].map(str::to_owned);
+
+    let listed = listed(&plugins.extension_points(), &order);
+
+    assert_eq!(listed, [PluginId::from_static("proposing")]);
 }

@@ -253,6 +253,7 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UPDATE_LIBRARY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RECOGNISER_ORDER_JSON_ANY);
         reg.register_json_any(super::__UPDATE_LIBRARY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_LIBRARY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_LIBRARY_RESPONSE_JSON_ANY);
@@ -1100,6 +1101,10 @@ pub use self::__buffa::view::GetLibraryResponseOwnedView;
 pub use self::__buffa::view::UpdateLibraryRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::UpdateLibraryRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RecogniserOrderView;
+#[doc(inline)]
+pub use self::__buffa::view::RecogniserOrderOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UpdateLibraryResponseView;
 #[doc(inline)]

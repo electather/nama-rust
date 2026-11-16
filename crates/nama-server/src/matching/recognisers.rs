@@ -1,6 +1,6 @@
-//! Asking the enabled Recognisers which title an Item names, once the title sources' search has
-//! decided (ADR 0050's title level). A Recogniser only proposes ids; Matching fetches the title
-//! they name from the Library's title sources, as it does an ID Hint's.
+//! Asking the enabled Recognisers a Library lists which title an Item names, once the title
+//! sources' search has decided (ADR 0050's title level). A Recogniser only proposes ids; Matching
+//! fetches the title they name from the Library's title sources, as it does an ID Hint's.
 
 use std::{ffi::OsStr, path::Path, sync::Arc};
 
@@ -17,10 +17,12 @@ use crate::{
     plugins::{Answer, ExtensionPoints},
 };
 
-/// The enabled Recognisers.
+/// The enabled Recognisers a Library lists.
 #[derive(Debug, Clone, Default)]
 pub(super) struct Recognisers {
     plugins: ExtensionPoints,
+    /// The Plugins asked, first asked first: none until [`Recognisers::in_order`] gives some.
+    order: Vec<PluginId>,
 }
 
 /// What a search for an Item's title found, which the Recognisers are asked about.
@@ -49,24 +51,35 @@ pub(super) struct Recognised {
 
 impl Recognisers {
     pub(super) const fn new(plugins: ExtensionPoints) -> Self {
-        Self { plugins }
+        Self {
+            plugins,
+            order: Vec::new(),
+        }
     }
 
-    /// The title the first Recogniser to name one by an id `metadata`'s sources serve names, or
-    /// `None` when none can tell. Ids no source keeps or looks titles up by are ignored.
+    /// These Recognisers asking those of the Plugins `order` names that are enabled, in its
+    /// order, as a Library's `recognisers` lists them.
+    pub(super) fn in_order(&self, order: &[String]) -> Self {
+        Self {
+            plugins: self.plugins.clone(),
+            order: order.iter().map(|id| PluginId::from(id.clone())).collect(),
+        }
+    }
+
+    /// The title the first Recogniser in order to name one by an id `metadata`'s sources serve
+    /// names, or `None` when none can tell. Ids no source keeps or looks titles up by are ignored.
     ///
     /// # Errors
     ///
     /// [`Miss::Undecided`] when a Recogniser fails, so the next scan asks again.
-    // ponytail: asks in Admin precedence; each Library's own order comes later (ADR 0050).
     pub(super) async fn recognise(
         &self,
         metadata: &TitleSources,
         searched: &Searched<'_>,
     ) -> Result<Option<Recognised>, Miss> {
         let asked = &searched.asked();
-        for plugin in self.plugins.ranked::<dyn Recogniser>() {
-            let Some(named) = self.ask(&plugin, asked).await? else {
+        for plugin in &self.order {
+            let Some(named) = self.ask(plugin, asked).await? else {
                 continue;
             };
             if let Some(recognised) = served(metadata, searched.kind, named).await {
@@ -105,7 +118,7 @@ impl Recognisers {
                 tracing::warn!(%plugin, error = failure.message, "the Recogniser failed");
                 Err(Miss::Undecided)
             }
-            // Disabled since it was ranked, or it panicked, which disabled it.
+            // Not enabled, not a Recogniser, or it panicked, which disabled it.
             None => Ok(None),
         }
     }

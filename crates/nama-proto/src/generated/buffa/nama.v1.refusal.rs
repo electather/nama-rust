@@ -205,6 +205,10 @@ pub enum RefusalReason {
     /// `invalid_argument`: a Library's title sources name a namespace that isn't lowercase ASCII
     /// letters and digits, or name one twice. `field` is `title_sources`. Params: `namespace`.
     REFUSAL_REASON_TITLE_SOURCES_INVALID = 73i32,
+    /// `invalid_argument`: a Library's Recognisers name an id of no Plugin with
+    /// `EXTENSION_POINT_RECOGNISER`, or name one twice. `field` is `recogniser_ids` or
+    /// `recogniser_order`. Params: `pluginId`.
+    REFUSAL_REASON_RECOGNISERS_INVALID = 74i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -420,6 +424,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_TITLE_SOURCES_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const TitleSourcesInvalid: Self = Self::REFUSAL_REASON_TITLE_SOURCES_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_RECOGNISERS_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RecognisersInvalid: Self = Self::REFUSAL_REASON_RECOGNISERS_INVALID;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -666,6 +673,9 @@ impl ::buffa::Enumeration for RefusalReason {
             73i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_SOURCES_INVALID)
             }
+            74i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_RECOGNISERS_INVALID)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -806,6 +816,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_TITLE_ID_MISSING => "REFUSAL_REASON_TITLE_ID_MISSING",
             Self::REFUSAL_REASON_TITLE_SOURCES_INVALID => {
                 "REFUSAL_REASON_TITLE_SOURCES_INVALID"
+            }
+            Self::REFUSAL_REASON_RECOGNISERS_INVALID => {
+                "REFUSAL_REASON_RECOGNISERS_INVALID"
             }
         }
     }
@@ -1042,6 +1055,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_TITLE_SOURCES_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_TITLE_SOURCES_INVALID)
             }
+            "REFUSAL_REASON_RECOGNISERS_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_RECOGNISERS_INVALID)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1118,6 +1134,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_TITLE_NOT_FOUND,
             Self::REFUSAL_REASON_TITLE_ID_MISSING,
             Self::REFUSAL_REASON_TITLE_SOURCES_INVALID,
+            Self::REFUSAL_REASON_RECOGNISERS_INVALID,
         ]
     }
 }
