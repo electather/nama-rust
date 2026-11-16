@@ -127,7 +127,7 @@ fn transcoded_video(
         )),
     };
     let mut args: Vec<String> = ["-map", "0:V:0"].map(str::to_owned).into();
-    if let Some(filters) = chain([before, drawn, after]) {
+    if let Some(filters) = filter_chain([before, drawn, after]) {
         // One `-vf`: a second would replace the first.
         args.extend(["-vf".to_owned(), filters]);
     }
@@ -254,8 +254,8 @@ pub(super) fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
     // tone-mapping, which would dim it, and before scaling, so it shrinks with the picture and an
     // image subtitle still fits the source size `overlay_graph` is given.
     let (before, after) = match video.burn_in {
-        None => (chain([scale, tone_map, upload]), None),
-        Some(_) => (tone_map, chain([scale, upload])),
+        None => (filter_chain([scale, tone_map, upload]), None),
+        Some(_) => (tone_map, filter_chain([scale, upload])),
     };
     VideoArgs {
         input: accel.map_or_default(|accel| accel.input(gpu, false)),
@@ -265,7 +265,7 @@ pub(super) fn video_args(path: &str, video: &VideoConversion) -> VideoArgs {
 }
 
 /// The `filters` given, comma-joined in order into one chain, or `None` if none is.
-fn chain<const N: usize>(filters: [Option<String>; N]) -> Option<String> {
+fn filter_chain<const N: usize>(filters: [Option<String>; N]) -> Option<String> {
     let filters: Vec<String> = filters.into_iter().flatten().collect();
     (!filters.is_empty()).then(|| filters.join(","))
 }

@@ -147,7 +147,7 @@ async fn hdr10_tagged_only_by_its_transfer_is_tone_mapped_to_bt709() {
 }
 
 #[tokio::test]
-async fn hdr10_scaled_down_before_tone_mapping_is_still_bt709() {
+async fn hdr10_limited_and_tone_mapped_is_scaled_down_to_bt709() {
     let limit = Some(VideoLimit {
         size: Some((160, 120)),
         bits_per_second: 1_000_000,
