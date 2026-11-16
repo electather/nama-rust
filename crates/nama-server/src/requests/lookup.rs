@@ -24,7 +24,7 @@ use crate::{
 pub(crate) struct Found<M> {
     /// The id its Request is kept under.
     pub(crate) id: ExternalId,
-    /// The Plugin whose metadata Provider gave the Movie, which its image paths are for.
+    /// The Plugin whose title source gave the Movie, which its image paths are for.
     pub(crate) plugin: PluginId,
     pub(crate) movie: M,
     /// The oldest Library with the Movie Matched, if any.
@@ -37,7 +37,7 @@ pub(crate) struct Found<M> {
 #[derive(Debug)]
 pub(crate) struct Hit {
     pub(crate) id: ExternalId,
-    /// The Plugin whose metadata Provider found it, which its image paths are for.
+    /// The Plugin whose title source found it, which its image paths are for.
     pub(crate) plugin: PluginId,
     pub(crate) candidate: Candidate,
 }
@@ -47,7 +47,7 @@ pub(crate) struct Hit {
 pub(crate) struct FoundShow {
     /// The id its Season Requests are kept under.
     pub(crate) id: ExternalId,
-    /// The Plugin whose metadata Provider gave the Show, which its image paths are for.
+    /// The Plugin whose title source gave the Show, which its image paths are for.
     pub(crate) plugin: PluginId,
     pub(crate) show: Show,
     /// Its Seasons, in order, as the viewer sees them.
@@ -219,7 +219,7 @@ impl Requests {
             .map_err(|err| looking_up(err, Error::NoSuchMovie(id.clone())))
     }
 
-    /// `movie`, the Movie `id` as `plugin`'s Provider gave it, with the Library that has it and
+    /// `movie`, the Movie `id` as `plugin`'s title source gave it, with the Library that has it and
     /// its open Request, if `viewer` may see it.
     #[expect(
         clippy::too_many_arguments,

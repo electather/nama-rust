@@ -1,16 +1,16 @@
 //! Posters, Backdrops, Stills and Title Logos, downloaded when a Match is made and kept in the image
 //! store.
 //!
-//! A Match stores its title's images as paths the metadata Provider handed out, along with the
-//! Plugin whose Provider that was. Once a Match is stored, its images are downloaded through that
-//! Provider in the background, and kept in the [`ImageStore`] while some Match stores them. One
+//! A Match stores its title's images as paths a title source handed out, along with the Plugin
+//! whose title source that was. Once a Match is stored, its images are downloaded through that
+//! title source in the background, and kept in the [`ImageStore`] while some Match stores them. One
 //! asked for before it arrived is downloaded on the spot. Images a search or lookup offered and no
 //! Match stores go to a cache of their own, which can be deleted at any time (ADR 0037). Callers
 //! should only ask for images some Match stores, or that a search or lookup offered to clients,
 //! so clients can't use the store to fetch arbitrary images.
 //!
 //! Clients fetch them over plain HTTP at `/media/artwork/<plugin>/<path>` (ADR 0007: media bytes
-//! are not RPC), which is served to anyone with a session. A Provider's path names bytes that
+//! are not RPC), which is served to anyone with a session. A title source's path names bytes that
 //! never change, so a browser caches what it fetched there for good. Adding `?width=` asks for a
 //! copy resized to one of [`crate::images::WIDTHS`] while an admin leaves resizing on (ADR 0039).
 
@@ -47,7 +47,7 @@ const KEPT_DIR: &str = "artwork";
 // ponytail: nothing empties it; bound it like the resized copies' cache if it grows too big.
 const OFFERED_DIR: &str = "artwork-cache";
 
-/// How many images are downloaded in the background at once. Each crosses from the Provider as
+/// How many images are downloaded in the background at once. Each crosses from the title source as
 /// one whole value, so this also bounds the memory downloads take on a 1 GiB machine.
 const DOWNLOADS: usize = 2;
 
@@ -69,7 +69,7 @@ pub(crate) struct Picked {
     pub(crate) logo: Option<ImageRef>,
 }
 
-/// Stored images, fetched from metadata Providers on first use.
+/// Stored images, fetched from title sources on first use.
 #[derive(Debug, Clone)]
 pub struct Artwork {
     store: ImageStore,
@@ -86,11 +86,11 @@ pub struct Artwork {
 /// Why an image couldn't be had.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The Provider has no such image.
+    /// The title source has no such image.
     #[error("no such image")]
     NotFound,
-    /// The Plugin isn't enabled or doesn't provide metadata, or its Provider failed. Worth
-    /// trying again later.
+    /// The Plugin isn't enabled or has no title source, or its title source failed. Worth trying
+    /// again later.
     #[error("the image is unavailable: {0}")]
     Unavailable(String),
     /// The store couldn't be read or written.
@@ -99,7 +99,7 @@ pub enum Error {
 }
 
 impl Artwork {
-    /// The images kept in `store`, fetching through the metadata Providers enabled in `plugins`.
+    /// The images kept in `store`, fetching through the title sources enabled in `plugins`.
     #[must_use]
     pub fn new(store: ImageStore, plugins: ExtensionPoints) -> Self {
         Self {
@@ -111,7 +111,7 @@ impl Artwork {
         }
     }
 
-    /// Where clients fetch the image at `path` from the Plugin `plugin`'s metadata Provider, which
+    /// Where clients fetch the image at `path` from the Plugin `plugin`'s title source, which
     /// [`router`] serves from now on even though no Match stores it.
     pub(crate) fn offer(&self, plugin: &PluginId, path: &str) -> String {
         let plugin = plugin.as_str();
@@ -158,12 +158,12 @@ impl Artwork {
         offered.contains(&(plugin.to_owned(), path.to_owned()))
     }
 
-    /// Stores the image at `path` from the Plugin `plugin`'s metadata Provider, downloading it
-    /// unless it is stored already.
+    /// Stores the image at `path` from the Plugin `plugin`'s title source, downloading it unless
+    /// it is stored already.
     ///
     /// # Errors
     ///
-    /// If the Provider has no such image, can't be reached, or the store can't be written.
+    /// If the title source has no such image, can't be reached, or the store can't be written.
     pub async fn keep(&self, plugin: &PluginId, path: &str) -> Result<(), Error> {
         self.store_in(KEPT_DIR, plugin, path).await.map(drop)
     }
@@ -228,8 +228,8 @@ impl Artwork {
         Ok(())
     }
 
-    /// Stores the image at `path` from `plugin`'s Provider in `dir`, downloading it unless it is
-    /// stored there already. Returns holding off [`Self::drop_unused`], so the image stays until
+    /// Stores the image at `path` from `plugin`'s title source in `dir`, downloading it unless it
+    /// is stored there already. Returns holding off [`Self::drop_unused`], so the image stays until
     /// the guard is dropped.
     async fn store_in(
         &self,
@@ -238,8 +238,8 @@ impl Artwork {
         path: &str,
     ) -> Result<RwLockReadGuard<'_, ()>, Error> {
         let key = key(dir, plugin.as_str(), path);
-        // The lock isn't held across the download: a sweep waiting on a slow Provider would hold
-        // up the scan that runs it, and every image request queued behind the sweep. A sweep
+        // The lock isn't held across the download: a sweep waiting on a slow title source would
+        // hold up the scan that runs it, and every image request queued behind the sweep. A sweep
         // meanwhile can't delete what isn't stored yet. Two downloads of one image racing here
         // store it once, as `ImageStore::write` keeps the first.
         // ponytail: an image downloaded while its Match is corrected stays until the next sweep.
@@ -264,8 +264,8 @@ impl Artwork {
         Ok(sweeping)
     }
 
-    /// The image at `path` from `plugin`'s Provider as the answer to `request`, stored first if it
-    /// isn't yet.
+    /// The image at `path` from `plugin`'s title source as the answer to `request`, stored first if
+    /// it isn't yet.
     async fn serve_image(
         &self,
         (dir, plugin, path): (&str, &str, &str),
