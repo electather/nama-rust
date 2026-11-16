@@ -9,7 +9,7 @@ use super::{
     ManualError, Summary,
     tests::{Fixture, Outcome, matched},
 };
-use crate::library::{ImageRef, Picked};
+use crate::library::{ImageRef, Picked, UnmatchedReason};
 
 #[tokio::test]
 async fn a_manual_match_survives_a_rescan_after_its_file_changes() {
@@ -150,6 +150,65 @@ async fn a_match_fixed_while_its_librarys_scan_lock_is_held_waits_then_applies()
         }
     );
     assert_eq!(media.outcomes(movies).await, [Outcome::Unmatched]);
+}
+
+#[tokio::test]
+async fn an_episode_matched_to_a_show_without_its_season_is_unmatched_as_not_in_show() {
+    let media = Fixture::new().await;
+    let shows = &media.shows;
+    // The US Office has only Season 1 at TMDB.
+    let episode = "The Office/Season 10/The Office - S10E01.mkv";
+    shows.write(episode);
+    media.scan(shows).await;
+    let item = media.item(shows, episode).await;
+
+    let summary = media
+        .matcher
+        .set_match(item, &ExternalId::tmdb(2316))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        summary,
+        Summary {
+            matched: 0,
+            unmatched: 1,
+            undecided: 0
+        }
+    );
+    assert_eq!(
+        media.reasons(shows).await,
+        [Some(UnmatchedReason::NotInShow)]
+    );
+}
+
+#[tokio::test]
+async fn an_episode_matched_to_a_show_whose_season_lacks_it_is_unmatched_as_not_in_show() {
+    let media = Fixture::new().await;
+    let shows = &media.shows;
+    let episode = "The Office/Season 01/The Office - S01E42.mkv";
+    shows.write(episode);
+    media.scan(shows).await;
+    let item = media.item(shows, episode).await;
+
+    let summary = media
+        .matcher
+        .set_match(item, &ExternalId::tmdb(2316))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        summary,
+        Summary {
+            matched: 0,
+            unmatched: 1,
+            undecided: 0
+        }
+    );
+    assert_eq!(
+        media.reasons(shows).await,
+        [Some(UnmatchedReason::NotInShow)]
+    );
 }
 
 #[tokio::test]

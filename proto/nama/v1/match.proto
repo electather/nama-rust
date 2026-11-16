@@ -147,8 +147,8 @@ message UnmatchedItem {
 
 // Why automatic Matching left an item Unmatched, which says how to fix it.
 enum UnmatchedReason {
-  // Matching hasn't decided about the item yet, or left it Unmatched for another reason, such as
-  // an Episode its Show doesn't have.
+  // Matching hasn't decided about the item yet, or left it Unmatched for a reason it doesn't
+  // store, such as an Admin choosing to.
   UNMATCHED_REASON_UNSPECIFIED = 0;
   // More than one title fits about as well, so picking one of `tied_titles` fixes it.
   UNMATCHED_REASON_AMBIGUOUS = 1;
@@ -156,4 +156,7 @@ enum UnmatchedReason {
   UNMATCHED_REASON_NO_TITLE_FITS = 2;
   // The item's ID Hint names no title the title source has.
   UNMATCHED_REASON_UNKNOWN_ID_HINT = 3;
+  // An Episode whose Show, found by Matching or picked by hand, has no such Season or Episode.
+  // Matching it to another Show may fix it.
+  UNMATCHED_REASON_NOT_IN_SHOW = 4;
 }

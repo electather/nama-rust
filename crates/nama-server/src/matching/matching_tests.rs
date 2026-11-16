@@ -20,7 +20,7 @@ use crate::{
     images::ImageStore,
     library::{
         Artwork, Change, Contents, CustomImages, Decided, FileItem, Item, Libraries, LibraryKind,
-        LibraryShow, Recorded,
+        LibraryShow, Recorded, UnmatchedReason,
     },
     plugins::{ExtensionPoints, Registry},
     scanner::Scanner,
@@ -174,6 +174,12 @@ impl Fixture {
             .into_iter()
             .map(|(_, _, outcome)| outcome)
             .collect()
+    }
+
+    /// Why each Item of `library` that needs a Match is Unmatched, by path.
+    pub(super) async fn reasons(&self, library: &Library) -> Vec<Option<UnmatchedReason>> {
+        let unmatched = self.contents.unmatched(library.id).await.unwrap();
+        unmatched.into_iter().map(|item| item.reason).collect()
     }
 
     async fn first_recorded(&self, library: &Library) -> Recorded {
@@ -492,6 +498,11 @@ async fn a_scan_matches_episodes_through_their_show_and_season() {
                 Outcome::Unmatched
             ),
         ]
+    );
+    assert_eq!(
+        media.reasons(shows).await[0],
+        Some(UnmatchedReason::NotInShow),
+        "S01E42"
     );
     let secrets = media.first_recorded(shows).await;
     assert_eq!(secrets.show_title.as_deref(), Some("Dark"));

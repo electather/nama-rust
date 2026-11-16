@@ -73,3 +73,4 @@
 0073_watch_states_by_title.sql
 0074_library_recognisers_read.sql
 0075_image_store.sql
+0076_not_in_show_reason.sql
