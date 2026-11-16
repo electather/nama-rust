@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs, sync::Arc};
+use std::{collections::HashSet, fs, path::Path, sync::Arc};
 
 use buffa::Message;
 
@@ -18,7 +18,7 @@ use nama_plugin_proto::{
 
 use super::{
     Running, allowed_hosts,
-    bundled::BUNDLED,
+    bundled::{BUNDLED, bundling},
     check_exports, compile, delivery, extism_config, is_crash,
     load::{check_allowed_hosts, decode, judge, load, settings_schema, write_cache_config},
     points,
@@ -488,18 +488,12 @@ fn every_bundled_plugin_has_the_exports_its_manifests_points_need() {
 fn every_plugins_folder_is_bundled_and_loads_with_defaults_of_their_kinds_and_unique_keys() {
     let data_dir = tempfile::tempdir().unwrap();
     let cache_config = write_cache_config(data_dir.path()).unwrap();
-    // By the rule in `plugins/AGENTS.md`, reading the lines as `build.rs` does.
-    let mut folders: Vec<_> = fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../../plugins"))
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .filter_map(|folder| {
-            let manifest = fs::read_to_string(folder.join("Cargo.toml")).ok()?;
-            let lines: Vec<_> = manifest.lines().map(str::trim).collect();
-            (lines.contains(&r#"crate-type = ["cdylib"]"#) && !lines.contains(&"bundled = false"))
-                .then(|| format!("{}.wasm", folder.file_name().unwrap().display()))
-        })
-        .collect();
-    folders.sort_unstable();
+    let folders = bundling::bundled(Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../plugins"
+    )))
+    .unwrap();
+    let folders: Vec<_> = folders.iter().map(|name| format!("{name}.wasm")).collect();
 
     assert_eq!(
         folders,

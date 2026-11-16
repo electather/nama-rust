@@ -2,7 +2,7 @@
 //!
 //! It builds the Installed Plugins the Server bundles (ADR 0003) for wasm32, and writes
 //! `bundled.rs` to `OUT_DIR` for `src/plugins/wasm/bundled.rs`: `BUNDLED`, each one's `.wasm` by
-//! its folder's name. Which folders those are is the rule in `plugins/AGENTS.md`.
+//! its folder's name. `bundling.rs` picks those folders.
 //!
 //! With the `web` feature, it also embeds the built web app so a release is one binary (ADR 0004).
 //! It writes `web_assets.rs` to `OUT_DIR` for `src/web.rs`: `SHELL`, the prerendered
@@ -17,6 +17,9 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
+
+#[path = "src/plugins/wasm/bundling.rs"]
+mod bundling;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // `sqlx::migrate!` embeds migrations/ at compile time; rebuild when it changes.
@@ -63,34 +66,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// The folders under `plugins/` the Server bundles, sorted, by the rule in `plugins/AGENTS.md`.
-fn bundled(plugins: &Path) -> Result<Vec<String>, Box<dyn Error>> {
-    let mut names = Vec::new();
-    for entry in fs::read_dir(plugins)? {
-        let path = entry?.path();
-        let Ok(manifest) = fs::read_to_string(path.join("Cargo.toml")) else {
-            continue;
-        };
-        // ponytail: a line scan, not a TOML parser; it misses these keys written any other way
-        // (spacing, inline tables). Parse with a toml crate if a manifest needs that.
-        let lines: Vec<_> = manifest.lines().map(str::trim).collect();
-        if lines.contains(&r#"crate-type = ["cdylib"]"#) && !lines.contains(&"bundled = false") {
-            let name = path.file_name().and_then(|name| name.to_str());
-            names.push(
-                name.ok_or_else(|| format!("{} isn't valid UTF-8", path.display()))?
-                    .to_owned(),
-            );
-        }
-    }
-    names.sort_unstable();
-    Ok(names)
-}
-
-/// Builds the [`bundled`] Plugins for wasm32 and writes `bundled.rs` to `OUT_DIR`, embedding each
-/// one's `.wasm`.
+/// Builds the [`bundling::bundled`] Plugins for wasm32 and writes `bundled.rs` to `OUT_DIR`,
+/// embedding each one's `.wasm`.
 fn build_bundled() -> Result<(), Box<dyn Error>> {
     let workspace = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?).join("../..");
-    let names = bundled(&workspace.join("plugins"))?;
+    let names = bundling::bundled(&workspace.join("plugins"))?;
     // `plugins` covers every Plugin's folder, the shared libraries among them, and a folder added.
     for source in [
         "crates/nama-pdk",

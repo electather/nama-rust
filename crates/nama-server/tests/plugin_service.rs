@@ -2,13 +2,15 @@
 //! value, and changing a Plugin's settings and enabling and disabling it without a restart, over a
 //! real socket and against a real SQLite database.
 
+#[path = "../src/plugins/wasm/bundling.rs"]
+mod bundling;
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
-use std::{collections::BTreeMap, fs, sync::Arc};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use buffa::Message;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
@@ -259,16 +261,11 @@ fn setting<'a>(plugin: &'a Plugin, key: &str) -> &'a Setting {
 async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled() {
     use PluginKind::{PLUGIN_KIND_BUILT_IN as BUILT_IN, PLUGIN_KIND_INSTALLED as INSTALLED};
     let listed = list_plugins_with(BTreeMap::new()).await;
-    // The folders under `plugins/` the Server bundles, by the rule in `plugins/AGENTS.md`.
-    let bundled: Vec<_> = fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../../plugins"))
-        .unwrap()
-        .flatten()
-        .filter_map(|dir| {
-            let toml = fs::read_to_string(dir.path().join("Cargo.toml")).ok()?;
-            (toml.contains(r#"crate-type = ["cdylib"]"#) && !toml.contains("\nbundled = false"))
-                .then(|| dir.file_name().into_string().unwrap())
-        })
-        .collect();
+    let bundled = bundling::bundled(Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../plugins"
+    )))
+    .unwrap();
     let mut expected = Vec::from_iter(bundled.iter().map(|id| (id.as_str(), Some(INSTALLED))));
     let built_ins = ["local-auth", "log-events", test_choices::ID, "tmdb"];
     expected.extend(built_ins.map(|id| (id, Some(BUILT_IN))));
