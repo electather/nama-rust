@@ -572,6 +572,7 @@ async fn a_settings_change_that_fails_to_enable_nor_put_back_is_saved_disabled()
     let updated = plugins.update(&flaky(), greeting("hello")).await.unwrap();
 
     assert!(!updated.plugin.enabled);
+    assert!(!updated.stored.enabled);
     assert!(!plugins.registry().enabled().contains(&flaky()));
     assert!(!stored_enabled(&plugins, &flaky()).await);
 }

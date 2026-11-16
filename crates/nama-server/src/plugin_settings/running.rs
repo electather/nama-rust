@@ -38,7 +38,9 @@ impl PluginSettings {
         Ok(())
     }
 
-    /// What the Plugin `id` runs with, or `None` if it isn't running.
+    /// What the Plugin `id` runs with, or `None` if it isn't running. Assumes every enable went
+    /// through [`PluginSettings::enable_with`]: one enabled on the `Registry` directly, which only
+    /// test fixtures do, runs with no record, so this is `None` for it too.
     // The record outlives a disable or a crash, so it counts only while the Plugin is enabled.
     pub(super) fn ran_with(&self, id: &PluginId) -> Option<Ran> {
         if !self.registry.enabled().contains(id) {

@@ -59,7 +59,8 @@ pub struct PluginSettings {
     /// changes at once can't leave it running otherwise than the database says.
     // ponytail: one lock for every Plugin; one per Plugin if Admins ever wait on each other.
     changing: Arc<Mutex<()>>,
-    /// What each Plugin was last enabled with, written under `changing` (`running.rs`).
+    /// What each Plugin was last enabled with (`running.rs`), written under `changing` and by
+    /// [`PluginSettings::start`], which enables the stored Plugins before any change can run.
     running: Arc<std::sync::Mutex<HashMap<PluginId, running::Ran>>>,
     /// The task saving each Plugin disabled for crashing as disabled, until
     /// [`PluginSettings::shutdown`].
@@ -441,15 +442,17 @@ impl PluginSettings {
             // changes for up to SETTINGS_CHECK_TIMEOUT; check before locking if that bites.
             this.check_choices(&manifest, &settings).await?;
             save(&this.db, id.as_str(), stored.enabled, &settings).await?;
-            if stored.enabled {
+            let stored_enabled = if stored.enabled {
                 let ran = this.ran_with(&id);
-                this.enable_again(&id, &settings, &granted, ran).await;
-            }
+                !this.enable_again(&id, &settings, &granted, ran).await
+            } else {
+                false
+            };
             let enabled = this.registry.enabled().contains(&id);
             Ok(StoredPlugin {
                 plugin: Listed { enabled, ..plugin },
                 stored: PluginConfig {
-                    enabled: stored.enabled,
+                    enabled: stored_enabled,
                     settings,
                 },
                 granted,
@@ -561,20 +564,24 @@ impl PluginSettings {
     /// Enables the Plugin `id` again with `settings` and the Plugin Permissions `granted`, even if
     /// it isn't running, such as TMDB left disabled without its key. Disabled first, so nothing it
     /// registered with its old settings stays. A failure is logged, since its settings are saved
-    /// and a restart retries them, and the Plugin is put back as it ran, `ran`.
+    /// and a restart retries them, and the Plugin is put back as it ran, `ran`. Returns whether
+    /// putting it back saved it disabled.
     async fn enable_again(
         &self,
         id: &PluginId,
         settings: &BTreeMap<String, SettingValue>,
         granted: &HashSet<Permission>,
         ran: Option<running::Ran>,
-    ) {
+    ) -> bool {
         self.registry.disable(id).await;
         match self.enable_with(id, settings.clone(), granted.clone()) {
-            Ok(()) => self.queue_came_up(id),
+            Ok(()) => {
+                self.queue_came_up(id);
+                false
+            }
             Err(err) => {
                 error!(plugin = %id, "could not enable the plugin with its new settings: {err}");
-                self.put_back(id, ran, &err).await;
+                self.put_back(id, ran, &err).await
             }
         }
     }
