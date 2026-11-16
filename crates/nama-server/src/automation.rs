@@ -560,5 +560,5 @@ impl Kernel for PluginKernel {
 }
 
 #[cfg(test)]
-#[path = "automation_tests.rs"]
+#[path = "automation/automation_tests.rs"]
 mod tests;
