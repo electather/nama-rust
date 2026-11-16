@@ -83,7 +83,7 @@ async fn a_subscriber_receives_a_scans_start_progress_added_items_and_finishes_i
                 added: 1,
                 ..Default::default()
             }),
-            // No metadata Provider is enabled, and the Server has no ffprobe.
+            // No title source is enabled, and the Server has no ffprobe.
             event(MatchingFinished {
                 library_id: library,
                 undecided: 1,

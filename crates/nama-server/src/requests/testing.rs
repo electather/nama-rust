@@ -288,7 +288,7 @@ impl<Kind: 'static> Plugin for FulfillerPlugin<Kind> {
     }
 }
 
-/// Enables `tmdb` as the metadata Provider in `plugins`.
+/// Enables `tmdb` as a title source in `plugins`.
 pub(super) fn enable_tmdb(plugins: &Registry, tmdb: &FakeTmdb) {
     let settings = Settings::new(BTreeMap::from([(
         "api_key".to_owned(),

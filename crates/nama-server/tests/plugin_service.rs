@@ -159,7 +159,7 @@ impl Started {
         .enabled()
     }
 
-    /// Whether some enabled Plugin provides `T`, as Matching looks for a metadata Provider to call.
+    /// Whether some enabled Plugin provides `T`, as Matching looks for a title source to call.
     fn provides<T: ?Sized + 'static>(&self) -> bool {
         !self.plugins.providers::<T>().is_empty()
     }

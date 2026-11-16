@@ -1,4 +1,4 @@
-//! Posters and backdrops: downloaded when a Match is made, fetched from the metadata Provider if
+//! Posters and backdrops: downloaded when a Match is made, fetched from the title source if
 //! someone asks first, and kept in the Server's image store while a Match stores them.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]

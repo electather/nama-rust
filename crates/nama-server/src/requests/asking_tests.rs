@@ -273,6 +273,14 @@ fn a_movie_the_source_gives_no_ids_for_is_kept_under_the_id_it_was_asked_by() {
     assert_eq!(wanted.id, anidb);
 }
 
+#[test]
+fn an_unavailable_look_up_says_no_title_source_could_answer() {
+    assert_eq!(
+        Error::Unavailable.to_string(),
+        "no title source could answer"
+    );
+}
+
 /// What the [`ShowSource`]s were asked, each as `<source> <method> <id>`, in the order asked.
 type SourcesAsked = Arc<Mutex<Vec<String>>>;
 

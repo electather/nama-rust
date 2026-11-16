@@ -48,7 +48,7 @@ impl Fixture {
         Self::start_with(kind, TestServer::builder().tmdb()).await
     }
 
-    /// Starts a Server with a Library of `kind` and no metadata Provider, so nothing is Matched.
+    /// Starts a Server with a Library of `kind` and no title source, so nothing is Matched.
     async fn start_without_metadata(kind: LibraryKind) -> Self {
         Self::start_with(kind, TestServer::builder()).await
     }

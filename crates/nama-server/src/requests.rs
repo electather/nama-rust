@@ -69,8 +69,8 @@ pub(crate) enum Error {
     NoSuchShow(ExternalId),
     #[error("the metadata source has no Season {season} of the Show {show}")]
     NoSuchSeason { show: ExternalId, season: u32 },
-    /// No metadata Provider is enabled, or it failed.
-    #[error("no metadata Provider could answer")]
+    /// No title source is enabled, or each failed.
+    #[error("no title source could answer")]
     Unavailable,
     #[error(transparent)]
     Quality(#[from] qualities::Refused),
@@ -102,7 +102,7 @@ pub(crate) struct Requests {
 }
 
 impl Requests {
-    /// The Requests in `db`, looking titles up through the metadata Provider and handing Approved
+    /// The Requests in `db`, looking titles up through the title sources and handing Approved
     /// ones to the Fulfillers in `plugins`, publishing on `events`.
     pub(crate) fn new(db: Arc<Database>, events: EventBus, plugins: ExtensionPoints) -> Self {
         let progress = Progress::new(Arc::clone(&db), events.clone(), plugins.clone());
