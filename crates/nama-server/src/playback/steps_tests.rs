@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
-use super::{default_max_transcodes, too_busy_to_play};
+use super::{default_max_transcodes, remux, too_busy_to_play};
 use crate::{
     ffmpeg::{Accel, Hardware, ToneMapper, Transcode, VideoConversion},
     playback::{
@@ -330,6 +330,14 @@ fn a_busy_server_remuxes_what_the_device_can_play_remuxed_and_says_so_as_context
     );
     assert_eq!(decided(&plan), [true, false], "a Remux would play anyway");
     assert_eq!(too_busy_to_play(facts), None);
+}
+
+#[test]
+fn a_remux_of_hevc_video_is_flagged_hevc_and_of_h264_isnt() {
+    let remux_of = |codec| remux(&in_container(MKV, Some(vec![video(codec)])), None);
+
+    assert!(remux_of("hevc").hevc);
+    assert!(!remux_of("h264").hevc);
 }
 
 #[test]

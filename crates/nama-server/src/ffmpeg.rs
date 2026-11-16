@@ -343,7 +343,8 @@ impl Ffmpeg {
     /// says, from the keyframe `from` to the end. It writes a file per keyframe, named by its
     /// number such as `3.m4s`, and an init segment named by [`hls_init`] that's whole once
     /// `from`'s file is. A run started at any keyframe writes the same files, so one can pick up
-    /// where another stopped. Each file appears only once it's whole. Fails without ffmpeg.
+    /// where another stopped. Each file appears only once it's whole. HEVC video is tagged `hvc1`
+    /// so Apple's players play it. Fails without ffmpeg.
     pub(crate) fn remux(
         &self,
         path: &str,
@@ -381,6 +382,11 @@ impl Ffmpeg {
         command.args(["-map", "0:V:0"]);
         map_audio(&mut command, remux.audio.map(|audio| audio.track));
         command.args(["-c", "copy"]);
+        if remux.hevc {
+            // Apple's players take HEVC in fMP4 only as `hvc1`, and ffmpeg writes `hev1` unless
+            // told. Only for HEVC: ffmpeg refuses the tag on any other codec.
+            command.args(["-tag:v", "hvc1"]);
+        }
         aac(
             &mut command,
             remux.audio.and_then(|audio| audio.aac_channels),

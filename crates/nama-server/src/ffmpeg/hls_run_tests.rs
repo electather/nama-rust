@@ -78,6 +78,7 @@ fn a_remux_copies_the_video_and_converts_the_audio_from_its_keyframe_on() {
             track: 1,
             aac_channels: Some(2),
         }),
+        hevc: false,
     };
 
     let args = remux_args(remux, keyframe(3, 6000, Some(4000)));
@@ -202,9 +203,29 @@ fn a_transcode_converts_the_video_and_audio_from_its_cut_on() {
 }
 
 #[test]
+fn an_hevc_remux_tags_its_copied_video_hvc1() {
+    let hevc = Remux {
+        audio: None,
+        hevc: true,
+    };
+
+    let args = remux_args(hevc, keyframe(0, 0, None));
+
+    let copy = args.windows(2).position(|pair| pair == ["-c", "copy"]);
+    let after_copy = copy.map(|at| &args[at + 2..at + 4]);
+    assert_eq!(after_copy, Some(&["-tag:v", "hvc1"].map(str::to_owned)[..]));
+}
+
+#[test]
 fn a_remux_seeks_halfway_back_to_the_keyframe_before_and_at_most_half_a_second() {
     let input_seek = |from| {
-        let args = remux_args(Remux { audio: None }, from);
+        let args = remux_args(
+            Remux {
+                audio: None,
+                hevc: false,
+            },
+            from,
+        );
         let input = args.iter().position(|arg| arg == "-i").unwrap();
         value_of(&args[..input], "-ss").map(str::to_owned)
     };
@@ -295,6 +316,7 @@ fn audio_is_converted_to_aac_with_its_channels_or_else_copied() {
             track: 0,
             aac_channels,
         }),
+        hevc: false,
     };
     let first = keyframe(0, 0, None);
 
@@ -474,7 +496,10 @@ fn a_playback_limit_on_hardware_scales_the_picture_on_its_gpu_if_it_can() {
 #[test]
 fn ffmpeg_before_5_0_is_given_segment_options_by_their_old_name() {
     let segment_options = |version| {
-        let silent = Remux { audio: None };
+        let silent = Remux {
+            audio: None,
+            hevc: false,
+        };
         let run = ffmpeg(version).remux(
             "alien.mkv",
             &silent,

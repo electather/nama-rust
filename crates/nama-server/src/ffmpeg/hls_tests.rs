@@ -17,8 +17,9 @@ fn system_ffmpeg() -> Ffmpeg {
     ffmpeg
 }
 
-/// Remuxes the file at `path` into `dir` from `from`, until ffmpeg is done.
-async fn remux(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, from: Keyframe) {
+/// Remuxes the file at `path`, whose video is HEVC if `hevc`, into `dir` from `from`, until
+/// ffmpeg is done.
+async fn remux(ffmpeg: &Ffmpeg, path: &Path, hevc: bool, dir: &Path, from: Keyframe) {
     fs::create_dir_all(dir).unwrap();
     let path = path.to_str().unwrap();
     let remux = Remux {
@@ -26,6 +27,7 @@ async fn remux(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, from: Keyframe) {
             track: 0,
             aac_channels: None,
         }),
+        hevc,
     };
     let output = ffmpeg.remux(path, &remux, dir, from).unwrap();
     let output = output.spawn().unwrap().wait_with_output().await.unwrap();
@@ -227,14 +229,14 @@ async fn a_remux_started_at_a_keyframe_writes_the_same_files_from_there_on() {
         ms: keyframes[0],
         previous_ms: None,
     };
-    remux(&ffmpeg, &file, &whole, first).await;
+    remux(&ffmpeg, &file, false, &whole, first).await;
 
     let third = Keyframe {
         n: 3,
         ms: keyframes[3],
         previous_ms: Some(keyframes[2]),
     };
-    remux(&ffmpeg, &file, &restarted, third).await;
+    remux(&ffmpeg, &file, false, &restarted, third).await;
 
     assert!(!restarted.join("2.m4s").exists());
     for n in 3..7 {
@@ -247,4 +249,25 @@ async fn a_remux_started_at_a_keyframe_writes_the_same_files_from_there_on() {
         );
     }
     assert!(!restarted.join("7.m4s").exists());
+}
+
+#[tokio::test]
+async fn an_hevc_remux_writes_its_video_as_hvc1_not_hev1() {
+    let ffmpeg = system_ffmpeg();
+    let work = tempfile::tempdir().unwrap();
+    let file = work.path().join("alien.mkv");
+    write_hevc_with_5_1(&file).unwrap();
+    let dir = work.path().join("remux");
+    let first = Keyframe {
+        n: 0,
+        ms: 0,
+        previous_ms: None,
+    };
+
+    remux(&ffmpeg, &file, true, &dir, first).await;
+
+    let init = fs::read(dir.join("init-0.mp4")).unwrap();
+    let has = |name: &[u8]| init.windows(4).any(|window| window == name);
+    assert!(has(b"hvc1"));
+    assert!(!has(b"hev1"));
 }
