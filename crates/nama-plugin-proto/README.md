@@ -32,11 +32,12 @@ During any of its calls, a Plugin whose `points` name `AutomationService` may ca
 | `list_libraries` | `LibrariesAsked` | `Libraries` | `PERMISSION_READ_LIBRARIES` |
 | `list_titles` | `TitlesAsked` | `Titles` | `PERMISSION_READ_LIBRARIES` |
 | `list_watch_states` | `WatchStatesAsked` | `WatchStates` | `PERMISSION_READ_WATCH_STATES` |
+| `list_users` | `UsersAsked` | `Users` | `PERMISSION_READ_USERS` |
 | `delete_media` | `DeleteAsked` | `DeleteStarted` | `PERMISSION_DELETE_MEDIA` |
 
 The functions are not a service of their own: they are not an Extension Point and no Manifest names them, so they are versioned with `AutomationService`.
 
-The Store keeps bytes per Plugin under a key of up to 256 bytes, with a value of up to 64 KiB; an entry with `user_id` set belongs to that User. A `TitleRef` names a Movie or an Episode in a Library by the `TitleId` its Watch State is kept by. `DeleteStarted` means the Kernel checked the delete and it goes on in the background.
+The Store keeps bytes per Plugin under a key of up to 256 bytes, with a value of up to 64 KiB; an entry with `user_id` set belongs to that User. A `TitleRef` names a Movie or an Episode in a Library by the `TitleId` its Watch State is kept by. `Users` holds every User, with their id and display name only: every User sees every Library, so these are every User a title is for, including those without a Watch State. `DeleteStarted` means the Kernel checked the delete and it goes on in the background.
 
 ## Versions
 
@@ -47,6 +48,7 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
   `MovieFulfillerService` and `ShowFulfillerService` 1.1.0 add `retry_after_seconds` to `Fulfilled`, `StoppedMonitoring` and `Unfollowed`: a Fulfiller that can't act yet asks the Kernel to ask again after that many seconds.
   `TitleSourceService` 1.2.0 adds `genres` and `content_rating` to `Movie` and `Show`.
   `recogniser.proto` adds `RecogniserService` 1.0.0, a Recogniser proposing what a file is or which title an Item names.
+  `AutomationService` 1.1.0 adds the Kernel function `list_users`, answering every User's id and display name, with `UsersAsked`, `Users`, `User` and `PERMISSION_READ_USERS`.
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 
 ## Title ids
@@ -60,7 +62,7 @@ The Manifest's `movie_id_namespaces` and `show_id_namespaces` (fields 11 and 12 
 The Server sets this up in [`crates/nama-server/src/plugins/wasm/load.rs`](../nama-server/src/plugins/wasm/load.rs), mostly in `compile_with_kernel`. It calls an Installed Plugin in three ways: `manifest()` once, when it loads the Package; `check_settings()` when an admin tests settings; and the exports of the Extension Points its Manifest names, such as `fulfill`, while it is enabled.
 
 - **A clock.** The function `now` in the Wasm import namespace `nama` takes no arguments and returns an `i64`: the milliseconds since the Unix epoch by the Server's clock. A Plugin needs it because `SystemTime::now()` panics on `wasm32-unknown-unknown`. Every call has it.
-- **The Kernel's functions.** `store_get`, `store_put`, `store_delete`, `list_libraries`, `list_titles`, `list_watch_states` and `delete_media`, also in the namespace `nama` and listed under "The Automation lane" above. Each takes one `i64` and returns one: the offset of an Extism memory block, as Extism's host functions take and return them. The block passed holds the request message, encoded; the block returned holds a `KernelAnswer`, encoded. A request the Kernel can't read is answered `refused`, never a trap. Every call can import them, so a Plugin calling them still loads, but they answer `refused` in `manifest()` and `check_settings()`, which run for no enabled Plugin, and until the Server is serving. The Kernel answers on the thread the call runs on, so time spent in them counts toward the call's 5 seconds.
+- **The Kernel's functions.** `store_get`, `store_put`, `store_delete`, `list_libraries`, `list_titles`, `list_watch_states`, `list_users` and `delete_media`, also in the namespace `nama` and listed under "The Automation lane" above. Each takes one `i64` and returns one: the offset of an Extism memory block, as Extism's host functions take and return them. The block passed holds the request message, encoded; the block returned holds a `KernelAnswer`, encoded. A request the Kernel can't read is answered `refused`, never a trap. Every call can import them, so a Plugin calling them still loads, but they answer `refused` in `manifest()` and `check_settings()`, which run for no enabled Plugin, and until the Server is serving. The Kernel answers on the thread the call runs on, so time spent in them counts toward the call's 5 seconds.
 - **128 MiB of memory and 5 seconds per call**, the memory counting the Plugin's own and what Extism keeps for it. A call past either limit fails. What that costs depends on the call: past one, `manifest()` gets the Plugin refused, and `check_settings()` fails that check.
 - **Three crashes in a row disable the Plugin.** Only an Extension Point's export crashes: when it runs past a limit or traps, not when it returns an error. Each Extension Point counts its own crashes, except that a Movie and a Show Fulfiller count as one.
 - **Settings as text.** `check_settings()` and the Extension Points' exports find each setting in the Extism config under its key, as text: a bool as `true` or `false`, a number in decimal. A setting holds what the admin set, or its Manifest default if the admin set nothing; one with neither is not in the config. `check_settings()` gets the settings being tested, which may be unsaved. `manifest()` gets no settings. Personal settings are never in the config; see above.

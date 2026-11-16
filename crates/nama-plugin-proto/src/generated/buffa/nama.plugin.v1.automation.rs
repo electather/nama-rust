@@ -16,6 +16,8 @@ pub enum Permission {
     PERMISSION_READ_WATCH_STATES = 3i32,
     /// Deleting a title's media files: `delete_media`.
     PERMISSION_DELETE_MEDIA = 4i32,
+    /// Every User's id and display name: `list_users`.
+    PERMISSION_READ_USERS = 5i32,
 }
 impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -33,6 +35,9 @@ impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_DELETE_MEDIA`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const DeleteMedia: Self = Self::PERMISSION_DELETE_MEDIA;
+    ///Idiomatic alias for [`Self::PERMISSION_READ_USERS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ReadUsers: Self = Self::PERMISSION_READ_USERS;
 }
 impl ::core::default::Default for Permission {
     fn default() -> Self {
@@ -133,6 +138,7 @@ impl ::buffa::Enumeration for Permission {
             2i32 => ::core::option::Option::Some(Self::PERMISSION_READ_LIBRARIES),
             3i32 => ::core::option::Option::Some(Self::PERMISSION_READ_WATCH_STATES),
             4i32 => ::core::option::Option::Some(Self::PERMISSION_DELETE_MEDIA),
+            5i32 => ::core::option::Option::Some(Self::PERMISSION_READ_USERS),
             _ => ::core::option::Option::None,
         }
     }
@@ -146,6 +152,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_READ_LIBRARIES => "PERMISSION_READ_LIBRARIES",
             Self::PERMISSION_READ_WATCH_STATES => "PERMISSION_READ_WATCH_STATES",
             Self::PERMISSION_DELETE_MEDIA => "PERMISSION_DELETE_MEDIA",
+            Self::PERMISSION_READ_USERS => "PERMISSION_READ_USERS",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -163,6 +170,9 @@ impl ::buffa::Enumeration for Permission {
             "PERMISSION_DELETE_MEDIA" => {
                 ::core::option::Option::Some(Self::PERMISSION_DELETE_MEDIA)
             }
+            "PERMISSION_READ_USERS" => {
+                ::core::option::Option::Some(Self::PERMISSION_READ_USERS)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -173,6 +183,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_READ_LIBRARIES,
             Self::PERMISSION_READ_WATCH_STATES,
             Self::PERMISSION_DELETE_MEDIA,
+            Self::PERMISSION_READ_USERS,
         ]
     }
 }
@@ -3391,6 +3402,401 @@ pub const __WATCH_STATE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa
     type_url: "type.googleapis.com/nama.plugin.v1.WatchState",
     to_json: ::buffa::type_registry::any_to_json::<WatchState>,
     from_json: ::buffa::type_registry::any_from_json::<WatchState>,
+    is_wkt: false,
+};
+/// What `list_users` takes.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct UsersAsked {
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for UsersAsked {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("UsersAsked").finish()
+    }
+}
+impl UsersAsked {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.UsersAsked";
+}
+::buffa::impl_default_instance!(UsersAsked);
+impl ::buffa::MessageName for UsersAsked {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "UsersAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.UsersAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.UsersAsked";
+}
+impl ::buffa::Message for UsersAsked {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for UsersAsked {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.UsersAsked";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for UsersAsked {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __USERS_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.UsersAsked",
+    to_json: ::buffa::type_registry::any_to_json::<UsersAsked>,
+    from_json: ::buffa::type_registry::any_from_json::<UsersAsked>,
+    is_wkt: false,
+};
+/// What `list_users` answers: every User. Every User sees every Library, so these are every User a
+/// title is for, including those without any Watch State.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct Users {
+    /// Field 1: `users`
+    #[serde(
+        rename = "users",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub users: ::buffa::alloc::vec::Vec<User>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for Users {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Users").field("users", &self.users).finish()
+    }
+}
+impl Users {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Users";
+}
+::buffa::impl_default_instance!(Users);
+impl ::buffa::MessageName for Users {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Users";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Users";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Users";
+}
+impl ::buffa::Message for Users {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.users {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.users {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.users.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.users.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for Users {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.Users";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for Users {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __USERS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.Users",
+    to_json: ::buffa::type_registry::any_to_json::<Users>,
+    from_json: ::buffa::type_registry::any_from_json::<Users>,
+    is_wkt: false,
+};
+/// A User, as a Plugin sees one: their id and display name only.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct User {
+    /// Field 1: `id`
+    #[serde(
+        rename = "id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub id: i64,
+    /// Field 2: `display_name`
+    #[serde(
+        rename = "displayName",
+        alias = "display_name",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub display_name: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for User {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("User")
+            .field("id", &self.id)
+            .field("display_name", &self.display_name)
+            .finish()
+    }
+}
+impl User {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.User";
+}
+::buffa::impl_default_instance!(User);
+impl ::buffa::MessageName for User {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "User";
+    const FULL_NAME: &'static str = "nama.plugin.v1.User";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.User";
+}
+impl ::buffa::Message for User {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.id) as u64;
+        }
+        if !self.display_name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.display_name) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.id, buf);
+        }
+        if !self.display_name.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.display_name, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.id = ::buffa::types::decode_int64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.display_name, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.id = 0i64;
+        self.display_name.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for User {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.User";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for User {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __USER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.User",
+    to_json: ::buffa::type_registry::any_to_json::<User>,
+    from_json: ::buffa::type_registry::any_from_json::<User>,
     is_wkt: false,
 };
 /// What `delete_media` takes: the title whose media files to delete.

@@ -85,6 +85,9 @@ pub mod __buffa {
         reg.register_json_any(super::__WATCH_STATES_JSON_ANY);
         reg.register_json_any(super::__TITLE_WATCH_STATES_JSON_ANY);
         reg.register_json_any(super::__WATCH_STATE_JSON_ANY);
+        reg.register_json_any(super::__USERS_ASKED_JSON_ANY);
+        reg.register_json_any(super::__USERS_JSON_ANY);
+        reg.register_json_any(super::__USER_JSON_ANY);
         reg.register_json_any(super::__DELETE_ASKED_JSON_ANY);
         reg.register_json_any(super::__DELETE_STARTED_JSON_ANY);
         reg.register_json_any(super::__CONNECTION_START_JSON_ANY);
@@ -264,6 +267,18 @@ pub use self::__buffa::view::TitleWatchStatesOwnedView;
 pub use self::__buffa::view::WatchStateView;
 #[doc(inline)]
 pub use self::__buffa::view::WatchStateOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersView;
+#[doc(inline)]
+pub use self::__buffa::view::UsersOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserView;
+#[doc(inline)]
+pub use self::__buffa::view::UserOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::DeleteAskedView;
 #[doc(inline)]

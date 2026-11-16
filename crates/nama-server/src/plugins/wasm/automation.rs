@@ -7,7 +7,7 @@ use buffa::Message;
 use extism::{CurrentPlugin, UserData, Val};
 use nama_plugin_api::{
     BoxFuture,
-    automation::{Kernel, Refused},
+    automation::{Kernel, KernelRefused},
 };
 use nama_plugin_proto::nama::plugin::v1::{KernelAnswer, kernel_answer};
 use tokio::runtime::Handle;
@@ -57,6 +57,10 @@ pub(super) const FUNCTIONS: &[Function] = &[
         },
     },
     Function {
+        name: "list_users",
+        answer: |runtime, kernel, request| answer(runtime, kernel, request, Kernel::list_users),
+    },
+    Function {
         name: "delete_media",
         answer: |runtime, kernel, request| answer(runtime, kernel, request, Kernel::delete_media),
     },
@@ -67,7 +71,7 @@ fn answer<Req: Message, Resp: Message>(
     runtime: &Handle,
     kernel: &dyn Kernel,
     request: &[u8],
-    call: for<'a> fn(&'a dyn Kernel, &'a Req) -> BoxFuture<'a, Result<Resp, Refused>>,
+    call: for<'a> fn(&'a dyn Kernel, &'a Req) -> BoxFuture<'a, Result<Resp, KernelRefused>>,
 ) -> kernel_answer::Result {
     let Ok(request) = Req::decode_from_slice(request) else {
         return refused("the Kernel couldn't read the request");
@@ -75,7 +79,7 @@ fn answer<Req: Message, Resp: Message>(
     // An import runs on the blocking thread its call runs on, so blocking here is allowed.
     match runtime.block_on(call(kernel, &request)) {
         Ok(response) => kernel_answer::Result::Answer(response.encode_to_vec()),
-        Err(Refused(words)) => kernel_answer::Result::Refused(words),
+        Err(KernelRefused(words)) => kernel_answer::Result::Refused(words),
     }
 }
 

@@ -64,6 +64,10 @@ export const pluginPermissions: Partial<
     label: "Delete media",
     about: "It can delete Movies and Episodes, with their files on disk, for good.",
   },
+  [PluginPermission.READ_USERS]: {
+    label: "Read Users",
+    about: "It sees every User's id and display name, and nothing else about them.",
+  },
 };
 
 /**

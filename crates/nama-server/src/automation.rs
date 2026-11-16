@@ -12,10 +12,10 @@ use buffa::{EnumValue, Inline, MessageField};
 use nama_plugin_api::{
     BoxFuture, PluginId,
     automation::{
-        DeleteAsked, DeleteStarted, Kernel, Libraries, LibrariesAsked, Library, LibraryKind,
-        Permission, Refused, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
-        TitleRefKind, TitleWatchStates, Titles, TitlesAsked, WatchState, WatchStates,
-        WatchStatesAsked,
+        DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked, Library,
+        LibraryKind, Permission, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
+        TitleRefKind, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState,
+        WatchStates, WatchStatesAsked,
     },
     fulfiller::TitleId,
     metadata::ExternalId,
@@ -32,6 +32,7 @@ use crate::{
     },
     plugins::ExtensionPoints,
     scanner::{self, Doomed, Scanner},
+    users,
 };
 
 /// What makes the Kernel's functions for each enabled Automation Plugin.
@@ -87,6 +88,7 @@ enum Method {
     ListLibraries,
     ListTitles,
     ListWatchStates,
+    ListUsers,
     DeleteMedia,
 }
 
@@ -97,6 +99,7 @@ impl Method {
             Self::StoreGet | Self::StorePut | Self::StoreDelete => Permission::PERMISSION_STORE,
             Self::ListLibraries | Self::ListTitles => Permission::PERMISSION_READ_LIBRARIES,
             Self::ListWatchStates => Permission::PERMISSION_READ_WATCH_STATES,
+            Self::ListUsers => Permission::PERMISSION_READ_USERS,
             Self::DeleteMedia => Permission::PERMISSION_DELETE_MEDIA,
         }
     }
@@ -110,6 +113,7 @@ const fn permission_name(permission: Permission) -> &'static str {
         Permission::PERMISSION_READ_LIBRARIES => "Read Libraries",
         Permission::PERMISSION_READ_WATCH_STATES => "Read Watch States",
         Permission::PERMISSION_DELETE_MEDIA => "Delete media",
+        Permission::PERMISSION_READ_USERS => "Read Users",
     }
 }
 
@@ -122,35 +126,40 @@ struct PluginKernel {
 
 impl PluginKernel {
     /// Checks the Plugin was granted what `method` needs, then hands out the Automation.
-    fn check(&self, method: Method) -> Result<Arc<Automation>, Refused> {
+    fn check(&self, method: Method) -> Result<Arc<Automation>, KernelRefused> {
         let needs = method.needs();
         if !self.granted.contains(&needs) {
-            return Err(Refused(format!(
+            return Err(KernelRefused(format!(
                 "the Admin hasn't granted {} the {} Permission",
                 self.plugin,
                 permission_name(needs)
             )));
         }
-        (self.automation.upgrade()).ok_or_else(|| Refused("the Server is stopping".to_owned()))
+        (self.automation.upgrade())
+            .ok_or_else(|| KernelRefused("the Server is stopping".to_owned()))
     }
 
     /// Refuses with the Store's reason, or, for a database failure, logs it and refuses without it.
-    fn store_refused(&self, err: &store::Error) -> Refused {
+    fn store_refused(&self, err: &store::Error) -> KernelRefused {
         if let store::Error::Database(err) = err {
             error!(plugin = %self.plugin, "the Store failed: {err}");
-            return Refused("the Kernel couldn't reach the Store".to_owned());
+            return KernelRefused("the Kernel couldn't reach the Store".to_owned());
         }
-        Refused(err.to_string())
+        KernelRefused(err.to_string())
     }
 
     /// Logs a database failure while `doing` something, and refuses without its cause.
-    fn database_refused(&self, doing: &str, err: &impl std::fmt::Display) -> Refused {
+    fn database_refused(&self, doing: &str, err: &impl std::fmt::Display) -> KernelRefused {
         error!(plugin = %self.plugin, "{doing} failed: {err}");
-        Refused(format!("the Kernel failed {doing}"))
+        KernelRefused(format!("the Kernel failed {doing}"))
     }
 
     /// The Matched Movies, or Episodes, of the Library `library`.
-    async fn titles(&self, automation: &Automation, library: i64) -> Result<Vec<Title>, Refused> {
+    async fn titles(
+        &self,
+        automation: &Automation,
+        library: i64,
+    ) -> Result<Vec<Title>, KernelRefused> {
         let found = libraries::Libraries::new(Arc::clone(&automation.db))
             .get(library)
             .await;
@@ -159,7 +168,7 @@ impl PluginKernel {
             Err(libraries::Error::Database(err)) => {
                 return Err(self.database_refused("reading the Library", &err));
             }
-            Err(err) => return Err(Refused(err.to_string())),
+            Err(err) => return Err(KernelRefused(err.to_string())),
         };
         let contents = Contents::new(Arc::clone(&automation.db));
         let read = |err| self.database_refused("reading the Library's titles", &err);
@@ -219,18 +228,18 @@ fn titled<T>(
     title: &TitleRef,
     movie: impl FnOnce(ExternalId) -> T,
     episode: impl FnOnce(ExternalId) -> T,
-) -> Result<T, Refused> {
+) -> Result<T, KernelRefused> {
     let id = title
         .id
         .as_option()
-        .ok_or_else(|| Refused("the title's id is missing".to_owned()))?;
+        .ok_or_else(|| KernelRefused("the title's id is missing".to_owned()))?;
     let id = ExternalId::new(&id.namespace, id.value.clone())
-        .map_err(|err| Refused(format!("the title's id is malformed: {err}")))?;
+        .map_err(|err| KernelRefused(format!("the title's id is malformed: {err}")))?;
     match title.kind {
         EnumValue::Known(TitleRefKind::TITLE_REF_KIND_MOVIE) => Ok(movie(id)),
         EnumValue::Known(TitleRefKind::TITLE_REF_KIND_EPISODE) => Ok(episode(id)),
         EnumValue::Known(TitleRefKind::TITLE_REF_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
-            Refused("the kind of title must be Movie or Episode".to_owned()),
+            KernelRefused("the kind of title must be Movie or Episode".to_owned()),
         ),
     }
 }
@@ -255,7 +264,10 @@ fn watch_state_to_proto(user: i64, state: watch_states::WatchState) -> WatchStat
 }
 
 impl Kernel for PluginKernel {
-    fn store_get<'a>(&'a self, key: &'a StoreKey) -> BoxFuture<'a, Result<StoreValue, Refused>> {
+    fn store_get<'a>(
+        &'a self,
+        key: &'a StoreKey,
+    ) -> BoxFuture<'a, Result<StoreValue, KernelRefused>> {
         Box::pin(async move {
             let automation = self.check(Method::StoreGet)?;
             let value = store::get(&automation.db, &self.plugin, key.user_id, &key.key)
@@ -268,7 +280,10 @@ impl Kernel for PluginKernel {
         })
     }
 
-    fn store_put<'a>(&'a self, entry: &'a StoreEntry) -> BoxFuture<'a, Result<Stored, Refused>> {
+    fn store_put<'a>(
+        &'a self,
+        entry: &'a StoreEntry,
+    ) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
         Box::pin(async move {
             let automation = self.check(Method::StorePut)?;
             store::put(
@@ -284,7 +299,10 @@ impl Kernel for PluginKernel {
         })
     }
 
-    fn store_delete<'a>(&'a self, key: &'a StoreKey) -> BoxFuture<'a, Result<Stored, Refused>> {
+    fn store_delete<'a>(
+        &'a self,
+        key: &'a StoreKey,
+    ) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
         Box::pin(async move {
             let automation = self.check(Method::StoreDelete)?;
             store::delete(&automation.db, &self.plugin, key.user_id, key.key.clone())
@@ -297,7 +315,7 @@ impl Kernel for PluginKernel {
     fn list_libraries<'a>(
         &'a self,
         _asked: &'a LibrariesAsked,
-    ) -> BoxFuture<'a, Result<Libraries, Refused>> {
+    ) -> BoxFuture<'a, Result<Libraries, KernelRefused>> {
         Box::pin(async move {
             let automation = self.check(Method::ListLibraries)?;
             let listed = libraries::Libraries::new(Arc::clone(&automation.db))
@@ -305,7 +323,7 @@ impl Kernel for PluginKernel {
                 .await
                 .map_err(|err| {
                     error!(plugin = %self.plugin, "listing the Libraries failed: {err}");
-                    Refused("the Kernel couldn't read the Libraries".to_owned())
+                    KernelRefused("the Kernel couldn't read the Libraries".to_owned())
                 })?;
             Ok(Libraries {
                 libraries: listed
@@ -326,7 +344,10 @@ impl Kernel for PluginKernel {
         })
     }
 
-    fn list_titles<'a>(&'a self, asked: &'a TitlesAsked) -> BoxFuture<'a, Result<Titles, Refused>> {
+    fn list_titles<'a>(
+        &'a self,
+        asked: &'a TitlesAsked,
+    ) -> BoxFuture<'a, Result<Titles, KernelRefused>> {
         Box::pin(async move {
             let automation = self.check(Method::ListTitles)?;
             Ok(Titles {
@@ -339,7 +360,7 @@ impl Kernel for PluginKernel {
     fn list_watch_states<'a>(
         &'a self,
         asked: &'a WatchStatesAsked,
-    ) -> BoxFuture<'a, Result<WatchStates, Refused>> {
+    ) -> BoxFuture<'a, Result<WatchStates, KernelRefused>> {
         Box::pin(async move {
             let automation = self.check(Method::ListWatchStates)?;
             let titles = (asked.titles.iter())
@@ -350,7 +371,7 @@ impl Kernel for PluginKernel {
                         |id| MovieOrEpisode::episode(&id),
                     )
                 })
-                .collect::<Result<Vec<_>, Refused>>()?;
+                .collect::<Result<Vec<_>, KernelRefused>>()?;
             let states = watch_states::WatchStates::new(Arc::clone(&automation.db))
                 .of_every_user(&titles)
                 .await
@@ -370,14 +391,37 @@ impl Kernel for PluginKernel {
         })
     }
 
+    fn list_users<'a>(
+        &'a self,
+        _asked: &'a UsersAsked,
+    ) -> BoxFuture<'a, Result<Users, KernelRefused>> {
+        Box::pin(async move {
+            let automation = self.check(Method::ListUsers)?;
+            let listed = users::Users::new(Arc::clone(&automation.db), automation.points.clone())
+                .list()
+                .await
+                .map_err(|err| self.database_refused("reading the Users", &err))?;
+            Ok(Users {
+                users: (listed.into_iter())
+                    .map(|user| User {
+                        id: user.id,
+                        display_name: user.name,
+                        ..User::default()
+                    })
+                    .collect(),
+                ..Users::default()
+            })
+        })
+    }
+
     fn delete_media<'a>(
         &'a self,
         asked: &'a DeleteAsked,
-    ) -> BoxFuture<'a, Result<DeleteStarted, Refused>> {
+    ) -> BoxFuture<'a, Result<DeleteStarted, KernelRefused>> {
         Box::pin(async move {
             let automation = self.check(Method::DeleteMedia)?;
             let title = (asked.title_ref.as_option())
-                .ok_or_else(|| Refused("the title to delete is missing".to_owned()))?;
+                .ok_or_else(|| KernelRefused("the title to delete is missing".to_owned()))?;
             let to_delete = ToDelete::Title {
                 library: title.library_id,
                 title: titled(title, Target::Movie, Target::Episode)?,
@@ -387,10 +431,10 @@ impl Kernel for PluginKernel {
                 Err(browse::Error::Database(err)) => {
                     return Err(self.database_refused("finding the media to delete", &err));
                 }
-                Err(err) => return Err(Refused(err.to_string())),
+                Err(err) => return Err(KernelRefused(err.to_string())),
             };
             if let Some(folder) = doomed.read_only_folder() {
-                return Err(Refused(
+                return Err(KernelRefused(
                     scanner::Error::ReadOnly(folder.to_owned()).to_string(),
                 ));
             }

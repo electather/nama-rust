@@ -64,16 +64,21 @@ function openWithCleanup(requested: PluginPermission[]) {
 }
 
 test("enabling a Plugin that requests Plugin Permissions lists them, none checked", async () => {
-  openWithCleanup([PluginPermission.READ_WATCH_STATES, PluginPermission.DELETE_MEDIA]);
+  openWithCleanup([
+    PluginPermission.READ_WATCH_STATES,
+    PluginPermission.READ_USERS,
+    PluginPermission.DELETE_MEDIA,
+  ]);
   fireEvent.click((await row("cleanup")).getByRole("button", { name: "Enable cleanup" }));
 
   const dialog = within(await screen.findByRole("alertdialog", { name: "Enable cleanup?" }));
   const boxes = dialog.getAllByRole<HTMLInputElement>("checkbox");
   expect(boxes.map((box) => box.labels?.[0]?.textContent)).toStrictEqual([
     "Read Watch State",
+    "Read Users",
     "Delete media",
   ]);
-  expect(boxes.map((box) => box.checked)).toStrictEqual([false, false]);
+  expect(boxes.map((box) => box.checked)).toStrictEqual([false, false, false]);
 });
 
 test("enabling sends only the Plugin Permissions checked", async () => {

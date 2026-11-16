@@ -265,6 +265,8 @@ enum PluginPermission {
   PLUGIN_PERMISSION_READ_WATCH_STATES = 3;
   // Delete Movies and Episodes, with their files on disk.
   PLUGIN_PERMISSION_DELETE_MEDIA = 4;
+  // See every User's id and display name.
+  PLUGIN_PERMISSION_READ_USERS = 5;
 }
 
 // A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin

@@ -9,5 +9,5 @@ The Kernel's functions an Automation Plugin calls (ADR 0048), served to each Plu
 
 ### Neighbours
 
-- Uses: `db`, `library` (`Libraries`, `Contents`, `WatchStates`), `browse` (`Browse::doomed`), `scanner` (`Scanner::delete_media`), `plugins` (`ExtensionPoints::name`).
+- Uses: `db`, `library` (`Libraries`, `Contents`, `WatchStates`), `browse` (`Browse::doomed`), `scanner` (`Scanner::delete_media`), `users` (`Users::list`), `plugins` (`ExtensionPoints::name`).
 - Used by: startup in `lib.rs`, through `ExtensionPoints::serve_kernel`.

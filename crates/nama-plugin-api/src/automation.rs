@@ -13,7 +13,8 @@ use std::{error::Error, fmt};
 pub use nama_plugin_proto::nama::plugin::v1::{
     DeleteAsked, DeleteStarted, Libraries, LibrariesAsked, Library, LibraryKind, Permission,
     StoreEntry, StoreKey, StoreValue, Stored, Tick, Title, TitleRef, TitleRefKind,
-    TitleWatchStates, Titles, TitlesAsked, WatchState, WatchStates, WatchStatesAsked,
+    TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates,
+    WatchStatesAsked,
 };
 
 use crate::{BoxFuture, PluginError};
@@ -30,48 +31,66 @@ pub trait Automation: Send + Sync + 'static {
 
 /// Why the [`Kernel`] refused a function, in plain words, such as a Permission not granted.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Refused(pub String);
+pub struct KernelRefused(pub String);
 
-impl fmt::Display for Refused {
+impl fmt::Display for KernelRefused {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
     }
 }
 
-impl Error for Refused {}
+impl Error for KernelRefused {}
 
 /// What an Automation Plugin may ask the Kernel. Each method needs the Plugin [`Permission`]
 /// `automation.proto` names beside it, which the Kernel checks.
 pub trait Kernel: Send + Sync + 'static {
     /// The value kept under `key` in the Plugin's Store. Needs `PERMISSION_STORE`.
-    fn store_get<'a>(&'a self, key: &'a StoreKey) -> BoxFuture<'a, Result<StoreValue, Refused>>;
+    fn store_get<'a>(
+        &'a self,
+        key: &'a StoreKey,
+    ) -> BoxFuture<'a, Result<StoreValue, KernelRefused>>;
 
     /// Keeps `entry` in the Plugin's Store, replacing any value under its key and User. Needs
     /// `PERMISSION_STORE`.
-    fn store_put<'a>(&'a self, entry: &'a StoreEntry) -> BoxFuture<'a, Result<Stored, Refused>>;
+    fn store_put<'a>(
+        &'a self,
+        entry: &'a StoreEntry,
+    ) -> BoxFuture<'a, Result<Stored, KernelRefused>>;
 
     /// Removes the value kept under `key` in the Plugin's Store. Needs `PERMISSION_STORE`.
-    fn store_delete<'a>(&'a self, key: &'a StoreKey) -> BoxFuture<'a, Result<Stored, Refused>>;
+    fn store_delete<'a>(
+        &'a self,
+        key: &'a StoreKey,
+    ) -> BoxFuture<'a, Result<Stored, KernelRefused>>;
 
     /// Every Library. Needs `PERMISSION_READ_LIBRARIES`.
     fn list_libraries<'a>(
         &'a self,
         asked: &'a LibrariesAsked,
-    ) -> BoxFuture<'a, Result<Libraries, Refused>>;
+    ) -> BoxFuture<'a, Result<Libraries, KernelRefused>>;
 
     /// A Library's Movies, or its Shows' Episodes. Needs `PERMISSION_READ_LIBRARIES`.
-    fn list_titles<'a>(&'a self, asked: &'a TitlesAsked) -> BoxFuture<'a, Result<Titles, Refused>>;
+    fn list_titles<'a>(
+        &'a self,
+        asked: &'a TitlesAsked,
+    ) -> BoxFuture<'a, Result<Titles, KernelRefused>>;
 
     /// Every User's Watch State of each title asked for. Needs `PERMISSION_READ_WATCH_STATES`.
     fn list_watch_states<'a>(
         &'a self,
         asked: &'a WatchStatesAsked,
-    ) -> BoxFuture<'a, Result<WatchStates, Refused>>;
+    ) -> BoxFuture<'a, Result<WatchStates, KernelRefused>>;
+
+    /// Every User, with their id and display name only. Needs `PERMISSION_READ_USERS`.
+    fn list_users<'a>(
+        &'a self,
+        asked: &'a UsersAsked,
+    ) -> BoxFuture<'a, Result<Users, KernelRefused>>;
 
     /// Starts deleting a title's media files, once the Kernel checked the delete. Needs
     /// `PERMISSION_DELETE_MEDIA`.
     fn delete_media<'a>(
         &'a self,
         asked: &'a DeleteAsked,
-    ) -> BoxFuture<'a, Result<DeleteStarted, Refused>>;
+    ) -> BoxFuture<'a, Result<DeleteStarted, KernelRefused>>;
 }

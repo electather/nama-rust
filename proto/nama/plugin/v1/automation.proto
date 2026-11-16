@@ -18,6 +18,7 @@ import "nama/plugin/v1/request.proto";
 //   list_libraries:    LibrariesAsked   -> Libraries      PERMISSION_READ_LIBRARIES
 //   list_titles:       TitlesAsked      -> Titles         PERMISSION_READ_LIBRARIES
 //   list_watch_states: WatchStatesAsked -> WatchStates    PERMISSION_READ_WATCH_STATES
+//   list_users:        UsersAsked       -> Users          PERMISSION_READ_USERS
 //   delete_media:      DeleteAsked      -> DeleteStarted  PERMISSION_DELETE_MEDIA
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
@@ -63,6 +64,8 @@ enum Permission {
   PERMISSION_READ_WATCH_STATES = 3;
   // Deleting a title's media files: `delete_media`.
   PERMISSION_DELETE_MEDIA = 4;
+  // Every User's id and display name: `list_users`.
+  PERMISSION_READ_USERS = 5;
 }
 
 // An entry in the Plugin's Store, for `store_get` and `store_delete`.
@@ -176,6 +179,21 @@ message WatchState {
   uint64 duration_ms = 4;
   // When it last changed, in milliseconds since the Unix epoch.
   int64 updated_at_ms = 5;
+}
+
+// What `list_users` takes.
+message UsersAsked {}
+
+// What `list_users` answers: every User. Every User sees every Library, so these are every User a
+// title is for, including those without any Watch State.
+message Users {
+  repeated User users = 1;
+}
+
+// A User, as a Plugin sees one: their id and display name only.
+message User {
+  int64 id = 1;
+  string display_name = 2;
 }
 
 // What `delete_media` takes: the title whose media files to delete.

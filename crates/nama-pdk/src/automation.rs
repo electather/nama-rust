@@ -2,7 +2,7 @@
 
 use extism_pdk::Error;
 pub use nama_plugin_proto::nama::plugin::v1::{
-    Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind, TitleWatchStates,
+    Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind, TitleWatchStates, User,
     WatchState,
 };
 
@@ -68,8 +68,8 @@ pub mod kernel {
     use extism_pdk::Error;
     use nama_plugin_proto::nama::plugin::v1::{
         DeleteAsked, DeleteStarted, KernelAnswer, Libraries, LibrariesAsked, Library, StoreEntry,
-        StoreKey, StoreValue, Stored, Title, TitleRef, TitleWatchStates, Titles, TitlesAsked,
-        WatchStates, WatchStatesAsked, kernel_answer,
+        StoreKey, StoreValue, Stored, Title, TitleRef, TitleWatchStates, Titles, TitlesAsked, User,
+        Users, UsersAsked, WatchStates, WatchStatesAsked, kernel_answer,
     };
 
     /// The value the Plugin's Store keeps under `key`, for `user` or, with `None`, for the Plugin
@@ -156,6 +156,17 @@ pub mod kernel {
         Ok(call::<WatchStates>("list_watch_states", &asked)?.titles)
     }
 
+    /// Every User, with their id and display name only. Every User sees every Library, so these
+    /// are every User a title is for, including those without any Watch State. Needs
+    /// `PERMISSION_READ_USERS`.
+    ///
+    /// # Errors
+    ///
+    /// When the Kernel refused or couldn't be called.
+    pub fn users() -> Result<Vec<User>, Error> {
+        Ok(call::<Users>("list_users", &UsersAsked::default())?.users)
+    }
+
     /// Deletes the media files of `title`, as an Admin's delete does. It returns once the Kernel
     /// checked the delete, which goes on in the background. Needs `PERMISSION_DELETE_MEDIA`.
     ///
@@ -202,6 +213,7 @@ pub mod kernel {
             safe fn list_libraries(request: u64) -> u64;
             safe fn list_titles(request: u64) -> u64;
             safe fn list_watch_states(request: u64) -> u64;
+            safe fn list_users(request: u64) -> u64;
             safe fn delete_media(request: u64) -> u64;
         }
 
@@ -212,6 +224,7 @@ pub mod kernel {
             "list_libraries" => list_libraries,
             "list_titles" => list_titles,
             "list_watch_states" => list_watch_states,
+            "list_users" => list_users,
             "delete_media" => delete_media,
             _ => return Err(Error::msg(format!("the Kernel has no function {name}"))),
         };

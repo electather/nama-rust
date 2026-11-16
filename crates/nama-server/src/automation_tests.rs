@@ -5,7 +5,7 @@ use nama_plugin_api::{
     PluginId,
     automation::{
         DeleteAsked, Kernel, LibrariesAsked, LibraryKind, Permission, StoreKey, TitleRef,
-        TitleRefKind, TitlesAsked, WatchStatesAsked,
+        TitleRefKind, TitlesAsked, UsersAsked, WatchStatesAsked,
     },
     fulfiller::TitleId,
     metadata::ExternalId,
@@ -79,6 +79,28 @@ fn movie_ref(library: i64, tmdb: i64) -> TitleRef {
         }),
         ..TitleRef::default()
     }
+}
+
+/// Creates a User for each of `names` on `db`, and gives their ids.
+async fn users<const N: usize>(db: &Arc<Database>, names: [&str; N]) -> [i64; N] {
+    let root = User {
+        id: 0,
+        name: "Root".to_owned(),
+        permissions: Permissions::ADMIN,
+        created_at: 0,
+    };
+    let plugins = Registry::new();
+    plugins
+        .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
+        .unwrap();
+    let users = Users::new(Arc::clone(db), plugins.extension_points());
+    let mut ids = [0; N];
+    for (id, name) in ids.iter_mut().zip(names) {
+        *id = (users.create(&root, name, "correct horse battery staple"))
+            .await
+            .unwrap();
+    }
+    ids
 }
 
 fn delete(title: TitleRef) -> DeleteAsked {
@@ -156,20 +178,7 @@ async fn list_titles_gives_each_movie_with_the_id_its_watch_state_uses() {
 async fn list_watch_states_gives_each_users_watch_state_of_each_title() {
     let data = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let root = User {
-        id: 0,
-        name: "Root".to_owned(),
-        permissions: Permissions::ADMIN,
-        created_at: 0,
-    };
-    let plugins = Registry::new();
-    plugins
-        .enable(Arc::new(nama_plugin_local_auth::LocalAuth))
-        .unwrap();
-    let users = Users::new(Arc::clone(&db), plugins.extension_points());
-    let password = "correct horse battery staple";
-    let ada = users.create(&root, "Ada", password).await.unwrap();
-    let bo = users.create(&root, "Bo", password).await.unwrap();
+    let [ada, bo] = users(&db, ["Ada", "Bo"]).await;
     let watch_states = WatchStates::new(Arc::clone(&db));
     let alien = MovieOrEpisode::movie(&ExternalId::tmdb(ALIEN_TMDB_ID));
     let halfway = Progress::new(500, 1000).unwrap();
@@ -202,6 +211,39 @@ async fn list_watch_states_gives_each_users_watch_state_of_each_title() {
     assert_eq!(states, [(ada, false, 500, 1000), (bo, true, 0, 0)]);
     assert!(watched.states.iter().all(|state| state.updated_at_ms > 0));
     assert_eq!(unwatched.states, []);
+}
+
+#[tokio::test]
+async fn list_users_without_its_permission_is_refused_naming_it() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_WATCH_STATES);
+
+    let refused = kernel.list_users(&UsersAsked::default()).await;
+
+    assert_eq!(
+        refused.unwrap_err().0,
+        "the Admin hasn't granted cleanup the Read Users Permission"
+    );
+}
+
+#[tokio::test]
+async fn list_users_gives_every_user_with_their_id_and_display_name() {
+    let data = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let [ada, bo] = users(&db, ["Ada", "Bo"]).await;
+    let alien = MovieOrEpisode::movie(&ExternalId::tmdb(ALIEN_TMDB_ID));
+    (WatchStates::new(Arc::clone(&db)).mark(ada, vec![alien], true))
+        .await
+        .unwrap();
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_USERS);
+
+    let listed = kernel.list_users(&UsersAsked::default()).await.unwrap();
+
+    let users: Vec<_> = (listed.users.iter())
+        .map(|user| (user.id, user.display_name.as_str()))
+        .collect();
+    assert_eq!(users, [(ada, "Ada"), (bo, "Bo")]);
 }
 
 #[tokio::test]

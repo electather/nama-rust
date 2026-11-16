@@ -6,9 +6,9 @@ use std::{
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, Registrar,
     automation::{
-        Automation, DeleteAsked, DeleteStarted, Kernel, Libraries, LibrariesAsked, Permission,
-        Refused, StoreEntry, StoreKey, StoreValue, Stored, Tick, Titles, TitlesAsked, WatchStates,
-        WatchStatesAsked,
+        Automation, DeleteAsked, DeleteStarted, Kernel, KernelRefused, Libraries, LibrariesAsked,
+        Permission, StoreEntry, StoreKey, StoreValue, Stored, Tick, Titles, TitlesAsked, Users,
+        UsersAsked, WatchStates, WatchStatesAsked,
     },
     settings::Settings,
 };
@@ -39,13 +39,16 @@ impl Fake {
     }
 }
 
-fn refuse<'a, T: Send + 'a>(words: &str) -> BoxFuture<'a, Result<T, Refused>> {
-    let refused = Refused(words.to_owned());
+fn refuse<'a, T: Send + 'a>(words: &str) -> BoxFuture<'a, Result<T, KernelRefused>> {
+    let refused = KernelRefused(words.to_owned());
     Box::pin(async move { Err(refused) })
 }
 
 impl Kernel for Fake {
-    fn store_get<'a>(&'a self, key: &'a StoreKey) -> BoxFuture<'a, Result<StoreValue, Refused>> {
+    fn store_get<'a>(
+        &'a self,
+        key: &'a StoreKey,
+    ) -> BoxFuture<'a, Result<StoreValue, KernelRefused>> {
         self.record("store_get", &key.key, &[]);
         let value = StoreValue {
             value: Some(b"kept".to_vec()),
@@ -54,12 +57,18 @@ impl Kernel for Fake {
         Box::pin(async move { Ok(value) })
     }
 
-    fn store_put<'a>(&'a self, entry: &'a StoreEntry) -> BoxFuture<'a, Result<Stored, Refused>> {
+    fn store_put<'a>(
+        &'a self,
+        entry: &'a StoreEntry,
+    ) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
         self.record("store_put", &entry.key, &entry.value);
         Box::pin(async { Ok(Stored::default()) })
     }
 
-    fn store_delete<'a>(&'a self, key: &'a StoreKey) -> BoxFuture<'a, Result<Stored, Refused>> {
+    fn store_delete<'a>(
+        &'a self,
+        key: &'a StoreKey,
+    ) -> BoxFuture<'a, Result<Stored, KernelRefused>> {
         self.record("store_delete", &key.key, &[]);
         Box::pin(async { Ok(Stored::default()) })
     }
@@ -67,25 +76,32 @@ impl Kernel for Fake {
     fn list_libraries<'a>(
         &'a self,
         _: &'a LibrariesAsked,
-    ) -> BoxFuture<'a, Result<Libraries, Refused>> {
+    ) -> BoxFuture<'a, Result<Libraries, KernelRefused>> {
         refuse(NOT_GRANTED)
     }
 
-    fn list_titles<'a>(&'a self, _: &'a TitlesAsked) -> BoxFuture<'a, Result<Titles, Refused>> {
+    fn list_titles<'a>(
+        &'a self,
+        _: &'a TitlesAsked,
+    ) -> BoxFuture<'a, Result<Titles, KernelRefused>> {
         refuse("not faked")
     }
 
     fn list_watch_states<'a>(
         &'a self,
         _: &'a WatchStatesAsked,
-    ) -> BoxFuture<'a, Result<WatchStates, Refused>> {
+    ) -> BoxFuture<'a, Result<WatchStates, KernelRefused>> {
+        refuse("not faked")
+    }
+
+    fn list_users<'a>(&'a self, _: &'a UsersAsked) -> BoxFuture<'a, Result<Users, KernelRefused>> {
         refuse("not faked")
     }
 
     fn delete_media<'a>(
         &'a self,
         _: &'a DeleteAsked,
-    ) -> BoxFuture<'a, Result<DeleteStarted, Refused>> {
+    ) -> BoxFuture<'a, Result<DeleteStarted, KernelRefused>> {
         refuse("not faked")
     }
 }
