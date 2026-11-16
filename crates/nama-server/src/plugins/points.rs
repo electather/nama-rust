@@ -77,7 +77,7 @@ impl ExtensionPoints {
         F: Future<Output = Result<R, E>>,
         E: ProviderError<K>,
     {
-        self.ask_in_turn(None, call).await
+        self.ask_in_turn(None, call).await.answered()
     }
 
     /// Asks the Plugin `plugin`'s Provider of `T`, such as for something that Provider handed out
@@ -93,16 +93,32 @@ impl ExtensionPoints {
         F: Future<Output = Result<R, E>>,
         E: ProviderError<K>,
     {
+        self.ask_one(plugin, call).await.answered()
+    }
+
+    /// Asks the Plugin `plugin`'s Provider of `T` as [`ExtensionPoints::ask`] does, telling a
+    /// Plugin that isn't enabled or doesn't provide `T` from one that panicked.
+    pub(super) async fn ask_one<T, R, K, E, F>(
+        &self,
+        plugin: &PluginId,
+        call: impl Fn(Arc<T>) -> F,
+    ) -> Asked<R, K>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Future<Output = Result<R, E>>,
+        E: ProviderError<K>,
+    {
         self.ask_in_turn(Some(plugin), call).await
     }
 
     /// Asks the Providers of `T` in the order [`ExtensionPoints::ask_first`] describes,
-    /// considering only `only`'s if given, until one answers without panicking.
+    /// considering only `only`'s if given, until one answers without panicking. With none
+    /// answering, [`Asked::Panicked`] if any of them panicked.
     async fn ask_in_turn<T, R, K, E, F>(
         &self,
         only: Option<&PluginId>,
         call: impl Fn(Arc<T>) -> F,
-    ) -> Option<Answer<R, K>>
+    ) -> Asked<R, K>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = Result<R, E>>,
@@ -111,6 +127,7 @@ impl ExtensionPoints {
         let point = PointKey::provide::<T>();
         let mut entries = self.ranked_entries(point);
         entries.retain(|entry| only.is_none_or(|plugin| entry.plugin == *plugin));
+        let mut asked = Asked::Absent;
         for entry in entries {
             let Some(provider) = entry.registration.provider::<T>() else {
                 continue;
@@ -121,15 +138,18 @@ impl ExtensionPoints {
             match contain(|| formatted(call(provider))).await {
                 Ok(result) => {
                     let result = result.map_err(|failure| failure.blanked(&entry.secrets));
-                    return Some(Answer {
+                    return Asked::Answered(Answer {
                         plugin: entry.plugin,
                         result,
                     });
                 }
-                Err(message) => self.disable_after_panic(&entry, point.name(), &message),
+                Err(message) => {
+                    self.disable_after_panic(&entry, point.name(), &message);
+                    asked = Asked::Panicked;
+                }
             }
         }
-        None
+        asked
     }
 
     /// Tells every Provider of `T`, given the id of the Plugin providing it, each as its own task,
@@ -416,6 +436,25 @@ impl ExtensionPoints {
 
     pub(super) fn write<T>(&self, f: impl FnOnce(&mut State) -> T) -> T {
         f(&mut self.state.write().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
+/// What asking a Plugin's Provider came to, for a caller that must tell absent from panicked.
+pub(super) enum Asked<R, K> {
+    /// It answered, or failed without panicking.
+    Answered(Answer<R, K>),
+    /// The Plugin isn't enabled or doesn't provide the capability, such as one disabled since.
+    Absent,
+    /// It panicked, which disabled it.
+    Panicked,
+}
+
+impl<R, K> Asked<R, K> {
+    fn answered(self) -> Option<Answer<R, K>> {
+        match self {
+            Self::Answered(answer) => Some(answer),
+            Self::Absent | Self::Panicked => None,
+        }
     }
 }
 

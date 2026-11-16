@@ -11,6 +11,7 @@ use nama_plugin_api::{
     automation::{Automation, Tick},
 };
 
+use super::{Ticked, once};
 use crate::plugins::Registry;
 
 const EVERY: Duration = Duration::from_secs(60);
@@ -204,6 +205,30 @@ async fn tick_now_reports_a_tick_that_panicked() {
     let refused = registry.tick_now(&ID).await.unwrap_err();
 
     assert_eq!(refused, "ticked's tick panicked, so it is disabled");
+    assert!(!registry.enabled().contains(&ID));
+}
+
+#[tokio::test]
+async fn a_tick_after_its_plugin_was_disabled_finds_no_automation() {
+    let registry = Registry::new();
+    let ticks = enabled(&registry, None);
+    assert!(registry.disable(&ID).await);
+
+    let ticked = once(&registry.extension_points(), &ID).await;
+
+    assert_eq!(ticked, Ticked::NoAutomation);
+    assert_eq!(count(&ticks), 0);
+}
+
+#[cfg(feature = "testing")]
+#[tokio::test]
+async fn a_tick_that_panicked_is_told_from_one_with_no_automation() {
+    let registry = Registry::new();
+    registry.enable(Arc::new(Panicking)).unwrap();
+
+    let ticked = once(&registry.extension_points(), &ID).await;
+
+    assert_eq!(ticked, Ticked::Panicked);
     assert!(!registry.enabled().contains(&ID));
 }
 

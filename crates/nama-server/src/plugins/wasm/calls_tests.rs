@@ -17,7 +17,7 @@ use nama_plugin_proto::{
 };
 use tokio::sync::Notify;
 
-use crate::plugins::{Registry, tick};
+use crate::plugins::{Failure, Registry, tick};
 
 use super::{
     CRASHES_BEFORE_DISABLING, Running,
@@ -343,8 +343,11 @@ async fn disabling_a_plugin_while_its_tick_runs_ends_the_wasm_call_promptly() {
         .expect("the tick ran on past the disable")
         .unwrap();
     assert_eq!(
-        ticked.map(|ticked| ticked.map_err(|failure| failure.message)),
-        Some(Err("the Plugin was disabled".to_owned()))
+        ticked,
+        tick::Ticked::Ran(Err(Failure {
+            kind: (),
+            message: "the Plugin was disabled".to_owned()
+        }))
     );
 }
 

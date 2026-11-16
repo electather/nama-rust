@@ -10,7 +10,7 @@ use nama_plugin_api::{
 use tokio::time::MissedTickBehavior;
 use tracing::warn;
 
-use super::{ExtensionPoints, Failure, scope::Scope};
+use super::{ExtensionPoints, Failure, points::Asked, scope::Scope};
 
 /// A new scope for an enablement of `manifest`'s Plugin, ticking its Automation every
 /// `tick_every` if it has one and `registrations` provide one. The first tick comes once the
@@ -49,33 +49,44 @@ async fn ticking(points: ExtensionPoints, plugin: PluginId, every: Duration) {
         interval.tick().await;
         match once(&points, &plugin).await {
             // Disabled, or panicked, which disabled it.
-            None => return,
-            Some(Err(failure)) => {
+            Ticked::NoAutomation | Ticked::Panicked => return,
+            Ticked::Ran(Err(failure)) => {
                 warn!(plugin = %plugin, error = failure.message, "automation tick failed");
             }
-            Some(Ok(())) => {}
+            Ticked::Ran(Ok(())) => {}
         }
     }
 }
 
-/// Ticks `plugin`'s Automation once, as the schedule does. `None` if it isn't enabled, provides no
-/// Automation, or panicked, which disabled it.
-pub(super) async fn once(
-    points: &ExtensionPoints,
-    plugin: &PluginId,
-) -> Option<Result<(), Failure>> {
+/// What ticking a Plugin's Automation once came to.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum Ticked {
+    /// The tick ran, and succeeded or failed.
+    Ran(Result<(), Failure>),
+    /// The Plugin isn't enabled or provides no Automation, such as one disabled since.
+    NoAutomation,
+    /// The tick panicked, which disabled the Plugin.
+    Panicked,
+}
+
+/// Ticks `plugin`'s Automation once, as the schedule does.
+pub(super) async fn once(points: &ExtensionPoints, plugin: &PluginId) -> Ticked {
     // db's clock, not the system's, so a test's clock reaches Plugins.
     let tick = Tick {
         now_ms: crate::db::now().saturating_mul(1000),
         ..Tick::default()
     };
     let tick = &tick;
-    let answer = points
-        .ask(plugin, |automation: Arc<dyn Automation>| async move {
+    let asked = points
+        .ask_one(plugin, |automation: Arc<dyn Automation>| async move {
             automation.tick(tick).await
         })
-        .await?;
-    Some(answer.result)
+        .await;
+    match asked {
+        Asked::Answered(answer) => Ticked::Ran(answer.result),
+        Asked::Absent => Ticked::NoAutomation,
+        Asked::Panicked => Ticked::Panicked,
+    }
 }
 
 #[cfg(test)]
