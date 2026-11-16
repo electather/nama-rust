@@ -497,12 +497,21 @@ impl Registry {
     ///
     /// # Errors
     ///
-    /// The tick's failure message, or that the Plugin isn't enabled or provides no Automation.
+    /// The tick's failure message; that the Plugin isn't enabled or provides no Automation; or
+    /// that its tick panicked, which disabled it as any panic does.
     #[cfg(feature = "testing")]
     pub async fn tick_now(&self, id: &PluginId) -> Result<(), String> {
+        // `tick::once` answers `None` for a panic as for no Automation, so look first. A disable
+        // racing the tick would also read as a panic, which a test doesn't do.
+        if !self
+            .providers::<dyn nama_plugin_api::automation::Automation>()
+            .contains(id)
+        {
+            return Err(format!("{id} isn't enabled or provides no Automation"));
+        }
         tick::once(&self.points, id)
             .await
-            .ok_or_else(|| format!("{id} isn't enabled or provides no Automation"))?
+            .ok_or_else(|| format!("{id}'s tick panicked, so it is disabled"))?
             .map_err(|failure| failure.message)
     }
 

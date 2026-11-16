@@ -165,6 +165,48 @@ async fn tick_now_refuses_a_plugin_that_is_not_enabled() {
     assert_eq!(refused, "ticked isn't enabled or provides no Automation");
 }
 
+/// A Built-in Plugin whose Automation panics when ticked.
+#[cfg(feature = "testing")]
+struct Panicking;
+
+#[cfg(feature = "testing")]
+impl Plugin for Panicking {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            version: "0.0.0".to_owned(),
+            extension_points: vec![PointKey::provide::<dyn Automation>()],
+            ..Manifest::new(ID)
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.provide::<dyn Automation>(Priority::DEFAULT, Arc::new(Panics));
+        Ok(())
+    }
+}
+
+#[cfg(feature = "testing")]
+struct Panics;
+
+#[cfg(feature = "testing")]
+impl Automation for Panics {
+    fn tick<'a>(&'a self, _: &'a Tick) -> BoxFuture<'a, Result<(), PluginError>> {
+        panic!("the tick panicked")
+    }
+}
+
+#[cfg(feature = "testing")]
+#[tokio::test]
+async fn tick_now_reports_a_tick_that_panicked() {
+    let registry = Registry::new();
+    registry.enable(Arc::new(Panicking)).unwrap();
+
+    let refused = registry.tick_now(&ID).await.unwrap_err();
+
+    assert_eq!(refused, "ticked's tick panicked, so it is disabled");
+    assert!(!registry.enabled().contains(&ID));
+}
+
 #[tokio::test(start_paused = true)]
 async fn an_automation_enabled_before_the_kernel_serves_ticks_once_it_does() {
     let registry = Registry::new();
