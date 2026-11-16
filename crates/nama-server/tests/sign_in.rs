@@ -1154,6 +1154,30 @@ async fn polling_again_after_signing_in_finds_nothing() {
 }
 
 #[tokio::test]
+async fn polling_after_the_approving_device_signed_out_is_refused() {
+    let server = start().await;
+    let ada = token(&set_up(&server).await);
+    let (code, handle) = start_sign_in_code(&server, "SESSION_DELIVERY_TOKEN").await;
+    with_code(&server, "ApproveSignInCode", &code, &ada).await;
+    let bearer = format!("Bearer {ada}");
+    call(
+        &server,
+        "SignOut",
+        &json!({}),
+        &[("authorization", &bearer)],
+    )
+    .await;
+
+    let polled = poll(&server, &handle).await;
+
+    assert_refused(
+        polled.refused(),
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SIGNED_OUT,
+    );
+}
+
+#[tokio::test]
 async fn looking_up_a_code_shows_the_device_name_without_approving_it() {
     let server = start().await;
     let ada = token(&set_up(&server).await);

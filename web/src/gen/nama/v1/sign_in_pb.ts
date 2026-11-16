@@ -365,7 +365,8 @@ export const ReauthenticateResponseSchema: GenMessage<ReauthenticateResponse> = 
  */
 export type StartSignInCodeRequest = Message<"nama.v1.StartSignInCodeRequest"> & {
   /**
-   * The signing-in Device's name: 1 to 64 characters.
+   * The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+   * Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
    *
    * @generated from field: string device_name = 1;
    */
@@ -885,6 +886,10 @@ export const SignInService: GenService<{
    * Says whether the sign-in a poll handle stands for is still waiting for approval, expired, or
    * signed in. Signed in hands out the new Device's session, once, the way `SignIn` does: after
    * that, and for a handle the Server never gave out or has forgotten, it fails with `not_found`.
+   * Once the code is approved, it fails with `unauthenticated` and `REFUSAL_REASON_SIGNED_OUT` if
+   * the approving Device has since signed out or expired, and with `not_found` and
+   * `REFUSAL_REASON_USER_NOT_FOUND` if the approving User has since been deleted. Either uses the
+   * code up: start again for a new one.
    *
    * @generated from rpc nama.v1.SignInService.PollSignInCode
    */

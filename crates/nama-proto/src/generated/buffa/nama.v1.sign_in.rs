@@ -2726,7 +2726,8 @@ pub const __REAUTHENTICATE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct StartSignInCodeRequest {
-    /// The signing-in Device's name: 1 to 64 characters.
+    /// The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+    /// Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
     ///
     /// Field 1: `device_name`
     #[serde(
