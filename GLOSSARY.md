@@ -71,7 +71,7 @@ The connection between a User and an Account.
 _Avoid_: pairing, binding
 
 **Watchlist**:
-An Account's list of titles to watch later, whether or not any Server has them.
+A User's list of titles to watch later, whether or not their Server has them.
 _Avoid_: queue, favorites, wishlist
 
 ## Extensibility
@@ -255,8 +255,8 @@ A User's progress through a Movie or Episode: whether it's been played, how far 
 _Avoid_: watched status, play state, progress
 
 **Continue Watching**:
-A User's Movies and Episodes whose Watch State says they've started and not played, most recent first.
-_Avoid_: on deck, in progress, resume list
+A User's Movies and Episodes whose Watch State says they've started and not played, and the next Episode of each Show they're partway through, most recent first, leaving out what they've hidden from it. Hiding a title lasts until the User plays it, or for a Show any of its Episodes, again, and never changes its Watch State.
+_Avoid_: on deck, in progress, resume list, Next Up
 
 ## Playback
 
