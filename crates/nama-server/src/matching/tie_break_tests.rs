@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, PoisonError};
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
@@ -9,12 +9,19 @@ use nama_plugin_api::{
     metadata::{ExternalId, MetadataError, TitleSource},
 };
 
-use super::super::{
-    Miss, PendingEpisode, TitleKey,
-    recognisers::Recognisers,
-    tests::{Fixture, matched},
+use super::{
+    show,
+    tests::{Answering, Answers, Asked, HAS, asked, dark},
 };
-use crate::library::{Decided, Item, TitleSources, UnmatchedReason};
+use crate::{
+    library::{Decided, TitleSources, UnmatchedReason},
+    matching::{
+        Miss, PendingEpisode,
+        recognisers::Recognisers,
+        tests::{Fixture, matched},
+    },
+    plugins::Registry,
+};
 
 const SEASON_3: &str = "The Office/Season 03/The Office - S03E01.mkv";
 
@@ -102,25 +109,33 @@ async fn a_newer_name_parser_matches_an_episode_only_one_tied_show_has() {
     );
 }
 
-/// How the [`Tying`] source answers a lookup of one of its two Shows.
-#[derive(Clone, Copy)]
-enum Lookup {
-    Has,
-    NotFound,
-    Fails,
-}
-
-/// A title source under `aa` whose search ties the titles `aa-1` and `aa-2`, each a Show `Dark`
-/// with Season 1 of one Episode, looked up as `lookups` says.
+/// A title source under `aa` whose search ties one Show `Dark` per entry of `answering`, `aa-1`
+/// first, each looked up as its entry says: its Show, then its Season, of one Episode.
 struct Tying {
-    lookups: [Lookup; 2],
-    asked: Arc<Mutex<Vec<String>>>,
+    answering: Vec<Answering>,
+    asked: Asked,
 }
 
 impl Tying {
-    fn log(&self, asked: String) {
+    fn answer<T: Default>(
+        &self,
+        asked: String,
+        answers: Answers,
+        found: T,
+    ) -> Result<T, MetadataError> {
         let mut log = self.asked.lock().unwrap_or_else(PoisonError::into_inner);
         log.push(asked);
+        match answers {
+            Answers::Has => Ok(found),
+            Answers::NotFound => Ok(T::default()),
+            Answers::Fails => Err(MetadataError::Failed("unreachable".into())),
+        }
+    }
+
+    /// How the Show `aa-<value>` answers: its lookup, then its Season's.
+    fn answering(&self, value: &str) -> Answering {
+        let index: usize = value.parse().unwrap();
+        self.answering[index - 1]
     }
 }
 
@@ -141,72 +156,67 @@ impl TitleSource for Tying {
         &'a self,
         _query: &'a SearchQuery,
     ) -> BoxFuture<'a, Result<SearchResults, MetadataError>> {
-        self.log("search".to_owned());
-        let candidate = |value| Candidate {
-            id: aa(value).into(),
-            title: "Dark".to_owned(),
-            ..Default::default()
-        };
-        let candidates = vec![candidate("1"), candidate("2")];
-        Box::pin(async {
-            Ok(SearchResults {
-                candidates,
+        let candidates = (1..=self.answering.len())
+            .map(|value| Candidate {
+                id: aa(&value.to_string()).into(),
+                title: "Dark".to_owned(),
                 ..Default::default()
             })
-        })
+            .collect();
+        let found = SearchResults {
+            candidates,
+            ..Default::default()
+        };
+        let found = self.answer("search".to_owned(), Answers::Has, found);
+        Box::pin(async { found })
     }
 
     fn show<'a>(
         &'a self,
         asked: &'a TitleAsked,
     ) -> BoxFuture<'a, Result<ShowAnswer, MetadataError>> {
-        self.log(format!("show {}", asked.id.value));
-        let lookup = if asked.id.value == "1" {
-            self.lookups[0]
-        } else {
-            self.lookups[1]
-        };
-        let show = Show {
-            ids: vec![aa(&asked.id.value)],
-            title: "Dark".to_owned(),
-            seasons: vec![1],
+        let value = &asked.id.value;
+        let show = ShowAnswer {
+            show: Show {
+                ids: vec![aa(value)],
+                title: "Dark".to_owned(),
+                seasons: vec![1],
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         };
-        let answer = match lookup {
-            Lookup::Has => Ok(ShowAnswer {
-                show: show.into(),
-                ..Default::default()
-            }),
-            Lookup::NotFound => Ok(ShowAnswer::default()),
-            Lookup::Fails => Err(MetadataError::Failed("unreachable".into())),
-        };
-        Box::pin(async { answer })
+        let (lookup, _) = self.answering(value);
+        let found = self.answer(format!("show {value}"), lookup, show);
+        Box::pin(async { found })
     }
 
     fn season<'a>(
         &'a self,
         asked: &'a SeasonAsked,
     ) -> BoxFuture<'a, Result<SeasonAnswer, MetadataError>> {
+        let value = &asked.show.value;
         let episode = Episode {
             season: asked.season,
             number: 1,
             ..Default::default()
         };
-        let season = Season {
-            number: asked.season,
-            episodes: vec![episode],
+        let season = SeasonAnswer {
+            season: Season {
+                number: asked.season,
+                episodes: vec![episode],
+                ..Default::default()
+            }
+            .into(),
             ..Default::default()
         };
-        Box::pin(async {
-            Ok(SeasonAnswer {
-                season: season.into(),
-                ..Default::default()
-            })
-        })
+        let (_, lookup) = self.answering(value);
+        let found = self.answer(format!("season {value}"), lookup, season);
+        Box::pin(async { found })
     }
 }
 
-struct TyingPlugin([Lookup; 2], Arc<Mutex<Vec<String>>>);
+struct TyingPlugin(Vec<Answering>, Asked);
 
 impl Plugin for TyingPlugin {
     fn manifest(&self) -> Manifest {
@@ -219,7 +229,7 @@ impl Plugin for TyingPlugin {
 
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         let source = Tying {
-            lookups: self.0,
+            answering: self.0.clone(),
             asked: Arc::clone(&self.1),
         };
         registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(source));
@@ -227,66 +237,78 @@ impl Plugin for TyingPlugin {
     }
 }
 
-/// The [`Tying`] source, looking its Shows up as `lookups` says, and what it was asked.
-fn tying(lookups: [Lookup; 2]) -> (TitleSources, Arc<Mutex<Vec<String>>>) {
-    let plugins = crate::plugins::Registry::new();
-    let asked = Arc::default();
-    let plugin = TyingPlugin(lookups, Arc::clone(&asked));
+/// The [`Tying`] source, answering as `answering` says, and what it was asked.
+fn tying(answering: &[Answering]) -> (TitleSources, Asked) {
+    let plugins = Registry::new();
+    let asked = Asked::default();
+    let plugin = TyingPlugin(answering.to_vec(), Arc::clone(&asked));
     plugins.enable(Arc::new(plugin)).unwrap();
     (TitleSources::new(plugins.extension_points()), asked)
 }
 
-/// `Dark`, with no year: a Movie, or the Show of an Episode.
-fn dark() -> TitleKey {
-    let item = Item::Movie {
-        title: "Dark".to_owned(),
-        year: None,
-        hint: None,
-    };
-    TitleKey {
-        name: item.name(),
-        pin: None,
-    }
-}
-
-/// The Show [`dark`] names, its one Episode S01E01.
-async fn show(metadata: &TitleSources) -> Result<ExternalId, Miss> {
+/// The id of the Show `Dark` its one Episode S01E01 is in, its search tied.
+async fn tied_show(metadata: &TitleSources) -> Result<ExternalId, Miss> {
     let pilot = PendingEpisode {
         item: 1,
         season: 1,
         episode: 1,
     };
-    let found = super::show(metadata, &Recognisers::default(), &dark(), &[], &[pilot]).await?;
+    let key = dark(None);
+    let found = show(metadata, &Recognisers::default(), &key, &[], &[pilot]).await?;
     Ok(found.id)
 }
 
-fn asked(asked: &Mutex<Vec<String>>) -> Vec<String> {
-    asked.lock().unwrap_or_else(PoisonError::into_inner).clone()
+fn aa_id(value: &str) -> ExternalId {
+    ExternalId::new("aa", value).unwrap()
 }
 
 #[tokio::test]
 async fn a_tied_show_the_source_cannot_find_only_drops_out() {
-    let (metadata, sources_asked) = tying([Lookup::NotFound, Lookup::Has]);
+    let (metadata, sources_asked) = tying(&[(Answers::NotFound, Answers::Has), HAS]);
 
+    assert_eq!(tied_show(&metadata).await, Ok(aa_id("2")));
     assert_eq!(
-        show(&metadata).await,
-        Ok(ExternalId::new("aa", "2").unwrap())
+        asked(&sources_asked),
+        ["search", "show 1", "show 2", "season 2"]
     );
-    assert_eq!(asked(&sources_asked), ["search", "show 1", "show 2"]);
+}
+
+#[tokio::test]
+async fn a_tied_shows_season_the_source_cannot_find_only_drops_it_out() {
+    let (metadata, _) = tying(&[(Answers::Has, Answers::NotFound), HAS]);
+
+    assert_eq!(tied_show(&metadata).await, Ok(aa_id("2")));
 }
 
 #[tokio::test]
 async fn a_source_failing_during_the_tie_break_leaves_the_show_undecided() {
-    let (metadata, _) = tying([Lookup::Fails, Lookup::Has]);
+    for failing in [
+        (Answers::Fails, Answers::Has),
+        (Answers::Has, Answers::Fails),
+    ] {
+        let (metadata, _) = tying(&[failing, HAS]);
 
-    assert_eq!(show(&metadata).await, Err(Miss::Undecided));
+        assert_eq!(tied_show(&metadata).await, Err(Miss::Undecided));
+    }
+}
+
+#[tokio::test]
+async fn the_tied_shows_that_have_every_episode_stay_ambiguous_in_their_order() {
+    let (metadata, _) = tying(&[HAS, (Answers::Has, Answers::NotFound), HAS]);
+
+    let Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(tied)))) = tied_show(&metadata).await
+    else {
+        panic!("two Shows have the Episode");
+    };
+    let ids: Vec<_> = tied.into_iter().map(|title| title.id).collect();
+    assert_eq!(ids, [aa_id("1"), aa_id("3")]);
 }
 
 #[tokio::test]
 async fn an_ambiguous_movie_looks_up_none_of_the_tied_titles() {
-    let (metadata, sources_asked) = tying([Lookup::Has, Lookup::Has]);
+    let (metadata, sources_asked) = tying(&[HAS, HAS]);
 
-    let movie = super::movie(&metadata, &Recognisers::default(), &dark(), &[]).await;
+    let movie = super::movie(&metadata, &Recognisers::default(), &dark(None), &[]).await;
 
     assert!(matches!(
         movie,

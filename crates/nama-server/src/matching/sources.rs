@@ -209,13 +209,13 @@ async fn show_having(
         Err(Unanswered::NotFound) => return Ok(None),
         found => found?,
     };
-    let numbers: BTreeSet<i64> = episodes.iter().map(|pending| pending.season).collect();
+    let seasons: BTreeSet<i64> = episodes.iter().map(|pending| pending.season).collect();
     let listed = |number: &i64| (found.show.seasons.iter()).any(|&n| i64::from(n) == *number);
     // Every Season listed first, so a Show missing one costs no Season fetches.
-    if !numbers.iter().all(listed) {
+    if !seasons.iter().all(listed) {
         return Ok(None);
     }
-    for number in numbers {
+    for number in seasons {
         let season = match season(metadata, &found, number).await {
             Err(Miss::Unmatched(_)) => return Ok(None),
             season => season?,
