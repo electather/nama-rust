@@ -100,6 +100,11 @@ enum RefusalReason {
   // `invalid_argument`: a User's or Device's name, trimmed, is too short or too long. Params:
   // `minLength`, `maxLength`, in characters.
   REFUSAL_REASON_NAME_LENGTH = 30;
+  // `invalid_argument`: a User's or Device's name holds a character that can't be seen, such as a
+  // tab, a line break, a zero-width or format character, a space other than U+0020, or a
+  // private-use or unassigned one, so it could pass for another name. `field` is set. Params:
+  // `character`, the first such one as `U+XXXX`.
+  REFUSAL_REASON_NAME_CHARACTER = 80;
   // `invalid_argument`: the Authenticator Plugin rejects the password. Its own text is the message.
   REFUSAL_REASON_PASSWORD_REJECTED = 31;
   // `invalid_argument`: a Library's folder, or the segment folder, isn't an absolute path. Params:
@@ -176,8 +181,8 @@ enum RefusalReason {
   // `pluginId`, `reason` (in plain words, as `PluginSummary.refused_reason`).
   REFUSAL_REASON_PLUGIN_REFUSED = 52;
 
-  // `invalid_argument`: the field isn't an http or https URL with a host, or has a query or fragment
-  // where links are added to its end.
+  // `invalid_argument`: the field isn't an http or https URL with a host, or has a user name,
+  // password, query or fragment where links are added to its end.
   REFUSAL_REASON_NOT_A_URL = 53;
   // `invalid_argument`: a Fulfiller's Qualities name the same profile twice, or two Qualities
   // share a name, ignoring case. `field` names the second, such as `qualities[1].name`.
