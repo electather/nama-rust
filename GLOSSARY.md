@@ -9,7 +9,7 @@ The self-hosted program that owns Libraries, streams media to clients, and handl
 _Avoid_: backend, instance, media server, command server
 
 **Hub**:
-The central service where Accounts live and where clients find the Servers they can reach. It also keeps a copy of each Account's Watch State.
+The central service where Accounts live and where clients find the Servers they can reach. It also keeps a copy of each Account's Watch State, and takes in the Diagnostics and Usage Analytics that Servers share with Nama's developers.
 _Avoid_: command server, cloud, plex.tv
 
 **Relay**:
@@ -23,6 +23,14 @@ _Avoid_: endpoint, connection, URI
 **Server URL**:
 The one address an admin sets for people to reach a Server's web app at, such as `https://nama.example.com`. Notifiers' messages link to Requests there; with none set, they have no links.
 _Avoid_: base URL, public URL
+
+**Diagnostics**:
+The logs, errors and timings a Server and its web app record about how they ran. They stay with the Server, go only where its admin sends them, and reach Nama's developers only if the admin shares them.
+_Avoid_: telemetry, crash reports, monitoring
+
+**Usage Analytics**:
+Named events recording that a feature was used, such as a Request made or playback started, with no titles or names in them. A Server sends them to Nama's developers only if its admin shares them, separately from Diagnostics.
+_Avoid_: tracking, telemetry, metrics
 
 ## People
 
