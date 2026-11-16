@@ -16,7 +16,6 @@ const MAX_LINES: usize = 800;
 
 /// Today's files over `MAX_LINES`, sorted by path, each with the ceiling it stays at or under.
 const CEILINGS: &[(&str, usize)] = &[
-    ("src/ffmpeg.rs", 1300),
     ("src/playback/playback_tests.rs", 2900),
     ("src/users.rs", 1400),
     ("tests/access.rs", 900),

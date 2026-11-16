@@ -2,7 +2,8 @@ use std::{fs, path::Path};
 
 use super::{
     Ffmpeg, FromCut, Keyframe, Remux, RemuxAudio, ToneMapper, Transcode, TranscodeAudio,
-    VideoConversion, VideoLimit, write_h264_with_5_1, write_hevc_with_5_1, write_test_media,
+    VideoConversion, VideoLimit, test_media::write_test_media, write_h264_with_5_1,
+    write_hevc_with_5_1,
 };
 use crate::config::Config;
 
