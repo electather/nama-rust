@@ -55,7 +55,7 @@ pub(super) fn undecodable_container(probe: &Probe, device: &DeviceDecoding) -> O
 pub(super) fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<Reason> {
     let codec = &track.codec;
     match track.kind {
-        TrackKind::Video { hdr, .. } => {
+        TrackKind::Video { hdr, bit_depth, .. } => {
             let video = undecodable_codec(codec, &VIDEO_CODECS, &device.video_codecs).map(|name| {
                 Reason::new(
                     Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO,
@@ -67,6 +67,7 @@ pub(super) fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<Reason>
                 .with("codec", &codec)
                 .ruling_out([Method::DirectPlay, Method::Remux])
             });
+            let video = video.or_else(|| undecodable_h264_depth(codec, bit_depth, device));
             let hdr = hdr.filter(|_| !device.hdr).map(|hdr| {
                 let text = format!(
                     "This Device can't show its {} picture, so it can't be Direct Played or \
@@ -94,6 +95,28 @@ pub(super) fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<Reason>
         // A plan plays only a video and an audio Track as Tracks of their own.
         TrackKind::Subtitle { .. } => vec![],
     }
+}
+
+/// Why `device` can't decode the H.264 video Track `codec` names at `bit_depth`, if it can't.
+fn undecodable_h264_depth(
+    codec: &str,
+    bit_depth: Option<i64>,
+    device: &DeviceDecoding,
+) -> Option<Reason> {
+    let depth = bit_depth.filter(|&depth| codec == "h264" && depth > 8 && !device.h264_10bit)?;
+    let reason = Reason::new(
+        Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO,
+        format!(
+            "This Device can't decode its {depth}-bit H.264 video, so it can't be Direct Played \
+             or Remuxed"
+        ),
+    );
+    Some(
+        reason
+            .with("codec", &codec)
+            .with("bitDepth", &depth)
+            .ruling_out([Method::DirectPlay, Method::Remux]),
+    )
 }
 
 /// The codec ffprobe names `ffprobe_name`, in plain words from `codecs` if it has it, unless

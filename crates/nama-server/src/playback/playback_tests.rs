@@ -86,6 +86,7 @@ pub(super) fn firefox() -> DeviceDecoding {
             AudioCodec::AUDIO_CODEC_FLAC,
         ],
         hdr: false,
+        h264_10bit: false,
         hls: true,
         audio_channels: 2,
         subtitle_formats: vec![],
