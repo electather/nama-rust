@@ -735,7 +735,7 @@ fn by_default_an_sdr_transcode_on_hardware_is_never_busy() {
 }
 
 #[test]
-fn by_default_an_hdr_transcode_burning_in_a_subtitle_counts_as_cpu_bound() {
+fn by_default_an_hdr_transcode_burning_in_a_subtitle_is_cpu_bound_so_a_busy_server_drops_it() {
     let burning_in = |running| {
         let mut facts = while_running(running, running, hdr_on(QSV));
         if let Some(probe) = &mut facts.probe {

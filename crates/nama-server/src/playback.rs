@@ -484,7 +484,8 @@ struct Facts {
     /// The audio Track the User chose, or the Server chose by their Audio Preference, by its place
     /// in the Version's Tracks, if one was.
     audio: Option<usize>,
-    /// The Transcodes other Devices run, which the Transcode cap counts.
+    /// The Transcodes running, leaving out one of this Device's own, which the Transcode cap
+    /// counts.
     running_transcodes: RunningTranscodes,
     /// The most Transcodes the admin let the Server run at once, or `None` for the default.
     max_transcodes: Option<NonZeroU32>,

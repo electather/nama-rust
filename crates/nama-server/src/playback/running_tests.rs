@@ -146,7 +146,7 @@ async fn a_running_plan_is_marked_with_its_method_and_found_only_by_its_device()
 // The fake ffmpeg is `sleep`.
 #[cfg(unix)]
 #[tokio::test]
-async fn another_devices_transcodes_fill_the_cap_until_one_stops_and_remuxes_never_do() {
+async fn another_devices_transcodes_count_until_one_stops_and_remuxes_never_do() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
     let transcode = || {
