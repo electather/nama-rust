@@ -368,7 +368,40 @@ async fn a_name_or_password_outside_the_rules_is_refused_and_nobody_is_created()
             assert_eq!(refusal.params["maxLength"], "64");
         }
     }
+    let invisible = [
+        ('\t', "U+0009"),
+        ('\n', "U+000A"),
+        ('\u{200B}', "U+200B"),
+        ('\u{200D}', "U+200D"),
+        ('\u{202E}', "U+202E"),
+        ('\u{A0}', "U+00A0"),
+        ('\u{3164}', "U+3164"),
+        ('\u{FE0F}', "U+FE0F"),
+        ('\u{E000}', "U+E000"),
+    ];
+    for (character, code_point) in invisible {
+        let refused = fixture.create(&format!("Gr{character}ace"), PASSWORD).await;
+
+        let refusal = assert_refused(
+            refused,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_NAME_CHARACTER,
+        );
+        assert_eq!(refusal.field, "name");
+        assert_eq!(refusal.params["character"], code_point);
+    }
     assert_eq!(fixture.list().await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn a_name_typed_decomposed_is_listed_composed() {
+    let fixture = Fixture::start().await;
+
+    let remy = fixture.create("Re\u{301}my", PASSWORD).await.unwrap();
+
+    let users = fixture.list().await.unwrap();
+    let listed = users.iter().find(|user| user.id == remy).unwrap();
+    assert_eq!(listed.name, "R\u{E9}my");
 }
 
 #[tokio::test]

@@ -15,8 +15,8 @@ service ServerService {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Replaces the Server's settings. Needs `PERMISSION_MANAGE_SETTINGS`. A `url` that isn't an http
-  // or https URL, or has a query or fragment, is refused with `REFUSAL_REASON_NOT_A_URL` naming it,
-  // and nothing changes.
+  // or https URL, or has a user name, password, query or fragment, is refused with
+  // `REFUSAL_REASON_NOT_A_URL` naming it, and nothing changes.
   rpc UpdateServerSettings(UpdateServerSettingsRequest) returns (UpdateServerSettingsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -89,6 +89,7 @@ message GetServerSettingsResponse {
 }
 
 message UpdateServerSettingsRequest {
+  // Required: a request without it is refused, so leaving it out can't reset every setting.
   ServerSettings settings = 1;
 }
 
@@ -197,6 +198,7 @@ message GetPlaybackSettingsResponse {
 }
 
 message UpdatePlaybackSettingsRequest {
+  // Required: a request without it is refused, so leaving it out can't reset every setting.
   PlaybackSettings settings = 1;
 }
 
@@ -218,9 +220,10 @@ message PlaybackSettings {
   optional uint32 max_transcodes = 2;
   // The Playback Limit for a Device whose address isn't on the local network, until its User
   // picks one in the player. `PLAYBACK_LIMIT_ORIGINAL`, the default, for none; unset is taken as
-  // that.
+  // that. A value this Server doesn't know is refused.
   PlaybackLimit remote_playback_limit = 3;
-  // What Transcodes run on. One that didn't pass its test at startup leaves them in software.
+  // What Transcodes run on. One that didn't pass its test at startup leaves them in software. A
+  // value this Server doesn't know is refused.
   HardwareAcceleration hardware_acceleration = 4;
   // The GPU `hardware_acceleration` runs every Transcode on: one it passed its test on at startup,
   // as `GetPlaybackStatusResponse.hardware` lists them, or the one already saved. Unset for the
@@ -244,6 +247,7 @@ message GetImageSettingsResponse {
 }
 
 message UpdateImageSettingsRequest {
+  // Required: a request without it is refused, so leaving it out can't reset every setting.
   ImageSettings settings = 1;
 }
 

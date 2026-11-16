@@ -311,7 +311,17 @@ jobs:
       - uses: taiki-e/install-action@nextest
       # Tests make the media they probe with ffmpeg and probe it with ffprobe
       # (crates/nama-server/README.md, "ffmpeg").
-      - if: runner.os != 'macOS'
+      # On Linux setup-ffmpeg reads the version from johnvansickle.com, which at times answers
+      # runners without one and fails the step. BtbN's static builds are on GitHub Releases.
+      - if: runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD: ffmpeg-n8.1-latest-linux64-gpl-8.1
+        run: |
+          gh release download latest -R BtbN/FFmpeg-Builds -p "$BUILD.tar.xz" -O - \
+            | tar -xJ -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/$BUILD/bin" >> "$GITHUB_PATH"
+      - if: runner.os == 'Windows'
         uses: FedericoCarboni/setup-ffmpeg@37062fbf7149fc5578d6c57e08aed62458b375d6 # v3.1
       # setup-ffmpeg has no macOS build for arm64, which `macos-latest` is.
       # Homebrew's `ffmpeg` has no zscale, which the tests need (crates/nama-server/README.md,

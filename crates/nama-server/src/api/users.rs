@@ -41,7 +41,9 @@ use crate::{
 
 use super::{
     caller, database_failed, permission_required,
-    plugins::{list_failed, logo, setting_to_proto, settings_from_proto, settings_refused},
+    plugins::{
+        change_refused, list_failed, logo, setting_to_proto, settings_from_proto, settings_refused,
+    },
     refuse, signed_out, unknown_enum_value,
 };
 
@@ -373,7 +375,7 @@ impl UserService for UserServiceHandler {
         Settings::new(values.clone())
             .resolve(schema)
             .map_err(settings_refused)?;
-        let rows = values
+        let rows: Vec<_> = values
             .into_iter()
             .map(|(key, value)| {
                 let secret = schema
@@ -383,6 +385,14 @@ impl UserService for UserServiceHandler {
                 (key, personal_text(value), secret)
             })
             .collect();
+        let personal = rows
+            .iter()
+            .map(|(key, text, _)| (key.clone(), text.clone()))
+            .collect();
+        self.plugin_settings
+            .check_personal(&id, &personal)
+            .await
+            .map_err(change_refused)?;
         replace_personal_settings(&self.db, user, &id, rows)
             .await
             .map_err(database_failed)?;
@@ -606,6 +616,11 @@ impl From<users::Error> for ConnectError {
                     .param("minLength", users::NAME_LENGTH.start())
                     .param("maxLength", users::NAME_LENGTH.end())
             }
+            users::Error::NameCharacter {
+                field, character, ..
+            } => refuse(R::REFUSAL_REASON_NAME_CHARACTER, message)
+                .field(field)
+                .param("character", &format!("U+{:04X}", u32::from(character))),
             users::Error::PasswordRejected { field, .. } => {
                 refuse(R::REFUSAL_REASON_PASSWORD_REJECTED, message).field(field)
             }
