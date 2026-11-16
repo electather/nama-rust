@@ -18,7 +18,7 @@ use super::{Filter, Viewer, deliver, event, users_to_tell};
 use crate::{
     db::Database,
     plugins::{ProviderError, without_secrets},
-    users::{Permissions, User, personal_settings},
+    users::{Permissions, User, personal_settings_of, replace_personal_settings},
 };
 
 fn user(id: i64, permissions: Permissions) -> User {
@@ -307,7 +307,7 @@ async fn a_request_event_reaches_each_told_user_with_their_own_personal_settings
     ] {
         let id = insert_user(&db, name).await;
         let values = vec![("webhook".to_owned(), url.to_owned(), true)];
-        personal_settings::replace(&db, id, &plugin, values)
+        replace_personal_settings(&db, id, &plugin, values)
             .await
             .unwrap();
         ids.push(id);
@@ -356,7 +356,7 @@ async fn a_user_recipient_the_notifier_finds_gone_loses_their_personal_settings(
     ] {
         let id = insert_user(&db, name).await;
         let values = vec![("webhook".to_owned(), url.to_owned(), true)];
-        personal_settings::replace(&db, id, &plugin, values)
+        replace_personal_settings(&db, id, &plugin, values)
             .await
             .unwrap();
         ids.push(id);
@@ -377,13 +377,13 @@ async fn a_user_recipient_the_notifier_finds_gone_loses_their_personal_settings(
     .unwrap_or_else(|_| panic!("a gone recipient is no failure"));
 
     assert!(
-        personal_settings::get(&db, ada, &plugin)
+        personal_settings_of(&db, ada, &plugin)
             .await
             .unwrap()
             .is_empty()
     );
     assert!(
-        !personal_settings::get(&db, lin, &plugin)
+        !personal_settings_of(&db, lin, &plugin)
             .await
             .unwrap()
             .is_empty()

@@ -31,7 +31,10 @@ use crate::{
     library::{CustomImageUrls, CustomImages},
     plugin_settings::{PluginSettings, StoredPlugin},
     plugins::Listed,
-    users::{self, Caller, Permissions, Users, personal_settings},
+    users::{
+        self, Caller, Permissions, Users, delete_personal_settings, personal_settings_of,
+        replace_personal_settings,
+    },
 };
 
 use super::{
@@ -388,7 +391,7 @@ impl UserService for UserServiceHandler {
                 (key, personal_text(value), secret)
             })
             .collect();
-        personal_settings::replace(&self.db, user, &id, rows)
+        replace_personal_settings(&self.db, user, &id, rows)
             .await
             .map_err(database_failed)?;
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
@@ -407,7 +410,7 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, DeletePersonalSettingsRequest>,
     ) -> ServiceResult<DeletePersonalSettingsResponse> {
         let plugin = PluginId::from(request.plugin_id.to_owned());
-        personal_settings::delete(&self.db, caller(&ctx)?.user.id, &plugin)
+        delete_personal_settings(&self.db, caller(&ctx)?.user.id, &plugin)
             .await
             .map_err(database_failed)?;
         Response::ok(DeletePersonalSettingsResponse::default())
@@ -423,7 +426,7 @@ impl UserServiceHandler {
         id: &PluginId,
         manifest: &Manifest,
     ) -> Result<BTreeMap<String, SettingValue>, ConnectError> {
-        let mut stored = personal_settings::get(&self.db, user, id)
+        let mut stored = personal_settings_of(&self.db, user, id)
             .await
             .map_err(database_failed)?;
         Ok(manifest

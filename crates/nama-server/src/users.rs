@@ -19,7 +19,7 @@ mod device_names;
 mod managing;
 mod passwords;
 mod permissions;
-pub(crate) mod personal_settings;
+mod personal_settings;
 mod rate_limits;
 mod seeing;
 mod sessions;
@@ -31,6 +31,10 @@ pub(crate) use codes::random_secret;
 use managing::{default_permissions, ensure_may_grant};
 use passwords::{Credential, set_password};
 pub(crate) use permissions::Permissions;
+pub(crate) use personal_settings::{
+    delete as delete_personal_settings, get as personal_settings_of,
+    recipients as personal_settings_recipients, replace as replace_personal_settings,
+};
 pub(crate) use rate_limits::Blocked;
 pub(crate) use seeing::{is_requester, may_see};
 pub(crate) use sessions::{

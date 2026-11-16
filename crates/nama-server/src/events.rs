@@ -31,7 +31,7 @@ use crate::{
     db::Database,
     plugins::{self, ExtensionPoints, Failure, ProviderError, without_secrets},
     server_settings::ServerUrl,
-    users::{self, User, personal_settings},
+    users::{self, User, delete_personal_settings, personal_settings_recipients},
 };
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
@@ -267,7 +267,7 @@ async fn deliver(
         Err(err) => error!(%plugin, "could not read whom to message about a Request: {err}"),
     }
     let mut secrets = HashMap::new();
-    match personal_settings::recipients(&db, &plugin).await {
+    match personal_settings_recipients(&db, &plugin).await {
         Ok(personal) => recipients.extend(personal_to_tell(event, personal, &mut secrets)),
         Err(err) => error!(%plugin, "could not read whose Personal settings to use: {err}"),
     }
@@ -371,7 +371,7 @@ async fn disconnect(db: &Database, user: i64, plugin: &PluginId, connection: Str
 
 /// Deletes `user`'s Personal settings for `plugin`, which its Notifier found reach nobody.
 async fn forget_personal_settings(db: &Database, user: i64, plugin: &PluginId) {
-    match personal_settings::delete(db, user, plugin).await {
+    match delete_personal_settings(db, user, plugin).await {
         Ok(()) => info!(%plugin, user, "deleted Personal settings the service says reach nobody"),
         Err(err) => {
             error!(%plugin, user, "could not delete Personal settings that reach nobody: {err}");
