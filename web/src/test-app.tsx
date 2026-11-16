@@ -83,12 +83,13 @@ export function fakeServer(
       },
       ...signIn,
     });
-    // Settings lists your Devices, Plugin Connections and Personal settings, so every fake Server does.
+    // Settings lists what's yours, from Devices to notification preferences, so every fake Server does.
     // The Users page shows the default Permissions, so every fake Server has them.
     router.service(UserService, {
       listDevices: () => ({}),
       listPluginConnections: () => ({}),
       listPersonalSettings: () => ({}),
+      listNotificationPreferences: () => ({}),
       getDefaultPermissions: () => ({ permissions: newUser }),
       ...users,
     });

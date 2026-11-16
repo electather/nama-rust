@@ -17,7 +17,7 @@ import {
   Tv,
 } from "lucide-react";
 
-import { ChangeImage, type ImageRules } from "@/components/edit-images";
+import { ChangeImage, type ImageRules } from "@/components/change-image";
 import { type Shown, StateLabel } from "@/components/state-label";
 import {
   ExtensionPoint,

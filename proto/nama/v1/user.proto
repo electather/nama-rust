@@ -5,9 +5,10 @@ package nama.v1;
 import "nama/v1/plugin.proto";
 import "nama/v1/sign_in.proto";
 
-// Managing the Server's Users, their Devices, Plugin Connections and Personal settings. Every RPC
-// but `ListDevices`, `RevokeDevice`, `ChangePassword`, the Plugin Connection ones and the Personal
-// settings ones needs `PERMISSION_MANAGE_USERS`,
+// Managing the Server's Users, their Devices, Plugin Connections, Personal settings and
+// notification preferences. Every RPC but `ListDevices`, `RevokeDevice`, `ChangePassword`, the
+// Plugin Connection ones, the Personal settings ones and the notification preference ones needs
+// `PERMISSION_MANAGE_USERS`,
 // and fails with `permission_denied` without it.
 // Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
 // User with it, grant it, put it in the default Permissions or create a User while they hold it, or
@@ -105,6 +106,19 @@ service UserService {
   // Forgets the caller's own Personal settings for one Plugin. Forgetting what isn't set does
   // nothing.
   rpc DeletePersonalSettings(DeletePersonalSettingsRequest) returns (DeletePersonalSettingsResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Lists which Request notifications the caller gets on every Notifier, through their Plugin
+  // Connections and Personal settings. Each kind is on until they turn it off.
+  // `NOTIFICATION_KIND_NEW_PENDING` is listed only to a caller with `PERMISSION_MANAGE_REQUESTS`.
+  // A Notifier's channel isn't the caller's, so these don't change what it gets.
+  rpc ListNotificationPreferences(ListNotificationPreferencesRequest) returns (ListNotificationPreferencesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Turns one kind of Request notification on or off for the caller. Fails with
+  // `REFUSAL_REASON_UNKNOWN_ENUM_VALUE` for `NOTIFICATION_KIND_UNSPECIFIED` or a value the Server
+  // doesn't know.
+  rpc SetNotificationPreference(SetNotificationPreferenceRequest) returns (SetNotificationPreferenceResponse) {
     option idempotency_level = IDEMPOTENT;
   }
 }
@@ -278,3 +292,48 @@ message DeletePersonalSettingsRequest {
 }
 
 message DeletePersonalSettingsResponse {}
+
+message ListNotificationPreferencesRequest {}
+
+message ListNotificationPreferencesResponse {
+  // One per kind offered to the caller, in the order of `NotificationKind`'s values.
+  repeated NotificationPreference preferences = 1;
+}
+
+// Whether a User gets one kind of Request notification.
+message NotificationPreference {
+  // The kind of Request notification.
+  NotificationKind kind = 1;
+  // Whether the User gets it: true until they turn it off.
+  bool on = 2;
+}
+
+// A kind of Request notification a User may get. Values are API contract: one is never
+// renumbered or reused.
+enum NotificationKind {
+  NOTIFICATION_KIND_UNSPECIFIED = 0;
+  // A Request of theirs was approved.
+  NOTIFICATION_KIND_APPROVED = 1;
+  // A Request of theirs was declined.
+  NOTIFICATION_KIND_DECLINED = 2;
+  // A Request of theirs Failed.
+  NOTIFICATION_KIND_FAILED = 3;
+  // A Request of theirs is Partially Available.
+  NOTIFICATION_KIND_PARTIALLY_AVAILABLE = 4;
+  // A Request of theirs is Available.
+  NOTIFICATION_KIND_AVAILABLE = 5;
+  // A Request of theirs was cancelled because the media it waited on was deleted.
+  NOTIFICATION_KIND_CANCELLED_BY_DELETION = 6;
+  // Someone made a Request that waits for approval. Only Users with
+  // `PERMISSION_MANAGE_REQUESTS` get it.
+  NOTIFICATION_KIND_NEW_PENDING = 7;
+}
+
+message SetNotificationPreferenceRequest {
+  // The kind of Request notification to turn on or off.
+  NotificationKind kind = 1;
+  // Whether the caller gets `kind` from now on.
+  bool on = 2;
+}
+
+message SetNotificationPreferenceResponse {}

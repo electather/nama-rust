@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT permissions AS \"permissions: Permissions\" FROM users WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "permissions: Permissions",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "permissions"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2d0590d1b7307be9ca477e4075f57d151b557fffced18aff57e71c59ac19423b"
+}

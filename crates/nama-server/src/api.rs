@@ -149,7 +149,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(RequestServiceHandler {
             requests,
-            artwork,
+            artwork: artwork.clone(),
             images: images.clone(),
         }))
         .add_service(Arc::new(PluginServiceHandler {
@@ -183,6 +183,7 @@ pub(crate) fn router(
         .merge(artwork_router)
         .merge(custom_images_router(
             custom_images,
+            artwork,
             image_settings,
             move |id| plugin_settings.has(id),
         ))
@@ -261,6 +262,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::LIBRARY_SERVICE_PREVIEW_DELETE_MEDIA_SPEC.procedure,  DELETE_MEDIA),
     (proto::LIBRARY_SERVICE_DELETE_MEDIA_SPEC.procedure,          DELETE_MEDIA),
     (proto::LIBRARY_SERVICE_LIST_TITLE_SOURCES_SPEC.procedure,    MANAGE_LIBRARIES),
+    (proto::LIBRARY_SERVICE_LIST_ARTWORK_SPEC.procedure,         MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_SEARCH_TITLES_SPEC.procedure,           MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_SET_MATCH_SPEC.procedure,               MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_CLEAR_MATCH_SPEC.procedure,             MANAGE_LIBRARIES),
@@ -297,6 +299,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_LIST_PERSONAL_SETTINGS_SPEC.procedure,   Access::SignedIn),
     (proto::USER_SERVICE_UPDATE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
     (proto::USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
+    (proto::USER_SERVICE_LIST_NOTIFICATION_PREFERENCES_SPEC.procedure, Access::SignedIn),
+    (proto::USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC.procedure, Access::SignedIn),
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC.procedure, REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),

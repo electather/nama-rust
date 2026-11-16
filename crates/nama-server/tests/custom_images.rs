@@ -22,10 +22,10 @@ use http::{Reply, fetch};
 use image::ImageFormat;
 use nama_proto::nama::v1::{
     BrowseServiceClient, ContinueWatchingEntry, LibraryKind, LibraryServiceClient,
-    ListContinueWatchingRequest, ListEpisodesRequest, ListLibrariesRequest, LookUpMovieRequest,
-    LookUpShowRequest, ReportProgressRequest, RequestServiceClient, SearchLibrariesRequest,
-    SearchMoviesRequest, SearchShowsRequest, SetMatchRequest, Show, ShowInLibrary,
-    WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
+    ListArtworkRequest, ListContinueWatchingRequest, ListEpisodesRequest, ListLibrariesRequest,
+    LookUpMovieRequest, LookUpShowRequest, ReportProgressRequest, RequestServiceClient,
+    SearchLibrariesRequest, SearchMoviesRequest, SearchShowsRequest, SetMatchRequest, Show,
+    ShowInLibrary, TitleKind, WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
 };
 use server::tmdb::{ALIEN, DARK, DARK_TVDB, DUNE, THE_OFFICE};
 
@@ -37,6 +37,10 @@ fn alien_poster() -> String {
     format!("/custom-images/movie/tmdb-{ALIEN}/poster")
 }
 
+/// Alien's second English Poster in TMDB's artwork list, the one besides the picked Poster whose
+/// bytes the fake TMDB has.
+const SECOND_POSTER: &str = "2xcXrPA5kHJu8a7BxRnwV4tz0ws.jpg";
+
 #[expect(
     clippy::unwrap_used,
     clippy::indexing_slicing,
@@ -46,6 +50,25 @@ impl Fixture {
     /// The image at `url`, fetched as the Admin.
     async fn fetch(&self, url: &str) -> Reply {
         fetch(&self.server, url, Some(&self.server.admin_token)).await
+    }
+
+    /// The URLs of Alien's Posters to pick from, as `ListArtwork` gives them to the Admin.
+    async fn alien_poster_urls(&self) -> Vec<String> {
+        let libraries =
+            LibraryServiceClient::new(HttpClient::plaintext(), self.server.client_config());
+        let listed = libraries.list_artwork(ListArtworkRequest {
+            kind: TitleKind::TITLE_KIND_MOVIE.into(),
+            id: tmdb_id(ALIEN).into(),
+            ..Default::default()
+        });
+        listed.await.unwrap().into_owned().poster_urls
+    }
+
+    /// Picks the artwork at `url` as Alien's Poster, as the Admin.
+    async fn pick_alien_poster(&self, url: &str) -> Reply {
+        let url: String = url::form_urlencoded::byte_serialize(url.as_bytes()).collect();
+        self.upload(&format!("{}?artwork={url}", alien_poster()), &[])
+            .await
     }
 
     /// Alien's Poster and whether it is a Custom Image, as `GetMovie` gives them in the Library
@@ -179,6 +202,47 @@ async fn removing_a_custom_image_brings_the_downloaded_one_back() {
     assert_eq!(removed.status, 204);
     assert_eq!(fx.alien_poster(fx.library).await, (downloaded, false));
     assert_eq!(fx.fetch(&custom).await.status, 404);
+}
+
+#[tokio::test]
+async fn an_admin_picks_a_poster_from_the_artwork_list_and_it_is_kept_as_a_custom_image() {
+    let fx = Fixture::alien().await;
+    let (downloaded, _) = fx.alien_poster(fx.library).await;
+    let urls = fx.alien_poster_urls().await;
+    let second = urls
+        .iter()
+        .find(|url| url.ends_with(SECOND_POSTER))
+        .unwrap();
+
+    let picked = fx.pick_alien_poster(second).await;
+
+    let (custom, is_custom) = fx.alien_poster(fx.library).await;
+    let fixture = format!(
+        "{}/../../plugins/tmdb/fixtures/images/{SECOND_POSTER}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    assert_eq!(picked.status, 204);
+    assert!(is_custom);
+    assert!(custom.starts_with("/media/custom-images/"), "{custom}");
+    assert_eq!(fx.fetch(&custom).await.body, fs::read(fixture).unwrap());
+    // Best first: the downloaded Poster is the one Artwork picked.
+    assert_eq!(urls.first(), Some(&downloaded));
+
+    fx.remove(&alien_poster()).await;
+    assert_eq!(fx.alien_poster(fx.library).await, (downloaded, false));
+}
+
+#[tokio::test]
+async fn picking_artwork_the_server_never_offered_is_refused_and_changes_nothing() {
+    let fx = Fixture::alien().await;
+    let before = fx.alien_poster(fx.library).await;
+
+    let refused = fx
+        .pick_alien_poster(&format!("/media/artwork/tmdb/%2F{SECOND_POSTER}"))
+        .await;
+
+    assert_eq!(refused.status, 404);
+    assert_eq!(fx.alien_poster(fx.library).await, before);
 }
 
 #[tokio::test]

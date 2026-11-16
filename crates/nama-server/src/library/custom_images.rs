@@ -9,8 +9,11 @@
 //! version taken from them.
 //!
 //! An image is the body of one plain HTTP request (ADR 0007): `PUT /custom-images/<slot>` uploads
-//! it and `DELETE` there removes it, which `PREFIXES` in `src/api.rs` lets only Users with Manage
-//! Libraries do, or for a Plugin's, Manage Settings. Anyone with a session fetches it at its
+//! it, or with `?artwork=<url>` keeps the image the Server offered at that URL (`Artwork::offer`),
+//! such as one of a title's artwork list (`Artwork::listed`), downloaded through its title source
+//! as if uploaded. `DELETE` there removes it.
+//! `PREFIXES` in `src/api.rs` lets only Users with Manage Libraries do either, or for a Plugin's,
+//! Manage Settings. Anyone with a session fetches it at its
 //! [`Urls`] entry, under `/media/`, resized by `?width=` as a downloaded image is
 //! (`crate::library::artwork`).
 
@@ -28,6 +31,7 @@ use nama_plugin_api::{
     PluginId,
     metadata::{ExternalId, ExternalIds},
 };
+use serde::Deserialize;
 use sqlx::SqliteConnection;
 
 use crate::{
@@ -35,7 +39,10 @@ use crate::{
     images::{
         Asked, CUSTOM_IMAGES_DIR, ImageStore, Received, Resize, SVG, UploadError, percent_decode,
     },
-    library::contents::{library_with_movie, library_with_show, matched_episodes, parse_hint},
+    library::{
+        artwork::{Artwork, Error as ArtworkError},
+        contents::{library_with_movie, library_with_show, matched_episodes, parse_hint},
+    },
     server_settings::ImageSettings,
 };
 
@@ -86,6 +93,9 @@ pub(crate) struct Urls(HashMap<Slot, String>);
 enum Error {
     #[error(transparent)]
     Upload(#[from] UploadError),
+    /// The picked artwork couldn't be had from its title source.
+    #[error(transparent)]
+    Artwork(#[from] ArtworkError),
     /// The Library it would be for isn't there, or was deleted while it arrived.
     #[error("there is no Library {0}")]
     NoLibrary(i64),
@@ -439,12 +449,13 @@ fn url(slot: &str, version: &str) -> String {
     format!("/media/custom-images/{slot}/{version}")
 }
 
-/// Serves uploads to and removals from `/custom-images/<slot>`, and the images under
-/// `/media/custom-images/<slot>/<version>`, resized as `images` says. An upload is only for a
-/// Plugin `has_plugin` says the Server has. Who may make each request is up to the layers the
-/// router is put behind.
+/// Serves uploads to and removals from `/custom-images/<slot>`, picks from `artwork`'s offered
+/// images, and the images under `/media/custom-images/<slot>/<version>`, resized as `images` says.
+/// An upload is only for a Plugin `has_plugin` says the Server has. Who may make each request is up
+/// to the layers the router is put behind.
 pub(crate) fn router(
     custom_images: CustomImages,
+    artwork: Artwork,
     images: ImageSettings,
     has_plugin: impl Fn(&PluginId) -> bool + Send + Sync + 'static,
 ) -> Router {
@@ -452,10 +463,17 @@ pub(crate) fn router(
     Router::new()
         .route(&format!("{UPLOADS}{{*slot}}"), put(upload).delete(remove))
         .route(&format!("{IMAGES}{{*path}}"), get(serve))
-        .with_state((custom_images, images, has_plugin))
+        .with_state((custom_images, artwork, images, has_plugin))
 }
 
-type RouterState = (CustomImages, ImageSettings, HasPlugin);
+/// What the router's handlers share.
+type Handles = (CustomImages, Artwork, ImageSettings, HasPlugin);
+
+/// An upload's query: the URL of an offered image to keep in place of the body.
+#[derive(Deserialize)]
+struct UploadQuery {
+    artwork: Option<String>,
+}
 
 const UPLOADS: &str = "/custom-images/";
 const IMAGES: &str = "/media/custom-images/";
@@ -467,8 +485,9 @@ fn raw_path<'a>(uri: &'a Uri, prefix: &str) -> &'a str {
 }
 
 async fn upload(
-    State((custom_images, _, has_plugin)): State<RouterState>,
+    State((custom_images, artwork, _, has_plugin)): State<Handles>,
     uri: Uri,
+    Query(picked): Query<UploadQuery>,
     body: Body,
 ) -> Response {
     let Some((slot, subject)) = Slot::parse(raw_path(&uri, UPLOADS)) else {
@@ -489,7 +508,13 @@ async fn upload(
     }
     // The write commits even if the client goes away, so deleting what it replaced must follow
     // (ADR 0029).
-    let uploaded = tokio::spawn(async move { custom_images.upload(slot, body).await });
+    let uploaded = tokio::spawn(async move {
+        let body = match picked.artwork {
+            Some(url) => Body::from(artwork.offered_bytes(&url).await?),
+            None => body,
+        };
+        custom_images.upload(slot, body).await
+    });
     match uploaded.await.unwrap_or_else(|err| Err(err.into())) {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         // Each refusal has a status of its own, which the web app tells the admin.
@@ -505,14 +530,18 @@ async fn upload(
         Err(Error::Upload(broke_off @ UploadError::BrokeOff(_))) => {
             (StatusCode::BAD_REQUEST, broke_off.to_string()).into_response()
         }
-        Err(missing @ Error::NoLibrary(_)) => {
+        Err(missing @ (Error::NoLibrary(_) | Error::Artwork(ArtworkError::NotFound))) => {
             (StatusCode::NOT_FOUND, missing.to_string()).into_response()
+        }
+        Err(Error::Artwork(unavailable @ ArtworkError::Unavailable(_))) => {
+            tracing::warn!("could not pick a Custom Image: {unavailable}");
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
         }
         Err(err) => failed("keep", &err),
     }
 }
 
-async fn remove(State((custom_images, ..)): State<RouterState>, uri: Uri) -> Response {
+async fn remove(State((custom_images, ..)): State<Handles>, uri: Uri) -> Response {
     let Some((slot, _)) = Slot::parse(raw_path(&uri, UPLOADS)) else {
         return StatusCode::NOT_FOUND.into_response();
     };
@@ -525,7 +554,7 @@ async fn remove(State((custom_images, ..)): State<RouterState>, uri: Uri) -> Res
 }
 
 async fn serve(
-    State((custom_images, images, _)): State<RouterState>,
+    State((custom_images, _, images, _)): State<Handles>,
     Query(asked): Query<Asked>,
     request: Request,
 ) -> Response {

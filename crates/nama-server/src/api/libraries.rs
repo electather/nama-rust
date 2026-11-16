@@ -8,11 +8,12 @@ use nama_plugin_api::{PluginId, PointKey, recogniser::Recogniser};
 use nama_proto::nama::v1::{
     self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
     DeleteLibraryResponse, DeleteMediaRequest, DeleteMediaResponse, EpisodeTakenAlong,
-    FileNotDeleted, GetLibraryRequest, GetLibraryResponse, LibraryService, ListLibrariesRequest,
-    ListLibrariesResponse, ListTitleSourcesRequest, ListTitleSourcesResponse, MediaFile,
-    MediaToDelete, Permission, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse,
-    RefusalReason, Request, RequestToCancel, ScanLibraryRequest, ScanLibraryResponse, TitleSource,
-    UpdateLibraryRequest, UpdateLibraryResponse, media_to_delete, request::MovieOrSeason,
+    FileNotDeleted, GetLibraryRequest, GetLibraryResponse, LibraryService, ListArtworkRequest,
+    ListArtworkResponse, ListLibrariesRequest, ListLibrariesResponse, ListTitleSourcesRequest,
+    ListTitleSourcesResponse, MediaFile, MediaToDelete, Permission, PreviewDeleteMediaRequest,
+    PreviewDeleteMediaResponse, RefusalReason, Request, RequestToCancel, ScanLibraryRequest,
+    ScanLibraryResponse, TitleSource, UpdateLibraryRequest, UpdateLibraryResponse, media_to_delete,
+    request::MovieOrSeason,
 };
 
 use crate::{
@@ -29,7 +30,8 @@ use crate::{
 use super::{
     ImageSources, ShownImages,
     browse::{Fields, refused},
-    caller, database_failed, proto_number, refuse, required_id, unknown_enum_value,
+    caller, database_failed, proto_number, refuse, required_id, title_kind_from_proto,
+    unknown_enum_value,
 };
 
 /// `nama.v1.LibraryService`: managing the Server's Libraries. Needs `PERMISSION_MANAGE_LIBRARIES`,
@@ -288,6 +290,22 @@ impl LibraryService for LibraryServiceHandler {
         let doomed = self.browse.doomed(target).await.map_err(refused(fields))?;
         let deleted = self.scanner.delete_media(doomed, by).await;
         Response::ok(deleted_to_proto(deleted.map_err(deleting_failed)?))
+    }
+
+    async fn list_artwork(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, ListArtworkRequest>,
+    ) -> ServiceResult<ListArtworkResponse> {
+        let request = request.to_owned_message();
+        let kind = title_kind_from_proto(request.kind)?;
+        let id = required_id(request.id.into_option(), "id", "title")?;
+        let listed = self.images.artwork.listed(kind, &id).await;
+        Response::ok(ListArtworkResponse {
+            poster_urls: listed.posters,
+            backdrop_urls: listed.backdrops,
+            ..Default::default()
+        })
     }
 
     async fn list_title_sources(

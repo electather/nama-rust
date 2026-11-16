@@ -711,6 +711,10 @@ pub trait SignInService: Send + Sync + 'static {
     /// Says whether the sign-in a poll handle stands for is still waiting for approval, expired, or
     /// signed in. Signed in hands out the new Device's session, once, the way `SignIn` does: after
     /// that, and for a handle the Server never gave out or has forgotten, it fails with `not_found`.
+    /// Once the code is approved, it fails with `unauthenticated` and `REFUSAL_REASON_SIGNED_OUT` if
+    /// the approving Device has since signed out or expired, and with `not_found` and
+    /// `REFUSAL_REASON_USER_NOT_FOUND` if the approving User has since been deleted. Either uses the
+    /// code up: start again for a new one.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

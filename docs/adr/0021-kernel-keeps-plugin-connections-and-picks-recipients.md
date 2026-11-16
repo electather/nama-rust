@@ -11,3 +11,4 @@ Users get personal notifications, for example in their own Telegram chat, but Pl
 
 - A Notifier that finds a recipient gone (Telegram answers 403) says so, and the Kernel deletes that Plugin Connection.
 - Trakt scrobbling (M8) can reuse Plugin Connections.
+- A User can turn kinds of notification off, for every Notifier at once (#150). The Kernel applies it as it picks recipients, so channels still hear about everything.

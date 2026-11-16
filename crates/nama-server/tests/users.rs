@@ -14,10 +14,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     ChangePasswordRequest, CreateUserRequest, DeleteUserRequest, Device,
-    GetDefaultPermissionsRequest, ListDevicesRequest, ListUsersRequest, Permission, RefusalReason,
-    ResetPasswordRequest, RevokeDeviceRequest, SessionDelivery, SetDefaultPermissionsRequest,
-    SetPermissionsRequest, SignInRequest, SignInResponse, SignInServiceClient, User,
-    UserServiceClient, WhoAmIRequest,
+    GetDefaultPermissionsRequest, LibraryKind, ListDevicesRequest, ListUsersRequest, Permission,
+    RefusalReason, ResetPasswordRequest, RevokeDeviceRequest, SessionDelivery,
+    SetDefaultPermissionsRequest, SetPermissionsRequest, SignInRequest, SignInResponse,
+    SignInServiceClient, User, UserServiceClient, WhoAmIRequest,
 };
 use refused::{assert_refused, refusal_of};
 use server::{PASSWORD, Subscription, TestServer, subscribe};
@@ -286,6 +286,15 @@ async fn ended(subscription: &mut Subscription) -> bool {
     matches!(subscription.message().await, Ok(None))
 }
 
+/// Whether `subscription` is still open, as told by the events a new Library's scan brings.
+async fn still_open(fixture: &Fixture, subscription: &mut Subscription) -> bool {
+    let _library = fixture
+        .server
+        .library(LibraryKind::LIBRARY_KIND_MOVIES, &[])
+        .await;
+    matches!(subscription.message().await, Ok(Some(_)))
+}
+
 /// Now, in seconds since the Unix epoch, as the Server stores times.
 #[expect(
     clippy::unwrap_used,
@@ -466,9 +475,10 @@ async fn a_demoted_admin_loses_admin_rpcs_on_their_next_request_but_stays_signed
 }
 
 #[tokio::test]
-async fn removing_admin_from_the_last_user_with_it_is_refused() {
+async fn removing_admin_from_the_last_user_with_it_is_refused_and_leaves_their_stream_open() {
     let fixture = Fixture::start().await;
     let admin = fixture.first_admin_id().await;
+    let mut admins_events = subscribe(&fixture.server.client_config(), &[]).await;
 
     let demoted = set_permissions(&fixture.client, admin, &[Permission::ManageUsers]).await;
 
@@ -478,6 +488,8 @@ async fn removing_admin_from_the_last_user_with_it_is_refused() {
         RefusalReason::REFUSAL_REASON_LAST_ADMIN,
     );
     assert_eq!(admin_ids(&fixture.client).await, [admin]);
+    let still_open = still_open(&fixture, &mut admins_events).await;
+    assert!(still_open, "the refusal ended the stream");
 }
 
 #[tokio::test]
@@ -750,6 +762,23 @@ async fn a_deleted_user_cant_sign_in_and_their_sessions_and_streams_end_at_once(
         .map(|user| user.name)
         .collect();
     assert!(!names.contains(&"Grace".to_owned()), "{names:?}");
+}
+
+#[tokio::test]
+async fn setting_a_users_permissions_ends_their_streams_at_once_and_keeps_them_signed_in() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &[Permission::Request]).await;
+    let mut graces_events = subscribe(&fixture.server.client_config_as(&grace.token), &[]).await;
+    let mut admins_events = subscribe(&fixture.server.client_config(), &[]).await;
+
+    set_permissions(&fixture.client, grace.id, &[Permission::ViewRequests])
+        .await
+        .unwrap();
+
+    assert!(ended(&mut graces_events).await, "the stream is still open");
+    let admins_open = still_open(&fixture, &mut admins_events).await;
+    assert!(admins_open, "another User's stream ended");
+    assert!(fixture.signed_in(&grace.token).await.unwrap());
 }
 
 #[tokio::test]

@@ -1,7 +1,7 @@
 use nama_proto::nama::v1::{
-    Event, FollowedShow, FollowedShowCreated, LibraryItemAdded, Permission, Playback,
-    PlaybackStarted, Request, RequestCancelled, RequestCreated, RequestState, RequestStateChanged,
-    Requester, RequesterAdded,
+    Event, FollowedShow, FollowedShowCreated, LibraryItemAdded, NotificationKind, Permission,
+    Playback, PlaybackStarted, Request, RequestCancelled, RequestCreated, RequestState,
+    RequestStateChanged, Requester, RequesterAdded,
 };
 
 use std::{
@@ -18,7 +18,10 @@ use super::{Filter, Viewer, deliver, event, users_to_tell};
 use crate::{
     db::Database,
     plugins::{ProviderError, without_secrets},
-    users::{Permissions, User, personal_settings_of, replace_personal_settings},
+    users::{
+        Permissions, User, personal_settings_of, replace_personal_settings,
+        set_notification_preference,
+    },
 };
 
 fn user(id: i64, permissions: Permissions) -> User {
@@ -159,7 +162,7 @@ fn naming_libraries_leaves_out_events_about_none() {
 fn approving_or_declining_a_request_picks_its_requesters_and_nobody_else() {
     for state in [RequestState::Approved, RequestState::Declined] {
         assert_eq!(
-            users_to_tell(&moved_to(state, &[2, 1]), &users()),
+            users_to_tell(&moved_to(state, &[2, 1]), &users(), &[]),
             [2, 1],
             "{state:?}"
         );
@@ -174,7 +177,7 @@ fn a_request_failing_or_becoming_available_picks_its_requesters() {
         RequestState::Available,
     ] {
         assert_eq!(
-            users_to_tell(&moved_to(state, &[1]), &users()),
+            users_to_tell(&moved_to(state, &[1]), &users(), &[]),
             [1],
             "{state:?}"
         );
@@ -185,7 +188,7 @@ fn a_request_failing_or_becoming_available_picks_its_requesters() {
 fn a_followed_shows_season_opening_available_picks_its_requesters() {
     for state in [RequestState::PartiallyAvailable, RequestState::Available] {
         assert_eq!(
-            users_to_tell(&created(state, &[1, 2]), &users()),
+            users_to_tell(&created(state, &[1, 2]), &users(), &[]),
             [1, 2],
             "{state:?}"
         );
@@ -196,11 +199,11 @@ fn a_followed_shows_season_opening_available_picks_its_requesters() {
 fn a_new_pending_request_picks_every_user_with_manage_requests() {
     let users = users();
     assert_eq!(
-        users_to_tell(&created(RequestState::Pending, &[1]), &users),
+        users_to_tell(&created(RequestState::Pending, &[1]), &users, &[]),
         [3, 4]
     );
     assert_eq!(
-        users_to_tell(&created(RequestState::Pending, &[3]), &users),
+        users_to_tell(&created(RequestState::Pending, &[3]), &users, &[]),
         [3, 4],
         "an asker with MANAGE_REQUESTS is told as one of them"
     );
@@ -214,7 +217,37 @@ fn a_request_deleting_media_cancelled_picks_its_requesters() {
         ..Default::default()
     });
 
-    assert_eq!(users_to_tell(&cancelled, &users()), [2, 1]);
+    assert_eq!(users_to_tell(&cancelled, &users(), &[]), [2, 1]);
+}
+
+#[test]
+fn a_user_who_turned_a_kind_off_is_not_picked_for_it_but_still_for_others() {
+    let turned_off = [
+        (1, NotificationKind::Approved),
+        (3, NotificationKind::NewPending),
+    ];
+    let users = users();
+
+    assert_eq!(
+        users_to_tell(
+            &moved_to(RequestState::Approved, &[1, 2]),
+            &users,
+            &turned_off
+        ),
+        [2]
+    );
+    assert_eq!(
+        users_to_tell(
+            &moved_to(RequestState::Available, &[1, 2]),
+            &users,
+            &turned_off
+        ),
+        [1, 2]
+    );
+    assert_eq!(
+        users_to_tell(&created(RequestState::Pending, &[1]), &users, &turned_off),
+        [4]
+    );
 }
 
 #[test]
@@ -235,7 +268,7 @@ fn other_request_events_pick_nobody() {
         moved_to(RequestState::Processing, &[1]),
     ];
     for other in others {
-        assert!(users_to_tell(&other, &users()).is_empty(), "{other:?}");
+        assert!(users_to_tell(&other, &users(), &[]).is_empty(), "{other:?}");
     }
 }
 
@@ -342,6 +375,56 @@ async fn a_request_event_reaches_each_told_user_with_their_own_personal_settings
     );
     assert!(failed.contains(&format!("User {grace}")), "{failed}");
     assert!(!failed.contains(FAILING_WEBHOOK), "{failed}");
+}
+
+#[derive(Default)]
+struct KeepsRecipients(Mutex<Vec<Recipient>>);
+
+impl Notifier for KeepsRecipients {
+    fn deliver<'a>(
+        &'a self,
+        _notification: &'a Notification,
+        recipient: &'a Recipient,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        self.0.lock().unwrap().push(recipient.clone());
+        Box::pin(async { Ok(()) })
+    }
+}
+
+#[tokio::test]
+async fn a_user_who_turned_a_kind_off_is_not_told_it_and_the_channel_still_is() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let plugin = PluginId::from_static("chat");
+    let mut ids = Vec::new();
+    for name in ["ada", "lin"] {
+        let id = insert_user(&db, name).await;
+        let values = vec![("webhook".to_owned(), name.to_owned(), false)];
+        replace_personal_settings(&db, id, &plugin, values)
+            .await
+            .unwrap();
+        ids.push(id);
+    }
+    let (ada, lin) = (ids[0], ids[1]);
+    set_notification_preference(&db, ada, NotificationKind::Approved, false)
+        .await
+        .unwrap();
+    let notifier = Arc::new(KeepsRecipients::default());
+    let told = Arc::new((
+        moved_to(RequestState::Approved, &[ada, lin]),
+        Notification::default(),
+    ));
+
+    deliver(db, plugin, Arc::<KeepsRecipients>::clone(&notifier), told)
+        .await
+        .unwrap_or_else(|_| panic!("every delivery succeeds"));
+
+    let mut reached = notifier.0.lock().unwrap().clone();
+    reached.sort_by_key(|recipient| matches!(recipient, Recipient::User(_)));
+    assert!(
+        reached == [Recipient::Channel, Recipient::User(webhook("lin"))],
+        "Ada turned Approved off, so only the channel and Lin are told"
+    );
 }
 
 #[tokio::test]

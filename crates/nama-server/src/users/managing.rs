@@ -3,7 +3,7 @@
 use nama_proto::nama::v1::Permission;
 use sqlx::SqliteConnection;
 
-use super::{Error, Permissions, User, Users};
+use super::{Error, Permissions, User, Users, until_heard};
 use crate::db::now;
 
 impl Users {
@@ -38,7 +38,8 @@ impl Users {
     /// Gives the User `user` exactly `permissions`, as `by` asks, unless that leaves no User with
     /// `PERMISSION_ADMIN` or [`ensure_may_change`] refuses. Without `PERMISSION_ADMIN`, `by` may
     /// neither grant it nor change their own Permissions. Their Devices stay signed in, and the
-    /// Permissions apply from their next request, which reads them afresh.
+    /// Permissions apply from their next request, which reads them afresh. Once the change commits,
+    /// [`Users::permissions_changed`] resolves for them.
     pub(crate) async fn set_permissions(
         &self,
         by: &User,
@@ -50,14 +51,54 @@ impl Users {
             return Err(Error::AdminRequired);
         }
         let by = by.clone();
+        let changes = self.permission_changes.clone();
+        let tell_waiters = move || {
+            // Fails only when nobody is waiting, which is fine.
+            let _: Result<usize, _> = changes.send(user);
+        };
         self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    ensure_may_change(tx, &by, user).await?;
-                    update_permissions(tx, user, permissions).await
-                })
-            })
+            .write_then(
+                move |tx| {
+                    Box::pin(async move {
+                        ensure_may_change(tx, &by, user).await?;
+                        update_permissions(tx, user, permissions).await
+                    })
+                },
+                tell_waiters,
+            )
             .await
+    }
+
+    /// Resolves once the User `user`'s Permissions are set, so whatever they opened while holding
+    /// `permissions` can end, to be opened again under the new ones. It resolves at once if they
+    /// no longer hold exactly `permissions`, are gone, or that can't be found out.
+    pub(crate) fn permissions_changed(
+        &self,
+        user: i64,
+        permissions: Permissions,
+    ) -> impl Future<Output = ()> + Send + 'static {
+        // Listening before looking `user` up means no change falls between the two.
+        let changes = self.permission_changes.subscribe();
+        let users = self.clone();
+        until_heard(changes, user, async move || {
+            users.still_hold(user, permissions).await
+        })
+    }
+
+    /// Whether the User `user` still holds exactly `permissions`. If that can't be found out, they
+    /// are taken not to, so what was opened under them ends rather than outlive a change.
+    async fn still_hold(&self, user: i64, permissions: Permissions) -> bool {
+        let held = sqlx::query_scalar!(
+            r#"SELECT permissions AS "permissions: Permissions" FROM users WHERE id = ?"#,
+            user
+        )
+        .fetch_optional(self.db.reader())
+        .await;
+        let held = held.unwrap_or_else(|err| {
+            tracing::error!("could not look up a User's Permissions: {err}");
+            None
+        });
+        held == Some(permissions)
     }
 
     /// Deletes the User `user` with their Sign-in Methods and Devices, as `by` asks, unless that

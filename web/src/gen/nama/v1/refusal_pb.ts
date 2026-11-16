@@ -96,7 +96,8 @@ export const RefusalReason = {
   WRONG_PASSWORD: 4,
 
   /**
-   * `unauthenticated`: the calling Device was signed out before its change was made.
+   * `unauthenticated`: the calling Device was signed out before its change was made, or the
+   * Device that approved a polled Sign-in Code was signed out or expired before the poll.
    *
    * @generated from enum value: REFUSAL_REASON_SIGNED_OUT = 5;
    */
@@ -139,7 +140,9 @@ export const RefusalReason = {
   SIGN_IN_CODE_ALREADY_APPROVED: 10,
 
   /**
-   * `resource_exhausted`: too many sign-ins with a Sign-in Code are waiting.
+   * `resource_exhausted`: too many sign-ins with a Sign-in Code are waiting, or too many were
+   * started lately from the client's IP. Params, for the second: `retryAfterSeconds`, also sent as
+   * the `Retry-After` header.
    *
    * @generated from enum value: REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS = 11;
    */
@@ -153,7 +156,8 @@ export const RefusalReason = {
   HANDLE_NOT_FOUND: 12,
 
   /**
-   * `not_found`: no User has the ID, or none the caller may see.
+   * `not_found`: no User has the ID, or none the caller may see, or the User who approved a polled
+   * Sign-in Code was deleted before the poll.
    *
    * @generated from enum value: REFUSAL_REASON_USER_NOT_FOUND = 13;
    */

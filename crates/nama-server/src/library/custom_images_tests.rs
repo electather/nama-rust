@@ -14,9 +14,10 @@ use crate::{
     db::Database,
     images::ImageStore,
     library::{
-        Metadata,
+        Artwork, Metadata,
         fixture::{MatchedMovie, tmdb_movie},
     },
+    plugins::Registry,
     server_settings::Settings,
 };
 
@@ -77,11 +78,12 @@ async fn an_image_for_an_id_holding_a_slash_is_uploaded_and_served_at_its_path()
     };
     MatchedMovie::new(&db, media.path(), matched).await;
     let store = ImageStore::new(data.path(), Arc::clone(&db));
-    let custom_images = CustomImages::new(Arc::clone(&db), store);
+    let custom_images = CustomImages::new(Arc::clone(&db), store.clone());
     let images = Settings::new(db, data.path().to_owned()).images();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let app = router(custom_images.clone(), images, |_| true);
+    let artwork = Artwork::new(store.clone(), Registry::new().extension_points());
+    let app = router(custom_images.clone(), artwork, images, |_| true);
     tokio::spawn(async move { axum::serve(listener, app).await });
     let mut png = Cursor::new(Vec::new());
     RgbImage::new(2, 3)

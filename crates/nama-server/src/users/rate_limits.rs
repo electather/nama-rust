@@ -1,6 +1,8 @@
 //! Slowing down guesses at passwords, the Setup Code and Sign-in Codes, by refusing attempts after
 //! too many recent failures: Setup, signing in and Reauthenticate from one client IP or for one User
-//! name, and Sign-in Code lookups and approvals from one Device.
+//! name, and Sign-in Code lookups and approvals from one Device. Also refusing Sign-in Code starts
+//! from one client IP after too many recent ones, so one client can't fill the pool of waiting
+//! codes for everyone.
 //!
 //! Counts live in memory only. They expire as the window slides past them and a restart forgets
 //! them, so nobody is ever locked out for good.
@@ -31,6 +33,11 @@ const FAILURES_PER_IP: usize = 50;
 /// its lookups and approvals are refused.
 const FAILURES_PER_DEVICE: usize = 10;
 
+/// How many Sign-in Code starts from one client IP the window may hold before its starts are
+/// refused: far more than a household of Devices behind one NAT needs, each starting a fresh code
+/// when one expires.
+const STARTS_PER_IP: usize = 20;
+
 /// The recent failed Setup, signing in and Reauthenticate attempts, by client IP and by User name.
 #[derive(Debug, Default)]
 pub(super) struct SignInLimits {
@@ -56,7 +63,7 @@ pub(crate) struct Attempt {
 #[derive(Debug, thiserror::Error)]
 #[error("too many failed attempts; try again in {} seconds", self.retry_after_secs())]
 pub(crate) struct Blocked {
-    /// How long until the oldest failure in the way leaves the window.
+    /// How long until the oldest count in the way leaves the window.
     retry_after: Duration,
 }
 
@@ -144,6 +151,28 @@ impl SignInCodeLimits {
     }
 }
 
+/// The recent Sign-in Code starts, by client IP. Kept apart from [`SignInLimits`], so starting
+/// codes and failing to sign in never use up each other's allowance.
+#[derive(Debug, Default)]
+pub(super) struct SignInCodeStartLimits {
+    starts: Mutex<Window<IpAddr>>,
+}
+
+impl SignInCodeStartLimits {
+    /// Lets a Sign-in Code start from `ip` at `now` through unless it started too many recently,
+    /// and counts it. A start is never un-counted: unlike a guess, it holds a waiting code whatever
+    /// happens next.
+    pub(super) fn admit(&self, ip: IpAddr, now: Instant) -> Result<(), Blocked> {
+        // As for `SignInLimits`: every change leaves the counts consistent.
+        let mut starts = self.starts.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(retry_after) = starts.wait(&ip, STARTS_PER_IP, now) {
+            return Err(Blocked { retry_after });
+        }
+        starts.record(ip, now);
+        Ok(())
+    }
+}
+
 impl Blocked {
     /// The retry delay in whole seconds, rounded up so a client that waits it is let through.
     pub(crate) fn retry_after_secs(&self) -> u64 {
@@ -163,11 +192,12 @@ fn counted_name_key(name: &str) -> String {
     name_key(&capped)
 }
 
-/// When each key's failures still in the window happened, oldest first.
+/// When each key's counts still in the window happened, oldest first: failures, or Sign-in Code
+/// starts.
 #[derive(Debug)]
 struct Window<K> {
     times: HashMap<K, VecDeque<Instant>>,
-    /// When keys whose failures had all left the window were last dropped.
+    /// When keys whose counts had all left the window were last dropped.
     swept_at: Option<Instant>,
 }
 
@@ -181,7 +211,7 @@ impl<K> Default for Window<K> {
 }
 
 impl<K: Hash + Eq> Window<K> {
-    /// How long `key` must wait, as of `now`, before it has fewer than `limit` failures in the
+    /// How long `key` must wait, as of `now`, before it has fewer than `limit` counts in the
     /// window, if it has that many now.
     fn wait(&mut self, key: &K, limit: usize, now: Instant) -> Option<Duration> {
         let times = self.times.get_mut(key)?;
@@ -197,9 +227,9 @@ impl<K: Hash + Eq> Window<K> {
         (times.len() >= limit).then(|| WINDOW.saturating_sub(now.saturating_duration_since(oldest)))
     }
 
-    /// Counts a failure for `key` at `at`. Once a window, it also drops the keys whose failures
-    /// have all left it: sweeping on every failure would make each one slower the more peers have
-    /// failed recently.
+    /// Counts one for `key` at `at`. Once a window, it also drops the keys whose counts have all
+    /// left it: sweeping on every count would make each one slower the more peers were counted
+    /// recently.
     fn record(&mut self, key: K, at: Instant) {
         if self
             .swept_at

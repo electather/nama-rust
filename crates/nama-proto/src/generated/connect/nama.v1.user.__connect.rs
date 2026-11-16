@@ -126,6 +126,30 @@ pub type OwnedDeletePersonalSettingsRequestView = ::buffa::view::OwnedView<
 pub type OwnedDeletePersonalSettingsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::DeletePersonalSettingsResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListNotificationPreferencesRequestView<'static>>`.
+pub type OwnedListNotificationPreferencesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListNotificationPreferencesRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<ListNotificationPreferencesResponseView<'static>>`.
+pub type OwnedListNotificationPreferencesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListNotificationPreferencesResponseView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<SetNotificationPreferenceRequestView<'static>>`.
+pub type OwnedSetNotificationPreferenceRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetNotificationPreferenceRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<SetNotificationPreferenceResponseView<'static>>`.
+pub type OwnedSetNotificationPreferenceResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetNotificationPreferenceResponseView<
+        'static,
+    >,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserResponse>
 for crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'_> {
     fn encode(
@@ -670,6 +694,88 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<
+    crate::messages::nama::v1::ListNotificationPreferencesResponse,
+>
+for crate::messages::nama::v1::__buffa::view::ListNotificationPreferencesResponseView<
+    '_,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::v1::ListNotificationPreferencesResponse,
+>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListNotificationPreferencesResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::v1::SetNotificationPreferenceResponse,
+>
+for crate::messages::nama::v1::__buffa::view::SetNotificationPreferenceResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::v1::SetNotificationPreferenceResponse,
+>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetNotificationPreferenceResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const USER_SERVICE_SERVICE_NAME: &str = "nama.v1.UserService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -768,9 +874,22 @@ pub const USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC: ::connectrpc::Spec = ::con
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
-/// Managing the Server's Users, their Devices, Plugin Connections and Personal settings. Every RPC
-/// but `ListDevices`, `RevokeDevice`, `ChangePassword`, the Plugin Connection ones and the Personal
-/// settings ones needs `PERMISSION_MANAGE_USERS`,
+/// Static [`Spec`](::connectrpc::Spec) for the `ListNotificationPreferences` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_LIST_NOTIFICATION_PREFERENCES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/ListNotificationPreferences",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetNotificationPreference` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/SetNotificationPreference",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Managing the Server's Users, their Devices, Plugin Connections, Personal settings and
+/// notification preferences. Every RPC but `ListDevices`, `RevokeDevice`, `ChangePassword`, the
+/// Plugin Connection ones, the Personal settings ones and the notification preference ones needs
+/// `PERMISSION_MANAGE_USERS`,
 /// and fails with `permission_denied` without it.
 /// Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
 /// User with it, grant it, put it in the default Permissions or create a User while they hold it, or
@@ -1230,6 +1349,57 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::DeletePersonalSettingsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists which Request notifications the caller gets on every Notifier, through their Plugin
+    /// Connections and Personal settings. Each kind is on until they turn it off.
+    /// `NOTIFICATION_KIND_NEW_PENDING` is listed only to a caller with `PERMISSION_MANAGE_REQUESTS`.
+    /// A Notifier's channel isn't the caller's, so these don't change what it gets.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_notification_preferences<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListNotificationPreferencesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListNotificationPreferencesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Turns one kind of Request notification on or off for the caller. Fails with
+    /// `REFUSAL_REASON_UNKNOWN_ENUM_VALUE` for `NOTIFICATION_KIND_UNSPECIFIED` or a value the Server
+    /// doesn't know.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_notification_preference<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetNotificationPreferenceRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetNotificationPreferenceResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1729,6 +1899,64 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC)
+            .route_view_idempotent(
+                USER_SERVICE_SERVICE_NAME,
+                "ListNotificationPreferences",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListNotificationPreferencesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListNotificationPreferencesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_notification_preferences(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListNotificationPreferencesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_LIST_NOTIFICATION_PREFERENCES_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "SetNotificationPreference",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetNotificationPreferenceRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetNotificationPreferenceRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_notification_preference(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetNotificationPreferenceResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1877,6 +2105,18 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC),
+                )
+            }
+            "ListNotificationPreferences" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(USER_SERVICE_LIST_NOTIFICATION_PREFERENCES_SPEC),
+                )
+            }
+            "SetNotificationPreference" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC),
                 )
             }
             _ => None,
@@ -2235,6 +2475,50 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::DeletePersonalSettingsResponse,
+                        >(format)
+                })
+            }
+            "ListNotificationPreferences" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListNotificationPreferencesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListNotificationPreferencesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListNotificationPreferencesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_notification_preferences(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ListNotificationPreferencesResponse,
+                        >(format)
+                })
+            }
+            "SetNotificationPreference" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetNotificationPreferenceRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetNotificationPreferenceRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetNotificationPreferenceRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_notification_preference(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetNotificationPreferenceResponse,
                         >(format)
                 })
             }
@@ -3068,6 +3352,96 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListNotificationPreferences RPC. Sends a request to /nama.v1.UserService/ListNotificationPreferences.
+    pub async fn list_notification_preferences(
+        &self,
+        request: crate::messages::nama::v1::ListNotificationPreferencesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListNotificationPreferencesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_notification_preferences_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListNotificationPreferences RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_notification_preferences_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListNotificationPreferencesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListNotificationPreferencesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_LIST_NOTIFICATION_PREFERENCES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetNotificationPreference RPC. Sends a request to /nama.v1.UserService/SetNotificationPreference.
+    pub async fn set_notification_preference(
+        &self,
+        request: crate::messages::nama::v1::SetNotificationPreferenceRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetNotificationPreferenceResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_notification_preference_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetNotificationPreference RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_notification_preference_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetNotificationPreferenceRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetNotificationPreferenceResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

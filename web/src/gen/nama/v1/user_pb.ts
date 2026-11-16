@@ -14,7 +14,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/user.proto.
  */
 export const file_nama_v1_user: GenFile = /*@__PURE__*/
-  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiPwoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCUoECAMQBFIEcm9sZSIgChJDcmVhdGVVc2VyUmVzcG9uc2USCgoCaWQYASABKAMiEgoQTGlzdFVzZXJzUmVxdWVzdCIxChFMaXN0VXNlcnNSZXNwb25zZRIcCgV1c2VycxgBIAMoCzINLm5hbWEudjEuVXNlciJSChVTZXRQZXJtaXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIoCgtwZXJtaXNzaW9ucxgCIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiIYChZTZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIiQKEURlbGV0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSRGVsZXRlVXNlclJlc3BvbnNlIjYKEkxpc3REZXZpY2VzUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQFCCgoIX3VzZXJfaWQiNwoTTGlzdERldmljZXNSZXNwb25zZRIgCgdkZXZpY2VzGAEgAygLMg8ubmFtYS52MS5EZXZpY2UiSgoTUmV2b2tlRGV2aWNlUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQESEQoJZGV2aWNlX2lkGAIgASgDQgoKCF91c2VyX2lkIhYKFFJldm9rZURldmljZVJlc3BvbnNlIkUKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIUCgxuZXdfcGFzc3dvcmQYAiABKAlKBAgBEAJSEGN1cnJlbnRfcGFzc3dvcmQiGAoWQ2hhbmdlUGFzc3dvcmRSZXNwb25zZSI9ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEhQKDG5ld19wYXNzd29yZBgCIAEoCSIXChVSZXNldFBhc3N3b3JkUmVzcG9uc2UiHgocR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdCJJCh1HZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZRIoCgtwZXJtaXNzaW9ucxgBIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiJIChxTZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0EigKC3Blcm1pc3Npb25zGAEgAygOMhMubmFtYS52MS5QZXJtaXNzaW9uIh8KHVNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIh4KHExpc3RQbHVnaW5Db25uZWN0aW9uc1JlcXVlc3QiTwodTGlzdFBsdWdpbkNvbm5lY3Rpb25zUmVzcG9uc2USLgoLY29ubmVjdGlvbnMYASADKAsyGS5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb24iVAoQUGx1Z2luQ29ubmVjdGlvbhIRCglwbHVnaW5faWQYASABKAkSLQoFc3RhdGUYAiABKA4yHi5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb25TdGF0ZSIxChxTdGFydFBsdWdpbkNvbm5lY3Rpb25SZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSIsCh1TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZRILCgN1cmwYASABKAkiMgodRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlcXVlc3QSEQoJcGx1Z2luX2lkGAEgASgJIiAKHkRlbGV0ZVBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZSIdChtMaXN0UGVyc29uYWxTZXR0aW5nc1JlcXVlc3QiSgocTGlzdFBlcnNvbmFsU2V0dGluZ3NSZXNwb25zZRIqCgdwbHVnaW5zGAEgAygLMhkubmFtYS52MS5QZXJzb25hbFNldHRpbmdzImkKEFBlcnNvbmFsU2V0dGluZ3MSEQoJcGx1Z2luX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIbG9nb191cmwYAyABKAkSIgoIc2V0dGluZ3MYBCADKAsyEC5uYW1hLnYxLlNldHRpbmciwgEKHVVwZGF0ZVBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCRJGCghzZXR0aW5ncxgCIAMoCzI0Lm5hbWEudjEuVXBkYXRlUGVyc29uYWxTZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASJLCh5VcGRhdGVQZXJzb25hbFNldHRpbmdzUmVzcG9uc2USKQoGcGx1Z2luGAEgASgLMhkubmFtYS52MS5QZXJzb25hbFNldHRpbmdzIjIKHURlbGV0ZVBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSIgCh5EZWxldGVQZXJzb25hbFNldHRpbmdzUmVzcG9uc2UqtwEKFVBsdWdpbkNvbm5lY3Rpb25TdGF0ZRInCiNQTFVHSU5fQ09OTkVDVElPTl9TVEFURV9VTlNQRUNJRklFRBAAEikKJVBMVUdJTl9DT05ORUNUSU9OX1NUQVRFX05PVF9DT05ORUNURUQQARIjCh9QTFVHSU5fQ09OTkVDVElPTl9TVEFURV9XQUlUSU5HEAISJQohUExVR0lOX0NPTk5FQ1RJT05fU1RBVEVfQ09OTkVDVEVEEAMy6QsKC1VzZXJTZXJ2aWNlEkUKCkNyZWF0ZVVzZXISGi5uYW1hLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5DcmVhdGVVc2VyUmVzcG9uc2USRwoJTGlzdFVzZXJzEhkubmFtYS52MS5MaXN0VXNlcnNSZXF1ZXN0GhoubmFtYS52MS5MaXN0VXNlcnNSZXNwb25zZSIDkAIBElYKDlNldFBlcm1pc3Npb25zEh4ubmFtYS52MS5TZXRQZXJtaXNzaW9uc1JlcXVlc3QaHy5uYW1hLnYxLlNldFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACAhJKCgpEZWxldGVVc2VyEhoubmFtYS52MS5EZWxldGVVc2VyUmVxdWVzdBobLm5hbWEudjEuRGVsZXRlVXNlclJlc3BvbnNlIgOQAgISTQoLTGlzdERldmljZXMSGy5uYW1hLnYxLkxpc3REZXZpY2VzUmVxdWVzdBocLm5hbWEudjEuTGlzdERldmljZXNSZXNwb25zZSIDkAIBEksKDFJldm9rZURldmljZRIcLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVxdWVzdBodLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVzcG9uc2USUQoOQ2hhbmdlUGFzc3dvcmQSHi5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBofLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZRJOCg1SZXNldFBhc3N3b3JkEh0ubmFtYS52MS5SZXNldFBhc3N3b3JkUmVxdWVzdBoeLm5hbWEudjEuUmVzZXRQYXNzd29yZFJlc3BvbnNlEmsKFUdldERlZmF1bHRQZXJtaXNzaW9ucxIlLm5hbWEudjEuR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdBomLm5hbWEudjEuR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACARJrChVTZXREZWZhdWx0UGVybWlzc2lvbnMSJS5uYW1hLnYxLlNldERlZmF1bHRQZXJtaXNzaW9uc1JlcXVlc3QaJi5uYW1hLnYxLlNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIgOQAgISawoVTGlzdFBsdWdpbkNvbm5lY3Rpb25zEiUubmFtYS52MS5MaXN0UGx1Z2luQ29ubmVjdGlvbnNSZXF1ZXN0GiYubmFtYS52MS5MaXN0UGx1Z2luQ29ubmVjdGlvbnNSZXNwb25zZSIDkAIBEmYKFVN0YXJ0UGx1Z2luQ29ubmVjdGlvbhIlLm5hbWEudjEuU3RhcnRQbHVnaW5Db25uZWN0aW9uUmVxdWVzdBomLm5hbWEudjEuU3RhcnRQbHVnaW5Db25uZWN0aW9uUmVzcG9uc2USbgoWRGVsZXRlUGx1Z2luQ29ubmVjdGlvbhImLm5hbWEudjEuRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlcXVlc3QaJy5uYW1hLnYxLkRlbGV0ZVBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZSIDkAICEmgKFExpc3RQZXJzb25hbFNldHRpbmdzEiQubmFtYS52MS5MaXN0UGVyc29uYWxTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLkxpc3RQZXJzb25hbFNldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQZXJzb25hbFNldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQZXJzb25hbFNldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGVyc29uYWxTZXR0aW5nc1Jlc3BvbnNlIgOQAgISbgoWRGVsZXRlUGVyc29uYWxTZXR0aW5ncxImLm5hbWEudjEuRGVsZXRlUGVyc29uYWxTZXR0aW5nc1JlcXVlc3QaJy5uYW1hLnYxLkRlbGV0ZVBlcnNvbmFsU2V0dGluZ3NSZXNwb25zZSIDkAICYgZwcm90bzM", [file_nama_v1_plugin, file_nama_v1_sign_in]);
+  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiPwoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCUoECAMQBFIEcm9sZSIgChJDcmVhdGVVc2VyUmVzcG9uc2USCgoCaWQYASABKAMiEgoQTGlzdFVzZXJzUmVxdWVzdCIxChFMaXN0VXNlcnNSZXNwb25zZRIcCgV1c2VycxgBIAMoCzINLm5hbWEudjEuVXNlciJSChVTZXRQZXJtaXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIoCgtwZXJtaXNzaW9ucxgCIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiIYChZTZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIiQKEURlbGV0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSRGVsZXRlVXNlclJlc3BvbnNlIjYKEkxpc3REZXZpY2VzUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQFCCgoIX3VzZXJfaWQiNwoTTGlzdERldmljZXNSZXNwb25zZRIgCgdkZXZpY2VzGAEgAygLMg8ubmFtYS52MS5EZXZpY2UiSgoTUmV2b2tlRGV2aWNlUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQESEQoJZGV2aWNlX2lkGAIgASgDQgoKCF91c2VyX2lkIhYKFFJldm9rZURldmljZVJlc3BvbnNlIkUKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIUCgxuZXdfcGFzc3dvcmQYAiABKAlKBAgBEAJSEGN1cnJlbnRfcGFzc3dvcmQiGAoWQ2hhbmdlUGFzc3dvcmRSZXNwb25zZSI9ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEhQKDG5ld19wYXNzd29yZBgCIAEoCSIXChVSZXNldFBhc3N3b3JkUmVzcG9uc2UiHgocR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdCJJCh1HZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZRIoCgtwZXJtaXNzaW9ucxgBIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiJIChxTZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0EigKC3Blcm1pc3Npb25zGAEgAygOMhMubmFtYS52MS5QZXJtaXNzaW9uIh8KHVNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIh4KHExpc3RQbHVnaW5Db25uZWN0aW9uc1JlcXVlc3QiTwodTGlzdFBsdWdpbkNvbm5lY3Rpb25zUmVzcG9uc2USLgoLY29ubmVjdGlvbnMYASADKAsyGS5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb24iVAoQUGx1Z2luQ29ubmVjdGlvbhIRCglwbHVnaW5faWQYASABKAkSLQoFc3RhdGUYAiABKA4yHi5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb25TdGF0ZSIxChxTdGFydFBsdWdpbkNvbm5lY3Rpb25SZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSIsCh1TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZRILCgN1cmwYASABKAkiMgodRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlcXVlc3QSEQoJcGx1Z2luX2lkGAEgASgJIiAKHkRlbGV0ZVBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZSIdChtMaXN0UGVyc29uYWxTZXR0aW5nc1JlcXVlc3QiSgocTGlzdFBlcnNvbmFsU2V0dGluZ3NSZXNwb25zZRIqCgdwbHVnaW5zGAEgAygLMhkubmFtYS52MS5QZXJzb25hbFNldHRpbmdzImkKEFBlcnNvbmFsU2V0dGluZ3MSEQoJcGx1Z2luX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIbG9nb191cmwYAyABKAkSIgoIc2V0dGluZ3MYBCADKAsyEC5uYW1hLnYxLlNldHRpbmciwgEKHVVwZGF0ZVBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCRJGCghzZXR0aW5ncxgCIAMoCzI0Lm5hbWEudjEuVXBkYXRlUGVyc29uYWxTZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASJLCh5VcGRhdGVQZXJzb25hbFNldHRpbmdzUmVzcG9uc2USKQoGcGx1Z2luGAEgASgLMhkubmFtYS52MS5QZXJzb25hbFNldHRpbmdzIjIKHURlbGV0ZVBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSIgCh5EZWxldGVQZXJzb25hbFNldHRpbmdzUmVzcG9uc2UiJAoiTGlzdE5vdGlmaWNhdGlvblByZWZlcmVuY2VzUmVxdWVzdCJbCiNMaXN0Tm90aWZpY2F0aW9uUHJlZmVyZW5jZXNSZXNwb25zZRI0CgtwcmVmZXJlbmNlcxgBIAMoCzIfLm5hbWEudjEuTm90aWZpY2F0aW9uUHJlZmVyZW5jZSJNChZOb3RpZmljYXRpb25QcmVmZXJlbmNlEicKBGtpbmQYASABKA4yGS5uYW1hLnYxLk5vdGlmaWNhdGlvbktpbmQSCgoCb24YAiABKAgiVwogU2V0Tm90aWZpY2F0aW9uUHJlZmVyZW5jZVJlcXVlc3QSJwoEa2luZBgBIAEoDjIZLm5hbWEudjEuTm90aWZpY2F0aW9uS2luZBIKCgJvbhgCIAEoCCIjCiFTZXROb3RpZmljYXRpb25QcmVmZXJlbmNlUmVzcG9uc2UqtwEKFVBsdWdpbkNvbm5lY3Rpb25TdGF0ZRInCiNQTFVHSU5fQ09OTkVDVElPTl9TVEFURV9VTlNQRUNJRklFRBAAEikKJVBMVUdJTl9DT05ORUNUSU9OX1NUQVRFX05PVF9DT05ORUNURUQQARIjCh9QTFVHSU5fQ09OTkVDVElPTl9TVEFURV9XQUlUSU5HEAISJQohUExVR0lOX0NPTk5FQ1RJT05fU1RBVEVfQ09OTkVDVEVEEAMqrwIKEE5vdGlmaWNhdGlvbktpbmQSIQodTk9USUZJQ0FUSU9OX0tJTkRfVU5TUEVDSUZJRUQQABIeChpOT1RJRklDQVRJT05fS0lORF9BUFBST1ZFRBABEh4KGk5PVElGSUNBVElPTl9LSU5EX0RFQ0xJTkVEEAISHAoYTk9USUZJQ0FUSU9OX0tJTkRfRkFJTEVEEAMSKQolTk9USUZJQ0FUSU9OX0tJTkRfUEFSVElBTExZX0FWQUlMQUJMRRAEEh8KG05PVElGSUNBVElPTl9LSU5EX0FWQUlMQUJMRRAFEisKJ05PVElGSUNBVElPTl9LSU5EX0NBTkNFTExFRF9CWV9ERUxFVElPThAGEiEKHU5PVElGSUNBVElPTl9LSU5EX05FV19QRU5ESU5HEAcy4Q0KC1VzZXJTZXJ2aWNlEkUKCkNyZWF0ZVVzZXISGi5uYW1hLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5DcmVhdGVVc2VyUmVzcG9uc2USRwoJTGlzdFVzZXJzEhkubmFtYS52MS5MaXN0VXNlcnNSZXF1ZXN0GhoubmFtYS52MS5MaXN0VXNlcnNSZXNwb25zZSIDkAIBElYKDlNldFBlcm1pc3Npb25zEh4ubmFtYS52MS5TZXRQZXJtaXNzaW9uc1JlcXVlc3QaHy5uYW1hLnYxLlNldFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACAhJKCgpEZWxldGVVc2VyEhoubmFtYS52MS5EZWxldGVVc2VyUmVxdWVzdBobLm5hbWEudjEuRGVsZXRlVXNlclJlc3BvbnNlIgOQAgISTQoLTGlzdERldmljZXMSGy5uYW1hLnYxLkxpc3REZXZpY2VzUmVxdWVzdBocLm5hbWEudjEuTGlzdERldmljZXNSZXNwb25zZSIDkAIBEksKDFJldm9rZURldmljZRIcLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVxdWVzdBodLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVzcG9uc2USUQoOQ2hhbmdlUGFzc3dvcmQSHi5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBofLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZRJOCg1SZXNldFBhc3N3b3JkEh0ubmFtYS52MS5SZXNldFBhc3N3b3JkUmVxdWVzdBoeLm5hbWEudjEuUmVzZXRQYXNzd29yZFJlc3BvbnNlEmsKFUdldERlZmF1bHRQZXJtaXNzaW9ucxIlLm5hbWEudjEuR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdBomLm5hbWEudjEuR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACARJrChVTZXREZWZhdWx0UGVybWlzc2lvbnMSJS5uYW1hLnYxLlNldERlZmF1bHRQZXJtaXNzaW9uc1JlcXVlc3QaJi5uYW1hLnYxLlNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIgOQAgISawoVTGlzdFBsdWdpbkNvbm5lY3Rpb25zEiUubmFtYS52MS5MaXN0UGx1Z2luQ29ubmVjdGlvbnNSZXF1ZXN0GiYubmFtYS52MS5MaXN0UGx1Z2luQ29ubmVjdGlvbnNSZXNwb25zZSIDkAIBEmYKFVN0YXJ0UGx1Z2luQ29ubmVjdGlvbhIlLm5hbWEudjEuU3RhcnRQbHVnaW5Db25uZWN0aW9uUmVxdWVzdBomLm5hbWEudjEuU3RhcnRQbHVnaW5Db25uZWN0aW9uUmVzcG9uc2USbgoWRGVsZXRlUGx1Z2luQ29ubmVjdGlvbhImLm5hbWEudjEuRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlcXVlc3QaJy5uYW1hLnYxLkRlbGV0ZVBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZSIDkAICEmgKFExpc3RQZXJzb25hbFNldHRpbmdzEiQubmFtYS52MS5MaXN0UGVyc29uYWxTZXR0aW5nc1JlcXVlc3QaJS5uYW1hLnYxLkxpc3RQZXJzb25hbFNldHRpbmdzUmVzcG9uc2UiA5ACARJuChZVcGRhdGVQZXJzb25hbFNldHRpbmdzEiYubmFtYS52MS5VcGRhdGVQZXJzb25hbFNldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuVXBkYXRlUGVyc29uYWxTZXR0aW5nc1Jlc3BvbnNlIgOQAgISbgoWRGVsZXRlUGVyc29uYWxTZXR0aW5ncxImLm5hbWEudjEuRGVsZXRlUGVyc29uYWxTZXR0aW5nc1JlcXVlc3QaJy5uYW1hLnYxLkRlbGV0ZVBlcnNvbmFsU2V0dGluZ3NSZXNwb25zZSIDkAICEn0KG0xpc3ROb3RpZmljYXRpb25QcmVmZXJlbmNlcxIrLm5hbWEudjEuTGlzdE5vdGlmaWNhdGlvblByZWZlcmVuY2VzUmVxdWVzdBosLm5hbWEudjEuTGlzdE5vdGlmaWNhdGlvblByZWZlcmVuY2VzUmVzcG9uc2UiA5ACARJ3ChlTZXROb3RpZmljYXRpb25QcmVmZXJlbmNlEikubmFtYS52MS5TZXROb3RpZmljYXRpb25QcmVmZXJlbmNlUmVxdWVzdBoqLm5hbWEudjEuU2V0Tm90aWZpY2F0aW9uUHJlZmVyZW5jZVJlc3BvbnNlIgOQAgJiBnByb3RvMw", [file_nama_v1_plugin, file_nama_v1_sign_in]);
 
 /**
  * @generated from message nama.v1.CreateUserRequest
@@ -654,6 +654,105 @@ export const DeletePersonalSettingsResponseSchema: GenMessage<DeletePersonalSett
   messageDesc(file_nama_v1_user, 33);
 
 /**
+ * @generated from message nama.v1.ListNotificationPreferencesRequest
+ */
+export type ListNotificationPreferencesRequest = Message<"nama.v1.ListNotificationPreferencesRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.ListNotificationPreferencesRequest.
+ * Use `create(ListNotificationPreferencesRequestSchema)` to create a new message.
+ */
+export const ListNotificationPreferencesRequestSchema: GenMessage<ListNotificationPreferencesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 34);
+
+/**
+ * @generated from message nama.v1.ListNotificationPreferencesResponse
+ */
+export type ListNotificationPreferencesResponse = Message<"nama.v1.ListNotificationPreferencesResponse"> & {
+  /**
+   * One per kind offered to the caller, in the order of `NotificationKind`'s values.
+   *
+   * @generated from field: repeated nama.v1.NotificationPreference preferences = 1;
+   */
+  preferences: NotificationPreference[];
+};
+
+/**
+ * Describes the message nama.v1.ListNotificationPreferencesResponse.
+ * Use `create(ListNotificationPreferencesResponseSchema)` to create a new message.
+ */
+export const ListNotificationPreferencesResponseSchema: GenMessage<ListNotificationPreferencesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 35);
+
+/**
+ * Whether a User gets one kind of Request notification.
+ *
+ * @generated from message nama.v1.NotificationPreference
+ */
+export type NotificationPreference = Message<"nama.v1.NotificationPreference"> & {
+  /**
+   * The kind of Request notification.
+   *
+   * @generated from field: nama.v1.NotificationKind kind = 1;
+   */
+  kind: NotificationKind;
+
+  /**
+   * Whether the User gets it: true until they turn it off.
+   *
+   * @generated from field: bool on = 2;
+   */
+  on: boolean;
+};
+
+/**
+ * Describes the message nama.v1.NotificationPreference.
+ * Use `create(NotificationPreferenceSchema)` to create a new message.
+ */
+export const NotificationPreferenceSchema: GenMessage<NotificationPreference> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 36);
+
+/**
+ * @generated from message nama.v1.SetNotificationPreferenceRequest
+ */
+export type SetNotificationPreferenceRequest = Message<"nama.v1.SetNotificationPreferenceRequest"> & {
+  /**
+   * The kind of Request notification to turn on or off.
+   *
+   * @generated from field: nama.v1.NotificationKind kind = 1;
+   */
+  kind: NotificationKind;
+
+  /**
+   * Whether the caller gets `kind` from now on.
+   *
+   * @generated from field: bool on = 2;
+   */
+  on: boolean;
+};
+
+/**
+ * Describes the message nama.v1.SetNotificationPreferenceRequest.
+ * Use `create(SetNotificationPreferenceRequestSchema)` to create a new message.
+ */
+export const SetNotificationPreferenceRequestSchema: GenMessage<SetNotificationPreferenceRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 37);
+
+/**
+ * @generated from message nama.v1.SetNotificationPreferenceResponse
+ */
+export type SetNotificationPreferenceResponse = Message<"nama.v1.SetNotificationPreferenceResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.SetNotificationPreferenceResponse.
+ * Use `create(SetNotificationPreferenceResponseSchema)` to create a new message.
+ */
+export const SetNotificationPreferenceResponseSchema: GenMessage<SetNotificationPreferenceResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 38);
+
+/**
  * Where a User's Plugin Connection is.
  *
  * @generated from enum nama.v1.PluginConnectionState
@@ -700,9 +799,87 @@ export const PluginConnectionStateSchema: GenEnum<PluginConnectionState> = /*@__
   enumDesc(file_nama_v1_user, 0);
 
 /**
- * Managing the Server's Users, their Devices, Plugin Connections and Personal settings. Every RPC
- * but `ListDevices`, `RevokeDevice`, `ChangePassword`, the Plugin Connection ones and the Personal
- * settings ones needs `PERMISSION_MANAGE_USERS`,
+ * A kind of Request notification a User may get. Values are API contract: one is never
+ * renumbered or reused.
+ *
+ * @generated from enum nama.v1.NotificationKind
+ */
+export const NotificationKind = {
+  /**
+   * @generated from enum value: NOTIFICATION_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * A Request of theirs was approved.
+   *
+   * @generated from enum value: NOTIFICATION_KIND_APPROVED = 1;
+   */
+  APPROVED: 1,
+
+  /**
+   * A Request of theirs was declined.
+   *
+   * @generated from enum value: NOTIFICATION_KIND_DECLINED = 2;
+   */
+  DECLINED: 2,
+
+  /**
+   * A Request of theirs Failed.
+   *
+   * @generated from enum value: NOTIFICATION_KIND_FAILED = 3;
+   */
+  FAILED: 3,
+
+  /**
+   * A Request of theirs is Partially Available.
+   *
+   * @generated from enum value: NOTIFICATION_KIND_PARTIALLY_AVAILABLE = 4;
+   */
+  PARTIALLY_AVAILABLE: 4,
+
+  /**
+   * A Request of theirs is Available.
+   *
+   * @generated from enum value: NOTIFICATION_KIND_AVAILABLE = 5;
+   */
+  AVAILABLE: 5,
+
+  /**
+   * A Request of theirs was cancelled because the media it waited on was deleted.
+   *
+   * @generated from enum value: NOTIFICATION_KIND_CANCELLED_BY_DELETION = 6;
+   */
+  CANCELLED_BY_DELETION: 6,
+
+  /**
+   * Someone made a Request that waits for approval. Only Users with
+   * `PERMISSION_MANAGE_REQUESTS` get it.
+   *
+   * @generated from enum value: NOTIFICATION_KIND_NEW_PENDING = 7;
+   */
+  NEW_PENDING: 7,
+} as const;
+
+/**
+ * A kind of Request notification a User may get. Values are API contract: one is never
+ * renumbered or reused.
+ *
+ * @generated from enum nama.v1.NotificationKind
+ */
+export type NotificationKind = (typeof NotificationKind)[keyof typeof NotificationKind] | UnknownEnum;
+
+/**
+ * Describes the enum nama.v1.NotificationKind.
+ */
+export const NotificationKindSchema: GenEnum<NotificationKind> = /*@__PURE__*/
+  enumDesc(file_nama_v1_user, 1);
+
+/**
+ * Managing the Server's Users, their Devices, Plugin Connections, Personal settings and
+ * notification preferences. Every RPC but `ListDevices`, `RevokeDevice`, `ChangePassword`, the
+ * Plugin Connection ones, the Personal settings ones and the notification preference ones needs
+ * `PERMISSION_MANAGE_USERS`,
  * and fails with `permission_denied` without it.
  * Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
  * User with it, grant it, put it in the default Permissions or create a User while they hold it, or
@@ -910,6 +1087,31 @@ export const UserService: GenService<{
     methodKind: "unary";
     input: typeof DeletePersonalSettingsRequestSchema;
     output: typeof DeletePersonalSettingsResponseSchema;
+  },
+  /**
+   * Lists which Request notifications the caller gets on every Notifier, through their Plugin
+   * Connections and Personal settings. Each kind is on until they turn it off.
+   * `NOTIFICATION_KIND_NEW_PENDING` is listed only to a caller with `PERMISSION_MANAGE_REQUESTS`.
+   * A Notifier's channel isn't the caller's, so these don't change what it gets.
+   *
+   * @generated from rpc nama.v1.UserService.ListNotificationPreferences
+   */
+  listNotificationPreferences: {
+    methodKind: "unary";
+    input: typeof ListNotificationPreferencesRequestSchema;
+    output: typeof ListNotificationPreferencesResponseSchema;
+  },
+  /**
+   * Turns one kind of Request notification on or off for the caller. Fails with
+   * `REFUSAL_REASON_UNKNOWN_ENUM_VALUE` for `NOTIFICATION_KIND_UNSPECIFIED` or a value the Server
+   * doesn't know.
+   *
+   * @generated from rpc nama.v1.UserService.SetNotificationPreference
+   */
+  setNotificationPreference: {
+    methodKind: "unary";
+    input: typeof SetNotificationPreferenceRequestSchema;
+    output: typeof SetNotificationPreferenceResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_user, 0);

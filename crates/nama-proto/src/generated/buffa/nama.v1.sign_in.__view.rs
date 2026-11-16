@@ -3748,7 +3748,8 @@ impl ::serde::Serialize for ReauthenticateResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct StartSignInCodeRequestView<'a> {
-    /// The signing-in Device's name: 1 to 64 characters.
+    /// The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+    /// Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
     ///
     /// Field 1: `device_name`
     pub device_name: &'a str,
@@ -3996,7 +3997,8 @@ impl StartSignInCodeRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The signing-in Device's name: 1 to 64 characters.
+    /// The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+    /// Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
     ///
     /// Field 1: `device_name`
     #[must_use]

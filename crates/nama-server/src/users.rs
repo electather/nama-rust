@@ -18,6 +18,7 @@ mod codes;
 mod device_names;
 mod managing;
 mod names;
+mod notification_preferences;
 mod passwords;
 mod permissions;
 mod personal_settings;
@@ -31,6 +32,10 @@ pub use codes::SetupCode;
 pub(crate) use codes::random_secret;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 use names::{checked_name, name_key};
+pub(crate) use notification_preferences::{
+    every_turned_off as every_notification_turned_off, of as notification_preferences_of,
+    set as set_notification_preference,
+};
 use passwords::{Credential, set_password};
 pub(crate) use permissions::Permissions;
 pub(crate) use personal_settings::{
@@ -68,6 +73,10 @@ const RECENT_AUTHENTICATION_WINDOW: i64 = 10 * 60;
 /// falls further behind checks its Device in the database instead.
 const SIGN_OUTS_BUFFERED: usize = 64;
 
+/// How many Permission changes may happen before a waiter in [`Users::permissions_changed`] has
+/// seen them. One that falls further behind reads its User's Permissions instead.
+const PERMISSION_CHANGES_BUFFERED: usize = 64;
+
 /// The Server's Users, Devices and sessions, kept in its database.
 ///
 /// Cloning a `Users` gives another handle to the same ones.
@@ -76,6 +85,7 @@ pub struct Users {
     db: Arc<Database>,
     plugins: ExtensionPoints,
     sign_outs: broadcast::Sender<i64>,
+    permission_changes: broadcast::Sender<i64>,
 }
 
 /// A User as clients see it.
@@ -274,6 +284,7 @@ impl Users {
             db,
             plugins,
             sign_outs: broadcast::channel(SIGN_OUTS_BUFFERED).0,
+            permission_changes: broadcast::channel(PERMISSION_CHANGES_BUFFERED).0,
         }
     }
 
@@ -454,25 +465,10 @@ impl Users {
     pub(crate) fn signed_out(&self, device: i64) -> impl Future<Output = ()> + Send + 'static {
         // Listening before looking `device` up means no sign-out falls between the two.
         let sign_outs = self.sign_outs.subscribe();
-        self.clone().wait_for_sign_out(sign_outs, device)
-    }
-
-    /// Resolves once `sign_outs` hears that `device` was signed out, or the database says it has
-    /// been. The database is asked first, and again whenever `sign_outs` falls so far behind that
-    /// `device` may have been among the sign-outs it skipped.
-    async fn wait_for_sign_out(self, mut sign_outs: broadcast::Receiver<i64>, device: i64) {
-        let mut look = true;
-        loop {
-            if look && !self.still_signed_in(device).await {
-                return;
-            }
-            look = match sign_outs.recv().await {
-                Ok(signed_out) if signed_out == device => return,
-                Ok(_) => false,
-                Err(broadcast::error::RecvError::Lagged(_)) => true,
-                Err(broadcast::error::RecvError::Closed) => return,
-            };
-        }
+        let users = self.clone();
+        until_heard(sign_outs, device, async move || {
+            users.still_signed_in(device).await
+        })
     }
 
     /// Whether the Device `device` still exists. If that can't be found out, it is taken not to,
@@ -754,6 +750,27 @@ async fn insert_device(
         last_seen_at: now,
         authenticated_at,
     })
+}
+
+/// Resolves once `heard` names `id`, or `unchanged` says whatever `id` names has changed. It asks
+/// `unchanged` first, and again whenever `heard` falls so far behind that it may have skipped `id`.
+async fn until_heard(
+    mut heard: broadcast::Receiver<i64>,
+    id: i64,
+    unchanged: impl AsyncFn() -> bool,
+) {
+    let mut look = true;
+    loop {
+        if look && !unchanged().await {
+            return;
+        }
+        look = match heard.recv().await {
+            Ok(named) if named == id => return,
+            Ok(_) => false,
+            Err(broadcast::error::RecvError::Lagged(_)) => true,
+            Err(broadcast::error::RecvError::Closed) => return,
+        };
+    }
 }
 
 #[cfg(test)]

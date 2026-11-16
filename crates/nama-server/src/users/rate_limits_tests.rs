@@ -80,3 +80,25 @@ fn a_code_attempt_that_wasnt_a_guess_isnt_counted() {
         .admit(1, now)
         .expect("admitted after 10 that weren't guesses");
 }
+
+#[test]
+fn code_starts_are_counted_per_ip_and_admitted_again_once_old_starts_leave_the_window() {
+    let limits = SignInCodeStartLimits::default();
+    let other_ip = IpAddr::V4(Ipv4Addr::new(192, 0, 2, 7));
+    let start = Instant::now();
+    for half_minute in 0..20 {
+        limits
+            .admit(IP, start + Duration::from_secs(half_minute * 30))
+            .expect("admitted");
+    }
+
+    let blocked = limits
+        .admit(IP, start + Duration::from_mins(14))
+        .expect_err("admitted at the limit");
+    let other = limits.admit(other_ip, start + Duration::from_mins(14));
+    let admitted = limits.admit(IP, start + WINDOW);
+
+    assert_eq!(blocked.retry_after_secs(), 60);
+    assert!(other.is_ok(), "another IP's starts are counted together");
+    assert!(admitted.is_ok(), "the first start is still counted");
+}
