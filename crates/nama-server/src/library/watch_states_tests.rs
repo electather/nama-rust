@@ -41,6 +41,17 @@ fn alien() -> MovieOrEpisode {
     MovieOrEpisode::movie(&ExternalId::tmdb(ALIEN_TMDB_ID))
 }
 
+/// The User `user`'s Watch State of the Movie `id`, if they've started it.
+async fn movie_state(watch_states: &WatchStates, user: i64, id: ExternalId) -> Option<WatchState> {
+    let title = (Kind::Movie, ExternalIds::from_iter([id]));
+    let states = watch_states.of_titles(Some(user), &[title]).await.unwrap();
+    states[0].first().map(|&(_, state)| state)
+}
+
+fn alien_id() -> ExternalId {
+    ExternalId::tmdb(ALIEN_TMDB_ID)
+}
+
 #[tokio::test]
 async fn a_movie_once_played_stays_played_when_played_again_from_the_start() {
     let data = tempfile::tempdir().unwrap();
@@ -55,7 +66,7 @@ async fn a_movie_once_played_stays_played_when_played_again_from_the_start() {
             .unwrap();
     }
 
-    let state = watch_states.of(user, &[alien()]).await.unwrap()[0].unwrap();
+    let state = movie_state(&watch_states, user, alien_id()).await.unwrap();
     assert_eq!((state.position_ms, state.played), (100, true));
 }
 
@@ -72,22 +83,22 @@ async fn marking_a_movie_unplayed_forgets_its_position() {
 
     watch_states.mark(user, vec![alien()], false).await.unwrap();
 
-    assert_eq!(watch_states.of(user, &[alien()]).await.unwrap(), [None]);
+    assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
 }
 
 #[tokio::test]
 async fn a_watch_state_kept_against_a_made_up_id_is_read_back() {
     let data = tempfile::tempdir().unwrap();
     let (watch_states, user) = watch_states(&data).await;
-    let akira = MovieOrEpisode::movie(&ExternalId::new("anidb", "m-1").unwrap());
+    let akira = ExternalId::new("anidb", "m-1").unwrap();
     let halfway = Progress::new(1_000, 2_000).unwrap();
 
     watch_states
-        .report(user, vec![Some(akira.clone())], halfway)
+        .report(user, vec![Some(MovieOrEpisode::movie(&akira))], halfway)
         .await
         .unwrap();
 
-    let state = watch_states.of(user, &[akira]).await.unwrap()[0].unwrap();
+    let state = movie_state(&watch_states, user, akira).await.unwrap();
     assert_eq!((state.position_ms, state.played), (1_000, false));
 }
 
@@ -122,7 +133,10 @@ async fn a_users_watch_states_under_two_of_a_titles_ids_keep_the_newer() {
         .unwrap();
 
     let ids = ExternalIds::from_iter([tmdb, imdb]);
-    let states = watch_states.of_titles(&[(Kind::Movie, ids)]).await.unwrap();
+    let states = watch_states
+        .of_titles(None, &[(Kind::Movie, ids)])
+        .await
+        .unwrap();
 
     let [alien] = states.as_slice() else {
         panic!("{states:?}");
@@ -160,7 +174,7 @@ async fn every_users_watch_states_of_a_pages_titles_come_in_its_order_by_user() 
             ExternalIds::from_iter([ExternalId::tmdb(ALIEN_TMDB_ID), imdb]),
         ),
     ];
-    let states = watch_states.of_titles(&page).await.unwrap();
+    let states = watch_states.of_titles(None, &page).await.unwrap();
 
     let listed: Vec<_> = states.iter().map(|states| read(states)).collect();
     assert_eq!(
@@ -171,6 +185,29 @@ async fn every_users_watch_states_of_a_pages_titles_come_in_its_order_by_user() 
             vec![(ada, 0, true), (bo, 1_000, false)],
         ]
     );
+}
+
+#[tokio::test]
+async fn watch_states_of_one_user_leave_out_every_other_users() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, ada) = watch_states(&data).await;
+    let bo = another_user(&watch_states, "Bo").await;
+    let halfway = Progress::new(1_000, 2_000).unwrap();
+    (watch_states.report(bo, vec![Some(alien())], halfway))
+        .await
+        .unwrap();
+    watch_states.mark(ada, vec![alien()], true).await.unwrap();
+    let title = (Kind::Movie, ExternalIds::from_iter([alien_id()]));
+
+    let of_bo = (watch_states.of_titles(Some(bo), std::slice::from_ref(&title)))
+        .await
+        .unwrap();
+    let of_nobody = (watch_states.of_titles(Some(bo + ada + 1), &[title]))
+        .await
+        .unwrap();
+
+    assert_eq!(read(&of_bo[0]), [(bo, 1_000, false)]);
+    assert_eq!(read(&of_nobody[0]), []);
 }
 
 fn shares(position_ms: u64, duration_ms: u64, episodes: usize) -> Vec<Option<(i64, i64)>> {

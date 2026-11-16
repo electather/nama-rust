@@ -1,27 +1,22 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT kind, title_id, position_ms, duration_ms, played AS \"played: bool\", updated_at\n               FROM watch_states\n               WHERE user_id = ?",
+  "query": "SELECT CAST(title.key AS INTEGER) AS \"position!: i64\", user_id AS \"user_id!\",\n                      position_ms, duration_ms, played AS \"played: bool\", updated_at\n               FROM json_each(?) AS title\n               JOIN json_each(title.value, '$[1]') AS id\n               JOIN watch_states ON watch_states.kind = json_extract(title.value, '$[0]')\n                                AND watch_states.title_id = id.value\n               WHERE ? IS NULL OR user_id = ?\n               ORDER BY title.key, user_id, updated_at DESC, watch_states.title_id",
   "describe": {
     "columns": [
       {
-        "name": "kind",
+        "name": "position!: i64",
         "ordinal": 0,
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "watch_states",
-            "name": "kind"
-          }
-        }
+        "type_info": "Null",
+        "origin": "Expression"
       },
       {
-        "name": "title_id",
+        "name": "user_id!",
         "ordinal": 1,
-        "type_info": "Text",
+        "type_info": "Integer",
         "origin": {
           "Table": {
             "table": "watch_states",
-            "name": "title_id"
+            "name": "user_id"
           }
         }
       },
@@ -71,16 +66,16 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 3
     },
     "nullable": [
-      false,
-      false,
+      null,
+      null,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "2ccdb973e2d8d1fff47f959467854c1c1598ed93a32f2f7ca198e3d3b18ff66c"
+  "hash": "05ea4e58b243e1ae690952554e0d1152bffe564fbd9962916dff6dac2e79ee59"
 }

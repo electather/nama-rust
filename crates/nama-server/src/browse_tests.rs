@@ -1,17 +1,17 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use tempfile::TempDir;
 
 use super::{Browse, Error, Started, Target};
 use crate::{
-    db::Database,
+    db::{self, Database},
     library::contents::{
         Change, Contents, Decided, Item, Metadata, Stored,
         fixture::{MatchedMovie, decide, tmdb_movie},
     },
     library::libraries::{Kind, Libraries},
-    library::watch_states::{Progress, WatchStates},
+    library::watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
     playback::{Probe, Track, TrackKind, Tracks},
     plugins::Registry,
     users::{Permissions, User, Users},
@@ -22,6 +22,9 @@ const KNIGHT_TMDB_ID: i64 = 224_372;
 const KNIGHT_PILOT_TMDB_ID: i64 = 5_000_001;
 const KNIGHT_SECOND_TMDB_ID: i64 = 5_000_002;
 const KNIGHT_SEASON_2_TMDB_ID: i64 = 5_000_003;
+const KNIGHT_PILOT_TVDB_ID: i64 = 9_000_001;
+/// Alien's IMDb id, which its Match gives it besides its TMDB id.
+const ALIEN_IMDB_ID: &str = "tt0078748";
 
 /// Creates a Library of `kind` on `folder`, with its canonical path.
 async fn library(db: &Arc<Database>, name: &str, kind: Kind, folder: &TempDir) -> (i64, String) {
@@ -481,4 +484,143 @@ async fn marking_a_title_the_library_doesnt_have_is_refused_as_browsing_to_it_is
         knight_states(&browse, user, library).await,
         [vec![None, None], vec![None]]
     );
+}
+
+fn alien_imdb() -> ExternalId {
+    ExternalId::new("imdb", ALIEN_IMDB_ID).unwrap()
+}
+
+/// A Movies Library on `folder` with one file, Matched to Alien by its TMDB id, which its Library
+/// prefers, and its IMDb id.
+async fn library_with_alien_by_two_ids(db: &Arc<Database>, folder: &TempDir) -> i64 {
+    let alien = Metadata {
+        ids: ExternalIds::from_iter([ExternalId::tmdb(ALIEN_TMDB_ID), alien_imdb()]),
+        ..tmdb_movie(ALIEN_TMDB_ID, "Alien")
+    };
+    MatchedMovie::new(db, folder.path(), alien).await.library
+}
+
+/// Records that the User `user` has got as far as `progress` through `title`, under the id it
+/// names, as Browse would under a Library's preferred id before its title source order changed.
+async fn report_under(db: &Arc<Database>, user: i64, title: MovieOrEpisode, progress: Progress) {
+    (WatchStates::new(Arc::clone(db)).report(user, vec![Some(title)], progress))
+        .await
+        .unwrap();
+}
+
+fn position(state: Option<WatchState>) -> Option<(i64, bool)> {
+    state.map(|state| (state.position_ms, state.played))
+}
+
+#[tokio::test]
+async fn a_movies_watch_state_under_an_id_its_library_doesnt_prefer_is_shown() {
+    let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let library = library_with_alien_by_two_ids(&db, &folder).await;
+    let user = ada(&db).await;
+    let halfway = Progress::new(1_000, 2_000).unwrap();
+    report_under(&db, user, MovieOrEpisode::movie(&alien_imdb()), halfway).await;
+    let browse = Browse::new(db);
+
+    let (movie, state, _) = (browse.movie(user, library, &ExternalId::tmdb(ALIEN_TMDB_ID)))
+        .await
+        .unwrap();
+    let listed = browse.movies(user, library).await.unwrap();
+
+    assert_eq!(movie.id, ExternalId::tmdb(ALIEN_TMDB_ID));
+    assert_eq!(position(state), Some((1_000, false)));
+    let listed: Vec<_> = (listed.into_iter())
+        .map(|(listed, listed_state)| (listed.id, position(listed_state)))
+        .collect();
+    assert_eq!(
+        listed,
+        [(ExternalId::tmdb(ALIEN_TMDB_ID), Some((1_000, false)))]
+    );
+}
+
+#[tokio::test]
+async fn an_episodes_watch_state_under_an_id_its_library_doesnt_prefer_is_shown() {
+    let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let (library, root) = library(&db, "Shows", Kind::Shows, &folder).await;
+    let tvdb = ExternalId::tvdb(KNIGHT_PILOT_TVDB_ID);
+    let Decided::Matched(mut pilot) = knight_match(KNIGHT_PILOT_TMDB_ID) else {
+        panic!("an Episode's Match");
+    };
+    pilot.ids.insert(tvdb.clone());
+    let path = format!("{root}/A Knight of the Seven Kingdoms/Season 01/S01E01.mkv");
+    store_matched(&db, library, path, knight_episode(1, 1), *pilot).await;
+    let user = ada(&db).await;
+    let halfway = Progress::new(1_000, 2_000).unwrap();
+    report_under(&db, user, MovieOrEpisode::episode(&tvdb), halfway).await;
+    let browse = Browse::new(db);
+
+    let episodes = (browse.episodes(user, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), 1))
+        .await
+        .unwrap();
+
+    let listed: Vec<_> = (episodes.into_iter())
+        .map(|(episode, state)| (episode.id, position(state)))
+        .collect();
+    assert_eq!(
+        listed,
+        [(ExternalId::tmdb(KNIGHT_PILOT_TMDB_ID), Some((1_000, false)))]
+    );
+}
+
+/// The Movies the User `user` has in Continue Watching, by id, with how far in they are.
+async fn continuing_movies(browse: &Browse, user: i64) -> Vec<(ExternalId, i64)> {
+    let started = browse.continue_watching(user).await.unwrap();
+    (started.into_iter())
+        .map(|started| match started {
+            Started::Movie { movie, state, .. } => (movie.id, state.position_ms),
+            Started::Episode { .. } => panic!("only Movies were started"),
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn a_movie_started_under_two_ids_is_in_continue_watching_once_at_the_newer() {
+    let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let library = library_with_alien_by_two_ids(&db, &folder).await;
+    let user = ada(&db).await;
+    let tmdb = MovieOrEpisode::movie(&ExternalId::tmdb(ALIEN_TMDB_ID));
+    let imdb = MovieOrEpisode::movie(&alien_imdb());
+    report_under(&db, user, imdb, Progress::new(500, 2_000).unwrap()).await;
+    // `imdb` sorts first, so only being more recent keeps `tmdb`'s state.
+    db::advance_clock(Duration::from_secs(2));
+    report_under(&db, user, tmdb, Progress::new(1_000, 2_000).unwrap()).await;
+    let browse = Browse::new(db);
+
+    let continuing = continuing_movies(&browse, user).await;
+    let (_, state, _) = (browse.movie(user, library, &ExternalId::tmdb(ALIEN_TMDB_ID)))
+        .await
+        .unwrap();
+
+    assert_eq!(continuing, [(ExternalId::tmdb(ALIEN_TMDB_ID), 1_000)]);
+    assert_eq!(position(state), Some((1_000, false)));
+}
+
+#[tokio::test]
+async fn a_movie_played_under_one_id_after_it_was_started_under_another_is_not_continued() {
+    let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let library = library_with_alien_by_two_ids(&db, &folder).await;
+    let user = ada(&db).await;
+    let tmdb = MovieOrEpisode::movie(&ExternalId::tmdb(ALIEN_TMDB_ID));
+    let imdb = MovieOrEpisode::movie(&alien_imdb());
+    report_under(&db, user, imdb, Progress::new(500, 2_000).unwrap()).await;
+    // `imdb` sorts first, so only being more recent keeps `tmdb`'s state.
+    db::advance_clock(Duration::from_secs(2));
+    report_under(&db, user, tmdb, Progress::new(1_950, 2_000).unwrap()).await;
+    let browse = Browse::new(db);
+
+    let continuing = continuing_movies(&browse, user).await;
+    let (_, state, _) = (browse.movie(user, library, &ExternalId::tmdb(ALIEN_TMDB_ID)))
+        .await
+        .unwrap();
+
+    assert_eq!(continuing, []);
+    assert_eq!(position(state), Some((1_950, true)));
 }

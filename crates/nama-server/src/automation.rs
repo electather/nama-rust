@@ -470,7 +470,7 @@ impl Kernel for PluginKernel {
             let automation = self.check(Method::ListWatchStates)?;
             let titles = self.every_id(&automation, &asked.titles).await?;
             let states = (watch_states::WatchStates::new(Arc::clone(&automation.db)))
-                .of_titles(&titles)
+                .of_titles(None, &titles)
                 .await
                 .map_err(|err| self.database_refused("reading the Watch States", &err))?;
             Ok(WatchStates {

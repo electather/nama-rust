@@ -6,13 +6,13 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use crate::{
     db::Database,
     library::contents::{self, Contents, Found, Stored},
     library::libraries::{self, Kind, Libraries, Library},
-    library::watch_states::{MovieOrEpisode, WatchState, WatchStates},
+    library::watch_states::{self, WatchState, WatchStates},
     playback::{Probe, Track, Tracks},
     scanner::deleting,
 };
@@ -107,10 +107,8 @@ impl Browse {
         library: i64,
     ) -> Result<Vec<(Movie, Option<WatchState>)>, Error> {
         let movies = self.read(&self.library(library).await?).await?.movies()?;
-        let ids: Vec<_> = (movies.iter())
-            .map(|movie| MovieOrEpisode::movie(&movie.id))
-            .collect();
-        let states = self.watch_states.of(user, &ids).await?;
+        let titles = movies.iter().map(movie_ids).collect();
+        let states = self.states_of(user, titles).await?;
         Ok(movies.into_iter().zip(states).collect())
     }
 
@@ -127,11 +125,7 @@ impl Browse {
         let movie = self.read(&library).await?.movie(id)?;
         let paths = movie.versions.iter().map(|version| version.path.as_str());
         let read_only_folder = deleting::read_only_folder(&library, paths).map(str::to_owned);
-        let state = self
-            .watch_states
-            .of(user, &[MovieOrEpisode::movie(&movie.id)])
-            .await?
-            .pop();
+        let state = self.states_of(user, vec![movie_ids(&movie)]).await?.pop();
         Ok((movie, state.flatten(), read_only_folder))
     }
 
@@ -145,10 +139,8 @@ impl Browse {
         season: i64,
     ) -> Result<Vec<(Episode, Option<WatchState>)>, Error> {
         let episodes = self.season(library, show, season).await?.episodes;
-        let ids: Vec<_> = (episodes.iter())
-            .map(|episode| MovieOrEpisode::episode(&episode.id))
-            .collect();
-        let states = self.watch_states.of(user, &ids).await?;
+        let titles = episodes.iter().map(episode_ids).collect();
+        let states = self.states_of(user, titles).await?;
         Ok(episodes.into_iter().zip(states).collect())
     }
 
@@ -178,6 +170,19 @@ impl Browse {
     /// [`Contents::search`].
     pub(crate) async fn search(&self, query: &str) -> Result<Found, Error> {
         Ok(self.contents.search(query).await?)
+    }
+
+    /// The User `user`'s Watch State of each of `titles`, in the same order, kept under any of
+    /// its ids (ADR 0042): `None` for one they haven't started.
+    async fn states_of(
+        &self,
+        user: i64,
+        titles: Vec<(watch_states::Kind, ExternalIds)>,
+    ) -> Result<Vec<Option<WatchState>>, sqlx::Error> {
+        let states = self.watch_states.of_titles(Some(user), &titles).await?;
+        Ok((states.into_iter())
+            .map(|of_title| of_title.first().map(|&(_, state)| state))
+            .collect())
     }
 
     /// Every title of `library`, its Versions with the Tracks probing read from their files as
@@ -269,6 +274,16 @@ impl<V> Titles<V> {
             .find(|episode| &episode.id == id)
             .ok_or(Error::NothingMatched)
     }
+}
+
+/// A Movie as Watch State reads it: by any of its ids.
+fn movie_ids<V>(movie: &contents::Movie<V>) -> (watch_states::Kind, ExternalIds) {
+    (watch_states::Kind::Movie, movie.ids.clone())
+}
+
+/// An Episode as Watch State reads it: by any of its ids.
+fn episode_ids<V>(episode: &contents::Episode<V>) -> (watch_states::Kind, ExternalIds) {
+    (watch_states::Kind::Episode, episode.ids.clone())
 }
 
 /// Makes a Version from Contents into one with the Tracks `probes` has of its file.

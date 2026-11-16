@@ -11,10 +11,10 @@ mod server;
 use browsing::{Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{
-    ExternalId, GetMovieRequest, GetShowRequest, LibraryKind, LibraryServiceClient,
-    ListEpisodesRequest, MediaToDelete, PreviewDeleteMediaRequest, SeasonToDelete,
-    SetPlayedRequest, ShowToDelete, WatchStateServiceClient, media_to_delete,
-    set_played_request::Target,
+    ExternalId, GetLibraryRequest, GetMovieRequest, GetShowRequest, LibraryKind,
+    LibraryServiceClient, ListEpisodesRequest, MediaToDelete, PreviewDeleteMediaRequest,
+    SeasonToDelete, SetPlayedRequest, ShowToDelete, UpdateLibraryRequest, WatchStateServiceClient,
+    media_to_delete, set_played_request::Target,
 };
 use nama_server::ffmpeg::Ffmpeg;
 use server::tmdb::{DARK, DARK_TVDB};
@@ -63,6 +63,49 @@ async fn a_movie_opened_and_marked_by_its_imdb_id_is_the_library_movie() {
     assert!(movie.watch_state.as_option().unwrap().played);
     let by_tmdb = fx.get_movie(fx.library, 348).await.unwrap();
     assert!(by_tmdb.watch_state.as_option().unwrap().played);
+}
+
+#[tokio::test]
+async fn a_movie_marked_played_stays_played_after_its_librarys_title_source_order_changes() {
+    let fx = Fixture::alien().await;
+    let config = fx.server.client_config();
+    let watch_states = WatchStateServiceClient::new(HttpClient::plaintext(), config.clone());
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), config);
+    watch_states
+        .set_played(SetPlayedRequest {
+            library_id: fx.library,
+            target: Some(Target::MovieId(Box::new(tmdb_id(348)))),
+            played: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let library = libraries
+        .get_library(GetLibraryRequest {
+            id: fx.library,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .library
+        .into_option()
+        .unwrap();
+    libraries
+        .update_library(UpdateLibraryRequest {
+            id: library.id,
+            name: library.name,
+            folders: library.folders,
+            title_sources: vec!["imdb".to_owned(), "tmdb".to_owned()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let movie = fx.get_movie(fx.library, 348).await.unwrap();
+
+    assert_eq!(movie.id.as_option(), Some(&id("imdb", ALIEN_IMDB)));
+    assert!(movie.watch_state.as_option().unwrap().played);
 }
 
 #[tokio::test]

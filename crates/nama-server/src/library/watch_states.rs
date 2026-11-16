@@ -6,7 +6,7 @@
 //! rescans, renames and new Versions. Which Movie or Episodes a Version or a marked title stands
 //! for is for [`crate::browse::Browse`] to work out.
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::SqliteConnection;
@@ -178,42 +178,13 @@ impl WatchStates {
             .await
     }
 
-    /// The User `user`'s Watch State of each of `titles`, in the same order: `None` for one they
-    /// haven't started.
-    // ponytail: reads all of a User's Watch States even for one; query by id if that gets big.
-    pub(crate) async fn of(
-        &self,
-        user: i64,
-        titles: &[MovieOrEpisode],
-    ) -> Result<Vec<Option<WatchState>>, sqlx::Error> {
-        let rows = sqlx::query!(
-            r#"SELECT kind, title_id, position_ms, duration_ms, played AS "played: bool", updated_at
-               FROM watch_states
-               WHERE user_id = ?"#,
-            user
-        )
-        .fetch_all(self.db.reader())
-        .await?;
-        let mut states: HashMap<MovieOrEpisode, WatchState> = rows
-            .into_iter()
-            .map(|row| {
-                let state = WatchState {
-                    position_ms: row.position_ms,
-                    duration_ms: row.duration_ms,
-                    played: row.played,
-                    updated_at: row.updated_at,
-                };
-                (MovieOrEpisode::stored(&row.kind, row.title_id), state)
-            })
-            .collect();
-        Ok(titles.iter().map(|title| states.remove(title)).collect())
-    }
-
-    /// Every User's Watch State of each of `titles`, in the same order, each a Movie or Episode
-    /// kept under any of its ids, by User id. Where a User has one under more than one of a
-    /// title's ids, as when a Library's title source order changed, the most recently updated.
+    /// Every User's Watch State of each of `titles`, or only the User `user`'s if given, in the
+    /// same order, each a Movie or Episode kept under any of its ids, by User id. Where a User has
+    /// one under more than one of a title's ids, as when a Library's title source order changed,
+    /// the most recently updated.
     pub(crate) async fn of_titles(
         &self,
+        user: Option<i64>,
         titles: &[(Kind, ExternalIds)],
     ) -> Result<Vec<Vec<(i64, WatchState)>>, sqlx::Error> {
         let asked: Vec<serde_json::Value> = (titles.iter())
@@ -232,8 +203,11 @@ impl WatchStates {
                JOIN json_each(title.value, '$[1]') AS id
                JOIN watch_states ON watch_states.kind = json_extract(title.value, '$[0]')
                                 AND watch_states.title_id = id.value
+               WHERE ? IS NULL OR user_id = ?
                ORDER BY title.key, user_id, updated_at DESC, watch_states.title_id"#,
-            asked
+            asked,
+            user,
+            user
         )
         .fetch_all(self.db.reader())
         .await?;
@@ -246,7 +220,7 @@ impl WatchStates {
             };
             if of_title
                 .last()
-                .is_some_and(|&(user, _)| user == row.user_id)
+                .is_some_and(|&(kept, _)| kept == row.user_id)
             {
                 continue;
             }

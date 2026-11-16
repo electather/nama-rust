@@ -2,10 +2,12 @@
 
 use std::collections::HashMap;
 
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+
 use super::{Browse, Episode, Error, Movie, Show, Target, Titles, finding_failed};
 use crate::library::{
     contents::{self, MatchedTo},
-    watch_states::{MovieOrEpisode, Progress, WatchState},
+    watch_states::{self, MovieOrEpisode, Progress, WatchState},
 };
 
 /// A Movie or Episode a User has started and not played, in the Library Continue Watching lists
@@ -72,77 +74,121 @@ impl Browse {
     }
 
     /// The User `user`'s Continue Watching: the Movies and Episodes they've started and not
-    /// played, most recent first. Each is in the oldest Library that has it, and one no Library
-    /// has is left out.
+    /// played, most recent first. Each is in the oldest Library that has it under any of its ids,
+    /// listed once with its most recently updated Watch State among them, so a newer played one
+    /// under one id hides an older started one under another (ADR 0042). One no Library has is
+    /// left out.
     pub(crate) async fn continue_watching(&self, user: i64) -> Result<Vec<Started>, Error> {
         let started = self.watch_states.continue_watching(user).await?;
         if started.is_empty() {
             return Ok(Vec::new());
         }
-        let mut unfound: HashMap<MovieOrEpisode, WatchState> = started.iter().cloned().collect();
-        let mut found = HashMap::new();
+        let mut found = Found {
+            unfound: started.iter().cloned().collect(),
+            place: HashMap::new(),
+            titles: Vec::new(),
+        };
         // Oldest first, so a title in two Libraries is found in the older.
         for library in self.libraries.list().await.map_err(finding_failed)? {
-            found.extend(match self.read(&library).await? {
-                Titles::Movies(movies) => started_movies(library.id, movies, &mut unfound),
-                Titles::Shows(shows) => started_episodes(library.id, &shows, &mut unfound),
-            });
+            match self.read(&library).await? {
+                Titles::Movies(movies) => found.movies(library.id, movies),
+                Titles::Shows(shows) => found.episodes(library.id, &shows),
+            }
         }
+        let (asked, mut titles): (Vec<_>, Vec<_>) = (found.titles.into_iter())
+            .map(|(asked, title)| (asked, Some(title)))
+            .unzip();
+        let newest = self.watch_states.of_titles(Some(user), &asked).await?;
         Ok(started
             .into_iter()
-            .filter_map(|(watched, _)| found.remove(&watched))
+            .filter_map(|(watched, _)| {
+                let place = *found.place.get(&watched)?;
+                // Taken under the first of its ids listed, so a title is listed once.
+                let title = titles.get_mut(place)?.take()?;
+                let &(_, state) = newest.get(place)?.first()?;
+                (state.position_ms > 0 && !state.played).then(|| title.with_state(state))
+            })
             .collect())
     }
 }
 
-/// The `movies` of the Library `library` that `unfound` has the Watch State of, each taken out
-/// of `unfound`.
-fn started_movies(
-    library: i64,
-    movies: Vec<Movie>,
-    unfound: &mut HashMap<MovieOrEpisode, WatchState>,
-) -> Vec<(MovieOrEpisode, Started)> {
-    movies
-        .into_iter()
-        .filter_map(|movie| {
-            let watched = MovieOrEpisode::movie(&movie.id);
-            let state = unfound.remove(&watched)?;
-            Some((
-                watched,
-                Started::Movie {
-                    library,
-                    movie,
-                    state,
-                },
-            ))
-        })
-        .collect()
+impl Started {
+    /// The same title with the Watch State `state`.
+    fn with_state(mut self, state: WatchState) -> Self {
+        match &mut self {
+            Self::Movie { state: had, .. } | Self::Episode { state: had, .. } => *had = state,
+        }
+        self
+    }
 }
 
-/// The Episodes of `shows`, of the Library `library`, that `unfound` has the Watch State of, each
-/// taken out of `unfound`.
-fn started_episodes(
-    library: i64,
-    shows: &[Show],
-    unfound: &mut HashMap<MovieOrEpisode, WatchState>,
-) -> Vec<(MovieOrEpisode, Started)> {
-    let mut started = Vec::new();
-    for show in shows {
-        for episode in show.episodes() {
-            let watched = MovieOrEpisode::episode(&episode.id);
-            let Some(state) = unfound.remove(&watched) else {
-                continue;
-            };
-            // ponytail: a Show cloned per started Episode; `Arc<Show>` if a profile ever
-            // points here.
-            let episode = Started::Episode {
-                library,
-                show: show.clone(),
-                episode: episode.clone(),
-                state,
-            };
-            started.push((watched, episode));
+/// The titles of the Libraries read so far that a User has started under any of their ids.
+struct Found {
+    /// The User's started Watch States under ids no Library read so far has.
+    unfound: HashMap<MovieOrEpisode, WatchState>,
+    /// Which of `titles` each id the User started a title under is of.
+    place: HashMap<MovieOrEpisode, usize>,
+    /// Each title found, with every id of it, and one of the Watch States it was started with.
+    titles: Vec<((watch_states::Kind, ExternalIds), Started)>,
+}
+
+impl Found {
+    /// Adds `title(state)`, a title of kind `kind` with the ids `ids`, if the User started it
+    /// under any of them, with `state` one they started it with, and takes its ids as its.
+    fn add(
+        &mut self,
+        kind: watch_states::Kind,
+        ids: &ExternalIds,
+        watched: impl Fn(&ExternalId) -> MovieOrEpisode,
+        title: impl FnOnce(WatchState) -> Started,
+    ) {
+        let place = self.titles.len();
+        let mut started = None;
+        for id in ids.iter() {
+            let watched = watched(&id);
+            if let Some(state) = self.unfound.remove(&watched) {
+                self.place.insert(watched, place);
+                started = started.or(Some(state));
+            }
+        }
+        if let Some(state) = started {
+            self.titles.push(((kind, ids.clone()), title(state)));
         }
     }
-    started
+
+    /// The `movies` of the Library `library`.
+    fn movies(&mut self, library: i64, movies: Vec<Movie>) {
+        for movie in movies {
+            let ids = movie.ids.clone();
+            let started = |state| Started::Movie {
+                library,
+                movie,
+                state,
+            };
+            self.add(
+                watch_states::Kind::Movie,
+                &ids,
+                MovieOrEpisode::movie,
+                started,
+            );
+        }
+    }
+
+    /// The Episodes of `shows`, of the Library `library`.
+    fn episodes(&mut self, library: i64, shows: &[Show]) {
+        for show in shows {
+            for episode in show.episodes() {
+                // ponytail: a Show cloned per started Episode; `Arc<Show>` if a profile ever
+                // points here.
+                let started = |state| Started::Episode {
+                    library,
+                    show: show.clone(),
+                    episode: episode.clone(),
+                    state,
+                };
+                let kind = watch_states::Kind::Episode;
+                self.add(kind, &episode.ids, MovieOrEpisode::episode, started);
+            }
+        }
+    }
 }
