@@ -1,0 +1,29 @@
+[package]
+name = "nama-plugin-s3"
+version = "0.1.0"
+description = "Installed Plugin keeping the Server's stored files in an S3 or S3-compatible bucket, bundled in the Server"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Sans-IO: `instant-xml` reads S3's errors as `rusty-s3` reads its listings, and `jiff` is the
+# time `rusty-s3` signs at, which comes from `nama_pdk::now`. RustCrypto, not aws-lc-rs, since
+# it builds for wasm32.
+instant-xml = "0.7.7"
+jiff = { version = "0.2", default-features = false, features = ["std"] }
+nama-pdk = { version = "0.2.0", path = "../../crates/nama-pdk" }
+rusty-s3 = { version = "0.11.0", default-features = false, features = ["rustcrypto", "xml"] }
+url = "2.5"
+
+[dev-dependencies]
+# The fake S3 checks signatures itself rather than through `rusty-s3`, which signs them.
+hmac = "0.13"
+sha2 = "0.11"
+
+[lints]
+workspace = true
