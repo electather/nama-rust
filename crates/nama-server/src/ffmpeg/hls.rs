@@ -31,7 +31,7 @@ pub(crate) fn hls_init_from(name: &str) -> Option<usize> {
 pub(crate) struct Remux {
     /// The audio Track it plays, or `None` when the Version has none.
     pub(crate) audio: Option<RemuxAudio>,
-    /// Whether the video it copies is HEVC.
+    /// Whether the video it copies is HEVC, so it's tagged `hvc1` for Apple's players.
     pub(crate) hevc: bool,
 }
 
