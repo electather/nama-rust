@@ -236,6 +236,58 @@ fn hdr_is_tone_mapped_to_sdr_in_software_with_zscale() {
     assert_eq!(value_of(&args, "-vf"), Some(ZSCALE_TONE_MAP));
 }
 
+/// A playback limit of 720p at 4 Mb/s.
+const LIMIT_720P: Option<VideoLimit> = Some(VideoLimit {
+    size: Some((1280, 720)),
+    bits_per_second: 4_000_000,
+});
+
+#[test]
+fn a_limited_tone_map_with_nothing_burned_in_scales_down_first() {
+    let tone_mapped = VideoConversion {
+        tone_map: Some(ToneMapper::Software),
+        limit: LIMIT_720P,
+        ..SOFTWARE
+    };
+    let on_vaapi = VideoConversion {
+        hardware: Some(on_default_gpu(Accel::Vaapi)),
+        ..tone_mapped
+    };
+
+    let args = transcode_args(tone_mapped);
+    let vaapi_args = transcode_args(on_vaapi);
+
+    let scaled_first = format!("scale=1280:720,{ZSCALE_TONE_MAP}");
+    assert_eq!(value_of(&args, "-vf"), Some(scaled_first.as_str()));
+    let uploaded_last = format!("{scaled_first},format=nv12,hwupload");
+    assert_eq!(value_of(&vaapi_args, "-vf"), Some(uploaded_last.as_str()));
+}
+
+#[test]
+fn a_limited_tone_map_with_a_burn_in_scales_down_after_the_subtitle() {
+    let burned = |burn_in| VideoConversion {
+        tone_map: Some(ToneMapper::Software),
+        limit: LIMIT_720P,
+        burn_in: Some(burn_in),
+        ..SOFTWARE
+    };
+
+    let image = transcode_args(burned(BurnIn::Image {
+        subtitle: 1,
+        picture: None,
+    }));
+    let text = transcode_args(burned(BurnIn::Text { subtitle: 2 }));
+
+    let graph = format!(
+        "[0:V:0]{ZSCALE_TONE_MAP}[picture];[0:s:1]null[subtitle];\
+         [picture][subtitle]overlay=(W-w)/2:(H-h)/2,scale=1280:720[video]"
+    );
+    assert_eq!(value_of(&image, "-filter_complex"), Some(graph.as_str()));
+    let filters =
+        format!(r"{ZSCALE_TONE_MAP},subtitles=filename=\'alien.mkv\':si=2,scale=1280:720");
+    assert_eq!(value_of(&text, "-vf"), Some(filters.as_str()));
+}
+
 #[test]
 fn a_playback_limit_scales_the_picture_and_caps_the_bitrate() {
     let limited = VideoConversion {

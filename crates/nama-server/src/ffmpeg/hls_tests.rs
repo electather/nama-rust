@@ -72,8 +72,10 @@ async fn transcode(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, n: usize) {
     assert!(output.status.success(), "{output:?}");
 }
 
-#[tokio::test]
-async fn hdr10_tagged_only_by_its_transfer_is_tone_mapped_to_bt709() {
+/// What ffprobe reads of the video a software Transcode, tone-mapping and limited to `limit`, plays
+/// from a 320x240 HDR10 file tagged only by its transfer: its width, height, transfer and
+/// primaries.
+async fn tone_mapped_hdr10_probed(limit: Option<VideoLimit>) -> String {
     let ffmpeg = system_ffmpeg();
     let work = tempfile::tempdir().unwrap();
     let file = work.path().join("hdr10.mkv");
@@ -107,7 +109,7 @@ async fn hdr10_tagged_only_by_its_transfer_is_tone_mapped_to_bt709() {
         video: VideoConversion {
             hardware: None,
             tone_map: Some(ToneMapper::Software),
-            limit: None,
+            limit,
             burn_in: None,
             in_band_headers: false,
         },
@@ -127,16 +129,31 @@ async fn hdr10_tagged_only_by_its_transfer_is_tone_mapped_to_bt709() {
     let ffprobe = &ffmpeg.ffprobe.as_ref().unwrap().path;
     let probed = tokio::process::Command::new(ffprobe)
         .args(["-v", "error", "-select_streams", "v", "-of", "csv=p=0"])
-        .args(["-show_entries", "stream=color_transfer,color_primaries"])
+        .args([
+            "-show_entries",
+            "stream=width,height,color_transfer,color_primaries",
+        ])
         .arg(&played)
         .output()
         .await
         .unwrap();
     assert!(probed.status.success(), "{probed:?}");
-    assert_eq!(
-        String::from_utf8_lossy(&probed.stdout).trim(),
-        "bt709,bt709"
-    );
+    String::from_utf8_lossy(&probed.stdout).trim().to_owned()
+}
+
+#[tokio::test]
+async fn hdr10_tagged_only_by_its_transfer_is_tone_mapped_to_bt709() {
+    assert_eq!(tone_mapped_hdr10_probed(None).await, "320,240,bt709,bt709");
+}
+
+#[tokio::test]
+async fn hdr10_scaled_down_before_tone_mapping_is_still_bt709() {
+    let limit = Some(VideoLimit {
+        size: Some((160, 120)),
+        bits_per_second: 1_000_000,
+    });
+
+    assert_eq!(tone_mapped_hdr10_probed(limit).await, "160,120,bt709,bt709");
 }
 
 /// Run by hand where there is a GPU: `cargo test -p nama-server --lib -- --ignored hardware`.
