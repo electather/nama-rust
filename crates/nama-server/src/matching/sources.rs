@@ -1,12 +1,15 @@
 //! Asking a Library's title sources, in its order, for the title an item names (ADR 0042's open
 //! ids): a pin or an ID Hint is fetched from the source keeping its namespace, then those looking
 //! titles up by it, and a title and year are searched for with the first source that answers.
+//! Before acting on what the search decided, Matching asks the Recognisers, and a title one names
+//! is fetched as an ID Hint's is.
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
     FoundShow, Miss, TitleKey,
     confidence::{self, Decision},
+    recognisers::{Recognisers, Searched},
 };
 use crate::{
     library::contents::{Metadata, Name, Pin, TiedTitle, UnmatchedReason},
@@ -62,18 +65,28 @@ impl Found {
     }
 }
 
-/// The Movie `key` names, from `metadata`'s sources in their order.
-pub(super) async fn movie(metadata: &TitleSources, key: &TitleKey) -> Result<Metadata, Miss> {
-    let mut found = find(metadata, TitleKind::Movie, key).await?;
+/// The Movie `key` names, from `metadata`'s sources in their order, its files at `paths`.
+pub(super) async fn movie(
+    metadata: &TitleSources,
+    recognisers: &Recognisers,
+    key: &TitleKey,
+    paths: &[String],
+) -> Result<Metadata, Miss> {
+    let mut found = find(metadata, recognisers, TitleKind::Movie, key, paths).await?;
     let routed = found.route(metadata, TitleKind::Movie).await;
     movie_from(metadata, routed, &found.id, found.ids.clone())
         .await
         .map_err(|err| found.missed(err))
 }
 
-/// The Show `key` names, from `metadata`'s sources in their order.
-pub(super) async fn show(metadata: &TitleSources, key: &TitleKey) -> Result<FoundShow, Miss> {
-    let mut found = find(metadata, TitleKind::Show, key).await?;
+/// The Show `key` names, from `metadata`'s sources in their order, its Episodes' files at `paths`.
+pub(super) async fn show(
+    metadata: &TitleSources,
+    recognisers: &Recognisers,
+    key: &TitleKey,
+    paths: &[String],
+) -> Result<FoundShow, Miss> {
+    let mut found = find(metadata, recognisers, TitleKind::Show, key, paths).await?;
     let routed = found.route(metadata, TitleKind::Show).await;
     show_from(metadata, routed, &found.id, found.ids.clone())
         .await
@@ -155,9 +168,15 @@ fn merged(asked: &ExternalId, known: ExternalIds, answered: &ExternalIds) -> Ext
     ids
 }
 
-/// The title `key` names: what an admin pinned, its ID Hint where a source looks titles up by
-/// its namespace, or else the search result that fits it.
-async fn find(metadata: &TitleSources, kind: TitleKind, key: &TitleKey) -> Result<Found, Miss> {
+/// The title of `kind` `key` names: what an admin pinned, its ID Hint where a source looks titles
+/// up by its namespace, or else what searching for it and asking the Recognisers find.
+async fn find(
+    metadata: &TitleSources,
+    recognisers: &Recognisers,
+    kind: TitleKind,
+    key: &TitleKey,
+    paths: &[String],
+) -> Result<Found, Miss> {
     match &key.pin {
         Some(Pin::Title(id)) => {
             let routed = metadata.by_namespace(id.namespace(), kind.method()).await;
@@ -178,12 +197,18 @@ async fn find(metadata: &TitleSources, kind: TitleKind, key: &TitleKey) -> Resul
             return Ok(Found::id(hint.clone(), true, routed));
         }
     }
-    search(metadata, kind, &key.name).await
+    search(metadata, recognisers, kind, &key.name, paths).await
 }
 
-/// The search result that fits `name` confidently and unambiguously, from the first source to
-/// find any.
-async fn search(metadata: &TitleSources, kind: TitleKind, name: &Name) -> Result<Found, Miss> {
+/// The title the first Recogniser to name one a source serves names, else the search result that
+/// fits `name` confidently and unambiguously, from the first source to find any.
+async fn search(
+    metadata: &TitleSources,
+    recognisers: &Recognisers,
+    kind: TitleKind,
+    name: &Name,
+    paths: &[String],
+) -> Result<Found, Miss> {
     let year = name.year.and_then(|year| i32::try_from(year).ok());
     let (title, country) = match (kind, country_tag(&name.title)) {
         (TitleKind::Show, Some((title, country))) => (title, Some(country)),
@@ -203,6 +228,18 @@ async fn search(metadata: &TitleSources, kind: TitleKind, name: &Name) -> Result
         query.year = None;
         candidates = searched(metadata, &query, country).await?;
         decision = confidence::decide(title, year, &candidates);
+    }
+    let searched = Searched {
+        kind,
+        title,
+        year,
+        paths,
+        candidates: &candidates,
+    };
+    if let Some(recognised) = recognisers.recognise(metadata, &searched).await? {
+        let mut found = Found::id(recognised.id, false, recognised.routed);
+        found.ids = recognised.ids;
+        return Ok(found);
     }
     match decision {
         Decision::Match(id) => {

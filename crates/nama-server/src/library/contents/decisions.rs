@@ -1,6 +1,6 @@
 //! What Matching decided about each Item, and storing it.
 
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashMap};
 
 use nama_plugin_api::{
     PluginId,
@@ -183,6 +183,26 @@ impl Contents {
                 ))
             })
             .collect())
+    }
+
+    /// The path of the file each Item of the Library `library` that Matching hasn't decided
+    /// about is in, as stored: absolute, under one of the Library's folders.
+    pub(crate) async fn paths_of_undecided(
+        &self,
+        library: i64,
+    ) -> Result<HashMap<i64, String>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"SELECT library_items.id AS "id!", library_files.path
+               FROM library_items
+               JOIN library_files ON library_files.id = library_items.file_id
+               WHERE library_files.library_id = ?
+                 AND NOT EXISTS (SELECT 1 FROM item_matches
+                                 WHERE item_matches.item_id = library_items.id)"#,
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows.into_iter().map(|row| (row.id, row.path)).collect())
     }
 
     /// The Matched Items of the Library `library` stored at a metadata version older than

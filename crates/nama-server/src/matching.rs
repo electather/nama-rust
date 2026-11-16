@@ -12,6 +12,9 @@
 //!   Matches only a result that fits confidently and unambiguously (see [`confidence`]). Anything
 //!   else is Unmatched. A Show's country tag, as in `The Office (UK)`, is left out of the search
 //!   and keeps only Shows from that country.
+//! - Before acting on what the search decided, it asks the enabled Recognisers (see
+//!   [`recognisers`]) with the search's results and the item's paths. A title the first of them
+//!   names by an id a source keeps or looks titles up by is fetched as an ID hint's is.
 //! - A Match keeps every id the sources asked gave for its title, the answering source's winning.
 //! - A Match stores the artwork Artwork picks from every ordered source's artwork list, each image
 //!   with the Plugin that listed it, and the answering source's own poster or backdrop where the
@@ -47,6 +50,7 @@
 //! [`METADATA_VERSION`]: crate::library::versions::METADATA_VERSION
 
 mod confidence;
+mod recognisers;
 mod sources;
 
 use std::{
@@ -73,6 +77,7 @@ use crate::{
     library::title_source::{self, Episode, Season, Show, Source, TitleKind, TitleSources},
     plugins::ExtensionPoints,
 };
+use recognisers::Recognisers;
 
 /// What one pass of Matching decided.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -116,6 +121,7 @@ pub(crate) struct Matcher {
     /// Reads a Library's title source order.
     libraries: Libraries,
     metadata: TitleSources,
+    recognisers: Recognisers,
     /// Picks a Match's artwork, and downloads the images of the Matches set by hand.
     artwork: Artwork,
     events: EventBus,
@@ -141,6 +147,8 @@ struct FoundShow {
 struct Pending {
     movies: BTreeMap<TitleKey, Vec<i64>>,
     shows: BTreeMap<TitleKey, Vec<PendingEpisode>>,
+    /// The paths of each title's item files, relative to the Library's folder, for the Recognisers.
+    paths: BTreeMap<TitleKey, BTreeSet<String>>,
 }
 
 /// The Matches stored at an older [`METADATA_VERSION`], by the Plugin that Matched them and the id
@@ -289,6 +297,7 @@ impl Matcher {
         Self {
             libraries: Libraries::new(Arc::clone(&db)),
             contents: Contents::new(db),
+            recognisers: Recognisers::new(plugins.clone()),
             metadata: TitleSources::new(plugins),
             artwork,
             events,
@@ -371,14 +380,20 @@ impl Matcher {
         cancel: &CancellationToken,
     ) -> Result<Summary, Error> {
         let library = scan.library();
-        let order = match self.libraries.get(library).await {
-            Ok(found) => found.title_sources,
+        let (order, folders) = match self.libraries.get(library).await {
+            Ok(found) => (found.title_sources, found.folders),
             Err(libraries::Error::Database(err)) => return Err(err.into()),
             // The only other failure of a read is the Library being gone, with nothing to Match.
             Err(_) => return Ok(Summary::default()),
         };
         let this = self.in_order(order);
-        let Pending { movies, shows } = self.undecided(library).await?;
+        let Pending {
+            movies,
+            shows,
+            paths: mut paths_by_title,
+        } = self.undecided(library, &folders).await?;
+        let mut paths_of =
+            |key: &TitleKey| Vec::from_iter(paths_by_title.remove(key).unwrap_or_default());
         let mut summary = Summary::default();
         // Once a title source fails (or there is none), asking about the other titles would only
         // fail too, so the rest is left for the next scan.
@@ -391,7 +406,9 @@ impl Matcher {
                 summary.undecided += count(items.len());
                 continue;
             }
-            let outcome = match sources::movie(&this.metadata, &key).await {
+            let paths = paths_of(&key);
+            let recognisers = &this.recognisers;
+            let outcome = match sources::movie(&this.metadata, recognisers, &key, &paths).await {
                 Ok(movie) => Ok(self.picked_for(&this.metadata, movie).await),
                 Err(miss) => Err(miss),
             };
@@ -407,7 +424,7 @@ impl Matcher {
                 summary.undecided += count(episodes.len());
                 continue;
             }
-            let decided = this.match_episodes(&key, &episodes).await;
+            let decided = this.match_episodes(&key, &episodes, &paths_of(&key)).await;
             available = !decided.any_undecided();
             self.store(library, decided, &mut summary).await?;
         }
@@ -426,13 +443,19 @@ impl Matcher {
         Ok(summary)
     }
 
-    async fn undecided(&self, library: i64) -> Result<Pending, sqlx::Error> {
+    /// The undecided items of the Library `library`, whose folders are `folders`.
+    async fn undecided(&self, library: i64, folders: &[String]) -> Result<Pending, sqlx::Error> {
         let mut pending = Pending::default();
+        let mut paths = self.contents.paths_of_undecided(library).await?;
         for (id, item, pin) in self.contents.undecided(library).await? {
             let key = TitleKey {
                 name: item.name(),
                 pin,
             };
+            let path = paths.remove(&id);
+            if let Some(path) = path.and_then(|path| recognisers::relative(&path, folders)) {
+                pending.paths.entry(key.clone()).or_default().insert(path);
+            }
             match PendingEpisode::of(id, &item) {
                 Some(episode) => pending.shows.entry(key).or_default().push(episode),
                 None => pending.movies.entry(key).or_default().push(id),
@@ -576,8 +599,14 @@ impl Matcher {
         Ok((scan, named))
     }
 
-    async fn match_episodes(&self, key: &TitleKey, episodes: &[PendingEpisode]) -> Outcomes {
-        match sources::show(&self.metadata, key).await {
+    /// Matches `episodes`, their files at `paths`, in the Show `key` names.
+    async fn match_episodes(
+        &self,
+        key: &TitleKey,
+        episodes: &[PendingEpisode],
+        paths: &[String],
+    ) -> Outcomes {
+        match sources::show(&self.metadata, &self.recognisers, key, paths).await {
             Ok(show) => {
                 let picked = self.pick_show(&self.metadata, &show).await;
                 self.match_in_show(&show, &picked, episodes).await

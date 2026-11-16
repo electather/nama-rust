@@ -11,21 +11,31 @@ use nama_plugin_api::{
 };
 use tokio_util::sync::CancellationToken;
 
-use super::{movie, season, show};
+use super::season;
 use crate::{
     db::Database,
     events::EventBus,
     images::ImageStore,
     library::artwork::Artwork,
-    library::contents::{Change, Contents, Item, Pin, UnmatchedReason, fixture},
+    library::contents::{Change, Contents, Item, Metadata, Pin, UnmatchedReason, fixture},
     library::custom_images::CustomImages,
     library::libraries::Libraries,
     library::title_source::TitleSources,
-    matching::{Miss, Summary, TitleKey},
+    matching::{FoundShow, Miss, Summary, TitleKey, recognisers::Recognisers},
     plugins::{ExtensionPoints, Registry},
     scanner::Scanner,
     server_settings::ServerUrl,
 };
+
+/// The Movie `key` names, with no Recogniser enabled.
+async fn movie(metadata: &TitleSources, key: &TitleKey) -> Result<Metadata, Miss> {
+    super::movie(metadata, &Recognisers::default(), key, &[]).await
+}
+
+/// The Show `key` names, with no Recogniser enabled.
+async fn show(metadata: &TitleSources, key: &TitleKey) -> Result<FoundShow, Miss> {
+    super::show(metadata, &Recognisers::default(), key, &[]).await
+}
 
 /// How a [`Fake`] title source answers a search, or a lookup by id.
 #[derive(Clone, Copy)]

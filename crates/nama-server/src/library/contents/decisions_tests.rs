@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::{
     super::testing::{ALIEN, Fixture, movie},
     Decided,
@@ -42,4 +44,24 @@ async fn record_skips_an_item_deleted_since_it_was_read() {
     assert_ne!(read, [replacement]);
     // The decision about the deleted Item didn't land on its replacement.
     assert_eq!(fx.undecided().await, [replacement]);
+}
+
+#[tokio::test]
+async fn paths_of_undecided_gives_each_undecided_items_path() {
+    let fx = Fixture::new().await;
+    let heat = "/media/Heat (1995).mkv";
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    fx.store(heat, 10, movie("Heat", 1995)).await;
+    let alien = fx.item(ALIEN).await;
+    fx.contents
+        .record(vec![(alien, Decided::Unmatched(None))])
+        .await
+        .unwrap();
+
+    let paths = fx.contents.paths_of_undecided(fx.library).await.unwrap();
+
+    assert_eq!(
+        paths,
+        HashMap::from([(fx.item(heat).await, heat.to_owned())])
+    );
 }
