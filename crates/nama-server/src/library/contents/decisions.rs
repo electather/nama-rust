@@ -26,6 +26,9 @@ pub(crate) struct Unmatched {
     pub(crate) item: Item,
     /// `None` while Matching hasn't decided, or for an Unmatched reason not stored.
     pub(crate) reason: Option<UnmatchedReason>,
+    /// Whether an admin pinned it Unmatched with `ClearMatch`. Read from the pin, not stored as
+    /// a reason, since `clear_match` stores none.
+    pub(crate) cleared: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -271,7 +274,7 @@ impl Contents {
     }
 
     /// The Items of the Library `library` that need a Match, by path: those Matching left
-    /// Unmatched or hasn't decided about, except those pinned Unmatched.
+    /// Unmatched or hasn't decided about, including those pinned Unmatched.
     pub(crate) async fn unmatched(&self, library: i64) -> Result<Vec<Unmatched>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT library_items.id AS "id!", library_files.path,
@@ -279,19 +282,19 @@ impl Contents {
                       library_items.year, library_items.hint, library_items.season,
                       library_items.episode,
                       item_matches.unmatched_reason AS "unmatched_reason?: ReasonColumn",
-                      item_matches.tied_titles AS "tied_titles?"
+                      item_matches.tied_titles AS "tied_titles?",
+                      EXISTS (SELECT 1 FROM match_pins
+                              WHERE match_pins.library_id = library_files.library_id
+                                AND match_pins.kind = library_items.kind
+                                AND match_pins.title = library_items.title
+                                AND match_pins.year IS library_items.year
+                                AND match_pins.hint IS library_items.hint
+                                AND match_pins.pinned_id IS NULL) AS "cleared!: bool"
                FROM library_items
                JOIN library_files ON library_files.id = library_items.file_id
                LEFT JOIN item_matches ON item_matches.item_id = library_items.id
                WHERE library_files.library_id = ?
                  AND item_matches.state IS NOT 'matched'
-                 AND NOT EXISTS (SELECT 1 FROM match_pins
-                                 WHERE match_pins.library_id = library_files.library_id
-                                   AND match_pins.kind = library_items.kind
-                                   AND match_pins.title = library_items.title
-                                   AND match_pins.year IS library_items.year
-                                   AND match_pins.hint IS library_items.hint
-                                   AND match_pins.pinned_id IS NULL)
                ORDER BY library_files.path, library_items.id"#,
             library
         )
@@ -317,6 +320,7 @@ impl Contents {
                     path: row.path,
                     item,
                     reason,
+                    cleared: row.cleared,
                 }))
             })
             .collect()

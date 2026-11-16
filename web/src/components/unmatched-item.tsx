@@ -80,7 +80,7 @@ function parsedAs(item: UnmatchedItem) {
 // "en-GB" for "A, B or C", without the serial comma, as the rest of the app writes lists.
 const titleList = new Intl.ListFormat("en-GB", { type: "disjunction" });
 
-/** Why automatic Matching left `item` Unmatched, which says how to fix it, or "" if not known. */
+/** Why `item` is Unmatched, which says how to fix it, or "" if not known. */
 function whyUnmatched({ reason, tiedTitles }: UnmatchedItem) {
   if (reason !== UnmatchedReason.AMBIGUOUS) return unmatchedBecause[reason] ?? "";
   const tied = tiedTitles.map((title) => withYear(title.title, title.year));
@@ -93,6 +93,7 @@ const unmatchedBecause: Partial<Record<UnmatchedReason, string>> = {
   [UnmatchedReason.UNKNOWN_ID_HINT]: "Its ID Hint names no title.",
   [UnmatchedReason.NOT_IN_SHOW]:
     "Its Show has no such Episode. Matching it to another Show may help.",
+  [UnmatchedReason.CLEARED_BY_HAND]: "Unmatched by hand.",
 };
 
 function withYear(title: string, year: number | undefined) {

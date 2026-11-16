@@ -304,7 +304,8 @@ pub trait MatchService: Send + Sync + 'static {
     > + Send;
     /// Removes an item's Match and pins it Unmatched, so automatic Matching leaves it so. Like
     /// `SetMatch`, this applies to every item in the Library named the same way, and for an Episode
-    /// to every Episode of its Show. Fails with `not_found` if there is no such item.
+    /// to every Episode of its Show. `ListUnmatchedItems` then lists them with
+    /// `UNMATCHED_REASON_CLEARED_BY_HAND`. Fails with `not_found` if there is no such item.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -327,11 +328,11 @@ pub trait MatchService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists the items of a Library that need a Match, by path: those Matching left Unmatched, and
-    /// those it hasn't Matched yet, such as when no title source was enabled. Items pinned
-    /// Unmatched with `ClearMatch` aren't listed, since an Admin has already decided about them.
-    /// Also lists the Library's files whose names didn't parse, which an Admin fixes by renaming.
-    /// Fails with `not_found` if there is no such Library.
+    /// Lists the items of a Library that need a Match, by path: those Matching left Unmatched,
+    /// those it hasn't Matched yet, such as when no title source was enabled, and those pinned
+    /// Unmatched with `ClearMatch`, with `UNMATCHED_REASON_CLEARED_BY_HAND`. Also lists the
+    /// Library's files whose names didn't parse, which an Admin fixes by renaming. Fails with
+    /// `not_found` if there is no such Library.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
