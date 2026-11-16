@@ -263,4 +263,8 @@ enum RefusalReason {
   // deleting it, so the images stay where they are. The message says what failed. `field` is
   // `plugin_id`. Params: `pluginId`, empty for local disk, and `reason`, in plain words.
   REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK = 79;
+  // `failed_precondition`: a Library's folder is inside, or holds, a folder of another Library.
+  // `field` is `folders`. Params: `folder`, `library` (the other Library's name) and
+  // `libraryFolder` (its folder).
+  REFUSAL_REASON_FOLDER_OVERLAPS = 81;
 }

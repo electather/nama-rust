@@ -536,6 +536,16 @@ impl From<LibraryError> for ConnectError {
                     .param("folder", &folder)
                     .param("library", &library)
             }
+            LibraryError::FolderOverlaps {
+                folder,
+                library,
+                library_folder,
+                ..
+            } => refuse(R::REFUSAL_REASON_FOLDER_OVERLAPS, message)
+                .field("folders")
+                .param("folder", &folder)
+                .param("library", &library)
+                .param("libraryFolder", &library_folder),
             LibraryError::TitleSources { namespace } => {
                 let refused =
                     refuse(R::REFUSAL_REASON_TITLE_SOURCES_INVALID, message).field("title_sources");

@@ -419,6 +419,65 @@ async fn a_folder_that_already_backs_another_library_is_refused_as_already_exist
     );
 }
 
+#[tokio::test]
+async fn a_folder_inside_or_holding_another_librarys_is_refused_as_overlapping() {
+    let fx = Fixture::start().await;
+    let media = fx.folder("media");
+    let films = fx.folder("media/movies");
+    let hamlet = fx.folder("media/movies/Hamlet");
+    let tv = fx.folder("tv");
+    let movies = fx
+        .create("Movies", LibraryKind::LIBRARY_KIND_MOVIES, &[&films])
+        .await
+        .unwrap();
+    let shows = fx
+        .create("Shows", LibraryKind::LIBRARY_KIND_SHOWS, &[&tv])
+        .await
+        .unwrap();
+
+    let creates = [("inside", &hamlet), ("holding", &media)];
+    for (case, folder) in creates {
+        let refused = fx
+            .create("Hamlet", LibraryKind::LIBRARY_KIND_SHOWS, &[folder])
+            .await;
+        assert_overlaps(refused, folder, &films, case);
+    }
+    let updated = fx.update(shows.id, "Shows", &[&tv, &hamlet]).await;
+    assert_overlaps(updated, &hamlet, &films, "an update");
+    assert_eq!(
+        fx.list().await,
+        [movies.clone(), shows],
+        "a refused change was kept"
+    );
+
+    let beside = fx.folder("media/movies2");
+    fx.create("Movies 2", LibraryKind::LIBRARY_KIND_MOVIES, &[&beside])
+        .await
+        .expect("a folder that only shares a name prefix doesn't overlap");
+    fx.update(movies.id, "Movies", &[&hamlet])
+        .await
+        .expect("a Library's own old folder doesn't overlap it");
+}
+
+/// Asserts `result` was refused because `folder` overlaps `library_folder`, the Movies Library's.
+fn assert_overlaps<T>(
+    result: Result<T, ConnectError>,
+    folder: &str,
+    library_folder: &str,
+    case: &str,
+) {
+    let refusal = assert_refused(
+        result,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_FOLDER_OVERLAPS,
+    );
+    assert_eq!(refusal.field, "folders", "{case}");
+    let param = |key: &str| refusal.params.get(key).map(String::as_str);
+    assert_eq!(param("folder"), Some(folder), "{case}");
+    assert_eq!(param("library"), Some("Movies"), "{case}");
+    assert_eq!(param("libraryFolder"), Some(library_folder), "{case}");
+}
+
 /// Directories the Server can't fully read: one it can't list, and one it can list but not
 /// open anything in. Unix only: Windows has no simple equivalent of taking away these permissions.
 #[cfg(unix)]

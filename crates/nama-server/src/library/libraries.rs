@@ -69,6 +69,17 @@ pub(crate) enum Error {
     /// A folder in the request already belongs to another Library.
     #[error("the folder {folder} already belongs to the Library {library:?}")]
     FolderTaken { folder: String, library: String },
+    /// A folder in the request is `inside` another Library's folder, or holds it.
+    #[error(
+        "the folder {folder} {} {library_folder}, a folder of the Library {library:?}",
+        if *inside { "is inside" } else { "holds" }
+    )]
+    FolderOverlaps {
+        folder: String,
+        library: String,
+        library_folder: String,
+        inside: bool,
+    },
     /// The title sources given aren't one or more well-formed namespaces, each named once;
     /// `namespace` is the first that breaks it, none if none was given.
     #[error(
@@ -553,26 +564,39 @@ async fn ensure_readable_dir(path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Fails if one of `folders` is, is inside, or holds a folder of a Library other than `except`.
 async fn ensure_folders_free(
     conn: &mut SqliteConnection,
     folders: &[String],
     except: Option<i64>,
 ) -> Result<(), Error> {
+    let others = sqlx::query!(
+        "SELECT library_folders.path, libraries.name FROM library_folders
+         JOIN libraries ON libraries.id = library_folders.library_id
+         WHERE library_folders.library_id IS NOT ?",
+        except,
+    )
+    .fetch_all(&mut *conn)
+    .await?;
     for folder in folders {
-        let owner = sqlx::query_scalar!(
-            "SELECT libraries.name FROM library_folders
-             JOIN libraries ON libraries.id = library_folders.library_id
-             WHERE library_folders.path = ? AND library_folders.library_id IS NOT ?",
-            folder,
-            except,
-        )
-        .fetch_optional(&mut *conn)
-        .await?;
-        if let Some(library) = owner {
+        if let Some(other) = others.iter().find(|other| other.path == *folder) {
             return Err(Error::FolderTaken {
                 folder: folder.clone(),
-                library,
+                library: other.name.clone(),
             });
+        }
+        // By components, not as strings, so `/media/movies2` isn't inside `/media/movies`.
+        let path = Path::new(folder);
+        for other in &others {
+            let inside = path.starts_with(&other.path);
+            if inside || Path::new(&other.path).starts_with(path) {
+                return Err(Error::FolderOverlaps {
+                    folder: folder.clone(),
+                    library: other.name.clone(),
+                    library_folder: other.path.clone(),
+                    inside,
+                });
+            }
         }
     }
     Ok(())

@@ -231,6 +231,10 @@ pub enum RefusalReason {
     /// deleting it, so the images stay where they are. The message says what failed. `field` is
     /// `plugin_id`. Params: `pluginId`, empty for local disk, and `reason`, in plain words.
     REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK = 79i32,
+    /// `failed_precondition`: a Library's folder is inside, or holds, a folder of another Library.
+    /// `field` is `folders`. Params: `folder`, `library` (the other Library's name) and
+    /// `libraryFolder` (its folder).
+    REFUSAL_REASON_FOLDER_OVERLAPS = 81i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -467,6 +471,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ImageStoreFailedCheck: Self = Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_FOLDER_OVERLAPS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const FolderOverlaps: Self = Self::REFUSAL_REASON_FOLDER_OVERLAPS;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -732,6 +739,7 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
                 )
             }
+            81i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_OVERLAPS),
             _ => ::core::option::Option::None,
         }
     }
@@ -888,6 +896,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK => {
                 "REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK"
             }
+            Self::REFUSAL_REASON_FOLDER_OVERLAPS => "REFUSAL_REASON_FOLDER_OVERLAPS",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1148,6 +1157,9 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
                 )
             }
+            "REFUSAL_REASON_FOLDER_OVERLAPS" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_FOLDER_OVERLAPS)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1231,6 +1243,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_IMAGE_STORE_IN_USE,
             Self::REFUSAL_REASON_IMAGE_STORE_SWITCHING,
             Self::REFUSAL_REASON_IMAGE_STORE_FAILED_CHECK,
+            Self::REFUSAL_REASON_FOLDER_OVERLAPS,
         ]
     }
 }
