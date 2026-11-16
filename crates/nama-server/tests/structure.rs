@@ -335,3 +335,144 @@ fn ceilings_are_sorted_by_path_and_list_no_path_twice() {
         );
     }
 }
+
+/// The Server's modules in rows of who may call whom, highest row first (ADR 0051). A module may
+/// call a lower row, or a module to its right in its own row; `STARTUP` calls any row. The one
+/// accepted upward call is the Library making Requests Available inside its own write:
+/// `src/library/contents/decisions.rs` calling `requests` (ADR 0012). Unit tests (files named
+/// `*_tests.rs` or `testing.rs`) may also build `scanner::Scanner`, since only `Scanner::new`
+/// makes `ScanLocks` and a Matching or Requests test that needs a scan or a Matcher can't get
+/// one from a lower row.
+// `forwarded` sits in the bottom row: it reads only `config`, and api and sessions use it. `web`
+// imports nothing from the crate. `plugin_settings` stays a single file: its folder holds only
+// private helpers (`stored.rs`, `put_back.rs`) and its one rule, "One owner for Plugin changes",
+// stays in the crate's AGENTS.md.
+const ROWS: &[&[&str]] = &[
+    &["api", "automation"],
+    &["browse", "scanner", "plugin_settings"],
+    &["requests", "playback", "matching"],
+    &["library"],
+    &["events", "connections", "users"],
+    &["plugins"],
+    &[
+        "images",
+        "server_settings",
+        "ffmpeg",
+        "forwarded",
+        "web",
+        "db",
+        "config",
+    ],
+];
+
+/// The modules that start the Server, which call any row.
+const STARTUP: &[&str] = &["lib", "main"];
+
+/// Top-level files that move into an area in this stage, sorted, each with that area; the change
+/// that moves one removes its row.
+// Placed from their imports so no upward call results. tracks, probing and track_preferences are
+// used only by playback, browse, scanner and api, all at or above playback's row, and probing
+// needs `playback::subtitles` (`probing/` goes with it). rate_limits and users import each other,
+// sign_in needs codes, device_names, rate_limits and sign_in_codes, sessions needs users, and
+// connections, left of users in its row, uses codes.
+const MOVING_INTO: &[(&str, &str)] = &[
+    ("codes", "users"),
+    ("device_names", "users"),
+    ("probing", "playback"),
+    ("rate_limits", "users"),
+    ("sessions", "users"),
+    ("sign_in", "users"),
+    ("sign_in_codes", "users"),
+    ("track_preferences", "playback"),
+    ("tracks", "playback"),
+];
+
+/// What is wrong with where `modules`, the stems of the `.rs` files directly under `src/`, are
+/// placed in `rows`, `startup` and `moving_into`.
+fn placement_problems(
+    modules: &[&str],
+    rows: &[&[&str]],
+    startup: &[&str],
+    moving_into: &[(&str, &str)],
+) -> Vec<String> {
+    let in_rows: Vec<&str> = rows.iter().flat_map(|row| row.iter().copied()).collect();
+    let moving: Vec<&str> = moving_into.iter().map(|&(module, _)| module).collect();
+    let placed: Vec<&str> = startup
+        .iter()
+        .chain(&in_rows)
+        .chain(&moving)
+        .copied()
+        .collect();
+    let mut problems = Vec::new();
+    for module in modules.iter().filter(|module| !placed.contains(module)) {
+        problems.push(format!(
+            "src/{module}.rs has no row: add it to ROWS or MOVING_INTO"
+        ));
+    }
+    for (index, name) in placed.iter().enumerate() {
+        if placed.iter().take(index).any(|earlier| earlier == name) {
+            problems.push(format!(
+                "{name} is placed twice across STARTUP, ROWS and MOVING_INTO: keep one"
+            ));
+        }
+    }
+    for name in in_rows.iter().filter(|name| !modules.contains(name)) {
+        problems.push(format!(
+            "src/{name}.rs is gone: remove {name} from ROWS, or put back the file"
+        ));
+    }
+    for name in moving.iter().filter(|name| !modules.contains(name)) {
+        problems.push(format!(
+            "src/{name}.rs is gone: it moved, so remove its MOVING_INTO row"
+        ));
+    }
+    for (module, area) in moving_into
+        .iter()
+        .filter(|(_, area)| !in_rows.contains(area))
+    {
+        problems.push(format!(
+            "{module} moves into {area}, which has no row: add {area} to ROWS"
+        ));
+    }
+    problems
+}
+
+#[test]
+fn every_top_level_file_has_a_row_or_is_moving_into_an_area() {
+    let files = rust_files();
+    let modules: Vec<&str> = files
+        .iter()
+        .filter_map(|file| file.path.strip_prefix("src/")?.strip_suffix(".rs"))
+        .filter(|stem| !stem.contains('/') && !stem.ends_with("_tests"))
+        .collect();
+    assert!(
+        modules.contains(&"lib"),
+        "found no src/lib.rs: the walk is checking nothing"
+    );
+    let problems = placement_problems(&modules, ROWS, STARTUP, MOVING_INTO);
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+#[test]
+fn placement_problems_names_unplaced_twice_placed_gone_and_rowless_modules() {
+    let rows: &[&[&str]] = &[&["a"], &["b", "gone"]];
+    let problems = placement_problems(
+        &["lib", "a", "b", "loose", "moving", "lost"],
+        rows,
+        &["lib"],
+        &[("moving", "a"), ("b", "a"), ("lost", "nowhere")],
+    );
+    assert_eq!(
+        problems,
+        [
+            "src/loose.rs has no row: add it to ROWS or MOVING_INTO",
+            "b is placed twice across STARTUP, ROWS and MOVING_INTO: keep one",
+            "src/gone.rs is gone: remove gone from ROWS, or put back the file",
+            "lost moves into nowhere, which has no row: add nowhere to ROWS",
+        ]
+    );
+    assert_eq!(
+        placement_problems(&["lib", "a"], &[&["a"]], &["lib"], &[]),
+        Vec::<String>::new()
+    );
+}
