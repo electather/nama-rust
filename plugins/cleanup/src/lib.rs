@@ -1,0 +1,344 @@
+//! The Cleanup Installed Plugin: on each tick, deletes the Movies and Episodes every User played at
+//! least `days` days ago from the Libraries the Admin names, through the Kernel's `delete_media`
+//! only (ADR 0048). The Server builds it for wasm32 and bundles it in its binary.
+
+use std::collections::HashSet;
+
+use nama_pdk::{
+    Library, Manifest, Permission, Tick, TitleRef, TitleWatchStates, WatchState,
+    extism_pdk::{Error, config},
+    kernel,
+    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
+    services,
+};
+
+const DAYS: &str = "days";
+const LIBRARIES: &str = "libraries";
+
+/// How many titles the tick reads, and asks the Watch States of, at a time.
+const PAGE_SIZE: u32 = 200;
+/// The largest value the Kernel's Store keeps.
+const MAX_STORED: usize = 64 * 1024;
+const DAY_MS: i64 = 24 * 60 * 60 * 1000;
+
+/// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
+/// code it generates are expected here.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "an export returns `FnResult` even when it can't fail"
+)]
+mod exports {
+    use nama_pdk::{Automation, Buffa, FnResult, Manifest, Tick, extism_pdk, plugin_fn};
+
+    #[plugin_fn]
+    pub fn manifest() -> FnResult<Buffa<Manifest>> {
+        Ok(Buffa(super::manifest()))
+    }
+
+    /// Deletes, on each tick, what every User watched long ago.
+    struct Cleanup;
+
+    impl Automation for Cleanup {
+        fn tick(tick: Tick) -> Result<(), extism_pdk::Error> {
+            super::tick(&tick)
+        }
+    }
+
+    nama_pdk::automation!(Cleanup);
+}
+
+/// What `manifest()` returns, kept apart from the export so a unit test can read it.
+fn manifest() -> Manifest {
+    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        description: description.to_owned(),
+        kind: kind.into(),
+        ..SettingField::default()
+    };
+    Manifest {
+        logo_svg: include_str!("../logo.svg").to_owned(),
+        points: vec![nama_pdk::point(services::AUTOMATION)],
+        permissions: vec![
+            Permission::PERMISSION_STORE.into(),
+            Permission::PERMISSION_READ_LIBRARIES.into(),
+            Permission::PERMISSION_READ_WATCH_STATES.into(),
+            Permission::PERMISSION_READ_USERS.into(),
+            Permission::PERMISSION_DELETE_MEDIA.into(),
+        ],
+        tick_every_seconds: 3600,
+        settings: vec![
+            SettingField {
+                required: true,
+                default_value: SettingValue {
+                    value: Some(setting_value::Value::IntegerValue(30)),
+                    ..SettingValue::default()
+                }
+                .into(),
+                ..setting(
+                    DAYS,
+                    "Days",
+                    "Delete a Movie or Episode once every User watched it at least this many \
+                     days ago.",
+                    SettingKind::SETTING_KIND_INTEGER,
+                )
+            },
+            setting(
+                LIBRARIES,
+                "Libraries",
+                "The names of the Libraries to clean, separated by commas. Empty cleans none.",
+                SettingKind::SETTING_KIND_TEXT,
+            ),
+        ],
+        name: "Cleanup".to_owned(),
+        description: "Deletes the Movies and Episodes every User watched long ago.".to_owned(),
+        ..nama_pdk::manifest("cleanup", env!("CARGO_PKG_VERSION"))
+    }
+}
+
+/// Cleans each Library the settings name.
+///
+/// A refused delete doesn't stop the others: the tick fails afterwards with how many were refused
+/// and the Kernel's words, so the Admin sees why in the log.
+fn tick(tick: &Tick) -> Result<(), Error> {
+    let named = config::get(LIBRARIES)?.unwrap_or_default();
+    let named = library_names(&named);
+    // Before any Kernel call, so a Plugin enabled without Libraries named needs no grant yet.
+    if named.is_empty() {
+        return Ok(());
+    }
+    let cutoff_ms = cutoff_ms(tick.now_ms, days(config::get(DAYS)?.as_deref())?);
+    let users: Vec<i64> = kernel::users()?.into_iter().map(|user| user.id).collect();
+    if users.is_empty() {
+        return Ok(());
+    }
+    let mut refused = Vec::new();
+    for library in kernel::libraries()? {
+        if named.contains(&library.name.as_str()) {
+            refused.extend(clean(&library, &users, cutoff_ms)?);
+        }
+    }
+    match refusal(&refused) {
+        None => Ok(()),
+        Some(refusal) => Err(Error::msg(refusal)),
+    }
+}
+
+/// Deletes the due titles of `library`, returning the Kernel's words for each delete it refused.
+fn clean(library: &Library, users: &[i64], cutoff_ms: i64) -> Result<Vec<String>, Error> {
+    let key = format!("deleting/{}", library.id);
+    let recorded = decode(&kernel::store_get(&key, None)?.unwrap_or_default());
+    let mut listed = HashSet::new();
+    let mut due = Vec::new();
+    let mut token = String::new();
+    loop {
+        let page = kernel::titles_page(library.id, PAGE_SIZE, &token)?;
+        let titles: Vec<TitleRef> = (page.titles.iter())
+            .filter_map(|title| title.title_ref.as_option().cloned())
+            .collect();
+        listed.extend(titles.iter().map(Key::of));
+        for watched in kernel::watch_states(&titles)? {
+            if is_due(&watched, users, cutoff_ms)
+                && let Some(title) = watched.title_ref.into_option()
+            {
+                due.push(title);
+            }
+        }
+        if page.next_page_token.is_empty() {
+            break;
+        }
+        token = page.next_page_token;
+    }
+    // A title no longer listed is gone, so its entry is no longer needed.
+    let still_listed: Vec<Key> = (recorded.iter())
+        .filter(|title| listed.contains(*title))
+        .cloned()
+        .collect();
+    let deleted = delete_due(
+        &due,
+        &still_listed.iter().cloned().collect(),
+        |title, also| kernel::delete_media(title.clone(), also),
+    );
+    let kept = encode(still_listed.into_iter().chain(deleted.recorded));
+    if decode(&kept) != recorded {
+        kernel::store_put(&key, None, &kept)?;
+    }
+    Ok(deleted.refused)
+}
+
+/// The Library names `setting` lists, separated by commas, trimmed, leaving out empty ones.
+fn library_names(setting: &str) -> Vec<&str> {
+    (setting.split(','))
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .collect()
+}
+
+/// The `days` setting as a number of days, at least 0. A failure names the setting.
+fn days(setting: Option<&str>) -> Result<i64, Error> {
+    let setting = setting.ok_or_else(|| Error::msg(format!("the setting {DAYS} isn't set")))?;
+    match setting.trim().parse::<i64>() {
+        Ok(days) if days >= 0 => Ok(days),
+        _ => Err(Error::msg(format!(
+            "the setting {DAYS} must be a whole number of 0 or more, not {setting}"
+        ))),
+    }
+}
+
+/// The latest time a Watch State may have changed for its title to be due, `days` before `now_ms`.
+const fn cutoff_ms(now_ms: i64, days: i64) -> i64 {
+    now_ms.saturating_sub(days.saturating_mul(DAY_MS))
+}
+
+/// Whether `title` is due: every one of `users` played it no later than `cutoff_ms`, and nobody
+/// has it in progress. With no `users`, nothing is due.
+fn is_due(title: &TitleWatchStates, users: &[i64], cutoff_ms: i64) -> bool {
+    let played_by = |user: i64| {
+        (title.states.iter())
+            .any(|state| state.user_id == user && state.played && state.updated_at_ms <= cutoff_ms)
+    };
+    !users.is_empty()
+        && !title.states.iter().any(in_progress)
+        && users.iter().all(|&user| played_by(user))
+}
+
+/// Whether `state` is started and not played, as Continue Watching shows it.
+const fn in_progress(state: &WatchState) -> bool {
+    state.position_ms > 0 && !state.played
+}
+
+/// What [`delete_due`] did.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Deleted {
+    /// The titles whose deletes it started, and those they took along.
+    recorded: Vec<Key>,
+    /// The Kernel's words for each delete it refused.
+    refused: Vec<String>,
+}
+
+/// Deletes each of `due` through `delete`, skipping those `considered` holds and those an earlier
+/// delete took along, so nothing is deleted twice. Each delete names the other due titles as the
+/// ones it may take along, so Episodes sharing a file go together.
+fn delete_due(
+    due: &[TitleRef],
+    considered: &HashSet<Key>,
+    mut delete: impl FnMut(&TitleRef, &[TitleRef]) -> Result<Vec<TitleRef>, Error>,
+) -> Deleted {
+    let mut done = considered.clone();
+    let mut deleted = Deleted::default();
+    for (index, title) in due.iter().enumerate() {
+        let key = Key::of(title);
+        if done.contains(&key) {
+            continue;
+        }
+        let also: Vec<TitleRef> = (due.iter().enumerate())
+            .filter(|&(other, _)| other != index)
+            .map(|(_, other)| other.clone())
+            .collect();
+        match delete(title, &also) {
+            Ok(taken_along) => {
+                let started = std::iter::once(key).chain(taken_along.iter().map(Key::of));
+                (deleted.recorded).extend(started.filter(|started| done.insert(started.clone())));
+            }
+            Err(error) => deleted.refused.push(error.to_string()),
+        }
+    }
+    deleted
+}
+
+/// The tick's error for `refused`, the Kernel's words for each refused delete, each once; `None`
+/// when nothing was refused.
+fn refusal(refused: &[String]) -> Option<String> {
+    if refused.is_empty() {
+        return None;
+    }
+    let mut words: Vec<&str> = Vec::new();
+    for said in refused {
+        if !words.contains(&said.as_str()) {
+            words.push(said);
+        }
+    }
+    Some(format!(
+        "the Kernel refused {} of the deletes: {}",
+        refused.len(),
+        words.join("; ")
+    ))
+}
+
+/// A title within one Library, as the Store keeps it.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct Key {
+    kind: i32,
+    namespace: String,
+    value: String,
+}
+
+impl Key {
+    fn of(title: &TitleRef) -> Self {
+        let id = title.id.as_option();
+        Self {
+            kind: title.kind.to_i32(),
+            namespace: id.map(|id| id.namespace.clone()).unwrap_or_default(),
+            value: id.map(|id| id.value.clone()).unwrap_or_default(),
+        }
+    }
+
+    /// The line the Store keeps it as: its kind, namespace and value, separated by tabs.
+    fn line(&self) -> String {
+        format!("{}\t{}\t{}\n", self.kind, self.namespace, self.value)
+    }
+
+    /// The `TitleRef` it names in `library_id`.
+    #[cfg(test)]
+    fn title_ref(&self, library_id: i64) -> TitleRef {
+        TitleRef {
+            library_id,
+            kind: self.kind.into(),
+            id: nama_pdk::TitleId {
+                namespace: self.namespace.clone(),
+                value: self.value.clone(),
+                ..nama_pdk::TitleId::default()
+            }
+            .into(),
+            ..TitleRef::default()
+        }
+    }
+}
+
+/// `titles` as a Store value, one line each, leaving out the first ones when they don't all fit,
+/// since the latest are the ones whose deletes may still be going on.
+fn encode(titles: impl Iterator<Item = Key>) -> Vec<u8> {
+    let mut lines: Vec<String> = titles.map(|title| title.line()).collect();
+    let mut size = 0;
+    let fitting = lines
+        .iter()
+        .rev()
+        .take_while(|line| {
+            size += line.len();
+            size <= MAX_STORED
+        })
+        .count();
+    lines
+        .split_off(lines.len().saturating_sub(fitting))
+        .concat()
+        .into_bytes()
+}
+
+/// The titles a Store value [`encode`] made holds, leaving out a line it can't read.
+fn decode(value: &[u8]) -> Vec<Key> {
+    (String::from_utf8_lossy(value).lines())
+        .filter_map(|line| {
+            let mut fields = line.split('\t');
+            let title = Key {
+                kind: fields.next()?.parse().ok()?,
+                namespace: fields.next()?.to_owned(),
+                value: fields.next()?.to_owned(),
+            };
+            fields.next().is_none().then_some(title)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod tests;

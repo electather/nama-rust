@@ -2083,6 +2083,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-cleanup"
+version = "0.1.0"
+dependencies = [
+ "nama-pdk",
+]
+
+[[package]]
 name = "nama-plugin-discord"
 version = "0.1.0"
 dependencies = [
