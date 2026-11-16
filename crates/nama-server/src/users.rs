@@ -29,7 +29,7 @@ mod sign_in_codes;
 
 pub use codes::SetupCode;
 pub(crate) use codes::random_secret;
-use managing::{default_permissions, ensure_may_grant};
+use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 use names::{checked_name, name_key};
 use passwords::{Credential, set_password};
 pub(crate) use permissions::Permissions;
@@ -233,6 +233,9 @@ pub enum Error {
     /// No User has this ID.
     #[error("no User has that ID")]
     NoSuchUser,
+    /// The User has no Device with this ID.
+    #[error("that User has no such Device")]
+    NoSuchDevice,
     /// The User who approved a Sign-in Code was deleted before it signed its Device in.
     #[error("the User who approved this code no longer exists")]
     ApprovingUserDeleted,
@@ -362,22 +365,25 @@ impl Users {
         Ok(Some(devices))
     }
 
-    /// Signs the Device `device` out, as [`Users::sign_out`] does, if it is the User `user`'s.
-    /// Returns whether it was.
-    pub(crate) async fn revoke(&self, user: i64, device: i64) -> Result<bool, sqlx::Error> {
-        // Checked before the write, not in it, which is still race-free: a Device never changes
-        // User, its ID is never reused, and signing out one already gone does nothing.
-        let theirs = sqlx::query_scalar!(
-            r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = ?) AS "theirs!: bool""#,
-            device,
-            user
-        )
-        .fetch_one(self.db.reader())
-        .await?;
-        if theirs {
-            self.sign_out(device).await?;
-        }
-        Ok(theirs)
+    /// Signs the Device `device` of the User `user` out, as [`Users::sign_out`] does, as `by` asks.
+    /// Fails with [`Error::NoSuchDevice`] if it isn't theirs, or as [`ensure_may_change`] does.
+    pub(crate) async fn revoke(&self, by: &User, user: i64, device: i64) -> Result<(), Error> {
+        let by = by.clone();
+        self.write_signing_out(move |tx| {
+            Box::pin(async move {
+                ensure_may_change(tx, &by, user).await?;
+                sqlx::query_scalar!(
+                    r#"DELETE FROM devices WHERE id = ? AND user_id = ? RETURNING id AS "id!""#,
+                    device,
+                    user
+                )
+                .fetch_optional(&mut **tx)
+                .await?
+                .map(|id| vec![id])
+                .ok_or(Error::NoSuchDevice)
+            })
+        })
+        .await
     }
 
     /// Signs `device`, whose name has been checked, in as whoever `proved` says. A User deleted
