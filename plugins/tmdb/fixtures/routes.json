@@ -18,6 +18,7 @@
   "/3/movie/58995?append_to_response=external_ids,release_dates": "movie-58995.json",
   "/3/tv/2316?append_to_response=external_ids,content_ratings": "tv-2316.json",
   "/3/tv/2316/season/1?append_to_response=external_ids": "tv-2316-season-1.json",
+  "/3/tv/2316/season/3?append_to_response=external_ids": "tv-2316-season-3.json",
   "/3/tv/2996?append_to_response=external_ids,content_ratings": "tv-2996.json",
   "/3/tv/2996/season/1?append_to_response=external_ids": "tv-2996-season-1.json",
   "/3/search/movie?query=Alien&year=1980": "search-empty.json",
