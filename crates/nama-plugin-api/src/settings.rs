@@ -64,6 +64,20 @@ pub enum SettingKind {
     Libraries,
 }
 
+// The noun phrase a refusal ends with, "the setting url must be an http or https URL".
+impl fmt::Display for SettingKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Text | Self::Secret => "text",
+            Self::Bool => "true or false",
+            Self::Integer => "a whole number",
+            Self::Choice => "one of its choices",
+            Self::Url => "an http or https URL",
+            Self::Libraries => "a list of Library ids",
+        })
+    }
+}
+
 /// A setting's value.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -217,7 +231,7 @@ impl fmt::Display for SettingsError {
         match self {
             Self::Missing(key) => write!(f, "the setting {key} is required"),
             Self::WrongKind { key, expected } => {
-                write!(f, "the setting {key} must be {expected:?}")
+                write!(f, "the setting {key} must be {expected}")
             }
         }
     }
@@ -300,6 +314,19 @@ mod tests {
         assert_eq!(
             settings.resolve(&schema),
             Err(SettingsError::Missing("api_key".to_owned()))
+        );
+    }
+
+    #[test]
+    fn a_setting_of_the_wrong_kind_is_refused_in_plain_words() {
+        let err = SettingsError::WrongKind {
+            key: "sonarr".to_owned(),
+            expected: SettingKind::Url,
+        };
+
+        assert_eq!(
+            err.to_string(),
+            "the setting sonarr must be an http or https URL"
         );
     }
 
