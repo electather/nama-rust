@@ -21,6 +21,7 @@ mod ids;
 pub mod metadata;
 pub mod notifier;
 pub mod points;
+pub mod recogniser;
 pub mod settings;
 
 /// The Plugin contract's messages (ADR 0041), which the Extension Points take and return, so a

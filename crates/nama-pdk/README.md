@@ -67,8 +67,9 @@ Each point has a trait and a macro that exports it. The trait docs in [`src/lib.
 | `CONNECTOR` | `Connector`, `connector!` | `start_connection`, `poll_connection` | |
 | `TITLE_SOURCE` | `TitleSource`, `title_source!` | | `search`, `movie`, `show`, `season`, `episode`, `image`, `artwork` |
 | `AUTOMATION` | `Automation`, `automation!` | `tick` | |
+| `RECOGNISER` | `Recogniser`, `recogniser!` | | `recognise_title`, `recognise_file` |
 
-A trait's optional methods have defaults, and its macro exports them all, except `title_source!`, which exports only the methods it lists, since the Server asks nothing of a title source that lacks the export:
+A trait's optional methods have defaults, and its macro exports them all, except `title_source!` and `recogniser!`, which export only the methods they list, since the Server asks nothing of a title source or Recogniser that lacks the export:
 
 ```rust
 use nama_pdk::{SearchQuery, SearchResults, TitleSource, extism_pdk::Error};
@@ -173,21 +174,64 @@ nama_pdk::automation!(Counter);
 
 Off wasm32, as in a Plugin's unit tests, every Kernel function fails, since there is no Kernel to call.
 
-## 7. HTTP
+## 7. Recognising
+
+A Recogniser proposes what a file is or which title an Item names, and the Server decides: it alone writes Matches and marks an Item Unmatched, and its own Matching is what it falls back to (ADR [0050](../../docs/adr/0050-recognisers-propose-what-a-file-is.md)). The Server asks a Library's Recognisers in the order the Admin sets, and takes the first answer that isn't empty.
+
+- `recognise_file` is asked about a file the Server's name parser made no Item from, such as `Show - 137.mkv`, an Episode numbered from the start of its Show. It answers a `RecognisedMovie` or `RecognisedEpisodes` (a Show's title, a Season and its Episode numbers), which the Server then Matches as usual.
+- `recognise_title` is asked about an Item the title sources' search couldn't settle, with its title, its files and the candidates the search found. It answers the title's ids, which the Server takes only in a namespace one of the Library's title sources serves, and fetches as it would an ID Hint.
+
+An empty answer means the Recogniser can't tell; a failure leaves the Item or file undecided until the next Scan. A method left out answers empty, but `recogniser!` exports only the methods it lists, so list only those the Recogniser serves:
+
+```rust
+use nama_pdk::{
+    FileRecognised, FileToRecognise, Manifest, RecognisedEpisodes, Recogniser, extism_pdk::Error,
+    services,
+};
+
+fn manifest() -> Manifest {
+    Manifest {
+        points: vec![nama_pdk::point(services::RECOGNISER)],
+        ..nama_pdk::manifest("absolute-episodes", env!("CARGO_PKG_VERSION"))
+    }
+}
+
+struct AbsoluteEpisodes;
+
+impl Recogniser for AbsoluteEpisodes {
+    fn recognise_file(file: FileToRecognise) -> Result<FileRecognised, Error> {
+        // Read `file.path`; this one says every file is the first Episode.
+        let episodes = RecognisedEpisodes {
+            show_title: file.path,
+            season: 1,
+            episodes: vec![1],
+            ..RecognisedEpisodes::default()
+        };
+        Ok(FileRecognised {
+            recognised: Some(episodes.into()),
+            ..FileRecognised::default()
+        })
+    }
+}
+
+nama_pdk::recogniser!(AbsoluteEpisodes, [recognise_file]);
+```
+
+## 8. HTTP
 
 Send requests with `nama_pdk::http_request`, which works like `extism_pdk::http::request` but takes the error the call fails with when nothing answers. Which hosts a Plugin may reach (`allowed_hosts` and its URL settings' hosts) is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Read the time with `nama_pdk::now`, never `SystemTime::now()`.
 
 Plugins are not given HTTP response headers today: a response carries its status and body only. A later stage may add them, so don't build on either.
 
-## 8. The call budget
+## 9. The call budget
 
 Each call has a memory and a time limit, and three crashes in a row disable the Plugin; the numbers and what counts as a crash are in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). Keep each call short: hand work to the outside service and report on it later, as a Fulfiller's `progress` does.
 
-## 9. Errors
+## 10. Errors
 
 An export's error is its message to people. `manifest()`'s gets the Plugin refused and `check_settings()`'s is shown to the admin testing, and the trait docs' `# Errors` say where each point's goes, such as `fulfill`'s, which becomes the reason a Request shows as Failed. Write it as a sentence an admin can act on. A panic reaches the Server with its message, not as a bare trap.
 
-## 10. Building and installing
+## 11. Building and installing
 
 ```sh
 rustup target add wasm32-unknown-unknown

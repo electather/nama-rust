@@ -12,6 +12,7 @@ use nama_plugin_api::{
     metadata::TitleSource,
     notifier::Notifier,
     points::Events,
+    recogniser::Recogniser,
 };
 use nama_plugin_proto::services;
 use tracing::warn;
@@ -118,6 +119,10 @@ pub(super) const TITLE_EPISODE: Method =
 pub(super) const TITLE_IMAGE: Method = optional(services::TITLE_SOURCE, "Image", "title_image");
 pub(super) const TITLE_ARTWORK: Method =
     optional(services::TITLE_SOURCE, "Artwork", "title_artwork");
+pub(super) const RECOGNISE_TITLE: Method =
+    optional(services::RECOGNISER, "RecogniseTitle", "recognise_title");
+pub(super) const RECOGNISE_FILE: Method =
+    optional(services::RECOGNISER, "RecogniseFile", "recognise_file");
 pub(super) const TICK: Method = Method {
     failure: Failure::Observer,
     ..provider(services::AUTOMATION, "Tick", "tick")
@@ -197,6 +202,15 @@ pub(super) const POINTS: &[Point] = &[
         key: PointKey::provide::<dyn Automation>,
         register: |registrar, running| {
             registrar.provide::<dyn Automation>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        service: services::RECOGNISER,
+        crash_group: services::RECOGNISER,
+        methods: &[RECOGNISE_TITLE, RECOGNISE_FILE],
+        key: PointKey::provide::<dyn Recogniser>,
+        register: |registrar, running| {
+            registrar.provide::<dyn Recogniser>(Priority::DEFAULT, Arc::new(running));
         },
     },
 ];

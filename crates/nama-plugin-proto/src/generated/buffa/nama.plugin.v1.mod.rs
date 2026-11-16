@@ -8,6 +8,7 @@ include!("nama.plugin.v1.fulfiller.rs");
 include!("nama.plugin.v1.manifest.rs");
 include!("nama.plugin.v1.notifier.rs");
 include!("nama.plugin.v1.title_source.rs");
+include!("nama.plugin.v1.recogniser.rs");
 #[allow(
     non_camel_case_types,
     dead_code,
@@ -33,6 +34,7 @@ pub mod __buffa {
         include!("nama.plugin.v1.manifest.__view.rs");
         include!("nama.plugin.v1.notifier.__view.rs");
         include!("nama.plugin.v1.title_source.__view.rs");
+        include!("nama.plugin.v1.recogniser.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -42,6 +44,7 @@ pub mod __buffa {
             include!("nama.plugin.v1.fulfiller.__view_oneof.rs");
             include!("nama.plugin.v1.manifest.__view_oneof.rs");
             include!("nama.plugin.v1.notifier.__view_oneof.rs");
+            include!("nama.plugin.v1.recogniser.__view_oneof.rs");
         }
     }
     pub mod oneof {
@@ -53,6 +56,7 @@ pub mod __buffa {
         include!("nama.plugin.v1.fulfiller.__oneof.rs");
         include!("nama.plugin.v1.manifest.__oneof.rs");
         include!("nama.plugin.v1.notifier.__oneof.rs");
+        include!("nama.plugin.v1.recogniser.__oneof.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
     pub fn register_types(reg: &mut ::buffa::type_registry::TypeRegistry) {
@@ -152,6 +156,12 @@ pub mod __buffa {
         reg.register_json_any(super::__SEASON_JSON_ANY);
         reg.register_json_any(super::__EPISODE_JSON_ANY);
         reg.register_json_any(super::__IMAGE_JSON_ANY);
+        reg.register_json_any(super::__TITLE_TO_RECOGNISE_JSON_ANY);
+        reg.register_json_any(super::__TITLE_RECOGNISED_JSON_ANY);
+        reg.register_json_any(super::__FILE_TO_RECOGNISE_JSON_ANY);
+        reg.register_json_any(super::__FILE_RECOGNISED_JSON_ANY);
+        reg.register_json_any(super::__RECOGNISED_MOVIE_JSON_ANY);
+        reg.register_json_any(super::__RECOGNISED_EPISODES_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -538,5 +548,29 @@ pub use self::__buffa::view::EpisodeOwnedView;
 pub use self::__buffa::view::ImageView;
 #[doc(inline)]
 pub use self::__buffa::view::ImageOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleToRecogniseView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleToRecogniseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleRecognisedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleRecognisedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FileToRecogniseView;
+#[doc(inline)]
+pub use self::__buffa::view::FileToRecogniseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FileRecognisedView;
+#[doc(inline)]
+pub use self::__buffa::view::FileRecognisedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RecognisedMovieView;
+#[doc(inline)]
+pub use self::__buffa::view::RecognisedMovieOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RecognisedEpisodesView;
+#[doc(inline)]
+pub use self::__buffa::view::RecognisedEpisodesOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

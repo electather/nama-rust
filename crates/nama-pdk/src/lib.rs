@@ -24,10 +24,15 @@ pub use nama_plugin_proto::{
 
 mod automation;
 mod notification_text;
+mod recogniser;
 
 pub use automation::{
     Automation, Library, LibraryKind, Permission, Tick, Title, TitleRef, TitleRefKind,
     TitleWatchStates, WatchState, kernel,
+};
+pub use recogniser::{
+    FileRecognised, FileToRecognise, Recognised, RecognisedEpisodes, RecognisedMovie, Recogniser,
+    TitleRecognised, TitleToRecognise,
 };
 
 /// What a notification says happened, in the Glossary's words, or `None` for what isn't told.

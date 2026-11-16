@@ -44,6 +44,7 @@ mod bundled;
 mod contract;
 mod listing;
 mod load;
+mod recogniser;
 mod services;
 mod title_source;
 

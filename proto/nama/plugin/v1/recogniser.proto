@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+import "nama/plugin/v1/automation.proto";
+import "nama/plugin/v1/request.proto";
+import "nama/plugin/v1/title_source.proto";
+
+// The Extension Point for a Recogniser, which proposes what a file is or which title an Item
+// names. The Kernel decides: it owns Matches and the Unmatched decision, and its own Matching is
+// what it falls back to (ADR 0050). An Installed Plugin serves it through the WASM exports each
+// rpc names, each taking and returning its messages encoded as protobuf.
+//
+// Every rpc is optional: a Plugin without its export isn't asked. An answer left empty means the
+// Recogniser can't tell, and the Kernel asks the next one. An export that fails leaves the Item or
+// file undecided until the next Scan.
+service RecogniserService {
+  // The `recognise_title` export: the ids of the title an Item names, which the Kernel's own
+  // search couldn't settle. Optional.
+  rpc RecogniseTitle(TitleToRecognise) returns (TitleRecognised);
+  // The `recognise_file` export: what a file the Kernel's name parser can't read is, such as an
+  // Episode numbered from the start of the Show. Optional.
+  rpc RecogniseFile(FileToRecognise) returns (FileRecognised);
+}
+
+// What the `recognise_title` export is asked about: an Item the Kernel parsed from its files.
+message TitleToRecognise {
+  // Movie or Show.
+  TitleKind kind = 1;
+  // The title, as the files or folders name it.
+  string title = 2;
+  // The year a Movie was released or a Show first aired, if the name gives one.
+  optional int32 year = 3;
+  // The Item's files, relative to the Library's folder and `/`-separated.
+  repeated string paths = 4;
+  // What the Library's title sources found for the title, best first. Empty if they found
+  // nothing.
+  repeated Candidate candidates = 5;
+}
+
+// What the `recognise_title` export returns.
+message TitleRecognised {
+  // The title's ids, at most one per namespace. Empty if the Recogniser can't tell.
+  repeated TitleId ids = 1;
+}
+
+// What the `recognise_file` export is asked about: a file the Kernel's name parser made no Item
+// from.
+message FileToRecognise {
+  // The file, relative to the Library's folder and `/`-separated.
+  string path = 1;
+  // What the Library holds.
+  LibraryKind library_kind = 2;
+}
+
+// What the `recognise_file` export returns.
+message FileRecognised {
+  // What the file is, unset if the Recogniser can't tell.
+  oneof recognised {
+    RecognisedMovie movie = 1;
+    RecognisedEpisodes episodes = 2;
+  }
+}
+
+// A file recognised as a Movie, which the Kernel then Matches as usual.
+message RecognisedMovie {
+  // The Movie's title.
+  string title = 1;
+  // The year it was released, if known.
+  optional int32 year = 2;
+  // Its ids, if known, at most one per namespace; the Kernel uses them as an ID Hint.
+  repeated TitleId ids = 3;
+}
+
+// A file recognised as one or more Episodes of a Show, which the Kernel then Matches as usual.
+message RecognisedEpisodes {
+  // The Show's title.
+  string show_title = 1;
+  // The year the Show first aired, if known.
+  optional int32 show_year = 2;
+  // The Season the Episodes are in. Season 0 holds specials.
+  uint32 season = 3;
+  // The Episodes' numbers within the Season, in order.
+  repeated uint32 episodes = 4;
+}

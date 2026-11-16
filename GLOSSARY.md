@@ -112,6 +112,10 @@ _Avoid_: driver, backend, adapter
 A Provider that finds and fetches Movies and Shows by a Namespace of External IDs, such as TMDB or TVDB. It keeps its titles under one Namespace and may look them up by others. Each Library asks its own title sources in its own order (ADR 0044).
 _Avoid_: metadata provider, metadata agent, scraper
 
+**Recogniser**:
+A Provider that proposes what a file is, such as an Episode numbered from the start of its Show, or which title an Item names. The Kernel decides: it alone writes Matches and marks an Item Unmatched, and its own Matching is what it falls back to. Each Library asks its own Recognisers in its own order (ADR 0050).
+_Avoid_: matcher (the code's `matching::Matcher` fixes Matches by hand), parser, identifier
+
 **Fulfiller**:
 A Provider that hands Approved Requests to an outside service, such as Sonarr or Radarr, reports how they're progressing, and has the service stop monitoring what's been deleted, so it doesn't download it again.
 _Avoid_: downloader, *arr, client
