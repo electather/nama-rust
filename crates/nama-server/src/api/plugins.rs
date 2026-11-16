@@ -262,7 +262,7 @@ pub(super) async fn logo(
 
 /// The refusal of a Plugin change or settings check failing with `err`. A database failure is
 /// the Server's, logged and not sent.
-fn change_refused(err: ChangeError) -> ConnectError {
+pub(super) fn change_refused(err: ChangeError) -> ConnectError {
     match err {
         ChangeError::Unknown(id) => plugin_not_found(&id),
         ChangeError::Refused { plugin, reason } => EnableError::Refused { plugin, reason }.into(),

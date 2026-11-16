@@ -14,6 +14,12 @@ import "nama/plugin/v1/automation.proto";
 // `CheckedSettings`, or fails with an error an admin can act on. The Server calls it only when an
 // admin tests settings, which may be unsaved, so the hosts of the URL settings tested are allowed
 // for that call alone.
+//
+// A Plugin with `personal_settings` may also export `check_personal_settings()`, which takes
+// `PersonalSettingsCheck` and checks one User's Personal settings. It returns
+// `PersonalSettingsChecked`, or fails with an error that User can act on, which refuses the save.
+// The Server calls it when a User saves their Personal settings, with the Plugin's saved settings
+// in its Extism config and HTTP only to the hosts those settings allow.
 message Manifest {
   // The Plugin's stable, unique name, such as "sonarr".
   string id = 1;
@@ -109,6 +115,17 @@ message CheckedSettings {
   // The choices for each `SETTING_KIND_CHOICE` setting, by key.
   map<string, SettingChoices> choices = 1;
 }
+
+// What an Installed Plugin's `check_personal_settings()` takes: one User's Personal settings as
+// they would be saved.
+message PersonalSettingsCheck {
+  // Each Personal setting's value under its key, as text, as `UserRecipient.personal_settings`
+  // carries them. A secret the User left as it was holds its saved value.
+  map<string, string> personal_settings = 1;
+}
+
+// What an Installed Plugin's `check_personal_settings()` returns when the Personal settings work.
+message PersonalSettingsChecked {}
 
 // What kind of value a setting takes.
 enum SettingKind {

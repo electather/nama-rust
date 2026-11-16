@@ -408,6 +408,8 @@ export const RefusalReason = {
    * has none. The message says why in plain words: the Plugin's own for a failed check, which can't
    * be translated, or else the Server's. Params: `pluginId`, and `timeoutSeconds` for a check that ran
    * too long. A refused save names the choice setting it couldn't check in `field` and `settingKey`.
+   * A User's save of their Personal settings is refused the same way when the Plugin's check of
+   * them fails, naming no `field`.
    *
    * @generated from enum value: REFUSAL_REASON_SETTINGS_CHECK_FAILED = 45;
    */

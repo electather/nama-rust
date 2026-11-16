@@ -21,14 +21,14 @@ use nama_plugin_api::{
     fulfiller::{Download, Fulfiller, Request, TryAgainIn},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
     points::{Events, ObservedEvents},
-    settings::{Choice, Choices, SettingKind, Settings, SettingsCheck},
+    settings::{Choice, Choices, PersonalSettingsCheck, SettingKind, Settings, SettingsCheck},
 };
 use nama_plugin_proto::{
     CONTRACT_VERSION, SERVICES,
     nama::plugin::v1::{
         self as wire, Channel, CheckedSettings, ConnectionPoll, ConnectionPolled, ConnectionStart,
-        Delivered, Delivery, EventsObserved, Fulfilled, Progress, ProgressAsked, StopMonitoring,
-        StoppedMonitoring, Ticked, Unfollowed, UserRecipient,
+        Delivered, Delivery, EventsObserved, Fulfilled, PersonalSettingsChecked, Progress,
+        ProgressAsked, StopMonitoring, StoppedMonitoring, Ticked, Unfollowed, UserRecipient,
     },
 };
 use semver::{Version, VersionReq};
@@ -62,7 +62,8 @@ use load::{
     extism_config,
 };
 use services::{
-    CHECK_SETTINGS, DELIVER, OBSERVE_EVENTS, POINTS, POLL_CONNECTION, Point, START_CONNECTION, TICK,
+    CHECK_PERSONAL_SETTINGS, CHECK_SETTINGS, DELIVER, OBSERVE_EVENTS, POINTS, POLL_CONNECTION,
+    Point, START_CONNECTION, TICK,
 };
 
 /// How many calls in a row may crash before the Plugin is disabled, so one bad input doesn't
@@ -305,6 +306,12 @@ impl Plugin for Installed {
 
     fn settings_check(&self) -> Option<&dyn SettingsCheck> {
         self.checks_settings.then_some(self)
+    }
+
+    fn personal_settings_check(&self) -> Option<&dyn PersonalSettingsCheck> {
+        self.exports
+            .contains(CHECK_PERSONAL_SETTINGS)
+            .then_some(self)
     }
 
     // ponytail: compiles on the calling thread, an async one when an admin enables it; wasmtime's
@@ -574,8 +581,16 @@ impl Automation for Running {
     }
 }
 
-impl SettingsCheck for Installed {
-    fn check<'a>(&'a self, settings: &'a Settings) -> BoxFuture<'a, Result<Choices, PluginError>> {
+impl Installed {
+    /// Calls `export` with `input` on a fresh instance compiled with `settings`, failing it as a
+    /// [`CheckTimedOut`] past [`CALL_TIMEOUT`]. A trap or panic unwinds, so the registry logs why
+    /// and fails the check in plain words, as it does when a Built-in Plugin's check panics.
+    fn call_fresh(
+        &self,
+        settings: &Settings,
+        export: &'static str,
+        input: Vec<u8>,
+    ) -> BoxFuture<'static, Result<Vec<u8>, PluginError>> {
         let schema = &self.manifest.settings;
         let hosts = allowed_hosts(&self.package, schema, settings);
         let config = extism_config(schema, settings);
@@ -587,27 +602,56 @@ impl SettingsCheck for Installed {
             let called = task::spawn_blocking(move || {
                 let compiled = compile(&wasm, &cache_config, hosts, config)?;
                 extism::Plugin::new_from_compiled(&compiled.plugin)?
-                    .call::<(), Vec<u8>>(CHECK_SETTINGS, ())
+                    .call::<Vec<u8>, Vec<u8>>(export, input)
             })
             .await;
-            let output = match called {
-                Ok(Ok(output)) => output,
-                Ok(Err(err)) if is_timeout(&err) => return Err(CheckTimedOut(CALL_TIMEOUT).into()),
-                // So the registry logs why and fails the check in plain words, as it does when a
-                // Built-in Plugin's check panics.
+            match called {
+                Ok(Ok(output)) => Ok(output),
+                Ok(Err(err)) if is_timeout(&err) => Err(CheckTimedOut(CALL_TIMEOUT).into()),
                 Ok(Err(err)) if is_crash(&err) => {
                     panic::resume_unwind(Box::new(failure_cause(&err)))
                 }
-                Ok(Err(err)) => return Err(failure_cause(&err).into()),
+                Ok(Err(err)) => Err(failure_cause(&err).into()),
                 Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
-                Err(err) => return Err(err.into()),
-            };
-            let checked = CheckedSettings::decode_from_slice(&output).map_err(|err| {
+                Err(err) => Err(err.into()),
+            }
+        })
+    }
+}
+
+impl SettingsCheck for Installed {
+    fn check<'a>(&'a self, settings: &'a Settings) -> BoxFuture<'a, Result<Choices, PluginError>> {
+        let called = self.call_fresh(settings, CHECK_SETTINGS, Vec::new());
+        Box::pin(async move {
+            let checked = CheckedSettings::decode_from_slice(&called.await?).map_err(|err| {
                 format!(
                     "its {CHECK_SETTINGS}() returned something that isn't CheckedSettings: {err}"
                 )
             })?;
             Ok(choices(checked))
+        })
+    }
+}
+
+impl PersonalSettingsCheck for Installed {
+    fn check<'a>(
+        &'a self,
+        settings: &'a Settings,
+        personal: &'a BTreeMap<String, String>,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        let asked = wire::PersonalSettingsCheck {
+            personal_settings: personal.clone().into_iter().collect(),
+            ..Default::default()
+        };
+        let called = self.call_fresh(settings, CHECK_PERSONAL_SETTINGS, asked.encode_to_vec());
+        Box::pin(async move {
+            PersonalSettingsChecked::decode_from_slice(&called.await?).map_err(|err| {
+                format!(
+                    "its {CHECK_PERSONAL_SETTINGS}() returned something that isn't \
+                     PersonalSettingsChecked: {err}"
+                )
+            })?;
+            Ok(())
         })
     }
 }

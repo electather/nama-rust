@@ -15,8 +15,8 @@ mod exports {
         Notifier, Recipient, Request,
         extism_pdk::{self, Error, HttpRequest, config, http},
         nama_plugin_proto::nama::plugin::v1::{
-            ObservedEvents, SettingField, SettingKind, SettingValue, request::MovieOrSeason,
-            setting_value,
+            ObservedEvents, PersonalSettingsCheck, PersonalSettingsChecked, SettingField,
+            SettingKind, SettingValue, request::MovieOrSeason, setting_value,
         },
         plugin_fn, services,
     };
@@ -298,6 +298,27 @@ mod exports {
                 let profiles = [("1", "HD"), ("2", "Ultra HD")];
                 Ok(Buffa(nama_pdk::checked_settings([("profile", profiles)])))
             }
+        }
+    }
+
+    // Refuses the `handle` `taken` as taken, and the `handle` `echo` quoting the `token`, so a
+    // test sees a secret blanked. The `handle` `loop` loops forever and `panic` panics; any other
+    // passes.
+    #[plugin_fn]
+    pub fn check_personal_settings(
+        Buffa(asked): Buffa<PersonalSettingsCheck>,
+    ) -> FnResult<Buffa<PersonalSettingsChecked>> {
+        let value = |key: &str| asked.personal_settings.get(key).map(String::as_str);
+        match value(HANDLE) {
+            Some("taken") => Err(Error::msg("the handle taken is someone else's").into()),
+            Some("echo") => {
+                let token = value("token").unwrap_or_default();
+                Err(Error::msg(format!("the token {token} doesn't open echo")).into())
+            }
+            Some("loop") => loop_forever(),
+            #[expect(clippy::panic, reason = "it panics on purpose")]
+            Some("panic") => panic!("the test Plugin's Personal settings check was set to panic"),
+            _ => Ok(Buffa(PersonalSettingsChecked::default())),
         }
     }
 
