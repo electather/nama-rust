@@ -8,11 +8,10 @@ use crate::{
     config::Config,
     db::Database,
     ffmpeg::{self, Ffmpeg},
-    library::contents::{
-        Change, Contents, Decided, Item, Stored,
+    library::{
+        Change, Contents, Decided, Item, Libraries, LibraryKind as Kind, Stored,
         fixture::{decide, tmdb_movie},
     },
-    library::libraries::{Kind, Libraries},
     playback::{
         subtitles,
         tracks::{BaseLayer, Hdr, PROBE_VERSION, Probe, Track, TrackKind, Tracks},

@@ -340,7 +340,7 @@ async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() 
         db::Database,
         events::EventBus,
         ffmpeg::{Abilities, Ffmpeg},
-        library::contents::{
+        library::{
             Contents,
             fixture::{MatchedMovie, tmdb_movie},
         },

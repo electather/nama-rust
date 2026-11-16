@@ -9,7 +9,7 @@ use std::{
 use nama_plugin_api::settings::{SettingKind, SettingValue, SettingsSchema};
 
 use super::{ChangeError, PluginSettings};
-use crate::library::libraries::{self, Libraries};
+use crate::library::{Libraries, LibraryError};
 
 impl PluginSettings {
     /// Refuses `settings` if a Libraries setting `schema` declares names an id no Library has.
@@ -42,9 +42,9 @@ impl PluginSettings {
     clippy::wildcard_enum_match_arm,
     reason = "listing only reads, so it fails with nothing but a database error"
 )]
-fn list_failed(err: libraries::Error) -> ChangeError {
+fn list_failed(err: LibraryError) -> ChangeError {
     match err {
-        libraries::Error::Database(err) => ChangeError::Database(err),
+        LibraryError::Database(err) => ChangeError::Database(err),
         other => ChangeError::Database(sqlx::Error::Protocol(other.to_string())),
     }
 }

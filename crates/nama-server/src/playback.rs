@@ -20,11 +20,11 @@ mod choices;
 mod codecs;
 mod direct_play;
 mod limits;
-pub(crate) mod probing;
-pub(crate) mod running;
+mod probing;
+mod running;
 mod steps;
-pub(crate) mod subtitles;
-pub(crate) mod track_preferences;
+mod subtitles;
+mod track_preferences;
 mod tracks;
 
 pub(crate) use direct_play::router;

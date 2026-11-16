@@ -2,12 +2,10 @@
 //! State. Its rules are in `src/library/AGENTS.md`.
 
 mod artwork;
-// playback's files still name it; surface-playback makes it private.
-pub(crate) mod contents;
+mod contents;
 mod country_tags;
 mod custom_images;
-// Playback and plugin_settings/library_ids.rs still name it; surface-playback makes it private.
-pub(crate) mod libraries;
+mod libraries;
 mod scan_locks;
 mod title_source;
 mod versions;

@@ -14,7 +14,7 @@ use futures_util::StreamExt as _;
 use tower_http::services::ServeFile;
 
 use super::{Tracks, running::RunningPlans, subtitles};
-use crate::{ffmpeg::Ffmpeg, library::contents::Contents, users::Caller};
+use crate::{ffmpeg::Ffmpeg, library::Contents, users::Caller};
 
 pub(super) fn direct_play_url(version: i64) -> String {
     format!("/media/versions/{version}")

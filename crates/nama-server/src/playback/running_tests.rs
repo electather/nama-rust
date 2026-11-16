@@ -15,7 +15,7 @@ use crate::{
     db::Database,
     events::{EventBus, Filter, event},
     ffmpeg::{Ffmpeg, Keyframe},
-    library::contents::Contents,
+    library::Contents,
     playback::{Probing, subtitles},
     plugins::ExtensionPoints,
     server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},

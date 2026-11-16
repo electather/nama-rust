@@ -32,7 +32,7 @@ use super::{
 use crate::{
     db::Database,
     ffmpeg::Ffmpeg,
-    library::contents::{Contents, Stored},
+    library::{Contents, Stored},
 };
 
 /// How many files background passes probe at once, across all Libraries. Each probe reads only a

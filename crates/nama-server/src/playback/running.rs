@@ -67,7 +67,7 @@ use super::{
 use crate::{
     events::{EventBus, event},
     ffmpeg::{Ffmpeg, FromCut, Keyframe, Remux, Transcode},
-    library::contents::Contents,
+    library::Contents,
     server_settings::PlaybackSettings,
     users::Caller,
 };
