@@ -6,7 +6,7 @@ use nama_plugin_api::{
 use super::{
     super::{
         Change, Decided, ImageRef, Item, ItemKind,
-        fixture::tmdb_movie,
+        fixture::{MatchedMovie, tmdb_movie},
         testing::{ALIEN, Fixture, movie},
     },
     TitlesIn, library_with_movie, matched_episodes, show_poster,
@@ -625,4 +625,73 @@ async fn a_versions_titles_come_with_every_id_and_an_unmatched_episode_as_none()
     let train_job = (ExternalId::tmdb(1001), train_job_ids);
     assert_eq!(episodes, TitlesIn::Episodes(vec![None, Some(train_job)]));
     assert_eq!(unknown, TitlesIn::NoSuchVersion);
+}
+
+/// Stores and Matches a file for each `(title, tmdb)` Movie, in the order given.
+async fn match_movies(fx: &Fixture, titles: &[(&str, i64)]) {
+    for &(title, tmdb) in titles {
+        let path = format!("/media/{title}/{title}.mkv");
+        MatchedMovie::store(&fx.contents, fx.library, &path, tmdb_movie(tmdb, title)).await;
+    }
+}
+
+async fn movie_titles(fx: &Fixture) -> Vec<String> {
+    let movies = fx.contents.movies(fx.library).await.unwrap();
+    movies.into_iter().map(|found| found.title).collect()
+}
+
+#[tokio::test]
+async fn movies_come_in_title_order_ignoring_case() {
+    let fx = Fixture::new().await;
+    match_movies(
+        &fx,
+        &[("THE RIBBON HERO", 1), ("Tenet", 2), ("The Matrix", 3)],
+    )
+    .await;
+
+    assert_eq!(
+        movie_titles(&fx).await,
+        ["Tenet", "The Matrix", "THE RIBBON HERO"]
+    );
+}
+
+#[tokio::test]
+async fn movies_whose_titles_differ_only_in_case_come_in_their_order_as_written() {
+    let fx = Fixture::new().await;
+    // Stored and numbered against the expected order, so only the tie-break by title as
+    // written can pass: a stable sort on the lowercased title alone would keep "Up" first.
+    match_movies(&fx, &[("Up", 1), ("UP", 2)]).await;
+
+    assert_eq!(movie_titles(&fx).await, ["UP", "Up"]);
+}
+
+#[tokio::test]
+async fn shows_come_in_title_order_ignoring_case() {
+    let fx = Fixture::new().await;
+    for (show, mal_id) in [("BEEF", "1"), ("Band of Brothers", "2")] {
+        let path = format!("/media/{show}/Season 01/{show} - S01E01.mkv");
+        let episode = Item::Episode {
+            show: show.to_owned(),
+            year: None,
+            hint: None,
+            season: 1,
+            episode: 1,
+        };
+        fx.store(&path, 10, episode).await;
+        let item = fx.item(&path).await;
+        let metadata = super::super::Metadata {
+            ids: ExternalIds::from_iter([made_up("mal", &format!("e-{mal_id}"))]),
+            show_ids: ExternalIds::from_iter([made_up("mal", mal_id)]),
+            show_title: Some(show.to_owned()),
+            ..tmdb_movie(0, "Pilot")
+        };
+        fx.contents
+            .record(vec![(item, Decided::Matched(Box::new(metadata)))])
+            .await
+            .unwrap();
+    }
+
+    let shows = fx.contents.shows(fx.library).await.unwrap();
+    let titles: Vec<_> = shows.iter().map(|show| show.title.as_str()).collect();
+    assert_eq!(titles, ["Band of Brothers", "BEEF"]);
 }
