@@ -1,5 +1,5 @@
 //! Changing a running Plugin's grants over the API leaves what runs and what is stored agreeing,
-//! even when the Plugin won't enable with the new grants (ADR 0049).
+//! even when the Plugin won't enable with the new grants (ADR 0028, 0049).
 
 #[path = "support/server.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -15,9 +15,11 @@ use connectrpc::client::HttpClient;
 use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, Registrar,
     automation::{Kernel, Permission, UsersAsked},
+    settings::{SettingField, SettingKind, SettingsSchema},
 };
 use nama_proto::nama::v1::{
     EnablePluginRequest, ListPluginsRequest, PluginPermission, PluginServiceClient, PluginSummary,
+    SettingValue, UpdatePluginSettingsRequest, setting_value::Value,
 };
 use nama_server::plugins::Registry;
 use server::TestServer;
@@ -57,23 +59,38 @@ impl Shared {
     }
 }
 
-/// An in-process Plugin listed as Installed that requests the Store and Users Permissions and
-/// registers nothing.
+/// The value of the Grantee's `mood` setting it refuses to start with.
+const SULKY: &str = "sulky";
+
+/// An in-process Plugin listed as Installed that requests the Store and Users Permissions,
+/// registers nothing, and refuses to start with the `mood` [`SULKY`].
 struct Grantee(&'static Shared);
 
 impl Plugin for Grantee {
     fn manifest(&self) -> Manifest {
+        let mood = SettingField {
+            key: "mood".to_owned(),
+            label: "Mood".to_owned(),
+            description: String::new(),
+            kind: SettingKind::Text,
+            required: false,
+            default: None,
+        };
         Manifest {
             version: "0.0.0".to_owned(),
             permissions: vec![
                 Permission::PERMISSION_STORE,
                 Permission::PERMISSION_READ_USERS,
             ],
+            settings: SettingsSchema { fields: vec![mood] },
             ..Manifest::new(PluginId::from_static("grantee"))
         }
     }
 
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        if registrar.settings().text("mood") == Some(SULKY) {
+            return Err("too sulky to start".into());
+        }
         let failing = self
             .0
             .failures
@@ -100,6 +117,14 @@ fn fails_once() -> Registry {
 fn fails_twice() -> Registry {
     let registry = Registry::new();
     registry.list_as_installed(vec![|| Arc::new(Grantee(&FAILS_TWICE))]);
+    registry
+}
+
+static REFUSES_A_SETTING: Shared = Shared::new();
+
+fn refuses_a_setting() -> Registry {
+    let registry = Registry::new();
+    registry.list_as_installed(vec![|| Arc::new(Grantee(&REFUSES_A_SETTING))]);
     registry
 }
 
@@ -134,6 +159,23 @@ async fn enable_granting(
         ..Default::default()
     };
     client(server).enable_plugin(request).await.map(drop)
+}
+
+/// Saves `mood` as the Grantee's mood.
+async fn update_mood(server: &TestServer, mood: &str) -> Result<(), connectrpc::ConnectError> {
+    let mood = SettingValue {
+        value: Some(Value::TextValue(mood.to_owned())),
+        ..Default::default()
+    };
+    let request = UpdatePluginSettingsRequest {
+        id: "grantee".to_owned(),
+        settings: std::iter::once(("mood".to_owned(), mood)).collect(),
+        ..Default::default()
+    };
+    client(server)
+        .update_plugin_settings(request)
+        .await
+        .map(drop)
 }
 
 fn values(permissions: &[PluginPermission]) -> Vec<EnumValue<PluginPermission>> {
@@ -194,4 +236,19 @@ async fn a_plugin_that_wont_enable_with_new_grants_nor_its_old_ones_is_saved_dis
         .restart(server)
         .await;
     assert!(!listed(&server).await.enabled);
+}
+
+#[tokio::test]
+async fn new_grants_that_fail_after_refused_settings_put_it_back_with_the_settings_it_ran_with() {
+    let server = granted_the_store(refuses_a_setting()).await;
+    update_mood(&server, SULKY).await.unwrap();
+    assert!(listed(&server).await.enabled);
+
+    // Enabled with the sulky mood saved, which it refuses, and put back with no mood, as it ran.
+    let changed = enable_granting(&server, &[STORE, READ_USERS]).await;
+
+    assert!(changed.is_err(), "{changed:?}");
+    let summary = listed(&server).await;
+    assert!(summary.enabled);
+    assert_eq!(summary.granted_permissions, values(&[STORE]));
 }

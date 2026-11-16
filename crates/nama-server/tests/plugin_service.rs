@@ -753,21 +753,23 @@ async fn enabling_a_plugin_that_refuses_to_start_is_refused_with_its_reason() {
 }
 
 #[tokio::test]
-async fn settings_a_plugin_refuses_to_start_with_are_saved_and_it_comes_back_not_running() {
+async fn settings_a_plugin_refuses_to_start_with_are_saved_and_it_runs_on_with_its_old_ones() {
     let started = Started::with(&test_choices_with_profile()).await;
+    let refused = || {
+        [
+            ("profile", text("1")),
+            ("fail_with", text(test_choices::REFUSE)),
+        ]
+    };
 
-    let updated = started
-        .update(
-            test_choices::ID,
-            [
-                ("profile", text("1")),
-                ("fail_with", text(test_choices::REFUSE)),
-            ],
-        )
-        .await;
+    // Twice, so the second puts it back as it runs, not with the refused settings saved.
+    let first = started.update(test_choices::ID, refused()).await;
+    let second = started.update(test_choices::ID, refused()).await;
 
-    assert!(!updated.unwrap().plugin.unwrap().summary.enabled);
+    assert!(first.unwrap().plugin.unwrap().summary.enabled);
+    assert!(second.unwrap().plugin.unwrap().summary.enabled);
     let config = started.stored().await.remove(test_choices::ID).unwrap();
+    assert!(config.enabled);
     assert_eq!(
         config.settings.get("fail_with"),
         Some(&SettingValue::Text(test_choices::REFUSE.to_owned()))

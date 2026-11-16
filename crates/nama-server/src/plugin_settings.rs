@@ -4,7 +4,7 @@
 //! and every later change to one goes through [`PluginSettings`] (the crate's `AGENTS.md`).
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
     sync::Arc,
 };
@@ -35,6 +35,7 @@ use crate::{
 };
 
 mod put_back;
+mod running;
 mod stored;
 
 pub use stored::{grants, stored};
@@ -57,6 +58,8 @@ pub struct PluginSettings {
     /// changes at once can't leave it running otherwise than the database says.
     // ponytail: one lock for every Plugin; one per Plugin if Admins ever wait on each other.
     changing: Arc<Mutex<()>>,
+    /// What each Plugin was last enabled with, written under `changing` (`running.rs`).
+    running: Arc<std::sync::Mutex<HashMap<PluginId, running::Ran>>>,
     /// The task saving each Plugin disabled for crashing as disabled, until
     /// [`PluginSettings::shutdown`].
     saving_crashed: Arc<std::sync::Mutex<Option<JoinHandle<()>>>>,
@@ -215,6 +218,7 @@ impl PluginSettings {
             registry,
             data_dir: config.data_dir.clone(),
             changing: Arc::default(),
+            running: Arc::default(),
             saving_crashed: Arc::default(),
             stop_saving_crashed: CancellationToken::new(),
             came_up,
@@ -313,10 +317,7 @@ impl PluginSettings {
                 continue;
             }
             let granted = grants.get(id.as_str()).cloned().unwrap_or_default();
-            match self
-                .registry
-                .enable_by_id_granting(&id, Settings::new(config.settings), granted)
-            {
+            match self.enable_with(&id, config.settings, granted) {
                 Ok(()) => self.queue_came_up(&id),
                 Err(err) => log_not_enabled(&id, &err),
             }
@@ -396,8 +397,9 @@ impl PluginSettings {
 
     /// Saves `sent` as the Plugin `id`'s settings, a secret left out keeping its stored value, then
     /// applies them if it is stored as enabled, so a restart retries settings that fail to enable
-    /// it (ADR 0028). Returns the Plugin as it is now, enabled only if running, with what is
-    /// stored for it.
+    /// it (ADR 0028). One that fails to enable with them is put back as it ran, as
+    /// [`PluginSettings::enable_granting`] puts one back. Returns the Plugin as it is now, enabled
+    /// only if running, with what is stored for it.
     ///
     /// # Errors
     ///
@@ -429,7 +431,8 @@ impl PluginSettings {
             this.check_choices(&manifest, &settings).await?;
             save(&this.db, id.as_str(), stored.enabled, &settings).await?;
             if stored.enabled {
-                this.enable_again(&id, &settings, &granted).await;
+                let ran = this.ran_with(&id);
+                this.enable_again(&id, &settings, &granted, ran).await;
             }
             let enabled = this.registry.enabled().contains(&id);
             Ok(StoredPlugin {
@@ -463,9 +466,9 @@ impl PluginSettings {
     ///
     /// If no Plugin has the id or the Server refused it, `granted` names a Permission its Manifest
     /// doesn't request, it can't be enabled, or the database can't be read or written. When
-    /// enabling or saving fails, the Plugin is put back as it ran before: with the grants it had,
-    /// or not at all; should it not enable with those either, it is saved as disabled, so what
-    /// runs and what is stored agree whatever fails.
+    /// enabling or saving fails, the Plugin is put back as it ran before: with the settings and
+    /// grants it ran with, or not at all; should it not enable with those either, it is saved as
+    /// disabled, so what runs and what is stored agree whatever fails.
     pub async fn enable_granting(
         &self,
         id: &PluginId,
@@ -474,14 +477,7 @@ impl PluginSettings {
         let (this, id) = (self.clone(), id.clone());
         detached(async move {
             let _changing = this.lock().await;
-            let (
-                manifest,
-                StoredPlugin {
-                    stored,
-                    granted: before,
-                    ..
-                },
-            ) = this.listed(&id).await?;
+            let (manifest, StoredPlugin { stored, .. }) = this.listed(&id).await?;
             if let Some(&permission) = granted
                 .iter()
                 .find(|permission| !manifest.permissions.contains(permission))
@@ -491,22 +487,21 @@ impl PluginSettings {
                     permission,
                 });
             }
-            let ran_with = this.registry.enabled().contains(&id).then_some(&before);
-            let unchanged = ran_with == Some(&granted);
-            if !unchanged && ran_with.is_some() {
+            // What it runs with, not what is stored, which a failed settings change makes differ.
+            let ran = this.ran_with(&id);
+            let unchanged = ran.as_ref().is_some_and(|ran| ran.granted == granted);
+            if !unchanged && ran.is_some() {
                 // Disabled first, as `enable_again` does, so nothing it registered with its old
                 // grants stays.
                 this.registry.disable(&id).await;
             }
-            match this.registry.enable_by_id_granting(
-                &id,
-                Settings::new(stored.settings.clone()),
-                granted.clone(),
-            ) {
+            match this.enable_with(&id, stored.settings, granted.clone()) {
                 Ok(()) | Err(EnableError::AlreadyEnabled(_)) => {}
+                // Unchanged, it was never disabled and runs on as it ran.
+                Err(err) if unchanged => return Err(ChangeError::Enable(err)),
                 Err(err) => {
                     let err = ChangeError::Enable(err);
-                    this.put_back(&id, &stored.settings, ran_with, &err).await;
+                    this.put_back(&id, ran, &err).await;
                     return Err(err);
                 }
             }
@@ -516,7 +511,7 @@ impl PluginSettings {
             if let Err(err) = &saved
                 && !unchanged
             {
-                this.put_back(&id, &stored.settings, ran_with, err).await;
+                this.put_back(&id, ran, err).await;
             }
             saved?;
             // Queued even if it was running, so enabling it again retries a failed hand-off.
@@ -554,23 +549,21 @@ impl PluginSettings {
 
     /// Enables the Plugin `id` again with `settings` and the Plugin Permissions `granted`, even if
     /// it isn't running, such as TMDB left disabled without its key. Disabled first, so nothing it
-    /// registered with its old settings stays; a failure is logged, since its settings are saved
-    /// and a restart retries them.
+    /// registered with its old settings stays. A failure is logged, since its settings are saved
+    /// and a restart retries them, and the Plugin is put back as it ran, `ran`.
     async fn enable_again(
         &self,
         id: &PluginId,
         settings: &BTreeMap<String, SettingValue>,
         granted: &HashSet<Permission>,
+        ran: Option<running::Ran>,
     ) {
         self.registry.disable(id).await;
-        match self.registry.enable_by_id_granting(
-            id,
-            Settings::new(settings.clone()),
-            granted.clone(),
-        ) {
+        match self.enable_with(id, settings.clone(), granted.clone()) {
             Ok(()) => self.queue_came_up(id),
             Err(err) => {
                 error!(plugin = %id, "could not enable the plugin with its new settings: {err}");
+                self.put_back(id, ran, &err).await;
             }
         }
     }
