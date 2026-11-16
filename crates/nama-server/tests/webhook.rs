@@ -29,7 +29,7 @@ use server::{
 };
 use sha2::Sha256;
 
-const SECRET: &str = "s3cret-signing-key";
+const SIGNING_KEY: &str = "s3cret-signing-key";
 
 fn text(key: &str, value: &str) -> (String, SettingValue) {
     let value = SettingValue {
@@ -126,13 +126,13 @@ async fn a_request_becoming_available_posts_one_json_body_with_its_event_request
 #[tokio::test]
 async fn with_a_key_set_each_body_carries_its_hmac_sha256_signature() {
     let webhook = FakeWebhook::start().await;
-    let server = started(&webhook, Some(SECRET)).await;
+    let server = started(&webhook, Some(SIGNING_KEY)).await;
     let ada = server.user_with_default_permissions("Ada").await;
 
     server.requests(&ada).ask(DUNE).await;
 
     let posted = webhook.wait_for_posts(1).await;
-    let mut mac = Hmac::<Sha256>::new_from_slice(SECRET.as_bytes()).unwrap();
+    let mut mac = Hmac::<Sha256>::new_from_slice(SIGNING_KEY.as_bytes()).unwrap();
     mac.update(&posted[0].body);
     let hmac = mac.finalize().into_bytes();
     let hex = hmac.iter().fold(String::new(), |mut hex, byte| {
