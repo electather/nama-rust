@@ -874,5 +874,5 @@ impl Scanner {
 mod shutdown_tests;
 
 #[cfg(test)]
-#[path = "scanner_tests.rs"]
+#[path = "scanner/scanner_tests.rs"]
 mod tests;
