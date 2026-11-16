@@ -17,6 +17,15 @@ fn system_ffmpeg() -> Ffmpeg {
     ffmpeg
 }
 
+/// Remuxes the file at `path` into `dir` from `from`, as `remux` says, until ffmpeg is done.
+async fn remux_with(ffmpeg: &Ffmpeg, path: &Path, remux: &Remux, dir: &Path, from: Keyframe) {
+    fs::create_dir_all(dir).unwrap();
+    let path = path.to_str().unwrap();
+    let output = ffmpeg.remux(path, remux, dir, from).unwrap();
+    let output = output.spawn().unwrap().wait_with_output().await.unwrap();
+    assert!(output.status.success(), "{output:?}");
+}
+
 /// Remuxes the file at `path` into `dir` from `from`, its audio converted to AAC with
 /// `aac_channels` if given, until ffmpeg is done.
 async fn remux(
@@ -26,17 +35,15 @@ async fn remux(
     from: Keyframe,
     aac_channels: Option<i64>,
 ) {
-    fs::create_dir_all(dir).unwrap();
-    let path = path.to_str().unwrap();
-    let remux = Remux {
-        audio: Some(RemuxAudio {
-            track: 0,
-            aac_channels,
-        }),
+    let audio = RemuxAudio {
+        track: 0,
+        aac_channels,
     };
-    let output = ffmpeg.remux(path, &remux, dir, from).unwrap();
-    let output = output.spawn().unwrap().wait_with_output().await.unwrap();
-    assert!(output.status.success(), "{output:?}");
+    let remux = Remux {
+        audio: Some(audio),
+        hevc: false,
+    };
+    remux_with(ffmpeg, path, &remux, dir, from).await;
 }
 
 /// The fMP4 track ffmpeg writes the video to, mapped first.
@@ -333,6 +340,31 @@ async fn a_remux_started_at_a_keyframe_writes_the_same_files_from_there_on() {
         );
     }
     assert!(!restarted.join("7.m4s").exists());
+}
+
+#[tokio::test]
+async fn an_hevc_remux_writes_its_video_as_hvc1_not_hev1() {
+    let ffmpeg = system_ffmpeg();
+    let work = tempfile::tempdir().unwrap();
+    let file = work.path().join("alien.mkv");
+    write_hevc_with_5_1(&file).unwrap();
+    let dir = work.path().join("remux");
+    let first = Keyframe {
+        n: 0,
+        ms: 0,
+        previous_ms: None,
+    };
+
+    let hevc = Remux {
+        audio: None,
+        hevc: true,
+    };
+    remux_with(&ffmpeg, &file, &hevc, &dir, first).await;
+
+    let init = fs::read(dir.join("init-0.mp4")).unwrap();
+    let has = |name: &[u8]| init.windows(4).any(|window| window == name);
+    assert!(has(b"hvc1"));
+    assert!(!has(b"hev1"));
 }
 
 #[tokio::test]

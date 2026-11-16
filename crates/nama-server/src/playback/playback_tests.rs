@@ -153,6 +153,7 @@ pub(super) const fn remuxing(track: usize, aac_channels: Option<i64>) -> Playing
                 track,
                 aac_channels,
             }),
+            hevc: false,
         },
         duration_ms: LENGTH_MS,
     }

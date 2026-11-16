@@ -8,7 +8,7 @@ use super::{
     choices::burn_in,
     codecs::{
         aac_channels, channels_of, converted_channels, hdr_name, played_hdr, played_tracks,
-        transcoded_hdr, undecodable, undecodable_container,
+        played_video, transcoded_hdr, undecodable, undecodable_container,
     },
     limits::video_limit,
     method_to_proto,
@@ -391,7 +391,11 @@ pub(super) fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> Remux {
         track,
         aac_channels: aac_channels(&facts.device, played),
     });
-    Remux { audio }
+    let video = facts.probe.as_ref().and_then(played_video);
+    Remux {
+        audio,
+        hevc: video.is_some_and(|video| video.codec == "hevc"),
+    }
 }
 
 /// What a Transcode for `facts` converts, playing `audio` as [`remux`] does.
