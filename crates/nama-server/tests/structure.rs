@@ -3,6 +3,8 @@
 
 #[path = "structure/rows.rs"]
 mod rows;
+#[path = "structure/surfaces.rs"]
+mod surfaces;
 
 use std::{
     fs,

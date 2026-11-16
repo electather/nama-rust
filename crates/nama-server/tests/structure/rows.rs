@@ -105,8 +105,8 @@ fn quoted_len(rest: &str, open: usize, hashes: usize) -> usize {
 /// `crate::`.
 #[derive(Debug, PartialEq)]
 pub(super) struct Import {
-    line: usize,
-    path: Vec<String>,
+    pub(super) line: usize,
+    pub(super) path: Vec<String>,
 }
 
 /// A token of code: a word, or a single other character, with its line.
