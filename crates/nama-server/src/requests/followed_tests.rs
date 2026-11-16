@@ -60,7 +60,6 @@ async fn following_a_show_asks_for_each_season_and_hands_them_off_only_if_approv
     }
 }
 
-/// Whether the Followed Show `id` covers each of the Seasons `numbers`.
 async fn covered(db: &Database, id: i64, numbers: &'static [u32]) -> Vec<bool> {
     db.write(move |tx| {
         Box::pin(async move {
@@ -110,13 +109,13 @@ async fn joining_a_followed_show_opened_before_its_show_had_seasons_covers_its_s
     let (_data, db) = ada_and_bob().await;
 
     let opened = follow_as(&db, ADA, dark_with_seasons([]), RequestState::Approved).await;
+    let id = opened.value.0.id;
+    let covered_before = covered(&db, id, &[0]).await;
     let joined = follow_as(&db, BOB, dark_with_seasons([0]), RequestState::Approved).await;
 
+    assert_eq!(covered_before, [false]);
     assert!(joined.value.1.is_empty(), "{:?}", joined.value.1);
-    assert_eq!(
-        covered(&db, opened.value.0.id, &[0, 1]).await,
-        [true, false]
-    );
+    assert_eq!(covered(&db, id, &[0, 1]).await, [true, false]);
 }
 
 #[tokio::test]

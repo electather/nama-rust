@@ -232,11 +232,14 @@ pub(super) async fn follow(
         state,
         followed_show: &followed,
     };
-    // A Followed Show covers Specials (Season 0) without asking for them: Sonarr numbers them by
-    // TVDB, so they rarely Match (#818). Covering them gives a Show of only Specials a
-    // `latest_season`, so a scan still asks for its later Seasons.
+    // A Followed Show covers Specials (Season 0) without asking for them: a Fulfiller such as
+    // Sonarr numbers them by TVDB, so they rarely Match (#818). Covering them gives one joined
+    // before its Show listed Specials a `latest_season`, so a scan still asks for later Seasons.
+    let had_specials = asking.seasons.iter().any(|season| season.number == 0);
     asking.seasons.retain(|season| season.number != 0);
-    way.cover(conn, 0).await?;
+    if had_specials {
+        way.cover(conn, 0).await?;
+    }
     let seasons = asking.ask(conn, way).await?;
     happened.extend(seasons.events);
     Ok(Applied {
