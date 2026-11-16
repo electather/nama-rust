@@ -702,6 +702,30 @@ pub(crate) async fn library_with_movie(
     .await
 }
 
+/// The oldest Library with an Episode Matched to the Show `id`, by any of its ids, if any.
+pub(crate) async fn library_with_show(
+    conn: &mut SqliteConnection,
+    id: &ExternalId,
+) -> Result<Option<i64>, sqlx::Error> {
+    let (namespace, value) = (id.namespace(), id.value());
+    sqlx::query_scalar!(
+        r#"SELECT MIN(library_files.library_id) AS "library: i64"
+           FROM item_match_ids
+           JOIN item_matches ON item_matches.item_id = item_match_ids.item_id
+           JOIN library_items ON library_items.id = item_matches.item_id
+           JOIN library_files ON library_files.id = library_items.file_id
+           WHERE item_match_ids.scope = 'show'
+             AND item_match_ids.namespace = ?
+             AND item_match_ids.value = ?
+             AND item_matches.state = 'matched'
+             AND library_items.kind = 'episode'"#,
+        namespace,
+        value
+    )
+    .fetch_one(&mut *conn)
+    .await
+}
+
 /// The numbers of the Episodes of Season `season` of the Show `show`, by any of its ids,
 /// Matched in any Library.
 pub(crate) async fn matched_episodes(

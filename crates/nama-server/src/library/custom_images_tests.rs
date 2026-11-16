@@ -4,10 +4,21 @@ use http_body_util::{BodyExt, Full};
 use hyper::{Method, body::Bytes, client::conn::http1};
 use hyper_util::rt::TokioIo;
 use image::{ImageFormat, RgbImage};
-use nama_plugin_api::{PluginId, metadata::ExternalId};
+use nama_plugin_api::{
+    PluginId,
+    metadata::{ExternalId, ExternalIds},
+};
 
-use super::{CustomImages, Role, Slot, router};
-use crate::{db::Database, images::ImageStore, server_settings::Settings};
+use super::{CustomImages, Role, Slot, Subject, router};
+use crate::{
+    db::Database,
+    images::ImageStore,
+    library::{
+        Metadata,
+        fixture::{MatchedMovie, tmdb_movie},
+    },
+    server_settings::Settings,
+};
 
 #[test]
 fn a_slot_for_an_id_holding_a_slash_or_percent_round_trips_through_its_path() {
@@ -15,7 +26,7 @@ fn a_slot_for_an_id_holding_a_slash_or_percent_round_trips_through_its_path() {
     let slot = Slot::movie(&id, Role::Poster);
 
     assert_eq!(slot.0, "movie/made-a%2Fb%25c/poster");
-    assert_eq!(Slot::parse(&slot.0), Some(slot));
+    assert_eq!(Slot::parse(&slot.0), Some((slot, Subject::Movie(id))));
     let tmdb = Slot::movie(&ExternalId::tmdb(348), Role::Poster);
     assert_eq!(tmdb.0, "movie/tmdb-348/poster");
     // Only the one encoding names it.
@@ -24,15 +35,16 @@ fn a_slot_for_an_id_holding_a_slash_or_percent_round_trips_through_its_path() {
     // As `encodeURIComponent("made-a~b(c)")` writes it.
     let kept = Slot::movie(&ExternalId::new("made", "a~b(c)").unwrap(), Role::Poster);
     assert_eq!(kept.0, "movie/made-a~b(c)/poster");
-    assert_eq!(Slot::parse(&kept.0), Some(kept));
+    assert_eq!(Slot::parse(&kept.0).map(|(parsed, _)| parsed), Some(kept));
 }
 
 #[test]
 fn a_slot_for_a_plugin_id_holding_a_space_or_slash_round_trips_through_its_path() {
-    let slot = Slot::plugin(&PluginId::from("My Plugin/x".to_owned()));
+    let id = PluginId::from("My Plugin/x".to_owned());
+    let slot = Slot::plugin(&id);
 
     assert_eq!(slot.0, "plugin/My%20Plugin%2Fx/logo");
-    assert_eq!(Slot::parse(&slot.0), Some(slot));
+    assert_eq!(Slot::parse(&slot.0), Some((slot, Subject::Plugin(id))));
     assert_eq!(Slot::parse("plugin/My Plugin%2Fx/logo"), None);
 }
 
@@ -56,19 +68,26 @@ async fn send(addr: std::net::SocketAddr, method: Method, path: &str, body: Vec<
 #[tokio::test]
 async fn an_image_for_an_id_holding_a_slash_is_uploaded_and_served_at_its_path() {
     let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let id = ExternalId::new("made", "a/b%c").unwrap();
+    let matched = Metadata {
+        ids: ExternalIds::from_iter([id.clone()]),
+        ..tmdb_movie(1, "Made")
+    };
+    MatchedMovie::new(&db, media.path(), matched).await;
     let store = ImageStore::new(data.path(), Arc::clone(&db));
     let custom_images = CustomImages::new(Arc::clone(&db), store);
     let images = Settings::new(db, data.path().to_owned()).images();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let app = router(custom_images.clone(), images);
+    let app = router(custom_images.clone(), images, |_| true);
     tokio::spawn(async move { axum::serve(listener, app).await });
     let mut png = Cursor::new(Vec::new());
     RgbImage::new(2, 3)
         .write_to(&mut png, ImageFormat::Png)
         .unwrap();
-    let slot = Slot::movie(&ExternalId::new("made", "a/b%c").unwrap(), Role::Poster);
+    let slot = Slot::movie(&id, Role::Poster);
 
     let uploaded = send(
         addr,
@@ -93,7 +112,8 @@ fn a_slot_is_named_by_one_path_only() {
         "plugin/sonarr/logo",
         "library/3/backdrop",
     ] {
-        assert_eq!(Slot::parse(path), Some(Slot(path.to_owned())), "{path}");
+        let slot = Slot::parse(path).map(|(slot, _)| slot);
+        assert_eq!(slot, Some(Slot(path.to_owned())), "{path}");
     }
     for path in [
         "movie/Tmdb-348/poster",

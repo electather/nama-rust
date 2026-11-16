@@ -35,7 +35,7 @@ use items::ItemRow;
 pub(crate) use items::{Item, ItemKind, Name};
 pub(crate) use matched::{
     Episode, MatchedTo, Movie, NewestBackdrop, Season, Show, TitlesIn, Version, library_with_movie,
-    matched_episodes, show_poster,
+    library_with_show, matched_episodes, show_poster,
 };
 pub(crate) use pins::{Named, Pin};
 pub(crate) use search::{Found, FoundEpisode, FoundMovie, FoundShow};

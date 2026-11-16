@@ -9,7 +9,7 @@ use super::{
         fixture::tmdb_movie,
         testing::{ALIEN, Fixture, movie},
     },
-    TitlesIn, library_with_movie, matched_episodes, show_poster,
+    TitlesIn, library_with_movie, library_with_show, matched_episodes, show_poster,
 };
 use crate::library::versions::METADATA_VERSION;
 
@@ -88,7 +88,7 @@ async fn a_movie_is_found_by_any_of_its_ids() {
 }
 
 #[tokio::test]
-async fn a_seasons_episodes_are_found_by_any_of_their_shows_ids() {
+async fn a_shows_library_and_seasons_episodes_are_found_by_any_of_its_ids() {
     let fx = Fixture::new().await;
     let path = "/media/Firefly/Season 01/Firefly - S01E02.mkv";
     let episode = Item::Episode {
@@ -130,6 +130,10 @@ async fn a_seasons_episodes_are_found_by_any_of_their_shows_ids() {
     assert!(own.unwrap().is_empty());
     let as_movie = library_with_movie(&mut conn, &ExternalId::tmdb(1001)).await;
     assert_eq!(as_movie.unwrap(), None);
+    let show = library_with_show(&mut conn, &imdb("tt0303461")).await;
+    assert_eq!(show.unwrap(), Some(fx.library));
+    let own_as_show = library_with_show(&mut conn, &ExternalId::tmdb(1001)).await;
+    assert_eq!(own_as_show.unwrap(), None);
 }
 
 #[tokio::test]
