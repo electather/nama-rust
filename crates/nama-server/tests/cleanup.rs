@@ -12,11 +12,11 @@ use buffa::EnumValue;
 use connectrpc::client::ClientConfig;
 use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, EnablePluginRequest, ExternalId, LibraryKind, LibraryServiceClient,
-    ListEpisodesRequest, ListMoviesRequest, Movie, PluginPermission, PluginServiceClient,
-    ReportProgressRequest, SetPlayedRequest, SettingValue, UpdateLibraryRequest,
-    UpdatePluginSettingsRequest, WatchStateServiceClient, event, set_played_request::Target,
-    setting_value::Value,
+    BrowseServiceClient, EnablePluginRequest, ExternalId, LibraryIds, LibraryKind,
+    LibraryServiceClient, ListEpisodesRequest, ListMoviesRequest, Movie, PluginPermission,
+    PluginServiceClient, ReportProgressRequest, SetPlayedRequest, SettingValue,
+    UpdateLibraryRequest, UpdatePluginSettingsRequest, WatchStateServiceClient, event,
+    set_played_request::Target, setting_value::Value,
 };
 use nama_server::plugins::Registry;
 use server::{
@@ -60,13 +60,13 @@ async fn alien_and_dune() -> (TestServer, Library) {
     (server, library)
 }
 
-/// Sets the Cleanup to clean `library` of what every User played [`DAYS`] days ago, and enables
-/// it granting `granted`.
+/// Sets the Cleanup to clean `library`, by its id, of what every User played [`DAYS`] days ago,
+/// and enables it granting `granted`.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn enable_cleanup(server: &TestServer, granted: &[PluginPermission]) {
+async fn enable_cleanup(server: &TestServer, library: &Library, granted: &[PluginPermission]) {
     let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
     let setting = |key: &str, value: Value| {
         let value = SettingValue {
@@ -80,8 +80,13 @@ async fn enable_cleanup(server: &TestServer, granted: &[PluginPermission]) {
             id: CLEANUP.to_owned(),
             settings: [
                 setting("days", Value::IntegerValue(DAYS.try_into().unwrap())),
-                // `TestServer` names every Library it creates "Media".
-                setting("libraries", Value::TextValue("Media".to_owned())),
+                setting(
+                    "libraries",
+                    Value::LibraryIds(Box::new(LibraryIds {
+                        ids: vec![library.id],
+                        ..Default::default()
+                    })),
+                ),
             ]
             .into_iter()
             .collect(),
@@ -292,7 +297,7 @@ async fn dune_alone_is_deleted_next(
 #[tokio::test]
 async fn a_movie_every_user_watched_past_the_limit_is_deleted_and_a_recent_one_kept() {
     let (server, library) = alien_and_dune().await;
-    enable_cleanup(&server, &EVERY_PERMISSION).await;
+    enable_cleanup(&server, &library, &EVERY_PERMISSION).await;
     mark_played(&server, &library, ALIEN).await;
     past_the_limit(&server);
     mark_played(&server, &library, DUNE).await;
@@ -305,11 +310,27 @@ async fn a_movie_every_user_watched_past_the_limit_is_deleted_and_a_recent_one_k
 #[tokio::test]
 async fn a_library_renamed_after_a_tick_found_it_is_still_cleaned() {
     let (server, library) = alien_and_dune().await;
-    enable_cleanup(&server, &EVERY_PERMISSION).await;
+    enable_cleanup(&server, &library, &EVERY_PERMISSION).await;
     mark_played(&server, &library, ALIEN).await;
-    // Nothing is due yet; this tick finds the Library by the name the setting gives it.
+    // Nothing is due yet.
     server.tick(CLEANUP).await.unwrap();
     rename(&server, &library, "Films").await;
+    past_the_limit(&server);
+    mark_played(&server, &library, DUNE).await;
+
+    server.tick(CLEANUP).await.unwrap();
+
+    wait_for_movies(&server, &library, &[DUNE]).await;
+}
+
+/// The bug the Cleanup's old setting of Library names had: a Library renamed before any tick found
+/// it under its name was dropped silently.
+#[tokio::test]
+async fn a_library_renamed_before_any_tick_is_still_cleaned() {
+    let (server, library) = alien_and_dune().await;
+    enable_cleanup(&server, &library, &EVERY_PERMISSION).await;
+    rename(&server, &library, "Films").await;
+    mark_played(&server, &library, ALIEN).await;
     past_the_limit(&server);
     mark_played(&server, &library, DUNE).await;
 
@@ -325,7 +346,7 @@ async fn without_the_delete_permission_it_deletes_nothing_and_says_why() {
         .into_iter()
         .filter(|&it| it != PluginPermission::PLUGIN_PERMISSION_DELETE_MEDIA)
         .collect::<Vec<_>>();
-    enable_cleanup(&server, &all_but_delete).await;
+    enable_cleanup(&server, &library, &all_but_delete).await;
     mark_played(&server, &library, ALIEN).await;
     past_the_limit(&server);
     mark_played(&server, &library, DUNE).await;
@@ -344,7 +365,7 @@ async fn without_the_delete_permission_it_deletes_nothing_and_says_why() {
 async fn a_movie_one_user_has_not_watched_is_kept() {
     let (server, library) = alien_and_dune().await;
     let ada = server.user_with_default_permissions("Ada").await;
-    enable_cleanup(&server, &EVERY_PERMISSION).await;
+    enable_cleanup(&server, &library, &EVERY_PERMISSION).await;
     mark_played(&server, &library, ALIEN).await;
     past_the_limit(&server);
 
@@ -363,7 +384,7 @@ async fn a_movie_one_user_has_started_again_is_kept() {
     let (server, library) = alien_and_dune().await;
     let ada = server.user_with_default_permissions("Ada").await;
     let everyone = [server.client_config(), ada.client_config()];
-    enable_cleanup(&server, &EVERY_PERMISSION).await;
+    enable_cleanup(&server, &library, &EVERY_PERMISSION).await;
     for who in &everyone {
         mark(who.clone(), &library, movie(ALIEN), true).await;
     }
@@ -388,7 +409,7 @@ async fn an_episode_every_user_watched_past_the_limit_is_deleted_and_a_recent_on
     let library = server
         .matched_library(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_S01E01, DARK_S01E02])
         .await;
-    enable_cleanup(&server, &EVERY_PERMISSION).await;
+    enable_cleanup(&server, &library, &EVERY_PERMISSION).await;
     mark(server.client_config(), &library, episode(SECRETS), true).await;
     past_the_limit(&server);
     mark(server.client_config(), &library, episode(LIES), true).await;
@@ -439,7 +460,7 @@ fn set_mode(folder: &std::path::Path, mode: u32) -> std::io::Result<()> {
 #[tokio::test]
 async fn a_delete_that_failed_is_asked_again_a_day_later() {
     let (server, library) = alien_and_dune().await;
-    enable_cleanup(&server, &EVERY_PERMISSION).await;
+    enable_cleanup(&server, &library, &EVERY_PERMISSION).await;
     mark_played(&server, &library, ALIEN).await;
     past_the_limit(&server);
     let alien_folder = ReadOnly::new(&library.folder().join("Alien (1979)"));

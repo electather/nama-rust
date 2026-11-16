@@ -1,5 +1,5 @@
 //! The Cleanup Installed Plugin: on each tick, deletes the Movies and Episodes every User played at
-//! least `days` days ago from the Libraries the Admin names, through the Kernel's `delete_media`
+//! least `days` days ago from the Libraries the Admin chooses, through the Kernel's `delete_media`
 //! only (ADR 0048). The Server builds it for wasm32 and bundles it in its binary.
 
 use std::collections::HashSet;
@@ -19,8 +19,6 @@ const LIBRARIES: &str = "libraries";
 const PAGE_SIZE: u32 = 200;
 /// The largest value the Kernel's Store keeps.
 const MAX_STORED: usize = 64 * 1024;
-/// The longest key the Kernel's Store keeps, in bytes.
-const MAX_KEY: usize = 256;
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 /// How long after asking to delete a title the tick asks again if the title is still listed and
 /// due, since its delete, which runs in the background, must have failed.
@@ -91,11 +89,8 @@ fn manifest() -> Manifest {
             setting(
                 LIBRARIES,
                 "Libraries",
-                "The names of the Libraries to clean, separated by commas. Empty cleans none. \
-                 Every Library with a listed name is cleaned. One renamed after a tick found it \
-                 is still cleaned under its old name, until the only Libraries with that name \
-                 are ones no tick found under it.",
-                SettingKind::SETTING_KIND_TEXT,
+                "The Libraries to clean. None cleans none.",
+                SettingKind::SETTING_KIND_LIBRARIES,
             ),
         ],
         name: "Cleanup".to_owned(),
@@ -104,15 +99,14 @@ fn manifest() -> Manifest {
     }
 }
 
-/// Cleans each Library the settings name.
+/// Cleans each Library the settings choose.
 ///
 /// A refused delete doesn't stop the others: the tick fails afterwards with how many were refused
 /// and the Kernel's words, so the Admin sees why in the log.
 fn tick(tick: &Tick) -> Result<(), Error> {
-    let named = config::get(LIBRARIES)?.unwrap_or_default();
-    let named = library_names(&named);
-    // Before any Kernel call, so a Plugin enabled without Libraries named needs no grant yet.
-    if named.is_empty() {
+    let ids = nama_pdk::setting_library_ids(LIBRARIES)?;
+    // Before any Kernel call, so a Plugin enabled without Libraries chosen needs no grant yet.
+    if ids.is_empty() {
         return Ok(());
     }
     let cutoff_ms = cutoff_ms(tick.now_ms, days(config::get(DAYS)?.as_deref())?);
@@ -121,14 +115,8 @@ fn tick(tick: &Tick) -> Result<(), Error> {
         return Ok(());
     }
     let libraries = kernel::libraries()?;
-    let named = named_libraries(
-        &named,
-        &libraries,
-        |key| Ok(remembered_ids(kernel::store_get(key, None)?.as_deref())),
-        |key, ids| kernel::store_put(key, None, &remembered_value(ids)),
-    )?;
     let mut refused = Vec::new();
-    for library in named {
+    for library in chosen_libraries(&ids, &libraries) {
         refused.extend(clean(library, &users, cutoff_ms, tick.now_ms)?);
     }
     match refusal(&refused) {
@@ -215,67 +203,12 @@ fn ask_due(
     }
 }
 
-/// The Library names `setting` lists, separated by commas, trimmed, leaving out empty ones.
-fn library_names(setting: &str) -> Vec<&str> {
-    (setting.split(','))
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
+/// The Libraries among `libraries`, the ones the Kernel lists, whose ids `ids` holds, each once and
+/// in `libraries`' order. An id no Library has, such as a deleted one's, picks nothing.
+fn chosen_libraries<'a>(ids: &[i64], libraries: &'a [Library]) -> Vec<&'a Library> {
+    (libraries.iter())
+        .filter(|library| ids.contains(&library.id))
         .collect()
-}
-
-/// The Libraries `named` names among `libraries`, each once and in `libraries`' order,
-/// remembering through `put` the ids each name resolved to and reading them back through `get`.
-///
-/// Names aren't unique, so a name resolves to every Library that has it now. It also keeps the
-/// Libraries it last resolved to that still exist, since they were renamed, unless every Library
-/// that has it now is new to it: another Library took the name. A name too long for a Store key
-/// resolves by name only.
-fn named_libraries<'a>(
-    named: &[&str],
-    libraries: &'a [Library],
-    mut get: impl FnMut(&str) -> Result<Vec<i64>, Error>,
-    mut put: impl FnMut(&str, &[i64]) -> Result<(), Error>,
-) -> Result<Vec<&'a Library>, Error> {
-    let mut found = HashSet::new();
-    for name in named {
-        let key = Some(format!("library/{name}")).filter(|key| key.len() <= MAX_KEY);
-        let remembered = match &key {
-            Some(key) => get(key)?,
-            None => Vec::new(),
-        };
-        let by_name: Vec<i64> = (libraries.iter())
-            .filter(|library| library.name == *name)
-            .map(|library| library.id)
-            .collect();
-        let taken = !by_name.is_empty() && !by_name.iter().any(|id| remembered.contains(id));
-        let ids: Vec<i64> = (libraries.iter())
-            .map(|library| library.id)
-            .filter(|id| by_name.contains(id) || (!taken && remembered.contains(id)))
-            .collect();
-        if let Some(key) = &key
-            && !ids.is_empty()
-            && ids != remembered
-        {
-            put(key, &ids)?;
-        }
-        found.extend(ids);
-    }
-    Ok((libraries.iter())
-        .filter(|library| found.contains(&library.id))
-        .collect())
-}
-
-/// The Library ids a Store value [`remembered_value`] made holds, leaving out one it can't read.
-fn remembered_ids(value: Option<&[u8]>) -> Vec<i64> {
-    (String::from_utf8_lossy(value.unwrap_or_default()).split(','))
-        .filter_map(|id| id.parse().ok())
-        .collect()
-}
-
-/// `ids` as a Store value, separated by commas.
-fn remembered_value(ids: &[i64]) -> Vec<u8> {
-    let ids: Vec<String> = ids.iter().map(i64::to_string).collect();
-    ids.join(",").into_bytes()
 }
 
 /// The `days` setting as a number of days, at least 0. A failure names the setting.

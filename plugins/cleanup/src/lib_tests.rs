@@ -1,7 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-};
+use std::{cell::RefCell, collections::HashSet};
 
 use nama_pdk::{
     Library, Manifest, Permission, TitleId, TitleRef, TitleRefKind, TitleWatchStates, WatchState,
@@ -10,8 +7,8 @@ use nama_pdk::{
 };
 
 use super::{
-    Asked, DAY_MS, Deleted, Key, MAX_STORED, ask_due, cutoff_ms, days, decode, delete_due, encode,
-    is_due, library_names, manifest, named_libraries, refusal, remembered_ids, remembered_value,
+    Asked, DAY_MS, Deleted, Key, MAX_STORED, ask_due, chosen_libraries, cutoff_ms, days, decode,
+    delete_due, encode, is_due, manifest, refusal,
 };
 
 const NOW_MS: i64 = 1_800_000_000_000;
@@ -324,135 +321,44 @@ fn library(id: i64, name: &str) -> Library {
     }
 }
 
-/// A fake Store, keeping what [`named_libraries`] remembers as the Kernel's Store would.
-#[derive(Default)]
-struct Store(RefCell<HashMap<String, Vec<u8>>>);
-
-impl Store {
-    /// The ids of the Libraries `named` cleans among `libraries`, remembering in this Store.
-    fn cleaned(&self, named: &[&str], libraries: &[Library]) -> Vec<i64> {
-        let found = named_libraries(
-            named,
-            libraries,
-            |key| Ok(remembered_ids(self.0.borrow().get(key).map(Vec::as_slice))),
-            |key, ids| {
-                (self.0.borrow_mut()).insert(key.to_owned(), remembered_value(ids));
-                Ok(())
-            },
-        )
-        .unwrap();
-        found.into_iter().map(|library| library.id).collect()
-    }
+/// The ids of the Libraries among `libraries` that the setting `ids` chooses.
+fn cleaned(ids: &[i64], libraries: &[Library]) -> Vec<i64> {
+    (chosen_libraries(ids, libraries).into_iter())
+        .map(|library| library.id)
+        .collect()
 }
 
 #[test]
-fn a_named_library_is_cleaned_and_others_are_not() {
-    let store = Store::default();
+fn the_libraries_whose_ids_are_chosen_are_cleaned_and_others_are_not() {
+    let libraries = [
+        library(4, "Movies"),
+        library(5, "Shows"),
+        library(7, "Kids"),
+    ];
 
-    let cleaned = store.cleaned(&["Movies"], &[library(4, "Movies"), library(5, "Shows")]);
+    assert_eq!(cleaned(&[7, 4], &libraries), [4, 7]);
+    assert_eq!(cleaned(&[], &libraries), Vec::<i64>::new());
+}
+
+#[test]
+fn an_id_the_kernel_does_not_list_is_skipped() {
+    let cleaned = cleaned(&[4, 9], &[library(4, "Movies"), library(5, "Shows")]);
 
     assert_eq!(cleaned, [4]);
 }
 
 #[test]
-fn a_renamed_library_is_still_cleaned_under_its_old_name() {
-    let store = Store::default();
-    store.cleaned(&["Movies"], &[library(4, "Movies")]);
+fn a_renamed_library_is_still_cleaned() {
+    let before = cleaned(&[4], &[library(4, "Movies")]);
+    let after = cleaned(&[4], &[library(4, "Films"), library(7, "Movies")]);
 
-    let cleaned = store.cleaned(&["Movies"], &[library(4, "Films")]);
-
-    assert_eq!(cleaned, [4]);
+    assert_eq!(before, [4]);
+    assert_eq!(after, [4]);
 }
 
 #[test]
-fn a_name_a_new_library_takes_cleans_the_new_one() {
-    let store = Store::default();
-    store.cleaned(&["Movies"], &[library(4, "Movies")]);
-    store.cleaned(&["Movies"], &[library(4, "Films")]);
-
-    let taken = store.cleaned(&["Movies"], &[library(4, "Films"), library(7, "Movies")]);
-    let renamed_again = store.cleaned(&["Movies"], &[library(4, "Films"), library(7, "Kids")]);
-
-    assert_eq!(taken, [7]);
-    assert_eq!(renamed_again, [7]);
-}
-
-#[test]
-fn libraries_sharing_a_name_are_all_cleaned_and_still_are_after_one_is_renamed() {
-    let store = Store::default();
-    let cleaned = store.cleaned(&["Movies"], &[library(4, "Movies"), library(5, "Movies")]);
-
-    let renamed = store.cleaned(
-        &["Movies"],
-        &[library(4, "Movies"), library(5, "Movies 4K")],
-    );
-    let both_renamed = store.cleaned(&["Movies"], &[library(4, "Films"), library(5, "Movies 4K")]);
-
-    assert_eq!(cleaned, [4, 5]);
-    assert_eq!(renamed, [4, 5]);
-    assert_eq!(both_renamed, [4, 5]);
-}
-
-#[test]
-fn a_new_library_taking_a_shared_name_joins_the_ones_still_having_it() {
-    let store = Store::default();
-    store.cleaned(&["Movies"], &[library(4, "Movies"), library(5, "Movies")]);
-
-    let cleaned = store.cleaned(
-        &["Movies"],
-        &[
-            library(4, "Movies"),
-            library(5, "Films"),
-            library(7, "Movies"),
-        ],
-    );
-
-    assert_eq!(cleaned, [4, 5, 7]);
-}
-
-#[test]
-fn remembered_ids_read_back_what_was_put() {
-    assert_eq!(remembered_ids(Some(&remembered_value(&[4, 5]))), [4, 5]);
-    assert_eq!(remembered_ids(Some(b"4,x,5")), [4, 5]);
-    assert_eq!(remembered_ids(None), Vec::<i64>::new());
-}
-
-#[test]
-fn a_name_whose_library_is_deleted_cleans_nothing() {
-    let store = Store::default();
-    store.cleaned(&["Movies"], &[library(4, "Movies")]);
-
-    let cleaned = store.cleaned(&["Movies"], &[library(5, "Shows")]);
-
-    assert_eq!(cleaned, Vec::<i64>::new());
-}
-
-#[test]
-fn a_library_named_twice_is_cleaned_once() {
-    let store = Store::default();
-    store.cleaned(&["Movies"], &[library(4, "Movies")]);
-
-    let cleaned = store.cleaned(&["Movies", "Films"], &[library(4, "Films")]);
-
-    assert_eq!(cleaned, [4]);
-}
-
-#[test]
-fn a_name_too_long_for_a_store_key_is_matched_by_name_only() {
-    let store = Store::default();
-    let long = "M".repeat(300);
-    store.cleaned(&[&long], &[library(4, &long)]);
-
-    let renamed = store.cleaned(&[&long], &[library(4, "Films")]);
-
-    assert!(store.0.borrow().is_empty());
-    assert_eq!(renamed, Vec::<i64>::new());
-}
-
-#[test]
-fn library_names_are_split_on_commas_and_trimmed() {
-    assert_eq!(library_names(" Movies , Kids TV,,"), ["Movies", "Kids TV"]);
-    assert_eq!(library_names(" , "), Vec::<&str>::new());
+fn a_library_chosen_twice_is_cleaned_once() {
+    assert_eq!(cleaned(&[4, 4], &[library(4, "Movies")]), [4]);
 }
 
 #[test]
@@ -491,7 +397,7 @@ fn manifest_declares_days_defaulting_to_30_and_libraries() {
             ),
             (
                 "libraries",
-                Some(SettingKind::SETTING_KIND_TEXT),
+                Some(SettingKind::SETTING_KIND_LIBRARIES),
                 false,
                 None
             ),
