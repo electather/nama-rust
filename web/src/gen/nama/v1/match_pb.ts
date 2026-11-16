@@ -383,7 +383,7 @@ export const TitleKindSchema: GenEnum<TitleKind> = /*@__PURE__*/
   enumDesc(file_nama_v1_match, 0);
 
 /**
- * Why automatic Matching left an item Unmatched, which says how to fix it.
+ * Why Matching left an item Unmatched, which says how to fix it.
  *
  * @generated from enum nama.v1.UnmatchedReason
  */
@@ -427,7 +427,7 @@ export const UnmatchedReason = {
 } as const;
 
 /**
- * Why automatic Matching left an item Unmatched, which says how to fix it.
+ * Why Matching left an item Unmatched, which says how to fix it.
  *
  * @generated from enum nama.v1.UnmatchedReason
  */

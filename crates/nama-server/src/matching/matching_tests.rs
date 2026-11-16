@@ -176,10 +176,16 @@ impl Fixture {
             .collect()
     }
 
-    /// Why each Item of `library` that needs a Match is Unmatched, by path.
-    pub(super) async fn reasons(&self, library: &Library) -> Vec<Option<UnmatchedReason>> {
+    /// Why each Item of `library` that needs a Match is Unmatched, with its file's path.
+    pub(super) async fn reasons(
+        &self,
+        library: &Library,
+    ) -> Vec<(String, Option<UnmatchedReason>)> {
         let unmatched = self.contents.unmatched(library.id).await.unwrap();
-        unmatched.into_iter().map(|item| item.reason).collect()
+        unmatched
+            .into_iter()
+            .map(|item| (library.relative(&item.path), item.reason))
+            .collect()
     }
 
     async fn first_recorded(&self, library: &Library) -> Recorded {
@@ -499,11 +505,11 @@ async fn a_scan_matches_episodes_through_their_show_and_season() {
             ),
         ]
     );
-    assert_eq!(
-        media.reasons(shows).await[0],
+    let not_in_show = (
+        format!("{dark} - S01E42.mkv"),
         Some(UnmatchedReason::NotInShow),
-        "S01E42"
     );
+    assert!(media.reasons(shows).await.contains(&not_in_show));
     let secrets = media.first_recorded(shows).await;
     assert_eq!(secrets.show_title.as_deref(), Some("Dark"));
     assert_eq!(

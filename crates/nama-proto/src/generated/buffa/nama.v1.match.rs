@@ -145,7 +145,7 @@ impl ::buffa::Enumeration for TitleKind {
         &[Self::TITLE_KIND_UNSPECIFIED, Self::TITLE_KIND_MOVIE, Self::TITLE_KIND_SHOW]
     }
 }
-/// Why automatic Matching left an item Unmatched, which says how to fix it.
+/// Why Matching left an item Unmatched, which says how to fix it.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[repr(i32)]

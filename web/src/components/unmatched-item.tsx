@@ -211,9 +211,10 @@ function notInShow(item: UnmatchedItem, { matched, unmatched }: SetMatchResponse
   return `That Show has no ${episodeName(item.season, item.episode, "full")}.${alsoMatched(matched)}`;
 }
 
-function alsoMatched(episodes: bigint) {
-  if (episodes === 0n) return "";
-  return ` ${episodes === 1n ? "1 other Episode" : `${episodes} other Episodes`} Matched to it.`;
+function alsoMatched(othersMatched: bigint) {
+  if (othersMatched === 0n) return "";
+  const others = othersMatched === 1n ? "1 other Episode" : `${othersMatched} other Episodes`;
+  return ` ${others} Matched to it.`;
 }
 
 function CandidateRow({

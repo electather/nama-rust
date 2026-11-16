@@ -178,7 +178,7 @@ async fn an_episode_matched_to_a_show_without_its_season_is_unmatched_as_not_in_
     );
     assert_eq!(
         media.reasons(shows).await,
-        [Some(UnmatchedReason::NotInShow)]
+        [(episode.to_owned(), Some(UnmatchedReason::NotInShow))]
     );
 }
 
@@ -207,7 +207,7 @@ async fn an_episode_matched_to_a_show_whose_season_lacks_it_is_unmatched_as_not_
     );
     assert_eq!(
         media.reasons(shows).await,
-        [Some(UnmatchedReason::NotInShow)]
+        [(episode.to_owned(), Some(UnmatchedReason::NotInShow))]
     );
 }
 

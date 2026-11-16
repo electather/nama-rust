@@ -145,7 +145,7 @@ message UnmatchedItem {
   repeated TitleCandidate tied_titles = 9;
 }
 
-// Why automatic Matching left an item Unmatched, which says how to fix it.
+// Why Matching left an item Unmatched, which says how to fix it.
 enum UnmatchedReason {
   // Matching hasn't decided about the item yet, or left it Unmatched for a reason it doesn't
   // store, such as an Admin choosing to.

@@ -23,37 +23,46 @@ const episode = {
 };
 
 test.each([
-  [{ unmatched: 1n }, ""],
-  [{ matched: 2n, unmatched: 1n }, " 2 other Episodes Matched to it."],
-])("matching an Episode to a Show without it says so and keeps it listed", async (answer, also) => {
-  const listed: MessageInitShape<typeof UnmatchedItemSchema> = {
-    ...episode,
-    season: 10,
-    episode: 1,
-  };
-  openApp(
-    "/admin/needs-a-match",
-    fakeServer({ signedIn: admin, libraries: [shows] }, {}, {}, (router) => {
-      router.service(MatchService, {
-        listUnmatchedItems: () => ({ items: [listed] }),
-        searchTitles: () => ({
-          candidates: [{ id: { namespace: "tmdb", value: "1" }, title: episode.title }],
-        }),
-        setMatch: () => {
-          listed.reason = UnmatchedReason.NOT_IN_SHOW;
-          return answer;
-        },
-      });
-    }),
-  );
+  ["alone", { unmatched: 1n }, ""],
+  [
+    "with how many other Episodes it Matched",
+    { matched: 2n, unmatched: 1n },
+    " 2 other Episodes Matched to it.",
+  ],
+])(
+  "matching an Episode to a Show without it says so %s, and keeps it listed",
+  async (_, answer, also) => {
+    const listed: MessageInitShape<typeof UnmatchedItemSchema> = {
+      ...episode,
+      season: 10,
+      episode: 1,
+    };
+    openApp(
+      "/admin/needs-a-match",
+      fakeServer({ signedIn: admin, libraries: [shows] }, {}, {}, (router) => {
+        router.service(MatchService, {
+          listUnmatchedItems: () => ({ items: [listed] }),
+          searchTitles: () => ({
+            candidates: [{ id: { namespace: "tmdb", value: "1" }, title: episode.title }],
+          }),
+          setMatch: () => {
+            listed.reason = UnmatchedReason.NOT_IN_SHOW;
+            return answer;
+          },
+        });
+      }),
+    );
 
-  fireEvent.click(await screen.findByRole("button", { name: /^Find a Match for Bake Off/u }));
-  fireEvent.click(await screen.findByRole("button", { name: "Match to Bake Off" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Find a Match for Bake Off/u }));
+    fireEvent.click(await screen.findByRole("button", { name: "Match to Bake Off" }));
 
-  const said = await screen.findByText(`That Show has no Season 10, Episode 1.${also}`);
-  expect(screen.getAllByRole("status")).toContain(said);
-  expect(
-    await screen.findByText("Its Show has no such Episode. Matching it to another Show may help."),
-  ).toBeDefined();
-  expect(screen.getByText(episode.path)).toBeDefined();
-});
+    const said = await screen.findByText(`That Show has no Season 10, Episode 1.${also}`);
+    expect(screen.getAllByRole("status")).toContain(said);
+    expect(
+      await screen.findByText(
+        "Its Show has no such Episode. Matching it to another Show may help.",
+      ),
+    ).toBeDefined();
+    expect(screen.getByText(episode.path)).toBeDefined();
+  },
+);
