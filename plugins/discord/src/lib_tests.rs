@@ -1,4 +1,6 @@
-use super::webhook;
+use nama_pdk::nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value};
+
+use super::{manifest, webhook};
 
 #[test]
 fn the_id_and_token_after_api_webhooks_are_taken_whatever_the_host() {
@@ -43,4 +45,29 @@ fn a_missing_webhook_is_refused_naming_the_setting() {
     let error = webhook(None).unwrap_err().to_string();
 
     assert!(error.contains("Personal setting webhook"), "{error}");
+}
+
+#[test]
+fn manifest_declares_the_discord_url_defaulting_to_discord_com() {
+    let settings = manifest().settings;
+    let settings: Vec<_> = settings
+        .iter()
+        .map(|field| {
+            let default = field.default_value.as_option();
+            (
+                field.key.as_str(),
+                field.kind.as_known(),
+                default.and_then(|default| default.value.clone()),
+            )
+        })
+        .collect();
+
+    assert_eq!(
+        settings,
+        [(
+            "api_url",
+            Some(SettingKind::SETTING_KIND_URL),
+            Some(Value::TextValue("https://discord.com".to_owned())),
+        )]
+    );
 }

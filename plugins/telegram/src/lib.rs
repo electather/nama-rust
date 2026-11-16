@@ -3,7 +3,15 @@
 //! Requests the Server tells them of (ADR 0021). The Server builds it for wasm32 and bundles it in
 //! its binary.
 
-use nama_pdk::Notification;
+use nama_pdk::{
+    Manifest, Notification,
+    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
+    services,
+};
+
+const BOT_TOKEN: &str = "bot_token";
+const CHANNEL: &str = "channel";
+const API_URL: &str = "api_url";
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -18,77 +26,18 @@ mod exports {
         Buffa, ConnectionStarted, Connector, FnResult, Manifest, Notification, Notifier, Recipient,
         RecipientGone,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
-        nama_plugin_proto::nama::plugin::v1::{
-            SettingField, SettingKind, SettingValue, setting_value,
-        },
-        plugin_fn, services,
+        plugin_fn,
     };
     use serde::{
         Deserialize, Serialize,
         de::{DeserializeOwned, IgnoredAny},
     };
 
-    const BOT_TOKEN: &str = "bot_token";
-    const CHANNEL: &str = "channel";
-    const API_URL: &str = "api_url";
+    use super::{API_URL, BOT_TOKEN, CHANNEL};
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
-        let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-            key: key.to_owned(),
-            label: label.to_owned(),
-            description: description.to_owned(),
-            kind: kind.into(),
-            ..SettingField::default()
-        };
-        Ok(Buffa(Manifest {
-            logo_svg: include_str!("../logo.svg").to_owned(),
-            points: vec![
-                nama_pdk::point(services::NOTIFIER),
-                nama_pdk::point(services::CONNECTOR),
-            ],
-            allowed_hosts: vec!["api.telegram.org".to_owned()],
-            settings: vec![
-                SettingField {
-                    required: true,
-                    ..setting(
-                        BOT_TOKEN,
-                        "Bot token",
-                        "The token BotFather gave your bot, such as 123456:ABC-DEF1234ghIkl.",
-                        SettingKind::SETTING_KIND_SECRET,
-                    )
-                },
-                setting(
-                    CHANNEL,
-                    "Channel",
-                    "Where every Request event is posted: a chat id, such as -1001234567890, or a \
-                     public channel's @name. The bot must be an admin there. Leave it empty to \
-                     post nothing.",
-                    SettingKind::SETTING_KIND_TEXT,
-                ),
-                SettingField {
-                    default_value: SettingValue {
-                        value: Some(setting_value::Value::TextValue(
-                            "https://api.telegram.org".to_owned(),
-                        )),
-                        ..SettingValue::default()
-                    }
-                    .into(),
-                    ..setting(
-                        API_URL,
-                        "Bot API URL",
-                        "Where the Telegram Bot API is. Change it only for a Bot API server of \
-                         your own.",
-                        SettingKind::SETTING_KIND_URL,
-                    )
-                },
-            ],
-            name: "Telegram".to_owned(),
-            description:
-                "Posts Requests to a Telegram channel and tells Users about theirs in a chat."
-                    .to_owned(),
-            ..nama_pdk::manifest("telegram", env!("CARGO_PKG_VERSION"))
-        }))
+        Ok(Buffa(super::manifest()))
     }
 
     /// Posts each notification for the channel to it, if one is set, and sends each one for a
@@ -268,6 +217,64 @@ mod exports {
     }
 }
 
+/// What `manifest()` returns, kept apart from the export so a unit test can read it.
+fn manifest() -> Manifest {
+    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        description: description.to_owned(),
+        kind: kind.into(),
+        ..SettingField::default()
+    };
+    Manifest {
+        logo_svg: include_str!("../logo.svg").to_owned(),
+        points: vec![
+            nama_pdk::point(services::NOTIFIER),
+            nama_pdk::point(services::CONNECTOR),
+        ],
+        allowed_hosts: vec!["api.telegram.org".to_owned()],
+        settings: vec![
+            SettingField {
+                required: true,
+                ..setting(
+                    BOT_TOKEN,
+                    "Bot token",
+                    "The token BotFather gave your bot, such as 123456:ABC-DEF1234ghIkl.",
+                    SettingKind::SETTING_KIND_SECRET,
+                )
+            },
+            setting(
+                CHANNEL,
+                "Channel",
+                "Where every Request event is posted: a chat id, such as -1001234567890, or a \
+                 public channel's @name. The bot must be an admin there. Leave it empty to \
+                 post nothing.",
+                SettingKind::SETTING_KIND_TEXT,
+            ),
+            SettingField {
+                default_value: SettingValue {
+                    value: Some(setting_value::Value::TextValue(
+                        "https://api.telegram.org".to_owned(),
+                    )),
+                    ..SettingValue::default()
+                }
+                .into(),
+                ..setting(
+                    API_URL,
+                    "Bot API URL",
+                    "Where the Telegram Bot API is. Change it only for a Bot API server of \
+                     your own.",
+                    SettingKind::SETTING_KIND_URL,
+                )
+            },
+        ],
+        name: "Telegram".to_owned(),
+        description: "Posts Requests to a Telegram channel and tells Users about theirs in a chat."
+            .to_owned(),
+        ..nama_pdk::manifest("telegram", env!("CARGO_PKG_VERSION"))
+    }
+}
+
 /// What to post about `notification`, in the Glossary's words, then the link to its Request if
 /// the Server gives one, or `None` for what the channel isn't told.
 fn message(notification: &Notification) -> Option<String> {
@@ -279,60 +286,5 @@ fn message(notification: &Notification) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use nama_pdk::{
-        Notification,
-        nama_plugin_proto::nama::plugin::v1::{
-            Event, Request, RequestState, RequestStateChanged, RequestedMovie, Requester,
-        },
-    };
-
-    use super::message;
-
-    fn requester(user_id: i64, name: &str) -> Requester {
-        Requester {
-            user_id,
-            name: name.to_owned(),
-            ..Requester::default()
-        }
-    }
-
-    /// Dune, released in 2021, in `state`, asked for by Sam then Ada.
-    fn dune(state: RequestState) -> Request {
-        Request {
-            movie_or_season: RequestedMovie {
-                title: "Dune".to_owned(),
-                release_date: Some("2021-09-15".to_owned()),
-                ..RequestedMovie::default()
-            }
-            .into(),
-            state: state.into(),
-            requesters: vec![requester(1, "Sam"), requester(2, "Ada")],
-            ..Request::default()
-        }
-    }
-
-    #[test]
-    fn a_message_ends_with_the_link_to_the_request_the_server_gives() {
-        let notification = Notification {
-            event: Event {
-                event: Some(RequestStateChanged::default().into()),
-                ..Event::default()
-            }
-            .into(),
-            request: dune(RequestState::REQUEST_STATE_PENDING).into(),
-            request_url: Some("https://nama.example.com/requests/7".to_owned()),
-            ..Notification::default()
-        };
-
-        let posted = message(&notification);
-
-        assert_eq!(
-            posted.as_deref(),
-            Some(
-                "Dune (2021) is now Pending.\n\
-                 https://nama.example.com/requests/7"
-            )
-        );
-    }
-}
+#[path = "lib_tests.rs"]
+mod tests;

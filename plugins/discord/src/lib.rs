@@ -2,6 +2,15 @@
 //! webhook that User set in their Personal settings (ADR 0046). The Server builds it for wasm32
 //! and bundles it in its binary.
 
+use nama_pdk::{
+    Manifest,
+    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
+    services,
+};
+
+const API_URL: &str = "api_url";
+const WEBHOOK: &str = "webhook";
+
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
 #[expect(
@@ -12,60 +21,16 @@ mod exports {
     use nama_pdk::{
         Buffa, FnResult, Manifest, Notification, Notifier, Recipient, RecipientGone,
         extism_pdk::{self, Error, HttpRequest, HttpResponse, Json, config},
-        nama_plugin_proto::nama::plugin::v1::{
-            SettingField, SettingKind, SettingValue, UserRecipient, setting_value,
-        },
-        plugin_fn, services,
+        nama_plugin_proto::nama::plugin::v1::UserRecipient,
+        plugin_fn,
     };
     use serde::{Deserialize, Serialize};
 
-    const API_URL: &str = "api_url";
-    const WEBHOOK: &str = "webhook";
+    use super::{API_URL, WEBHOOK};
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
-        let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-            key: key.to_owned(),
-            label: label.to_owned(),
-            description: description.to_owned(),
-            kind: kind.into(),
-            ..SettingField::default()
-        };
-        Ok(Buffa(Manifest {
-            logo_svg: include_str!("../logo.svg").to_owned(),
-            // No Connector: a User reaches Discord through their Personal settings.
-            points: vec![nama_pdk::point(services::NOTIFIER)],
-            allowed_hosts: vec!["discord.com".to_owned()],
-            settings: vec![SettingField {
-                default_value: SettingValue {
-                    value: Some(setting_value::Value::TextValue(
-                        "https://discord.com".to_owned(),
-                    )),
-                    ..SettingValue::default()
-                }
-                .into(),
-                ..setting(
-                    API_URL,
-                    "Discord URL",
-                    "Where Discord is. Change it only for a proxy or a test.",
-                    SettingKind::SETTING_KIND_URL,
-                )
-            }],
-            personal_settings: vec![SettingField {
-                required: true,
-                ..setting(
-                    WEBHOOK,
-                    "Webhook URL",
-                    "A Discord channel's webhook: in the channel's settings, open Integrations, \
-                     then Webhooks, and copy one's URL.",
-                    SettingKind::SETTING_KIND_SECRET,
-                )
-            }],
-            name: "Discord".to_owned(),
-            description: "Tells each User about their Requests through their own Discord webhook."
-                .to_owned(),
-            ..nama_pdk::manifest("discord", env!("CARGO_PKG_VERSION"))
-        }))
+        Ok(Buffa(super::manifest()))
     }
 
     /// Posts each notification for a User to the webhook they set.
@@ -135,6 +100,52 @@ mod exports {
     #[derive(Deserialize)]
     struct Refusal {
         message: String,
+    }
+}
+
+/// What `manifest()` returns, kept apart from the export so a unit test can read it.
+fn manifest() -> Manifest {
+    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        description: description.to_owned(),
+        kind: kind.into(),
+        ..SettingField::default()
+    };
+    Manifest {
+        logo_svg: include_str!("../logo.svg").to_owned(),
+        // No Connector: a User reaches Discord through their Personal settings.
+        points: vec![nama_pdk::point(services::NOTIFIER)],
+        allowed_hosts: vec!["discord.com".to_owned()],
+        settings: vec![SettingField {
+            default_value: SettingValue {
+                value: Some(setting_value::Value::TextValue(
+                    "https://discord.com".to_owned(),
+                )),
+                ..SettingValue::default()
+            }
+            .into(),
+            ..setting(
+                API_URL,
+                "Discord URL",
+                "Where Discord is. Change it only for a proxy or a test.",
+                SettingKind::SETTING_KIND_URL,
+            )
+        }],
+        personal_settings: vec![SettingField {
+            required: true,
+            ..setting(
+                WEBHOOK,
+                "Webhook URL",
+                "A Discord channel's webhook: in the channel's settings, open Integrations, \
+                 then Webhooks, and copy one's URL.",
+                SettingKind::SETTING_KIND_SECRET,
+            )
+        }],
+        name: "Discord".to_owned(),
+        description: "Tells each User about their Requests through their own Discord webhook."
+            .to_owned(),
+        ..nama_pdk::manifest("discord", env!("CARGO_PKG_VERSION"))
     }
 }
 

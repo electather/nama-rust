@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, fs, sync::Arc};
 
 use buffa::Message;
 
@@ -244,7 +244,7 @@ fn judged(mut package: Manifest) -> (Result<nama_plugin_api::Manifest, String>, 
     let judged = tracing::subscriber::with_default(subscriber, || {
         judge(&mut package, &["deliver"]).map_err(|refused| refused.to_string())
     });
-    (judged, std::fs::read_to_string(log.path()).unwrap())
+    (judged, fs::read_to_string(log.path()).unwrap())
 }
 
 #[test]
@@ -482,89 +482,46 @@ fn every_bundled_plugin_has_the_exports_its_manifests_points_need() {
     }
 }
 
+// Adding a Plugin is adding its folder (`plugins/AGENTS.md`), so its exact settings are tested in
+// its own crate, and here only what the Kernel needs of every one.
 #[test]
-fn every_bundled_plugin_declares_its_settings_kinds_and_defaults() {
+fn every_plugins_folder_is_bundled_and_loads_with_defaults_of_their_kinds_and_unique_keys() {
     let data_dir = tempfile::tempdir().unwrap();
     let cache_config = write_cache_config(data_dir.path()).unwrap();
-    let servarr = [
-        ("url", SettingKind::Url, None),
-        ("api_key", SettingKind::Secret, None),
-        ("quality_profile", SettingKind::Choice, None),
-        ("root_folder", SettingKind::Choice, None),
-    ];
-    let telegram = [
-        ("bot_token", SettingKind::Secret, None),
-        ("channel", SettingKind::Text, None),
-        (
-            "api_url",
-            SettingKind::Url,
-            Some(text("https://api.telegram.org")),
-        ),
-    ];
-    let tvdb = [
-        ("api_key", SettingKind::Secret, None),
-        ("pin", SettingKind::Secret, None),
-        (
-            "api_url",
-            SettingKind::Url,
-            Some(text("https://api4.thetvdb.com/v4")),
-        ),
-        (
-            "artwork_url",
-            SettingKind::Url,
-            Some(text("https://artworks.thetvdb.com")),
-        ),
-    ];
+    // By the rule in `plugins/AGENTS.md`, reading the lines as `build.rs` does.
+    let mut folders: Vec<_> = fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../../plugins"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter_map(|folder| {
+            let manifest = fs::read_to_string(folder.join("Cargo.toml")).ok()?;
+            let lines: Vec<_> = manifest.lines().map(str::trim).collect();
+            (lines.contains(&r#"crate-type = ["cdylib"]"#) && !lines.contains(&"bundled = false"))
+                .then(|| format!("{}.wasm", folder.file_name().unwrap().display()))
+        })
+        .collect();
+    folders.sort_unstable();
 
-    let fanart = [
-        ("api_key", SettingKind::Secret, None),
-        ("client_key", SettingKind::Secret, None),
-        (
-            "api_url",
-            SettingKind::Url,
-            Some(text("https://webservice.fanart.tv/v3")),
-        ),
-        (
-            "assets_url",
-            SettingKind::Url,
-            Some(text("https://assets.fanart.tv")),
-        ),
-    ];
-
-    let discord = [(
-        "api_url",
-        SettingKind::Url,
-        Some(text("https://discord.com")),
-    )];
-
-    let ntfy = [(
-        "server_url",
-        SettingKind::Url,
-        Some(text("https://ntfy.sh")),
-    )];
-
-    let expected = |file: &str| match file {
-        "discord.wasm" => &discord[..],
-        "fanart.wasm" => &fanart[..],
-        "ntfy.wasm" => &ntfy[..],
-        "radarr.wasm" | "sonarr.wasm" => &servarr[..],
-        "telegram.wasm" => &telegram[..],
-        "tvdb.wasm" => &tvdb[..],
-        _ => &[],
-    };
-
+    assert_eq!(
+        folders,
+        BUNDLED.iter().map(|(file, _)| *file).collect::<Vec<_>>()
+    );
     for (file, wasm) in BUNDLED {
         let fields = load(wasm.to_vec(), &cache_config)
             .unwrap()
             .manifest
             .settings
             .fields;
-        let declared: Vec<_> = fields
-            .iter()
-            .map(|field| (field.key.as_str(), field.kind, field.default.clone()))
-            .collect();
+        let keys: HashSet<_> = fields.iter().map(|field| &field.key).collect();
 
-        assert_eq!(declared, expected(file), "{file}");
+        assert_eq!(keys.len(), fields.len(), "{file} repeats a key");
+        for field in &fields {
+            let default = field.default.as_ref();
+            assert!(
+                default.is_none_or(|default| default.is(field.kind)),
+                "{file} {}",
+                field.key
+            );
+        }
     }
 }
 

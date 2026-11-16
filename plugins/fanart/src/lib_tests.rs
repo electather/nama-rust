@@ -1,6 +1,7 @@
 use nama_pdk::{
     ArtworkAnswer, ArtworkAsked, TitleId, TitleKind,
-    nama_plugin_proto::nama::plugin::v1::SettingKind, services,
+    nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value},
+    services,
 };
 
 use nama_pdk::ArtworkKind::{
@@ -30,17 +31,32 @@ fn manifest_serves_the_title_source_looking_up_by_tmdb_imdb_and_tvdb() {
     let settings: Vec<_> = manifest
         .settings
         .iter()
-        .map(|field| (field.key.as_str(), field.kind.as_known(), field.required))
+        .map(|field| {
+            let default = field.default_value.as_option();
+            let default = default.and_then(|default| default.value.clone());
+            (
+                field.key.as_str(),
+                field.kind.as_known(),
+                field.required,
+                default,
+            )
+        })
         .collect();
     let secret = Some(SettingKind::SETTING_KIND_SECRET);
     let url = Some(SettingKind::SETTING_KIND_URL);
+    let text = |text: &str| Some(Value::TextValue(text.to_owned()));
     assert_eq!(
         settings,
         [
-            ("api_key", secret, true),
-            ("client_key", secret, false),
-            ("api_url", url, false),
-            ("assets_url", url, false),
+            ("api_key", secret, true, None),
+            ("client_key", secret, false, None),
+            (
+                "api_url",
+                url,
+                false,
+                text("https://webservice.fanart.tv/v3")
+            ),
+            ("assets_url", url, false, text("https://assets.fanart.tv")),
         ]
     );
 }

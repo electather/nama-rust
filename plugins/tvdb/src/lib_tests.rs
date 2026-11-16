@@ -1,4 +1,8 @@
-use nama_pdk::{TitleId, nama_plugin_proto::nama::plugin::v1::SettingKind, services};
+use nama_pdk::{
+    TitleId,
+    nama_plugin_proto::nama::plugin::v1::{SettingKind, setting_value::Value},
+    services,
+};
 
 use super::{
     Episodes, Found, Login, Lookup, Series, artwork_path, content_type, data, encoded, manifest,
@@ -23,17 +27,32 @@ fn manifest_serves_the_title_source_under_tvdb_with_four_settings() {
     let settings: Vec<_> = manifest
         .settings
         .iter()
-        .map(|field| (field.key.as_str(), field.kind.as_known(), field.required))
+        .map(|field| {
+            let default = field.default_value.as_option();
+            let default = default.and_then(|default| default.value.clone());
+            (
+                field.key.as_str(),
+                field.kind.as_known(),
+                field.required,
+                default,
+            )
+        })
         .collect();
     let secret = Some(SettingKind::SETTING_KIND_SECRET);
     let url = Some(SettingKind::SETTING_KIND_URL);
+    let text = |text: &str| Some(Value::TextValue(text.to_owned()));
     assert_eq!(
         settings,
         [
-            ("api_key", secret, true),
-            ("pin", secret, false),
-            ("api_url", url, false),
-            ("artwork_url", url, false),
+            ("api_key", secret, true, None),
+            ("pin", secret, false, None),
+            ("api_url", url, false, text("https://api4.thetvdb.com/v4")),
+            (
+                "artwork_url",
+                url,
+                false,
+                text("https://artworks.thetvdb.com")
+            ),
         ]
     );
 }

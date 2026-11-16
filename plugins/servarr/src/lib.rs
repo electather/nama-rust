@@ -591,6 +591,28 @@ mod tests {
     }
 
     #[test]
+    fn settings_are_a_url_a_secret_and_two_choices_all_required_without_defaults() {
+        let declared: Vec<_> = settings("Sonarr", "Show", 8989)
+            .into_iter()
+            .map(|field| {
+                let default = field.default_value.into_option();
+                (field.key, field.kind.as_known(), field.required, default)
+            })
+            .collect();
+        let field = |key: &str, kind| (key.to_owned(), Some(kind), true, None);
+
+        assert_eq!(
+            declared,
+            [
+                field("url", SettingKind::SETTING_KIND_URL),
+                field("api_key", SettingKind::SETTING_KIND_SECRET),
+                field("quality_profile", SettingKind::SETTING_KIND_CHOICE),
+                field("root_folder", SettingKind::SETTING_KIND_CHOICE),
+            ]
+        );
+    }
+
+    #[test]
     fn no_such_profile_without_a_quality_names_only_the_id() {
         assert_eq!(
             sonarr().no_such_profile(&Request::default(), 4).to_string(),
