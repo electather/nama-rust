@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use super::{Kind, MovieOrEpisode, Progress, WatchStates};
+use super::{Kind, MovieOrEpisode, Progress, WatchState, WatchStates};
 use crate::{
     db::{self, Database},
     plugins::Registry,
@@ -91,8 +91,15 @@ async fn a_watch_state_kept_against_a_made_up_id_is_read_back() {
     assert_eq!((state.position_ms, state.played), (1_000, false));
 }
 
+/// Each User's Watch State `states` gives of one title, as the User, position and whether played.
+fn read(states: &[(i64, WatchState)]) -> Vec<(i64, i64, bool)> {
+    (states.iter())
+        .map(|(user, state)| (*user, state.position_ms, state.played))
+        .collect()
+}
+
 #[tokio::test]
-async fn every_users_watch_state_is_found_under_any_of_a_titles_ids_the_most_recent_kept() {
+async fn a_users_watch_states_under_two_of_a_titles_ids_keep_the_newer() {
     let data = tempfile::tempdir().unwrap();
     let (watch_states, ada) = watch_states(&data).await;
     let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
@@ -115,37 +122,55 @@ async fn every_users_watch_state_is_found_under_any_of_a_titles_ids_the_most_rec
         .unwrap();
 
     let ids = ExternalIds::from_iter([tmdb, imdb]);
-    let states = watch_states.of_every_user(Kind::Movie, &ids).await.unwrap();
+    let states = watch_states.of_titles(&[(Kind::Movie, ids)]).await.unwrap();
 
-    let read: Vec<_> = (states.iter())
-        .map(|(user, state)| (*user, state.position_ms, state.played))
-        .collect();
-    assert_eq!(read, [(ada, 1_950, true)]);
+    let [alien] = states.as_slice() else {
+        panic!("{states:?}");
+    };
+    assert_eq!(read(alien), [(ada, 1_950, true)]);
 }
 
 #[tokio::test]
-async fn every_users_watch_state_of_a_title_comes_by_user() {
+async fn every_users_watch_states_of_a_pages_titles_come_in_its_order_by_user() {
     let data = tempfile::tempdir().unwrap();
     let (watch_states, ada) = watch_states(&data).await;
     let bo = another_user(&watch_states, "Bo").await;
     let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
+    let lies = ExternalId::tmdb(1_002);
     let halfway = Progress::new(1_000, 2_000).unwrap();
     (watch_states.report(bo, vec![Some(alien())], halfway))
         .await
         .unwrap();
-    let under_imdb = MovieOrEpisode::movie(&imdb);
+    let alien_under_imdb = MovieOrEpisode::movie(&imdb);
+    let lies_episode = MovieOrEpisode::episode(&lies);
     watch_states
-        .mark(ada, vec![under_imdb], true)
+        .mark(ada, vec![alien_under_imdb, lies_episode.clone()], true)
+        .await
+        .unwrap();
+    watch_states
+        .mark(bo, vec![lies_episode], true)
         .await
         .unwrap();
 
-    let ids = ExternalIds::from_iter([ExternalId::tmdb(ALIEN_TMDB_ID), imdb]);
-    let states = watch_states.of_every_user(Kind::Movie, &ids).await.unwrap();
+    let page = [
+        (Kind::Episode, ExternalIds::from_iter([lies])),
+        (Kind::Movie, ExternalIds::from_iter([ExternalId::tmdb(1)])),
+        (
+            Kind::Movie,
+            ExternalIds::from_iter([ExternalId::tmdb(ALIEN_TMDB_ID), imdb]),
+        ),
+    ];
+    let states = watch_states.of_titles(&page).await.unwrap();
 
-    let read: Vec<_> = (states.iter())
-        .map(|(user, state)| (*user, state.position_ms, state.played))
-        .collect();
-    assert_eq!(read, [(ada, 0, true), (bo, 1_000, false)]);
+    let listed: Vec<_> = states.iter().map(|states| read(states)).collect();
+    assert_eq!(
+        listed,
+        [
+            vec![(ada, 0, true), (bo, 0, true)],
+            vec![],
+            vec![(ada, 0, true), (bo, 1_000, false)],
+        ]
+    );
 }
 
 fn shares(position_ms: u64, duration_ms: u64, episodes: usize) -> Vec<Option<(i64, i64)>> {

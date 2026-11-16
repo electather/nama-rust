@@ -209,31 +209,45 @@ impl WatchStates {
         Ok(titles.iter().map(|title| states.remove(title)).collect())
     }
 
-    /// Every User's Watch State of one Movie or Episode, kept under any of its `ids`, by User
-    /// id. Where a User has one under more than one of them, as when a Library's title source
-    /// order changed, the most recently updated.
-    pub(crate) async fn of_every_user(
+    /// Every User's Watch State of each of `titles`, in the same order, each a Movie or Episode
+    /// kept under any of its ids, by User id. Where a User has one under more than one of a
+    /// title's ids, as when a Library's title source order changed, the most recently updated.
+    pub(crate) async fn of_titles(
         &self,
-        kind: Kind,
-        ids: &ExternalIds,
-    ) -> Result<Vec<(i64, WatchState)>, sqlx::Error> {
-        let kind = kind.stored();
-        let ids: Vec<String> = ids.iter().map(|id| id.to_string()).collect();
-        let ids = serde_json::Value::from(ids).to_string();
-        // Same User first by most recent, so the first row of each User is the one kept.
+        titles: &[(Kind, ExternalIds)],
+    ) -> Result<Vec<Vec<(i64, WatchState)>>, sqlx::Error> {
+        let asked: Vec<serde_json::Value> = (titles.iter())
+            .map(|(kind, ids)| {
+                let ids: Vec<String> = ids.iter().map(|id| id.to_string()).collect();
+                serde_json::json!([kind.stored(), ids])
+            })
+            .collect();
+        let asked = serde_json::Value::from(asked).to_string();
+        // Grouped by title, then User, the most recent first, so the first row of each title's
+        // User is the one kept.
         let rows = sqlx::query!(
-            r#"SELECT user_id, position_ms, duration_ms, played AS "played: bool", updated_at
-               FROM watch_states
-               WHERE kind = ? AND title_id IN (SELECT value FROM json_each(?))
-               ORDER BY user_id, updated_at DESC, title_id"#,
-            kind,
-            ids
+            r#"SELECT CAST(title.key AS INTEGER) AS "position!: i64", user_id AS "user_id!",
+                      position_ms, duration_ms, played AS "played: bool", updated_at
+               FROM json_each(?) AS title
+               JOIN json_each(title.value, '$[1]') AS id
+               JOIN watch_states ON watch_states.kind = json_extract(title.value, '$[0]')
+                                AND watch_states.title_id = id.value
+               ORDER BY title.key, user_id, updated_at DESC, watch_states.title_id"#,
+            asked
         )
         .fetch_all(self.db.reader())
         .await?;
-        let mut states: Vec<(i64, WatchState)> = Vec::new();
+        let mut states: Vec<Vec<(i64, WatchState)>> = vec![Vec::new(); titles.len()];
         for row in rows {
-            if states.last().is_some_and(|&(user, _)| user == row.user_id) {
+            let Some(of_title) =
+                (usize::try_from(row.position).ok()).and_then(|position| states.get_mut(position))
+            else {
+                continue;
+            };
+            if of_title
+                .last()
+                .is_some_and(|&(user, _)| user == row.user_id)
+            {
                 continue;
             }
             let state = WatchState {
@@ -242,7 +256,7 @@ impl WatchStates {
                 played: row.played,
                 updated_at: row.updated_at,
             };
-            states.push((row.user_id, state));
+            of_title.push((row.user_id, state));
         }
         Ok(states)
     }

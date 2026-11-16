@@ -67,9 +67,10 @@ impl Name {
     }
 }
 
+/// Whether an Item is a Movie or an Episode, as `library_items.kind` stores it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, sqlx::Type)]
 #[sqlx(rename_all = "lowercase")]
-pub(super) enum ItemKind {
+pub(crate) enum ItemKind {
     Movie,
     Episode,
 }

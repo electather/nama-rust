@@ -30,8 +30,8 @@ pub(crate) use decisions::{
 pub(crate) use files::{Change, Stored};
 pub(crate) use ids::{DEFAULT_ORDER, parse_hint, primary_id};
 use ids::{ids_from_json, ids_sql, primary_id_in};
-pub(crate) use items::{Item, Name};
-use items::{ItemKind, ItemRow};
+use items::ItemRow;
+pub(crate) use items::{Item, ItemKind, Name};
 pub(crate) use matched::{
     Episode, MatchedTo, Movie, NewestBackdrop, Season, Show, Version, library_with_movie,
     matched_episodes, show_poster,

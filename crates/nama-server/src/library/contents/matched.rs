@@ -590,6 +590,70 @@ impl Contents {
     }
 }
 
+impl Contents {
+    /// Every id of each of the `named` Movies, or Episodes, of the Library `library`, in the same
+    /// order, each found by the id it is named by. One the Library doesn't have keeps only that
+    /// id. Reads only the named titles' Matches, however large the Library.
+    pub(crate) async fn every_id(
+        &self,
+        library: i64,
+        kind: ItemKind,
+        named: &[ExternalId],
+    ) -> Result<Vec<ExternalIds>, sqlx::Error> {
+        let asked: Vec<[&str; 2]> = (named.iter())
+            .map(|id| [id.namespace(), id.value()])
+            .collect();
+        let asked = serde_json::Value::from(asked).to_string();
+        // Where more than one Match has a named id, as Versions of one title or two titles sharing
+        // an id, the first in the order `movies` and `shows` list them keeps it: by title (an
+        // Episode's Show title, season and number first), then path. An Episode without a Show id
+        // is one `shows` leaves out.
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"SELECT CAST(asked.key AS INTEGER) AS "position!: i64", "#
+                        + $ids
+                        + r#"'title') AS "ids?: String"
+                       FROM json_each(?2) AS asked
+                       JOIN item_match_ids AS named
+                           ON named.scope = 'title'
+                          AND named.namespace = json_extract(asked.value, '$[0]')
+                          AND named.value = json_extract(asked.value, '$[1]')
+                       JOIN item_matches ON item_matches.item_id = named.item_id
+                       JOIN library_items ON library_items.id = item_matches.item_id
+                       JOIN library_files ON library_files.id = library_items.file_id
+                       WHERE library_files.library_id = ?1
+                         AND library_items.kind = ?3
+                         AND item_matches.state = 'matched'
+                         AND (library_items.kind = 'movie'
+                              OR EXISTS (SELECT 1 FROM item_match_ids AS show
+                                         WHERE show.item_id = item_matches.item_id
+                                           AND show.scope = 'show'))
+                       ORDER BY asked.key, item_matches.show_title, library_items.season,
+                                library_items.episode, item_matches.title, library_files.path"#,
+                    library,
+                    asked,
+                    kind
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
+        let mut found: Vec<Option<ExternalIds>> = vec![None; named.len()];
+        for row in rows {
+            let first = usize::try_from(row.position)
+                .ok()
+                .and_then(|position| found.get_mut(position))
+                .filter(|found| found.is_none());
+            if let Some(first) = first {
+                *first = Some(ids_from_json(row.ids.as_deref()));
+            }
+        }
+        Ok((named.iter().zip(found))
+            .map(|(named, found)| found.unwrap_or_else(|| ExternalIds::from_iter([named.clone()])))
+            .collect())
+    }
+}
+
 /// The oldest Library with an Item Matched to the Movie `id`, by any of its ids, if any, read
 /// on `conn` so a write can act on the answer before a scan changes it.
 pub(crate) async fn library_with_movie(

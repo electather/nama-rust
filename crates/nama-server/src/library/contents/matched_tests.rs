@@ -5,7 +5,7 @@ use nama_plugin_api::{
 
 use super::{
     super::{
-        Change, Decided, ImageRef, Item,
+        Change, Decided, ImageRef, Item, ItemKind,
         fixture::tmdb_movie,
         testing::{ALIEN, Fixture, movie},
     },
@@ -466,4 +466,81 @@ async fn a_seasons_poster_keeps_the_plugin_it_was_stored_under() {
     let shows = fx.contents.shows(fx.library).await.unwrap();
     assert_eq!(shows[0].seasons[&1].episodes[0].plugin, "tmdb");
     assert_eq!(shows[0].seasons[&1].poster, Some(poster));
+}
+
+#[tokio::test]
+async fn a_title_named_by_any_of_its_ids_gets_every_id_in_the_asked_order() {
+    let fx = Fixture::new().await;
+    let alien_ids = ExternalIds::from_iter([ExternalId::tmdb(348), imdb("tt0078748")]);
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    match_movie(&fx, ALIEN, alien_ids.clone()).await;
+    let path = "/media/Firefly/Season 01/Firefly - S01E02.mkv";
+    let episode = Item::Episode {
+        show: "Firefly".to_owned(),
+        year: None,
+        hint: None,
+        season: 1,
+        episode: 2,
+    };
+    fx.store(path, 10, episode).await;
+    let train_job_ids = ExternalIds::from_iter([ExternalId::tmdb(1001), ExternalId::tvdb(297_989)]);
+    let metadata = super::super::Metadata {
+        ids: train_job_ids.clone(),
+        show_ids: ExternalIds::from_iter([ExternalId::tmdb(1437)]),
+        ..tmdb_movie(0, "The Train Job")
+    };
+    let item = fx.item(path).await;
+    fx.contents
+        .record(vec![(item, Decided::Matched(Box::new(metadata)))])
+        .await
+        .unwrap();
+    let every_id = async |kind, named: &[ExternalId]| {
+        fx.contents.every_id(fx.library, kind, named).await.unwrap()
+    };
+
+    let not_here = ExternalId::tmdb(1);
+    let movies = every_id(
+        ItemKind::Movie,
+        &[not_here.clone(), imdb("tt0078748"), ExternalId::tmdb(1001)],
+    )
+    .await;
+    let episodes = every_id(ItemKind::Episode, &[ExternalId::tvdb(297_989)]).await;
+
+    let only = |id: &ExternalId| ExternalIds::from_iter([id.clone()]);
+    let an_episode_isnt_a_movie = only(&ExternalId::tmdb(1001));
+    assert_eq!(
+        movies,
+        [only(&not_here), alien_ids, an_episode_isnt_a_movie]
+    );
+    assert_eq!(episodes, [train_job_ids]);
+}
+
+#[tokio::test]
+async fn an_id_two_movies_share_gives_the_ids_of_the_first_by_title() {
+    let fx = Fixture::new().await;
+    let shared = imdb("tt0078748");
+    let aliens = "/media/Aliens (1986)/Aliens (1986).mkv";
+    for (path, title, tmdb) in [(aliens, "Aliens", 679), (ALIEN, "Alien", 348)] {
+        fx.store(path, 10, movie(title, 1979)).await;
+        let item = fx.item(path).await;
+        let metadata = super::super::Metadata {
+            ids: ExternalIds::from_iter([ExternalId::tmdb(tmdb), shared.clone()]),
+            ..tmdb_movie(tmdb, title)
+        };
+        fx.contents
+            .record(vec![(item, Decided::Matched(Box::new(metadata)))])
+            .await
+            .unwrap();
+    }
+
+    let found = (fx
+        .contents
+        .every_id(fx.library, ItemKind::Movie, std::slice::from_ref(&shared)))
+    .await
+    .unwrap();
+
+    assert_eq!(
+        found,
+        [ExternalIds::from_iter([ExternalId::tmdb(348), shared])]
+    );
 }

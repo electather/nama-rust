@@ -1,11 +1,17 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT user_id, position_ms, duration_ms, played AS \"played: bool\", updated_at\n               FROM watch_states\n               WHERE kind = ? AND title_id IN (SELECT value FROM json_each(?))\n               ORDER BY user_id, updated_at DESC, title_id",
+  "query": "SELECT CAST(title.key AS INTEGER) AS \"position!: i64\", user_id AS \"user_id!\",\n                      position_ms, duration_ms, played AS \"played: bool\", updated_at\n               FROM json_each(?) AS title\n               JOIN json_each(title.value, '$[1]') AS id\n               JOIN watch_states ON watch_states.kind = json_extract(title.value, '$[0]')\n                                AND watch_states.title_id = id.value\n               ORDER BY title.key, user_id, updated_at DESC, watch_states.title_id",
   "describe": {
     "columns": [
       {
-        "name": "user_id",
+        "name": "position!: i64",
         "ordinal": 0,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "user_id!",
+        "ordinal": 1,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -16,7 +22,7 @@
       },
       {
         "name": "position_ms",
-        "ordinal": 1,
+        "ordinal": 2,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -27,7 +33,7 @@
       },
       {
         "name": "duration_ms",
-        "ordinal": 2,
+        "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -38,7 +44,7 @@
       },
       {
         "name": "played: bool",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -49,7 +55,7 @@
       },
       {
         "name": "updated_at",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -60,15 +66,16 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 1
     },
     "nullable": [
-      false,
+      null,
+      null,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "c7959072e51c7f6cc273d9705ae7e3d92e0eee71ff1b57a3b3ba979206bcc146"
+  "hash": "e53d8b5a761e13728f8ad124f7cafab0136048016c3f40e5d1c289a0c2103102"
 }
