@@ -257,7 +257,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::LIBRARY_SERVICE_PREVIEW_DELETE_MEDIA_SPEC.procedure,  DELETE_MEDIA),
     (proto::LIBRARY_SERVICE_DELETE_MEDIA_SPEC.procedure,          DELETE_MEDIA),
     (proto::LIBRARY_SERVICE_LIST_TITLE_SOURCES_SPEC.procedure,    MANAGE_LIBRARIES),
-    (proto::MATCH_SERVICE_SEARCH_METADATA_SPEC.procedure,         MANAGE_LIBRARIES),
+    (proto::MATCH_SERVICE_SEARCH_TITLES_SPEC.procedure,           MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_SET_MATCH_SPEC.procedure,               MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_CLEAR_MATCH_SPEC.procedure,             MANAGE_LIBRARIES),
     (proto::MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC.procedure,    MANAGE_LIBRARIES),
@@ -529,7 +529,7 @@ struct Refused {
 }
 
 /// Refuses a request for breaking the rule `reason` names, telling the client `message`. Every
-/// error a client can cause is built here (see AGENTS.md, "Refusals are typed").
+/// error a client can cause is built here (see `api/AGENTS.md`, "Refusals are typed").
 fn refuse(reason: RefusalReason, message: impl Into<String>) -> Refused {
     Refused {
         code: refusal_code(reason),
@@ -627,7 +627,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         R::REFUSAL_REASON_USER_NAME_TAKEN | R::REFUSAL_REASON_FOLDER_TAKEN => {
             ErrorCode::AlreadyExists
         }
-        R::REFUSAL_REASON_NO_METADATA_PROVIDER => ErrorCode::Unavailable,
+        R::REFUSAL_REASON_NO_TITLE_SOURCE => ErrorCode::Unavailable,
     }
 }
 

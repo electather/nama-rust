@@ -2583,7 +2583,7 @@ impl ::serde::Serialize for FollowedShowOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A Movie a Request asks for, with its metadata as the metadata source gave it when the Request
+/// A Movie a Request asks for, with its metadata as the title source gave it when the Request
 /// was opened.
 #[derive(Clone, Debug, Default)]
 pub struct RequestedMovieView<'a> {
@@ -2591,7 +2591,7 @@ pub struct RequestedMovieView<'a> {
     ///
     /// Field 4: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
-    /// Every id the metadata source gave for the Movie when the Request was opened, at most one per
+    /// Every id the title source gave for the Movie when the Request was opened, at most one per
     /// namespace, `id` among them.
     ///
     /// Field 5: `ids`
@@ -2930,7 +2930,7 @@ impl RequestedMovieOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
     }
-    /// Every id the metadata source gave for the Movie when the Request was opened, at most one per
+    /// Every id the title source gave for the Movie when the Request was opened, at most one per
     /// namespace, `id` among them.
     ///
     /// Field 5: `ids`
@@ -2985,7 +2985,7 @@ impl ::serde::Serialize for RequestedMovieOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A Season a Request asks for, with its metadata as the metadata source gave it when the Request
+/// A Season a Request asks for, with its metadata as the title source gave it when the Request
 /// was opened.
 #[derive(Clone, Debug, Default)]
 pub struct RequestedSeasonView<'a> {
@@ -2995,7 +2995,7 @@ pub struct RequestedSeasonView<'a> {
     pub show_id: ::buffa::MessageFieldView<
         super::super::__buffa::view::ExternalIdView<'a>,
     >,
-    /// Every id the metadata source gave for the Show when the Request was opened, at most one per
+    /// Every id the title source gave for the Show when the Request was opened, at most one per
     /// namespace, `show_id` among them.
     ///
     /// Field 8: `show_ids`
@@ -3362,7 +3362,7 @@ impl RequestedSeasonOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().show_id
     }
-    /// Every id the metadata source gave for the Show when the Request was opened, at most one per
+    /// Every id the title source gave for the Show when the Request was opened, at most one per
     /// namespace, `show_id` among them.
     ///
     /// Field 8: `show_ids`
@@ -3737,7 +3737,7 @@ impl ::serde::Serialize for RequesterOwnedView {
 #[derive(Clone, Debug, Default)]
 pub struct CreateRequestRequestView<'a> {
     /// The id of the Movie to ask for. Any well-formed id is taken. An id
-    /// no metadata source has, or can look titles up by, is refused with
+    /// no title source has, or can look titles up by, is refused with
     /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
     /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
@@ -4016,7 +4016,7 @@ impl CreateRequestRequestOwnedView {
         self.0.into_bytes()
     }
     /// The id of the Movie to ask for. Any well-formed id is taken. An id
-    /// no metadata source has, or can look titles up by, is refused with
+    /// no title source has, or can look titles up by, is refused with
     /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
     /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
@@ -4363,7 +4363,7 @@ impl ::serde::Serialize for CreateRequestResponseOwnedView {
 #[derive(Clone, Debug, Default)]
 pub struct CreateSeasonRequestsRequestView<'a> {
     /// The id of the Show. Any well-formed id is taken. An id
-    /// no metadata source has, or can look titles up by, is refused with
+    /// no title source has, or can look titles up by, is refused with
     /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
     /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
@@ -4693,7 +4693,7 @@ impl CreateSeasonRequestsRequestOwnedView {
         self.0.into_bytes()
     }
     /// The id of the Show. Any well-formed id is taken. An id
-    /// no metadata source has, or can look titles up by, is refused with
+    /// no title source has, or can look titles up by, is refused with
     /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
     /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
@@ -5380,7 +5380,7 @@ impl ::serde::Serialize for ListRequestsRequestOwnedView {
 #[derive(Clone, Debug, Default)]
 pub struct CreateFollowedShowRequestView<'a> {
     /// The id of the Show. Any well-formed id is taken. An id
-    /// no metadata source has, or can look titles up by, is refused with
+    /// no title source has, or can look titles up by, is refused with
     /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
     /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
@@ -5660,7 +5660,7 @@ impl CreateFollowedShowRequestOwnedView {
         self.0.into_bytes()
     }
     /// The id of the Show. Any well-formed id is taken. An id
-    /// no metadata source has, or can look titles up by, is refused with
+    /// no title source has, or can look titles up by, is refused with
     /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
     /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
@@ -15462,7 +15462,7 @@ impl ::serde::Serialize for ListOfferedQualitiesResponseOwnedView {
 /// client built when searches gave `FoundMovie`s still decodes it.
 #[derive(Clone, Debug, Default)]
 pub struct MovieHitView<'a> {
-    /// The Movie's id in the metadata source.
+    /// The Movie's id in the title source.
     ///
     /// Field 12: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
@@ -15868,7 +15868,7 @@ impl MovieHitOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The Movie's id in the metadata source.
+    /// The Movie's id in the title source.
     ///
     /// Field 12: `id`
     #[must_use]
@@ -15953,10 +15953,10 @@ impl ::serde::Serialize for MovieHitOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A Movie looked up in the metadata source: all a `MovieHit` has, and what only a look-up fetches.
+/// A Movie looked up in the title source: all a `MovieHit` has, and what only a look-up fetches.
 #[derive(Clone, Debug, Default)]
 pub struct FoundMovieView<'a> {
-    /// The Movie's id in the metadata source.
+    /// The Movie's id in the title source.
     ///
     /// Field 12: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
@@ -16454,7 +16454,7 @@ impl FoundMovieOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The Movie's id in the metadata source.
+    /// The Movie's id in the title source.
     ///
     /// Field 12: `id`
     #[must_use]
@@ -17694,7 +17694,7 @@ impl ::serde::Serialize for LookUpMovieResponseOwnedView {
 /// `FoundShow`s still decodes it.
 #[derive(Clone, Debug, Default)]
 pub struct ShowHitView<'a> {
-    /// The Show's id in the metadata source.
+    /// The Show's id in the title source.
     ///
     /// Field 12: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
@@ -18023,7 +18023,7 @@ impl ShowHitOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The Show's id in the metadata source.
+    /// The Show's id in the title source.
     ///
     /// Field 12: `id`
     #[must_use]
@@ -18091,10 +18091,10 @@ impl ::serde::Serialize for ShowHitOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A Show looked up in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
+/// A Show looked up in the title source, whose Seasons `CreateSeasonRequests` asks for.
 #[derive(Clone, Debug, Default)]
 pub struct FoundShowView<'a> {
-    /// The Show's id in the metadata source.
+    /// The Show's id in the title source.
     ///
     /// Field 12: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
@@ -18660,7 +18660,7 @@ impl FoundShowOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// The Show's id in the metadata source.
+    /// The Show's id in the title source.
     ///
     /// Field 12: `id`
     #[must_use]
@@ -18781,7 +18781,7 @@ impl ::serde::Serialize for FoundShowOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A Season of a Show in the metadata source, and how close it is to being on the Server: in a
+/// A Season of a Show in the title source, and how close it is to being on the Server: in a
 /// Library, asked for in a Request, or neither.
 #[derive(Clone, Debug, Default)]
 pub struct FoundSeasonView<'a> {

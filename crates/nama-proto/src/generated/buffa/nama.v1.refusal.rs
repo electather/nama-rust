@@ -70,12 +70,12 @@ pub enum RefusalReason {
     REFUSAL_REASON_DURATION_OUT_OF_RANGE = 26i32,
     /// `not_found`: there is no item with the ID. Params: `itemId`.
     REFUSAL_REASON_ITEM_NOT_FOUND = 27i32,
-    /// `invalid_argument`: the metadata source has no title with the id, or can't look titles up by
+    /// `invalid_argument`: the title source has no title with the id, or can't look titles up by
     /// it. Params: `titleId`, as the message shows it (`tmdb-949`), and for a Season of a Show
     /// `seasonNumber`.
     REFUSAL_REASON_UNKNOWN_TITLE = 28i32,
     /// `unavailable`: no title source is enabled, or one failed.
-    REFUSAL_REASON_NO_METADATA_PROVIDER = 29i32,
+    REFUSAL_REASON_NO_TITLE_SOURCE = 29i32,
     /// `invalid_argument`: a User's or Device's name, trimmed, is too short or too long. Params:
     /// `minLength`, `maxLength`, in characters.
     REFUSAL_REASON_NAME_LENGTH = 30i32,
@@ -195,7 +195,7 @@ pub enum RefusalReason {
     /// `invalid_argument`: a title's id has a namespace that isn't lowercase ASCII letters and
     /// digits, or an empty value. `field` names the id.
     REFUSAL_REASON_TITLE_ID_MALFORMED = 70i32,
-    /// `not_found`: no metadata source has a title with the id, or none can look titles up by it.
+    /// `not_found`: no title source has a title with the id, or none can look titles up by it.
     /// Params: `titleId`.
     REFUSAL_REASON_TITLE_NOT_FOUND = 71i32,
     /// `failed_precondition`: the Fulfiller needs an id of the title in one of the namespaces named
@@ -313,9 +313,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNKNOWN_TITLE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const UnknownTitle: Self = Self::REFUSAL_REASON_UNKNOWN_TITLE;
-    ///Idiomatic alias for [`Self::REFUSAL_REASON_NO_METADATA_PROVIDER`]; `Debug` prints the variant name.
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NO_TITLE_SOURCE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
-    pub const NoMetadataProvider: Self = Self::REFUSAL_REASON_NO_METADATA_PROVIDER;
+    pub const NoTitleSource: Self = Self::REFUSAL_REASON_NO_TITLE_SOURCE;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_NAME_LENGTH`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const NameLength: Self = Self::REFUSAL_REASON_NAME_LENGTH;
@@ -603,9 +603,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             27i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_ITEM_NOT_FOUND),
             28i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_TITLE),
-            29i32 => {
-                ::core::option::Option::Some(Self::REFUSAL_REASON_NO_METADATA_PROVIDER)
-            }
+            29i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NO_TITLE_SOURCE),
             30i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NAME_LENGTH),
             31i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PASSWORD_REJECTED),
             32i32 => {
@@ -778,9 +776,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_ITEM_NOT_FOUND => "REFUSAL_REASON_ITEM_NOT_FOUND",
             Self::REFUSAL_REASON_UNKNOWN_TITLE => "REFUSAL_REASON_UNKNOWN_TITLE",
-            Self::REFUSAL_REASON_NO_METADATA_PROVIDER => {
-                "REFUSAL_REASON_NO_METADATA_PROVIDER"
-            }
+            Self::REFUSAL_REASON_NO_TITLE_SOURCE => "REFUSAL_REASON_NO_TITLE_SOURCE",
             Self::REFUSAL_REASON_NAME_LENGTH => "REFUSAL_REASON_NAME_LENGTH",
             Self::REFUSAL_REASON_PASSWORD_REJECTED => "REFUSAL_REASON_PASSWORD_REJECTED",
             Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE => {
@@ -975,8 +971,8 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_UNKNOWN_TITLE" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_UNKNOWN_TITLE)
             }
-            "REFUSAL_REASON_NO_METADATA_PROVIDER" => {
-                ::core::option::Option::Some(Self::REFUSAL_REASON_NO_METADATA_PROVIDER)
+            "REFUSAL_REASON_NO_TITLE_SOURCE" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NO_TITLE_SOURCE)
             }
             "REFUSAL_REASON_NAME_LENGTH" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_NAME_LENGTH)
@@ -1171,7 +1167,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_DURATION_OUT_OF_RANGE,
             Self::REFUSAL_REASON_ITEM_NOT_FOUND,
             Self::REFUSAL_REASON_UNKNOWN_TITLE,
-            Self::REFUSAL_REASON_NO_METADATA_PROVIDER,
+            Self::REFUSAL_REASON_NO_TITLE_SOURCE,
             Self::REFUSAL_REASON_NAME_LENGTH,
             Self::REFUSAL_REASON_PASSWORD_REJECTED,
             Self::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE,

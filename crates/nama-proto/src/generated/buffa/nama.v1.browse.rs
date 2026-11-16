@@ -339,7 +339,7 @@ pub struct Movie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub title: ::buffa::alloc::string::String,
-    /// The title in its original language, if the metadata source has it.
+    /// The title in its original language, if the title source has it.
     ///
     /// Field 3: `original_title`
     #[serde(

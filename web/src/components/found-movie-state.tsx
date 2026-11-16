@@ -23,7 +23,7 @@ import { titleParam } from "@/lib/browse";
 import { askRefusal } from "@/lib/forms";
 
 /**
- * Where a Movie found in the metadata source is on its way to the Server: in a Library, linking
+ * Where a Movie found in the title source is on its way to the Server: in a Library, linking
  * there, or its Request's state, and its downloads while Processing. Request, while the signed-in
  * User `you` isn't one of its Requesters, which `primary` makes the screen's primary action. The
  * caller lays them out.

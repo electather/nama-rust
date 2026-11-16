@@ -26,7 +26,7 @@ const tvdb: Summary = {
   id: "tvdb",
   name: "TVDB",
   enabled: true,
-  extensionPoints: [ExtensionPoint.METADATA_PROVIDER],
+  extensionPoints: [ExtensionPoint.TITLE_SOURCE],
 };
 
 const films: MessageInitShape<typeof LibrarySchema> = {

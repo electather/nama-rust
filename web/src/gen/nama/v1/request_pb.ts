@@ -354,7 +354,7 @@ export const FollowedShowSchema: GenMessage<FollowedShow> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 4);
 
 /**
- * A Movie a Request asks for, with its metadata as the metadata source gave it when the Request
+ * A Movie a Request asks for, with its metadata as the title source gave it when the Request
  * was opened.
  *
  * @generated from message nama.v1.RequestedMovie
@@ -368,7 +368,7 @@ export type RequestedMovie = Message<"nama.v1.RequestedMovie"> & {
   id?: ExternalId | undefined;
 
   /**
-   * Every id the metadata source gave for the Movie when the Request was opened, at most one per
+   * Every id the title source gave for the Movie when the Request was opened, at most one per
    * namespace, `id` among them.
    *
    * @generated from field: repeated nama.v1.ExternalId ids = 5;
@@ -398,7 +398,7 @@ export const RequestedMovieSchema: GenMessage<RequestedMovie> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 5);
 
 /**
- * A Season a Request asks for, with its metadata as the metadata source gave it when the Request
+ * A Season a Request asks for, with its metadata as the title source gave it when the Request
  * was opened.
  *
  * @generated from message nama.v1.RequestedSeason
@@ -412,7 +412,7 @@ export type RequestedSeason = Message<"nama.v1.RequestedSeason"> & {
   showId?: ExternalId | undefined;
 
   /**
-   * Every id the metadata source gave for the Show when the Request was opened, at most one per
+   * Every id the title source gave for the Show when the Request was opened, at most one per
    * namespace, `show_id` among them.
    *
    * @generated from field: repeated nama.v1.ExternalId show_ids = 8;
@@ -487,7 +487,7 @@ export const RequesterSchema: GenMessage<Requester> = /*@__PURE__*/
 export type CreateRequestRequest = Message<"nama.v1.CreateRequestRequest"> & {
   /**
    * The id of the Movie to ask for. Any well-formed id is taken. An id
-   * no metadata source has, or can look titles up by, is refused with
+   * no title source has, or can look titles up by, is refused with
    * `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
    * `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
    *
@@ -535,7 +535,7 @@ export const CreateRequestResponseSchema: GenMessage<CreateRequestResponse> = /*
 export type CreateSeasonRequestsRequest = Message<"nama.v1.CreateSeasonRequestsRequest"> & {
   /**
    * The id of the Show. Any well-formed id is taken. An id
-   * no metadata source has, or can look titles up by, is refused with
+   * no title source has, or can look titles up by, is refused with
    * `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
    * `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
    *
@@ -627,7 +627,7 @@ export const ListRequestsRequestSchema: GenMessage<ListRequestsRequest> = /*@__P
 export type CreateFollowedShowRequest = Message<"nama.v1.CreateFollowedShowRequest"> & {
   /**
    * The id of the Show. Any well-formed id is taken. An id
-   * no metadata source has, or can look titles up by, is refused with
+   * no title source has, or can look titles up by, is refused with
    * `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
    * `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
    *
@@ -1372,7 +1372,7 @@ export const ListOfferedQualitiesResponseSchema: GenMessage<ListOfferedQualities
  */
 export type MovieHit = Message<"nama.v1.MovieHit"> & {
   /**
-   * The Movie's id in the metadata source.
+   * The Movie's id in the title source.
    *
    * @generated from field: nama.v1.ExternalId id = 12;
    */
@@ -1430,13 +1430,13 @@ export const MovieHitSchema: GenMessage<MovieHit> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 49);
 
 /**
- * A Movie looked up in the metadata source: all a `MovieHit` has, and what only a look-up fetches.
+ * A Movie looked up in the title source: all a `MovieHit` has, and what only a look-up fetches.
  *
  * @generated from message nama.v1.FoundMovie
  */
 export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
   /**
-   * The Movie's id in the metadata source.
+   * The Movie's id in the title source.
    *
    * @generated from field: nama.v1.ExternalId id = 12;
    */
@@ -1599,7 +1599,7 @@ export const LookUpMovieResponseSchema: GenMessage<LookUpMovieResponse> = /*@__P
  */
 export type ShowHit = Message<"nama.v1.ShowHit"> & {
   /**
-   * The Show's id in the metadata source.
+   * The Show's id in the title source.
    *
    * @generated from field: nama.v1.ExternalId id = 12;
    */
@@ -1642,13 +1642,13 @@ export const ShowHitSchema: GenMessage<ShowHit> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 55);
 
 /**
- * A Show looked up in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
+ * A Show looked up in the title source, whose Seasons `CreateSeasonRequests` asks for.
  *
  * @generated from message nama.v1.FoundShow
  */
 export type FoundShow = Message<"nama.v1.FoundShow"> & {
   /**
-   * The Show's id in the metadata source.
+   * The Show's id in the title source.
    *
    * @generated from field: nama.v1.ExternalId id = 12;
    */
@@ -1736,7 +1736,7 @@ export const FoundShowSchema: GenMessage<FoundShow> = /*@__PURE__*/
   messageDesc(file_nama_v1_request, 56);
 
 /**
- * A Season of a Show in the metadata source, and how close it is to being on the Server: in a
+ * A Season of a Show in the title source, and how close it is to being on the Server: in a
  * Library, asked for in a Request, or neither.
  *
  * @generated from message nama.v1.FoundSeason
@@ -1991,7 +1991,7 @@ export const RequestService: GenService<{
    * Requester, which changes nothing if they already are one. Otherwise a new Request opens:
    * Approved if the caller has `PERMISSION_AUTO_APPROVE_MOVIE`, else Pending. Needs
    * `PERMISSION_REQUEST_MOVIE`. Fails with `failed_precondition` if a Library already has the
-   * Movie, `invalid_argument` if the metadata source has no Movie with the id, and `unavailable`
+   * Movie, `invalid_argument` if the title source has no Movie with the id, and `unavailable`
    * if no title source is enabled, or one failed. A new Request takes the Quality named in
    * `quality`, else the caller's default from `SetDefaultQuality` if they have
    * `PERMISSION_CHOOSE_QUALITY` and the list still has it, else the Movie Fulfiller's default;
@@ -2049,7 +2049,7 @@ export const RequestService: GenService<{
    * asks for a Movie: Approved if the caller has `PERMISSION_AUTO_APPROVE_TV`, else Pending. Needs
    * `PERMISSION_REQUEST_TV`. A Season is in a Library once it has aired and every one of its aired
    * Episodes is Matched, and asking for such a Season fails with `failed_precondition`. Fails with
-   * `invalid_argument` if no Season is named or the metadata source has no such Show or Season,
+   * `invalid_argument` if no Season is named or the title source has no such Show or Season,
    * and `unavailable` if no title source is enabled, or one failed. A failure changes no
    * Request. A new Request takes the Show's Quality (`FoundShow.quality`) if it has one, else one
    * picked as `CreateRequest` picks a Movie's, refusing a Quality as `CreateRequest` does, and one
@@ -2081,7 +2081,7 @@ export const RequestService: GenService<{
    * Show is Approved, a scan Matching Episodes of a Season that came out after it was opened opens
    * a Request for its Requesters at the Show's Quality. A new Followed Show takes the Show's Quality
    * if it has one, else one picked and refused as `CreateSeasonRequests` picks and refuses one;
-   * joining one keeps its Quality. Fails with `invalid_argument` if the metadata source has no Show
+   * joining one keeps its Quality. Fails with `invalid_argument` if the title source has no Show
    * with the id, and `unavailable` if no title source is enabled, or one failed.
    *
    * @generated from rpc nama.v1.RequestService.CreateFollowedShow
@@ -2128,8 +2128,8 @@ export const RequestService: GenService<{
     output: typeof CountPendingRequestsResponseSchema;
   },
   /**
-   * Searches the metadata source for Movies to ask for, best fit first. Unlike
-   * `MatchService.SearchMetadata`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
+   * Searches the title source for Movies to ask for, best fit first. Unlike
+   * `MatchService.SearchTitles`, it needs only `PERMISSION_REQUEST_MOVIE`. Fails with
    * `invalid_argument` if the title is blank, and `unavailable` if no title source is
    * enabled, or one failed.
    *
@@ -2141,8 +2141,8 @@ export const RequestService: GenService<{
     output: typeof SearchMoviesResponseSchema;
   },
   /**
-   * Returns one Movie from the metadata source, for its page when no Library has it. Needs
-   * `PERMISSION_REQUEST_MOVIE`. Fails with `not_found` if no metadata source has a Movie with the
+   * Returns one Movie from the title source, for its page when no Library has it. Needs
+   * `PERMISSION_REQUEST_MOVIE`. Fails with `not_found` if no title source has a Movie with the
    * id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if no
    * title source is enabled, or one failed.
    *
@@ -2154,7 +2154,7 @@ export const RequestService: GenService<{
     output: typeof LookUpMovieResponseSchema;
   },
   /**
-   * Searches the metadata source for Shows to ask for Seasons of, best fit first. Needs
+   * Searches the title source for Shows to ask for Seasons of, best fit first. Needs
    * `PERMISSION_REQUEST_TV`. Fails as `SearchMovies` does.
    *
    * @generated from rpc nama.v1.RequestService.SearchShows
@@ -2165,8 +2165,8 @@ export const RequestService: GenService<{
     output: typeof SearchShowsResponseSchema;
   },
   /**
-   * Returns one Show from the metadata source with each of its Seasons, for picking which to ask
-   * for. Needs `PERMISSION_REQUEST_TV`. Fails with `not_found` if no metadata source has a Show
+   * Returns one Show from the title source with each of its Seasons, for picking which to ask
+   * for. Needs `PERMISSION_REQUEST_TV`. Fails with `not_found` if no title source has a Show
    * with the id or can look one up by it (`REFUSAL_REASON_TITLE_NOT_FOUND`), and `unavailable` if
    * no title source is enabled, or one failed.
    *

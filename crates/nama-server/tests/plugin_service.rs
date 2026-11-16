@@ -322,9 +322,9 @@ async fn every_plugin_is_listed_with_its_extension_points_enabled_or_not() {
             EXTENSION_POINT_SHOW_FULFILLER
         ]
     );
-    assert_eq!(points("tmdb"), [EXTENSION_POINT_METADATA_PROVIDER]);
-    assert_eq!(points("tvdb"), [EXTENSION_POINT_METADATA_PROVIDER]);
-    assert_eq!(points("fanart"), [EXTENSION_POINT_METADATA_PROVIDER]);
+    assert_eq!(points("tmdb"), [EXTENSION_POINT_TITLE_SOURCE]);
+    assert_eq!(points("tvdb"), [EXTENSION_POINT_TITLE_SOURCE]);
+    assert_eq!(points("fanart"), [EXTENSION_POINT_TITLE_SOURCE]);
 }
 
 #[tokio::test]
@@ -333,7 +333,7 @@ async fn a_plugins_extension_points_come_with_it() {
 
     assert_eq!(
         tmdb.summary.extension_points,
-        [ExtensionPoint::EXTENSION_POINT_METADATA_PROVIDER]
+        [ExtensionPoint::EXTENSION_POINT_TITLE_SOURCE]
     );
 }
 

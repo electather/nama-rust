@@ -24,7 +24,7 @@ import { refused } from "./test-refusal";
 afterEach(cleanup);
 
 /**
- * A fake Server whose metadata source has `show`, where asking for Seasons opens a Pending Request
+ * A fake Server whose title source has `show`, where asking for Seasons opens a Pending Request
  * for each one for the signed-in User (ID 1), or adds them as a Requester to the one it has.
  */
 function showServer(

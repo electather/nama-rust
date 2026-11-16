@@ -15,7 +15,7 @@ import {
 } from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
-/** A Movie from the metadata source, for Requesting it. One a Library has opens there instead. */
+/** A Movie from the title source, for Requesting it. One a Library has opens there instead. */
 export const Route = createFileRoute("/_member/movies/$movieId")({
   beforeLoad: ({ context }) => {
     // Only search results link here, and only for those who may Request.

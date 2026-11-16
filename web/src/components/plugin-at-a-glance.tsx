@@ -33,7 +33,7 @@ const points: Partial<Record<ExtensionPoint, Shown>> = {
   [ExtensionPoint.NOTIFIER]: { label: "Notifier", Icon: Bell },
   [ExtensionPoint.CONNECTOR]: { label: "Connector", Icon: Link },
   [ExtensionPoint.AUTHENTICATOR]: { label: "Authenticator", Icon: KeyRound },
-  [ExtensionPoint.METADATA_PROVIDER]: { label: "Metadata Provider", Icon: ScanSearch },
+  [ExtensionPoint.TITLE_SOURCE]: { label: "Title source", Icon: ScanSearch },
   [ExtensionPoint.EVENTS_OBSERVER]: { label: "Observes Events", Icon: Activity },
   [ExtensionPoint.SERVER_STARTED_OBSERVER]: { label: "Observes Server start", Icon: Server },
   [ExtensionPoint.BLOB_STORE]: { label: "Blob store", Icon: Database },

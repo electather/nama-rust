@@ -649,13 +649,13 @@ impl From<QualityRefused> for ConnectError {
     }
 }
 
-/// The refusal of a look-up of the `what` `id`, named in `field`, which no metadata source has or
+/// The refusal of a look-up of the `what` `id`, named in `field`, which no title source has or
 /// can look up. Unlike the create calls' `REFUSAL_REASON_UNKNOWN_TITLE`, a look-up names no title
 /// to act on, so it is `not_found`.
 fn title_not_found(id: &ExternalId, field: &str, what: &str) -> ConnectError {
     refuse(
         RefusalReason::REFUSAL_REASON_TITLE_NOT_FOUND,
-        format!("no metadata source has a {what} with the id {id}"),
+        format!("no title source has a {what} with the id {id}"),
     )
     .field(field)
     .param("titleId", id)
@@ -740,7 +740,7 @@ impl From<requests::Error> for ConnectError {
                     .param("titleId", &show)
                     .param("seasonNumber", &season)
             }
-            requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
+            requests::Error::Unavailable => refuse(R::REFUSAL_REASON_NO_TITLE_SOURCE, message),
             requests::Error::Quality(refused) => return refused.into(),
             requests::Error::PageTokenInvalid => {
                 refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page_token")

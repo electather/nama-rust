@@ -300,7 +300,7 @@ enum ExtensionPoint {
   // Checks the credentials people sign in with.
   EXTENSION_POINT_AUTHENTICATOR = 5;
   // A title source: searches for and describes Movies and Shows, such as TMDB.
-  EXTENSION_POINT_METADATA_PROVIDER = 6;
+  EXTENSION_POINT_TITLE_SOURCE = 6;
   // Observes the Server's Events.
   EXTENSION_POINT_EVENTS_OBSERVER = 7;
   // Observes the Server starting.

@@ -18,7 +18,7 @@ import { formText, onSubmitted, refusal } from "@/lib/forms";
 
 /**
  * An Unmatched Item: what its file's name was parsed as, and the file. Opening it searches the
- * metadata source for its title, to Match it by hand.
+ * title source for its title, to Match it by hand.
  */
 export function UnmatchedRow({
   item,
@@ -131,7 +131,7 @@ function searchTyped(typed: FormData, kind: TitleKind) {
   return { kind, title: formText(typed, "title"), year: year === "" ? undefined : Number(year) };
 }
 
-/** The titles the metadata source found for `search`, to Match `item` to. */
+/** The titles the title source found for `search`, to Match `item` to. */
 function SearchResults({
   search,
   item,
@@ -141,7 +141,7 @@ function SearchResults({
   item: UnmatchedItem;
   libraryId: bigint;
 }) {
-  const found = useQuery(MatchService.method.searchMetadata, search);
+  const found = useQuery(MatchService.method.searchTitles, search);
   if (found.isError) {
     return (
       <p role="alert" className="text-sm text-destructive">
@@ -222,7 +222,7 @@ function CandidateRow({
   );
 }
 
-const noAnswer = { form: "The metadata source didn’t answer. Try again in a moment." };
+const noAnswer = { form: "The title source didn’t answer. Try again in a moment." };
 
 function searchRefusal(error: unknown) {
   return refusal(error, "search", { [Code.Unavailable]: noAnswer }).form;

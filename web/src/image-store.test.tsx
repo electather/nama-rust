@@ -31,7 +31,7 @@ const plugin = (id: string, name: string, enabled: boolean, extensionPoints: Ext
 const summaries = [
   plugin("s3", "S3", true, [ExtensionPoint.BLOB_STORE]),
   plugin("old-store", "Old store", false, [ExtensionPoint.BLOB_STORE]),
-  plugin("tmdb", "TMDB", true, [ExtensionPoint.METADATA_PROVIDER]),
+  plugin("tmdb", "TMDB", true, [ExtensionPoint.TITLE_SOURCE]),
 ];
 
 /** Opens Settings for a User who manages settings, on a fake Server answering with `server`. */

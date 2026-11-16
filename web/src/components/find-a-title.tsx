@@ -17,7 +17,7 @@ export interface Searchable {
 }
 
 /**
- * Searches the metadata source for the titles `kinds` names to Request, through the Requests
+ * Searches the title source for the titles `kinds` names to Request, through the Requests
  * page's `?title=`.
  */
 export function FindATitle({ title, kinds }: { title: string | undefined; kinds: Searchable }) {
@@ -48,7 +48,7 @@ export function FindATitle({ title, kinds }: { title: string | undefined; kinds:
   );
 }
 
-/** The titles of the `kinds` the metadata source found for `title`, as the signed-in User `you` sees them. */
+/** The titles of the `kinds` the title source found for `title`, as the signed-in User `you` sees them. */
 export function TitlesFound({
   title,
   kinds,

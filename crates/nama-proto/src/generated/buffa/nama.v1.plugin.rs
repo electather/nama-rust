@@ -369,7 +369,7 @@ pub enum ExtensionPoint {
     /// Checks the credentials people sign in with.
     EXTENSION_POINT_AUTHENTICATOR = 5i32,
     /// A title source: searches for and describes Movies and Shows, such as TMDB.
-    EXTENSION_POINT_METADATA_PROVIDER = 6i32,
+    EXTENSION_POINT_TITLE_SOURCE = 6i32,
     /// Observes the Server's Events.
     EXTENSION_POINT_EVENTS_OBSERVER = 7i32,
     /// Observes the Server starting.
@@ -399,9 +399,9 @@ impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_AUTHENTICATOR`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Authenticator: Self = Self::EXTENSION_POINT_AUTHENTICATOR;
-    ///Idiomatic alias for [`Self::EXTENSION_POINT_METADATA_PROVIDER`]; `Debug` prints the variant name.
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_TITLE_SOURCE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
-    pub const MetadataProvider: Self = Self::EXTENSION_POINT_METADATA_PROVIDER;
+    pub const TitleSource: Self = Self::EXTENSION_POINT_TITLE_SOURCE;
     ///Idiomatic alias for [`Self::EXTENSION_POINT_EVENTS_OBSERVER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const EventsObserver: Self = Self::EXTENSION_POINT_EVENTS_OBSERVER;
@@ -517,7 +517,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             3i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_NOTIFIER),
             4i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_CONNECTOR),
             5i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_AUTHENTICATOR),
-            6i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_METADATA_PROVIDER),
+            6i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_TITLE_SOURCE),
             7i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_EVENTS_OBSERVER),
             8i32 => {
                 ::core::option::Option::Some(
@@ -540,9 +540,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_NOTIFIER => "EXTENSION_POINT_NOTIFIER",
             Self::EXTENSION_POINT_CONNECTOR => "EXTENSION_POINT_CONNECTOR",
             Self::EXTENSION_POINT_AUTHENTICATOR => "EXTENSION_POINT_AUTHENTICATOR",
-            Self::EXTENSION_POINT_METADATA_PROVIDER => {
-                "EXTENSION_POINT_METADATA_PROVIDER"
-            }
+            Self::EXTENSION_POINT_TITLE_SOURCE => "EXTENSION_POINT_TITLE_SOURCE",
             Self::EXTENSION_POINT_EVENTS_OBSERVER => "EXTENSION_POINT_EVENTS_OBSERVER",
             Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER => {
                 "EXTENSION_POINT_SERVER_STARTED_OBSERVER"
@@ -571,8 +569,8 @@ impl ::buffa::Enumeration for ExtensionPoint {
             "EXTENSION_POINT_AUTHENTICATOR" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_AUTHENTICATOR)
             }
-            "EXTENSION_POINT_METADATA_PROVIDER" => {
-                ::core::option::Option::Some(Self::EXTENSION_POINT_METADATA_PROVIDER)
+            "EXTENSION_POINT_TITLE_SOURCE" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_TITLE_SOURCE)
             }
             "EXTENSION_POINT_EVENTS_OBSERVER" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_EVENTS_OBSERVER)
@@ -599,7 +597,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_NOTIFIER,
             Self::EXTENSION_POINT_CONNECTOR,
             Self::EXTENSION_POINT_AUTHENTICATOR,
-            Self::EXTENSION_POINT_METADATA_PROVIDER,
+            Self::EXTENSION_POINT_TITLE_SOURCE,
             Self::EXTENSION_POINT_EVENTS_OBSERVER,
             Self::EXTENSION_POINT_SERVER_STARTED_OBSERVER,
             Self::EXTENSION_POINT_RECOGNISER,

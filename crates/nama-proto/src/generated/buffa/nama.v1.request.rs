@@ -2456,7 +2456,7 @@ pub const __FOLLOWED_SHOW_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
     from_json: ::buffa::type_registry::any_from_json::<FollowedShow>,
     is_wkt: false,
 };
-/// A Movie a Request asks for, with its metadata as the metadata source gave it when the Request
+/// A Movie a Request asks for, with its metadata as the title source gave it when the Request
 /// was opened.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
@@ -2470,7 +2470,7 @@ pub struct RequestedMovie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// Every id the metadata source gave for the Movie when the Request was opened, at most one per
+    /// Every id the title source gave for the Movie when the Request was opened, at most one per
     /// namespace, `id` among them.
     ///
     /// Field 5: `ids`
@@ -2704,7 +2704,7 @@ pub const __REQUESTED_MOVIE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
     from_json: ::buffa::type_registry::any_from_json::<RequestedMovie>,
     is_wkt: false,
 };
-/// A Season a Request asks for, with its metadata as the metadata source gave it when the Request
+/// A Season a Request asks for, with its metadata as the title source gave it when the Request
 /// was opened.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
@@ -2719,7 +2719,7 @@ pub struct RequestedSeason {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// Every id the metadata source gave for the Show when the Request was opened, at most one per
+    /// Every id the title source gave for the Show when the Request was opened, at most one per
     /// namespace, `show_id` among them.
     ///
     /// Field 8: `show_ids`
@@ -3162,7 +3162,7 @@ pub const __REQUESTER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::
 #[serde(default)]
 pub struct CreateRequestRequest {
     /// The id of the Movie to ask for. Any well-formed id is taken. An id
-    /// no metadata source has, or can look titles up by, is refused with
+    /// no title source has, or can look titles up by, is refused with
     /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
     /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
@@ -3481,7 +3481,7 @@ pub const __CREATE_REQUEST_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEnt
 #[serde(default)]
 pub struct CreateSeasonRequestsRequest {
     /// The id of the Show. Any well-formed id is taken. An id
-    /// no metadata source has, or can look titles up by, is refused with
+    /// no title source has, or can look titles up by, is refused with
     /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
     /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
@@ -4065,7 +4065,7 @@ pub const __LIST_REQUESTS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry
 #[serde(default)]
 pub struct CreateFollowedShowRequest {
     /// The id of the Show. Any well-formed id is taken. An id
-    /// no metadata source has, or can look titles up by, is refused with
+    /// no title source has, or can look titles up by, is refused with
     /// `REFUSAL_REASON_UNKNOWN_TITLE`; a malformed namespace or an empty value with
     /// `REFUSAL_REASON_TITLE_ID_MALFORMED`. Both are `invalid_argument`.
     ///
@@ -9146,7 +9146,7 @@ pub const __LIST_OFFERED_QUALITIES_RESPONSE_JSON_ANY: ::buffa::type_registry::Js
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct MovieHit {
-    /// The Movie's id in the metadata source.
+    /// The Movie's id in the title source.
     ///
     /// Field 12: `id`
     #[serde(
@@ -9493,12 +9493,12 @@ pub const __MOVIE_HIT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::
     from_json: ::buffa::type_registry::any_from_json::<MovieHit>,
     is_wkt: false,
 };
-/// A Movie looked up in the metadata source: all a `MovieHit` has, and what only a look-up fetches.
+/// A Movie looked up in the title source: all a `MovieHit` has, and what only a look-up fetches.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct FoundMovie {
-    /// The Movie's id in the metadata source.
+    /// The Movie's id in the title source.
     ///
     /// Field 12: `id`
     #[serde(
@@ -10542,7 +10542,7 @@ pub const __LOOK_UP_MOVIE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntr
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ShowHit {
-    /// The Show's id in the metadata source.
+    /// The Show's id in the title source.
     ///
     /// Field 12: `id`
     #[serde(
@@ -10817,12 +10817,12 @@ pub const __SHOW_HIT_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::t
     from_json: ::buffa::type_registry::any_from_json::<ShowHit>,
     is_wkt: false,
 };
-/// A Show looked up in the metadata source, whose Seasons `CreateSeasonRequests` asks for.
+/// A Show looked up in the title source, whose Seasons `CreateSeasonRequests` asks for.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct FoundShow {
-    /// The Show's id in the metadata source.
+    /// The Show's id in the title source.
     ///
     /// Field 12: `id`
     #[serde(
@@ -11337,7 +11337,7 @@ pub const __FOUND_SHOW_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa:
     from_json: ::buffa::type_registry::any_from_json::<FoundShow>,
     is_wkt: false,
 };
-/// A Season of a Show in the metadata source, and how close it is to being on the Server: in a
+/// A Season of a Show in the title source, and how close it is to being on the Server: in a
 /// Library, asked for in a Request, or neither.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]

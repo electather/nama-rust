@@ -53,7 +53,7 @@ const plugins = [
     version: "0.1.0",
     kind: PluginKind.BUILT_IN,
     enabled: true,
-    extensionPoints: [ExtensionPoint.METADATA_PROVIDER],
+    extensionPoints: [ExtensionPoint.TITLE_SOURCE],
     logoUrl: tmdbLogo,
     settings: [
       {

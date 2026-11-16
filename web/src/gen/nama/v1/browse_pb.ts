@@ -38,7 +38,7 @@ export type Movie = Message<"nama.v1.Movie"> & {
   title: string;
 
   /**
-   * The title in its original language, if the metadata source has it.
+   * The title in its original language, if the title source has it.
    *
    * @generated from field: optional string original_title = 3;
    */

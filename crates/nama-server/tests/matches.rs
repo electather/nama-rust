@@ -15,7 +15,7 @@ use nama_proto::nama::v1::{
     BrowseServiceClient, ClearMatchRequest, CreateRequestRequest, CreateSeasonRequestsRequest,
     ExternalId, GetRequestRequest, LibraryKind, ListEpisodesRequest, ListMoviesRequest,
     ListUnmatchedItemsRequest, ListUnmatchedItemsResponse, MatchServiceClient, RefusalReason,
-    RequestServiceClient, RequestState, SearchMetadataRequest, SetMatchRequest, SetMatchResponse,
+    RequestServiceClient, RequestState, SearchTitlesRequest, SetMatchRequest, SetMatchResponse,
     TitleCandidate, TitleKind, UnmatchedItem, UnmatchedReason,
 };
 use refused::assert_refused;
@@ -220,12 +220,12 @@ async fn a_cleared_match_is_unmatched() {
 }
 
 #[tokio::test]
-async fn search_metadata_passes_the_search_to_the_metadata_provider() {
+async fn search_titles_passes_the_search_to_the_title_source() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
     let response = fx
         .matches
-        .search_metadata(SearchMetadataRequest {
+        .search_titles(SearchTitlesRequest {
             kind: TitleKind::TITLE_KIND_MOVIE.into(),
             title: "Alien".to_owned(),
             year: Some(1979),
@@ -247,12 +247,12 @@ async fn search_metadata_passes_the_search_to_the_metadata_provider() {
 }
 
 #[tokio::test]
-async fn search_metadata_without_a_kind_is_invalid() {
+async fn search_titles_without_a_kind_is_invalid() {
     let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
     let refused = fx
         .matches
-        .search_metadata(SearchMetadataRequest {
+        .search_titles(SearchTitlesRequest {
             title: "Alien".to_owned(),
             ..Default::default()
         })
@@ -267,12 +267,12 @@ async fn search_metadata_without_a_kind_is_invalid() {
 }
 
 #[tokio::test]
-async fn search_metadata_without_a_metadata_provider_is_unavailable() {
+async fn search_titles_without_a_title_source_is_unavailable() {
     let fx = Fixture::start_without_metadata(LibraryKind::LIBRARY_KIND_MOVIES).await;
 
     let refused = fx
         .matches
-        .search_metadata(SearchMetadataRequest {
+        .search_titles(SearchTitlesRequest {
             kind: TitleKind::TITLE_KIND_MOVIE.into(),
             title: "Alien".to_owned(),
             ..Default::default()
@@ -282,7 +282,7 @@ async fn search_metadata_without_a_metadata_provider_is_unavailable() {
     assert_refused(
         refused,
         ErrorCode::Unavailable,
-        RefusalReason::REFUSAL_REASON_NO_METADATA_PROVIDER,
+        RefusalReason::REFUSAL_REASON_NO_TITLE_SOURCE,
     );
 }
 

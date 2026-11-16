@@ -3,8 +3,8 @@
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_proto::nama::v1::{
     self as proto, ClearMatchRequest, ClearMatchResponse, ListUnmatchedItemsRequest,
-    ListUnmatchedItemsResponse, MatchService, RefusalReason, SearchMetadataRequest,
-    SearchMetadataResponse, SetMatchRequest, SetMatchResponse,
+    ListUnmatchedItemsResponse, MatchService, RefusalReason, SearchTitlesRequest,
+    SearchTitlesResponse, SetMatchRequest, SetMatchResponse,
 };
 
 use crate::{
@@ -32,11 +32,11 @@ pub(super) struct MatchServiceHandler {
               documents; the refined signature isn't visible outside this crate"
 )]
 impl MatchService for MatchServiceHandler {
-    async fn search_metadata(
+    async fn search_titles(
         &self,
         _ctx: RequestContext,
-        request: ServiceRequest<'_, SearchMetadataRequest>,
-    ) -> ServiceResult<SearchMetadataResponse> {
+        request: ServiceRequest<'_, SearchTitlesRequest>,
+    ) -> ServiceResult<SearchTitlesResponse> {
         let request = request.to_owned_message();
         if request.title.trim().is_empty() {
             return Err(refuse(
@@ -59,7 +59,7 @@ impl MatchService for MatchServiceHandler {
                 return Err(ManualError::Unavailable.into());
             }
         };
-        Response::ok(SearchMetadataResponse {
+        Response::ok(SearchTitlesResponse {
             candidates: candidates
                 .into_iter()
                 .map(|candidate| title_to_proto(candidate.into()))
@@ -194,7 +194,7 @@ impl From<ManualError> for ConnectError {
             ManualError::NoSuchTitle(id) => refuse(R::REFUSAL_REASON_UNKNOWN_TITLE, message)
                 .field("title_id")
                 .param("titleId", &id),
-            ManualError::Unavailable => refuse(R::REFUSAL_REASON_NO_METADATA_PROVIDER, message),
+            ManualError::Unavailable => refuse(R::REFUSAL_REASON_NO_TITLE_SOURCE, message),
             ManualError::Database(err) => return database_failed(err),
         };
         refused.into()

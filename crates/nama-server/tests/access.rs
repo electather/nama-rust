@@ -38,7 +38,7 @@ const MANAGE_LIBRARIES: [&str; 10] = [
     "/nama.v1.LibraryService/DeleteLibrary",
     "/nama.v1.LibraryService/ScanLibrary",
     "/nama.v1.LibraryService/ListTitleSources",
-    "/nama.v1.MatchService/SearchMetadata",
+    "/nama.v1.MatchService/SearchTitles",
     "/nama.v1.MatchService/SetMatch",
     "/nama.v1.MatchService/ClearMatch",
     "/nama.v1.MatchService/ListUnmatchedItems",

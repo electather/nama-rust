@@ -9,7 +9,7 @@ import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { externalIdFromParam, queryOrNotFound } from "@/lib/browse";
 import { may } from "@/lib/permissions";
 
-/** A Show from the metadata source, for picking its Seasons to Request. */
+/** A Show from the title source, for picking its Seasons to Request. */
 export const Route = createFileRoute("/_member/shows/$showId")({
   beforeLoad: ({ context }) => {
     // Only search results link here, and only for those who may Request Shows.

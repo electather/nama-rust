@@ -560,7 +560,7 @@ fn extension_points_to_proto(points: &[PointKey]) -> Vec<EnumValue<proto::Extens
         ),
         (
             PointKey::provide::<dyn TitleSource>(),
-            Public::EXTENSION_POINT_METADATA_PROVIDER,
+            Public::EXTENSION_POINT_TITLE_SOURCE,
         ),
         (
             PointKey::observe::<Events>(),

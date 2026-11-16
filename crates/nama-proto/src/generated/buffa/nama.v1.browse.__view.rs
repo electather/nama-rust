@@ -13,7 +13,7 @@ pub struct MovieView<'a> {
     ///
     /// Field 2: `title`
     pub title: &'a str,
-    /// The title in its original language, if the metadata source has it.
+    /// The title in its original language, if the title source has it.
     ///
     /// Field 3: `original_title`
     pub original_title: ::core::option::Option<&'a str>,
@@ -679,7 +679,7 @@ impl MovieOwnedView {
     pub fn title(&self) -> &'_ str {
         self.0.reborrow().title
     }
-    /// The title in its original language, if the metadata source has it.
+    /// The title in its original language, if the title source has it.
     ///
     /// Field 3: `original_title`
     #[must_use]

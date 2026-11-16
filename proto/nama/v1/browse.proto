@@ -66,7 +66,7 @@ message Movie {
   ExternalId id = 1;
   // The title, in its title source's language.
   string title = 2;
-  // The title in its original language, if the metadata source has it.
+  // The title in its original language, if the title source has it.
   optional string original_title = 3;
   optional string overview = 4;
   // When it was released, as `YYYY-MM-DD`.

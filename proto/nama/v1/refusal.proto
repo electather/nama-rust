@@ -90,12 +90,12 @@ enum RefusalReason {
 
   // `not_found`: there is no item with the ID. Params: `itemId`.
   REFUSAL_REASON_ITEM_NOT_FOUND = 27;
-  // `invalid_argument`: the metadata source has no title with the id, or can't look titles up by
+  // `invalid_argument`: the title source has no title with the id, or can't look titles up by
   // it. Params: `titleId`, as the message shows it (`tmdb-949`), and for a Season of a Show
   // `seasonNumber`.
   REFUSAL_REASON_UNKNOWN_TITLE = 28;
   // `unavailable`: no title source is enabled, or one failed.
-  REFUSAL_REASON_NO_METADATA_PROVIDER = 29;
+  REFUSAL_REASON_NO_TITLE_SOURCE = 29;
 
   // `invalid_argument`: a User's or Device's name, trimmed, is too short or too long. Params:
   // `minLength`, `maxLength`, in characters.
@@ -227,7 +227,7 @@ enum RefusalReason {
   // `invalid_argument`: a title's id has a namespace that isn't lowercase ASCII letters and
   // digits, or an empty value. `field` names the id.
   REFUSAL_REASON_TITLE_ID_MALFORMED = 70;
-  // `not_found`: no metadata source has a title with the id, or none can look titles up by it.
+  // `not_found`: no title source has a title with the id, or none can look titles up by it.
   // Params: `titleId`.
   REFUSAL_REASON_TITLE_NOT_FOUND = 71;
   // `failed_precondition`: the Fulfiller needs an id of the title in one of the namespaces named

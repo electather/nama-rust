@@ -157,7 +157,7 @@ pub enum UnmatchedReason {
     UNMATCHED_REASON_AMBIGUOUS = 1i32,
     /// No title the search found fits well enough. A rename or an ID Hint may fix it.
     UNMATCHED_REASON_NO_TITLE_FITS = 2i32,
-    /// The item's ID Hint names no title the metadata source has.
+    /// The item's ID Hint names no title the title source has.
     UNMATCHED_REASON_UNKNOWN_ID_HINT = 3i32,
 }
 impl UnmatchedReason {
@@ -314,7 +314,7 @@ impl ::buffa::Enumeration for UnmatchedReason {
         ]
     }
 }
-/// An id of a title in a metadata source: a namespace and a value, such as `tmdb` and `603`.
+/// An id of a title in a title source: a namespace and a value, such as `tmdb` and `603`.
 /// Movies and Shows have separate id spaces.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
@@ -490,7 +490,7 @@ pub struct TitleCandidate {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub title: ::buffa::alloc::string::String,
-    /// The title in its original language, if the metadata source has it.
+    /// The title in its original language, if the title source has it.
     ///
     /// Field 3: `original_title`
     #[serde(
@@ -711,7 +711,7 @@ pub const __TITLE_CANDIDATE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::b
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
-pub struct SearchMetadataRequest {
+pub struct SearchTitlesRequest {
     /// Must not be `TITLE_KIND_UNSPECIFIED`.
     ///
     /// Field 1: `kind`
@@ -743,23 +743,23 @@ pub struct SearchMetadataRequest {
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
-impl ::core::fmt::Debug for SearchMetadataRequest {
+impl ::core::fmt::Debug for SearchTitlesRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SearchMetadataRequest")
+        f.debug_struct("SearchTitlesRequest")
             .field("kind", &self.kind)
             .field("title", &self.title)
             .field("year", &self.year)
             .finish()
     }
 }
-impl SearchMetadataRequest {
+impl SearchTitlesRequest {
     /// Protobuf type URL for this message, for use with `Any::pack` and
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchMetadataRequest";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchTitlesRequest";
 }
-impl SearchMetadataRequest {
+impl SearchTitlesRequest {
     #[must_use = "with_* setters return `self` by value; assign or chain the result"]
     #[inline]
     ///Sets [`Self::year`] to `Some(value)`, consuming and returning `self`.
@@ -768,14 +768,14 @@ impl SearchMetadataRequest {
         self
     }
 }
-::buffa::impl_default_instance!(SearchMetadataRequest);
-impl ::buffa::MessageName for SearchMetadataRequest {
+::buffa::impl_default_instance!(SearchTitlesRequest);
+impl ::buffa::MessageName for SearchTitlesRequest {
     const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "SearchMetadataRequest";
-    const FULL_NAME: &'static str = "nama.v1.SearchMetadataRequest";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchMetadataRequest";
+    const NAME: &'static str = "SearchTitlesRequest";
+    const FULL_NAME: &'static str = "nama.v1.SearchTitlesRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchTitlesRequest";
 }
-impl ::buffa::Message for SearchMetadataRequest {
+impl ::buffa::Message for SearchTitlesRequest {
     /// Returns the total encoded size in bytes.
     ///
     /// Accumulates in `u64` (which cannot overflow for in-memory
@@ -872,8 +872,8 @@ impl ::buffa::Message for SearchMetadataRequest {
         self.__buffa_unknown_fields.clear();
     }
 }
-impl ::buffa::ExtensionSet for SearchMetadataRequest {
-    const PROTO_FQN: &'static str = "nama.v1.SearchMetadataRequest";
+impl ::buffa::ExtensionSet for SearchTitlesRequest {
+    const PROTO_FQN: &'static str = "nama.v1.SearchTitlesRequest";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -881,7 +881,7 @@ impl ::buffa::ExtensionSet for SearchMetadataRequest {
         &mut self.__buffa_unknown_fields
     }
 }
-impl ::buffa::json_helpers::ProtoElemJson for SearchMetadataRequest {
+impl ::buffa::json_helpers::ProtoElemJson for SearchTitlesRequest {
     fn serialize_proto_json<S: ::serde::Serializer>(
         v: &Self,
         s: S,
@@ -895,16 +895,16 @@ impl ::buffa::json_helpers::ProtoElemJson for SearchMetadataRequest {
     }
 }
 #[doc(hidden)]
-pub const __SEARCH_METADATA_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.SearchMetadataRequest",
-    to_json: ::buffa::type_registry::any_to_json::<SearchMetadataRequest>,
-    from_json: ::buffa::type_registry::any_from_json::<SearchMetadataRequest>,
+pub const __SEARCH_TITLES_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.SearchTitlesRequest",
+    to_json: ::buffa::type_registry::any_to_json::<SearchTitlesRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<SearchTitlesRequest>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
-pub struct SearchMetadataResponse {
+pub struct SearchTitlesResponse {
     /// Field 1: `candidates`
     #[serde(
         rename = "candidates",
@@ -916,28 +916,28 @@ pub struct SearchMetadataResponse {
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
-impl ::core::fmt::Debug for SearchMetadataResponse {
+impl ::core::fmt::Debug for SearchTitlesResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SearchMetadataResponse")
+        f.debug_struct("SearchTitlesResponse")
             .field("candidates", &self.candidates)
             .finish()
     }
 }
-impl SearchMetadataResponse {
+impl SearchTitlesResponse {
     /// Protobuf type URL for this message, for use with `Any::pack` and
     /// `Any::unpack_if`.
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
-    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchMetadataResponse";
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchTitlesResponse";
 }
-::buffa::impl_default_instance!(SearchMetadataResponse);
-impl ::buffa::MessageName for SearchMetadataResponse {
+::buffa::impl_default_instance!(SearchTitlesResponse);
+impl ::buffa::MessageName for SearchTitlesResponse {
     const PACKAGE: &'static str = "nama.v1";
-    const NAME: &'static str = "SearchMetadataResponse";
-    const FULL_NAME: &'static str = "nama.v1.SearchMetadataResponse";
-    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchMetadataResponse";
+    const NAME: &'static str = "SearchTitlesResponse";
+    const FULL_NAME: &'static str = "nama.v1.SearchTitlesResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SearchTitlesResponse";
 }
-impl ::buffa::Message for SearchMetadataResponse {
+impl ::buffa::Message for SearchTitlesResponse {
     /// Returns the total encoded size in bytes.
     ///
     /// Accumulates in `u64` (which cannot overflow for in-memory
@@ -1013,8 +1013,8 @@ impl ::buffa::Message for SearchMetadataResponse {
         self.__buffa_unknown_fields.clear();
     }
 }
-impl ::buffa::ExtensionSet for SearchMetadataResponse {
-    const PROTO_FQN: &'static str = "nama.v1.SearchMetadataResponse";
+impl ::buffa::ExtensionSet for SearchTitlesResponse {
+    const PROTO_FQN: &'static str = "nama.v1.SearchTitlesResponse";
     fn unknown_fields(&self) -> &::buffa::UnknownFields {
         &self.__buffa_unknown_fields
     }
@@ -1022,7 +1022,7 @@ impl ::buffa::ExtensionSet for SearchMetadataResponse {
         &mut self.__buffa_unknown_fields
     }
 }
-impl ::buffa::json_helpers::ProtoElemJson for SearchMetadataResponse {
+impl ::buffa::json_helpers::ProtoElemJson for SearchTitlesResponse {
     fn serialize_proto_json<S: ::serde::Serializer>(
         v: &Self,
         s: S,
@@ -1036,10 +1036,10 @@ impl ::buffa::json_helpers::ProtoElemJson for SearchMetadataResponse {
     }
 }
 #[doc(hidden)]
-pub const __SEARCH_METADATA_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
-    type_url: "type.googleapis.com/nama.v1.SearchMetadataResponse",
-    to_json: ::buffa::type_registry::any_to_json::<SearchMetadataResponse>,
-    from_json: ::buffa::type_registry::any_from_json::<SearchMetadataResponse>,
+pub const __SEARCH_TITLES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.SearchTitlesResponse",
+    to_json: ::buffa::type_registry::any_to_json::<SearchTitlesResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<SearchTitlesResponse>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]
@@ -1056,7 +1056,7 @@ pub struct SetMatchRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
     )]
     pub item_id: i64,
-    /// The Movie, or for an Episode the Show, to Match it to, as `SearchMetadata` gave it.
+    /// The Movie, or for an Episode the Show, to Match it to, as `SearchTitles` gave it.
     ///
     /// Field 2: `title_id`
     #[serde(
@@ -1916,7 +1916,7 @@ pub const __LIST_UNMATCHED_ITEMS_RESPONSE_JSON_ANY: ::buffa::type_registry::Json
     is_wkt: false,
 };
 /// An item that needs a Match, and what its file's name was parsed as. `kind`, `title` and `year`
-/// are what to pass to `SearchMetadata` to find its title.
+/// are what to pass to `SearchTitles` to find its title.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]

@@ -23,7 +23,7 @@ afterEach(cleanup);
 type Found = MessageInitShape<typeof FoundMovieSchema>;
 
 /**
- * A fake Server whose metadata source has `movies`, where asking for one opens a Pending Request
+ * A fake Server whose title source has `movies`, where asking for one opens a Pending Request
  * for the signed-in User (ID 1), or adds them as a Requester to the one it has.
  */
 function searchableServer(movies: Found[], permissions = newUser) {
@@ -184,7 +184,7 @@ test("a Movie's page looks up an id of any namespace", async () => {
   expect(await screen.findByRole("heading", { name: "Dune" })).toBeDefined();
 });
 
-test("a Movie's page is not found when no metadata source has its id", async () => {
+test("a Movie's page is not found when no title source has its id", async () => {
   openApp("/movies/anidb-1", searchableServer([notOnTheServer]));
 
   expect(await screen.findByRole("heading", { name: "Page not found" })).toBeDefined();

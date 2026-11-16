@@ -140,7 +140,7 @@ export function askRefusal(
   return refusal(
     error,
     attempt,
-    { [Code.Unavailable]: { form: "The metadata source didn’t answer. Try again in a moment." } },
+    { [Code.Unavailable]: { form: "The title source didn’t answer. Try again in a moment." } },
     byReason,
   ).form;
 }

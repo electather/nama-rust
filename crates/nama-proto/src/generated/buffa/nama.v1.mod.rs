@@ -68,8 +68,8 @@ pub mod __buffa {
     pub fn register_types(reg: &mut ::buffa::type_registry::TypeRegistry) {
         reg.register_json_any(super::__EXTERNAL_ID_JSON_ANY);
         reg.register_json_any(super::__TITLE_CANDIDATE_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_METADATA_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_METADATA_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_TITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_MATCH_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_MATCH_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CLEAR_MATCH_REQUEST_JSON_ANY);
@@ -367,13 +367,13 @@ pub use self::__buffa::view::TitleCandidateView;
 #[doc(inline)]
 pub use self::__buffa::view::TitleCandidateOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchMetadataRequestView;
+pub use self::__buffa::view::SearchTitlesRequestView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchMetadataRequestOwnedView;
+pub use self::__buffa::view::SearchTitlesRequestOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchMetadataResponseView;
+pub use self::__buffa::view::SearchTitlesResponseView;
 #[doc(inline)]
-pub use self::__buffa::view::SearchMetadataResponseOwnedView;
+pub use self::__buffa::view::SearchTitlesResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SetMatchRequestView;
 #[doc(inline)]
