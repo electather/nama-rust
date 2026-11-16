@@ -5,7 +5,7 @@ use nama_plugin_api::{
     PluginId,
     automation::{
         DeleteAsked, Kernel, LibrariesAsked, LibraryKind, Permission, StoreKey, TitleRef,
-        TitleRefKind, TitlesAsked, UsersAsked, WatchStatesAsked,
+        TitleRefKind, Titles, TitlesAsked, UsersAsked, WatchStatesAsked,
     },
     fulfiller::TitleId,
     metadata::{ExternalId, ExternalIds},
@@ -291,6 +291,38 @@ async fn list_titles_pages_cover_every_title_once_in_order_and_the_last_has_no_t
     }
 
     assert_eq!(pages, [vec!["1", "2"], vec!["3", "4"], vec!["5"]]);
+}
+
+#[tokio::test]
+async fn a_title_matched_between_two_pages_neither_repeats_nor_skips_a_listed_one() {
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let library = movies(&db, media.path(), &[2, 3, 5, 6]).await;
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_LIBRARIES);
+    let ids = |page: &Titles| -> Vec<String> {
+        (page.titles.iter())
+            .map(|title| title.title_ref.id.value.clone())
+            .collect()
+    };
+
+    let first = kernel.list_titles(&titles_asked(library, 2, "")).await;
+    let first = first.unwrap();
+    let path = media.path().canonicalize().unwrap().join("1.mkv");
+    let contents = Contents::new(Arc::clone(&db));
+    MatchedMovie::store(
+        &contents,
+        library,
+        path.to_str().unwrap(),
+        tmdb_movie(1, "Movie 1"),
+    )
+    .await;
+    let asked = titles_asked(library, 2, &first.next_page_token);
+    let second = kernel.list_titles(&asked).await.unwrap();
+
+    assert_eq!(ids(&first), ["2", "3"]);
+    assert_eq!(ids(&second), ["5", "6"]);
+    assert_eq!(second.next_page_token, "");
 }
 
 #[tokio::test]

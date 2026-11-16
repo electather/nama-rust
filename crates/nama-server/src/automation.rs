@@ -26,7 +26,7 @@ use crate::{
     browse::{self, Browse, Target, ToDelete},
     db::Database,
     library::{
-        contents::{Contents, ItemKind},
+        contents::{self, Contents, ItemKind},
         libraries::{self, Kind},
         watch_states,
     },
@@ -157,104 +157,73 @@ impl PluginKernel {
         KernelRefused(format!("the Kernel failed {doing}"))
     }
 
-    /// The Matched Movies, or Episodes, of the Library `library`, by kind and then id.
-    // ponytail: whole-Library read, even for one page of `list_titles`.
-    async fn titles(
-        &self,
-        automation: &Automation,
-        library: i64,
-    ) -> Result<Vec<Title>, KernelRefused> {
-        let found = libraries::Libraries::new(Arc::clone(&automation.db))
-            .get(library)
-            .await;
-        let kind = match found {
-            Ok(found) => found.kind,
-            Err(libraries::Error::Database(err)) => {
-                return Err(self.database_refused("reading the Library", &err));
-            }
-            Err(err) => return Err(KernelRefused(err.to_string())),
-        };
-        let contents = Contents::new(Arc::clone(&automation.db));
-        let read = |err| self.database_refused("reading the Library's titles", &err);
-        let titles = match kind {
-            Kind::Movies => (contents.movies(library).await.map_err(read)?.into_iter())
-                .map(|movie| Title {
-                    title_ref: MessageField::some(title_ref(
-                        library,
-                        TitleRefKind::TITLE_REF_KIND_MOVIE,
-                        &movie.id,
-                    )),
-                    title: movie.title,
-                    ..Title::default()
-                })
-                .collect(),
-            Kind::Shows => (contents.shows(library).await.map_err(read)?.into_iter())
-                .flat_map(|show| {
-                    let episodes = show
-                        .seasons
-                        .into_values()
-                        .flat_map(|season| season.episodes);
-                    episodes.map(move |episode| Title {
-                        title_ref: MessageField::some(title_ref(
-                            library,
-                            TitleRefKind::TITLE_REF_KIND_EPISODE,
-                            &episode.id,
-                        )),
-                        title: episode.title,
-                        show_title: Some(show.title.clone()),
-                        season_number: u32::try_from(episode.season).ok(),
-                        episode_number: u32::try_from(episode.number).ok(),
-                        ..Title::default()
-                    })
-                })
-                .collect(),
-        };
-        let mut titles: Vec<Title> = titles;
-        titles.sort_by_cached_key(|title| {
-            let id = title.title_ref.id.as_option();
-            (
-                title.title_ref.kind.to_i32(),
-                id.map(|id| id.namespace.clone()),
-                id.map(|id| id.value.clone()),
-            )
-        });
-        Ok(titles)
-    }
-
-    /// The page of the Library's titles `asked` names.
+    /// The page of the Library's titles `asked` names: the first `page_size` after the title its
+    /// page token names, or every title for a `page_size` of 0. One query, whatever the
+    /// Library's size.
     async fn titles_page(
         &self,
         automation: &Automation,
         asked: &TitlesAsked,
     ) -> Result<Titles, KernelRefused> {
-        let start = match asked.page_token.as_str() {
-            "" => 0,
-            token => token.parse::<usize>().map_err(|_malformed| {
+        // The token is the id of the last title of the page before, so a title Matched since
+        // neither repeats nor skips one (ADR 0048).
+        let after = match asked.page_token.as_str() {
+            "" => None,
+            token => Some(token.parse::<ExternalId>().map_err(|_malformed| {
                 KernelRefused(format!(
                     "the page token {token:?} isn't one the Kernel handed out"
                 ))
-            })?,
+            })?),
         };
-        let mut titles = self.titles(automation, asked.library_id).await?;
-        if asked.page_size == 0 {
-            return Ok(Titles {
-                titles,
-                ..Titles::default()
-            });
-        }
-        let size = usize::try_from(asked.page_size)
-            .unwrap_or(MAX_PAGE_SIZE)
-            .clamp(1, MAX_PAGE_SIZE);
-        let end = start.saturating_add(size);
-        let next_page_token = if end < titles.len() {
-            end.to_string()
-        } else {
-            String::new()
+        let library = asked.library_id;
+        let found = libraries::Libraries::new(Arc::clone(&automation.db))
+            .get(library)
+            .await;
+        let (kind, title_kind) = match found {
+            Ok(found) => match found.kind {
+                Kind::Movies => (ItemKind::Movie, TitleRefKind::TITLE_REF_KIND_MOVIE),
+                Kind::Shows => (ItemKind::Episode, TitleRefKind::TITLE_REF_KIND_EPISODE),
+            },
+            Err(libraries::Error::Database(err)) => {
+                return Err(self.database_refused("reading the Library", &err));
+            }
+            Err(err) => return Err(KernelRefused(err.to_string())),
         };
-        titles.truncate(end);
-        let page = titles.split_off(start.min(titles.len()));
+        let (after, size) = match asked.page_size {
+            0 => (None, None),
+            size => {
+                let size =
+                    usize::try_from(size).map_or(MAX_PAGE_SIZE, |size| size.min(MAX_PAGE_SIZE));
+                (after, Some(size))
+            }
+        };
+        // One more than the page holds, to tell whether a page follows.
+        let mut listed = Contents::new(Arc::clone(&automation.db))
+            .titles_page(library, kind, after.as_ref(), size.map(|size| size + 1))
+            .await
+            .map_err(|err| self.database_refused("reading the Library's titles", &err))?;
+        let next_page_token = match size {
+            Some(size) if listed.len() > size => {
+                listed.truncate(size);
+                listed
+                    .last()
+                    .map(|last| last.id.to_string())
+                    .unwrap_or_default()
+            }
+            _ => String::new(),
+        };
+        let titles = (listed.into_iter())
+            .map(|listed| Title {
+                title_ref: MessageField::some(title_ref(library, title_kind, &listed.id)),
+                title: listed.title,
+                show_title: listed.show_title,
+                season_number: listed.season.and_then(|season| u32::try_from(season).ok()),
+                episode_number: (listed.episode).and_then(|number| u32::try_from(number).ok()),
+                ..Title::default()
+            })
+            .collect();
         Ok(Titles {
-            titles: page,
+            titles,
             next_page_token,
             ..Titles::default()
         })
@@ -297,28 +266,32 @@ impl PluginKernel {
         Ok(every_id.into_iter().map(|(_, title)| title).collect())
     }
 
-    /// Refuses a delete that would take along an Episode `also` doesn't name, naming each one.
+    /// Refuses a delete that would take along one of the Episodes `taken_along`, of the Library
+    /// `library`, that `also` doesn't name, naming each one.
     async fn check_taken_along(
         &self,
         automation: &Automation,
         library: i64,
-        taken_along: &[TitleRef],
+        taken_along: &[contents::Episode],
         also: &[TitleRef],
     ) -> Result<(), KernelRefused> {
-        let unnamed: Vec<&TitleRef> = (taken_along.iter())
-            .filter(|title| !also.iter().any(|named| same_title(named, title)))
+        let unnamed: Vec<&contents::Episode> = (taken_along.iter())
+            .filter(|episode| {
+                let taken = title_ref(library, TitleRefKind::TITLE_REF_KIND_EPISODE, &episode.id);
+                !also.iter().any(|named| same_title(named, &taken))
+            })
             .collect();
         if unnamed.is_empty() {
             return Ok(());
         }
         // Only for the refusal, so the Plugin can tell which Episodes they are.
-        let titles = self.titles(automation, library).await?;
-        let named: Vec<String> = (unnamed.into_iter())
-            .map(|unnamed| {
-                (titles.iter())
-                    .find(|title| same_title(&title.title_ref, unnamed))
-                    .map_or_else(|| "an Episode".to_owned(), episode_name)
-            })
+        let ids: Vec<ExternalId> = unnamed.iter().map(|episode| episode.id.clone()).collect();
+        let shows = (Contents::new(Arc::clone(&automation.db)))
+            .show_titles(library, &ids)
+            .await
+            .map_err(|err| self.database_refused("reading the Episodes' Shows", &err))?;
+        let named: Vec<String> = (unnamed.into_iter().zip(shows))
+            .map(|(episode, show)| episode_name(show.as_deref().unwrap_or_default(), episode))
             .collect();
         Err(KernelRefused(format!(
             "the title's files also hold {}; name each in `also` to delete it too, or keep the \
@@ -336,14 +309,11 @@ fn same_title(a: &TitleRef, b: &TitleRef) -> bool {
     a.library_id == b.library_id && a.kind == b.kind && id(a) == id(b)
 }
 
-/// An Episode as a refusal names it, such as `Dark S01E02 (Lies)`.
-fn episode_name(episode: &Title) -> String {
+/// An Episode of the Show `show` as a refusal names it, such as `Dark S01E02 (Lies)`.
+fn episode_name(show: &str, episode: &contents::Episode) -> String {
     format!(
-        "{} S{:02}E{:02} ({})",
-        episode.show_title.as_deref().unwrap_or_default(),
-        episode.season_number.unwrap_or_default(),
-        episode.episode_number.unwrap_or_default(),
-        episode.title
+        "{show} S{:02}E{:02} ({})",
+        episode.season, episode.number, episode.title
     )
 }
 
@@ -571,8 +541,13 @@ impl Kernel for PluginKernel {
                     title_ref(title.library_id, kind, &episode.id)
                 })
                 .collect();
-            (self.check_taken_along(&automation, title.library_id, &taken_along, &asked.also))
-                .await?;
+            (self.check_taken_along(
+                &automation,
+                title.library_id,
+                &doomed.taken_along,
+                &asked.also,
+            ))
+            .await?;
             let by = format!("the {} Plugin", automation.points.name(&self.plugin));
             // Not awaited: the delete waits for the Library's scan lock, which could outrun the
             // Plugin's call limit, and it goes on in a task of its own anyway (ADR 0029). Outside

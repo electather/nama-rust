@@ -1,0 +1,33 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT CAST(asked.key AS INTEGER) AS \"position!: i64\",\n                      item_matches.show_title AS \"show_title!\"\n               FROM json_each(?2) AS asked\n               JOIN item_match_ids AS named\n                   ON named.scope = 'title'\n                  AND named.namespace = json_extract(asked.value, '$[0]')\n                  AND named.value = json_extract(asked.value, '$[1]')\n               JOIN item_matches ON item_matches.item_id = named.item_id\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               WHERE library_files.library_id = ?1\n                 AND library_items.kind = 'episode'\n                 AND item_matches.state = 'matched'\n                 AND item_matches.show_title IS NOT NULL\n               ORDER BY asked.key, library_files.path",
+  "describe": {
+    "columns": [
+      {
+        "name": "position!: i64",
+        "ordinal": 0,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "show_title!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "show_title"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      null,
+      true
+    ]
+  },
+  "hash": "096303e7a6ac2cb17fcd9a4fed8f37c0e82ed975969cc85d605212cd4447f456"
+}

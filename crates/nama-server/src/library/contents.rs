@@ -15,6 +15,7 @@ mod files;
 pub(crate) mod fixture;
 mod ids;
 mod items;
+mod listed;
 mod matched;
 mod pins;
 mod search;
