@@ -148,7 +148,7 @@ struct Inner {
     running: Option<RunningPlans>,
     /// Asked which Requests a delete cancels, and to cancel them, unless nothing has Requests.
     requests: Option<Requests>,
-    /// Background scans, so shutting down can wait for them.
+    /// Background scans and media deletes, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
     cancel: CancellationToken,
@@ -341,21 +341,24 @@ impl Scanner {
         })
     }
 
-    /// Asks every Fulfiller of its kind to stop monitoring `doomed`, then ends the plans playing it,
-    /// deletes it from disk for good, removes the Versions whose files went as a scan removes
-    /// them, with the images only their Matches stored, and logs that `by` deleted them, and
-    /// cancels the Requests still waiting on what they were of. It
-    /// refuses, before any of that, media in a folder the Library's last scan found
-    /// read-only ([`Error::ReadOnly`]). Once the files are deleted it returns what went: a later
-    /// step's failure is only logged. The one way to delete media (see AGENTS.md, "One path for deleting
-    /// media"). It holds the Library's scan lock, so a scan racing it sees
-    /// either everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
+    /// Asks every Fulfiller of its kind to stop monitoring `doomed`, then ends the plans
+    /// playing it, deletes it from disk for good, removes the Versions whose files went as a
+    /// scan removes them, with the images only their Matches stored, and logs that `by` deleted
+    /// them, and cancels the Requests still waiting on what they were of. It refuses, before
+    /// any of that, media in a folder the Library's last scan found read-only
+    /// ([`Error::ReadOnly`]). Once the files are deleted it returns what went: a later step's
+    /// failure is only logged. The one way to delete media (see AGENTS.md, "One path for
+    /// deleting media"). It holds the Library's scan lock, so a scan racing it sees either
+    /// everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
+    /// Shutting down waits for a delete already started.
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
         if let Some(folder) = doomed.read_only_folder() {
             return Err(Error::ReadOnly(folder.to_owned()));
         }
         let scanner = self.clone();
-        detached(async move {
+        // On the tracker, so shutting down waits for it; its cancel token is never read here, so
+        // shutting down doesn't stop a delete halfway.
+        let deleting = self.inner.tasks.spawn(async move {
             // First, so the service can't see the file missing and download it again (ADR 0038).
             let not_told = scanner.stop_monitoring(&doomed).await;
             let library = doomed.library.id;
@@ -416,8 +419,9 @@ impl Scanner {
                 .await;
             (scanner.cancel_requests(doomed.request_titles(&deleted.versions), by)).await;
             Ok(deleted)
-        })
-        .await
+        });
+        // The task is never aborted, so it only fails if it panicked.
+        (deleting.await).unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
     }
 
     /// Cancels the Requests still waiting on `titles`, whose media `by` deleted. A failure is
@@ -507,7 +511,8 @@ impl Scanner {
         &self.inner.matcher
     }
 
-    /// Cancels the scans running or waiting, waits for them to stop, and starts no more.
+    /// Cancels the scans running or waiting, waits for them and for media deletes already
+    /// started to stop, and starts no more scans.
     pub(crate) async fn shutdown(&self) {
         self.inner.cancel.cancel();
         self.inner.tasks.close();
@@ -816,6 +821,10 @@ impl Scanner {
         self.inner.tasks.reopen();
     }
 }
+
+#[cfg(test)]
+#[path = "scanner/shutdown_tests.rs"]
+mod shutdown_tests;
 
 #[cfg(test)]
 mod tests {
