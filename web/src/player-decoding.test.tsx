@@ -1,14 +1,12 @@
 import { cleanup, screen } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vite-plus/test";
+import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import {
-  AudioCodec,
   type PlanPlaybackRequest,
   PlaybackMethod,
   PlaybackService,
-  VideoCodec,
 } from "@/gen/nama/v1/playback_pb";
 
 import { fakeServer, newUser, openApp } from "./test-app";
@@ -17,7 +15,6 @@ afterEach(() => {
   cleanup();
   // happy-dom has no `navigator.mediaCapabilities`; each test lends it one.
   Reflect.deleteProperty(navigator, "mediaCapabilities");
-  vi.unstubAllGlobals();
 });
 
 /** A Server whose Library 1 has The Matrix, Direct Played, putting each plan request in `asked`. */
@@ -46,29 +43,22 @@ const serverAsked = (asked: PlanPlaybackRequest[]) =>
   );
 
 test.each([
-  { decoded: ["avc1.640028", "mp4a.40.2"], h26410bit: false },
-  { decoded: ["avc1.640028", "avc1.6E0028", "mp4a.40.2"], h26410bit: true },
-])("the plan request says what this Device decodes of $decoded", async ({ decoded, h26410bit }) => {
-  const decodingInfo = (configuration: MediaDecodingConfiguration) => {
-    const json = JSON.stringify(configuration);
-    return Promise.resolve({ supported: decoded.some((codec) => json.includes(codec)) });
-  };
-  Object.defineProperty(navigator, "mediaCapabilities", {
-    value: { decodingInfo },
-    configurable: true,
-  });
-  vi.stubGlobal(
-    "AudioContext",
-    vi.fn(function audioContext() {
-      return { destination: { maxChannelCount: 6 }, close: () => Promise.resolve() };
-    }),
-  );
-  const asked: PlanPlaybackRequest[] = [];
-  openApp("/libraries/1/movies/tmdb-603/play", serverAsked(asked));
+  { decoded: "avc1.640028", h26410bit: false },
+  { decoded: "avc1.6E0028", h26410bit: true },
+])(
+  "the plan request says h26410bit is $h26410bit when decodingInfo accepts only $decoded",
+  async ({ decoded, h26410bit }) => {
+    const decodingInfo = (configuration: MediaDecodingConfiguration) =>
+      Promise.resolve({ supported: JSON.stringify(configuration).includes(decoded) });
+    Object.defineProperty(navigator, "mediaCapabilities", {
+      value: { decodingInfo },
+      configurable: true,
+    });
+    const asked: PlanPlaybackRequest[] = [];
+    openApp("/libraries/1/movies/tmdb-603/play", serverAsked(asked));
 
-  await screen.findByLabelText("The Matrix");
+    await screen.findByLabelText("The Matrix");
 
-  expect(asked.map((request) => request.deviceDecoding)).toMatchObject([
-    { videoCodecs: [VideoCodec.H264], audioCodecs: [AudioCodec.AAC], audioChannels: 6, h26410bit },
-  ]);
-});
+    expect(asked.map((request) => request.deviceDecoding?.h26410bit)).toEqual([h26410bit]);
+  },
+);

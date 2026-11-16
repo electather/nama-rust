@@ -56,18 +56,9 @@ pub(super) fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<Reason>
     let codec = &track.codec;
     match track.kind {
         TrackKind::Video { hdr, bit_depth, .. } => {
-            let video = undecodable_codec(codec, &VIDEO_CODECS, &device.video_codecs).map(|name| {
-                Reason::new(
-                    Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO,
-                    format!(
-                        "This Device can't decode its {name} video, so it can't be Direct Played \
-                         or Remuxed"
-                    ),
-                )
-                .with("codec", &codec)
-                .ruling_out([Method::DirectPlay, Method::Remux])
-            });
-            let video = video.or_else(|| undecodable_h264_depth(codec, bit_depth, device));
+            let video = undecodable_codec(codec, &VIDEO_CODECS, &device.video_codecs)
+                .map(|name| cant_decode_video(name, codec))
+                .or_else(|| undecodable_h264_depth(codec, bit_depth, device));
             let hdr = hdr.filter(|_| !device.hdr).map(|hdr| {
                 let text = format!(
                     "This Device can't show its {} picture, so it can't be Direct Played or \
@@ -104,19 +95,19 @@ fn undecodable_h264_depth(
     device: &DeviceDecoding,
 ) -> Option<Reason> {
     let depth = bit_depth.filter(|&depth| codec == "h264" && depth > 8 && !device.h264_10bit)?;
-    let reason = Reason::new(
+    Some(cant_decode_video(&format!("{depth}-bit H.264"), codec).with("bitDepth", &depth))
+}
+
+/// That the Device can't decode the video Track `codec` names, `name` in plain words.
+fn cant_decode_video(name: &str, codec: &str) -> Reason {
+    Reason::new(
         Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO,
         format!(
-            "This Device can't decode its {depth}-bit H.264 video, so it can't be Direct Played \
-             or Remuxed"
+            "This Device can't decode its {name} video, so it can't be Direct Played or Remuxed"
         ),
-    );
-    Some(
-        reason
-            .with("codec", &codec)
-            .with("bitDepth", &depth)
-            .ruling_out([Method::DirectPlay, Method::Remux]),
     )
+    .with("codec", &codec)
+    .ruling_out([Method::DirectPlay, Method::Remux])
 }
 
 /// The codec ffprobe names `ffprobe_name`, in plain words from `codecs` if it has it, unless

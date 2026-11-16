@@ -11,7 +11,8 @@ const CONTAINERS: Record<Named<typeof Container>, string> = {
   [Container.MATROSKA]: "video/x-matroska",
 };
 // ponytail: one common profile per codec, so a 10-bit HEVC, VP9 or AV1 Track, or a 4K one, may
-// pass on a Device that decodes only the 8-bit HD one; ask about the Track's own profile then.
+// pass on a Device that decodes only the 8-bit HD one; ask about that profile too, as about
+// `H264_10BIT`, once a Device is seen failing one.
 const VIDEO_CODECS: Record<Named<typeof VideoCodec>, string> = {
   [VideoCodec.H264]: 'video/mp4; codecs="avc1.640028"',
   [VideoCodec.HEVC]: 'video/mp4; codecs="hvc1.1.6.L120.90"',
