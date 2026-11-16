@@ -23,12 +23,11 @@ use crate::{
     ffmpeg::{Abilities, Ffmpeg},
     forwarded::{RequestSource, identify_source},
     images::{PluginLogos, plugin_logos_router},
-    library::artwork::{self, Artwork},
-    library::contents::Contents,
-    library::custom_images::{self, CustomImages},
-    library::libraries::Libraries,
-    library::title_source::{TitleKind, TitleSources},
-    playback::{Probing, TrackPreferences, Tracks, running::RunningPlans},
+    library::{
+        Artwork, Contents, CustomImageUrls, CustomImages, Libraries, TitleKind, TitleSources,
+        artwork_router, custom_images_router,
+    },
+    playback::{Probing, RunningPlans, SubtitleCache, TrackPreferences, Tracks, running_router},
     plugin_settings::PluginSettings,
     requests::Requests,
     scanner::Scanner,
@@ -90,13 +89,13 @@ pub(crate) fn router(
     abilities: Abilities,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
-    subtitles: crate::playback::subtitles::Cache,
+    subtitles: SubtitleCache,
 ) -> axum::Router {
     let plugins = plugin_settings.extension_points();
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
     let image_settings = settings.images();
-    let artwork_router = artwork::router(artwork.clone(), contents.clone(), image_settings.clone());
+    let artwork_router = artwork_router(artwork.clone(), contents.clone(), image_settings.clone());
     let media = crate::playback::router(
         contents,
         running.clone(),
@@ -104,7 +103,7 @@ pub(crate) fn router(
         Arc::clone(&ffmpeg),
         subtitles,
     )
-    .merge(crate::playback::running::router(running.clone()));
+    .merge(running_router(running.clone()));
     let images = ImageSources::new(
         custom_images.clone(),
         artwork.clone(),
@@ -178,7 +177,7 @@ pub(crate) fn router(
         }))
         .into_axum_router()
         .merge(artwork_router)
-        .merge(custom_images::router(custom_images, image_settings))
+        .merge(custom_images_router(custom_images, image_settings))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
         .layer(middleware::from_fn(require_access))
@@ -680,7 +679,7 @@ fn database_failed(err: sqlx::Error) -> ConnectError {
 /// What a response shows of images: the Custom Images in place of the downloaded ones, and the
 /// thumbhash of each image resized so far, by URL.
 struct ShownImages {
-    custom: custom_images::Urls,
+    custom: CustomImageUrls,
     thumbhashes: HashMap<String, Vec<u8>>,
 }
 

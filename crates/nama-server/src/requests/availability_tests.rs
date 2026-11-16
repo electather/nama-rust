@@ -24,11 +24,10 @@ use crate::requests::testing::{
 };
 use crate::{
     db::Database,
-    library::contents::{
-        Change, Contents, Decisions, Item, Metadata,
+    library::{
+        Change, Contents, Decisions, Item, Libraries, LibraryKind, Metadata,
         fixture::{MatchedMovie, tmdb_movie},
     },
-    library::libraries::{Kind, Libraries},
 };
 
 const TODAY: &str = "2026-11-08";
@@ -71,7 +70,7 @@ async fn an_available_season_request_stays_available_when_a_later_episode_airs()
     let library = Libraries::new(Arc::clone(&db))
         .create(
             "Shows",
-            Kind::Shows,
+            LibraryKind::Shows,
             vec![root.to_str().unwrap().to_owned()],
         )
         .await

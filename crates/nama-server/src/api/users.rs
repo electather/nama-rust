@@ -28,7 +28,7 @@ use crate::{
     connections::{self, Connections},
     db::Database,
     images::PluginLogos,
-    library::custom_images::{CustomImages, Urls},
+    library::{CustomImageUrls, CustomImages},
     plugin_settings::{PluginSettings, StoredPlugin},
     plugins::Listed,
     users::{self, Caller, Permissions, Users, personal_settings},
@@ -444,7 +444,7 @@ impl UserServiceHandler {
         user: i64,
         plugin: &Listed,
         manifest: &Manifest,
-        custom: &Urls,
+        custom: &CustomImageUrls,
     ) -> Result<proto::PersonalSettings, ConnectError> {
         let stored = self.stored(user, &plugin.id, manifest).await?;
         Ok(proto::PersonalSettings {

@@ -17,14 +17,9 @@ use crate::{
     events::EventBus,
     images::ImageStore,
     library::{
-        artwork::Artwork,
-        contents::{
-            Change, Contents, Decided, Item, Metadata,
-            fixture::{self, MatchedMovie, tmdb_movie},
-        },
-        custom_images::CustomImages,
-        libraries::{Kind, Libraries},
-        watch_states::{MovieOrEpisode, Progress, WatchStates},
+        self, Artwork, Change, Contents, CustomImages, Decided, Item, Libraries, Metadata,
+        MovieOrEpisode, Progress, WatchStates,
+        fixture::{self, MatchedMovie, tmdb_movie},
     },
     plugins::{ExtensionPoints, Registry},
     scanner::Scanner,
@@ -130,7 +125,7 @@ async fn two_episodes_in_one_file_also_known_as(
     let library = (Libraries::new(Arc::clone(db)))
         .create(
             "Shows",
-            Kind::Shows,
+            library::LibraryKind::Shows,
             vec![root.to_str().unwrap().to_owned()],
         )
         .await

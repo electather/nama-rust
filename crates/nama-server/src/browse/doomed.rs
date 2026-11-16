@@ -12,8 +12,7 @@ use nama_plugin_api::{
 
 use super::{Browse, Error, Target, Titles};
 use crate::{
-    library::contents,
-    library::libraries::{Kind, Library},
+    library::{Library, LibraryEpisode, LibraryKind, LibraryShow, LibraryVersion},
     requests::RequestTitle,
     scanner::Doomed,
 };
@@ -94,12 +93,12 @@ impl Browse {
 /// each file once, with the other Episodes those files hold.
 fn doomed_episodes(
     library: Library,
-    shows: &[contents::Show],
+    shows: &[LibraryShow],
     target: &Target,
     only: Option<i64>,
 ) -> Result<Doomed, Error> {
     let (title, show, named) = named_episodes(shows, target)?;
-    let mut versions: Vec<contents::Version> = (named.iter())
+    let mut versions: Vec<LibraryVersion> = (named.iter())
         .flat_map(|episode| &episode.versions)
         .filter(|version| only.is_none_or(|only| version.file.id == only))
         .cloned()
@@ -111,7 +110,7 @@ fn doomed_episodes(
         return Err(Error::NoSuchVersion);
     }
     let files: HashSet<i64> = versions.iter().map(|version| version.file.id).collect();
-    let taken_along: Vec<contents::Episode> = (shows.iter().flat_map(contents::Show::episodes))
+    let taken_along: Vec<LibraryEpisode> = (shows.iter().flat_map(LibraryShow::episodes))
         .filter(|episode| !named.iter().any(|named| named.id == episode.id))
         .filter(|episode| (episode.versions.iter()).any(|v| files.contains(&v.file.id)))
         .cloned()
@@ -150,7 +149,7 @@ fn title_ids(ids: &ExternalIds) -> Vec<TitleId> {
 }
 
 /// Each of `versions` with the Movie `id` it is of, as a Request names it.
-fn movie_requested(id: &ExternalId, versions: &[contents::Version]) -> Vec<(i64, RequestTitle)> {
+fn movie_requested(id: &ExternalId, versions: &[LibraryVersion]) -> Vec<(i64, RequestTitle)> {
     let title = RequestTitle {
         id: id.clone(),
         season: None,
@@ -161,7 +160,7 @@ fn movie_requested(id: &ExternalId, versions: &[contents::Version]) -> Vec<(i64,
 }
 
 /// Each of `files` with the Season of each Episode of `shows` it holds, as a Request names it.
-fn seasons_requested(shows: &[contents::Show], files: &HashSet<i64>) -> Vec<(i64, RequestTitle)> {
+fn seasons_requested(shows: &[LibraryShow], files: &HashSet<i64>) -> Vec<(i64, RequestTitle)> {
     let mut requested = Vec::new();
     for show in shows {
         for episode in show.episodes() {
@@ -182,9 +181,9 @@ fn seasons_requested(shows: &[contents::Show], files: &HashSet<i64>) -> Vec<(i64
 /// What a delete of `target`, Episodes of `show`, asks Fulfillers to stop monitoring: the
 /// Episodes `episodes`, a whole Season or every current Season. `None` if the Show has no ids.
 fn to_unmonitor_of<'a>(
-    show: &contents::Show,
+    show: &LibraryShow,
     target: &Target,
-    episodes: impl Iterator<Item = &'a contents::Episode>,
+    episodes: impl Iterator<Item = &'a LibraryEpisode>,
 ) -> Option<Title> {
     let show_ids = title_ids(&show.ids);
     if show_ids.is_empty() {
@@ -225,15 +224,15 @@ pub(super) fn names(ids: &ExternalIds, id: &ExternalId) -> bool {
 /// The Episodes of `shows` that `target` names, with its name for the log and their Show. A Movie
 /// is in no Shows Library.
 fn named_episodes<'a>(
-    shows: &'a [contents::Show],
+    shows: &'a [LibraryShow],
     target: &Target,
-) -> Result<(String, &'a contents::Show, Vec<&'a contents::Episode>), Error> {
+) -> Result<(String, &'a LibraryShow, Vec<&'a LibraryEpisode>), Error> {
     let show_of = |id: &ExternalId| {
         (shows.iter().find(|show| names(&show.ids, id))).ok_or(Error::NothingMatched)
     };
     match target {
         Target::Movie(_) => Err(Error::WrongKind {
-            wanted: Kind::Movies,
+            wanted: LibraryKind::Movies,
         }),
         Target::Show(id) => {
             let show = show_of(id)?;

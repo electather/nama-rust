@@ -23,8 +23,9 @@ use super::{Error, Requests, qualities};
 use crate::{
     db::now,
     events::event,
-    library::contents::{self, Metadata},
-    library::title_source::Season,
+    library::{
+        DEFAULT_ORDER, Metadata, SourceSeason, library_with_movie, matched_episodes, primary_id,
+    },
     users::User,
 };
 
@@ -54,7 +55,7 @@ pub(super) struct WantedSeasons {
     pub(super) show_id: ExternalId,
     pub(super) show_ids: ExternalIds,
     pub(super) show_title: String,
-    pub(super) seasons: Vec<Season>,
+    pub(super) seasons: Vec<SourceSeason>,
     /// What the asker's ask says about Quality, which gives way to the Show's if it has one.
     pub(super) quality: qualities::Ask,
 }
@@ -136,11 +137,11 @@ impl Requests {
 }
 
 /// The id a Request for the title asked for by `asked` is kept under, and found by: its preferred
-/// one among `ids` in [`contents::DEFAULT_ORDER`], since a Request belongs to no Library, or
+/// one among `ids` in [`DEFAULT_ORDER`], since a Request belongs to no Library, or
 /// `asked` if the metadata source gave none. So asking by any of a title's ids joins the one
 /// Request.
 pub(super) fn kept_under(asked: &ExternalId, ids: &ExternalIds) -> ExternalId {
-    contents::primary_id(ids, &contents::DEFAULT_ORDER).unwrap_or_else(|| asked.clone())
+    primary_id(ids, &DEFAULT_ORDER).unwrap_or_else(|| asked.clone())
 }
 
 impl Wanted {
@@ -175,10 +176,7 @@ pub(super) async fn ask_movie(
     wanted: Wanted,
     state: RequestState,
 ) -> Result<Applied<Request>, Error> {
-    if contents::library_with_movie(conn, &wanted.id)
-        .await?
-        .is_some()
-    {
+    if library_with_movie(conn, &wanted.id).await?.is_some() {
         return Err(Error::InLibrary(wanted.id));
     }
     ask_approving(conn, user, wanted, state).await
@@ -329,7 +327,7 @@ pub(super) struct SeasonsToAsk {
     /// Every id of the Show, [`Self::show_id`] among them.
     pub(super) show_ids: ExternalIds,
     pub(super) show_title: String,
-    pub(super) seasons: Vec<Season>,
+    pub(super) seasons: Vec<SourceSeason>,
     pub(super) quality: qualities::Ask,
 }
 
@@ -363,7 +361,7 @@ impl SeasonsToAsk {
         show_id: &ExternalId,
         mut show_ids: ExternalIds,
         followed_show: &FollowedShow,
-        season: Season,
+        season: SourceSeason,
     ) -> Result<Self, sqlx::Error> {
         show_ids.insert(show_id.clone());
         let quality = show_requests(conn, &show_ids).await?.for_scan();
@@ -386,8 +384,7 @@ impl SeasonsToAsk {
         let today = today(conn).await?;
         let mut asked = Applied::quiet(Vec::with_capacity(self.seasons.len()));
         for season in &self.seasons {
-            let matched =
-                contents::matched_episodes(conn, &self.show_id, season.number.into()).await?;
+            let matched = matched_episodes(conn, &self.show_id, season.number.into()).await?;
             let has = availability(&season.episodes, &matched, &today);
             let Some(opens_in) = asking
                 .opens_in(conn, &self.show_id, season.number, has)
@@ -406,7 +403,7 @@ impl SeasonsToAsk {
     }
 
     /// What a new Request for `season` stores, opened for `followed_show` if given.
-    fn wanted(&self, season: &Season, followed_show: Option<i64>) -> Wanted {
+    fn wanted(&self, season: &SourceSeason, followed_show: Option<i64>) -> Wanted {
         Wanted {
             id: self.show_id.clone(),
             season: Some(season.number),

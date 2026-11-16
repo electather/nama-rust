@@ -1,7 +1,7 @@
 use nama_plugin_api::{PluginId, metadata::ExternalId};
 
 use super::tests::{Fixture, matched};
-use crate::library::contents::ImageRef;
+use crate::library::ImageRef;
 
 const SECRETS: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
 /// TMDB has no Still for it.

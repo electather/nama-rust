@@ -11,7 +11,7 @@ use std::{
 use nama_plugin_api::{
     PluginId,
     contract::{
-        FileRecognised, FileToRecognise, LibraryKind, RecognisedEpisodes, RecognisedMovie, TitleId,
+        self, FileRecognised, FileToRecognise, RecognisedEpisodes, RecognisedMovie, TitleId,
         file_recognised::Recognised,
     },
     metadata::{ExternalId, ExternalIds, IMDB, TMDB, TVDB},
@@ -25,8 +25,7 @@ use super::{
 };
 use crate::{
     db::Database,
-    library::contents::{Change, Contents, Item},
-    library::libraries::{Kind, Libraries, Library},
+    library::{Change, Contents, Item, Libraries, Library, LibraryKind},
     plugins::ExtensionPoints,
 };
 
@@ -49,7 +48,7 @@ pub(super) struct Planned {
 /// scan calls it under the Library's scan lock, as Matching asks title sources.
 pub(super) async fn recognise(
     plugins: &ExtensionPoints,
-    kind: Kind,
+    kind: LibraryKind,
     order: &[String],
     planned: Vec<Planned>,
     cancel: &CancellationToken,
@@ -114,14 +113,14 @@ pub(super) fn listed(plugins: &ExtensionPoints, order: &[String]) -> Vec<PluginI
 async fn ask(
     plugins: &ExtensionPoints,
     recognisers: &[PluginId],
-    kind: Kind,
+    kind: LibraryKind,
     relative: &Path,
 ) -> Result<Option<Vec<Item>>, ()> {
     let file = &FileToRecognise {
         path: slashed(relative),
         library_kind: match kind {
-            Kind::Movies => LibraryKind::LIBRARY_KIND_MOVIES,
-            Kind::Shows => LibraryKind::LIBRARY_KIND_SHOWS,
+            LibraryKind::Movies => contract::LibraryKind::LIBRARY_KIND_MOVIES,
+            LibraryKind::Shows => contract::LibraryKind::LIBRARY_KIND_SHOWS,
         }
         .into(),
         ..FileToRecognise::default()
@@ -180,11 +179,14 @@ fn set_items(change: &mut Change, recognised: Vec<Item>) {
 /// The Items `recognised` proposes for a file in a Library of `kind`: a Movie only in a Movies
 /// Library and Episodes only in a Shows Library, at most [`MAX_EPISODES_PER_FILE`] of them, as
 /// the name parser would make them. `None` for a proposal that is empty or doesn't fit.
-pub(super) fn items(kind: Kind, recognised: FileRecognised) -> Option<Vec<Item>> {
+pub(super) fn items(kind: LibraryKind, recognised: FileRecognised) -> Option<Vec<Item>> {
     match (kind, recognised.recognised?) {
-        (Kind::Movies, Recognised::Movie(movie)) => movie_of(&movie).map(|movie| vec![movie]),
-        (Kind::Shows, Recognised::Episodes(episodes)) => episodes_of(*episodes),
-        (Kind::Movies, Recognised::Episodes(_)) | (Kind::Shows, Recognised::Movie(_)) => None,
+        (LibraryKind::Movies, Recognised::Movie(movie)) => {
+            movie_of(&movie).map(|movie| vec![movie])
+        }
+        (LibraryKind::Shows, Recognised::Episodes(episodes)) => episodes_of(*episodes),
+        (LibraryKind::Movies, Recognised::Episodes(_))
+        | (LibraryKind::Shows, Recognised::Movie(_)) => None,
     }
 }
 

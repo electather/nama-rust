@@ -6,12 +6,11 @@ use tempfile::TempDir;
 use super::{Browse, Error, Started, Target};
 use crate::{
     db::{self, Database},
-    library::contents::{
-        Change, Contents, Decided, Item, Metadata, Stored,
+    library::{
+        Change, Contents, Decided, Item, Libraries, LibraryKind, Metadata, MovieOrEpisode,
+        Progress, Stored, WatchState, WatchStates,
         fixture::{MatchedMovie, decide, tmdb_movie},
     },
-    library::libraries::{Kind, Libraries},
-    library::watch_states::{MovieOrEpisode, Progress, WatchState, WatchStates},
     playback::{Probe, Track, TrackKind, Tracks},
     plugins::Registry,
     users::{Permissions, User, Users},
@@ -27,7 +26,12 @@ const KNIGHT_PILOT_TVDB_ID: i64 = 9_000_001;
 const ALIEN_IMDB_ID: &str = "tt0078748";
 
 /// Creates a Library of `kind` on `folder`, with its canonical path.
-async fn library(db: &Arc<Database>, name: &str, kind: Kind, folder: &TempDir) -> (i64, String) {
+async fn library(
+    db: &Arc<Database>,
+    name: &str,
+    kind: LibraryKind,
+    folder: &TempDir,
+) -> (i64, String) {
     let root = folder.path().canonicalize().unwrap();
     let root = root.to_str().unwrap().to_owned();
     let library = Libraries::new(Arc::clone(db))
@@ -111,7 +115,7 @@ fn knight_match(tmdb: i64) -> Decided {
 /// Creates a Shows Library holding A Knight of the Seven Kingdoms' Season 1 Episodes 1 and 2,
 /// in one file, and Season 2 Episode 1, and returns the Library and the first file's id.
 async fn library_with_knight(db: &Arc<Database>, folder: &TempDir) -> (i64, i64) {
-    let (library, root) = library(db, "Shows", Kind::Shows, folder).await;
+    let (library, root) = library(db, "Shows", LibraryKind::Shows, folder).await;
     let show = format!("{root}/A Knight of the Seven Kingdoms");
     let both = vec![
         (knight_episode(1, 1), knight_match(KNIGHT_PILOT_TMDB_ID)),
@@ -179,7 +183,7 @@ async fn an_episode_has_the_same_tracks_however_it_is_reached() {
     let data = tempfile::tempdir().unwrap();
     let folder = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let (library, root) = library(&db, "Shows", Kind::Shows, &folder).await;
+    let (library, root) = library(&db, "Shows", LibraryKind::Shows, &folder).await;
     let pilot_file = Item::Episode {
         show: "A Knight of the Seven Kingdoms".to_owned(),
         year: Some(2026),
@@ -339,7 +343,7 @@ async fn progress_on_a_file_holding_two_episodes_is_split_across_them() {
 async fn progress_on_an_unmatched_item_stores_nothing() {
     let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let (library, root) = library(&db, "Movies", Kind::Movies, &folder).await;
+    let (library, root) = library(&db, "Movies", LibraryKind::Movies, &folder).await;
     let unknown = Item::Movie {
         title: "Unknown".to_owned(),
         year: None,
@@ -475,7 +479,7 @@ async fn marking_a_title_the_library_doesnt_have_is_refused_as_browsing_to_it_is
             Error::NothingMatched.to_string(),
             Error::NoSuchSeason.to_string(),
             Error::WrongKind {
-                wanted: Kind::Movies
+                wanted: LibraryKind::Movies
             }
             .to_string(),
         ]
@@ -542,7 +546,7 @@ async fn a_movies_watch_state_under_an_id_its_library_doesnt_prefer_is_shown() {
 async fn an_episodes_watch_state_under_an_id_its_library_doesnt_prefer_is_shown() {
     let (data, folder) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let (library, root) = library(&db, "Shows", Kind::Shows, &folder).await;
+    let (library, root) = library(&db, "Shows", LibraryKind::Shows, &folder).await;
     let tvdb = ExternalId::tvdb(KNIGHT_PILOT_TVDB_ID);
     let Decided::Matched(mut pilot) = knight_match(KNIGHT_PILOT_TMDB_ID) else {
         panic!("an Episode's Match");

@@ -19,8 +19,7 @@ use tokio::sync::Notify;
 
 use super::{Doomed, delete, each_file, preview};
 use crate::{
-    library::contents::{Stored, Version},
-    library::libraries::{Kind, Library},
+    library::{Library, LibraryKind, LibraryVersion, Stored},
     plugins::Registry,
     requests::RequestTitle,
     scanner::tests::Fixture as Scanned,
@@ -50,7 +49,7 @@ impl Fixture {
 
     /// The Versions at `videos` of this Library, numbered from 1.
     fn doomed(&self, videos: &[&str]) -> Doomed {
-        let versions = (1..).zip(videos).map(|(id, video)| Version {
+        let versions = (1..).zip(videos).map(|(id, video)| LibraryVersion {
             file: Stored {
                 id,
                 size: 0,
@@ -63,7 +62,7 @@ impl Fixture {
             library: Library {
                 id: 1,
                 name: "Media".to_owned(),
-                kind: Kind::Movies,
+                kind: LibraryKind::Movies,
                 folders: vec![self.path("")],
                 read_only: Vec::new(),
                 title_sources: vec!["tmdb".to_owned()],
@@ -315,7 +314,7 @@ async fn a_delete_whose_fulfiller_says_to_try_again_still_deletes_and_asks_again
     plugins
         .enable(Arc::new(BusyPlugin(Arc::clone(&busy))))
         .unwrap();
-    let media = Scanned::with_plugins(Kind::Movies, plugins.extension_points()).await;
+    let media = Scanned::with_plugins(LibraryKind::Movies, plugins.extension_points()).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.scan().await;
     let doomed = Doomed {

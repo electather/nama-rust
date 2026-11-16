@@ -13,7 +13,7 @@ use nama_proto::nama::v1::RequestState;
 
 use super::{Wanted, ask_movie, ask_seasons};
 use crate::db::Database;
-use crate::library::contents::{Metadata, fixture::tmdb_movie};
+use crate::library::{Metadata, fixture::tmdb_movie};
 use crate::plugins::Registry;
 use crate::requests::deciding::{cancel, decline};
 use crate::requests::listing::load_one;

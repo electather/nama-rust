@@ -3,7 +3,10 @@ use std::path::Path;
 use nama_plugin_api::metadata::{ExternalId, IMDB};
 
 use super::{is_extra, parse};
-use crate::{library::contents::Item, library::libraries::Kind};
+use crate::library::{
+    Item,
+    LibraryKind::{Movies, Shows},
+};
 
 fn tmdb(id: i64) -> ExternalId {
     ExternalId::tmdb(id)
@@ -108,7 +111,7 @@ fn movies() {
         ),
     ];
     for (path, expected) in cases {
-        assert_eq!(parse(Kind::Movies, Path::new(path)), expected, "{path}");
+        assert_eq!(parse(Movies, Path::new(path)), expected, "{path}");
     }
 }
 
@@ -199,7 +202,7 @@ fn movies_with_id_hints_or_too_little_to_go_on() {
         ("Movie (0042)/movie.mkv", None),
     ];
     for (path, expected) in cases {
-        assert_eq!(parse(Kind::Movies, Path::new(path)), expected, "{path}");
+        assert_eq!(parse(Movies, Path::new(path)), expected, "{path}");
     }
 }
 
@@ -224,7 +227,7 @@ fn movies_with_id_hints_in_any_namespace() {
         ("Blade Runner {tmdbid-abc}/movie.mkv", None),
     ];
     for (path, expected) in cases {
-        assert_eq!(parse(Kind::Movies, Path::new(path)), expected, "{path}");
+        assert_eq!(parse(Movies, Path::new(path)), expected, "{path}");
     }
 }
 
@@ -250,7 +253,7 @@ fn shows() {
         ("Dark (2017)/Season 01/Dark - S02E05.mkv", dark(2, &[5])),
     ];
     for (path, expected) in cases {
-        assert_eq!(parse(Kind::Shows, Path::new(path)), expected, "{path}");
+        assert_eq!(parse(Shows, Path::new(path)), expected, "{path}");
     }
 }
 
@@ -306,7 +309,7 @@ fn multi_episode_files_and_specials() {
         ("Dark (2017)/Specials/Dark - S00E02.mkv", dark(0, &[2])),
     ];
     for (path, expected) in cases {
-        assert_eq!(parse(Kind::Shows, Path::new(path)), expected, "{path}");
+        assert_eq!(parse(Shows, Path::new(path)), expected, "{path}");
     }
 }
 
@@ -355,7 +358,7 @@ fn other_show_layouts_and_names() {
         ("Dark - S01E01.mkv", None),
     ];
     for (path, expected) in cases {
-        assert_eq!(parse(Kind::Shows, Path::new(path)), expected, "{path}");
+        assert_eq!(parse(Shows, Path::new(path)), expected, "{path}");
     }
 }
 

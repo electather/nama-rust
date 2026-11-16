@@ -14,13 +14,10 @@ use nama_proto::nama::v1::{
 use crate::{
     ffmpeg::Abilities,
     playback::{
-        self, Asked, AskedAudio, AskedSubtitle, DeviceDecoding, Method, NAMED_LIMITS, PickedLimit,
-        Planned, StartedPlan, TrackKind, limit_to_proto, method_to_proto,
-        probing::{self, Probing},
-        reason_to_proto,
-        running::{RunningPlans, StartError},
-        track_preferences::{self, Description, Preferred, SubtitlePreference, TrackPreferences},
-        track_to_proto,
+        self, Asked, AskedAudio, AskedSubtitle, Description, DeviceDecoding, Method, NAMED_LIMITS,
+        PickedLimit, Planned, Preferred, Probing, ProbingError, RunningPlans, StartError,
+        StartedPlan, SubtitlePreference, TrackKind, TrackPreferenceError, TrackPreferences,
+        is_language, limit_to_proto, method_to_proto, reason_to_proto, track_to_proto,
     },
     server_settings::{PlaybackLimit, PlaybackSettings},
 };
@@ -161,8 +158,8 @@ impl PlaybackService for PlaybackServiceHandler {
         };
         let kept_for =
             (self.preferences.kept_for(request.version_id).await).map_err(|err| match err {
-                track_preferences::Error::NoSuchVersion => version_not_found(),
-                track_preferences::Error::Database(err) => database_failed(err),
+                TrackPreferenceError::NoSuchVersion => version_not_found(),
+                TrackPreferenceError::Database(err) => database_failed(err),
             })?;
         // An Unmatched Item keeps nothing, as it keeps no Watch State (ADR 0013): its Tracks aren't
         // read, so the pick never fails, whatever it names.
@@ -315,7 +312,7 @@ fn users_subtitle_from_proto(
 /// The language a User's own Preference names in the request field `field`, in lower case,
 /// refusing one that isn't ISO 639.
 fn checked_language(language: &str, field: &str) -> Result<String, ConnectError> {
-    if !track_preferences::is_language(language) {
+    if !is_language(language) {
         return Err(refuse(
             RefusalReason::REFUSAL_REASON_UNKNOWN_LANGUAGE,
             format!("{language:?} isn't an ISO 639 language code, such as `en` or `eng`"),
@@ -377,9 +374,9 @@ impl PlaybackServiceHandler {
         let probe = match self.probing.current(version).await {
             Ok(probe) => Some(probe),
             // Its Tracks aren't known, so no plan offered one to pick.
-            Err(probing::Error::Probe(_)) => None,
-            Err(probing::Error::NoSuchVersion(_)) => return Err(version_not_found()),
-            Err(probing::Error::Database(err)) => return Err(database_failed(err)),
+            Err(ProbingError::Probe(_)) => None,
+            Err(ProbingError::NoSuchVersion(_)) => return Err(version_not_found()),
+            Err(ProbingError::Database(err)) => return Err(database_failed(err)),
         };
         let track = (probe.as_ref())
             .zip(usize::try_from(place).ok())

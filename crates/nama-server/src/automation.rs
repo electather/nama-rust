@@ -25,11 +25,7 @@ use tracing::error;
 use crate::{
     browse::{self, Browse, Target, ToDelete},
     db::Database,
-    library::{
-        contents::{self, Contents, ItemKind},
-        libraries::{self, Kind},
-        watch_states,
-    },
+    library::{self, Contents, ItemKind, LibraryEpisode, LibraryError, WatchStateKind},
     plugins::ExtensionPoints,
     scanner::{self, Scanner},
     users,
@@ -176,15 +172,19 @@ impl PluginKernel {
             })?),
         };
         let library = asked.library_id;
-        let found = libraries::Libraries::new(Arc::clone(&automation.db))
+        let found = library::Libraries::new(Arc::clone(&automation.db))
             .get(library)
             .await;
         let (kind, title_kind) = match found {
             Ok(found) => match found.kind {
-                Kind::Movies => (ItemKind::Movie, TitleRefKind::TITLE_REF_KIND_MOVIE),
-                Kind::Shows => (ItemKind::Episode, TitleRefKind::TITLE_REF_KIND_EPISODE),
+                library::LibraryKind::Movies => {
+                    (ItemKind::Movie, TitleRefKind::TITLE_REF_KIND_MOVIE)
+                }
+                library::LibraryKind::Shows => {
+                    (ItemKind::Episode, TitleRefKind::TITLE_REF_KIND_EPISODE)
+                }
             },
-            Err(libraries::Error::Database(err)) => {
+            Err(LibraryError::Database(err)) => {
                 return Err(self.database_refused("reading the Library", &err));
             }
             Err(err) => return Err(KernelRefused(err.to_string())),
@@ -236,18 +236,17 @@ impl PluginKernel {
         &self,
         automation: &Automation,
         titles: &[TitleRef],
-    ) -> Result<Vec<(watch_states::Kind, ExternalIds)>, KernelRefused> {
+    ) -> Result<Vec<(WatchStateKind, ExternalIds)>, KernelRefused> {
         let contents = Contents::new(Arc::clone(&automation.db));
         let read = |err| self.database_refused("reading the Library's titles", &err);
         // One read per Library and kind of the titles asked about, each answer going back to the
         // place its title was asked in.
-        let mut asked: HashMap<(i64, watch_states::Kind), Vec<(usize, ExternalId)>> =
-            HashMap::new();
+        let mut asked: HashMap<(i64, WatchStateKind), Vec<(usize, ExternalId)>> = HashMap::new();
         for (place, title) in titles.iter().enumerate() {
             let (kind, named) = titled(
                 title,
-                |id| (watch_states::Kind::Movie, id),
-                |id| (watch_states::Kind::Episode, id),
+                |id| (WatchStateKind::Movie, id),
+                |id| (WatchStateKind::Episode, id),
             )?;
             (asked.entry((title.library_id, kind)).or_default()).push((place, named));
         }
@@ -255,8 +254,8 @@ impl PluginKernel {
         for ((library, kind), named) in asked {
             let (places, named): (Vec<usize>, Vec<ExternalId>) = named.into_iter().unzip();
             let item_kind = match kind {
-                watch_states::Kind::Movie => ItemKind::Movie,
-                watch_states::Kind::Episode => ItemKind::Episode,
+                WatchStateKind::Movie => ItemKind::Movie,
+                WatchStateKind::Episode => ItemKind::Episode,
             };
             let found = (contents.every_id(library, item_kind, &named).await).map_err(read)?;
             every_id
@@ -272,10 +271,10 @@ impl PluginKernel {
         &self,
         automation: &Automation,
         library: i64,
-        taken_along: &[contents::Episode],
+        taken_along: &[LibraryEpisode],
         also: &[TitleRef],
     ) -> Result<(), KernelRefused> {
-        let unnamed: Vec<&contents::Episode> = (taken_along.iter())
+        let unnamed: Vec<&LibraryEpisode> = (taken_along.iter())
             .filter(|episode| {
                 let taken = title_ref(library, TitleRefKind::TITLE_REF_KIND_EPISODE, &episode.id);
                 !also.iter().any(|named| same_title(named, &taken))
@@ -310,7 +309,7 @@ fn same_title(a: &TitleRef, b: &TitleRef) -> bool {
 }
 
 /// An Episode of the Show `show` as a refusal names it, such as `Dark S01E02 (Lies)`.
-fn episode_name(show: &str, episode: &contents::Episode) -> String {
+fn episode_name(show: &str, episode: &LibraryEpisode) -> String {
     format!(
         "{show} S{:02}E{:02} ({})",
         episode.season, episode.number, episode.title
@@ -353,7 +352,7 @@ fn titled<T>(
 }
 
 /// What `state`, kept for the User `user`, is to a Plugin.
-fn watch_state_to_proto(user: i64, state: watch_states::WatchState) -> WatchState {
+fn watch_state_to_proto(user: i64, state: library::WatchState) -> WatchState {
     WatchState {
         user_id: user,
         played: state.played,
@@ -419,7 +418,7 @@ impl Kernel for PluginKernel {
     ) -> BoxFuture<'a, Result<Libraries, KernelRefused>> {
         Box::pin(async move {
             let automation = self.check(Method::ListLibraries)?;
-            let listed = libraries::Libraries::new(Arc::clone(&automation.db))
+            let listed = library::Libraries::new(Arc::clone(&automation.db))
                 .list()
                 .await
                 .map_err(|err| {
@@ -433,8 +432,8 @@ impl Kernel for PluginKernel {
                         id: library.id,
                         name: library.name,
                         kind: match library.kind {
-                            Kind::Movies => LibraryKind::LIBRARY_KIND_MOVIES,
-                            Kind::Shows => LibraryKind::LIBRARY_KIND_SHOWS,
+                            library::LibraryKind::Movies => LibraryKind::LIBRARY_KIND_MOVIES,
+                            library::LibraryKind::Shows => LibraryKind::LIBRARY_KIND_SHOWS,
                         }
                         .into(),
                         ..Library::default()
@@ -462,7 +461,7 @@ impl Kernel for PluginKernel {
         Box::pin(async move {
             let automation = self.check(Method::ListWatchStates)?;
             let titles = self.every_id(&automation, &asked.titles).await?;
-            let states = (watch_states::WatchStates::new(Arc::clone(&automation.db)))
+            let states = (library::WatchStates::new(Arc::clone(&automation.db)))
                 .of_titles(None, &titles)
                 .await
                 .map_err(|err| self.database_refused("reading the Watch States", &err))?;

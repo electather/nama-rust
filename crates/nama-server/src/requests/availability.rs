@@ -13,8 +13,7 @@ use super::followed::{approved_followed_show, covers};
 use super::state::{change_state, ids_json, open_requests};
 use crate::{
     db::now,
-    library::contents,
-    library::title_source::{Episode, Season},
+    library::{SourceEpisode, SourceSeason, library_with_movie, matched_episodes},
 };
 
 /// Today as `YYYY-MM-DD`, by SQLite's calendar, since `std` has none.
@@ -70,7 +69,7 @@ impl Asker for Scanning {
 /// text): Available once every aired Episode is Matched, Partially Available while some are, and
 /// `None` while none are. So a Season yet to air isn't in a Library, and can be Requested.
 pub(super) fn availability(
-    episodes: &[Episode],
+    episodes: &[SourceEpisode],
     matched: &HashSet<i64>,
     today: &str,
 ) -> Option<RequestState> {
@@ -113,7 +112,7 @@ pub(crate) async fn make_available(
         let open = open_requests(conn, &ids, None).await?;
         // Not every Matched id is a Movie in a Library: the Match isn't stored if its Item went
         // since it was decided about, and an Episode's id can equal an unrelated Movie's.
-        if open.is_empty() || contents::library_with_movie(conn, &any).await?.is_none() {
+        if open.is_empty() || library_with_movie(conn, &any).await?.is_none() {
             continue;
         }
         for id in open {
@@ -131,7 +130,7 @@ pub(crate) async fn make_available(
 /// Season with no open Request is asked for by a scan, as [`Scanning`] says.
 pub(crate) async fn make_seasons_available(
     conn: &mut SqliteConnection,
-    seasons: Vec<(ExternalIds, Season)>,
+    seasons: Vec<(ExternalIds, SourceSeason)>,
 ) -> Result<Vec<Event>, sqlx::Error> {
     let today = today(conn).await?;
     let mut happened = Vec::new();
@@ -139,7 +138,7 @@ pub(crate) async fn make_seasons_available(
         let Some(any) = show.iter().next() else {
             continue;
         };
-        let matched = contents::matched_episodes(conn, &any, season.number.into()).await?;
+        let matched = matched_episodes(conn, &any, season.number.into()).await?;
         let Some(state) = availability(&season.episodes, &matched, &today) else {
             continue;
         };
@@ -160,7 +159,7 @@ pub(crate) async fn make_seasons_available(
 async fn scan_season(
     conn: &mut SqliteConnection,
     show: ExternalIds,
-    season: Season,
+    season: SourceSeason,
 ) -> Result<Vec<Event>, sqlx::Error> {
     // A Show with no Approved Followed Show has no one a scan could ask for.
     let Some((kept_under, followed_show, followed_ids)) =

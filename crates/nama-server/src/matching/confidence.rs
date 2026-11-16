@@ -9,7 +9,7 @@
 
 use nama_plugin_api::metadata::ExternalId;
 
-use crate::library::title_source::Candidate;
+use crate::library::Candidate;
 
 /// The least confidence a Match needs.
 const THRESHOLD: f64 = 0.85;

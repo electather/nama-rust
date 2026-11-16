@@ -12,11 +12,7 @@ use tokio_util::sync::CancellationToken;
 use walkdir::{DirEntry, WalkDir};
 
 use super::{Error, Planned, Summary, names};
-use crate::{
-    library::contents::{Change, Stored},
-    library::libraries::Kind,
-    library::versions::PARSER_VERSION,
-};
+use crate::library::{Change, LibraryKind, PARSER_VERSION, Stored};
 
 /// Extensions, in lowercase, of the files the scanner treats as video.
 const VIDEO_EXTENSIONS: &[&str] = &[
@@ -133,7 +129,7 @@ fn nanos_since_epoch(time: SystemTime) -> i64 {
 /// What a scan changes, given what was `stored` and what was `found`. A file the name parser
 /// makes no Item from is planned with none, and its path kept for Recognisers.
 pub(super) fn plan(
-    kind: Kind,
+    kind: LibraryKind,
     mut stored: HashMap<String, Stored>,
     found: Walked,
 ) -> (Vec<Planned>, Summary) {

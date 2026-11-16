@@ -48,7 +48,7 @@
 //! gets (ADR 0040). It never searches, so each item keeps its title and pin. A title it couldn't
 //! fetch keeps what it had, at its older version, and the next scan tries again.
 //!
-//! [`METADATA_VERSION`]: crate::library::versions::METADATA_VERSION
+//! [`METADATA_VERSION`]: crate::library::METADATA_VERSION
 
 mod confidence;
 mod recognisers;
@@ -69,13 +69,11 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     db::{Database, detached},
     events::{EventBus, event},
-    library::artwork::{Artwork, Picked},
-    library::contents::{
-        Contents, Decided, Decisions, ImageRef, Item, Metadata, Name, Named, Pin, UnmatchedReason,
+    library::{
+        Artwork, Contents, Decided, Decisions, ImageRef, Item, Libraries, LibraryError, Metadata,
+        Name, Named, Picked, Pin, ScanLock, ScanLocks, Source, SourceEpisode, SourceSeason,
+        SourceShow, TitleKind, TitleSources, Unanswered, UnmatchedReason,
     },
-    library::libraries::{self, Libraries},
-    library::scan_locks::{ScanLock, ScanLocks},
-    library::title_source::{self, Episode, Season, Show, Source, TitleKind, TitleSources},
     plugins::ExtensionPoints,
 };
 use recognisers::Recognisers;
@@ -141,7 +139,7 @@ struct TitleKey {
 struct FoundShow {
     source: Source,
     id: ExternalId,
-    show: Show,
+    show: SourceShow,
 }
 
 #[derive(Debug, Default)]
@@ -155,7 +153,7 @@ struct Pending {
 /// The Matches stored at an older [`METADATA_VERSION`], by the Plugin that Matched them and the id
 /// of their title: a Movie, or the Show an Episode is in.
 ///
-/// [`METADATA_VERSION`]: crate::library::versions::METADATA_VERSION
+/// [`METADATA_VERSION`]: crate::library::METADATA_VERSION
 #[derive(Debug, Default)]
 struct Outdated {
     movies: BTreeMap<(PluginId, ExternalId), Vec<i64>>,
@@ -167,7 +165,7 @@ struct Outdated {
 #[derive(Debug, Default)]
 struct Outcomes {
     items: Vec<(i64, Result<Metadata, Miss>)>,
-    seasons: Vec<(ExternalIds, Season)>,
+    seasons: Vec<(ExternalIds, SourceSeason)>,
 }
 
 impl Outcomes {
@@ -224,21 +222,21 @@ enum Miss {
     Unserved,
 }
 
-impl From<title_source::Unanswered> for Miss {
-    fn from(err: title_source::Unanswered) -> Self {
+impl From<Unanswered> for Miss {
+    fn from(err: Unanswered) -> Self {
         match err {
-            title_source::Unanswered::NotFound => Self::Unmatched(None),
-            title_source::Unanswered::Unavailable => Self::Undecided,
+            Unanswered::NotFound => Self::Unmatched(None),
+            Unanswered::Unavailable => Self::Undecided,
         }
     }
 }
 
 impl ManualError {
     /// Why looking up the title `id` by hand failed.
-    fn looking_up(id: &ExternalId) -> impl FnOnce(title_source::Unanswered) -> Self {
+    fn looking_up(id: &ExternalId) -> impl FnOnce(Unanswered) -> Self {
         |err| match err {
-            title_source::Unanswered::NotFound => Self::NoSuchTitle(id.clone()),
-            title_source::Unanswered::Unavailable => Self::Unavailable,
+            Unanswered::NotFound => Self::NoSuchTitle(id.clone()),
+            Unanswered::Unavailable => Self::Unavailable,
         }
     }
 }
@@ -258,9 +256,9 @@ impl Metadata {
     /// An Episode of `show`, with its Season's own poster, else the Show's `picked` artwork.
     fn episode(
         plugin: &PluginId,
-        (show, picked): (&Show, &Picked),
-        season: &Season,
-        episode: &Episode,
+        (show, picked): (&SourceShow, &Picked),
+        season: &SourceSeason,
+        episode: &SourceEpisode,
     ) -> Self {
         let poster = ImageRef::of(plugin, season.poster.as_ref());
         Self {
@@ -322,7 +320,7 @@ impl Matcher {
         let (_scan, named) = self.lock_named_like(item).await?;
         let ordered = match self.libraries.get(named.library).await {
             Ok(found) => self.metadata.in_order(found.title_sources),
-            Err(libraries::Error::Database(err)) => return Err(err.into()),
+            Err(LibraryError::Database(err)) => return Err(err.into()),
             // The only other failure of a read is the Library being gone since its items were read.
             Err(_) => return Err(ManualError::NoSuchItem(item)),
         };
@@ -389,7 +387,7 @@ impl Matcher {
                 self.in_order(found.title_sources, &found.recognisers),
                 found.folders,
             ),
-            Err(libraries::Error::Database(err)) => return Err(err.into()),
+            Err(LibraryError::Database(err)) => return Err(err.into()),
             // The only other failure of a read is the Library being gone, with nothing to Match.
             Err(_) => return Ok(Summary::default()),
         };
@@ -475,7 +473,7 @@ impl Matcher {
     /// whether every title source asked could answer. Each title's artwork is picked again from
     /// `ordered`, the Library's sources in its order, while the title comes only from its Plugin.
     ///
-    /// [`METADATA_VERSION`]: crate::library::versions::METADATA_VERSION
+    /// [`METADATA_VERSION`]: crate::library::METADATA_VERSION
     async fn refresh(
         &self,
         library: i64,
@@ -495,8 +493,8 @@ impl Matcher {
             }
             let movie = match self.only(plugin.clone()).metadata.movie(&id).await {
                 Ok(movie) => self.picked_for(ordered, movie).await,
-                Err(title_source::Unanswered::NotFound) => continue,
-                Err(title_source::Unanswered::Unavailable) => {
+                Err(Unanswered::NotFound) => continue,
+                Err(Unanswered::Unavailable) => {
                     unavailable.insert(plugin);
                     continue;
                 }
@@ -515,8 +513,8 @@ impl Matcher {
             let show = match sources::fetch_show(&only.metadata, &id, ExternalIds::default()).await
             {
                 Ok(show) => show,
-                Err(title_source::Unanswered::NotFound) => continue,
-                Err(title_source::Unanswered::Unavailable) => {
+                Err(Unanswered::NotFound) => continue,
+                Err(Unanswered::Unavailable) => {
                     unavailable.insert(plugin);
                     continue;
                 }
@@ -642,7 +640,7 @@ impl Matcher {
             items: Vec::with_capacity(episodes.len()),
             seasons: Vec::new(),
         };
-        let in_show = |season: &Season, episode: &Episode| {
+        let in_show = |season: &SourceSeason, episode: &SourceEpisode| {
             Metadata::episode(&source.plugin, (show, picked), season, episode)
         };
         for (number, in_season) in by_season {

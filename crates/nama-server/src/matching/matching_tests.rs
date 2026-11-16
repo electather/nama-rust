@@ -18,10 +18,10 @@ use crate::{
     db::Database,
     events::{EventBus, Filter, event},
     images::ImageStore,
-    library::artwork::Artwork,
-    library::contents::{Change, Contents, Decided, FileItem, Item, Recorded, Show},
-    library::custom_images::CustomImages,
-    library::libraries::{Kind, Libraries},
+    library::{
+        Artwork, Change, Contents, CustomImages, Decided, FileItem, Item, Libraries, LibraryKind,
+        LibraryShow, Recorded,
+    },
     plugins::{ExtensionPoints, Registry},
     scanner::Scanner,
     server_settings::ServerUrl,
@@ -84,8 +84,8 @@ impl Fixture {
                 root,
             }
         };
-        let movies = create("Movies", Kind::Movies).await;
-        let shows = create("Shows", Kind::Shows).await;
+        let movies = create("Movies", LibraryKind::Movies).await;
+        let shows = create("Shows", LibraryKind::Shows).await;
         let plugins = Registry::new();
         let events = EventBus::new(
             Arc::clone(&db),
@@ -193,7 +193,7 @@ impl Fixture {
     /// The Still of each Episode Matched in `library`, by Season and Episode.
     pub(super) async fn stills(&self, library: &Library) -> Vec<Option<String>> {
         let shows = self.contents.shows(library.id).await.unwrap();
-        (shows.iter().flat_map(Show::episodes))
+        (shows.iter().flat_map(LibraryShow::episodes))
             .map(|episode| episode.still.clone())
             .collect()
     }

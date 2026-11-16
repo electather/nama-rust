@@ -10,11 +10,13 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use crate::{
     db::Database,
-    library::contents::{self, Contents, Found, Stored},
-    library::libraries::{self, Kind, Libraries, Library},
-    library::watch_states::{self, WatchState, WatchStates},
+    library::{
+        Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
+        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Stored, WatchState,
+        WatchStateKind, WatchStates,
+    },
     playback::{Probe, Track, Tracks},
-    scanner::deleting,
+    scanner::read_only_folder,
 };
 
 mod doomed;
@@ -25,13 +27,13 @@ use doomed::names;
 pub(crate) use watching::Started;
 
 /// A Movie whose Versions have their Tracks.
-pub(crate) type Movie = contents::Movie<Version>;
+pub(crate) type Movie = LibraryMovie<Version>;
 /// A Show whose Episodes' Versions have their Tracks.
-pub(crate) type Show = contents::Show<Version>;
+pub(crate) type Show = LibraryShow<Version>;
 /// A Season whose Episodes' Versions have their Tracks.
-pub(crate) type Season = contents::Season<Version>;
+pub(crate) type Season = LibrarySeason<Version>;
 /// An Episode whose Versions have their Tracks.
-pub(crate) type Episode = contents::Episode<Version>;
+pub(crate) type Episode = LibraryEpisode<Version>;
 
 /// A stored file that a Movie or Episode is available in, with its Tracks.
 #[derive(Debug, Clone)]
@@ -49,10 +51,10 @@ pub(crate) enum Error {
     #[error("there is no Library {0}")]
     NoSuchLibrary(i64),
     #[error("the Library isn't a {} Library", match .wanted {
-        Kind::Movies => "Movies",
-        Kind::Shows => "Shows",
+        LibraryKind::Movies => "Movies",
+        LibraryKind::Shows => "Shows",
     })]
-    WrongKind { wanted: Kind },
+    WrongKind { wanted: LibraryKind },
     /// No Movie, Show or Episode in the Library has the id asked for.
     #[error("nothing in the Library is Matched to that id")]
     NothingMatched,
@@ -76,8 +78,8 @@ pub(crate) enum Target {
 
 /// A Library's titles, read whole, with Versions of the form `V`.
 enum Titles<V = Version> {
-    Movies(Vec<contents::Movie<V>>),
-    Shows(Vec<contents::Show<V>>),
+    Movies(Vec<LibraryMovie<V>>),
+    Shows(Vec<LibraryShow<V>>),
 }
 
 /// Reads the Libraries' titles and the Users' Watch States of them, and records Watch State.
@@ -124,7 +126,7 @@ impl Browse {
         let library = self.library(library).await?;
         let movie = self.read(&library).await?.movie(id)?;
         let paths = movie.versions.iter().map(|version| version.path.as_str());
-        let read_only_folder = deleting::read_only_folder(&library, paths).map(str::to_owned);
+        let read_only_folder = read_only_folder(&library, paths).map(str::to_owned);
         let state = self.states_of(user, vec![movie_ids(&movie)]).await?.pop();
         Ok((movie, state.flatten(), read_only_folder))
     }
@@ -177,7 +179,7 @@ impl Browse {
     async fn states_of(
         &self,
         user: i64,
-        titles: Vec<(watch_states::Kind, ExternalIds)>,
+        titles: Vec<(WatchStateKind, ExternalIds)>,
     ) -> Result<Vec<Option<WatchState>>, sqlx::Error> {
         let states = self.watch_states.of_titles(Some(user), &titles).await?;
         Ok((states.into_iter())
@@ -192,14 +194,14 @@ impl Browse {
             Titles::Movies(movies) => {
                 let files = movies.iter().flat_map(|movie| &movie.versions);
                 let probes = self.probes(files).await?;
-                let tracked = |movie: contents::Movie| movie.map_versions(with_tracks(&probes));
+                let tracked = |movie: LibraryMovie| movie.map_versions(with_tracks(&probes));
                 Titles::Movies(movies.into_iter().map(tracked).collect())
             }
             Titles::Shows(shows) => {
-                let files = (shows.iter().flat_map(contents::Show::episodes))
+                let files = (shows.iter().flat_map(LibraryShow::episodes))
                     .flat_map(|episode| &episode.versions);
                 let probes = self.probes(files).await?;
-                let tracked = |show: contents::Show| show.map_versions(with_tracks(&probes));
+                let tracked = |show: LibraryShow| show.map_versions(with_tracks(&probes));
                 Titles::Shows(shows.into_iter().map(tracked).collect())
             }
         })
@@ -208,17 +210,17 @@ impl Browse {
     /// Every title of `library`, as [`Contents`] has it, without Tracks. Every finder reads
     /// through here.
     // ponytail: whole-Library read (see AGENTS.md).
-    async fn titles(&self, library: &Library) -> Result<Titles<contents::Version>, Error> {
+    async fn titles(&self, library: &Library) -> Result<Titles<LibraryVersion>, Error> {
         Ok(match library.kind {
-            Kind::Movies => Titles::Movies(self.contents.movies(library.id).await?),
-            Kind::Shows => Titles::Shows(self.contents.shows(library.id).await?),
+            LibraryKind::Movies => Titles::Movies(self.contents.movies(library.id).await?),
+            LibraryKind::Shows => Titles::Shows(self.contents.shows(library.id).await?),
         })
     }
 
     /// What probing read from the files of `versions` as they are now, by file id.
     async fn probes(
         &self,
-        versions: impl Iterator<Item = &contents::Version>,
+        versions: impl Iterator<Item = &LibraryVersion>,
     ) -> Result<HashMap<i64, Probe>, sqlx::Error> {
         let files: Vec<Stored> = versions.map(|version| version.file).collect();
         self.tracks.of(&files).await
@@ -230,44 +232,44 @@ impl Browse {
 }
 
 impl<V> Titles<V> {
-    fn movies(self) -> Result<Vec<contents::Movie<V>>, Error> {
+    fn movies(self) -> Result<Vec<LibraryMovie<V>>, Error> {
         match self {
             Self::Movies(movies) => Ok(movies),
             Self::Shows(_) => Err(Error::WrongKind {
-                wanted: Kind::Movies,
+                wanted: LibraryKind::Movies,
             }),
         }
     }
 
-    fn shows(self) -> Result<Vec<contents::Show<V>>, Error> {
+    fn shows(self) -> Result<Vec<LibraryShow<V>>, Error> {
         match self {
             Self::Shows(shows) => Ok(shows),
             Self::Movies(_) => Err(Error::WrongKind {
-                wanted: Kind::Shows,
+                wanted: LibraryKind::Shows,
             }),
         }
     }
 
     /// The Movie with `id` among its ids: any one identifies it (ADR 0042).
-    fn movie(self, id: &ExternalId) -> Result<contents::Movie<V>, Error> {
+    fn movie(self, id: &ExternalId) -> Result<LibraryMovie<V>, Error> {
         (self.movies()?.into_iter())
             .find(|movie| names(&movie.ids, id))
             .ok_or(Error::NothingMatched)
     }
 
     /// The Show with `id` among its ids: any one identifies it (ADR 0042).
-    fn show(self, id: &ExternalId) -> Result<contents::Show<V>, Error> {
+    fn show(self, id: &ExternalId) -> Result<LibraryShow<V>, Error> {
         (self.shows()?.into_iter())
             .find(|show| names(&show.ids, id))
             .ok_or(Error::NothingMatched)
     }
 
-    fn season(self, show: &ExternalId, number: i64) -> Result<contents::Season<V>, Error> {
+    fn season(self, show: &ExternalId, number: i64) -> Result<LibrarySeason<V>, Error> {
         (self.show(show)?.seasons.remove(&number)).ok_or(Error::NoSuchSeason)
     }
 
     /// The Episode `id` of any of its Shows.
-    fn episode(self, id: &ExternalId) -> Result<contents::Episode<V>, Error> {
+    fn episode(self, id: &ExternalId) -> Result<LibraryEpisode<V>, Error> {
         (self.shows()?.into_iter())
             .flat_map(|show| show.seasons.into_values())
             .flat_map(|season| season.episodes)
@@ -277,17 +279,17 @@ impl<V> Titles<V> {
 }
 
 /// A Movie as Watch State reads it: by any of its ids.
-fn movie_ids<V>(movie: &contents::Movie<V>) -> (watch_states::Kind, ExternalIds) {
-    (watch_states::Kind::Movie, movie.ids.clone())
+fn movie_ids<V>(movie: &LibraryMovie<V>) -> (WatchStateKind, ExternalIds) {
+    (WatchStateKind::Movie, movie.ids.clone())
 }
 
 /// An Episode as Watch State reads it: by any of its ids.
-fn episode_ids<V>(episode: &contents::Episode<V>) -> (watch_states::Kind, ExternalIds) {
-    (watch_states::Kind::Episode, episode.ids.clone())
+fn episode_ids<V>(episode: &LibraryEpisode<V>) -> (WatchStateKind, ExternalIds) {
+    (WatchStateKind::Episode, episode.ids.clone())
 }
 
 /// Makes a Version from Contents into one with the Tracks `probes` has of its file.
-fn with_tracks(probes: &HashMap<i64, Probe>) -> impl Fn(contents::Version) -> Version {
+fn with_tracks(probes: &HashMap<i64, Probe>) -> impl Fn(LibraryVersion) -> Version {
     |version| {
         // A file holding two Episodes is a Version of each, so its Tracks are cloned.
         let tracks = (probes.get(&version.file.id))
@@ -307,15 +309,15 @@ fn with_tracks(probes: &HashMap<i64, Probe>) -> impl Fn(contents::Version) -> Ve
     reason = "`Libraries::get` and `Libraries::list` only find Libraries; they never refuse a \
               change"
 )]
-fn finding_failed(err: libraries::Error) -> Error {
+fn finding_failed(err: LibraryError) -> Error {
     match err {
-        libraries::Error::NotFound(id) => Error::NoSuchLibrary(id),
-        libraries::Error::Database(err) => Error::Database(err),
-        libraries::Error::NameBlank
-        | libraries::Error::FoldersEmpty
-        | libraries::Error::Folder { .. }
-        | libraries::Error::FolderTaken { .. }
-        | libraries::Error::TitleSources { .. } => {
+        LibraryError::NotFound(id) => Error::NoSuchLibrary(id),
+        LibraryError::Database(err) => Error::Database(err),
+        LibraryError::NameBlank
+        | LibraryError::FoldersEmpty
+        | LibraryError::Folder { .. }
+        | LibraryError::FolderTaken { .. }
+        | LibraryError::TitleSources { .. } => {
             unreachable!("finding a Library refused a change: {err}")
         }
     }

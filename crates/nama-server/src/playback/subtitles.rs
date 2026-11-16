@@ -42,7 +42,7 @@ use super::tracks::{PROBE_VERSION, Probe, Track, TrackKind, Tracks};
 use crate::{
     ffmpeg::{Ffmpeg, SubtitleError},
     images::write_atomically,
-    library::contents::{Contents, Stored},
+    library::{Contents, Stored},
 };
 
 /// The version of how a source makes WebVTT, part of every cache key so what an older one made is

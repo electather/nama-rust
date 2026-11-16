@@ -8,9 +8,10 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    library::contents::{Contents, Item, TiedTitle, Unmatched, UnmatchedReason},
-    library::libraries::Libraries,
-    library::title_source::{self, SearchQuery, TitleSources},
+    library::{
+        Contents, Item, Libraries, SearchQuery, TiedTitle, TitleSources, Unanswered, Unmatched,
+        UnmatchedReason,
+    },
     matching::{ManualError, Matcher},
 };
 
@@ -53,8 +54,8 @@ impl MatchService for MatchServiceHandler {
         // A Match search belongs to no Library, so it asks in Admin precedence.
         let candidates = match self.metadata.search_in_turn(&query).await {
             Ok((_, candidates)) => candidates,
-            Err(title_source::Unanswered::NotFound) => Vec::new(),
-            Err(title_source::Unanswered::Unavailable) => {
+            Err(Unanswered::NotFound) => Vec::new(),
+            Err(Unanswered::Unavailable) => {
                 return Err(ManualError::Unavailable.into());
             }
         };

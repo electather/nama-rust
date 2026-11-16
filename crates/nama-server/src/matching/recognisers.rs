@@ -13,7 +13,7 @@ use nama_plugin_api::{
 
 use super::Miss;
 use crate::{
-    library::title_source::{Candidate, Source, TitleKind, TitleSources},
+    library::{Candidate, Source, TitleKind, TitleSources},
     plugins::{Answer, ExtensionPoints},
 };
 

@@ -16,7 +16,7 @@ use super::followed::{followed_show_ids, open_followed_show_by_any};
 use super::listing::load_one;
 use super::state::{ids_json, read_state};
 use super::{Error, Requests, qualities};
-use crate::{db::now, library::title_source::TitleKind, users::User};
+use crate::{db::now, library::TitleKind, users::User};
 
 /// A User changing a Request's Quality: a Request manager as they approve or retry it, or an
 /// auto-approved Requester whose ask approves it.

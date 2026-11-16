@@ -12,7 +12,7 @@
 //!   namespace, such as `{anidb-5101}`.
 //! - A country tag ending a Show's name, as Sonarr names same-name Shows apart: `The Office (US)`.
 //!   It stays in the stored name, so pins keep their key; Matching reads it with
-//!   [`country_tag`](crate::library::country_tags::country_tag).
+//!   [`country_tag`](crate::library::country_tag).
 //!
 //! Only paths are read here. The scanner never opens `.nfo` files or any other sidecar.
 
@@ -21,7 +21,7 @@ use std::{ops::RangeInclusive, path::Path, sync::LazyLock};
 use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB, TMDB, TVDB};
 use regex::Regex;
 
-use crate::{library::contents::Item, library::libraries::Kind};
+use crate::library::{Item, LibraryKind};
 
 /// The most Episodes one file can hold, so a typo like `S01E01-E900` isn't 900 Episodes.
 pub(super) const MAX_EPISODES_PER_FILE: i64 = 20;
@@ -144,11 +144,11 @@ pub(super) fn is_extra(relative: &Path) -> bool {
 /// Parses the path of a video file, relative to the Library folder it's in, in a Library of
 /// `kind`. Returns `None` if the path doesn't follow the naming conventions, which leaves the
 /// file Unmatched.
-pub(super) fn parse(kind: Kind, relative: &Path) -> Option<Vec<Item>> {
+pub(super) fn parse(kind: LibraryKind, relative: &Path) -> Option<Vec<Item>> {
     let Split { folders, stem } = Split::new(relative)?;
     match kind {
-        Kind::Movies => parse_movie(&folders, &stem).map(|movie| vec![movie]),
-        Kind::Shows => parse_episodes(&folders, &stem),
+        LibraryKind::Movies => parse_movie(&folders, &stem).map(|movie| vec![movie]),
+        LibraryKind::Shows => parse_episodes(&folders, &stem),
     }
 }
 

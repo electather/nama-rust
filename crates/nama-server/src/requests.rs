@@ -17,8 +17,10 @@ use nama_plugin_api::{PluginId, metadata::ExternalId};
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 use crate::{
-    db::Database, events::EventBus, library::contents::Contents,
-    library::title_source::TitleSources, plugins::ExtensionPoints,
+    db::Database,
+    events::EventBus,
+    library::{Contents, TitleSources},
+    plugins::ExtensionPoints,
 };
 
 mod apply;
@@ -31,12 +33,11 @@ mod hand_off;
 mod listing;
 mod lookup;
 mod progress;
+mod qualities;
 mod quality;
 mod state;
 #[cfg(test)]
 mod testing;
-// Neighbours address it as `requests::qualities`: its names (`list`, `Refused`) read only with it.
-pub(crate) mod qualities;
 
 pub(crate) use asked::Asked;
 pub(crate) use availability::{make_available, make_seasons_available};
@@ -45,6 +46,11 @@ use hand_off::HandOff;
 pub(crate) use hand_off::{missing, unmet};
 pub(crate) use lookup::{Found, FoundShow, Hit};
 use progress::Progress;
+pub(crate) use qualities::{
+    ASKED as QUALITY_ASKED_FIELD, CHANGED as QUALITY_CHANGED_FIELD, Invalid as QualitiesInvalid,
+    PROFILE as QUALITY_PROFILE_FIELD, QUALITY_PROFILE, Refused as QualityRefused,
+    check as check_qualities, list as list_qualities, replace as replace_qualities,
+};
 
 /// Why a Request couldn't be made, found or changed.
 #[derive(Debug, thiserror::Error)]

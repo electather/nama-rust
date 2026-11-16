@@ -24,11 +24,11 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    library::artwork::Artwork,
-    library::contents::{ImageRef, Metadata},
-    library::custom_images::{Role, Slot},
-    library::title_source::Candidate,
-    requests::{self, Asked, Found, FoundShow, Hit, Requests, qualities},
+    library::{Artwork, Candidate, ImageRef, Metadata, Role, Slot},
+    requests::{
+        self, Asked, Found, FoundShow, Hit, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
+        QualityRefused, Requests,
+    },
 };
 
 use super::{
@@ -625,24 +625,24 @@ fn year_of(date: &str) -> Option<i32> {
 }
 
 /// The refusal of a Quality a User named, in the field they named it in.
-impl From<qualities::Refused> for ConnectError {
-    fn from(err: qualities::Refused) -> Self {
+impl From<QualityRefused> for ConnectError {
+    fn from(err: QualityRefused) -> Self {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            qualities::Refused::NotAllowed => {
-                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field(qualities::ASKED)
+            QualityRefused::NotAllowed => {
+                refuse(R::REFUSAL_REASON_QUALITY_NOT_ALLOWED, message).field(QUALITY_ASKED_FIELD)
             }
-            qualities::Refused::NotOffered { id, field } => {
+            QualityRefused::NotOffered { id, field } => {
                 refuse(R::REFUSAL_REASON_QUALITY_NOT_OFFERED, message)
                     .field(field)
                     .param("qualityId", &id)
             }
-            qualities::Refused::NotTheShows { named, shows } => {
-                show_has_quality(message, qualities::ASKED, named, &shows)
+            QualityRefused::NotTheShows { named, shows } => {
+                show_has_quality(message, QUALITY_ASKED_FIELD, named, &shows)
             }
-            qualities::Refused::ShowQualityFixed { named, shows } => {
-                show_has_quality(message, qualities::CHANGED, named, &shows)
+            QualityRefused::ShowQualityFixed { named, shows } => {
+                show_has_quality(message, QUALITY_CHANGED_FIELD, named, &shows)
             }
         };
         refused.into()

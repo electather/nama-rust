@@ -20,8 +20,7 @@ use nama_proto::nama::v1::Request;
 
 use super::is_video;
 use crate::{
-    library::contents::{Episode, Version},
-    library::libraries::Library,
+    library::{Library, LibraryEpisode, LibraryVersion},
     plugins::{ExtensionPoints, Failure, RETRIES},
     requests::RequestTitle,
 };
@@ -83,9 +82,9 @@ pub(crate) struct Doomed {
     /// without the ids they know it by.
     pub(crate) to_unmonitor: Option<Title>,
     /// Each file once.
-    pub(crate) versions: Vec<Version>,
+    pub(crate) versions: Vec<LibraryVersion>,
     /// The Episodes the title isn't, that a file of `versions` holds too.
-    pub(crate) taken_along: Vec<Episode>,
+    pub(crate) taken_along: Vec<LibraryEpisode>,
     /// What each Version is of, by its id, as a Request names it: its Movie, or the Season of each
     /// Episode it holds.
     pub(crate) requested: Vec<(i64, RequestTitle)>,

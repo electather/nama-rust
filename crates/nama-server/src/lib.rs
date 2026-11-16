@@ -2,7 +2,7 @@
 
 mod api;
 mod automation;
-pub use library::artwork;
+pub use library::{Artwork, ArtworkError};
 mod browse;
 pub mod config;
 mod connections;
@@ -34,12 +34,9 @@ use crate::{
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     images::{ImageStore, PluginLogos},
-    library::artwork::Artwork,
-    library::contents::Contents,
-    library::custom_images::CustomImages,
+    library::{Contents, CustomImages},
     playback::Probing,
-    playback::running::RunningPlans,
-    playback::subtitles,
+    playback::{RunningPlans, SubtitleCache},
     plugin_settings::PluginSettings,
     requests::Requests,
     scanner::Scanner,
@@ -94,7 +91,7 @@ pub fn serve(
     let settings = Settings::new(Arc::clone(&db), config.data_dir.join("transcodes"));
     let events = EventBus::new(Arc::clone(&db), points.clone(), settings.server_url());
     let ffmpeg = Arc::new(ffmpeg);
-    let subtitles = subtitles::Cache::new(&config.data_dir);
+    let subtitles = SubtitleCache::new(&config.data_dir);
     let probing = Probing::new(Arc::clone(&db), Arc::clone(&ffmpeg), subtitles.clone());
     let running = RunningPlans::new(
         settings.playback(),
@@ -188,5 +185,5 @@ async fn load_settings(settings: Settings) {
              no links: {err}"
         );
     }
-    playback::running::sweep_leftovers(&settings.playback()).await;
+    playback::sweep_leftovers(&settings.playback()).await;
 }

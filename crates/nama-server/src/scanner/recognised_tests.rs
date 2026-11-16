@@ -19,8 +19,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::{super::tests::Fixture, Planned, items, listed, recognise};
 use crate::{
-    library::contents::{Change, Item},
-    library::libraries::Kind,
+    library::{Change, Item, LibraryKind},
     plugins::Registry,
 };
 
@@ -131,7 +130,7 @@ async fn recognised_listing(
     let cancel = CancellationToken::new();
     recognise(
         &plugins.extension_points(),
-        Kind::Shows,
+        LibraryKind::Shows,
         &order,
         planned,
         &cancel,
@@ -159,8 +158,8 @@ fn stored(changes: &[Change]) -> Vec<(&str, &[Item])> {
 
 #[test]
 fn a_proposal_of_the_kind_the_library_holds_becomes_its_items() {
-    let movie = items(Kind::Movies, movie("Alien"));
-    let shows = items(Kind::Shows, episodes([3, 2]));
+    let movie = items(LibraryKind::Movies, movie("Alien"));
+    let shows = items(LibraryKind::Shows, episodes([3, 2]));
 
     assert_eq!(
         movie,
@@ -175,9 +174,9 @@ fn a_proposal_of_the_kind_the_library_holds_becomes_its_items() {
 
 #[test]
 fn a_proposal_of_the_wrong_kind_is_ignored() {
-    assert_eq!(items(Kind::Shows, movie("Alien")), None);
-    assert_eq!(items(Kind::Movies, episodes([1])), None);
-    assert_eq!(items(Kind::Shows, FileRecognised::default()), None);
+    assert_eq!(items(LibraryKind::Shows, movie("Alien")), None);
+    assert_eq!(items(LibraryKind::Movies, episodes([1])), None);
+    assert_eq!(items(LibraryKind::Shows, FileRecognised::default()), None);
 }
 
 /// The ID Hint Matching goes by for a Movie proposed with the one id `namespace`, `value`.
@@ -190,7 +189,7 @@ fn hint_of(namespace: &str, value: &str) -> Option<ExternalId> {
             ..TitleId::default()
         }];
     }
-    match items(Kind::Movies, proposal)?.pop()? {
+    match items(LibraryKind::Movies, proposal)?.pop()? {
         Item::Movie { hint, .. } => hint,
         Item::Episode { .. } => None,
     }
@@ -208,7 +207,7 @@ fn a_proposed_id_is_read_as_the_name_parser_reads_an_id_hint() {
 }
 
 /// The year of the first Item proposed for `proposal` in a Library of `kind`.
-fn year_of(kind: Kind, proposal: FileRecognised) -> Option<i64> {
+fn year_of(kind: LibraryKind, proposal: FileRecognised) -> Option<i64> {
     match items(kind, proposal)?.pop()? {
         Item::Movie { year, .. } | Item::Episode { year, .. } => year,
     }
@@ -225,14 +224,14 @@ fn a_proposed_year_no_name_could_give_is_dropped() {
         proposed.show_year = Some(1999);
     }
 
-    assert_eq!(year_of(Kind::Movies, movie), None);
-    assert_eq!(year_of(Kind::Shows, show), Some(1999));
+    assert_eq!(year_of(LibraryKind::Movies, movie), None);
+    assert_eq!(year_of(LibraryKind::Shows, show), Some(1999));
 }
 
 #[test]
 fn too_many_episodes_in_one_file_is_refused() {
-    let most = items(Kind::Shows, episodes(1..=20)).map(|items| items.len());
-    let too_many = items(Kind::Shows, episodes(1..=21));
+    let most = items(LibraryKind::Shows, episodes(1..=20)).map(|items| items.len());
+    let too_many = items(LibraryKind::Shows, episodes(1..=21));
 
     assert_eq!(most, Some(20));
     assert_eq!(too_many, None);
@@ -321,7 +320,7 @@ async fn a_scan_asks_newly_listed_recognisers_about_unparsed_files_once() {
     let counting = Counting::default();
     let plugins = Registry::new();
     plugins.enable(Arc::new(counting.clone())).unwrap();
-    let media = Fixture::with_plugins(Kind::Shows, plugins.extension_points()).await;
+    let media = Fixture::with_plugins(LibraryKind::Shows, plugins.extension_points()).await;
     media.write("Show - 2.mkv", 1);
     media.write("Show/Show - S01E01.mkv", 1);
     media.scan().await;
@@ -350,7 +349,7 @@ async fn a_scan_asks_newly_listed_recognisers_about_unparsed_files_once() {
 async fn a_scan_does_not_count_a_new_file_a_recogniser_failed_on_as_added() {
     let plugins = Registry::new();
     plugins.enable(Arc::new(ProposingPlugin(|| None))).unwrap();
-    let media = Fixture::with_plugins(Kind::Shows, plugins.extension_points()).await;
+    let media = Fixture::with_plugins(LibraryKind::Shows, plugins.extension_points()).await;
     let libraries = &media.scanner.inner.libraries;
     let library = libraries.list().await.unwrap()[0].id;
     libraries

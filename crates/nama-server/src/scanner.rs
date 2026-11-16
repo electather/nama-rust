@@ -20,22 +20,22 @@
 //!
 //! After each scan the Library's items are Matched (see [`crate::matching`]), still under the
 //! Library's scan lock, so Matching sees the items the scan stored. Then
-//! [`crate::playback::probing`] is told its files changed, and probes them in the background
+//! [`crate::playback::Probing`] is told its files changed, and probes them in the background
 //! without holding up the next scan. Last, the images no Match stores any more are deleted, and
 //! those the Library's Matches store and the store lacks are downloaded in the background (see
-//! [`crate::library::artwork`]).
+//! [`crate::library::Artwork`]).
 //!
 //! Probing passes of one Library overlap, so `ProbingFinished` says the Library has caught up, not
 //! that one pass is done (ADR 0030): a pass waits for the files it left to another prober, and
 //! one whose Probing ends after a later scan of the Library started sends nothing.
 
-pub(crate) mod deleting;
+mod deleting;
 mod names;
 mod recognised;
 mod walking;
 mod watch;
 
-pub(crate) use deleting::{Deleted, Doomed};
+pub(crate) use deleting::{Deleted, Doomed, File as DoomedFile, read_only_folder};
 use recognised::{Planned, read_again_if_changed, recognise};
 use walking::{is_video, plan, walk};
 
@@ -57,13 +57,12 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use crate::{
     db::{Database, detached},
     events::{EventBus, event},
-    library::artwork::Artwork,
-    library::contents::{Change, Contents},
-    library::custom_images::CustomImages,
-    library::libraries::{self, Kind, Libraries, Library, Order},
-    library::scan_locks::{ScanLock, ScanLocks},
+    library::{
+        Artwork, Change, Contents, CustomImages, Libraries, Library, LibraryError, LibraryKind,
+        Order, ScanLock, ScanLocks, check_title_sources,
+    },
     matching::{self, Matcher, count},
-    playback::{Probing, running::RunningPlans},
+    playback::{Probing, RunningPlans},
     plugins::{ExtensionPoints, Failure},
     requests::{self, RequestTitle, Requests},
 };
@@ -111,7 +110,7 @@ impl Summary {
 pub(crate) enum Error {
     /// The Library couldn't be read, or there is no such Library.
     #[error(transparent)]
-    Library(#[from] libraries::Error),
+    Library(#[from] LibraryError),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
     /// Walking the Library's folders panicked.
@@ -231,7 +230,7 @@ impl Scanner {
     /// Starts scanning the Library `id` in the background. If a scan of it is running, one more
     /// follows, so what changed since the running scan began is picked up; if one is already
     /// waiting to follow, that one does.
-    pub(crate) async fn start(&self, id: i64) -> Result<(), libraries::Error> {
+    pub(crate) async fn start(&self, id: i64) -> Result<(), LibraryError> {
         self.inner.libraries.get(id).await?;
         self.queue(id);
         Ok(())
@@ -251,15 +250,15 @@ impl Scanner {
     pub(crate) async fn create_library(
         &self,
         name: String,
-        kind: Kind,
+        kind: LibraryKind,
         folders: Vec<String>,
         order: Order,
-    ) -> Result<Library, libraries::Error> {
+    ) -> Result<Library, LibraryError> {
         let scanner = self.clone();
         detached(async move {
             let libraries = &scanner.inner.libraries;
             if !order.title_sources.is_empty() {
-                libraries::check_title_sources(&order.title_sources)?;
+                check_title_sources(&order.title_sources)?;
             }
             let library = (libraries.create_in_order(&name, kind, folders, order)).await?;
             scanner.rewatch().await;
@@ -277,12 +276,12 @@ impl Scanner {
         name: String,
         folders: Vec<String>,
         order: Order,
-    ) -> Result<Library, libraries::Error> {
+    ) -> Result<Library, LibraryError> {
         let scanner = self.clone();
         detached(async move {
             let libraries = &scanner.inner.libraries;
             if !order.title_sources.is_empty() {
-                libraries::check_title_sources(&order.title_sources)?;
+                check_title_sources(&order.title_sources)?;
             }
             let library = libraries.update(id, &name, folders, order).await?;
             scanner.rewatch().await;
@@ -294,7 +293,7 @@ impl Scanner {
     /// Deletes the Library `id`, then throws away its Versions' cached subtitles where something
     /// probes, the images only its Matches stored and its Custom Image, and stops watching its
     /// folders, even if the caller stops waiting (ADR 0029).
-    pub(crate) async fn delete_library(&self, id: i64) -> Result<(), libraries::Error> {
+    pub(crate) async fn delete_library(&self, id: i64) -> Result<(), LibraryError> {
         let scanner = self.clone();
         detached(async move {
             scanner.inner.libraries.delete(id).await?;
@@ -450,8 +449,8 @@ impl Scanner {
             ..Default::default()
         };
         match doomed.library.kind {
-            Kind::Movies => self.ask_to_stop::<Movies>(&title, &doomed.title).await,
-            Kind::Shows => self.ask_to_stop::<Shows>(&title, &doomed.title).await,
+            LibraryKind::Movies => self.ask_to_stop::<Movies>(&title, &doomed.title).await,
+            LibraryKind::Shows => self.ask_to_stop::<Shows>(&title, &doomed.title).await,
         }
     }
 
@@ -529,7 +528,7 @@ impl Scanner {
             lock(&scanner.inner.queued).remove(&id);
             match scanner.scan_locked(&scan).await {
                 // The Library was deleted after the scan was asked for.
-                Ok(_) | Err(Error::Cancelled | Error::Library(libraries::Error::NotFound(_))) => {}
+                Ok(_) | Err(Error::Cancelled | Error::Library(LibraryError::NotFound(_))) => {}
                 Err(err) => tracing::error!(library = id, "scanning a Library failed: {err}"),
             }
         });

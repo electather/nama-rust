@@ -1,6 +1,6 @@
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
-use crate::library::title_source::Candidate;
+use crate::library::Candidate;
 
 use super::{Decision, decide};
 

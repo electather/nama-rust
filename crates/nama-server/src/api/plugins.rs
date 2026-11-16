@@ -25,10 +25,10 @@ use nama_proto::nama::v1::{
 
 use crate::{
     images::PluginLogos,
-    library::custom_images::{CustomImages, Slot, Urls},
+    library::{CustomImageUrls, CustomImages, Slot},
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
-    requests::qualities,
+    requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
 };
 
 use super::{database_failed, refuse};
@@ -233,7 +233,11 @@ impl PluginServiceHandler {
 /// `plugin`'s logo: its Custom Image, among `custom`, else its Manifest's, which is stored in
 /// `plugin_logos` first if it isn't. Without a URL if the store fails, which is logged: the Plugin
 /// is still listed.
-pub(super) async fn logo(plugin_logos: &PluginLogos, plugin: &Listed, custom: &Urls) -> Logo {
+pub(super) async fn logo(
+    plugin_logos: &PluginLogos,
+    plugin: &Listed,
+    custom: &CustomImageUrls,
+) -> Logo {
     if let Some(url) = custom.of(&Slot::plugin(&plugin.id)) {
         return Logo { url, custom: true };
     }
@@ -672,28 +676,28 @@ pub(super) fn list_failed(err: ListError) -> ConnectError {
 
 /// The refusal of a list of Qualities for the Plugin `plugin` that breaks a list rule, naming the
 /// field at fault.
-fn invalid_qualities(err: qualities::Invalid, plugin: &PluginId) -> ConnectError {
+fn invalid_qualities(err: QualitiesInvalid, plugin: &PluginId) -> ConnectError {
     use RefusalReason as R;
     let message = err.to_string();
     let (reason, field) = match err {
-        qualities::Invalid::Blank(index, part) => (
+        QualitiesInvalid::Blank(index, part) => (
             R::REFUSAL_REASON_FIELD_REQUIRED,
             format!("qualities[{index}].{part}"),
         ),
-        qualities::Invalid::Repeated(index, part) => (
+        QualitiesInvalid::Repeated(index, part) => (
             R::REFUSAL_REASON_QUALITY_REPEATED,
             format!("qualities[{index}].{part}"),
         ),
-        qualities::Invalid::NotOneDefault => (
+        QualitiesInvalid::NotOneDefault => (
             R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED,
             "qualities".to_owned(),
         ),
-        qualities::Invalid::ProfileNotOffered(index, profile) => {
-            let field = format!("qualities[{index}].{}", qualities::PROFILE);
+        QualitiesInvalid::ProfileNotOffered(index, profile) => {
+            let field = format!("qualities[{index}].{QUALITY_PROFILE_FIELD}");
             return refuse(R::REFUSAL_REASON_CHOICE_NOT_OFFERED, message)
                 .field(&field)
                 .param("pluginId", plugin)
-                .param("settingKey", &qualities::QUALITY_PROFILE)
+                .param("settingKey", &QUALITY_PROFILE)
                 .param("settingValue", &profile)
                 .into();
         }

@@ -28,7 +28,7 @@ use nama_proto::nama::v1::{
     RequestServiceClient, SearchMoviesRequest, SetMatchRequest,
 };
 use nama_server::{
-    artwork::{Artwork, Error},
+    Artwork, ArtworkError,
     db::Database,
     images::ImageStore,
     plugins::{ExtensionPoints, Registry},
@@ -306,7 +306,10 @@ async fn an_image_the_provider_does_not_have_is_not_found() {
         .keep(&PluginId::from_static("tmdb"), "/missing.jpg")
         .await;
 
-    assert!(matches!(missing, Err(Error::NotFound)), "{missing:?}");
+    assert!(
+        matches!(missing, Err(ArtworkError::NotFound)),
+        "{missing:?}"
+    );
 }
 
 #[tokio::test]
@@ -319,6 +322,9 @@ async fn an_image_from_a_plugin_that_is_not_enabled_is_unavailable() {
         .keep(&PluginId::from_static("other"), POSTER)
         .await;
 
-    assert!(matches!(result, Err(Error::Unavailable(_))), "{result:?}");
+    assert!(
+        matches!(result, Err(ArtworkError::Unavailable(_))),
+        "{result:?}"
+    );
     assert_eq!(fake.requests(), Vec::<String>::new());
 }

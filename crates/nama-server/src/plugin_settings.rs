@@ -31,7 +31,7 @@ use crate::{
         CheckError, EnableError, ExtensionPoints, LastProvider, Listed, Registry, log_not_enabled,
         read_installed,
     },
-    requests::qualities,
+    requests::{QualitiesInvalid, check_qualities, list_qualities, replace_qualities},
 };
 
 mod library_ids;
@@ -607,16 +607,16 @@ impl PluginSettings {
     pub(crate) async fn qualities(&self, id: &PluginId) -> Result<Vec<Quality>, ChangeError> {
         self.listed(id).await?;
         let mut conn = self.db.reader().acquire().await?;
-        Ok(qualities::list(&mut conn, id).await?)
+        Ok(list_qualities(&mut conn, id).await?)
     }
 
     /// Replaces the Plugin `id`'s Qualities with `listed` and returns them as saved, or why
-    /// [`qualities::check`] refused them against the profiles its stored settings' check offers.
+    /// [`check_qualities`] refused them against the profiles its stored settings' check offers.
     pub(crate) async fn replace_qualities(
         &self,
         id: &PluginId,
         listed: Vec<Quality>,
-    ) -> Result<Result<Vec<Quality>, qualities::Invalid>, ChangeError> {
+    ) -> Result<Result<Vec<Quality>, QualitiesInvalid>, ChangeError> {
         // Only a list with Qualities asks the settings check, so a Fulfiller that's down can still
         // have its list cleared.
         let offered = if listed.is_empty() {
@@ -625,10 +625,10 @@ impl PluginSettings {
         } else {
             self.check_stored(id).await?
         };
-        if let Err(invalid) = qualities::check(&listed, &offered) {
+        if let Err(invalid) = check_qualities(&listed, &offered) {
             return Ok(Err(invalid));
         }
-        Ok(Ok(qualities::replace(&self.db, id.clone(), listed).await?))
+        Ok(Ok(replace_qualities(&self.db, id.clone(), listed).await?))
     }
 
     /// Runs the Plugin `id`'s settings check on `settings`, naming the choice `setting` a failed

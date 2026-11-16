@@ -11,12 +11,9 @@ use super::{
     confidence::{self, Decision},
     recognisers::{Recognisers, Searched},
 };
-use crate::{
-    library::contents::{Metadata, Name, Pin, TiedTitle, UnmatchedReason},
-    library::country_tags::country_tag,
-    library::title_source::{
-        self, Candidate, SearchQuery, Season, Source, TitleKind, TitleSources,
-    },
+use crate::library::{
+    Candidate, Metadata, Name, Pin, SearchQuery, Source, SourceSeason, TiedTitle, TitleKind,
+    TitleSources, Unanswered, UnmatchedReason, country_tag,
 };
 
 /// The title an item names, before its details are fetched.
@@ -55,7 +52,7 @@ impl Found {
     }
 
     /// `err`, from fetching this title, as a miss: blamed on the ID Hint if that named it.
-    fn missed(&self, err: title_source::Unanswered) -> Miss {
+    fn missed(&self, err: Unanswered) -> Miss {
         match Miss::from(err) {
             Miss::Unmatched(None) if self.from_hint => {
                 Miss::Unmatched(Some(UnmatchedReason::UnknownIdHint))
@@ -102,7 +99,7 @@ pub(super) async fn fetch_movie(
     metadata: &TitleSources,
     id: &ExternalId,
     known: ExternalIds,
-) -> Result<Metadata, title_source::Unanswered> {
+) -> Result<Metadata, Unanswered> {
     let routed = metadata
         .by_namespace(id.namespace(), TitleKind::Movie.method())
         .await;
@@ -115,7 +112,7 @@ async fn movie_from(
     routed: Vec<Source>,
     id: &ExternalId,
     known: ExternalIds,
-) -> Result<Metadata, title_source::Unanswered> {
+) -> Result<Metadata, Unanswered> {
     let (_, mut movie) = metadata.movie_from(routed, id).await?;
     movie.ids = merged(id, known, &movie.ids);
     Ok(movie)
@@ -127,7 +124,7 @@ pub(super) async fn fetch_show(
     metadata: &TitleSources,
     id: &ExternalId,
     known: ExternalIds,
-) -> Result<FoundShow, title_source::Unanswered> {
+) -> Result<FoundShow, Unanswered> {
     let routed = metadata
         .by_namespace(id.namespace(), TitleKind::Show.method())
         .await;
@@ -140,7 +137,7 @@ async fn show_from(
     routed: Vec<Source>,
     id: &ExternalId,
     known: ExternalIds,
-) -> Result<FoundShow, title_source::Unanswered> {
+) -> Result<FoundShow, Unanswered> {
     let (source, mut show) = metadata.show_from(routed, id).await?;
     show.ids = merged(id, known, &show.ids);
     let id = show
@@ -155,7 +152,7 @@ pub(super) async fn season(
     metadata: &TitleSources,
     show: &FoundShow,
     number: i64,
-) -> Result<Season, Miss> {
+) -> Result<SourceSeason, Miss> {
     let number = u32::try_from(number).map_err(|_negative| Miss::Unmatched(None))?;
     Ok(metadata.season_from(&show.source, &show.id, number).await?)
 }
@@ -279,8 +276,8 @@ async fn searched(
 ) -> Result<Vec<Candidate>, Miss> {
     let mut candidates = match metadata.search_in_turn(query).await {
         Ok((_, candidates)) => candidates,
-        Err(title_source::Unanswered::NotFound) => Vec::new(),
-        Err(title_source::Unanswered::Unavailable) => return Err(Miss::Undecided),
+        Err(Unanswered::NotFound) => Vec::new(),
+        Err(Unanswered::Unavailable) => return Err(Miss::Undecided),
     };
     if let Some(country) = country {
         candidates.retain(|candidate| candidate.origin_country.iter().any(|c| c == country));

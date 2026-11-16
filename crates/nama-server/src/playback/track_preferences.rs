@@ -13,7 +13,7 @@ use isolang::Language;
 use super::tracks::Track;
 use crate::{
     db::Database,
-    library::contents::{Contents, MatchedTo},
+    library::{Contents, MatchedTo},
 };
 
 // The `kind` of a Preference, part of its key.

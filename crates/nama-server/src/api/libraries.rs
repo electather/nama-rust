@@ -8,20 +8,19 @@ use nama_plugin_api::{PluginId, PointKey, recogniser::Recogniser};
 use nama_proto::nama::v1::{
     self as proto, CreateLibraryRequest, CreateLibraryResponse, DeleteLibraryRequest,
     DeleteLibraryResponse, DeleteMediaRequest, DeleteMediaResponse, EpisodeTakenAlong,
-    FileNotDeleted, GetLibraryRequest, GetLibraryResponse, LibraryKind, LibraryService,
-    ListLibrariesRequest, ListLibrariesResponse, ListTitleSourcesRequest, ListTitleSourcesResponse,
-    MediaFile, MediaToDelete, Permission, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse,
+    FileNotDeleted, GetLibraryRequest, GetLibraryResponse, LibraryService, ListLibrariesRequest,
+    ListLibrariesResponse, ListTitleSourcesRequest, ListTitleSourcesResponse, MediaFile,
+    MediaToDelete, Permission, PreviewDeleteMediaRequest, PreviewDeleteMediaResponse,
     RefusalReason, Request, RequestToCancel, ScanLibraryRequest, ScanLibraryResponse, TitleSource,
     UpdateLibraryRequest, UpdateLibraryResponse, media_to_delete, request::MovieOrSeason,
 };
 
 use crate::{
     browse::{Browse, Target, ToDelete},
-    library::artwork,
-    library::contents::{Contents, Episode, NewestBackdrop},
-    library::custom_images::{Role, Slot},
-    library::libraries::{self, FolderProblem, Kind, Libraries, Library, Order},
-    library::title_source::TitleSources,
+    library::{
+        Contents, FolderProblem, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
+        NewestBackdrop, Order, Role, Slot, TitleSources, artwork_url,
+    },
     plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
     scanner::{self, Deleted, Scanner},
@@ -121,14 +120,14 @@ impl Backdrops {
         }
         let newest = self.newest.get(&library.id).map(|newest| {
             let slot = |id: &_| match library.kind {
-                Kind::Movies => Slot::movie(id, Role::Backdrop),
-                Kind::Shows => Slot::show(id, Role::Backdrop),
+                LibraryKind::Movies => Slot::movie(id, Role::Backdrop),
+                LibraryKind::Shows => Slot::show(id, Role::Backdrop),
             };
             (self
                 .images
                 .custom
                 .of_title(&newest.title, &newest.ids, slot))
-            .unwrap_or_else(|| artwork::url(&newest.plugin, &newest.path))
+            .unwrap_or_else(|| artwork_url(&newest.plugin, &newest.path))
         });
         (newest, false)
     }
@@ -391,7 +390,7 @@ fn to_delete_from_proto(target: Option<MediaToDelete>) -> Result<(ToDelete, Fiel
     })
 }
 
-fn taken_along_to_proto(episode: Episode) -> EpisodeTakenAlong {
+fn taken_along_to_proto(episode: LibraryEpisode) -> EpisodeTakenAlong {
     EpisodeTakenAlong {
         season_number: proto_number(episode.season),
         episode_number: proto_number(episode.number),
@@ -431,7 +430,7 @@ fn deleted_to_proto(deleted: Deleted) -> DeleteMediaResponse {
     }
 }
 
-fn file_to_proto(file: &scanner::deleting::File) -> MediaFile {
+fn file_to_proto(file: &scanner::DoomedFile) -> MediaFile {
     MediaFile {
         file_name: file_name(&file.path),
         size: file.size,
@@ -461,13 +460,16 @@ fn deleting_failed(err: scanner::Error) -> ConnectError {
     ConnectError::internal("deleting failed on the Server")
 }
 
-fn kind_from_proto(kind: EnumValue<LibraryKind>) -> Result<Kind, ConnectError> {
+fn kind_from_proto(kind: EnumValue<proto::LibraryKind>) -> Result<LibraryKind, ConnectError> {
     match kind {
-        EnumValue::Known(LibraryKind::LIBRARY_KIND_MOVIES) => Ok(Kind::Movies),
-        EnumValue::Known(LibraryKind::LIBRARY_KIND_SHOWS) => Ok(Kind::Shows),
-        EnumValue::Known(LibraryKind::LIBRARY_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => Err(
-            unknown_enum_value("kind", "a Library's kind must be movies or shows"),
-        ),
+        EnumValue::Known(proto::LibraryKind::LIBRARY_KIND_MOVIES) => Ok(LibraryKind::Movies),
+        EnumValue::Known(proto::LibraryKind::LIBRARY_KIND_SHOWS) => Ok(LibraryKind::Shows),
+        EnumValue::Known(proto::LibraryKind::LIBRARY_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => {
+            Err(unknown_enum_value(
+                "kind",
+                "a Library's kind must be movies or shows",
+            ))
+        }
     }
 }
 
@@ -477,8 +479,8 @@ fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
         id: library.id,
         name: library.name,
         kind: match library.kind {
-            Kind::Movies => LibraryKind::LIBRARY_KIND_MOVIES,
-            Kind::Shows => LibraryKind::LIBRARY_KIND_SHOWS,
+            LibraryKind::Movies => proto::LibraryKind::LIBRARY_KIND_MOVIES,
+            LibraryKind::Shows => proto::LibraryKind::LIBRARY_KIND_SHOWS,
         }
         .into(),
         folders: library.folders,
@@ -493,18 +495,18 @@ fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
 
 /// The Connect error a client gets for a Library request that failed. Database failures are
 /// logged, not sent: they say nothing the client can act on.
-impl From<libraries::Error> for ConnectError {
-    fn from(err: libraries::Error) -> Self {
+impl From<LibraryError> for ConnectError {
+    fn from(err: LibraryError) -> Self {
         use RefusalReason as R;
         let message = err.to_string();
         let refused = match err {
-            libraries::Error::NameBlank => {
+            LibraryError::NameBlank => {
                 refuse(R::REFUSAL_REASON_FIELD_REQUIRED, message).field("name")
             }
-            libraries::Error::FoldersEmpty => {
+            LibraryError::FoldersEmpty => {
                 refuse(R::REFUSAL_REASON_FIELD_REQUIRED, message).field("folders")
             }
-            libraries::Error::Folder {
+            LibraryError::Folder {
                 index,
                 folder,
                 problem,
@@ -525,16 +527,16 @@ impl From<libraries::Error> for ConnectError {
                     refused
                 }
             }
-            libraries::Error::NotFound(id) => {
+            LibraryError::NotFound(id) => {
                 refuse(R::REFUSAL_REASON_LIBRARY_NOT_FOUND, message).param("libraryId", &id)
             }
-            libraries::Error::FolderTaken { folder, library } => {
+            LibraryError::FolderTaken { folder, library } => {
                 refuse(R::REFUSAL_REASON_FOLDER_TAKEN, message)
                     .field("folders")
                     .param("folder", &folder)
                     .param("library", &library)
             }
-            libraries::Error::TitleSources { namespace } => {
+            LibraryError::TitleSources { namespace } => {
                 let refused =
                     refuse(R::REFUSAL_REASON_TITLE_SOURCES_INVALID, message).field("title_sources");
                 match namespace {
@@ -542,7 +544,7 @@ impl From<libraries::Error> for ConnectError {
                     None => refused,
                 }
             }
-            libraries::Error::Database(err) => return database_failed(err),
+            LibraryError::Database(err) => return database_failed(err),
         };
         refused.into()
     }

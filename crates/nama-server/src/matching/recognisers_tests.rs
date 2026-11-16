@@ -16,11 +16,10 @@ use crate::{
     db::Database,
     events::EventBus,
     images::ImageStore,
-    library::artwork::Artwork,
-    library::contents::{Change, Contents, Item, UnmatchedReason, fixture},
-    library::libraries::Libraries,
-    library::scan_locks::ScanLocks,
-    library::title_source::TitleSources,
+    library::{
+        Artwork, Change, Contents, Item, Libraries, ScanLocks, TitleSources, UnmatchedReason,
+        fixture,
+    },
     matching::{
         Matcher, Miss, Summary, TitleKey, sources,
         tests::{Fixture, Library, Outcome, matched},

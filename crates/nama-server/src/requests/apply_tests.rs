@@ -18,10 +18,7 @@ use crate::requests::testing::{
 use crate::{
     events::Filter,
     images::ImageStore,
-    library::artwork::Artwork,
-    library::contents::{Change, Item},
-    library::libraries::{Kind, Libraries},
-    library::scan_locks::ScanLocks,
+    library::{Artwork, Change, Item, Libraries, LibraryKind, ScanLocks},
     matching::Matcher,
     plugins::Registry,
     users::Permissions,
@@ -158,7 +155,7 @@ async fn a_match_pinned_by_a_caller_who_left_publishes_it_and_the_request_it_mad
     let library = Libraries::new(Arc::clone(&requests.db))
         .create(
             "Movies",
-            Kind::Movies,
+            LibraryKind::Movies,
             vec![root.to_str().unwrap().to_owned()],
         )
         .await

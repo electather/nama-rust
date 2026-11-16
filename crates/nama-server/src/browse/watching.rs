@@ -6,8 +6,7 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{Browse, Episode, Error, Movie, Show, Target, Titles, finding_failed};
 use crate::library::{
-    contents::{self, TitlesIn},
-    watch_states::{self, MovieOrEpisode, Progress, WatchState},
+    LibraryEpisode, MovieOrEpisode, Progress, TitlesIn, WatchState, WatchStateKind,
 };
 
 /// A Movie or Episode a User has started and not played, in the Library Continue Watching lists
@@ -65,9 +64,8 @@ impl Browse {
         played: bool,
     ) -> Result<(), Error> {
         let titles = self.titles(&self.library(library).await?).await?;
-        let episode = |episode: &contents::Episode| {
-            MovieOrEpisode::episode(&episode.id).known_as(&episode.ids)
-        };
+        let episode =
+            |episode: &LibraryEpisode| MovieOrEpisode::episode(&episode.id).known_as(&episode.ids);
         let marked = match target {
             Target::Movie(id) => {
                 let movie = titles.movie(&id)?;
@@ -138,7 +136,7 @@ struct Found {
     /// Which of `titles` each id the User started a title under is of.
     place: HashMap<MovieOrEpisode, usize>,
     /// Each title found, with every id of it, and one of the Watch States it was started with.
-    titles: Vec<((watch_states::Kind, ExternalIds), Started)>,
+    titles: Vec<((WatchStateKind, ExternalIds), Started)>,
 }
 
 impl Found {
@@ -146,7 +144,7 @@ impl Found {
     /// under any of them, with `state` one they started it with, and takes its ids as its.
     fn add(
         &mut self,
-        kind: watch_states::Kind,
+        kind: WatchStateKind,
         ids: &ExternalIds,
         watched: impl Fn(&ExternalId) -> MovieOrEpisode,
         title: impl FnOnce(WatchState) -> Started,
@@ -174,12 +172,7 @@ impl Found {
                 movie,
                 state,
             };
-            self.add(
-                watch_states::Kind::Movie,
-                &ids,
-                MovieOrEpisode::movie,
-                started,
-            );
+            self.add(WatchStateKind::Movie, &ids, MovieOrEpisode::movie, started);
         }
     }
 
@@ -195,7 +188,7 @@ impl Found {
                     episode: episode.clone(),
                     state,
                 };
-                let kind = watch_states::Kind::Episode;
+                let kind = WatchStateKind::Episode;
                 self.add(kind, &episode.ids, MovieOrEpisode::episode, started);
             }
         }

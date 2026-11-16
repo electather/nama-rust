@@ -13,11 +13,10 @@ use nama_proto::nama::v1::{
 
 use crate::{
     browse::{self, Browse, Episode, Movie, Show, Started, Version},
-    library::artwork,
-    library::contents::{FoundEpisode, FoundMovie, FoundShow, ImageRef},
-    library::custom_images::{Role, Slot},
-    library::libraries::Kind,
-    library::watch_states::WatchState,
+    library::{
+        FoundEpisode, FoundMovie, FoundShow, ImageRef, LibraryKind, Role, Slot, WatchState,
+        artwork_url,
+    },
     playback::track_to_proto,
 };
 
@@ -200,7 +199,7 @@ impl BrowseService for BrowseServiceHandler {
 }
 
 fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::MovieInLibrary {
-    let downloaded = (movie.poster).map(|image| artwork::url(image.plugin.as_str(), &image.path));
+    let downloaded = (movie.poster).map(|image| artwork_url(image.plugin.as_str(), &image.path));
     let poster_url = (images.custom)
         .of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster))
         .or(downloaded);
@@ -216,7 +215,7 @@ fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::Movie
 }
 
 fn found_show_to_proto(show: FoundShow, images: &ShownImages) -> proto::ShowInLibrary {
-    let downloaded = (show.poster).map(|image| artwork::url(image.plugin.as_str(), &image.path));
+    let downloaded = (show.poster).map(|image| artwork_url(image.plugin.as_str(), &image.path));
     let poster_url = (images.custom)
         .of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Poster))
         .or(downloaded);
@@ -251,7 +250,7 @@ fn movie_to_proto(
     watch_state: Option<WatchState>,
     images: &ShownImages,
 ) -> proto::Movie {
-    let artwork_url = |image: ImageRef| artwork::url(image.plugin.as_str(), &image.path);
+    let artwork_url = |image: ImageRef| artwork_url(image.plugin.as_str(), &image.path);
     let custom_poster =
         (images.custom).of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster));
     let custom_backdrop =
@@ -328,7 +327,7 @@ fn watch_state_to_proto(state: WatchState) -> proto::WatchState {
 /// A Show as clients see it, without its Seasons, with its images as URLs on this Server and their
 /// thumbhashes, and its Custom Images in `images` in place of the downloaded ones.
 fn show_to_proto(show: &Show, images: &ShownImages) -> proto::Show {
-    let artwork_url = |image: &ImageRef| artwork::url(image.plugin.as_str(), &image.path);
+    let artwork_url = |image: &ImageRef| artwork_url(image.plugin.as_str(), &image.path);
     let custom_poster =
         (images.custom).of_title(&show.id, &show.ids, |id| Slot::show(id, Role::Poster));
     let custom_backdrop =
@@ -364,7 +363,7 @@ fn season_poster(show: &Show, number: i64, images: &ShownImages) -> (Option<Stri
     }
     let downloaded = (show.seasons.get(&number)).and_then(|season| season.poster.as_ref());
     (
-        downloaded.map(|image| artwork::url(image.plugin.as_str(), &image.path)),
+        downloaded.map(|image| artwork_url(image.plugin.as_str(), &image.path)),
         false,
     )
 }
@@ -376,7 +375,7 @@ fn episode_to_proto(
     watch_state: Option<WatchState>,
     images: &ShownImages,
 ) -> proto::Episode {
-    let still_url = (episode.still).map(|path| artwork::url(&episode.plugin, &path));
+    let still_url = (episode.still).map(|path| artwork_url(&episode.plugin, &path));
     proto::Episode {
         still_thumbhash: images.thumbhash(still_url.as_deref()),
         still_url,
@@ -462,8 +461,8 @@ pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError 
             }
             browse::Error::WrongKind { wanted } => {
                 let kind = match wanted {
-                    Kind::Movies => "movies",
-                    Kind::Shows => "shows",
+                    LibraryKind::Movies => "movies",
+                    LibraryKind::Shows => "shows",
                 };
                 refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
                     .field(fields.library)

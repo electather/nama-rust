@@ -6,7 +6,7 @@ use nama_proto::nama::v1::{
     SetPlayedResponse, WatchStateService, set_played_request::Target,
 };
 
-use crate::{browse, library::watch_states::Progress};
+use crate::{browse, library::Progress};
 
 use super::{
     browse::{Fields, refused},

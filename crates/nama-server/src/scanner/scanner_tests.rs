@@ -11,11 +11,11 @@ use crate::{
     events::{EventBus, Filter},
     ffmpeg::Ffmpeg,
     images::ImageStore,
-    library::artwork::Artwork,
-    library::contents::{Change, Contents, File, Item, Version},
-    library::custom_images::CustomImages,
-    library::libraries::{self, Kind, Libraries, Order},
-    playback::{Probing, subtitles},
+    library::{
+        Artwork, Change, Contents, CustomImages, File, Item, Libraries, LibraryError, LibraryKind,
+        LibraryVersion, Order,
+    },
+    playback::{Probing, SubtitleCache},
     plugins::ExtensionPoints,
     requests::Requests,
     server_settings::ServerUrl,
@@ -41,22 +41,26 @@ pub(super) struct Fixture {
 
 impl Fixture {
     /// With nothing probing.
-    async fn new(kind: Kind) -> Self {
+    async fn new(kind: LibraryKind) -> Self {
         Self::with_probing(kind, None, ExtensionPoints::default()).await
     }
 
     /// With nothing probing, and `plugins` as the Plugins the scanner asks.
-    pub(super) async fn with_plugins(kind: Kind, plugins: ExtensionPoints) -> Self {
+    pub(super) async fn with_plugins(kind: LibraryKind, plugins: ExtensionPoints) -> Self {
         Self::with_probing(kind, None, plugins).await
     }
 
     /// Probing with `ffmpeg`.
     #[cfg(unix)]
-    async fn with_ffmpeg(kind: Kind, ffmpeg: Ffmpeg) -> Self {
+    async fn with_ffmpeg(kind: LibraryKind, ffmpeg: Ffmpeg) -> Self {
         Self::with_probing(kind, Some(ffmpeg), ExtensionPoints::default()).await
     }
 
-    async fn with_probing(kind: Kind, ffmpeg: Option<Ffmpeg>, plugins: ExtensionPoints) -> Self {
+    async fn with_probing(
+        kind: LibraryKind,
+        ffmpeg: Option<Ffmpeg>,
+        plugins: ExtensionPoints,
+    ) -> Self {
         let data = tempfile::tempdir().unwrap();
         let media = tempfile::tempdir().unwrap();
         let root = media.path().canonicalize().unwrap().join("library");
@@ -73,7 +77,7 @@ impl Fixture {
             BUFFERED,
         );
         let probing = ffmpeg.map(|ffmpeg| {
-            let subtitles = subtitles::Cache::new(data.path());
+            let subtitles = SubtitleCache::new(data.path());
             Probing::new(Arc::clone(&db), Arc::new(ffmpeg), subtitles)
         });
         let images = ImageStore::new(data.path(), Arc::clone(&db));
@@ -131,7 +135,7 @@ impl Fixture {
             title: "Everything".to_owned(),
             to_unmonitor: None,
             versions: (stored.into_iter())
-                .map(|(path, file)| Version { file, path })
+                .map(|(path, file)| LibraryVersion { file, path })
                 .collect(),
             taken_along: Vec::new(),
             requested: Vec::new(),
@@ -201,7 +205,7 @@ fn leaving_out_more_than_was_updated_is_caught_in_debug_builds() {
 
 #[tokio::test]
 async fn scanning_a_movies_library_stores_its_video_files_and_what_they_hold() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     media.write("Blade Runner (1982)/Blade Runner (1982).mkv", 10);
     media.write("Alien (1979)/Alien (1979).MP4", 10);
     // Not video, an extra, hidden, and a name that doesn't parse.
@@ -233,7 +237,7 @@ async fn scanning_a_movies_library_stores_its_video_files_and_what_they_hold() {
 
 #[tokio::test]
 async fn scanning_a_shows_library_stores_an_item_per_episode() {
-    let media = Fixture::new(Kind::Shows).await;
+    let media = Fixture::new(LibraryKind::Shows).await;
     media.write("Dark (2017)/Season 01/Dark (2017) - S01E01-E02.mkv", 10);
     media.write("Dark (2017)/Season 00/Dark (2017) - S00E01.mkv", 10);
 
@@ -262,7 +266,7 @@ async fn scanning_a_shows_library_stores_an_item_per_episode() {
 
 #[tokio::test]
 async fn writes_failing_once_the_files_are_gone_are_logged_and_the_delete_still_reports_them() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.scan().await;
     let doomed = media.doomed().await;
@@ -296,7 +300,7 @@ async fn writes_failing_once_the_files_are_gone_are_logged_and_the_delete_still_
 
 #[tokio::test]
 async fn a_rescan_skips_unchanged_files_and_picks_up_added_changed_renamed_and_deleted_ones() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     media.write("Blade Runner (1982)/Blade Runner (1982).mkv", 10);
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.write("Heat (1995)/Heat (1995).mkv", 10);
@@ -340,7 +344,7 @@ async fn a_rescan_skips_unchanged_files_and_picks_up_added_changed_renamed_and_d
 
 #[tokio::test]
 async fn a_newer_name_parser_parses_unchanged_files_again_once() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.write("home video.mkv", 10);
     media.scan().await;
@@ -354,7 +358,7 @@ async fn a_newer_name_parser_parses_unchanged_files_again_once() {
 
 #[tokio::test]
 async fn files_in_a_folder_that_cant_be_read_are_kept() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     assert_eq!(media.scan().await, summary(1, 0, 0, 0));
 
@@ -374,7 +378,7 @@ async fn files_in_a_folder_that_cant_be_read_are_kept() {
 
 #[tokio::test]
 async fn a_scan_started_in_the_background_stores_the_files() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
 
     media.scanner.start(media.library).await.unwrap();
@@ -393,7 +397,7 @@ async fn a_scan_started_in_the_background_stores_the_files() {
 
 #[tokio::test]
 async fn every_library_is_scanned_when_asked_to_scan_all() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
 
     media.scanner.start_all().await;
@@ -404,17 +408,17 @@ async fn every_library_is_scanned_when_asked_to_scan_all() {
 
 #[tokio::test]
 async fn starting_a_scan_of_a_library_that_doesnt_exist_fails() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     let result = media.scanner.start(media.library + 1).await;
     assert!(
-        matches!(result, Err(libraries::Error::NotFound(_))),
+        matches!(result, Err(LibraryError::NotFound(_))),
         "{result:?}"
     );
 }
 
 #[tokio::test]
 async fn shutting_down_stops_scans_and_starts_no_more() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
     media.scanner.start(media.library).await.unwrap();
     media.scanner.shutdown().await;
@@ -431,7 +435,7 @@ async fn shutting_down_stops_scans_and_starts_no_more() {
 
 #[tokio::test]
 async fn a_subscriber_that_falls_behind_lags_while_the_scan_finishes_on_time() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     for n in 0..20 {
         media.write(&format!("Movie {n} (2000)/Movie {n} (2000).mkv"), 10);
     }
@@ -472,7 +476,7 @@ fn fake_ffprobe(bin: &std::path::Path, then: &str) -> Ffmpeg {
 async fn a_scan_probes_its_new_files_in_the_background() {
     let bin = tempfile::tempdir().unwrap();
     let ffmpeg = fake_ffprobe(bin.path(), "exit 1");
-    let media = Fixture::with_ffmpeg(Kind::Movies, ffmpeg).await;
+    let media = Fixture::with_ffmpeg(LibraryKind::Movies, ffmpeg).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
 
     media.scan().await;
@@ -487,7 +491,7 @@ async fn a_scan_probes_its_new_files_in_the_background() {
 async fn a_scan_finishes_without_waiting_for_probing() {
     let bin = tempfile::tempdir().unwrap();
     let ffmpeg = fake_ffprobe(bin.path(), "exec sleep 60");
-    let media = Fixture::with_ffmpeg(Kind::Movies, ffmpeg).await;
+    let media = Fixture::with_ffmpeg(LibraryKind::Movies, ffmpeg).await;
     media.write("Alien (1979)/Alien (1979).mkv", 10);
 
     let scanned = tokio::time::timeout(Duration::from_secs(5), media.scan()).await;
@@ -539,7 +543,7 @@ async fn wait_for_files(media: &Fixture, expected: &[&str]) {
 
 #[tokio::test]
 async fn a_watched_library_follows_files_added_renamed_and_deleted_without_being_asked() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     watch(&media).await;
 
     media.write("Alien (1979).mkv", 10);
@@ -559,7 +563,7 @@ async fn a_watched_library_follows_files_added_renamed_and_deleted_without_being
 
 #[tokio::test]
 async fn a_file_written_in_chunks_is_scanned_once() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     watch(&media).await;
 
     for _ in 0..5 {
@@ -584,7 +588,7 @@ async fn a_file_written_in_chunks_is_scanned_once() {
 
 #[tokio::test]
 async fn watches_follow_libraries_created_updated_and_deleted() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     let watched = || media.scanner.watched();
     let more = tempfile::tempdir().unwrap();
     let (first, second) = (more.path().join("first"), more.path().join("second"));
@@ -598,7 +602,7 @@ async fn watches_follow_libraries_created_updated_and_deleted() {
         .scanner
         .create_library(
             "More".to_owned(),
-            Kind::Shows,
+            LibraryKind::Shows,
             vec![first.to_str().unwrap().to_owned()],
             Order::default(),
         )
@@ -631,7 +635,7 @@ async fn watches_follow_libraries_created_updated_and_deleted() {
 
 #[tokio::test]
 async fn deleting_a_library_inside_another_keeps_the_outer_one_watched() {
-    let media = Fixture::new(Kind::Movies).await;
+    let media = Fixture::new(LibraryKind::Movies).await;
     fs::create_dir(media.path("inner")).unwrap();
     let inner = media.path("inner").to_str().unwrap().to_owned();
     watch(&media).await;
@@ -639,7 +643,7 @@ async fn deleting_a_library_inside_another_keeps_the_outer_one_watched() {
         .scanner
         .create_library(
             "Inner".to_owned(),
-            Kind::Shows,
+            LibraryKind::Shows,
             vec![inner],
             Order::default(),
         )

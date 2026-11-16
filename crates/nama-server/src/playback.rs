@@ -28,8 +28,13 @@ pub(crate) mod track_preferences;
 mod tracks;
 
 pub(crate) use direct_play::router;
-pub(crate) use probing::Probing;
-pub(crate) use track_preferences::TrackPreferences;
+pub(crate) use probing::{Error as ProbingError, Probing};
+pub(crate) use running::{RunningPlans, StartError, router as running_router, sweep_leftovers};
+pub(crate) use subtitles::Cache as SubtitleCache;
+pub(crate) use track_preferences::{
+    Description, Error as TrackPreferenceError, Preferred, SubtitlePreference, TrackPreferences,
+    is_language,
+};
 pub(crate) use tracks::{Probe, Track, TrackKind, Tracks, track_to_proto};
 
 use std::{collections::BTreeSet, net::IpAddr, num::NonZeroU32};
@@ -43,8 +48,6 @@ use crate::{
     users::Caller,
 };
 use probing::ProbeError;
-use running::{RunningPlans, StartError};
-use track_preferences::{Description, Preferred, SubtitlePreference};
 
 use choices::{
     audio_asked, burns_in, chosen_audio, chosen_subtitle, preferred_subtitles, shown_subtitles,

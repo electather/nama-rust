@@ -5,9 +5,9 @@ use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
 };
 
-use crate::library::custom_images::Urls;
+use crate::library::CustomImageUrls;
 
-use super::{ImageRef, Movie, Show, ShownImages, artwork, movie_to_proto, show_to_proto};
+use super::{ImageRef, Movie, Show, ShownImages, artwork_url, movie_to_proto, show_to_proto};
 
 fn logo() -> ImageRef {
     let plugin = PluginId::from_static("fanart");
@@ -18,7 +18,7 @@ fn logo() -> ImageRef {
 #[test]
 fn a_movie_and_a_show_carry_their_title_logo_url() {
     let images = ShownImages {
-        custom: Urls::default(),
+        custom: CustomImageUrls::default(),
         thumbhashes: HashMap::new(),
     };
     let id = ExternalId::tmdb(348);
@@ -52,7 +52,7 @@ fn a_movie_and_a_show_carry_their_title_logo_url() {
         content_rating: None,
         seasons: BTreeMap::new(),
     };
-    let url = Some(artwork::url("fanart", "/logo.png"));
+    let url = Some(artwork_url("fanart", "/logo.png"));
 
     assert_eq!(movie_to_proto(movie, None, &images).title_logo_url, url);
     assert_eq!(show_to_proto(&show, &images).title_logo_url, url);

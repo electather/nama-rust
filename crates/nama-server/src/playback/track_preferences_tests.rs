@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     db::Database,
-    library::contents::{
+    library::{
         Contents, Decided,
         fixture::{MatchedMovie, tmdb_movie},
     },

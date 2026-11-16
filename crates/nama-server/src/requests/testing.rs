@@ -35,12 +35,11 @@ use super::{Requests, qualities};
 use crate::{
     db::Database,
     events::EventBus,
-    library::contents::{
-        Change, Contents, Decided, Decisions, Item, Metadata,
+    library::{
+        Change, Contents, Decided, Decisions, Item, Libraries, LibraryKind, Metadata,
+        SourceEpisode, SourceSeason,
         fixture::{MatchedMovie, movies_library, tmdb_movie},
     },
-    library::libraries::{Kind, Libraries},
-    library::title_source::{Episode, Season},
     plugins::{Answer, ExtensionPoints, Failure, Registry},
     server_settings::ServerUrl,
     users::{Permissions, User},
@@ -78,8 +77,8 @@ pub(super) fn told_season(request: &contract::Request) -> &contract::RequestedSe
     }
 }
 
-pub(super) fn episode(number: u32, air_date: Option<&str>) -> Episode {
-    Episode {
+pub(super) fn episode(number: u32, air_date: Option<&str>) -> SourceEpisode {
+    SourceEpisode {
         ids: ExternalIds::default(),
         season: 1,
         number,
@@ -330,8 +329,8 @@ pub(super) fn matched(ids: ExternalIds, show_ids: ExternalIds) -> Decided {
 
 /// Season 1, as the metadata source gives it: Episode 1 aired in 2017, and Episode 2 airs on
 /// `episode_2_airs`.
-pub(super) fn season_1(episode_2_airs: &str) -> Season {
-    Season {
+pub(super) fn season_1(episode_2_airs: &str) -> SourceSeason {
+    SourceSeason {
         ids: ExternalIds::default(),
         number: 1,
         title: "Season 1".to_owned(),
@@ -638,7 +637,7 @@ pub(super) fn dark() -> WantedSeasons {
         show_title: "Dark".to_owned(),
         seasons: vec![
             season_1("2017-12-08"),
-            Season {
+            SourceSeason {
                 number: 2,
                 ..season_1("2019-06-21")
             },
@@ -648,8 +647,8 @@ pub(super) fn dark() -> WantedSeasons {
 }
 
 /// Season `number` of Dark, as the metadata source gives it: both its Episodes have aired.
-pub(super) fn dark_season(number: u32) -> Season {
-    Season {
+pub(super) fn dark_season(number: u32) -> SourceSeason {
+    SourceSeason {
         number,
         title: format!("Season {number}"),
         ..season_1("2017-12-08")
@@ -685,7 +684,7 @@ pub(super) async fn match_show_episodes(
     let library = Libraries::new(Arc::clone(db))
         .create(
             "Shows",
-            Kind::Shows,
+            LibraryKind::Shows,
             vec![root.to_str().unwrap().to_owned()],
         )
         .await

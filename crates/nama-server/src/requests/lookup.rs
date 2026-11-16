@@ -13,8 +13,10 @@ use super::followed::{load_followed, open_followed_show};
 use super::quality::show_requests;
 use super::{Error, Requests};
 use crate::{
-    library::contents::{self, Metadata},
-    library::title_source::{self, Candidate, SearchQuery, Season, Show, Source, TitleKind},
+    library::{
+        Candidate, Metadata, SearchQuery, Source, SourceSeason, SourceShow, TitleKind, Unanswered,
+        library_with_movie, matched_episodes,
+    },
     users::User,
 };
 
@@ -48,7 +50,7 @@ pub(crate) struct FoundShow {
     pub(crate) id: ExternalId,
     /// The Plugin whose title source gave the Show, which its image paths are for.
     pub(crate) plugin: PluginId,
-    pub(crate) show: Show,
+    pub(crate) show: SourceShow,
     /// Its Seasons, in order, as the viewer sees them.
     pub(crate) seasons: Vec<FoundSeason>,
     /// Its open Followed Show, if it has one the viewer may see.
@@ -98,8 +100,8 @@ impl Requests {
         };
         let (source, candidates) = match self.metadata.search_in_turn(&query).await {
             Ok(found) => found,
-            Err(title_source::Unanswered::NotFound) => return Ok(Vec::new()),
-            Err(title_source::Unanswered::Unavailable) => return Err(Error::Unavailable),
+            Err(Unanswered::NotFound) => return Ok(Vec::new()),
+            Err(Unanswered::Unavailable) => return Err(Error::Unavailable),
         };
         Ok(candidates
             .into_iter()
@@ -145,7 +147,7 @@ impl Requests {
 
     /// The Show `asked`, from the title source keeping titles under its namespace, else the first
     /// one looking them up by it to have it, with that source.
-    pub(super) async fn show(&self, asked: &ExternalId) -> Result<(Source, Show), Error> {
+    pub(super) async fn show(&self, asked: &ExternalId) -> Result<(Source, SourceShow), Error> {
         if self.metadata.unserved(asked, TitleMethod::Show).await {
             return Err(Error::NoSuchShow(asked.clone()));
         }
@@ -162,9 +164,9 @@ impl Requests {
         &self,
         source: &Source,
         asked: &ExternalId,
-        show: &Show,
+        show: &SourceShow,
         number: u32,
-    ) -> Result<Season, title_source::Unanswered> {
+    ) -> Result<SourceSeason, Unanswered> {
         let id = show
             .ids
             .get(&source.namespace)
@@ -178,8 +180,8 @@ impl Requests {
         &self,
         source: &Source,
         asked: &ExternalId,
-        show: &Show,
-    ) -> Result<Vec<Season>, Error> {
+        show: &SourceShow,
+    ) -> Result<Vec<SourceSeason>, Error> {
         let mut seasons = Vec::with_capacity(show.seasons.len());
         // ponytail: one metadata lookup per Season, one after another.
         for &number in &show.seasons {
@@ -232,7 +234,7 @@ impl Requests {
         plugin: PluginId,
         movie: M,
     ) -> Result<Found<M>, sqlx::Error> {
-        let library = contents::library_with_movie(conn, &id).await?;
+        let library = library_with_movie(conn, &id).await?;
         let request = self.visible_open_request(conn, viewer, &id, None).await?;
         Ok(Found {
             id,
@@ -250,13 +252,13 @@ impl Requests {
         conn: &mut SqliteConnection,
         viewer: &User,
         show: &ExternalId,
-        seasons: Vec<Season>,
+        seasons: Vec<SourceSeason>,
     ) -> Result<Vec<FoundSeason>, sqlx::Error> {
         let today = today(conn).await?;
         let mut found = Vec::with_capacity(seasons.len());
         // ponytail: two or three queries per Season, and a Show has a few dozen at most.
         for season in seasons {
-            let matched = contents::matched_episodes(conn, show, season.number.into()).await?;
+            let matched = matched_episodes(conn, show, season.number.into()).await?;
             let request = self
                 .visible_open_request(conn, viewer, show, Some(season.number))
                 .await?;
@@ -274,9 +276,9 @@ impl Requests {
 }
 
 /// `err` from looking a title up, which is `missing` if the metadata source doesn't have it.
-pub(super) fn looking_up(err: title_source::Unanswered, missing: Error) -> Error {
+pub(super) fn looking_up(err: Unanswered, missing: Error) -> Error {
     match err {
-        title_source::Unanswered::NotFound => missing,
-        title_source::Unanswered::Unavailable => Error::Unavailable,
+        Unanswered::NotFound => missing,
+        Unanswered::Unavailable => Error::Unavailable,
     }
 }

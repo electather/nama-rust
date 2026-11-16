@@ -9,7 +9,7 @@ use super::{
     ManualError, Summary,
     tests::{Fixture, Outcome, matched},
 };
-use crate::{library::artwork::Picked, library::contents::ImageRef};
+use crate::library::{ImageRef, Picked};
 
 #[tokio::test]
 async fn a_manual_match_survives_a_rescan_after_its_file_changes() {
@@ -226,7 +226,7 @@ fn picked_poster(path: Option<&str>) -> Picked {
 }
 
 fn episode_artwork(season_poster: Option<&str>, picked: Option<&str>) -> super::Metadata {
-    use crate::library::title_source::{Episode, Season, Show as SourceShow};
+    use crate::library::{SourceEpisode, SourceSeason, SourceShow};
     let show = SourceShow {
         ids: ExternalIds::default(),
         title: "Severance".into(),
@@ -239,7 +239,7 @@ fn episode_artwork(season_poster: Option<&str>, picked: Option<&str>) -> super::
         genres: Vec::new(),
         content_rating: None,
     };
-    let episode = Episode {
+    let episode = SourceEpisode {
         ids: ExternalIds::default(),
         season: 1,
         number: 1,
@@ -249,7 +249,7 @@ fn episode_artwork(season_poster: Option<&str>, picked: Option<&str>) -> super::
         runtime_minutes: None,
         still: None,
     };
-    let season = Season {
+    let season = SourceSeason {
         ids: ExternalIds::default(),
         number: 1,
         title: "Season 1".into(),
