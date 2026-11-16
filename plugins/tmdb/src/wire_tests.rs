@@ -88,18 +88,20 @@ fn an_images_response_becomes_artwork_of_each_kind() {
     assert_eq!(artwork("tv-70523-images.json"), expected);
 }
 
-/// The artwork the pick rule takes of `kind`: English first, else textless, by rating, then
-/// votes, then list order.
+/// The artwork the pick rule takes of `kind`: English first, else textless, except a backdrop,
+/// textless first, else English; by rating, then votes, then list order.
 fn picked(artwork: &[Artwork], kind: ArtworkKind) -> Option<String> {
     let of_kind = || artwork.iter().filter(move |image| image.kind == kind);
     let english: Vec<_> = of_kind()
         .filter(|image| image.language.as_deref() == Some("en"))
         .collect();
-    let candidates = if english.is_empty() {
-        of_kind().filter(|image| image.language.is_none()).collect()
+    let textless: Vec<_> = of_kind().filter(|image| image.language.is_none()).collect();
+    let (first, then) = if kind == ArtworkKind::ARTWORK_KIND_BACKDROP {
+        (textless, english)
     } else {
-        english
+        (english, textless)
     };
+    let candidates = if first.is_empty() { then } else { first };
     candidates
         .into_iter()
         .min_by(|a, b| {

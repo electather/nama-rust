@@ -252,3 +252,72 @@ fn each_kind_is_picked_from_its_own_sources_list_and_names_its_plugin() {
         }
     );
 }
+
+/// A backdrop at `path`, in `language`, rated `rating`.
+fn backdrop(path: &str, language: Option<&str>, rating: Option<f64>) -> title_source::Artwork {
+    title_source::Artwork {
+        kind: ArtworkKind::Backdrop,
+        ..poster(path, language, rating, None)
+    }
+}
+
+/// The path of the backdrop [`pick`] picks from `lists`, in English.
+fn picked_backdrop(lists: &[(Source, Vec<title_source::Artwork>)]) -> Option<String> {
+    pick(lists, "en").backdrop.map(|backdrop| backdrop.path)
+}
+
+#[test]
+fn a_backdrop_without_text_beats_one_in_the_language_asked_for() {
+    let lists = [(
+        source("tmdb"),
+        vec![
+            backdrop("/en.jpg", Some("en"), Some(9.0)),
+            backdrop("/none.jpg", None, None),
+        ],
+    )];
+
+    assert_eq!(picked_backdrop(&lists).as_deref(), Some("/none.jpg"));
+}
+
+#[test]
+fn a_poster_in_the_language_asked_for_still_beats_one_without_text() {
+    let lists = [(
+        source("tmdb"),
+        vec![
+            poster("/none.jpg", None, Some(9.0), None),
+            poster("/en.jpg", Some("en"), None, None),
+        ],
+    )];
+
+    assert_eq!(picked_poster(&lists).as_deref(), Some("/en.jpg"));
+}
+
+#[test]
+fn backdrops_in_other_languages_only_are_picked_by_source_then_rating() {
+    let lists = [
+        (
+            source("tmdb"),
+            vec![
+                backdrop("/fr-low.jpg", Some("fr"), Some(1.0)),
+                backdrop("/de-high.jpg", Some("de"), Some(9.0)),
+            ],
+        ),
+        (
+            source("fanart"),
+            vec![backdrop("/fr-top.jpg", Some("fr"), Some(10.0))],
+        ),
+    ];
+    let english = [
+        (
+            source("tmdb"),
+            vec![backdrop("/fr.jpg", Some("fr"), Some(9.0))],
+        ),
+        (
+            source("fanart"),
+            vec![backdrop("/en.jpg", Some("en"), None)],
+        ),
+    ];
+
+    assert_eq!(picked_backdrop(&lists).as_deref(), Some("/de-high.jpg"));
+    assert_eq!(picked_backdrop(&english).as_deref(), Some("/en.jpg"));
+}

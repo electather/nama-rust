@@ -286,13 +286,21 @@ impl Artwork {
 type Ranked<'a> = (usize, &'a Source, &'a title_source::Artwork);
 
 /// The best image of each kind in `lists`, which come in the sources' order. Images rank by their
-/// language: `language` first, then none, then any other; then by their source's place in the
-/// order; then by higher rating, then more votes; then by their place in their source's list.
+/// language: `language` first, then none, then any other, except Backdrops, which rank none
+/// first, then `language`; then by their source's place in the order; then by higher rating,
+/// then more votes; then by their place in their source's list.
 fn pick(lists: &[(Source, Vec<title_source::Artwork>)], language: &str) -> Picked {
-    let language_rank = |art: &title_source::Artwork| match art.language.as_deref() {
-        Some(lang) if lang.eq_ignore_ascii_case(language) => 0,
-        None => 1,
-        Some(_) => 2,
+    // A Backdrop sits behind the app's own text, and title sources mark textless art by giving
+    // it no language.
+    let language_rank = |art: &title_source::Artwork| {
+        let asked = |lang: &str| lang.eq_ignore_ascii_case(language);
+        match (art.kind, art.language.as_deref()) {
+            (ArtworkKind::Backdrop, None) => 0,
+            (ArtworkKind::Backdrop, Some(lang)) if asked(lang) => 1,
+            (_, Some(lang)) if asked(lang) => 0,
+            (_, None) => 1,
+            (_, Some(_)) => 2,
+        }
     };
     let rank = |(a_place, _, a): &Ranked<'_>, (b_place, _, b): &Ranked<'_>| -> Ordering {
         let rating = |art: &title_source::Artwork| art.rating.unwrap_or(f64::NEG_INFINITY);
