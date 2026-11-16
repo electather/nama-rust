@@ -20,6 +20,8 @@ Success means:
 - Requests feel native. Asking for a title and watching it move to Available is one continuous flow, not a bolted-on Seerr.
 - Admin is calm and clear. Libraries, Matching and Plugins are understandable without reading docs.
 
+Scope: Movies and Shows only. Music, audiobooks, podcasts, photos, books and Live TV stay out: each has a dedicated app people already run beside Jellyfin (Navidrome, Audiobookshelf, Immich), and Jellyfin's breadth is part of why it feels cluttered (`docs/research/jellyfin-feature-research.md` §7 D3).
+
 ## Brand Personality
 
 Warm, quiet, confident. Like a good living room: it gets out of the way and lets posters, stills and artwork carry the mood. Copy is plain and friendly, uses the GLOSSARY.md terms, and never sounds like a dev tool. Confidence comes from restraint, not from loud chrome.
