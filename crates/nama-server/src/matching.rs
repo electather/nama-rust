@@ -210,7 +210,8 @@ impl PendingEpisode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Miss {
-    /// With why, or `None` where Matching stores none: a pin.
+    /// With why, or `None` where Matching stores none: a pin, or a title a source can't find
+    /// that no ID Hint named.
     Unmatched(Option<UnmatchedReason>),
     /// The title sources couldn't answer: the item is Unmatched for now, but undecided, so
     /// the next scan tries again.
