@@ -88,8 +88,8 @@ pub(crate) enum ChangeError {
 /// Which rule a proposed value broke.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub(crate) enum Invalid {
-    /// The Server URL isn't empty or an http or https URL, has a user name or password, which
-    /// links would leak, or has a query or fragment, which a link added to its end would break.
+    /// The Server URL isn't empty or an http or https URL. Or it has a user name or password,
+    /// which links would leak, or a query or fragment, which a link added to its end would break.
     #[error("the Server URL must be an http or https URL with no user name, password, ? or #")]
     NotAUrl,
     /// The segment folder isn't empty or absolute: a relative one would depend on where the
@@ -439,7 +439,7 @@ fn is_server_url(url: &str) -> bool {
         || (SettingValue::Text(url.to_owned()).is(SettingKind::Url)
             && !url.contains(['?', '#'])
             && Url::parse(url)
-                .is_ok_and(|url| url.username().is_empty() && url.password().is_none()))
+                .is_ok_and(|parsed| parsed.username().is_empty() && parsed.password().is_none()))
 }
 
 /// The Plugin `stored` names, or `None` for an empty one.

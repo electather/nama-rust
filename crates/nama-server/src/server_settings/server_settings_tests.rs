@@ -83,7 +83,7 @@ async fn a_stored_url_is_trimmed_used_for_links_and_read_again_after_a_restart()
 }
 
 #[tokio::test]
-async fn a_url_with_credentials_a_query_or_fragment_or_not_http_is_refused_and_changes_nothing() {
+async fn refusing_a_url_with_a_user_name_password_query_or_fragment_or_not_http_changes_nothing() {
     let (_data_dir, settings) = fresh().await;
     settings.set_url("https://nama.example.com").await.unwrap();
 
