@@ -238,13 +238,26 @@ impl ExtensionPoints {
     /// Permissions granted it. Startup calls it once, when the Kernel's parts exist; until then
     /// every Kernel function answers `refused`. A later call is ignored.
     pub(crate) fn serve_kernel(&self, make: MakeKernel) {
-        if self
+        let first = self
             .read(|state| Arc::clone(&state.kernel))
-            .set(make)
-            .is_err()
-        {
+            .send_if_modified(|served| {
+                let first = served.is_none();
+                if first {
+                    *served = Some(make);
+                }
+                first
+            });
+        if !first {
             warn!("the Kernel's functions were already served; keeping the first");
         }
+    }
+
+    /// Waits until startup has called [`Self::serve_kernel`], or returns at once if it has.
+    pub(super) async fn kernel_served(&self) {
+        let mut served = self.read(|state| state.kernel.subscribe());
+        // Fails only once every sender is gone, but `self` holds the State that holds it. The
+        // `Ref` it returns holds the watch's read lock, so it goes at once.
+        drop(served.wait_for(Option::is_some).await);
     }
 
     /// Spawns `task` in the scope of the Plugin `plugin`'s current enablement, so disabling it

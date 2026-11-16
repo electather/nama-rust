@@ -5,7 +5,7 @@ use std::{
     convert::Infallible,
     fmt,
     ops::Deref,
-    sync::{Arc, OnceLock},
+    sync::Arc,
 };
 
 use nama_plugin_api::{
@@ -19,7 +19,7 @@ use nama_plugin_api::{
     settings::{Choices, SettingKind, Settings, SettingsSchema},
 };
 use nama_proto::nama::v1::PluginKind;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tracing::{error, info};
 
 use super::{
@@ -58,8 +58,8 @@ pub(super) struct State {
     /// Where [`Registry::crashed`] sends the Installed Plugins it disables for crashing.
     pub(super) crashed: Option<mpsc::UnboundedSender<PluginId>>,
     /// What makes the Kernel's functions for a Plugin and the Permissions granted it, once startup
-    /// sets it with [`ExtensionPoints::serve_kernel`].
-    pub(super) kernel: Arc<OnceLock<MakeKernel>>,
+    /// sets it with [`ExtensionPoints::serve_kernel`]. A watch, so a tick can wait for it.
+    pub(super) kernel: Arc<watch::Sender<Option<MakeKernel>>>,
     /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
     #[cfg(feature = "testing")]
     pub(super) as_installed: Vec<fn() -> Arc<dyn Plugin>>,
@@ -508,7 +508,7 @@ impl Registry {
 /// [`ExtensionPoints::serve_kernel`] makes for it, found at call time, since Plugins are enabled
 /// before startup can make them.
 struct EnabledKernel {
-    slot: Arc<OnceLock<MakeKernel>>,
+    slot: Arc<watch::Sender<Option<MakeKernel>>>,
     plugin: PluginId,
     granted: HashSet<Permission>,
 }
@@ -517,7 +517,8 @@ impl EnabledKernel {
     fn resolve(&self) -> Result<Arc<dyn Kernel>, KernelRefused> {
         let make = self
             .slot
-            .get()
+            .borrow()
+            .clone()
             .ok_or_else(|| KernelRefused("the Server isn't serving yet".to_owned()))?;
         Ok(make(self.plugin.clone(), self.granted.clone()))
     }

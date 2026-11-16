@@ -13,8 +13,10 @@ use tracing::warn;
 use super::{ExtensionPoints, Failure, scope::Scope};
 
 /// A new scope for an enablement of `manifest`'s Plugin, ticking its Automation every
-/// `tick_every` if it has one and `registrations` provide one. The first tick comes at once, so an
-/// Admin enabling the Plugin sees it act without waiting an interval, and tests need no wait.
+/// `tick_every` if it has one and `registrations` provide one. The first tick comes once the
+/// Kernel serves: at once for a Plugin enabled after that, so an Admin enabling it sees it act
+/// without waiting an interval and tests need no wait, and once serving starts for one enabled at
+/// startup, whose tick the Kernel would otherwise refuse.
 ///
 /// The Registry calls it under its lock, so the loop is in the enablement's scope before a
 /// disable can find it. Starts nothing outside a Tokio runtime, where no task can run.
@@ -37,9 +39,10 @@ pub(super) fn scope(
     scope
 }
 
-/// Ticks `plugin` every `every` until its scope is cancelled or it no longer provides an
-/// Automation. `Delay` keeps a slow tick from stacking the ones it missed.
+/// Ticks `plugin` every `every`, from when the Kernel serves, until its scope is cancelled or it
+/// no longer provides an Automation. `Delay` keeps a slow tick from stacking the ones it missed.
 async fn ticking(points: ExtensionPoints, plugin: PluginId, every: Duration) {
+    points.kernel_served().await;
     let mut interval = tokio::time::interval(every);
     interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
     loop {

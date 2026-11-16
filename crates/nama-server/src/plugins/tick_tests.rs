@@ -62,6 +62,19 @@ fn enabled(registry: &Registry, tick_every: Option<Duration>) -> Arc<AtomicUsize
     ticks
 }
 
+/// A Registry whose Kernel already serves, as after startup. The Counter never calls the Kernel.
+fn served() -> Registry {
+    let registry = Registry::new();
+    serve(&registry);
+    registry
+}
+
+fn serve(registry: &Registry) {
+    registry.serve_kernel(Arc::new(|_, _| {
+        panic!("the Counter never calls the Kernel")
+    }));
+}
+
 /// Lets every ready task run, without moving the paused clock.
 async fn settle() {
     for _ in 0..10 {
@@ -75,7 +88,7 @@ fn count(ticks: &AtomicUsize) -> usize {
 
 #[tokio::test(start_paused = true)]
 async fn ticks_at_enable_then_once_per_interval() {
-    let registry = Registry::new();
+    let registry = served();
     let ticks = enabled(&registry, Some(EVERY));
     settle().await;
     assert_eq!(count(&ticks), 1);
@@ -91,7 +104,7 @@ async fn ticks_at_enable_then_once_per_interval() {
 
 #[tokio::test(start_paused = true)]
 async fn no_tick_after_disable_returns() {
-    let registry = Registry::new();
+    let registry = served();
     let ticks = enabled(&registry, Some(EVERY));
     settle().await;
 
@@ -105,7 +118,7 @@ async fn no_tick_after_disable_returns() {
 
 #[tokio::test(start_paused = true)]
 async fn enabling_again_starts_a_fresh_loop() {
-    let registry = Registry::new();
+    let registry = served();
     let first = enabled(&registry, Some(EVERY));
     settle().await;
     assert!(registry.disable(&ID).await);
@@ -122,7 +135,7 @@ async fn enabling_again_starts_a_fresh_loop() {
 
 #[tokio::test(start_paused = true)]
 async fn a_plugin_without_tick_every_is_never_ticked() {
-    let registry = Registry::new();
+    let registry = served();
     let ticks = enabled(&registry, None);
 
     tokio::time::advance(EVERY * 10).await;
@@ -150,4 +163,36 @@ async fn tick_now_refuses_a_plugin_that_is_not_enabled() {
     let refused = registry.tick_now(&ID).await.unwrap_err();
 
     assert_eq!(refused, "ticked isn't enabled or provides no Automation");
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_automation_enabled_before_the_kernel_serves_ticks_once_it_does() {
+    let registry = Registry::new();
+    let ticks = enabled(&registry, Some(EVERY));
+    settle().await;
+    tokio::time::advance(EVERY * 3).await;
+    settle().await;
+    assert_eq!(count(&ticks), 0);
+
+    serve(&registry);
+    settle().await;
+    assert_eq!(count(&ticks), 1);
+
+    tokio::time::advance(EVERY).await;
+    settle().await;
+    assert_eq!(count(&ticks), 2);
+}
+
+#[tokio::test(start_paused = true)]
+async fn disabling_while_waiting_for_the_kernel_ends_the_loop() {
+    let registry = Registry::new();
+    let ticks = enabled(&registry, Some(EVERY));
+    settle().await;
+
+    assert!(registry.disable(&ID).await);
+    serve(&registry);
+    tokio::time::advance(EVERY * 10).await;
+    settle().await;
+
+    assert_eq!(count(&ticks), 0);
 }
