@@ -557,6 +557,25 @@ async fn delete_media_removes_the_movies_versions_in_the_background() {
     assert!(!file.exists());
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn shutting_down_right_after_delete_media_waits_for_the_delete() {
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let alien = MatchedMovie::new(&db, media.path(), tmdb_movie(ALIEN_TMDB_ID, "Alien")).await;
+    let file = media.path().join("Alien.mkv");
+    fs::write(&file, "alien").unwrap();
+    let (automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_DELETE_MEDIA);
+
+    kernel
+        .delete_media(&delete(movie_ref(alien.library, ALIEN_TMDB_ID)))
+        .await
+        .unwrap();
+    automation.scanner.shutdown().await;
+
+    assert!(!file.exists());
+}
+
 #[tokio::test]
 async fn delete_media_refuses_an_episode_whose_file_holds_one_not_named_and_deletes_nothing() {
     let data = tempfile::tempdir().unwrap();

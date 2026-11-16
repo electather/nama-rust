@@ -31,7 +31,7 @@ use crate::{
         watch_states,
     },
     plugins::ExtensionPoints,
-    scanner::{self, Doomed, Scanner},
+    scanner::{self, Scanner},
     users,
 };
 
@@ -352,13 +352,6 @@ fn titled<T>(
     }
 }
 
-/// Deletes `doomed` for `plugin`, logging a failure, since the Plugin has had its answer.
-async fn delete(scanner: Scanner, doomed: Doomed, by: String, plugin: PluginId) {
-    if let Err(err) = scanner.delete_media(doomed, by).await {
-        error!(%plugin, "the Plugin's delete failed: {err}");
-    }
-}
-
 /// What `state`, kept for the User `user`, is to a Plugin.
 fn watch_state_to_proto(user: i64, state: watch_states::WatchState) -> WatchState {
     WatchState {
@@ -550,15 +543,14 @@ impl Kernel for PluginKernel {
             .await?;
             let by = format!("the {} Plugin", automation.points.name(&self.plugin));
             // Not awaited: the delete waits for the Library's scan lock, which could outrun the
-            // Plugin's call limit, and it goes on in a task of its own anyway (ADR 0029). Outside
-            // the Plugin's scope, since it never calls the Plugin back, so disabling the Plugin
-            // doesn't stop a delete it started (ADR 0048).
-            tokio::spawn(delete(
-                automation.scanner.clone(),
-                doomed,
-                by,
-                self.plugin.clone(),
-            ));
+            // Plugin's call limit, and it goes on in a task of its own anyway (ADR 0029). On the
+            // Scanner's tracker, not in the Plugin's scope, since it never calls the Plugin back,
+            // so disabling the Plugin doesn't stop a delete it started (ADR 0048) and shutting
+            // down waits for it. A failure is logged there, since the Plugin has had its answer.
+            (automation
+                .scanner
+                .start_delete(doomed, by, self.plugin.clone()))
+            .map_err(|err| KernelRefused(err.to_string()))?;
             Ok(DeleteStarted {
                 taken_along,
                 ..DeleteStarted::default()

@@ -26,6 +26,7 @@ use crate::{
     requests::RequestTitle,
 };
 
+// Kept: `scanner.rs` takes it from here for the first stop-monitoring ask `StopAgain` retries.
 pub(super) use crate::plugins::Retryable;
 
 /// A deleted title the Plugin `plugin`'s Fulfiller said to ask it again to stop monitoring:

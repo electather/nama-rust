@@ -45,8 +45,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use nama_plugin_api::fulfiller::{
-    Fulfiller, Movies, Shows, StopMonitoring, stop_monitoring::Title,
+use nama_plugin_api::{
+    PluginId,
+    fulfiller::{Fulfiller, Movies, Shows, StopMonitoring, stop_monitoring::Title},
 };
 use nama_proto::nama::v1::{
     MatchingFinished, ProbingFinished, ScanFinished, ScanProgress, ScanStarted,
@@ -341,76 +342,87 @@ impl Scanner {
     /// everything or nothing gone, and finishes even if the caller stops waiting (ADR 0029).
     /// Shutting down waits for a delete already started.
     pub(crate) async fn delete_media(&self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
-        if let Some(folder) = doomed.read_only_folder() {
-            return Err(Error::ReadOnly(folder.to_owned()));
-        }
-        let scanner = self.clone();
-        // On the tracker, so shutting down waits for it; its cancel token is never read here, so
-        // shutting down doesn't stop a delete halfway.
-        let deleting = self.inner.tasks.spawn(async move {
-            // First, so the service can't see the file missing and download it again (ADR 0038).
-            let not_told = scanner.stop_monitoring(&doomed).await;
-            let library = doomed.library.id;
-            let _scan = scanner.inner.locks.lock(library).await;
-            // Held until the Versions are gone, so none is served again before.
-            let _ending = match &scanner.inner.running {
-                Some(running) => Some(running.end_for_deleting(&doomed.version_ids()).await),
-                None => None,
-            };
-            let folders: Vec<String> = (scanner.inner.libraries.list().await?.into_iter())
-                .flat_map(|other| other.folders)
-                .collect();
-            let (doomed, mut deleted) = tokio::task::spawn_blocking(move || {
-                let kept: Vec<&Path> = folders.iter().map(Path::new).collect();
-                let deleted = deleting::delete(&doomed, &kept);
-                (doomed, deleted)
-            })
-            .await?;
-            deleted.fulfillers_not_told.extend(not_told);
-            // Before anything else can fail: the files are gone for good.
-            let files: Vec<_> = deleted.files.iter().map(|file| &file.path).collect();
-            tracing::info!(
-                by = %by,
-                title = %doomed.title,
-                library,
-                ?files,
-                bytes_freed = deleted.bytes_freed(),
-                not_deleted = ?deleted.failed,
-                "deleted media"
-            );
-            let removed = deleted.versions.iter().copied().map(Change::Remove);
-            let events = match scanner
-                .inner
-                .contents
-                .apply(library, removed.collect())
-                .await
-            {
-                Ok(events) => events,
-                Err(error) => {
-                    // The next scan removes them, as it does any file gone from disk.
-                    tracing::error!(
-                        %error,
-                        title = %doomed.title,
-                        library,
-                        "couldn't remove the deleted Versions; they stay listed until the next scan"
-                    );
-                    Vec::new()
-                }
-            };
-            if let Some(probing) = &scanner.inner.probing {
-                probing.clean_subtitles().await;
-            }
-            scanner.inner.events.publish(events);
-            scanner
-                .inner
-                .artwork
-                .drop_unused(&scanner.inner.contents)
-                .await;
-            (scanner.cancel_requests(doomed.request_titles(&deleted.versions), by)).await;
-            Ok(deleted)
-        });
+        refuse_read_only(&doomed)?;
+        let deleting = self.inner.tasks.spawn(self.clone().deleting(doomed, by));
         // The task is never aborted, so it only fails if it panicked.
         (deleting.await).unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
+    }
+
+    /// Starts deleting `doomed` for the Plugin `plugin`, as [`Self::delete_media`] does, without
+    /// waiting, and logs a failure naming `plugin`. Refuses media in a read-only folder before
+    /// starting. Started on the tracker before it returns, so shutting down right after still
+    /// waits for the delete.
+    pub(crate) fn start_delete(
+        &self,
+        doomed: Doomed,
+        by: String,
+        plugin: PluginId,
+    ) -> Result<(), Error> {
+        refuse_read_only(&doomed)?;
+        let deleting = self.clone().deleting(doomed, by);
+        self.inner.tasks.spawn(async move {
+            if let Err(err) = deleting.await {
+                tracing::error!(%plugin, "the Plugin's delete failed: {err}");
+            }
+        });
+        Ok(())
+    }
+
+    /// The delete [`Self::delete_media`] describes, from stopping the monitoring on. Run it on
+    /// the tracker, so shutting down waits for it; it never reads the tracker's cancel token, so
+    /// shutting down doesn't stop a delete halfway.
+    async fn deleting(self, doomed: Doomed, by: String) -> Result<Deleted, Error> {
+        // First, so the service can't see the file missing and download it again (ADR 0038).
+        let not_told = self.stop_monitoring(&doomed).await;
+        let library = doomed.library.id;
+        let _scan = self.inner.locks.lock(library).await;
+        // Held until the Versions are gone, so none is served again before.
+        let _ending = match &self.inner.running {
+            Some(running) => Some(running.end_for_deleting(&doomed.version_ids()).await),
+            None => None,
+        };
+        let folders: Vec<String> = (self.inner.libraries.list().await?.into_iter())
+            .flat_map(|other| other.folders)
+            .collect();
+        let (doomed, mut deleted) = tokio::task::spawn_blocking(move || {
+            let kept: Vec<&Path> = folders.iter().map(Path::new).collect();
+            let deleted = deleting::delete(&doomed, &kept);
+            (doomed, deleted)
+        })
+        .await?;
+        deleted.fulfillers_not_told.extend(not_told);
+        // Before anything else can fail: the files are gone for good.
+        let files: Vec<_> = deleted.files.iter().map(|file| &file.path).collect();
+        tracing::info!(
+            by = %by,
+            title = %doomed.title,
+            library,
+            ?files,
+            bytes_freed = deleted.bytes_freed(),
+            not_deleted = ?deleted.failed,
+            "deleted media"
+        );
+        let removed = deleted.versions.iter().copied().map(Change::Remove);
+        let events = match self.inner.contents.apply(library, removed.collect()).await {
+            Ok(events) => events,
+            Err(error) => {
+                // The next scan removes them, as it does any file gone from disk.
+                tracing::error!(
+                    %error,
+                    title = %doomed.title,
+                    library,
+                    "couldn't remove the deleted Versions; they stay listed until the next scan"
+                );
+                Vec::new()
+            }
+        };
+        if let Some(probing) = &self.inner.probing {
+            probing.clean_subtitles().await;
+        }
+        self.inner.events.publish(events);
+        self.inner.artwork.drop_unused(&self.inner.contents).await;
+        (self.cancel_requests(doomed.request_titles(&deleted.versions), by)).await;
+        Ok(deleted)
     }
 
     /// Cancels the Requests still waiting on `titles`, whose media `by` deleted. A failure is
@@ -692,6 +704,14 @@ fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Walked, Error>
         }
     }
     Ok(walked)
+}
+
+/// Refuses `doomed` if it is in a folder the Library's last scan found read-only.
+fn refuse_read_only(doomed: &Doomed) -> Result<(), Error> {
+    match doomed.read_only_folder() {
+        Some(folder) => Err(Error::ReadOnly(folder.to_owned())),
+        None => Ok(()),
+    }
 }
 
 /// Whether the Server may delete what's in `folder`.
