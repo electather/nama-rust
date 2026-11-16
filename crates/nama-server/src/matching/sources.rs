@@ -217,7 +217,7 @@ async fn show_having(
     }
     for number in seasons {
         let season = match season(metadata, &found, number).await {
-            Err(Miss::Unmatched(_)) => return Ok(None),
+            Err(Miss::Unmatched(Some(UnmatchedReason::NotInShow))) => return Ok(None),
             season => season?,
         };
         let in_season = |pending: &&PendingEpisode| pending.season == number;

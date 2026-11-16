@@ -14,7 +14,7 @@ use super::{
     tests::{Answering, Answers, Asked, HAS, asked, dark},
 };
 use crate::{
-    library::{Decided, TitleSources, UnmatchedReason},
+    library::{Decided, TiedTitle, TitleSources, UnmatchedReason},
     matching::{
         Miss, PendingEpisode,
         recognisers::Recognisers,
@@ -74,8 +74,10 @@ async fn an_episode_no_tied_show_has_stays_ambiguous_with_every_tied_show() {
 #[tokio::test]
 async fn a_show_whose_episodes_no_tied_show_has_all_of_stays_ambiguous() {
     let media = Fixture::new().await;
-    // The US Office's Season 3 has only Episode 1.
-    media.shows.write(SEASON_3);
+    // Both Offices have S01E01; the UK one has no Season 3, the US one's has only Episode 1.
+    media
+        .shows
+        .write("The Office/Season 01/The Office - S01E01.mkv");
     media
         .shows
         .write("The Office/Season 03/The Office - S03E02.mkv");
@@ -96,9 +98,16 @@ async fn a_newer_name_parser_matches_an_episode_only_one_tied_show_has() {
     media.scan(shows).await;
     // Before the tie-break, both Offices left this file Ambiguous.
     let item = media.item(shows, SEASON_3).await;
-    let ambiguous = UnmatchedReason::Ambiguous(Vec::new());
+    let office = |id| TiedTitle {
+        id,
+        title: "The Office".to_owned(),
+        original_title: None,
+        year: None,
+    };
+    let ambiguous = UnmatchedReason::Ambiguous(both_offices().into_iter().map(office).collect());
     let decided = vec![(item, Decided::Unmatched(Some(ambiguous)))];
     media.contents.record(decided).await.unwrap();
+    assert_eq!(tied(&media).await, [Some(both_offices())]);
 
     media.contents.read_by_older_parser(shows.id).await;
     media.scan(shows).await;
@@ -271,6 +280,32 @@ async fn a_tied_show_the_source_cannot_find_only_drops_out() {
         asked(&sources_asked),
         ["search", "show 1", "show 2", "season 2"]
     );
+}
+
+#[tokio::test]
+async fn a_tied_show_not_listing_the_season_is_asked_for_none_of_its_seasons() {
+    let (metadata, sources_asked) = tying(&[HAS, HAS]);
+    let key = dark(None);
+    let second_season = PendingEpisode {
+        item: 1,
+        season: 2,
+        episode: 1,
+    };
+
+    let found = show(
+        &metadata,
+        &Recognisers::default(),
+        &key,
+        &[],
+        &[second_season],
+    )
+    .await;
+
+    assert!(matches!(
+        found,
+        Err(Miss::Unmatched(Some(UnmatchedReason::Ambiguous(_))))
+    ));
+    assert_eq!(asked(&sources_asked), ["search", "show 1", "show 2"]);
 }
 
 #[tokio::test]
