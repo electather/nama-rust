@@ -151,7 +151,7 @@ impl ::buffa::Enumeration for TitleKind {
 #[repr(i32)]
 pub enum UnmatchedReason {
     /// Matching hasn't decided about the item yet, or left it Unmatched for a reason it doesn't
-    /// store, such as an Admin choosing to.
+    /// store.
     UNMATCHED_REASON_UNSPECIFIED = 0i32,
     /// More than one title fits about as well, so picking one of `tied_titles` fixes it.
     UNMATCHED_REASON_AMBIGUOUS = 1i32,
@@ -162,6 +162,8 @@ pub enum UnmatchedReason {
     /// An Episode whose Show, found by Matching or picked by hand, has no such Season or Episode.
     /// Matching it to another Show may fix it.
     UNMATCHED_REASON_NOT_IN_SHOW = 4i32,
+    /// An admin cleared its Match with `ClearMatch`; `SetMatch` Matches it again.
+    UNMATCHED_REASON_CLEARED_BY_HAND = 5i32,
 }
 impl UnmatchedReason {
     ///Idiomatic alias for [`Self::UNMATCHED_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -179,6 +181,9 @@ impl UnmatchedReason {
     ///Idiomatic alias for [`Self::UNMATCHED_REASON_NOT_IN_SHOW`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const NotInShow: Self = Self::UNMATCHED_REASON_NOT_IN_SHOW;
+    ///Idiomatic alias for [`Self::UNMATCHED_REASON_CLEARED_BY_HAND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ClearedByHand: Self = Self::UNMATCHED_REASON_CLEARED_BY_HAND;
 }
 impl ::core::default::Default for UnmatchedReason {
     fn default() -> Self {
@@ -281,6 +286,7 @@ impl ::buffa::Enumeration for UnmatchedReason {
             2i32 => ::core::option::Option::Some(Self::UNMATCHED_REASON_NO_TITLE_FITS),
             3i32 => ::core::option::Option::Some(Self::UNMATCHED_REASON_UNKNOWN_ID_HINT),
             4i32 => ::core::option::Option::Some(Self::UNMATCHED_REASON_NOT_IN_SHOW),
+            5i32 => ::core::option::Option::Some(Self::UNMATCHED_REASON_CLEARED_BY_HAND),
             _ => ::core::option::Option::None,
         }
     }
@@ -294,6 +300,7 @@ impl ::buffa::Enumeration for UnmatchedReason {
             Self::UNMATCHED_REASON_NO_TITLE_FITS => "UNMATCHED_REASON_NO_TITLE_FITS",
             Self::UNMATCHED_REASON_UNKNOWN_ID_HINT => "UNMATCHED_REASON_UNKNOWN_ID_HINT",
             Self::UNMATCHED_REASON_NOT_IN_SHOW => "UNMATCHED_REASON_NOT_IN_SHOW",
+            Self::UNMATCHED_REASON_CLEARED_BY_HAND => "UNMATCHED_REASON_CLEARED_BY_HAND",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -313,6 +320,9 @@ impl ::buffa::Enumeration for UnmatchedReason {
             "UNMATCHED_REASON_NOT_IN_SHOW" => {
                 ::core::option::Option::Some(Self::UNMATCHED_REASON_NOT_IN_SHOW)
             }
+            "UNMATCHED_REASON_CLEARED_BY_HAND" => {
+                ::core::option::Option::Some(Self::UNMATCHED_REASON_CLEARED_BY_HAND)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -323,6 +333,7 @@ impl ::buffa::Enumeration for UnmatchedReason {
             Self::UNMATCHED_REASON_NO_TITLE_FITS,
             Self::UNMATCHED_REASON_UNKNOWN_ID_HINT,
             Self::UNMATCHED_REASON_NOT_IN_SHOW,
+            Self::UNMATCHED_REASON_CLEARED_BY_HAND,
         ]
     }
 }

@@ -161,7 +161,14 @@ fn unmatched_to_proto(unmatched: Unmatched) -> proto::UnmatchedItem {
             Some((season, episode)),
         ),
     };
-    let (reason, tied_titles) = reason_to_proto(unmatched.reason);
+    let (reason, tied_titles) = if unmatched.cleared {
+        (
+            proto::UnmatchedReason::UNMATCHED_REASON_CLEARED_BY_HAND,
+            Vec::new(),
+        )
+    } else {
+        reason_to_proto(unmatched.reason)
+    };
     proto::UnmatchedItem {
         item_id: unmatched.id,
         path: unmatched.path,
