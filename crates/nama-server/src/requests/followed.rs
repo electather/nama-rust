@@ -15,14 +15,18 @@ use nama_proto::nama::v1::{
 use sqlx::SqliteConnection;
 
 use super::apply::Applied;
-use super::asked::{self, Asked, may_see};
+use super::asked::{self, Asked};
 use super::asking::{SeasonsToAsk, WantedSeasons, Way, kept_under, opening_state};
 use super::deciding::{decide, given_reason};
-use super::listing::{load_one, read_title_id, visible_to};
+use super::listing::{load_one, read_title_id};
 use super::quality::{NewQuality, change_followed_quality, quality_columns, stored_quality};
 use super::state::{ids_json, read_state, state_changed, stored};
 use super::{Error, Requests};
-use crate::{db::now, events::event, users::User};
+use crate::{
+    db::now,
+    events::event,
+    users::{User, may_see},
+};
 
 impl Requests {
     /// Asks for the whole Show `show_id` for `asker`, kept under its id as a Request is
@@ -114,7 +118,7 @@ impl Requests {
     /// [`Self::cancel_followed`] does, and publishes which of the two happened.
     pub(crate) async fn withdraw_followed(&self, requester: &User, id: i64) -> Result<(), Error> {
         let user = requester.id;
-        let visible = visible_to(requester);
+        let visible = requester.whose_requests();
         self.apply(move |tx| Box::pin(withdraw_followed(tx, user, visible, id)))
             .await
     }

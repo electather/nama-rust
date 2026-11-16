@@ -7,6 +7,7 @@ use nama_proto::nama::v1::{RequestState, Requester};
 use sqlx::SqliteConnection;
 
 use super::Error;
+use crate::users::is_requester;
 
 /// Which kind of thing Users asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,17 +92,6 @@ pub(super) async fn requesters(
         });
     }
     Ok(requesters)
-}
-
-/// Whether `viewer`, as [`super::visible_to`] gives one, may see something `requesters` asked
-/// for: everyone's if `None`, else only what that User is among the Requesters of. The events
-/// filter asks it too, so a User's event stream and Request list agree.
-pub(crate) fn may_see(viewer: Option<i64>, requesters: &[Requester]) -> bool {
-    viewer.is_none_or(|user| is_requester(user, requesters))
-}
-
-fn is_requester(user: i64, requesters: &[Requester]) -> bool {
-    requesters.iter().any(|requester| requester.user_id == user)
 }
 
 /// The `asked` with the ID `id` that `found` holds, if `user` is among the `requesters` it has.

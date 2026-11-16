@@ -52,7 +52,7 @@ use crate::{
     },
     library::contents::Contents,
     server_settings::{HardwareChoice, PlaybackLimit, PlaybackValues},
-    users::{Caller, User},
+    users::Caller,
 };
 use probing::ProbeError;
 use running::{RunningPlans, StartError};
@@ -464,11 +464,6 @@ fn over_audio(
         }
         SubtitlePreference::Off | SubtitlePreference::Like(_) => preferred.clone(),
     }
-}
-
-/// Whose playback events `viewer` may see: everyone's (`None`) with `ADMIN`, or else only their own.
-pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
-    (!viewer.permissions.allow(proto::Permission::Admin)).then_some(viewer.id)
 }
 
 /// `reason` as the API sends it.

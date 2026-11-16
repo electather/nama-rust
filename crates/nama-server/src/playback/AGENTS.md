@@ -15,4 +15,4 @@ Planning how a Device plays a Version, running the plans, serving their files an
 ### Neighbours
 
 - Uses: `ffmpeg`, `library::contents`, `server_settings` (its settings and `PlaybackLimit`), `events`, `images`, `users`, `db`, and `config` and `plugins` in tests.
-- Used by: `api`, `browse`, `scanner`, `events` (`visible_to`, until a later task cuts it) and startup in `lib.rs`.
+- Used by: `api`, `browse`, `scanner` and startup in `lib.rs`.

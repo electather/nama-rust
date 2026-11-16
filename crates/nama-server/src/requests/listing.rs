@@ -5,18 +5,18 @@ use std::{cmp::Reverse, collections::BTreeMap};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use nama_plugin_api::metadata;
 use nama_proto::nama::v1::{
-    ExternalId, FollowedShow, ListRequestsResponse, Permission, QualityChange, Refusal,
-    RefusalReason, Request, RequestState, RequestedMovie, RequestedSeason,
+    ExternalId, FollowedShow, ListRequestsResponse, QualityChange, Refusal, RefusalReason, Request,
+    RequestState, RequestedMovie, RequestedSeason,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
 
-use super::asked::{self, Asked, may_see};
+use super::asked::{self, Asked};
 use super::followed::load_followed;
 use super::quality::stored_quality;
 use super::state::{open_request, read_state, stored};
 use super::{Error, Requests};
-use crate::users::User;
+use crate::users::{User, may_see};
 
 /// The client API's id `value` in `namespace`.
 pub(super) fn title_id(namespace: &str, value: &impl ToString) -> ExternalId {
@@ -33,11 +33,6 @@ pub(super) fn read_title_id(text: &str) -> Result<ExternalId, sqlx::Error> {
         .parse::<metadata::ExternalId>()
         .map_err(|err| sqlx::Error::Decode(err.into()))?;
     Ok(title_id(id.namespace(), &id.value()))
-}
-
-/// Whose Requests `viewer` may see: everyone's (`None`), or only those they are a Requester of.
-pub(crate) fn visible_to(viewer: &User) -> Option<i64> {
-    (!viewer.permissions.allow(Permission::ViewRequests)).then_some(viewer.id)
 }
 
 impl Requests {
@@ -98,7 +93,7 @@ impl Requests {
     async fn listed(&self, viewer: &User) -> Result<Vec<Listed>, sqlx::Error> {
         let mut conn = self.db.reader().acquire().await?;
         let requests = self.visible(&mut conn, None, viewer).await?;
-        let followed = load_followed(&mut conn, None, visible_to(viewer)).await?;
+        let followed = load_followed(&mut conn, None, viewer.whose_requests()).await?;
         Ok(requests
             .into_iter()
             .map(Listed::Request)
@@ -142,7 +137,7 @@ impl Requests {
         id: Option<i64>,
         viewer: &User,
     ) -> Result<Vec<Request>, sqlx::Error> {
-        let requests = load(conn, id, visible_to(viewer)).await?;
+        let requests = load(conn, id, viewer.whose_requests()).await?;
         Ok(requests
             .into_iter()
             .map(|request| self.progress.attach(request))

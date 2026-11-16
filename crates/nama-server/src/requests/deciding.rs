@@ -9,7 +9,7 @@ use sqlx::SqliteConnection;
 
 use super::apply::Applied;
 use super::asked::{self, Asked};
-use super::listing::{load, load_one, visible_to};
+use super::listing::{load, load_one};
 use super::quality::{NewQuality, change_quality};
 use super::{Error, Requests};
 use crate::{events::event, users::User};
@@ -93,7 +93,7 @@ impl Requests {
     /// publishes which of the two happened.
     pub(crate) async fn withdraw(&self, requester: &User, id: i64) -> Result<(), Error> {
         let user = requester.id;
-        let visible = visible_to(requester);
+        let visible = requester.whose_requests();
         self.apply(move |tx| Box::pin(withdraw(tx, user, visible, id)))
             .await
     }

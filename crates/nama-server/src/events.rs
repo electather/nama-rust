@@ -29,11 +29,9 @@ use tracing::{error, info};
 use crate::{
     connections,
     db::Database,
-    playback,
     plugins::{self, ExtensionPoints, Failure, ProviderError, without_secrets},
-    requests,
     server_settings::ServerUrl,
-    users::{User, personal_settings},
+    users::{self, User, personal_settings},
 };
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
@@ -191,7 +189,7 @@ impl EventBus {
         let admin = User {
             id: 0,
             name: "Admin".to_owned(),
-            permissions: crate::users::Permissions::ADMIN,
+            permissions: users::Permissions::ADMIN,
             created_at: 0,
         };
         self.subscribe(&admin, filter)
@@ -479,8 +477,8 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
 impl Viewer {
     fn of(user: &User) -> Self {
         Self {
-            requester: requests::visible_to(user),
-            player: playback::visible_to(user),
+            requester: user.whose_requests(),
+            player: user.whose_playing(),
             sees_paths: user.permissions.allow(Permission::ManageLibraries),
         }
     }
@@ -492,10 +490,8 @@ impl Viewer {
         let (_, about) = classify(&event)?;
         let visible = match about {
             About::Library(_) => true,
-            About::Request(request) => requests::may_see(self.requester, &request.requesters),
-            About::FollowedShow(followed) => {
-                requests::may_see(self.requester, &followed.requesters)
-            }
+            About::Request(request) => users::may_see(self.requester, &request.requesters),
+            About::FollowedShow(followed) => users::may_see(self.requester, &followed.requesters),
             About::Player(user) => self.player.is_none_or(|player| player == user),
         };
         if !visible {

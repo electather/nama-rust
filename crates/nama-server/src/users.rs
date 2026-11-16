@@ -24,6 +24,7 @@ mod codes;
 mod device_names;
 pub(crate) mod personal_settings;
 mod rate_limits;
+mod seeing;
 mod sessions;
 mod sign_in;
 mod sign_in_codes;
@@ -32,6 +33,7 @@ pub use codes::SetupCode;
 pub(crate) use codes::random_secret;
 use rate_limits::Attempt;
 pub(crate) use rate_limits::Blocked;
+pub(crate) use seeing::{is_requester, may_see};
 pub(crate) use sessions::{
     cleared_session_cookie, identify_caller, in_session_cookie, session_cookie,
 };

@@ -38,12 +38,11 @@ mod testing;
 // Neighbours address it as `requests::qualities`: its names (`list`, `Refused`) read only with it.
 pub(crate) mod qualities;
 
-pub(crate) use asked::{Asked, may_see};
+pub(crate) use asked::Asked;
 pub(crate) use availability::{make_available, make_seasons_available};
 pub(crate) use deciding::RequestTitle;
 use hand_off::HandOff;
 pub(crate) use hand_off::{missing, unmet};
-pub(crate) use listing::visible_to;
 pub(crate) use lookup::{Found, FoundShow, Hit};
 use progress::Progress;
 

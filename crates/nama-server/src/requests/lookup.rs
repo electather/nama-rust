@@ -10,7 +10,6 @@ use sqlx::SqliteConnection;
 use super::asking::kept_under;
 use super::availability::{availability, today};
 use super::followed::{load_followed, open_followed_show};
-use super::listing::visible_to;
 use super::quality::show_requests;
 use super::{Error, Requests};
 use crate::{
@@ -126,7 +125,7 @@ impl Requests {
             .look_around_seasons(&mut conn, viewer, &id, seasons)
             .await?;
         let followed_show = match open_followed_show(&mut conn, &id).await? {
-            Some(followed) => load_followed(&mut conn, Some(followed), visible_to(viewer))
+            Some(followed) => load_followed(&mut conn, Some(followed), viewer.whose_requests())
                 .await?
                 .pop(),
             None => None,
