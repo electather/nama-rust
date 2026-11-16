@@ -91,7 +91,7 @@ export function PlaybackSettingsForm() {
         min={1}
         required={false}
         defaultValue={settings.maxTranscodes}
-        hint="The most the Server runs at once. Remuxes don’t count. While that many run, a Device that can play a Remux gets one instead, and one that can’t is told the Server is busy. Leave it empty for no limit while Transcodes use hardware acceleration, or 2 in software."
+        hint="The most the Server runs at once. Remuxes don’t count. While that many run, a Device that can play a Remux gets one instead, and one that can’t is told the Server is busy. Left empty, at most 2 run at once on the CPU, in software or tone-mapping HDR there, and those fully on a GPU have no limit."
         error={errors.maxTranscodes}
       />
       <RemoteLimitField saved={settings.remotePlaybackLimit} />
