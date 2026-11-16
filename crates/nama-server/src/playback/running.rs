@@ -202,18 +202,15 @@ impl RunningPlans {
         Self { inner }
     }
 
-    /// The most Transcodes the Server may run at once, `max`, if that many already run, leaving
-    /// out one of `device`'s own: the plan it asks for replaces the one it plays, which it stops
-    /// only once the new one plays.
+    /// The most Transcodes the Server may run at once, `max`, if that many already run, the
+    /// asking Device's own included: a player stops its old plan before asking for a new one.
     // ponytail: the plan isn't kept until after probing, the folder and spawning ffmpeg, so every
     // Device planning in that window finds room and they can pass the cap together until
     // Transcodes end; reserve room under the plans' lock if that ever matters.
-    pub(crate) fn transcodes_full(&self, device: i64, max: u32) -> Option<u32> {
-        let plans = lock(&self.inner.plans);
-        let (own, others): (Vec<_>, Vec<_>) = (plans.values())
+    pub(crate) fn transcodes_full(&self, max: u32) -> Option<u32> {
+        let running = (lock(&self.inner.plans).values())
             .filter(|plan| (plan.hls.as_ref()).is_some_and(|hls| hls.method == Method::Transcode))
-            .partition(|plan| plan.playback.device_id == device);
-        let running = others.len() + own.len().saturating_sub(1);
+            .count();
         (u32::try_from(running).unwrap_or(u32::MAX) >= max).then_some(max)
     }
 

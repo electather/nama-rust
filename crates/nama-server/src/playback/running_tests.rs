@@ -143,7 +143,7 @@ async fn a_running_plan_is_marked_with_its_method_and_found_only_by_its_device()
 // The fake ffmpeg is `sleep`.
 #[cfg(unix)]
 #[tokio::test]
-async fn another_devices_transcodes_fill_the_cap_until_one_stops_and_remuxes_never_do() {
+async fn transcodes_fill_the_cap_for_every_device_until_one_stops_and_remuxes_never_do() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
     let transcode = || {
@@ -152,32 +152,30 @@ async fn another_devices_transcodes_fill_the_cap_until_one_stops_and_remuxes_nev
     };
     let (first, _) = transcode().await;
     start_writing_nothing(&plans).await;
-    assert_eq!(plans.transcodes_full(8, 2), None, "a Remux doesn't count");
+    assert_eq!(plans.transcodes_full(2), None, "a Remux doesn't count");
     transcode().await;
 
-    let full = plans.transcodes_full(8, 2);
-    let for_its_own_device = plans.transcodes_full(7, 2);
+    let full = plans.transcodes_full(2);
     plans.stop_for(first, 7).await;
 
     assert_eq!(full, Some(2), "out of the box");
-    assert_eq!(
-        for_its_own_device, None,
-        "the one its new plan replaces doesn't count"
-    );
-    assert_eq!(plans.transcodes_full(8, 2), None);
+    assert_eq!(plans.transcodes_full(2), None);
 }
 
 // The fake ffmpeg is `sleep`.
 #[cfg(unix)]
 #[tokio::test]
-async fn a_device_leaves_only_one_of_its_own_transcodes_out_of_the_count() {
+async fn a_devices_own_transcode_fills_the_cap_until_it_stops() {
     let data = tempfile::tempdir().unwrap();
     let plans = running_plans(data.path()).await;
-    for _ in 0..3 {
+    let (id, _) =
         start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
-    }
 
-    assert_eq!(plans.transcodes_full(7, 2), Some(2));
+    let full = plans.transcodes_full(1);
+    plans.stop_for(id, 7).await;
+
+    assert_eq!(full, Some(1));
+    assert_eq!(plans.transcodes_full(1), None);
 }
 
 #[cfg(unix)]
@@ -193,9 +191,9 @@ async fn transcodes_are_full_once_as_many_as_the_cap_run() {
         start_method_writing_nothing(&plans, Method::Transcode, every_two_seconds()).await;
     }
 
-    assert_eq!(plans.transcodes_full(8, u32::MAX), None);
-    assert_eq!(plans.transcodes_full(8, 3), None);
-    assert_eq!(plans.transcodes_full(8, 2), Some(2));
+    assert_eq!(plans.transcodes_full(u32::MAX), None);
+    assert_eq!(plans.transcodes_full(3), None);
+    assert_eq!(plans.transcodes_full(2), Some(2));
 }
 
 /// Starts a plan for the Device `device` whose ffmpeg is `sleep`, and returns its id.

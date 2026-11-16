@@ -1317,8 +1317,8 @@ export const PlaybackService: GenService<{
    * can't honour here is dropped, and a reason says so (ADR 0031). Fails with `not_found` if
    * there is no such Version, and is refused with `REFUSAL_REASON_SERVER_BUSY` when the Device
    * itself needs a Transcode to play it, never for a choice, and the Server is already running as
-   * many as it may; one of the caller's own Device's doesn't count, as a new plan replaces the one
-   * it plays.
+   * many as it may, the caller's own Device's included: a player replacing its plan stops the old
+   * one first.
    *
    * @generated from rpc nama.v1.PlaybackService.PlanPlayback
    */

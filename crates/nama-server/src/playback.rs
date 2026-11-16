@@ -400,7 +400,7 @@ pub(crate) async fn plan(
     };
     let max_transcodes =
         (settings.max_transcodes).map_or_else(|| default_max_transcodes(&facts), NonZeroU32::get);
-    facts.transcodes_full = running.transcodes_full(caller.device.id, max_transcodes);
+    facts.transcodes_full = running.transcodes_full(max_transcodes);
     let plan = build(&mut facts);
     if plan.playing.is_none() {
         return match too_busy_to_play(facts) {
