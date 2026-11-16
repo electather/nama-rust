@@ -1,0 +1,398 @@
+use std::{
+    num::NonZeroU32,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+use super::{
+    ChangeError, HardwareChoice, Invalid, PickedGpu, PlaybackChange, PlaybackValues, Settings,
+    Values,
+};
+#[cfg(unix)]
+use crate::ffmpeg::{Hardware, fake, find_gpus};
+use crate::{db::Database, ffmpeg::Accel, playback::PlaybackLimit};
+
+const DEFAULT_FOLDER: &str = "/data/transcodes";
+
+/// A segment folder that's absolute where the tests run: on Windows one needs a drive.
+#[cfg(windows)]
+const FOLDER: &str = r"C:\nama";
+#[cfg(not(windows))]
+const FOLDER: &str = "/tmp/nama";
+
+async fn fresh() -> (tempfile::TempDir, Settings) {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Database::open(data_dir.path()).await.unwrap();
+    let settings = Settings::new(Arc::new(db), DEFAULT_FOLDER.into());
+    settings.load().await.unwrap();
+    (data_dir, settings)
+}
+
+/// A second `Settings` on the same database, as after a restart, once it loaded.
+async fn restarted(settings: &Settings) -> Settings {
+    let restarted = Settings::new(Arc::clone(&settings.db), DEFAULT_FOLDER.into());
+    restarted.load().await.unwrap();
+    restarted
+}
+
+fn change(folder: &str) -> PlaybackChange<'_> {
+    PlaybackChange {
+        segment_folder: folder,
+        max_transcodes: None,
+        keep_behind_minutes: None,
+        hardware: HardwareChoice::Automatic,
+        remote_limit: None,
+    }
+}
+
+fn invalid(result: Result<impl std::fmt::Debug, ChangeError>) -> Invalid {
+    match result {
+        Err(ChangeError::Invalid(invalid)) => invalid,
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn every_setting_is_its_default_until_one_is_stored() {
+    let (_data_dir, settings) = fresh().await;
+    let playback = settings.playback();
+
+    assert_eq!(settings.now(), Values::default());
+    assert_eq!(settings.server_url().request_link(7), None);
+    assert_eq!(playback.now().hardware, HardwareChoice::Automatic);
+    assert_eq!(playback.path(), Path::new(DEFAULT_FOLDER));
+}
+
+#[tokio::test]
+async fn a_stored_url_is_trimmed_used_for_links_and_read_again_after_a_restart() {
+    let (_data_dir, settings) = fresh().await;
+
+    let stored = settings
+        .set_url(" https://example.com/nama/ ")
+        .await
+        .unwrap();
+
+    assert_eq!(stored, "https://example.com/nama/");
+    assert_eq!(
+        settings.server_url().request_link(7).as_deref(),
+        Some("https://example.com/nama/requests/7")
+    );
+    assert_eq!(restarted(&settings).await.now().url, stored);
+}
+
+#[tokio::test]
+async fn a_url_that_isnt_http_or_has_a_query_or_fragment_is_refused_and_changes_nothing() {
+    let (_data_dir, settings) = fresh().await;
+    settings.set_url("https://nama.example.com").await.unwrap();
+
+    for not_a_url in [
+        "nama.example.com",
+        "ftp://nama.example.com",
+        "https://nama.example.com/?a=1",
+        "https://nama.example.com/#top",
+    ] {
+        assert_eq!(invalid(settings.set_url(not_a_url).await), Invalid::NotAUrl);
+    }
+    assert_eq!(settings.now().url, "https://nama.example.com");
+}
+
+#[tokio::test]
+async fn clearing_the_url_leaves_links_out() {
+    let (_data_dir, settings) = fresh().await;
+    settings.set_url("https://nama.example.com").await.unwrap();
+
+    settings.set_url("  ").await.unwrap();
+
+    assert_eq!(settings.server_url().request_link(7), None);
+    assert_eq!(restarted(&settings).await.now().url, "");
+}
+
+#[tokio::test]
+async fn stored_playback_settings_are_in_use_and_read_again_after_a_restart() {
+    let (_data_dir, settings) = fresh().await;
+    let playback = settings.playback();
+
+    let stored = settings
+        .change_playback(
+            PlaybackChange {
+                segment_folder: &format!(" {FOLDER} "),
+                max_transcodes: Some(5),
+                keep_behind_minutes: Some(12),
+                hardware: HardwareChoice::Api(Accel::Vaapi, None),
+                remote_limit: Some(PlaybackLimit::P720),
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+
+    let expected = PlaybackValues {
+        segment_folder: FOLDER.to_owned(),
+        max_transcodes: NonZeroU32::new(5),
+        keep_behind_minutes: NonZeroU32::new(12),
+        hardware: HardwareChoice::Api(Accel::Vaapi, None),
+        remote_limit: Some(PlaybackLimit::P720),
+    };
+    assert_eq!(stored, expected);
+    assert_eq!(playback.now(), expected);
+    assert_eq!(playback.path(), Path::new(FOLDER));
+    assert_eq!(playback.keep_behind_ms(), 720_000);
+    assert_eq!(
+        playback.leftover_paths(),
+        [PathBuf::from(FOLDER), DEFAULT_FOLDER.into()]
+    );
+    assert_eq!(restarted(&settings).await.playback().now(), expected);
+}
+
+#[tokio::test]
+async fn playback_settings_go_back_to_their_defaults_when_cleared() {
+    let (_data_dir, settings) = fresh().await;
+    settings
+        .change_playback(
+            PlaybackChange {
+                segment_folder: FOLDER,
+                max_transcodes: Some(5),
+                keep_behind_minutes: Some(12),
+                hardware: HardwareChoice::Off,
+                remote_limit: Some(PlaybackLimit::P720),
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+
+    settings.change_playback(change(""), &[]).await.unwrap();
+
+    let restarted = restarted(&settings).await.playback();
+    assert_eq!(restarted.now(), PlaybackValues::default());
+    assert_eq!(restarted.path(), Path::new(DEFAULT_FOLDER));
+    assert_eq!(restarted.keep_behind_ms(), 300_000);
+}
+
+#[tokio::test]
+async fn a_folder_that_isnt_absolute_is_refused_naming_it_trimmed() {
+    let (_data_dir, settings) = fresh().await;
+
+    assert_eq!(
+        invalid(settings.change_playback(change(" tmp/nama "), &[]).await),
+        Invalid::FolderNotAbsolute {
+            folder: "tmp/nama".to_owned()
+        }
+    );
+}
+
+#[tokio::test]
+async fn a_cap_of_0_is_refused_and_leaves_every_playback_setting_as_it_was() {
+    let (_data_dir, settings) = fresh().await;
+
+    let refused = settings
+        .change_playback(
+            PlaybackChange {
+                max_transcodes: Some(0),
+                hardware: HardwareChoice::Off,
+                ..change(FOLDER)
+            },
+            &[],
+        )
+        .await;
+
+    assert_eq!(invalid(refused), Invalid::NoTranscodes);
+    assert_eq!(settings.playback().now(), PlaybackValues::default());
+    assert_eq!(
+        restarted(&settings).await.playback().now(),
+        PlaybackValues::default()
+    );
+}
+
+#[tokio::test]
+async fn keeping_0_minutes_behind_is_refused_and_leaves_every_playback_setting_as_it_was() {
+    let (_data_dir, settings) = fresh().await;
+
+    let refused = settings
+        .change_playback(
+            PlaybackChange {
+                keep_behind_minutes: Some(0),
+                ..change(FOLDER)
+            },
+            &[],
+        )
+        .await;
+
+    assert_eq!(invalid(refused), Invalid::NothingKeptBehind);
+    assert_eq!(
+        restarted(&settings).await.playback().now(),
+        PlaybackValues::default()
+    );
+}
+
+#[tokio::test]
+async fn a_folder_that_isnt_absolute_is_reported_before_a_cap_of_0() {
+    let (_data_dir, settings) = fresh().await;
+
+    let refused = settings
+        .change_playback(
+            PlaybackChange {
+                max_transcodes: Some(0),
+                ..change("tmp")
+            },
+            &[],
+        )
+        .await;
+
+    assert_eq!(
+        invalid(refused),
+        Invalid::FolderNotAbsolute {
+            folder: "tmp".to_owned()
+        }
+    );
+}
+
+/// VAAPI on a dedicated AMD GPU at `0000:03:00.0`, then on an integrated one at
+/// `0000:18:00.0`, as Automatic orders them.
+#[cfg(unix)]
+fn vaapi_on_two_gpus(root: &Path) -> Vec<Hardware> {
+    let (sys, dri) = (root.join("sys"), root.join("dri"));
+    fake::gpu(&sys, &dri, "renderD128", "0000:18:00.0", "0x1002");
+    fake::pci_function(&sys, "0000:18:00.2", "0x1022");
+    fake::gpu(&sys, &dri, "renderD129", "0000:03:00.0", "0x1002");
+    find_gpus(&dri, &sys.join("class/drm"))
+        .into_iter()
+        .map(|gpu| Hardware {
+            accel: Accel::Vaapi,
+            gpu: Some(gpu),
+            tone_maps: false,
+        })
+        .collect()
+}
+
+fn picked(accel: Accel, id: &str, name: &str) -> HardwareChoice {
+    let gpu = PickedGpu {
+        id: id.to_owned(),
+        name: name.to_owned(),
+    };
+    HardwareChoice::Api(accel, Some(gpu))
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_picked_gpu_is_stored_under_the_name_it_was_found_with_and_read_after_a_restart() {
+    let (data_dir, settings) = fresh().await;
+    let passed = vaapi_on_two_gpus(data_dir.path());
+
+    let stored = settings
+        .change_playback(
+            PlaybackChange {
+                hardware: picked(Accel::Vaapi, "0000:18:00.0", "a name the client made up"),
+                ..change("")
+            },
+            &passed,
+        )
+        .await
+        .unwrap();
+
+    let integrated = picked(Accel::Vaapi, "0000:18:00.0", "AMD integrated GPU");
+    assert_eq!(stored.hardware, integrated);
+    assert_eq!(settings.playback().now().hardware, integrated);
+    assert_eq!(
+        restarted(&settings).await.playback().now().hardware,
+        integrated
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_gpu_its_api_didnt_pass_on_or_one_with_an_api_that_takes_none_is_refused() {
+    let (data_dir, settings) = fresh().await;
+    let passed = vaapi_on_two_gpus(data_dir.path());
+
+    for (accel, id) in [
+        (Accel::Vaapi, "0000:0a:00.0"),
+        (Accel::Qsv, "0000:03:00.0"),
+        (Accel::Nvenc, "0000:03:00.0"),
+        (Accel::VideoToolbox, "0000:03:00.0"),
+    ] {
+        let refused = settings
+            .change_playback(
+                PlaybackChange {
+                    hardware: picked(accel, id, "AMD Radeon RX 9070 XT"),
+                    ..change("")
+                },
+                &passed,
+            )
+            .await;
+
+        assert_eq!(
+            invalid(refused),
+            Invalid::GpuNotOffered { id: id.to_owned() },
+            "{accel:?}"
+        );
+    }
+    assert_eq!(settings.playback().now(), PlaybackValues::default());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn after_a_restart_without_its_gpu_a_pick_keeps_its_name_and_survives_another_save() {
+    let (data_dir, settings) = fresh().await;
+    let pick = |name| PlaybackChange {
+        hardware: picked(Accel::Vaapi, "0000:03:00.0", name),
+        ..change("")
+    };
+    let passed = vaapi_on_two_gpus(data_dir.path());
+    settings.change_playback(pick(""), &passed).await.unwrap();
+    let restarted = restarted(&settings).await;
+
+    let saved_again = restarted
+        .change_playback(
+            PlaybackChange {
+                max_transcodes: Some(3),
+                ..pick("another name")
+            },
+            &[],
+        )
+        .await
+        .unwrap();
+
+    let stored = picked(Accel::Vaapi, "0000:03:00.0", "AMD GPU at 0000:03:00.0");
+    assert_eq!(saved_again.hardware, stored);
+    assert_eq!(saved_again.max_transcodes, NonZeroU32::new(3));
+}
+
+#[tokio::test]
+async fn changing_one_group_keeps_the_others_stored_values() {
+    let (_data_dir, settings) = fresh().await;
+    settings.set_url("https://nama.example.com").await.unwrap();
+    settings.change_playback(change(FOLDER), &[]).await.unwrap();
+    let after_playback = restarted(&settings).await.now();
+    settings.set_url("https://other.example.com").await.unwrap();
+    let after_url = restarted(&settings).await.now();
+
+    assert_eq!(after_playback.url, "https://nama.example.com");
+    assert_eq!(after_url.playback.segment_folder, FOLDER);
+}
+
+#[tokio::test]
+async fn stored_image_settings_are_in_use_and_read_again_after_a_restart() {
+    let (_data_dir, settings) = fresh().await;
+    let default = settings.images().resizing();
+
+    settings.change_images(false, Some(64)).await.unwrap();
+    let off = settings.images().resizing();
+    settings.change_images(true, Some(64)).await.unwrap();
+
+    assert_eq!(default, Some(1024 * 1024 * 1024));
+    assert_eq!(off, None);
+    assert_eq!(
+        restarted(&settings).await.images().resizing(),
+        Some(64 * 1024 * 1024)
+    );
+}
+
+#[tokio::test]
+async fn changing_the_playback_settings_first_stores_no_url() {
+    let (_data_dir, settings) = fresh().await;
+
+    settings.change_playback(change(FOLDER), &[]).await.unwrap();
+
+    assert_eq!(restarted(&settings).await.now().url, "");
+}
