@@ -100,14 +100,14 @@ async fn deleting_the_image_beside_the_file_brings_the_downloaded_poster_back_at
 }
 
 #[tokio::test]
-async fn of_two_copies_each_with_a_poster_the_first_added_ones_shows_and_a_third_changes_nothing() {
+async fn of_two_items_each_with_a_poster_the_first_added_ones_shows_and_a_third_changes_nothing() {
     let fx = Fixture::alien().await;
     let first = image(ImageFormat::Jpeg, 2, 3);
     fx.write("Alien (1979)/poster.jpg", &first);
     fx.scan_and_match().await;
     // Their folders sort before the first's, so neither path nor folder order picks the first.
-    fx.write("A copy/Alien (1979).mkv", b"video");
-    fx.write("A copy/poster.jpg", &image(ImageFormat::Png, 2, 3));
+    fx.write("A second/Alien (1979).mkv", b"video");
+    fx.write("A second/poster.jpg", &image(ImageFormat::Png, 2, 3));
     fx.scan_and_match().await;
     let (with_two, _) = fx.alien_images().await;
 
@@ -170,4 +170,34 @@ async fn an_image_beside_the_file_gone_from_the_data_directory_is_copied_again_a
     fx.scan_and_match().await;
 
     assert_eq!(fx.alien_images().await.0, beside);
+}
+
+#[tokio::test]
+async fn deleting_the_first_added_items_poster_shows_the_next_items_at_the_next_scan() {
+    let fx = Fixture::alien().await;
+    fx.write("Alien (1979)/poster.jpg", &image(ImageFormat::Jpeg, 2, 3));
+    fx.scan_and_match().await;
+    let second = image(ImageFormat::Png, 2, 3);
+    fx.write("A second/Alien (1979).mkv", b"video");
+    fx.write("A second/poster.jpg", &second);
+    fx.scan_and_match().await;
+
+    fx.delete("Alien (1979)/poster.jpg");
+    fx.scan_and_match().await;
+
+    assert_eq!(fx.alien_images().await.0, second);
+}
+
+#[tokio::test]
+async fn an_image_deleted_while_its_copy_was_gone_brings_the_downloaded_poster_back() {
+    let fx = Fixture::alien().await;
+    let downloaded = fx.alien_images().await;
+    fx.write("Alien (1979)/poster.jpg", &image(ImageFormat::Jpeg, 2, 3));
+    fx.scan_and_match().await;
+
+    fs::remove_dir_all(fx.server.data_dir().join("local-images")).unwrap();
+    fx.delete("Alien (1979)/poster.jpg");
+    fx.scan_and_match().await;
+
+    assert_eq!(fx.alien_images().await, downloaded);
 }

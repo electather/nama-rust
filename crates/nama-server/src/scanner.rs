@@ -64,7 +64,7 @@ use crate::{
     events::{EventBus, event},
     library::{
         Artwork, Change, Contents, CustomImages, Libraries, Library, LibraryError, LibraryKind,
-        LocalImages, Order, Role, ScanLock, ScanLocks, check_title_sources,
+        LocalImages, Order, ScanLock, ScanLocks, check_title_sources,
     },
     matching::{self, Matcher, count},
     playback::{Probing, RunningPlans, Sidecars},
@@ -673,7 +673,7 @@ impl Scanner {
     }
 
     /// Copies the images beside each of the Library `id`'s Versions whose found ones differ from
-    /// those stored, in batches, then deletes the copies none has any more. After the scan's files
+    /// those stored, or whose copies are gone, in batches, then deletes the copies none has any more. After the scan's files
     /// are stored, so new Versions have ids.
     async fn store_local_images(
         &self,
@@ -683,13 +683,7 @@ impl Scanner {
     ) -> Result<(), Error> {
         let versions = self.inner.contents.stored(id).await?;
         let (read, found) = found.beside(&versions);
-        let stored = self.inner.local_images.stored(id).await?;
-        let differs = |version: &i64| {
-            [Role::Poster, Role::Backdrop]
-                .iter()
-                .any(|&role| found.get(&(*version, role)) != stored.get(&(*version, role)))
-        };
-        let changed: Vec<i64> = read.into_iter().filter(differs).collect();
+        let changed = self.inner.local_images.changed(id, read, &found).await?;
         for batch in changed.chunks(BATCH_SIZE) {
             if cancel.is_cancelled() {
                 return Err(Error::Cancelled);

@@ -7,7 +7,7 @@
 //! `local-images/<library>/<version>`, if it is what a Custom Image may be; one that isn't is
 //! skipped, and the scan logs it. The Server only reads the files, never writes or deletes them.
 //! The rows are in `local_images`, which [`Contents`] owns. Of a Movie's Items, the image beside
-//! the first-added one shows: adding another copy of a Movie never changes its Poster.
+//! the first-added one shows: adding another Item of a Movie never changes its Poster.
 //!
 //! Clients fetch them at their [`LocalImageUrls`] entry, under `/media/`, resized by `?width=` as
 //! a downloaded image is, served to anyone with a session.
@@ -42,6 +42,9 @@ use crate::{
 
 /// Where the store keeps the copies, one folder per Library.
 const DIR: &str = LOCAL_IMAGES_DIR;
+
+/// What an image beside the media may stand in for.
+const ROLES: [Role; 2] = [Role::Poster, Role::Backdrop];
 
 /// The images beside the media, copied into the store.
 #[derive(Debug, Clone)]
@@ -82,23 +85,38 @@ impl LocalImages {
         }
     }
 
-    /// The images stored beside the Library `library`'s Versions whose copies the store holds, as
-    /// a scan found them, so the next scan copies one gone from the store again.
+    /// Of `read`, the Library `library`'s Versions whose images `found` beside them differ from
+    /// those stored, or whose stored copy is gone from the store: the ones [`LocalImages::keep`]
+    /// should replace.
     ///
     /// # Errors
     ///
     /// If the database can't be read.
-    pub(crate) async fn stored(&self, library: i64) -> sqlx::Result<FoundImages> {
-        let mut found = FoundImages::new();
+    pub(crate) async fn changed(
+        &self,
+        library: i64,
+        read: Vec<i64>,
+        found: &FoundImages,
+    ) -> sqlx::Result<Vec<i64>> {
         let folder = library.to_string();
+        let mut stored = FoundImages::new();
+        let mut copy_gone = HashSet::new();
         for image in self.contents.local_images(library).await? {
-            // One the store can't tell about is copied again, which logs why if it still fails.
+            // One the store can't tell about counts as gone: copying it again logs why if it still
+            // fails, and one no longer beside the media falls back to the downloaded image.
             let key = [DIR, &folder, &image.stored];
             if self.store.contains(&key).await.unwrap_or(false) {
-                found.insert((image.version, image.role), image.file);
+                stored.insert((image.version, image.role), image.file);
+            } else {
+                copy_gone.insert(image.version);
             }
         }
-        Ok(found)
+        let differs = |version: &i64| {
+            copy_gone.contains(version)
+                || (ROLES.iter())
+                    .any(|&role| found.get(&(*version, role)) != stored.get(&(*version, role)))
+        };
+        Ok(read.into_iter().filter(differs).collect())
     }
 
     /// Replaces the images stored beside each of `versions`, in the Library `library`, with those
@@ -115,7 +133,7 @@ impl LocalImages {
         found: &FoundImages,
     ) -> sqlx::Result<()> {
         let mut kept = Vec::new();
-        let beside = |&version| [Role::Poster, Role::Backdrop].map(|role| (version, role));
+        let beside = |&version| ROLES.map(|role| (version, role));
         for (version, role) in versions.iter().flat_map(beside) {
             let Some(file) = found.get(&(version, role)) else {
                 continue;
