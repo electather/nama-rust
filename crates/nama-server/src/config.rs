@@ -10,13 +10,13 @@ use std::{
 };
 
 use figment::{
-    Figment,
+    Figment, Source,
     providers::{Env, Format, Serialized, Toml},
     value::{Dict, Value},
 };
 use nama_plugin_api::settings::SettingValue;
 use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// The config file read from the working directory when no file is named.
 pub const DEFAULT_FILE: &str = "nama.toml";
@@ -31,8 +31,8 @@ pub const FILE_ENV: &str = "NAMA_CONFIG";
 /// Everything a Server needs to know before it starts.
 // Its doc comments are also `docs/nama.schema.json`'s descriptions, which editors show users.
 // `Config::load` always supplies every key, so `default` changes no loading: it makes each key
-// optional in the schema, with its default shown. The schema flags unknown keys; the Server
-// doesn't yet (#842).
+// optional in the schema, with its default shown. The schema flags unknown keys; `Config::load`
+// only reports them, so a stray key can't stop the Server (#842).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(default)]
 #[schemars(deny_unknown_fields)]
@@ -169,18 +169,44 @@ impl Config {
     /// If `file` is given it must exist. If it isn't, [`DEFAULT_FILE`] in the working directory is
     /// read when present and skipped otherwise.
     ///
+    /// Also returns the file's keys the Server doesn't know, which it ignores, such as a typo. A
+    /// `NAMA_*` variable is never one, since unrelated programs use the prefix too.
+    ///
     /// # Errors
     ///
     /// If the named file is missing, or a layer has a value of the wrong type or syntax.
-    pub fn load(file: Option<&Path>) -> Result<Self, Box<figment::Error>> {
+    pub fn load(file: Option<&Path>) -> Result<(Self, Vec<String>), Box<figment::Error>> {
         let file = file.or_else(|| Some(Path::new(DEFAULT_FILE)).filter(|f| f.is_file()));
         let mut figment = Figment::from(Serialized::defaults(Self::default()));
         if let Some(file) = file {
             figment = figment.merge(Toml::file_exact(file));
         }
-        Ok(figment
-            .merge(Env::prefixed(ENV_PREFIX).ignore(&["config"]))
-            .extract()?)
+        let figment = figment.merge(Env::prefixed(ENV_PREFIX).ignore(&["config"]));
+        let NotingIgnored(config, ignored) = figment.extract()?;
+        // shortcut: a key also set by a `NAMA_*` variable, or a quoted key with a dot in it, isn't
+        // reported; check the file's own table instead if one is missed in practice.
+        let unknown_keys = ignored
+            .into_iter()
+            .filter(|key| {
+                figment
+                    .find_metadata(key)
+                    .is_some_and(|metadata| matches!(metadata.source, Some(Source::File(_))))
+            })
+            .collect();
+        Ok((config, unknown_keys))
+    }
+}
+
+/// A [`Config`] and the paths of the keys deserializing it ignored.
+// figment's own deserializer is private, so `serde_ignored` wraps it from inside `Deserialize`.
+struct NotingIgnored(Config, Vec<String>);
+
+impl<'de> Deserialize<'de> for NotingIgnored {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let mut ignored = Vec::new();
+        let config =
+            serde_ignored::deserialize(deserializer, |path| ignored.push(path.to_string()))?;
+        Ok(Self(config, ignored))
     }
 }
 
