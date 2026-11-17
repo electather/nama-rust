@@ -245,86 +245,51 @@ async fn a_recogniser_that_cant_tell_leaves_the_search_s_decision() {
     );
 }
 
-/// A Movies Library listing the title source `aa` and the Recogniser `rr`, and a Matcher.
-struct MoviesLibrary {
-    matcher: Matcher,
-    locks: ScanLocks,
-    library: i64,
-    contents: Contents,
-    /// What the Recogniser was asked.
-    asked: Asked,
-    _folders: [tempfile::TempDir; 2],
-}
-
-impl MoviesLibrary {
-    /// A Library holding `<title>/<title>.mkv` for each of `titles`, with a Recogniser answering
-    /// `answers`.
-    async fn holding(titles: &[&str], answers: Answers) -> Self {
-        let data = tempfile::tempdir().unwrap();
-        let media = tempfile::tempdir().unwrap();
-        let db = Arc::new(Database::open(data.path()).await.unwrap());
-        let library = fixture::movies_library(&db, media.path()).await;
-        let libraries = Libraries::new(Arc::clone(&db));
-        (libraries.set_title_sources(library, vec!["aa".to_owned()]))
-            .await
-            .unwrap();
-        (libraries.set_recognisers(library, vec!["rr".to_owned()]))
-            .await
-            .unwrap();
-        let contents = Contents::new(Arc::clone(&db));
-        let folder = media.path().canonicalize().unwrap();
-        let files = titles.iter().map(|title| Change::Store {
-            path: folder
-                .join(format!("{title}/{title}.mkv"))
-                .to_str()
-                .unwrap()
-                .to_owned(),
-            size: 10,
-            modified_ns: 0,
-            items: vec![Item::Movie {
-                title: (*title).to_owned(),
-                year: None,
-                hint: None,
-            }],
-        });
-        contents.apply(library, files.collect()).await.unwrap();
-        let (plugins, asked) = enabled(answers);
-        let images = ImageStore::new(data.path(), Arc::clone(&db));
-        let locks = ScanLocks::for_tests();
-        let matcher = Matcher::new(
-            Arc::clone(&db),
-            plugins.extension_points(),
-            Artwork::new(images, plugins.extension_points()),
-            EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
-            locks.clone(),
-        );
-        Self {
-            matcher,
-            locks,
-            library,
-            contents,
-            asked,
-            _folders: [data, media],
-        }
-    }
-
-    async fn match_library(&self) -> Summary {
-        let scan = self.locks.lock(self.library).await;
-        (self.matcher.match_library(&scan, &CancellationToken::new()))
-            .await
-            .unwrap()
-    }
-}
-
 /// Matches a Movies Library holding `Dark/Dark.mkv` with a Recogniser answering `answers`. Returns
 /// what Matching decided, the Items still undecided after, and what the Recogniser was asked.
 async fn match_dark_file(answers: Answers) -> (Summary, usize, Asked) {
-    let movies = MoviesLibrary::holding(&["Dark"], answers).await;
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let library = fixture::movies_library(&db, media.path()).await;
+    let libraries = Libraries::new(Arc::clone(&db));
+    (libraries.set_title_sources(library, vec!["aa".to_owned()]))
+        .await
+        .unwrap();
+    (libraries.set_recognisers(library, vec!["rr".to_owned()]))
+        .await
+        .unwrap();
+    let contents = Contents::new(Arc::clone(&db));
+    let path = media.path().canonicalize().unwrap().join("Dark/Dark.mkv");
+    let file = Change::Store {
+        path: path.to_str().unwrap().to_owned(),
+        size: 10,
+        modified_ns: 0,
+        items: vec![Item::Movie {
+            title: "Dark".to_owned(),
+            year: None,
+            hint: None,
+        }],
+    };
+    contents.apply(library, vec![file]).await.unwrap();
+    let (plugins, asked) = enabled(answers);
+    let images = ImageStore::new(data.path(), Arc::clone(&db));
+    let locks = ScanLocks::for_tests();
+    let matcher = Matcher::new(
+        Arc::clone(&db),
+        plugins.extension_points(),
+        Artwork::new(images, plugins.extension_points()),
+        EventBus::new(db, ExtensionPoints::default(), ServerUrl::default()),
+        locks.clone(),
+    );
 
-    let summary = movies.match_library().await;
-
-    let undecided = movies.contents.undecided(movies.library).await.unwrap();
-    (summary, undecided.len(), movies.asked)
+    let scan = locks.lock(library).await;
+    let summary = matcher
+        .match_library(&scan, &CancellationToken::new())
+        .await
+        .unwrap();
+    let undecided = contents.undecided(library).await.unwrap().len();
+    (summary, undecided, asked)
 }
 
 #[tokio::test]
@@ -348,33 +313,11 @@ async fn the_recogniser_receives_the_items_path_relative_to_the_library_folder()
     assert_eq!(asked[0].paths, ["Dark/Dark.mkv"]);
 }
 
-#[tokio::test]
-async fn a_recogniser_failing_on_several_titles_is_logged_once_per_match_with_the_count() {
-    let movies = MoviesLibrary::holding(&["Alien", "Dark", "Dune"], Answers::Fails).await;
-    let logged_failures = || async {
-        // The test's runtime has one thread, so Matching logs to it.
-        let log = CapturedLog::start();
-        movies.match_library().await;
-        let log = log.finish();
-        let failed: Vec<String> = (log.lines())
-            .filter(|line| line.contains("plugin=rr"))
-            .map(str::to_owned)
-            .collect();
-        (failed, log)
-    };
-
-    for _ in 0..2 {
-        let (failed, log) = logged_failures().await;
-        assert_eq!(failed.len(), 1, "{log}");
-        assert!(failed[0].contains("titles=3"), "{log}");
-    }
-}
-
-/// TMDB, and a Recogniser enabled and listed in both of `media`'s Libraries that fails for the
-/// title `failing`.
-async fn failing_for(failing: &'static str) -> Fixture {
+/// TMDB, and a Recogniser enabled and listed in both of `media`'s Libraries that answers
+/// `answers`.
+async fn recognising(answers: Answers) -> Fixture {
     let media = Fixture::new().await;
-    let recogniser = FakePlugin(Some((Answers::FailsFor(failing), Asked::default())));
+    let recogniser = FakePlugin(Some((answers, Asked::default())));
     media.plugins.enable(Arc::new(recogniser)).unwrap();
     for library in [media.movies.id, media.shows.id] {
         (media
@@ -393,7 +336,7 @@ async fn outcomes_after_scan(media: &Fixture, library: &Library) -> Vec<Outcome>
 
 #[tokio::test]
 async fn a_recogniser_failing_for_one_movie_leaves_the_next_movie_matched_in_the_same_pass() {
-    let media = failing_for("Alien").await;
+    let media = recognising(Answers::FailsFor("Alien")).await;
     media
         .movies
         .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])
@@ -410,7 +353,7 @@ async fn a_recogniser_failing_for_one_movie_leaves_the_next_movie_matched_in_the
 
 #[tokio::test]
 async fn a_recogniser_failing_for_one_show_leaves_another_shows_episodes_matched() {
-    let media = failing_for("Dark").await;
+    let media = recognising(Answers::FailsFor("Dark")).await;
     media
         .shows
         .write(
@@ -433,7 +376,7 @@ async fn a_recogniser_failing_for_one_show_leaves_another_shows_episodes_matched
 
 #[tokio::test]
 async fn a_recogniser_failing_for_one_title_still_lets_the_scan_refresh_outdated_matches() {
-    let media = failing_for("Alien").await;
+    let media = recognising(Answers::FailsFor("Alien")).await;
     media
         .movies
         .write("Dune (2021)/Dune (2021).mkv", &[movie("Dune", 2021)])
@@ -456,6 +399,31 @@ async fn a_recogniser_failing_for_one_title_still_lets_the_scan_refresh_outdated
         media.outcomes(&media.movies).await,
         [Outcome::Undecided, matched(438_631, "Dune")]
     );
+}
+
+#[tokio::test]
+async fn a_recogniser_failing_on_several_titles_is_logged_once_per_match_with_the_count() {
+    let media = recognising(Answers::Fails).await;
+    media
+        .movies
+        .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])
+        .await;
+    media
+        .movies
+        .write("Dune (2021)/Dune (2021).mkv", &[movie("Dune", 2021)])
+        .await;
+
+    for _ in 0..2 {
+        // The test's runtime has one thread, so Matching logs to it.
+        let log = CapturedLog::start();
+        media.scan(&media.movies).await;
+        let log = log.finish();
+        let failed: Vec<&str> = (log.lines())
+            .filter(|line| line.contains("plugin=rr"))
+            .collect();
+        assert_eq!(failed.len(), 1, "{log}");
+        assert!(failed[0].contains("titles=2"), "{log}");
+    }
 }
 
 #[test]

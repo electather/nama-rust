@@ -400,6 +400,8 @@ impl Matcher {
             // The only other failure of a read is the Library being gone, with nothing to Match.
             Err(_) => return Ok(Summary::default()),
         };
+        // Bound to a name, not `_`, so it logs once as this returns, by `?` or a cancel too.
+        let _failures_log = this.recognisers.failures_log();
         let Pending {
             movies,
             shows,
@@ -413,7 +415,6 @@ impl Matcher {
         let mut available = true;
         for (key, items) in movies {
             if cancel.is_cancelled() {
-                this.recognisers.log_failures();
                 return Err(Error::Cancelled);
             }
             if !available {
@@ -432,7 +433,6 @@ impl Matcher {
         }
         for (key, episodes) in shows {
             if cancel.is_cancelled() {
-                this.recognisers.log_failures();
                 return Err(Error::Cancelled);
             }
             if !available {
@@ -443,7 +443,6 @@ impl Matcher {
             available = !decided.any_undecided();
             self.store(library, decided, &mut summary).await?;
         }
-        this.recognisers.log_failures();
         if available {
             available = self.refresh(library, &this.metadata, cancel).await?;
         }

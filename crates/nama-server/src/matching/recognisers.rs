@@ -29,9 +29,26 @@ pub(super) struct Recognisers {
     plugins: ExtensionPoints,
     /// The Plugins asked, first asked first: none until [`Recognisers::in_order`] gives some.
     order: Vec<PluginId>,
-    /// Each Recogniser that failed since [`Recognisers::log_failures`] last ran: how many titles
-    /// it failed on, and its last error.
+    /// Each Recogniser that failed and isn't logged yet: how many titles it failed on, and its last
+    /// error.
     failed: Arc<Mutex<BTreeMap<PluginId, (usize, String)>>>,
+}
+
+/// What [`Recognisers::failures_log`] returns.
+pub(super) struct FailuresLog<'a>(&'a Recognisers);
+
+impl Drop for FailuresLog<'_> {
+    fn drop(&mut self) {
+        let failed = mem::take(&mut *self.0.failures());
+        for (plugin, (titles, last)) in failed {
+            tracing::warn!(
+                %plugin,
+                titles,
+                last_error = last,
+                "a Recogniser failed, so the titles it failed on are matched again on the next scan"
+            );
+        }
+    }
 }
 
 /// What a search for an Item's title found, which the Recognisers are asked about.
@@ -77,18 +94,11 @@ impl Recognisers {
         }
     }
 
-    /// Logs each Recogniser that failed since this last ran, once, with how many titles it
-    /// failed on and its last error. Matching calls it as it stops asking during a scan.
-    pub(super) fn log_failures(&self) {
-        let failed = mem::take(&mut *self.failures());
-        for (plugin, (titles, last)) in failed {
-            tracing::warn!(
-                %plugin,
-                titles,
-                last_error = last,
-                "a Recogniser failed, so the titles it failed on are matched again on the next scan"
-            );
-        }
+    /// Logs each Recogniser that failed, once, with how many titles it failed on and its last
+    /// error, when what this returns is dropped. Matching holds it while it asks during a scan, so
+    /// the log is written however it stops: done, cancelled or failing to store.
+    pub(super) const fn failures_log(&self) -> FailuresLog<'_> {
+        FailuresLog(self)
     }
 
     fn failures(&self) -> MutexGuard<'_, BTreeMap<PluginId, (usize, String)>> {
@@ -122,7 +132,7 @@ impl Recognisers {
 
     /// The well-formed ids the Plugin `plugin`'s Recogniser names for `asked`, in its order;
     /// `None` when it is no longer enabled or doesn't serve `recognise_title`. Records whether
-    /// the call failed for the Admin to see, and counts a failure for [`Self::log_failures`].
+    /// the call failed for the Admin to see, and counts a failure for [`Self::failures_log`].
     async fn ask(
         &self,
         plugin: &PluginId,
