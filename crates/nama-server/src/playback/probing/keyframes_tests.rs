@@ -4,6 +4,8 @@ use super::tests::Fixture;
 #[cfg(unix)]
 use super::tests::{fake_ffprobe, probe_runs, wait_for_probe};
 #[cfg(unix)]
+use super::{Error, ProbeError, ffprobe::WHOLE_FILE_TIMEOUT};
+#[cfg(unix)]
 use crate::ffmpeg::Ffmpeg;
 
 /// A fake ffprobe in `bin` that reads every file as a second-long Matroska file with no
@@ -11,6 +13,24 @@ use crate::ffmpeg::Ffmpeg;
 /// file lists differently. Each listing logs a line to `bin/runs` first, then takes a second.
 #[cfg(unix)]
 fn listing_ffprobe(bin: &std::path::Path) -> Ffmpeg {
+    ffprobe_listing_by(
+        bin,
+        r#"sleep 1
+    # macOS's wc pads the count with spaces.
+    printf '0.000000,K__\n%s.000000,K__\n' "$(wc -c < "$file" | tr -d ' ')""#,
+    )
+}
+
+/// As [`listing_ffprobe`], but each listing fails, as on a file ffprobe can't read through.
+#[cfg(unix)]
+fn failing_listing_ffprobe(bin: &std::path::Path) -> Ffmpeg {
+    ffprobe_listing_by(bin, "echo 'read failed' >&2; exit 1")
+}
+
+/// A fake ffprobe in `bin` that reads every file as a second-long Matroska file with no
+/// Tracks, and lists keyframes by running `listing`, after logging a line to `bin/runs`.
+#[cfg(unix)]
+fn ffprobe_listing_by(bin: &std::path::Path, listing: &str) -> Ffmpeg {
     let runs = bin.join("runs");
     fake_ffprobe(
         bin,
@@ -18,9 +38,7 @@ fn listing_ffprobe(bin: &std::path::Path) -> Ffmpeg {
             r#"for file; do :; done
 case "$*" in *packet=*)
     echo list >> '{}'
-    sleep 1
-    # macOS's wc pads the count with spaces.
-    printf '0.000000,K__\n%s.000000,K__\n' "$(wc -c < "$file" | tr -d ' ')"
+    {listing}
     exit ;;
 esac
 echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}}}'"#,
@@ -118,4 +136,91 @@ async fn a_versions_keyframes_are_listed_again_once_its_file_is_touched() {
     media.keyframes(alien).await;
 
     assert_eq!(probe_runs(bin.path()), 2);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_versions_keyframes_that_failed_to_list_arent_listed_again() {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(failing_listing_ffprobe(bin.path())).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+
+    media.probing.keyframes(version).await.unwrap_err();
+    media.probing.keyframes(version).await.unwrap_err();
+
+    assert_eq!(probe_runs(bin.path()), 1);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_its_file_changes() {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(failing_listing_ffprobe(bin.path())).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+    media.probing.keyframes(version).await.unwrap_err();
+
+    // Stored and probed again, as a scan and the plan after it would.
+    media.write_probed(alien, 20).await;
+    media.probing.keyframes(version).await.unwrap_err();
+
+    assert_eq!(probe_runs(bin.path()), 2);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_the_failure_version_is_bumped()
+ {
+    let bin = tempfile::tempdir().unwrap();
+    let media = Fixture::with_ffmpeg(failing_listing_ffprobe(bin.path())).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+    media.probing.keyframes(version).await.unwrap_err();
+
+    media.tracks.failed_by_older_failure_version(version).await;
+    media.probing.keyframes(version).await.unwrap_err();
+
+    assert_eq!(probe_runs(bin.path()), 2);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_versions_keyframes_that_timed_out_arent_listed_again() {
+    let bin = tempfile::tempdir().unwrap();
+    // `exec`, so the timeout's kill stops the sleep rather than leaving it orphaned.
+    let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), "exec sleep 3600")).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+    let probing = media.probing.clone();
+    let listing = tokio::spawn(async move { probing.keyframes(version).await });
+    wait_for_probe(&bin.path().join("runs")).await;
+
+    // After opening the database, whose pool times out by the clock.
+    tokio::time::pause();
+    tokio::time::advance(WHOLE_FILE_TIMEOUT).await;
+    // Real time again: storing the timeout writes SQLite, which a paused clock would race.
+    tokio::time::resume();
+    let timed_out = listing.await.unwrap();
+    // Bounded, so listing it again fails the test rather than sleeping out the fake's hour.
+    let again =
+        tokio::time::timeout(Duration::from_secs(5), media.probing.keyframes(version)).await;
+
+    assert!(
+        matches!(&timed_out, Err(Error::Probe(err)) if matches!(**err, ProbeError::TimedOut(_))),
+        "{timed_out:?}"
+    );
+    assert!(
+        again.is_ok_and(|again| again.is_err()),
+        "it was listed again"
+    );
+    assert_eq!(probe_runs(bin.path()), 1);
 }
