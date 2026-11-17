@@ -370,7 +370,7 @@ async fn a_failed_copy_keeps_the_old_store_and_never_saves_the_new_one() {
 }
 
 #[tokio::test]
-async fn a_mirror_refuses_a_file_over_the_object_limit_in_neither_store() {
+async fn a_mirror_refuses_a_file_over_the_object_limit_and_stores_it_in_neither() {
     let (old, new) = (Arc::new(InMemory::default()), Arc::new(InMemory::default()));
     let mirror = Mirror {
         old: as_blobs(&old),
