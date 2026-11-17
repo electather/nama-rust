@@ -274,9 +274,9 @@ fn listing(filter: Filter, sort: TitleSort, direction: Option<SortDirection>) ->
         min_year: filter.min_year,
         max_year: filter.max_year,
         watched: match filter.watched {
-            Some(WatchedFilter::Unwatched) => Some(Watched::Unwatched),
-            Some(WatchedFilter::InProgress) => Some(Watched::InProgress),
-            Some(WatchedFilter::Watched) => Some(Watched::Played),
+            Some(WatchedFilter::NotStarted) => Some(Watched::NotStarted),
+            Some(WatchedFilter::Started) => Some(Watched::Started),
+            Some(WatchedFilter::Played) => Some(Watched::Played),
             _ => None,
         },
         sort,

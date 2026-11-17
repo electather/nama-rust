@@ -71,9 +71,9 @@ const movieSorts = {
 const showSorts = { title: ShowSort.TITLE, added: ShowSort.ADDED, released: ShowSort.RELEASED };
 const watchedFilters = {
   any: WatchedFilter.UNSPECIFIED,
-  "not-started": WatchedFilter.UNWATCHED,
-  started: WatchedFilter.IN_PROGRESS,
-  played: WatchedFilter.WATCHED,
+  "not-started": WatchedFilter.NOT_STARTED,
+  started: WatchedFilter.STARTED,
+  played: WatchedFilter.PLAYED,
 };
 
 /**

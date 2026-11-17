@@ -106,6 +106,6 @@ test("choosing a sort or a filter asks for the first page of it", async () => {
   const last = asked.at(-1);
   expect(last?.sort).toBe(MovieSort.ADDED);
   expect(last?.direction).toBe(SortDirection.DESCENDING);
-  expect(last?.filter?.watched).toBe(WatchedFilter.UNWATCHED);
+  expect(last?.filter?.watched).toBe(WatchedFilter.NOT_STARTED);
   expect(last?.page?.token).toBe("");
 });

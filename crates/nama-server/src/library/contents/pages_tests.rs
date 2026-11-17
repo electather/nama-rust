@@ -266,9 +266,9 @@ async fn the_watched_filter_reads_the_users_watch_states_rolling_a_show_up() {
             .0
     };
 
-    assert_eq!(kept(fx.library, Watched::Unwatched).await, [3]);
-    assert_eq!(kept(fx.library, Watched::InProgress).await, [2]);
+    assert_eq!(kept(fx.library, Watched::NotStarted).await, [3]);
+    assert_eq!(kept(fx.library, Watched::Started).await, [2]);
     assert_eq!(kept(fx.library, Watched::Played).await, [1]);
-    assert_eq!(kept(shows.library, Watched::InProgress).await, [10]);
+    assert_eq!(kept(shows.library, Watched::Started).await, [10]);
     assert_eq!(kept(shows.library, Watched::Played).await, [20]);
 }

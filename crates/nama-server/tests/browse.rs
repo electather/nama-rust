@@ -977,7 +977,6 @@ async fn artwork_without_a_session_is_refused() {
     assert_eq!(reply.status, 401);
 }
 
-/// A Season as `GetShow` gives it.
 /// Each Show of `listed` by its id and poster, which its page has too.
 fn listed_as(listed: &[ShowSummary]) -> Vec<(Option<&ExternalId>, Option<&str>)> {
     (listed.iter())
@@ -985,6 +984,7 @@ fn listed_as(listed: &[ShowSummary]) -> Vec<(Option<&ExternalId>, Option<&str>)>
         .collect()
 }
 
+/// A Season as `GetShow` gives it.
 fn season(number: u32, poster_url: &str) -> Season {
     Season {
         number,

@@ -232,13 +232,13 @@ enum MovieSort {
 enum WatchedFilter {
   // All of them.
   WATCHED_FILTER_UNSPECIFIED = 0;
-  // Those they haven't started.
-  WATCHED_FILTER_UNWATCHED = 1;
+  // Those they haven't started: for a Show, one with no Episode started or played.
+  WATCHED_FILTER_NOT_STARTED = 1;
   // Those they've started and not played: for a Show, one with some Episodes started or played,
   // but not all played.
-  WATCHED_FILTER_IN_PROGRESS = 2;
+  WATCHED_FILTER_STARTED = 2;
   // Those they've played: for a Show, one with every Episode played.
-  WATCHED_FILTER_WATCHED = 3;
+  WATCHED_FILTER_PLAYED = 3;
 }
 
 // Which Movies `ListMovies` lists: those that pass every filter set.

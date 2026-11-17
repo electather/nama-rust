@@ -624,8 +624,8 @@ async fn a_page_token_is_refused_under_another_sort_or_filter_or_library() {
         descending: true,
         ..BY_TITLE
     };
-    let unwatched = Listing {
-        watched: Some(Watched::Unwatched),
+    let not_started = Listing {
+        watched: Some(Watched::NotStarted),
         ..BY_TITLE
     };
     let refused = async |library, listing| {
@@ -635,7 +635,7 @@ async fn a_page_token_is_refused_under_another_sort_or_filter_or_library() {
 
     assert!(!refused(alien.library, &by_title).await);
     assert!(refused(alien.library, &newest_first).await);
-    assert!(refused(alien.library, &unwatched).await);
+    assert!(refused(alien.library, &not_started).await);
     assert!(refused(elsewhere.library, &by_title).await);
 }
 

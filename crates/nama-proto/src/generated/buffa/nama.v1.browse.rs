@@ -487,27 +487,27 @@ impl ::buffa::Enumeration for MovieSort {
 pub enum WatchedFilter {
     /// All of them.
     WATCHED_FILTER_UNSPECIFIED = 0i32,
-    /// Those they haven't started.
-    WATCHED_FILTER_UNWATCHED = 1i32,
+    /// Those they haven't started: for a Show, one with no Episode started or played.
+    WATCHED_FILTER_NOT_STARTED = 1i32,
     /// Those they've started and not played: for a Show, one with some Episodes started or played,
     /// but not all played.
-    WATCHED_FILTER_IN_PROGRESS = 2i32,
+    WATCHED_FILTER_STARTED = 2i32,
     /// Those they've played: for a Show, one with every Episode played.
-    WATCHED_FILTER_WATCHED = 3i32,
+    WATCHED_FILTER_PLAYED = 3i32,
 }
 impl WatchedFilter {
     ///Idiomatic alias for [`Self::WATCHED_FILTER_UNSPECIFIED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const Unspecified: Self = Self::WATCHED_FILTER_UNSPECIFIED;
-    ///Idiomatic alias for [`Self::WATCHED_FILTER_UNWATCHED`]; `Debug` prints the variant name.
+    ///Idiomatic alias for [`Self::WATCHED_FILTER_NOT_STARTED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
-    pub const Unwatched: Self = Self::WATCHED_FILTER_UNWATCHED;
-    ///Idiomatic alias for [`Self::WATCHED_FILTER_IN_PROGRESS`]; `Debug` prints the variant name.
+    pub const NotStarted: Self = Self::WATCHED_FILTER_NOT_STARTED;
+    ///Idiomatic alias for [`Self::WATCHED_FILTER_STARTED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
-    pub const InProgress: Self = Self::WATCHED_FILTER_IN_PROGRESS;
-    ///Idiomatic alias for [`Self::WATCHED_FILTER_WATCHED`]; `Debug` prints the variant name.
+    pub const Started: Self = Self::WATCHED_FILTER_STARTED;
+    ///Idiomatic alias for [`Self::WATCHED_FILTER_PLAYED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
-    pub const Watched: Self = Self::WATCHED_FILTER_WATCHED;
+    pub const Played: Self = Self::WATCHED_FILTER_PLAYED;
 }
 impl ::core::default::Default for WatchedFilter {
     fn default() -> Self {
@@ -604,9 +604,9 @@ impl ::buffa::Enumeration for WatchedFilter {
     fn from_i32(value: i32) -> ::core::option::Option<Self> {
         match value {
             0i32 => ::core::option::Option::Some(Self::WATCHED_FILTER_UNSPECIFIED),
-            1i32 => ::core::option::Option::Some(Self::WATCHED_FILTER_UNWATCHED),
-            2i32 => ::core::option::Option::Some(Self::WATCHED_FILTER_IN_PROGRESS),
-            3i32 => ::core::option::Option::Some(Self::WATCHED_FILTER_WATCHED),
+            1i32 => ::core::option::Option::Some(Self::WATCHED_FILTER_NOT_STARTED),
+            2i32 => ::core::option::Option::Some(Self::WATCHED_FILTER_STARTED),
+            3i32 => ::core::option::Option::Some(Self::WATCHED_FILTER_PLAYED),
             _ => ::core::option::Option::None,
         }
     }
@@ -616,9 +616,9 @@ impl ::buffa::Enumeration for WatchedFilter {
     fn proto_name(&self) -> &'static str {
         match self {
             Self::WATCHED_FILTER_UNSPECIFIED => "WATCHED_FILTER_UNSPECIFIED",
-            Self::WATCHED_FILTER_UNWATCHED => "WATCHED_FILTER_UNWATCHED",
-            Self::WATCHED_FILTER_IN_PROGRESS => "WATCHED_FILTER_IN_PROGRESS",
-            Self::WATCHED_FILTER_WATCHED => "WATCHED_FILTER_WATCHED",
+            Self::WATCHED_FILTER_NOT_STARTED => "WATCHED_FILTER_NOT_STARTED",
+            Self::WATCHED_FILTER_STARTED => "WATCHED_FILTER_STARTED",
+            Self::WATCHED_FILTER_PLAYED => "WATCHED_FILTER_PLAYED",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -626,14 +626,14 @@ impl ::buffa::Enumeration for WatchedFilter {
             "WATCHED_FILTER_UNSPECIFIED" => {
                 ::core::option::Option::Some(Self::WATCHED_FILTER_UNSPECIFIED)
             }
-            "WATCHED_FILTER_UNWATCHED" => {
-                ::core::option::Option::Some(Self::WATCHED_FILTER_UNWATCHED)
+            "WATCHED_FILTER_NOT_STARTED" => {
+                ::core::option::Option::Some(Self::WATCHED_FILTER_NOT_STARTED)
             }
-            "WATCHED_FILTER_IN_PROGRESS" => {
-                ::core::option::Option::Some(Self::WATCHED_FILTER_IN_PROGRESS)
+            "WATCHED_FILTER_STARTED" => {
+                ::core::option::Option::Some(Self::WATCHED_FILTER_STARTED)
             }
-            "WATCHED_FILTER_WATCHED" => {
-                ::core::option::Option::Some(Self::WATCHED_FILTER_WATCHED)
+            "WATCHED_FILTER_PLAYED" => {
+                ::core::option::Option::Some(Self::WATCHED_FILTER_PLAYED)
             }
             _ => ::core::option::Option::None,
         }
@@ -641,9 +641,9 @@ impl ::buffa::Enumeration for WatchedFilter {
     fn values() -> &'static [Self] {
         &[
             Self::WATCHED_FILTER_UNSPECIFIED,
-            Self::WATCHED_FILTER_UNWATCHED,
-            Self::WATCHED_FILTER_IN_PROGRESS,
-            Self::WATCHED_FILTER_WATCHED,
+            Self::WATCHED_FILTER_NOT_STARTED,
+            Self::WATCHED_FILTER_STARTED,
+            Self::WATCHED_FILTER_PLAYED,
         ]
     }
 }

@@ -23,9 +23,9 @@ pub(crate) enum TitleSort {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Watched {
     /// None started.
-    Unwatched,
+    NotStarted,
     /// Some started or played, not all played.
-    InProgress,
+    Started,
     /// All played.
     Played,
 }
@@ -68,8 +68,8 @@ impl Contents {
         let genres = (!listing.genres.is_empty())
             .then(|| serde_json::Value::from(listing.genres.clone()).to_string());
         let watched = listing.watched.map(|watched| match watched {
-            Watched::Unwatched => "unwatched",
-            Watched::InProgress => "in_progress",
+            Watched::NotStarted => "not_started",
+            Watched::Started => "started",
             Watched::Played => "played",
         });
         let (after_key, after_id) = page.after.clone().unzip();
@@ -115,8 +115,8 @@ impl Contents {
                                       MAX(added_at) OVER title) AS added_at,
                                   CASE WHEN TOTAL(played) OVER title = COUNT(*) OVER title
                                            THEN 'played'
-                                       WHEN COUNT(played) OVER title > 0 THEN 'in_progress'
-                                       ELSE 'unwatched' END AS watched
+                                       WHEN COUNT(played) OVER title > 0 THEN 'started'
+                                       ELSE 'not_started' END AS watched
                            FROM items
                            WHERE listed_id IS NOT NULL
                            WINDOW title AS (PARTITION BY listed_id
