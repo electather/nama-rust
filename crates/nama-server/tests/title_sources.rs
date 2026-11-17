@@ -167,6 +167,20 @@ async fn an_order_naming_a_namespace_no_plugin_keeps_is_refused() {
 }
 
 #[tokio::test]
+async fn an_order_may_name_an_installed_source_before_it_is_enabled() {
+    let server = TestServer::builder().start().await;
+    let dir = tempfile::tempdir().unwrap();
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let created = libraries
+        .create_library(library_in(&dir, "Shows", &["tvdb"]))
+        .await;
+
+    let created = created.unwrap().into_owned().library.into_option().unwrap();
+    assert_eq!(created.title_sources, ["tvdb"]);
+}
+
+#[tokio::test]
 async fn an_empty_order_is_refused_while_no_source_searching_keeps_the_default() {
     let plugins = Registry::new();
     plugins.describe_builtin(|| Arc::new(Declares("tmdb", None)));
