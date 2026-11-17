@@ -51,9 +51,31 @@ pub enum OpenError {
     /// SQLite couldn't open or set up the database file.
     #[error("could not open the database: {0}")]
     Sqlx(#[from] sqlx::Error),
-    /// A migration failed, or the database has migrations this binary doesn't know.
+    /// A newer version of Nama upgraded the database; holds the version of the migration this
+    /// one doesn't have.
+    #[error(
+        "the database was upgraded by a newer version of Nama (migration {0} is unknown to this \
+         one): run that version, or go back to the copy in {BEFORE_UPGRADE_FILE_NAME} as the \
+         README says"
+    )]
+    NewerVersion(i64),
+    /// A migration failed.
     #[error("could not migrate the database: {0}")]
-    Migrate(#[from] MigrateError),
+    Migrate(#[source] MigrateError),
+    /// The upgrade left a row whose foreign key points at nothing, so none of it was applied.
+    #[error(
+        "upgrading the database would leave row {} of {table} pointing at a missing row of \
+         {parent}, so it was left as it was",
+        rowid.map_or_else(|| "?".to_owned(), |id| id.to_string())
+    )]
+    BrokenForeignKey {
+        /// The table holding the row.
+        table: String,
+        /// The row's rowid, or `None` in a `WITHOUT ROWID` table.
+        rowid: Option<i64>,
+        /// The table its key points into.
+        parent: String,
+    },
     /// The copy to go back to couldn't be written, so the database was left as it was.
     #[error(
         "could not copy the database to {BEFORE_UPGRADE_FILE_NAME} before upgrading it, so it was \
@@ -68,6 +90,16 @@ pub enum OpenError {
         /// Why the copy failed.
         source: sqlx::Error,
     },
+}
+
+impl From<MigrateError> for OpenError {
+    fn from(err: MigrateError) -> Self {
+        if let MigrateError::VersionMissing(version) = err {
+            Self::NewerVersion(version)
+        } else {
+            Self::Migrate(err)
+        }
+    }
 }
 
 /// The future a write returns, which may borrow the transaction it was given.
@@ -349,8 +381,68 @@ async fn migrate(conn: &mut SqliteConnection, data_dir: &Path) -> Result<Vec<i64
             });
         }
     }
-    MIGRATOR.run(&mut *conn).await?;
+    if pending.is_empty() {
+        // Still run: it's what fails on a database a newer Server upgraded. Nothing to check keys
+        // for, and a row broken before keys were enforced mustn't stop every start.
+        MIGRATOR.run(&mut *conn).await?;
+        return Ok(pending);
+    }
+    // SQLite ignores this pragma inside a transaction, so it goes off before the upgrade's opens
+    // (ADR 0060): with it on, a rebuild's `DROP TABLE` would cascade into the rows referencing it.
+    sqlx::query!("PRAGMA foreign_keys = OFF")
+        .execute(&mut *conn)
+        .await?;
+    let upgraded = upgrade(conn).await;
+    // The upgrade's own error says more than one turning foreign keys back on.
+    let restored = sqlx::query!("PRAGMA foreign_keys = ON")
+        .execute(&mut *conn)
+        .await;
+    upgraded?;
+    restored?;
     Ok(pending)
+}
+
+/// Runs the migrations in one transaction, so an upgrade that fails part way leaves the database as
+/// it was (ADR 0060). Each migration's own transaction nests in it as a savepoint.
+async fn upgrade(conn: &mut SqliteConnection) -> Result<(), OpenError> {
+    // IMMEDIATE takes the write lock up front, so a second Server on the same data directory
+    // fails busy before it changes anything.
+    let mut tx = conn.begin_with("BEGIN IMMEDIATE").await?;
+    let upgraded = async {
+        MIGRATOR.run(&mut *tx).await?;
+        // The casts are for sqlx, which can't look up the pragma's own columns' types.
+        let broken = sqlx::query!(
+            r#"SELECT CAST("table" AS TEXT) AS "table!: String",
+                      CAST(rowid AS INTEGER) AS "rowid?: i64",
+                      CAST(parent AS TEXT) AS "parent!: String"
+               FROM pragma_foreign_key_check"#
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
+        match broken {
+            Some(row) => Err(OpenError::BrokenForeignKey {
+                table: row.table,
+                rowid: row.rowid,
+                parent: row.parent,
+            }),
+            None => Ok(()),
+        }
+    }
+    .await;
+    match upgraded {
+        Ok(()) => {
+            tx.commit().await?;
+            Ok(())
+        }
+        Err(err) => {
+            // Rolled back here, not on drop: `PRAGMA foreign_keys = ON` comes next, and SQLite
+            // ignores it inside a transaction.
+            if let Err(rollback) = tx.rollback().await {
+                tracing::warn!("could not roll back a failed upgrade: {rollback}");
+            }
+            Err(err)
+        }
+    }
 }
 
 /// Writes a copy of the database to [`BEFORE_UPGRADE_FILE_NAME`], replacing the last upgrade's.

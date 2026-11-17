@@ -1,0 +1,35 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT CAST(\"table\" AS TEXT) AS \"table!: String\",\n                      CAST(rowid AS INTEGER) AS \"rowid?: i64\",\n                      CAST(parent AS TEXT) AS \"parent!: String\"\n               FROM pragma_foreign_key_check",
+  "describe": {
+    "columns": [
+      {
+        "name": "table!: String",
+        "ordinal": 0,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "rowid?: i64",
+        "ordinal": 1,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "parent!: String",
+        "ordinal": 2,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "14ed3182f020c17950336b235b281c65010fc34205d060b9a9ea5fbbda37f821"
+}
