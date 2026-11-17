@@ -163,8 +163,8 @@ fn clean(library: &Library, cutoffs: Cutoffs, now_ms: i64) -> Result<Vec<String>
             .filter_map(|title| Some((title.title_ref.as_option()?.clone(), title.added_at_ms)))
             .unzip();
         listed.extend(titles.iter().map(Key::of));
-        // Both answer each title asked, in the order asked; a pair naming another title is
-        // kept rather than judged, since the contract doesn't promise that order.
+        // The contract promises an answer for each title asked, not that it comes in the order
+        // asked, so a pair naming another title is kept rather than judged.
         let judged = (kernel::requesters(&titles)?.into_iter()).zip(kernel::watch_states(&titles)?);
         for ((title, added_at_ms), (requesters, watched)) in
             titles.into_iter().zip(added).zip(judged)

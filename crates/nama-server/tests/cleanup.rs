@@ -88,11 +88,23 @@ async fn ask(server: &TestServer, who: &SignedIn, movies: &[i64]) {
 
 /// Sets the Cleanup to clean `library`, by its id, with [`DAYS`] and [`DAYS_UNWATCHED`], and
 /// enables it granting `granted`.
+async fn enable_cleanup(server: &TestServer, library: &Library, granted: &[PluginPermission]) {
+    let days = [("days", DAYS), ("days_unwatched", DAYS_UNWATCHED)];
+    enable_cleanup_storing(server, library, granted, &days).await;
+}
+
+/// Sets the Cleanup to clean `library`, by its id, storing each of `days` under its key and
+/// leaving any other at its default, and enables it granting `granted`.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn enable_cleanup(server: &TestServer, library: &Library, granted: &[PluginPermission]) {
+async fn enable_cleanup_storing(
+    server: &TestServer,
+    library: &Library,
+    granted: &[PluginPermission],
+    days: &[(&str, u64)],
+) {
     let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.client_config());
     let setting = |key: &str, value: Value| {
         let value = SettingValue {
@@ -104,22 +116,16 @@ async fn enable_cleanup(server: &TestServer, library: &Library, granted: &[Plugi
     plugins
         .update_plugin_settings(UpdatePluginSettingsRequest {
             id: CLEANUP.to_owned(),
-            settings: [
-                setting("days", Value::IntegerValue(DAYS.try_into().unwrap())),
-                setting(
-                    "days_unwatched",
-                    Value::IntegerValue(DAYS_UNWATCHED.try_into().unwrap()),
-                ),
-                setting(
+            settings: (days.iter())
+                .map(|&(key, days)| setting(key, Value::IntegerValue(days.try_into().unwrap())))
+                .chain([setting(
                     "libraries",
                     Value::LibraryIds(Box::new(LibraryIds {
                         ids: vec![library.id],
                         ..Default::default()
                     })),
-                ),
-            ]
-            .into_iter()
-            .collect(),
+                )])
+                .collect(),
             ..Default::default()
         })
         .await
@@ -350,6 +356,20 @@ async fn dune_alone_is_deleted_next(
 async fn a_movie_its_requester_watched_past_the_limit_is_deleted_and_a_recent_one_kept() {
     let (server, library) = alien_and_dune_the_admin_asked_for().await;
     enable_cleanup(&server, &library, &EVERY_PERMISSION).await;
+    mark_played(&server, &library, ALIEN).await;
+    past_the_limit(&server);
+    mark_played(&server, &library, DUNE).await;
+
+    server.tick(CLEANUP).await.unwrap();
+
+    wait_for_movies(&server, &library, &[DUNE]).await;
+}
+
+/// A Cleanup set up before `days_unwatched` existed has `days` alone stored.
+#[tokio::test]
+async fn a_days_stored_before_days_unwatched_existed_still_applies() {
+    let (server, library) = alien_and_dune_the_admin_asked_for().await;
+    enable_cleanup_storing(&server, &library, &EVERY_PERMISSION, &[("days", DAYS)]).await;
     mark_played(&server, &library, ALIEN).await;
     past_the_limit(&server);
     mark_played(&server, &library, DUNE).await;
