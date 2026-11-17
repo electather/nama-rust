@@ -81,7 +81,6 @@ async fn set_webhook(user: &SignedIn, webhook: &str) {
     save_webhook(user, webhook).await.unwrap();
 }
 
-/// `user` asks to set their Discord webhook to `webhook`.
 async fn save_webhook(user: &SignedIn, webhook: &str) -> Result<(), ConnectError> {
     users(user)
         .update_personal_settings(UpdatePersonalSettingsRequest {
