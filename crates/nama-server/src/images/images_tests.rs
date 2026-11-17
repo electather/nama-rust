@@ -46,6 +46,7 @@ async fn a_write_over_the_object_size_limit_is_refused_and_stores_nothing() {
         refused.to_string().contains("artwork/tmdb/%2Fposter.jpg"),
         "{refused}"
     );
+    assert!(refused.to_string().contains("20 MiB"), "{refused}");
     assert!(!store.contains(KEY).await.unwrap());
 }
 
