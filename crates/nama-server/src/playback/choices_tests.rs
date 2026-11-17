@@ -1,6 +1,6 @@
 use nama_proto::nama::v1::{PlaybackReasonKind as Kind, SubtitleFormat};
 
-use crate::ffmpeg::{BurnIn, TextSubtitle};
+use crate::ffmpeg::{BurnIn, ImageSubtitle, TextSubtitle};
 use crate::playback::{
     DeviceDecoding, Facts, Method, Sidecar, Subtitle, build,
     tests::{
@@ -450,6 +450,39 @@ fn an_ass_sidecar_beside_a_file_with_fonts_is_burned_in_from_its_path_on_a_devic
                 charset: None,
             }
         })
+    );
+}
+
+#[test]
+fn a_pgs_sidecar_is_burned_in_from_its_path_on_a_device_that_doesnt_draw_pgs() {
+    let sidecar = Track {
+        kind: TrackKind::Subtitle {
+            image: true,
+            header: false,
+            sidecar: Some(Sidecar {
+                path: "/media/Alien.en.sup".to_owned(),
+                size: 1,
+                modified_ns: 2,
+            }),
+        },
+        ..pgs()
+    };
+    let tracks = vec![video("h264"), audio("aac", true), pgs(), pgs(), sidecar];
+    let mut facts = Facts {
+        subtitle: Some(4),
+        ..facts(Some(tracks))
+    };
+
+    let plan = build(&mut facts);
+
+    assert_eq!(plan.burn_in, Some(4));
+    let burn_in = transcoded(&plan).video.burn_in;
+    assert!(
+        matches!(
+            &burn_in,
+            Some(BurnIn::Image { subtitle: ImageSubtitle::Sidecar(path), .. }) if path == "/media/Alien.en.sup"
+        ),
+        "{burn_in:?}"
     );
 }
 
