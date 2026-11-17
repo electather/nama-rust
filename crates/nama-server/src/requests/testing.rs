@@ -688,13 +688,11 @@ pub(super) async fn match_show_episodes(
 ) {
     let folder = tempfile::tempdir().unwrap();
     let root = folder.path().canonicalize().unwrap();
+    let root = root.to_str().unwrap();
     let contents = Contents::new(Arc::clone(db));
+    // Named after its folder, as a test may Match into more than one.
     let library = Libraries::new(Arc::clone(db))
-        .create(
-            "Shows",
-            LibraryKind::Shows,
-            vec![root.to_str().unwrap().to_owned()],
-        )
+        .create(root, LibraryKind::Shows, vec![root.to_owned()])
         .await
         .unwrap()
         .id;

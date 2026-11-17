@@ -70,7 +70,7 @@ async fn a_library_asks_only_its_own_title_sources() {
     libraries
         .update_library(UpdateLibraryRequest {
             id: library.id,
-            name: "Media".to_owned(),
+            name: library.folder().to_str().unwrap().to_owned(),
             folders: vec![library.folder().to_str().unwrap().to_owned()],
             title_sources: vec!["tmdb".to_owned()],
             ..Default::default()

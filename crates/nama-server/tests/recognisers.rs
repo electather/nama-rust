@@ -80,7 +80,7 @@ async fn update_recognisers(
     libraries(server)
         .update_library(UpdateLibraryRequest {
             id: library.id,
-            name: "Media".to_owned(),
+            name: library.folder().to_string_lossy().into_owned(),
             folders: vec![library.folder().to_string_lossy().into_owned()],
             recogniser_order: order
                 .map(|order| RecogniserOrder {

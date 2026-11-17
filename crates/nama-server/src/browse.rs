@@ -309,6 +309,7 @@ fn finding_failed(err: LibraryError) -> Error {
         LibraryError::NotFound(id) => Error::NoSuchLibrary(id),
         LibraryError::Database(err) => Error::Database(err),
         LibraryError::NameBlank
+        | LibraryError::NameTaken { .. }
         | LibraryError::FoldersEmpty
         | LibraryError::Folder { .. }
         | LibraryError::FolderTaken { .. }

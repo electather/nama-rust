@@ -76,6 +76,9 @@ enum RefusalReason {
 
   // `not_found`: there is no Library with the ID. Params: `libraryId`.
   REFUSAL_REASON_LIBRARY_NOT_FOUND = 20;
+  // `already_exists`: another Library already has the name, ignoring case. `field` is `name`.
+  // Params: `library` (the other Library's name).
+  REFUSAL_REASON_LIBRARY_NAME_TAKEN = 84;
   // `already_exists`: a folder already belongs to another Library. Params: `folder`, `library`
   // (the other Library's name).
   REFUSAL_REASON_FOLDER_TAKEN = 21;
