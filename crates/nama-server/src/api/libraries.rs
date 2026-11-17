@@ -168,13 +168,16 @@ impl LibraryService for LibraryServiceHandler {
         Response::ok(ListLibrariesResponse {
             libraries: libraries
                 .into_iter()
-                .map(|library| Library {
-                    folders: if sees_folders {
-                        library.folders
+                .map(|library| {
+                    if sees_folders {
+                        library
                     } else {
-                        Vec::new()
-                    },
-                    ..library
+                        Library {
+                            folders: Vec::new(),
+                            empty_folders: Vec::new(),
+                            ..library
+                        }
+                    }
                 })
                 .map(|library| library_to_proto(library, &backdrops))
                 .collect(),
@@ -241,7 +244,10 @@ impl LibraryService for LibraryServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, ScanLibraryRequest>,
     ) -> ServiceResult<ScanLibraryResponse> {
-        self.scanner.start(request.id).await?;
+        match request.remove_missing_in {
+            Some(folder) => (self.scanner.remove_missing(request.id, folder.to_owned())).await?,
+            None => self.scanner.start(request.id).await?,
+        }
         Response::ok(ScanLibraryResponse::default())
     }
 
@@ -500,6 +506,7 @@ fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
         custom_backdrop,
         title_sources: library.title_sources,
         recogniser_ids: library.recognisers,
+        empty_folders: library.empty_folders,
         ..Default::default()
     }
 }

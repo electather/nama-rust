@@ -80,6 +80,13 @@ impl Fixture {
         self.media.write(relative, contents);
     }
 
+    /// Deletes `relative` from the Library's folder, beside another file: a folder that reads empty
+    /// keeps its items, as a missing mount would (#911).
+    pub(crate) fn remove_file(&self, relative: &str) {
+        self.write("notes.txt", b"");
+        std::fs::remove_file(self.folder.join(relative)).unwrap();
+    }
+
     /// Scans the Library until Matching has finished, and returns the first Item the scan stored
     /// for each file, by its path in the Library.
     pub(crate) async fn scan_and_match(&self) -> HashMap<String, i64> {
