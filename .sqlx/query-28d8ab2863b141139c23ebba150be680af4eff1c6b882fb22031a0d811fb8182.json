@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH requested AS (\n               SELECT DISTINCT requests.id FROM requests\n               JOIN request_title_ids AS title ON title.request_id = requests.id\n               JOIN json_each(?1) AS wanted\n                   ON title.namespace = wanted.key AND title.value = wanted.value\n               WHERE requests.season IS ?2 AND requests.state != 'declined')\n           SELECT requesters.user_id AS \"user_id?: i64\" FROM requested\n           LEFT JOIN requesters ON requesters.request_id = requested.id\n           UNION\n           SELECT followed.user_id FROM requested\n           JOIN request_followed_shows AS asked ON asked.request_id = requested.id\n           JOIN followed_shows ON followed_shows.id = asked.followed_show_id\n           JOIN followed_show_requesters AS followed\n               ON followed.followed_show_id = followed_shows.id\n           WHERE followed_shows.state != 'declined'\n           ORDER BY 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_id?: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "requesters",
+            "name": "user_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "28d8ab2863b141139c23ebba150be680af4eff1c6b882fb22031a0d811fb8182"
+}

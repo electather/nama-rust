@@ -5,10 +5,12 @@ use nama_proto::nama::v1::{ListRequestsResponse, PageRequest, Permission, Reques
 
 use super::{Asked, join, who_requested};
 use crate::requests::apply::Applied;
+use crate::requests::asking::ask_seasons;
 use crate::requests::deciding::decline;
+use crate::requests::followed::decide_followed;
 use crate::requests::testing::{
-    ADA, BOB, DARK, NOTHING, ada, ada_and_bob, ask_for, dark, follow_as, handed_off, requests_on,
-    said, user,
+    ADA, BOB, DARK, NOTHING, ada, ada_and_bob, ask_for, dark, dark_with_seasons, follow_as,
+    handed_off, match_dark_episodes, read, requests_on, said, user,
 };
 use crate::requests::{Error, Requests};
 use crate::{
@@ -395,6 +397,112 @@ async fn an_episode_has_its_season_requests_and_followed_shows_requesters() {
     assert_eq!(requested(&db, &dark, Some(1)).await, Some(vec![ADA, BOB]));
     assert_eq!(requested(&db, &dark, Some(2)).await, Some(vec![ADA]));
     assert_eq!(requested(&db, &dark, Some(3)).await, None);
+}
+
+const CAROL: i64 = 3;
+
+/// Ada asks for Dark's Season 1 on her own. Returns its Request's id.
+async fn ada_asks_for_season_1(db: &Database) -> i64 {
+    db.write(|tx| {
+        Box::pin(ask_seasons(
+            tx,
+            ADA,
+            dark_with_seasons([1]),
+            RequestState::Pending,
+        ))
+    })
+    .await
+    .unwrap()
+    .value[0]
+        .id
+}
+
+/// Ada asks for Dark's Season 1 on her own, Bob then follows Dark, joining it, and a Library gets
+/// Season 1 in full before Carol follows Dark too, so Carol isn't a Requester of Season 1 herself.
+/// Returns the Followed Show's id and Season 1's Request's.
+async fn ada_asks_then_bob_and_carol_follow(db: &Arc<Database>) -> (i64, i64) {
+    let season_1 = ada_asks_for_season_1(db).await;
+    let followed = follow_as(db, BOB, dark(), RequestState::Pending)
+        .await
+        .value
+        .0
+        .id;
+    match_dark_episodes(db, 1, &[1, 2]).await;
+    db.write(|tx| {
+        Box::pin(
+            sqlx::query(
+                "INSERT INTO users (username, display_username, permissions, created_at,
+                                    updated_at)
+                 VALUES ('carol', 'Carol', 0, 0, 0)",
+            )
+            .execute(&mut **tx),
+        )
+    })
+    .await
+    .unwrap();
+    follow_as(db, CAROL, dark(), RequestState::Pending).await;
+    (followed, season_1)
+}
+
+#[tokio::test]
+async fn a_season_a_followed_show_joined_has_its_requesters_while_requested_and_once_available() {
+    let (_data, db) = ada_and_bob().await;
+    let (_, season_1) = ada_asks_then_bob_and_carol_follow(&db).await;
+    let dark = [ExternalId::tmdb(DARK)];
+    let pending = requested(&db, &dark, Some(1)).await;
+
+    db.write(move |tx| {
+        Box::pin(
+            sqlx::query("UPDATE requests SET state = 'available' WHERE id = ?")
+                .bind(season_1)
+                .execute(&mut **tx),
+        )
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(pending, Some(vec![ADA, BOB, CAROL]));
+    assert_eq!(
+        requested(&db, &dark, Some(1)).await,
+        Some(vec![ADA, BOB, CAROL])
+    );
+}
+
+#[tokio::test]
+async fn a_season_a_followed_show_skipped_lacks_its_requesters() {
+    let (_data, db) = ada_and_bob().await;
+    ada_asks_for_season_1(&db).await;
+    match_dark_episodes(&db, 1, &[1, 2]).await;
+
+    follow_as(&db, BOB, dark(), RequestState::Pending).await;
+
+    let dark = [ExternalId::tmdb(DARK)];
+    assert_eq!(requested(&db, &dark, Some(1)).await, Some(vec![ADA]));
+    assert_eq!(requested(&db, &dark, Some(2)).await, Some(vec![BOB]));
+}
+
+#[tokio::test]
+async fn declining_a_followed_show_drops_its_requesters_but_not_a_season_request_it_joined() {
+    let (_data, db) = ada_and_bob().await;
+    let (followed, season_1) = ada_asks_then_bob_and_carol_follow(&db).await;
+    let dark = [ExternalId::tmdb(DARK)];
+    let before = requested(&db, &dark, Some(1)).await;
+
+    db.write(move |tx| {
+        Box::pin(decide_followed(
+            tx,
+            followed,
+            RequestState::Declined,
+            None,
+            None,
+        ))
+    })
+    .await
+    .unwrap();
+
+    assert_eq!(before, Some(vec![ADA, BOB, CAROL]));
+    assert_eq!(read(&db, season_1).await.state, RequestState::Pending);
+    assert_eq!(requested(&db, &dark, Some(1)).await, Some(vec![ADA, BOB]));
 }
 
 #[tokio::test]
