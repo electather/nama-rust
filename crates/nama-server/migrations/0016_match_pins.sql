@@ -17,6 +17,6 @@ CREATE TABLE match_pins (
     pinned_at INTEGER NOT NULL
 ) STRICT;
 
--- One pin per name. `year` and `tmdb_id` may be NULL, which a plain UNIQUE would let repeat.
+-- One pin per name. `year` and `hint` may be NULL, which a plain UNIQUE would let repeat.
 CREATE UNIQUE INDEX match_pins_by_name
 ON match_pins (library_id, kind, title, ifnull(year, -1), ifnull(hint, ''));

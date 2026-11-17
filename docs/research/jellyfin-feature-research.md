@@ -53,7 +53,7 @@ Where the ledgers disagree on a tier or a status, the table of what I picked is 
 
 Strict test: a Jellyfin or Plex household would reject Nama without it, **and** Jellyfin has it today, at least in part. Everything else is in Lists 2-4.
 
-**Already table stakes in Nama** (met, so not listed below): multiple Users with Permissions; mark played and unplayed (`web/src/components/mark-played-menu.tsx`); Library search (FTS5 with diacritic folding, `migrations/0042_title_search.sql`); Match and Pinned Match (identify); GPU Transcodes; a quality menu (`playback-limit-menu.tsx`) plus a default Playback Limit for remote playback; audio and subtitle Track menus; trusted reverse-proxy headers (ADR 0018); the Sign-in Code.
+**Already table stakes in Nama** (met, so not listed below): multiple Users with Permissions; mark played and unplayed (`web/src/components/mark-played-menu.tsx`); Library search (FTS5 with diacritic folding, `crates/nama-server/migrations/0036_title_search.sql`); Match and Pinned Match (identify); GPU Transcodes; a quality menu (`playback-limit-menu.tsx`) plus a default Playback Limit for remote playback; audio and subtitle Track menus; trusted reverse-proxy headers (ADR 0018); the Sign-in Code.
 
 ### Watching on devices
 

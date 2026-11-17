@@ -14,8 +14,8 @@ impl Permissions {
     /// What the first Admin gets.
     pub(crate) const ADMIN: Self = Self(bit(Permission::Admin));
 
-    /// What a new User gets until the default set is changed: what a fresh or upgraded Server's
-    /// starts as (migration 0012).
+    /// What a new User gets until the default set is changed: what a new Server's starts as
+    /// (`migrations/0002_default_permissions.sql`).
     #[cfg(test)]
     pub(crate) const NEW_USER: Self =
         Self(bit(Permission::Request) | bit(Permission::ViewRequests));

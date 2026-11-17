@@ -416,6 +416,7 @@ const TABLE_FILES: i64 = 36;
 // the order parallel migrations ran in.
 #[test]
 fn every_migration_after_the_table_files_is_named_by_utc_timestamp() {
+    // 14 digits, as `YYYYMMDDHHMMSS` has.
     let timestamped = 10_000_000_000_000..100_000_000_000_000;
     let misnamed: Vec<String> = sqlx::migrate!()
         .iter()

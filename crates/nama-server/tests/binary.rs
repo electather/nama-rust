@@ -138,9 +138,9 @@ fn server_logs_its_config_creates_its_database_serves_the_api_and_exits_cleanly_
 
     // A fresh data directory gets a new database, and the log says which migrations it applied.
     let database_line = wait_for_line(&lines, "opened database");
+    let every: Vec<i64> = sqlx::migrate!().iter().map(|m| m.version).collect();
     assert!(
-        database_line.contains("migrations_applied=[")
-            && !database_line.contains("migrations_applied=[]"),
+        database_line.contains(&format!("migrations_applied={every:?}")),
         "{database_line}"
     );
     assert!(data_dir.join("nama.db").is_file());

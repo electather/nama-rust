@@ -9,8 +9,7 @@ CREATE TABLE version_probes (
     -- Overall, in bits per second.
     bitrate INTEGER,
     -- The size and modified time of the file each Version was probed at, so a file changed since is
-    -- probed again. Rows probed before these existed get a size of -1, which no file has, so they're
-    -- probed again too.
+    -- probed again. The default, -1, is no file's size, so a row left at it is probed again too.
     size INTEGER NOT NULL DEFAULT -1,
     modified_ns INTEGER NOT NULL DEFAULT -1,
     -- When each keyframe of a Version's first video falls, in milliseconds, as a JSON array: listed
@@ -18,15 +17,14 @@ CREATE TABLE version_probes (
     -- probed again has them listed again.
     keyframes_ms TEXT,
     -- The fonts a Version's file carries, as a JSON array of each one's place among the file's
-    -- attachments, which is how ffmpeg picks it out. Files probed before it hold none until
-    -- PROBE_VERSION 7 probes them again.
+    -- attachments, which is how ffmpeg picks it out.
     font_attachments TEXT NOT NULL DEFAULT '[]',
     -- The `PROBE_FAILURE_VERSION` at which listing a Version's keyframes failed or timed out, or NULL
     -- if it hasn't. It goes with its row, as `keyframes_ms` does, so a file that changes and is
     -- probed again has them listed again, and listing isn't tried again until then or a bump (#850).
     keyframes_failure_version INTEGER,
     -- When a Version's file starts, in milliseconds, as Probing read it with `keyframes_ms`: a Remux
-    -- cuts copied audio by it in a file that starts late, such as an MPEG-TS (#944). NULL in a row
-    -- listed before the Server read it, whose keyframes are then listed again.
+    -- cuts copied audio by it in a file that starts late, such as an MPEG-TS (#944). Keyframes kept
+    -- without it are listed again.
     keyframes_start_ms INTEGER
 ) STRICT;
