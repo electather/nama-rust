@@ -93,6 +93,8 @@ enum RefusalReason {
   REFUSAL_REASON_NOTHING_MATCHED = 23;
   // `not_found`: the Show has no such Season in the Library.
   REFUSAL_REASON_SEASON_NOT_FOUND = 24;
+  // `not_found`: the Season has no such Episode in the Library.
+  REFUSAL_REASON_EPISODE_NOT_FOUND = 86;
   // `not_found`: there is no such Version.
   REFUSAL_REASON_VERSION_NOT_FOUND = 25;
   // `invalid_argument`: the duration isn't more than zero and less than 2^63 milliseconds.

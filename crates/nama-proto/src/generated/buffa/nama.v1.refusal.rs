@@ -74,6 +74,8 @@ pub enum RefusalReason {
     REFUSAL_REASON_NOTHING_MATCHED = 23i32,
     /// `not_found`: the Show has no such Season in the Library.
     REFUSAL_REASON_SEASON_NOT_FOUND = 24i32,
+    /// `not_found`: the Season has no such Episode in the Library.
+    REFUSAL_REASON_EPISODE_NOT_FOUND = 86i32,
     /// `not_found`: there is no such Version.
     REFUSAL_REASON_VERSION_NOT_FOUND = 25i32,
     /// `invalid_argument`: the duration isn't more than zero and less than 2^63 milliseconds.
@@ -335,6 +337,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SEASON_NOT_FOUND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SeasonNotFound: Self = Self::REFUSAL_REASON_SEASON_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_EPISODE_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const EpisodeNotFound: Self = Self::REFUSAL_REASON_EPISODE_NOT_FOUND;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_VERSION_NOT_FOUND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const VersionNotFound: Self = Self::REFUSAL_REASON_VERSION_NOT_FOUND;
@@ -647,6 +652,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             23i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NOTHING_MATCHED),
             24i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SEASON_NOT_FOUND),
+            86i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_EPISODE_NOT_FOUND),
             25i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_VERSION_NOT_FOUND),
             26i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_DURATION_OUT_OF_RANGE)
@@ -836,6 +842,7 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_NOTHING_MATCHED => "REFUSAL_REASON_NOTHING_MATCHED",
             Self::REFUSAL_REASON_SEASON_NOT_FOUND => "REFUSAL_REASON_SEASON_NOT_FOUND",
+            Self::REFUSAL_REASON_EPISODE_NOT_FOUND => "REFUSAL_REASON_EPISODE_NOT_FOUND",
             Self::REFUSAL_REASON_VERSION_NOT_FOUND => "REFUSAL_REASON_VERSION_NOT_FOUND",
             Self::REFUSAL_REASON_DURATION_OUT_OF_RANGE => {
                 "REFUSAL_REASON_DURATION_OUT_OF_RANGE"
@@ -1040,6 +1047,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             "REFUSAL_REASON_SEASON_NOT_FOUND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SEASON_NOT_FOUND)
+            }
+            "REFUSAL_REASON_EPISODE_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_EPISODE_NOT_FOUND)
             }
             "REFUSAL_REASON_VERSION_NOT_FOUND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_VERSION_NOT_FOUND)
@@ -1261,6 +1271,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_WRONG_LIBRARY_KIND,
             Self::REFUSAL_REASON_NOTHING_MATCHED,
             Self::REFUSAL_REASON_SEASON_NOT_FOUND,
+            Self::REFUSAL_REASON_EPISODE_NOT_FOUND,
             Self::REFUSAL_REASON_VERSION_NOT_FOUND,
             Self::REFUSAL_REASON_DURATION_OUT_OF_RANGE,
             Self::REFUSAL_REASON_ITEM_NOT_FOUND,
