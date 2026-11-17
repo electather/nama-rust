@@ -63,13 +63,13 @@ use timeline::Timeline;
 use super::{
     Method, Playing, StartedPlan, direct_play_url, method_to_proto,
     probing::{self, ProbeError, Probing},
-    reason_to_proto,
+    reason_to_proto, subtitles,
     tracks::track_to_proto,
 };
 use crate::{
     events::{EventBus, event},
-    ffmpeg::{Ffmpeg, FromCut, Keyframe, Remux, Transcode},
-    library::Contents,
+    ffmpeg::{BurnIn, Ffmpeg, FromCut, Keyframe, Remux, Transcode},
+    library::{Contents, Stored},
     server_settings::PlaybackSettings,
     users::Caller,
 };
@@ -185,10 +185,10 @@ struct Plan {
 }
 
 impl RunningPlans {
-    /// Runs plans with `ffmpeg`, cutting a Remux at the keyframes `probing` lists, writing their
-    /// files to the segment folder in `settings` as it is when each starts, and publishing on
-    /// `events` when each stops. Until these are dropped or shut down, stops the plans gone unused
-    /// in the background.
+    /// Runs plans with `ffmpeg`, cutting a Remux at the keyframes `probing` lists and burning in a
+    /// text subtitle from its subtitle cache once it's there, writing their files to the segment
+    /// folder in `settings` as it is when each starts, and publishing on `events` when each stops.
+    /// Until these are dropped or shut down, stops the plans gone unused in the background.
     pub(crate) fn new(
         settings: PlaybackSettings,
         ffmpeg: Arc<Ffmpeg>,
@@ -326,7 +326,7 @@ impl RunningPlans {
         fallback: Option<super::Fallback>,
         start_ms: i64,
     ) -> Result<Option<(u64, String)>, StartError> {
-        let Some((path, _)) = (self.inner.contents)
+        let Some((path, file)) = (self.inner.contents)
             .version_file(playback.version_id)
             .await?
         else {
@@ -335,11 +335,15 @@ impl RunningPlans {
         let timeline = Timeline::transcoded(duration_ms);
         let cuts = timeline.keyframes.clone();
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
+        let subtitles = self.inner.probing.subtitles().clone();
         let run = move |attempt: Transcode| -> Box<Run> {
-            let (ffmpeg, path, cuts) = (Arc::clone(&ffmpeg), path.clone(), cuts.clone());
+            let (ffmpeg, subtitles) = (Arc::clone(&ffmpeg), subtitles.clone());
+            let (path, cuts) = (path.clone(), cuts.clone());
             Box::new(move |dir: &Path, from: Keyframe| {
                 let cuts = cuts.get(from.n..).unwrap_or_default();
                 let from = FromCut { n: from.n, cuts };
+                // Asked each run, so a seek once the cache is filled skips reading the whole file.
+                let attempt = burning_in_from(&subtitles, file, &attempt);
                 ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()
             })
         };
@@ -595,6 +599,18 @@ impl RunningPlans {
         };
         self.inner.events.publish(vec![event(ended)]);
     }
+}
+
+/// `attempt`, burning its text subtitle in from `subtitles` if the Version stored as `file` has
+/// it cached there.
+fn burning_in_from(subtitles: &subtitles::Cache, file: Stored, attempt: &Transcode) -> Transcode {
+    let mut attempt = attempt.clone();
+    if let Some(BurnIn::Text { subtitle }) = &mut attempt.video.burn_in
+        && let Some(cached) = subtitles.cached_burn_in(file, subtitle)
+    {
+        *subtitle = cached;
+    }
+    attempt
 }
 
 /// What Observers are told of `caller` playing by `plan`.

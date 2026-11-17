@@ -107,10 +107,19 @@ pub(crate) enum BurnIn {
 /// Where a [`BurnIn::Text`] subtitle is read from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum TextSubtitle {
-    /// At its place among the subtitle streams of the file transcoded, counting from 0.
-    Stream(usize),
+    /// At its place `subtitle` among the subtitle streams of the file transcoded, counting from 0.
+    Stream {
+        subtitle: usize,
+        /// Its place in the Version's Tracks, and how many fonts the file carries, by which the
+        /// subtitle cache finds them.
+        track: usize,
+        fonts: usize,
+    },
     /// The one in this file beside it.
     Sidecar(String),
+    /// A [`Self::Stream`] read out of the file into the ASS file `ass`, drawn with the fonts in
+    /// the folder `fonts`.
+    Cached { ass: String, fonts: String },
 }
 
 /// The arguments that take the first video of the file at `path` into a Transcode, through
@@ -130,11 +139,10 @@ fn transcoded_video(
                 .map(str::to_owned)
                 .into();
         }
-        // ponytail: assumes ffmpeg has libass. Each run reads the whole file for the subtitle
-        // first, attached fonts and all; read it once into the subtitle cache instead if seeking
-        // in a styled subtitle's Transcode is too slow.
+        // ponytail: assumes ffmpeg has libass. Until the subtitle cache holds it, each run reads
+        // the whole file for the subtitle first, attached fonts and all.
         Some(BurnIn::Text {
-            subtitle: TextSubtitle::Stream(subtitle),
+            subtitle: TextSubtitle::Stream { subtitle, .. },
         }) => Some(format!(
             "subtitles=filename={}:si={subtitle}",
             filter_value(path)
@@ -142,6 +150,13 @@ fn transcoded_video(
         Some(BurnIn::Text {
             subtitle: TextSubtitle::Sidecar(sidecar),
         }) => Some(format!("subtitles=filename={}", filter_value(sidecar))),
+        Some(BurnIn::Text {
+            subtitle: TextSubtitle::Cached { ass, fonts },
+        }) => Some(format!(
+            "subtitles=filename={}:fontsdir={}",
+            filter_value(ass),
+            filter_value(fonts)
+        )),
     };
     let mut args: Vec<String> = ["-map", "0:V:0"].map(str::to_owned).into();
     if let Some(filters) = filter_chain([before, drawn, after]) {

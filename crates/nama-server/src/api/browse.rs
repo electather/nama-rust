@@ -160,15 +160,18 @@ impl BrowseService for BrowseServiceHandler {
     async fn list_continue_watching(
         &self,
         ctx: RequestContext,
-        _request: ServiceRequest<'_, ListContinueWatchingRequest>,
+        request: ServiceRequest<'_, ListContinueWatchingRequest>,
     ) -> ServiceResult<ListContinueWatchingResponse> {
-        let started = self.browse.continue_watching(caller(&ctx)?.user.id).await;
-        let started = started.map_err(refused(Fields::NONE))?;
+        let user = caller(&ctx)?.user.id;
+        let asked = request.to_owned_message().page;
+        let listed = self.browse.continue_watching(user, &asked).await;
+        let (started, page) = listed.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await?;
         Response::ok(ListContinueWatchingResponse {
             entries: (started.into_iter())
                 .map(|started| started_to_proto(started, &images))
                 .collect(),
+            page: page.into(),
             ..Default::default()
         })
     }
@@ -465,6 +468,9 @@ pub(super) fn refused(fields: Fields) -> impl Fn(browse::Error) -> ConnectError 
                 refuse(R::REFUSAL_REASON_WRONG_LIBRARY_KIND, message)
                     .field(fields.library)
                     .param("libraryKind", &kind)
+            }
+            browse::Error::PageTokenInvalid(_) => {
+                refuse(R::REFUSAL_REASON_PAGE_TOKEN_INVALID, message).field("page.token")
             }
             browse::Error::Database(err) => return database_failed(err),
         };

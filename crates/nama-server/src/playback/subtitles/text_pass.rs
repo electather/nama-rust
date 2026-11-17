@@ -182,6 +182,11 @@ impl TextPass {
         // Left by a pass the Server stopped midway.
         remove_dir_if_there(&partial).await?;
         tokio::fs::create_dir_all(&partial).await?;
+        if !fonts.is_empty() {
+            // Fonts sit in a folder of their own, which libass's `fontsdir` reads whole.
+            tokio::fs::create_dir_all(partial.join("fonts")).await?;
+            tokio::fs::create_dir_all(self.folder.join("fonts")).await?;
+        }
         let read = self.read_out(&partial, &tracks, &fonts).await;
         if let Err(err) = remove_dir_if_there(&partial).await {
             tracing::warn!("could not throw away what ffmpeg wrote to {partial:?}: {err}");

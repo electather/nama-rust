@@ -33,6 +33,8 @@ export function ShowIntro({
 
 /** Resume the Show's most recently started Episode in your Continue Watching. Nothing without one. */
 function Resume({ libraryId, showId }: { libraryId: bigint; showId: ExternalId }) {
+  // ponytail: reads the first page, the 50 most recent; a Show started before those has no
+  // Resume. Ask the Server for the Show's own resume Episode if that bites.
   const { data } = useQuery(BrowseService.method.listContinueWatching, {});
   const episode = episodeToResume(data?.entries ?? [], libraryId, showId);
   if (!episode) return null;

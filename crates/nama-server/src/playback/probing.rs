@@ -205,6 +205,11 @@ impl Probing {
         }
     }
 
+    /// The subtitle cache it cleans, where a burn-in reads what's cached instead of the file.
+    pub(super) fn subtitles(&self) -> &subtitles::Cache {
+        &self.inner.subtitles
+    }
+
     /// When each keyframe of the Version `version`'s first video falls, in milliseconds from its
     /// start, in order: as kept for its file as it is now, or else listed in the background,
     /// which reads the whole file, and kept. If something is listing them already, waits for that

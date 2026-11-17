@@ -147,7 +147,9 @@ impl Builder {
     )]
     pub(crate) async fn start(self) -> TestServer {
         let clock = if self.moves_clock {
-            ClockGuard::Exclusive(CLOCK.write().await)
+            let guard = CLOCK.write().await;
+            nama_server::db::reset_clock();
+            ClockGuard::Exclusive(guard)
         } else {
             ClockGuard::Shared(CLOCK.read().await)
         };
@@ -375,8 +377,8 @@ impl TestServer {
     /// Moves the Server's clock, and so every Plugin's, ahead by `by`, as for a test that ages a
     /// Watch State. The Admin's session lasts `DEVICE_LIFETIME`, 90 days, so stay under it, and do
     /// what needs Recent Authentication before advancing, or sign in again. The clock is
-    /// process-wide, so this Server must hold it alone: see "One clock" in
-    /// `crates/nama-server/AGENTS.md`.
+    /// process-wide, so this Server must hold it alone, and starts on the real clock: see "One
+    /// clock" in `crates/nama-server/AGENTS.md`.
     ///
     /// # Panics
     ///

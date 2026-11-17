@@ -3,6 +3,8 @@
 
 #[path = "support/browsing.rs"]
 mod browsing;
+#[path = "playback/burn_in.rs"]
+mod burn_in;
 #[path = "support/http.rs"]
 mod http;
 #[path = "playback/keyframes.rs"]
@@ -1781,9 +1783,10 @@ async fn a_vobsub_track_is_read_out_as_mks_once_and_thrown_away_with_its_version
 }
 
 /// A Server whose ffmpeg and ffprobe are shell scripts in `bin`: ffprobe reads every file as an
-/// H.264 and AAC MKV with an ASS subtitle, a cover picture and a font, and ffmpeg, which writes
-/// the arguments of each run to `log`, writes `ASS` wherever it's told to write ASS and `FONT`
-/// wherever it's told to dump an attachment.
+/// H.264 and AAC MKV a minute long with an ASS subtitle, a cover picture and a font, and ffmpeg,
+/// which writes the arguments of each run to `log`, lists libx264, writes `ASS` wherever it's told
+/// to write ASS and `FONT` wherever it's told to dump an attachment, takes 30 s to start burning
+/// the subtitle in from the file, as a big one's would, and writes nothing else.
 #[cfg(unix)]
 fn ffmpeg_reading_ass_and_a_font(bin: &Path, log: &Path) -> Ffmpeg {
     let ffprobe = r#"#!/bin/sh
@@ -1793,11 +1796,13 @@ cat <<'EOF'
              {"codec_name": "ass", "codec_type": "subtitle"},
              {"codec_type": "attachment", "tags": {"filename": "cover.jpg", "mimetype": "image/jpeg"}},
              {"codec_type": "attachment", "tags": {"filename": "vazir.ttf", "mimetype": "font/ttf"}}],
- "format": {"format_name": "matroska,webm", "duration": "1.000000"}}
+ "format": {"format_name": "matroska,webm", "duration": "60.000000"}}
 EOF
 "#;
     let ffmpeg = format!(
-        "#!/bin/sh\necho \"$*\" >> '{}'\nfor arg; do [ -n \"$out\" ] && printf $out > \"$arg\"; \
+        "#!/bin/sh\necho \"$*\" >> '{}'\ncase \"$*\" in *-encoders*) echo ' V....D libx264  H.264'; exit 0 ;; \
+         *':si='*) exec sleep 30 ;; esac\n\
+         for arg; do [ -n \"$out\" ] && printf $out > \"$arg\"; \
          out=; case \"$prev,$arg\" in -f,ass) out=ASS ;; *,-dump_attachment*) out=FONT ;; esac; \
          prev=$arg; done\n",
         log.display()
