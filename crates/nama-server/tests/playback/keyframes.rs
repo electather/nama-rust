@@ -24,7 +24,7 @@ fn ffprobe_logging_its_runs(bin: &Path, log: &Path) -> Ffmpeg {
     ffprobe_after(bin, &format!("echo \"$*\" >> '{}'", log.display()))
 }
 
-/// A Server whose ffprobe fails to list keyframes, logging each listing to `bin/runs.log`.
+/// An ffprobe that fails to list keyframes, logging each listing to `bin/runs.log`.
 #[cfg(unix)]
 fn ffprobe_failing_keyframes(bin: &Path) -> Ffmpeg {
     let fail = format!(

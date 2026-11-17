@@ -4,6 +4,8 @@ use super::tests::Fixture;
 #[cfg(unix)]
 use super::tests::{fake_ffprobe, probe_runs, wait_for_probe};
 #[cfg(unix)]
+use super::{Error, ProbeError, ffprobe::WHOLE_FILE_TIMEOUT};
+#[cfg(unix)]
 use crate::ffmpeg::Ffmpeg;
 
 /// A fake ffprobe in `bin` that reads every file as a second-long Matroska file with no
@@ -186,4 +188,39 @@ async fn a_versions_keyframes_that_failed_to_list_are_listed_again_once_the_fail
     media.probing.keyframes(version).await.unwrap_err();
 
     assert_eq!(probe_runs(bin.path()), 2);
+}
+
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_versions_keyframes_that_timed_out_arent_listed_again() {
+    let bin = tempfile::tempdir().unwrap();
+    // `exec`, so the timeout's kill stops the sleep rather than leaving it orphaned.
+    let media = Fixture::with_ffmpeg(ffprobe_listing_by(bin.path(), "exec sleep 3600")).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write_probed(alien, 10).await;
+    let version = media.file_id(alien).await;
+    let probing = media.probing.clone();
+    let listing = tokio::spawn(async move { probing.keyframes(version).await });
+    wait_for_probe(&bin.path().join("runs")).await;
+
+    // After opening the database, whose pool times out by the clock.
+    tokio::time::pause();
+    tokio::time::advance(WHOLE_FILE_TIMEOUT).await;
+    // Real time again: storing the timeout writes SQLite, which a paused clock would race.
+    tokio::time::resume();
+    let timed_out = listing.await.unwrap();
+    // Bounded, so listing it again fails the test rather than sleeping out the fake's hour.
+    let again =
+        tokio::time::timeout(Duration::from_secs(5), media.probing.keyframes(version)).await;
+
+    assert!(
+        matches!(&timed_out, Err(Error::Probe(err)) if matches!(**err, ProbeError::TimedOut(_))),
+        "{timed_out:?}"
+    );
+    assert!(
+        again.is_ok_and(|again| again.is_err()),
+        "it was listed again"
+    );
+    assert_eq!(probe_runs(bin.path()), 1);
 }

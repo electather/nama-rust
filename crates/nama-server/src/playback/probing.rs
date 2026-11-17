@@ -414,7 +414,7 @@ impl Probing {
     /// that says something about the file is kept too, and returned as
     /// [`ProbeError::UnlistedBefore`] until the file changes or the probe failure version is
     /// bumped. Unlike a probe, a timeout isn't tried again: each try reads the whole file for up
-    /// to 10 minutes while a Play waits (#850).
+    /// to `WHOLE_FILE_TIMEOUT` while a Play waits (#850).
     async fn list_claimed(&self, path: &str, claim: Claim<'_, Listed>) -> Result<Vec<i64>, Error> {
         match self.inner.tracks.keyframes(claim.file).await? {
             Some(Keyframes::Listed(keyframes)) => return Ok(keyframes),
@@ -454,8 +454,9 @@ async fn failure(err: &ProbeError, path: &str) -> ProbeFailure {
         // ffprobe fails fast on a file it can't open, as on a share that dropped or an NFS handle
         // gone stale since the scan, which may read fine once it's back unchanged.
         ProbeError::Failed(_) if !readable(path).await => ProbeFailure::Retried,
-        // ffprobe read the file and refused it, or did before and it hasn't changed since, or
-        // said something it can't parse: it will again.
+        // ffprobe read the file and refused it, or said something it can't parse: it will again.
+        // Only a kept listing returns `UnlistedBefore`, never ffprobe, so no probe or listing gets
+        // here with it; it lasts until the file changes, as a lasting failure does.
         ProbeError::Failed(_) | ProbeError::UnlistedBefore => {
             ProbeFailure::Lasting(LastingReason::Failed)
         }

@@ -356,6 +356,7 @@ impl Tracks {
         .await?;
         Ok(row.and_then(|row| match row.keyframes_failure_version {
             Some(PROBE_FAILURE_VERSION) => Some(Keyframes::Unlisted),
+            // A failure at an older failure version left no keyframes, so they're listed again.
             // Only `store_keyframes` writes them, as JSON it made.
             _ => Some(Keyframes::Listed(
                 serde_json::from_str(&row.keyframes_ms?).ok()?,
