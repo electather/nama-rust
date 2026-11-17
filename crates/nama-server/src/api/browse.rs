@@ -16,15 +16,15 @@ use nama_proto::nama::v1::{
 use crate::{
     browse::{self, Browse, Episode, ListedShow, Movie, Show, Started, Version},
     library::{
-        FoundEpisode, FoundMovie, FoundShow, ImageRef, LibraryKind, LibraryMovie, Listing, Role,
-        Slot, TitleSort, Unmatched, WatchState, Watched, artwork_url,
+        FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, LibraryKind, LibraryMovie, Listing,
+        Role, Slot, TitleSort, WatchState, Watched, artwork_url,
     },
     playback::track_to_proto,
 };
 
 use super::{
-    ImageSources, ShownImages, caller, database_failed, external_id_to_proto,
-    matches::unmatched_to_proto, proto_number, refuse, required_id,
+    ImageSources, ShownImages, caller, database_failed, external_id_to_proto, proto_number, refuse,
+    required_id,
 };
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
@@ -299,7 +299,9 @@ impl BrowseService for BrowseServiceHandler {
             .await;
         let (unmatched, page) = listed.map_err(refused(Fields::LIBRARY))?;
         Response::ok(ListUnmatchedResponse {
-            items: unmatched.into_iter().map(unmatched_summary).collect(),
+            items: (unmatched.into_iter())
+                .map(|unmatched| unmatched_summary(unmatched.item, unmatched.version_id))
+                .collect(),
             page: page.into(),
             ..Default::default()
         })
@@ -318,7 +320,7 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         Response::ok(GetUnmatchedVersionResponse {
-            item: unmatched_summary(unmatched).into(),
+            item: unmatched_summary(unmatched.item, unmatched.version_id).into(),
             version: version_to_proto(&version).into(),
             ..Default::default()
         })
@@ -587,18 +589,38 @@ fn episode_to_proto(
     }
 }
 
-/// `unmatched` as any User sees it: what its name was parsed as, not where its file is (ADR 0062).
-fn unmatched_summary(unmatched: Unmatched) -> proto::UnmatchedItemSummary {
-    let listed = unmatched_to_proto(unmatched, true);
+/// An Unmatched Item as any User sees it: the Version `version_id` that holds it and what its file's
+/// name was parsed as, `item`, never where the file is (ADR 0062).
+pub(super) fn unmatched_summary(item: Item, version_id: i64) -> proto::UnmatchedItemSummary {
+    let (kind, title, year, numbers) = match item {
+        Item::Movie { title, year, .. } => (proto::TitleKind::TITLE_KIND_MOVIE, title, year, None),
+        Item::Episode {
+            show,
+            year,
+            season,
+            episode,
+            ..
+        } => (
+            proto::TitleKind::TITLE_KIND_SHOW,
+            show,
+            year,
+            Some((season, episode)),
+        ),
+    };
     proto::UnmatchedItemSummary {
-        version_id: listed.version_id,
-        kind: listed.kind,
-        title: listed.title,
-        year: listed.year,
-        season: listed.season,
-        episode: listed.episode,
+        version_id,
+        kind: kind.into(),
+        title,
+        year: year.and_then(int32),
+        season: numbers.and_then(|(season, _)| int32(season)),
+        episode: numbers.and_then(|(_, episode)| int32(episode)),
         ..Default::default()
     }
+}
+
+/// `n` as a proto `int32`, or `None` if it doesn't fit, which no name a scan parses gives.
+fn int32(n: i64) -> Option<i32> {
+    i32::try_from(n).ok()
 }
 
 /// A Version as clients see it: its file's name, not the folders it is in.

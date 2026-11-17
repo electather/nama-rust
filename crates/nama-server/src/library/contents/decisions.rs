@@ -25,7 +25,7 @@ use crate::{
 pub(crate) struct Unmatched {
     pub(crate) id: i64,
     /// The Version that holds it.
-    pub(crate) file_id: i64,
+    pub(crate) version_id: i64,
     pub(crate) path: String,
     pub(crate) item: Item,
     /// `None` while Matching hasn't decided, or for an Unmatched reason not stored.
@@ -46,8 +46,8 @@ pub(crate) type UnmatchedPlace = (i64, String);
 macro_rules! unmatched_sql {
     ($query:ident) => {
         $query!(
-            r#"SELECT library_items.id AS "id!", library_files.id AS "file_id!", library_files.path,
-                      library_items.added_at, library_items.kind AS "kind: ItemKind",
+            r#"SELECT library_items.id AS "id!", library_files.id AS "version_id!",
+                      library_files.path, library_items.added_at, library_items.kind AS "kind: ItemKind",
                       library_items.title, library_items.year, library_items.hint,
                       library_items.season, library_items.episode,
                       item_matches.unmatched_reason AS "unmatched_reason?: ReasonColumn",
@@ -72,7 +72,7 @@ macro_rules! unmatched_sql {
 /// A row of [`Contents::unmatched`], before it is read into an [`Unmatched`].
 struct UnmatchedRow {
     id: i64,
-    file_id: i64,
+    version_id: i64,
     path: String,
     added_at: i64,
     kind: ItemKind,
@@ -119,7 +119,7 @@ impl UnmatchedRow {
         Some(reason.map(|reason| Unmatched {
             undecided: self.undecided,
             id: self.id,
-            file_id: self.file_id,
+            version_id: self.version_id,
             path: self.path,
             item,
             reason,

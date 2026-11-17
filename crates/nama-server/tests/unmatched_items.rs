@@ -1,6 +1,6 @@
 //! Listing a Library's Unmatched Items through the generated `MatchService` and `BrowseService`
-//! clients, over a real socket: which Library, its pages, and what a User without Permissions sees
-//! and plays.
+//! clients, over a real socket: which Library, its pages, and what a User without Permissions
+//! sees, plans and plays.
 
 #[expect(dead_code, reason = "this binary uses only some of the helpers")]
 #[path = "support/http.rs"]
@@ -15,9 +15,10 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ErrorCode, client::HttpClient};
 use http::fetch;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, GetUnmatchedVersionRequest, LibraryKind, ListUnmatchedItemsRequest,
-    ListUnmatchedRequest, MatchServiceClient, PageRequest, RefusalReason, TitleKind,
-    UnmatchedItemFilter,
+    AudioCodec, BrowseServiceClient, Container, DeviceDecoding, GetUnmatchedVersionRequest,
+    LibraryKind, ListUnmatchedItemsRequest, ListUnmatchedRequest, MatchServiceClient, PageRequest,
+    PlanPlaybackRequest, PlaybackMethod, PlaybackServiceClient, RefusalReason, TitleKind,
+    UnmatchedItemFilter, VideoCodec,
 };
 use refused::assert_refused;
 use server::TestServer;
@@ -212,7 +213,7 @@ async fn a_users_page_token_holds_no_path_and_lists_the_next_page() {
 }
 
 #[tokio::test]
-async fn a_user_gets_an_unmatched_items_version_by_its_id_and_plays_its_file() {
+async fn a_user_gets_an_unmatched_items_version_by_its_id_plans_it_and_plays_its_file() {
     let server = TestServer::builder().start().await;
     let films =
         (server.matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &["Alien (1979).mkv"])).await;
@@ -235,18 +236,36 @@ async fn a_user_gets_an_unmatched_items_version_by_its_id_and_plays_its_file() {
         .await
         .unwrap()
         .into_owned();
-    let played = fetch(
-        &server,
-        &format!("/media/versions/{version_id}"),
-        Some(&ripley.token),
-    )
-    .await;
+    let playback = PlaybackServiceClient::new(HttpClient::plaintext(), ripley.client_config());
+    let planned = playback
+        .plan_playback(PlanPlaybackRequest {
+            version_id,
+            device_decoding: chrome().into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned();
+    let plan = planned.plan.into_option().unwrap();
+    let played = fetch(&server, &plan.url, Some(&ripley.token)).await;
 
     assert_eq!(got.item.title, "Alien");
     assert_eq!(got.item.version_id, version_id);
     assert_eq!(got.version.id, version_id);
     assert_eq!(got.version.file_name, "Alien (1979).mkv");
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
     assert_eq!(played.status, 200);
+}
+
+/// What Chrome says it decodes, in part: H.264 and AAC in MP4.
+fn chrome() -> DeviceDecoding {
+    DeviceDecoding {
+        containers: vec![Container::CONTAINER_MP4.into()],
+        video_codecs: vec![VideoCodec::VIDEO_CODEC_H264.into()],
+        audio_codecs: vec![AudioCodec::AUDIO_CODEC_AAC.into()],
+        mse: true,
+        ..Default::default()
+    }
 }
 
 #[tokio::test]
