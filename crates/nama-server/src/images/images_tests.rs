@@ -39,12 +39,12 @@ async fn a_write_over_the_object_size_limit_is_refused_and_stores_nothing() {
     let data = tempfile::tempdir().unwrap();
     let store = store_in(&data).await;
 
-    let written = store.write(KEY, &vec![0; MAX_BYTES + 1]).await.unwrap_err();
+    let refused = store.write(KEY, &vec![0; MAX_BYTES + 1]).await.unwrap_err();
 
-    assert_eq!(written.kind(), std::io::ErrorKind::FileTooLarge);
+    assert_eq!(refused.kind(), std::io::ErrorKind::FileTooLarge);
     assert!(
-        written.to_string().contains("artwork/tmdb/%2Fposter.jpg"),
-        "{written}"
+        refused.to_string().contains("artwork/tmdb/%2Fposter.jpg"),
+        "{refused}"
     );
     assert!(!store.contains(KEY).await.unwrap());
 }
