@@ -25,8 +25,8 @@ use crate::{
     forwarded::{RequestSource, identify_source},
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
-        Artwork, Contents, CustomImageUrls, CustomImages, Libraries, TitleKind, TitleSources,
-        artwork_router, custom_images_router,
+        Artwork, Contents, CustomImageUrls, CustomImages, Libraries, LocalImageUrls, LocalImages,
+        TitleKind, TitleSources, artwork_router, custom_images_router, local_images_router,
     },
     playback::{Probing, RunningPlans, SubtitleCache, TrackPreferences, Tracks, running_router},
     plugin_settings::PluginSettings,
@@ -97,6 +97,7 @@ pub(crate) fn router(
     let users = Users::new(Arc::clone(&db), plugins.clone());
     let contents = Contents::new(Arc::clone(&db));
     let image_settings = settings.images();
+    let local_images = LocalImages::new(Arc::clone(&db), image_store.clone());
     let artwork_router = artwork_router(artwork.clone(), contents.clone(), image_settings.clone());
     let media = crate::playback::router(
         contents,
@@ -106,11 +107,12 @@ pub(crate) fn router(
         subtitles,
     )
     .merge(running_router(running.clone()));
-    let images = ImageSources::new(
-        custom_images.clone(),
-        artwork.clone(),
-        image_settings.clone(),
-    );
+    let images = ImageSources {
+        custom_images: custom_images.clone(),
+        local_images: local_images.clone(),
+        artwork: artwork.clone(),
+        settings: image_settings.clone(),
+    };
     let browse = Browse::new(Arc::clone(&db));
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let playback = settings.playback();
@@ -188,9 +190,10 @@ pub(crate) fn router(
         .merge(custom_images_router(
             custom_images,
             artwork,
-            image_settings,
+            image_settings.clone(),
             move |id| plugin_settings.has(id),
         ))
+        .merge(local_images_router(local_images, image_settings))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
         .layer(middleware::from_fn(require_access))
@@ -714,10 +717,11 @@ fn database_failed(err: sqlx::Error) -> ConnectError {
     }
 }
 
-/// What a response shows of images: the Custom Images in place of the downloaded ones, and the
-/// thumbhash of each image resized so far, by URL.
+/// What a response shows of images: the Custom Images, and else the images beside a Movie's media,
+/// in place of the downloaded ones, and the thumbhash of each image resized so far, by URL.
 struct ShownImages {
     custom: CustomImageUrls,
+    local: LocalImageUrls,
     thumbhashes: HashMap<String, Vec<u8>>,
 }
 
@@ -732,31 +736,28 @@ impl ShownImages {
 #[derive(Clone)]
 struct ImageSources {
     custom_images: CustomImages,
+    local_images: LocalImages,
     artwork: Artwork,
     settings: ImageSettings,
 }
 
 impl ImageSources {
-    const fn new(custom_images: CustomImages, artwork: Artwork, settings: ImageSettings) -> Self {
-        Self {
-            custom_images,
-            artwork,
-            settings,
-        }
-    }
-
     /// What a response shows of images, with no thumbhashes while resizing is off (ADR 0039).
     async fn shown(&self) -> Result<ShownImages, ConnectError> {
         let custom = self.custom_images.urls().await.map_err(database_failed)?;
+        let local = self.local_images.urls().await.map_err(database_failed)?;
         let mut thumbhashes = HashMap::new();
         if self.settings.resizing().is_some() {
             let artwork = self.artwork.thumbhashes().await.map_err(database_failed)?;
             let custom_images = self.custom_images.thumbhashes().await;
+            let local_images = self.local_images.thumbhashes().await;
             thumbhashes.extend(artwork);
             thumbhashes.extend(custom_images.map_err(database_failed)?);
+            thumbhashes.extend(local_images.map_err(database_failed)?);
         }
         Ok(ShownImages {
             custom,
+            local,
             thumbhashes,
         })
     }

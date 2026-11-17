@@ -5,7 +5,7 @@ use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
 };
 
-use crate::library::CustomImageUrls;
+use crate::library::{CustomImageUrls, LocalImageUrls};
 
 use super::{ImageRef, Movie, Show, ShownImages, artwork_url, movie_to_proto, show_to_proto};
 
@@ -19,6 +19,7 @@ fn logo() -> ImageRef {
 fn a_movie_and_a_show_carry_their_title_logo_url() {
     let images = ShownImages {
         custom: CustomImageUrls::default(),
+        local: LocalImageUrls::default(),
         thumbhashes: HashMap::new(),
     };
     let id = ExternalId::tmdb(348);

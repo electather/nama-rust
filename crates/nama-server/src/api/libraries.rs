@@ -111,11 +111,10 @@ impl Backdrops {
                 LibraryKind::Movies => Slot::movie(id, Role::Backdrop),
                 LibraryKind::Shows => Slot::show(id, Role::Backdrop),
             };
-            (self
-                .images
-                .custom
-                .of_title(&newest.title, &newest.ids, slot))
-            .unwrap_or_else(|| artwork_url(&newest.plugin, &newest.path))
+            let (title, ids) = (&newest.title, &newest.ids);
+            (self.images.custom.of_title(title, ids, slot))
+                .or_else(|| (self.images.local).of_movie(title, ids, Role::Backdrop))
+                .unwrap_or_else(|| artwork_url(&newest.plugin, &newest.path))
         });
         (newest, false)
     }

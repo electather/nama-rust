@@ -202,6 +202,7 @@ fn found_movie_to_proto(movie: FoundMovie, images: &ShownImages) -> proto::Movie
     let downloaded = (movie.poster).map(|image| artwork_url(image.plugin.as_str(), &image.path));
     let poster_url = (images.custom)
         .of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Poster))
+        .or_else(|| (images.local).of_movie(&movie.id, &movie.ids, Role::Poster))
         .or(downloaded);
     proto::MovieInLibrary {
         library_id: movie.library,
@@ -257,8 +258,11 @@ fn movie_to_proto(
         (images.custom).of_title(&movie.id, &movie.ids, |id| Slot::movie(id, Role::Backdrop));
     let (poster_is_custom, backdrop_is_custom) =
         (custom_poster.is_some(), custom_backdrop.is_some());
-    let poster_url = custom_poster.or_else(|| movie.poster.map(artwork_url));
-    let backdrop_url = custom_backdrop.or_else(|| movie.backdrop.map(artwork_url));
+    let local = |role| (images.local).of_movie(&movie.id, &movie.ids, role);
+    let poster_url =
+        (custom_poster.or_else(|| local(Role::Poster))).or_else(|| movie.poster.map(artwork_url));
+    let backdrop_url = (custom_backdrop.or_else(|| local(Role::Backdrop)))
+        .or_else(|| movie.backdrop.map(artwork_url));
     proto::Movie {
         title_logo_url: movie.logo.map(artwork_url),
         genres: movie.genres,

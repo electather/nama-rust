@@ -77,3 +77,4 @@
 0077_notifications_off.sql
 0078_sidecar_subtitles.sql
 0079_library_items_added_at.sql
+0080_local_images.sql

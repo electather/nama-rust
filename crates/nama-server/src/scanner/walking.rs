@@ -1,5 +1,5 @@
-//! Walking a Library's folders for the video files in them and the sidecar subtitles beside those,
-//! and planning what a scan changes from what it found and what was stored.
+//! Walking a Library's folders for the video files in them and the sidecar subtitles and images
+//! beside those, and planning what a scan changes from what it found and what was stored.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -14,7 +14,7 @@ use walkdir::{DirEntry, WalkDir};
 
 use super::{Error, Planned, Summary, names};
 use crate::{
-    library::{Change, LibraryKind, PARSER_VERSION, Stored},
+    library::{Change, FoundImages, LibraryKind, LocalImageFile, PARSER_VERSION, Role, Stored},
     playback::{Sidecar, VersionSidecars, is_sidecar},
 };
 
@@ -23,6 +23,15 @@ const VIDEO_EXTENSIONS: &[&str] = &[
     "3gp", "avi", "divx", "flv", "m2ts", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "mts", "ogm",
     "ogv", "ts", "webm", "wmv",
 ];
+
+/// Extensions, in lowercase, of the images that may stand in for a downloaded one: those a Custom
+/// Image may be.
+const IMAGE_EXTENSIONS: &[&str] = &["jpeg", "jpg", "png", "webp"];
+
+/// Names, without the extension, of an image standing in for a Poster, and for a Backdrop, as
+/// Jellyfin and Kodi name them (`docs/research/jellyfin-and-plex-images.md`, "Overriding").
+const POSTER_NAMES: &[&str] = &["poster", "folder", "cover", "default", "movie"];
+const BACKDROP_NAMES: &[&str] = &["fanart", "backdrop", "background", "art"];
 
 #[derive(Debug)]
 struct Found {
@@ -37,6 +46,7 @@ struct Found {
 pub(super) struct Walked {
     files: Vec<Found>,
     sidecars: Vec<Found>,
+    images: Vec<Found>,
     /// Folders and files that couldn't be read. What's stored under them is kept.
     unreadable: Vec<PathBuf>,
     /// The Library's folders the Server can't write to.
@@ -61,7 +71,8 @@ pub(super) fn walk(folders: &[String], cancel: &CancellationToken) -> Result<Wal
             }
             match entry.and_then(|entry| listed_file(root, &entry)) {
                 Ok(Some(file)) if is_video(Path::new(&file.path)) => walked.files.push(file),
-                Ok(Some(sidecar)) => walked.sidecars.push(sidecar),
+                Ok(Some(file)) if is_sidecar(Path::new(&file.path)) => walked.sidecars.push(file),
+                Ok(Some(image)) => walked.images.push(image),
                 Ok(None) => {}
                 Err(err) => {
                     let path = err.path().unwrap_or(root).to_owned();
@@ -100,10 +111,11 @@ pub(super) fn is_video(path: &Path) -> bool {
         .is_some_and(|ext| VIDEO_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
 }
 
-/// The video or sidecar subtitle at `entry`, if it is one outside an extras folder.
+/// The video, sidecar subtitle or image at `entry`, if it is one outside an extras folder.
 fn listed_file(root: &Path, entry: &DirEntry) -> Result<Option<Found>, walkdir::Error> {
     let path = entry.path();
-    if !entry.file_type().is_file() || !(is_video(path) || is_sidecar(path)) {
+    let listed = is_video(path) || is_sidecar(path) || image_name(path).is_some();
+    if !entry.file_type().is_file() || !listed {
         return Ok(None);
     }
     let Ok(relative) = path.strip_prefix(root) else {
@@ -210,6 +222,135 @@ pub(super) fn plan(
         }
     }
     (planned, summary)
+}
+
+/// The images a walk found that may stand in for a Movie's, and the folders and files it couldn't
+/// read.
+#[derive(Debug)]
+pub(super) struct FoundLocalImages {
+    images: Vec<Found>,
+    unreadable: Vec<PathBuf>,
+}
+
+/// How an image's name ties it to a video: named after it goes first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Naming {
+    /// Such as `Up (2009)-poster.jpg`.
+    AfterVideo,
+    /// Such as `poster.jpg`.
+    Alone,
+}
+
+impl Walked {
+    /// Takes the images out, leaving the videos to [`plan`].
+    pub(super) fn take_images(&mut self) -> FoundLocalImages {
+        FoundLocalImages {
+            images: mem::take(&mut self.images),
+            unreadable: self.unreadable.clone(),
+        }
+    }
+}
+
+impl FoundLocalImages {
+    /// The ids of `versions`, stored files by path, whose images the walk read, and the image found
+    /// beside each that stands in for each role. A Version in a folder the walk couldn't read, or
+    /// beside something it couldn't, is left out, so its images stay as stored. An image named alone
+    /// stands in for every video in its folder, except in one of the Library's own folders, where
+    /// it would for every Movie; one named after a video goes first, then the first by path.
+    pub(super) fn beside(self, versions: &HashMap<String, Stored>) -> (Vec<i64>, FoundImages) {
+        let mut read = Vec::new();
+        let mut videos_in: HashMap<&Path, Vec<(&OsStr, i64)>> = HashMap::new();
+        for (path, version) in versions {
+            let path = Path::new(path);
+            let (Some(folder), Some(stem)) = (path.parent(), path.file_stem()) else {
+                continue;
+            };
+            let unread =
+                |missed: &PathBuf| folder.starts_with(missed) || missed.parent() == Some(folder);
+            if !self.unreadable.iter().any(unread) {
+                read.push(version.id);
+                videos_in
+                    .entry(folder)
+                    .or_default()
+                    .push((stem, version.id));
+            }
+        }
+        (read, tied_images(self.images, &videos_in))
+    }
+}
+
+/// Of `images`, the one standing in for each role of each video in `videos_in`, which holds each
+/// folder's videos by their names without the extension, with their Version ids.
+fn tied_images(
+    mut images: Vec<Found>,
+    videos_in: &HashMap<&Path, Vec<(&OsStr, i64)>>,
+) -> FoundImages {
+    images.sort_by(|a, b| a.path.cmp(&b.path));
+    let mut best: HashMap<(i64, Role), (Naming, LocalImageFile)> = HashMap::new();
+    for image in images {
+        let path = Path::new(&image.path);
+        let in_library_folder = image.relative.parent() == Some(Path::new(""));
+        let videos = path.parent().and_then(|folder| videos_in.get(folder));
+        let tied = (videos.into_iter().flatten()).filter_map(|&(stem, version)| {
+            Some((version, image_role(path, stem, in_library_folder)?))
+        });
+        for (version, (naming, role)) in tied {
+            if best
+                .get(&(version, role))
+                .is_none_or(|(kept, _)| naming < *kept)
+            {
+                let file = LocalImageFile {
+                    path: image.path.clone(),
+                    size: image.size,
+                    modified_ns: image.modified_ns,
+                };
+                best.insert((version, role), (naming, file));
+            }
+        }
+    }
+    (best.into_iter())
+        .map(|(key, (_, file))| (key, file))
+        .collect()
+}
+
+/// How the image at `image` stands in for the video named `video` without its extension, and for
+/// which of its images, if it does. `in_library_folder` if the image is in one of the Library's
+/// own folders, where only one named after the video does.
+fn image_role(image: &Path, video: &OsStr, in_library_folder: bool) -> Option<(Naming, Role)> {
+    let name = image_name(image)?;
+    let video = video.to_str()?.to_lowercase();
+    let after_video = (name.strip_prefix(&video))
+        .and_then(|rest| rest.strip_prefix('-'))
+        .and_then(role_named);
+    match after_video {
+        Some(role) => Some((Naming::AfterVideo, role)),
+        None if in_library_folder => None,
+        None => role_named(&name).map(|role| (Naming::Alone, role)),
+    }
+}
+
+/// `path`'s name in lowercase without its extension, if it is an image's that may stand in for a
+/// downloaded one.
+fn image_name(path: &Path) -> Option<String> {
+    let extension = path.extension()?.to_str()?.to_ascii_lowercase();
+    if !IMAGE_EXTENSIONS.contains(&extension.as_str()) {
+        return None;
+    }
+    let name = path.file_stem()?.to_str()?.to_lowercase();
+    let named = |role: &str| role_named(role).is_some();
+    let tied = named(&name) || name.rsplit_once('-').is_some_and(|(_, role)| named(role));
+    tied.then_some(name)
+}
+
+/// The role an image named `name`, alone or after its video, stands in for.
+fn role_named(name: &str) -> Option<Role> {
+    if POSTER_NAMES.contains(&name) {
+        Some(Role::Poster)
+    } else if BACKDROP_NAMES.contains(&name) {
+        Some(Role::Backdrop)
+    } else {
+        None
+    }
 }
 
 /// The sidecar subtitles a walk found, and the folders and files it couldn't read.
