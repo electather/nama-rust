@@ -410,7 +410,14 @@ impl Fixture {
         fx.write(ALIEN_1080P, b"video");
         fx.write(ALIEN_2160P, b"video");
         fx.scan_and_match().await;
-        ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
+        fx.allow_one_transcode().await;
+        let versions = fx.version_ids(ALIEN).await.try_into().unwrap();
+        (fx, versions)
+    }
+
+    /// Lets the Server run one Transcode at once.
+    async fn allow_one_transcode(&self) {
+        ServerServiceClient::new(HttpClient::plaintext(), self.server.client_config())
             .update_playback_settings(UpdatePlaybackSettingsRequest {
                 settings: PlaybackSettings {
                     max_transcodes: Some(1),
@@ -421,8 +428,6 @@ impl Fixture {
             })
             .await
             .unwrap();
-        let versions = fx.version_ids(ALIEN).await.try_into().unwrap();
-        (fx, versions)
     }
 
     /// The Admin's Device's Transcode of the Version `version`.
@@ -939,25 +944,65 @@ fn cuts(durations: &[f64]) -> Vec<f64> {
     ends.collect()
 }
 
-/// A Server whose ffprobe, a shell script in `bin`, writes the arguments of each run to `log`
-/// and then runs the ffprobe on `PATH`.
+/// A Server whose ffprobe, a shell script in `bin`, runs `first` and then the ffprobe on `PATH`.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
 #[cfg(unix)]
-fn ffprobe_logging_its_runs(bin: &Path, log: &Path) -> Ffmpeg {
+fn ffprobe_after(bin: &Path, first: &str) -> Ffmpeg {
     let ffmpeg = system_ffmpeg();
     let real = ffmpeg.ffprobe.unwrap().path;
-    let ffprobe = format!(
-        "#!/bin/sh\necho \"$*\" >> '{}'\nexec '{}' \"$@\"\n",
-        log.display(),
-        real.display()
-    );
+    let ffprobe = format!("#!/bin/sh\n{first}\nexec '{}' \"$@\"\n", real.display());
     Ffmpeg {
         ffprobe: Ok(script(bin, "ffprobe", &ffprobe)),
         ..ffmpeg
     }
+}
+
+#[cfg(unix)]
+fn ffprobe_logging_its_runs(bin: &Path, log: &Path) -> Ffmpeg {
+    ffprobe_after(bin, &format!("echo \"$*\" >> '{}'", log.display()))
+}
+
+#[cfg(unix)]
+fn ffprobe_failing_keyframes(bin: &Path) -> Ffmpeg {
+    let fail = "case \"$*\" in *packet=pts_time,flags*) echo 'read failed' >&2; exit 1;; esac";
+    ffprobe_after(bin, fail)
+}
+
+// The failing ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_remux_whose_keyframes_cant_be_listed_transcodes_and_says_why() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, version) = Fixture::alien_mkv(ffprobe_failing_keyframes(bin.path()), "aac").await;
+
+    let plan = fx.transcode(version).await;
+
+    reason_of(
+        &plan,
+        PlaybackReasonKind::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
+    );
+    fx.fetch_ok(&plan.url).await;
+}
+
+// The failing ffprobe is a shell script.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_remux_whose_keyframes_cant_be_listed_is_refused_as_busy_at_the_transcode_limit() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, version) = Fixture::alien_mkv(ffprobe_failing_keyframes(bin.path()), "aac").await;
+    fx.allow_one_transcode().await;
+    fx.transcode(version).await;
+
+    let planned = fx.plan(version).await;
+
+    assert_refused(
+        planned,
+        ErrorCode::ResourceExhausted,
+        RefusalReason::REFUSAL_REASON_SERVER_BUSY,
+    );
 }
 
 // The logging ffprobe is a shell script.

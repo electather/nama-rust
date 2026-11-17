@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, num::NonZeroU32};
 
 use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
-use super::{remux, too_busy_to_play};
+use super::{keyframes_unlisted, remux, too_busy_to_play};
 #[cfg(unix)]
 use crate::ffmpeg::fake::vaapi_on_two_gpus_at;
 use crate::{
@@ -127,6 +127,28 @@ fn each_method_that_just_failed_on_the_device_is_ruled_out_and_the_plan_says_so(
             .collect();
         assert_eq!(failures, reasons, "{method:?}");
     }
+}
+
+#[test]
+fn keyframes_that_couldnt_be_listed_rule_out_only_a_remux() {
+    let tracks = Some(vec![video("h264"), audio("aac", true)]);
+    let unlisted = Facts {
+        keyframes_unlisted: true,
+        ..facts(tracks.clone())
+    };
+
+    let given = keyframes_unlisted(&unlisted, None);
+
+    assert_eq!(
+        (given.iter())
+            .map(|reason| (reason.kind, &reason.rules_out))
+            .collect::<Vec<_>>(),
+        [(
+            Kind::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
+            &BTreeSet::from([Method::Remux])
+        )]
+    );
+    assert_eq!(keyframes_unlisted(&facts(tracks), None), []);
 }
 
 #[test]
