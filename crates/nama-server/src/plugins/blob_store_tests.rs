@@ -248,3 +248,17 @@ async fn blob_stores_lists_the_enabled_plugins_serving_the_point() {
     assert!(registry.disable(&ID).await);
     assert_eq!(registry.blob_stores(), []);
 }
+
+#[tokio::test]
+async fn is_served_only_while_its_plugin_is_an_enabled_blob_store() {
+    let (registry, _fake, blobs) = stored();
+    let unknown = PluginBlobs::new(
+        registry.extension_points(),
+        PluginId::from_static("elsewhere"),
+    );
+    assert!(blobs.is_served());
+    assert!(!unknown.is_served());
+
+    assert!(registry.disable(&ID).await);
+    assert!(!blobs.is_served());
+}
