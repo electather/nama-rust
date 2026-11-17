@@ -7616,8 +7616,8 @@ impl ::serde::Serialize for ListEpisodesResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A Movie or Episode the caller has started and not played, with what a client needs to show it
-/// and resume it.
+/// A Movie or Episode in the caller's Continue Watching, with what a client needs to show it and
+/// resume or start it.
 #[derive(Clone, Debug, Default)]
 pub struct ContinueWatchingEntryView<'a> {
     /// The Library it is in.

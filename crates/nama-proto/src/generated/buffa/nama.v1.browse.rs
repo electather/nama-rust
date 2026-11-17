@@ -5384,8 +5384,8 @@ pub const __LIST_EPISODES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntr
     from_json: ::buffa::type_registry::any_from_json::<ListEpisodesResponse>,
     is_wkt: false,
 };
-/// A Movie or Episode the caller has started and not played, with what a client needs to show it
-/// and resume it.
+/// A Movie or Episode in the caller's Continue Watching, with what a client needs to show it and
+/// resume or start it.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize)]
 #[serde(default)]

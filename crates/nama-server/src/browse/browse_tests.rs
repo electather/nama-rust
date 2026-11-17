@@ -18,7 +18,7 @@ use crate::{
 };
 
 const ALIEN_TMDB_ID: i64 = 348;
-const KNIGHT_TMDB_ID: i64 = 224_372;
+pub(super) const KNIGHT_TMDB_ID: i64 = 224_372;
 const KNIGHT_PILOT_TMDB_ID: i64 = 5_000_001;
 const KNIGHT_SECOND_TMDB_ID: i64 = 5_000_002;
 const KNIGHT_SEASON_2_TMDB_ID: i64 = 5_000_003;
@@ -29,7 +29,7 @@ const KNIGHT_PILOT_TVDB_ID: i64 = 9_000_001;
 const ALIEN_IMDB_ID: &str = "tt0078748";
 
 /// Creates a Library of `kind` on `folder`, with its canonical path.
-async fn library(
+pub(super) async fn library(
     db: &Arc<Database>,
     name: &str,
     kind: LibraryKind,
@@ -47,7 +47,12 @@ async fn library(
 
 /// Stores the file at `path` in `library`, holding each Item of `items` with what was decided
 /// about it, and returns its id, the id of its Version.
-async fn store(db: &Arc<Database>, library: i64, path: String, items: Vec<(Item, Decided)>) -> i64 {
+pub(super) async fn store(
+    db: &Arc<Database>,
+    library: i64,
+    path: String,
+    items: Vec<(Item, Decided)>,
+) -> i64 {
     let contents = Contents::new(Arc::clone(db));
     let (items, decided): (Vec<_>, Vec<_>) = items.into_iter().unzip();
     let file = Change::Store {
@@ -74,7 +79,7 @@ async fn store_matched(
 }
 
 /// Ada, a User of `db`.
-async fn ada(db: &Arc<Database>) -> i64 {
+pub(super) async fn ada(db: &Arc<Database>) -> i64 {
     let root = User {
         id: 0,
         name: "Root".to_owned(),
@@ -96,7 +101,7 @@ async fn library_with_alien(db: &Arc<Database>, folder: &TempDir) -> MatchedMovi
     MatchedMovie::new(db, folder.path(), tmdb_movie(ALIEN_TMDB_ID, "Alien")).await
 }
 
-fn knight_episode(season: i64, episode: i64) -> Item {
+pub(super) fn knight_episode(season: i64, episode: i64) -> Item {
     Item::Episode {
         show: "A Knight of the Seven Kingdoms".to_owned(),
         year: Some(2026),
@@ -107,7 +112,7 @@ fn knight_episode(season: i64, episode: i64) -> Item {
 }
 
 /// A Match of an Episode of A Knight of the Seven Kingdoms with the TMDB id `tmdb`.
-fn knight_match(tmdb: i64) -> Decided {
+pub(super) fn knight_match(tmdb: i64) -> Decided {
     Decided::Matched(Box::new(Metadata {
         show_ids: ExternalIds::from_iter([ExternalId::tmdb(KNIGHT_TMDB_ID)]),
         show_title: Some("A Knight of the Seven Kingdoms".to_owned()),
@@ -442,9 +447,9 @@ async fn progress_on_an_unmatched_item_stores_nothing() {
         .await
         .unwrap();
 
-    // Watch States' own Continue Watching lists every started title, in a Library or not.
-    let started = WatchStates::new(db).continue_watching(user).await.unwrap();
-    assert!(started.is_empty(), "{started:?}");
+    // Watch States' own list holds every one of the User's, in a Library or not.
+    let states = WatchStates::new(db).of_user(user).await.unwrap();
+    assert!(states.is_empty(), "{states:?}");
 }
 
 #[tokio::test]

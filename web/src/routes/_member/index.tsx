@@ -51,7 +51,10 @@ function Home() {
   );
 }
 
-/** What you've started and not played, most recent first. Nothing at all when there's none. */
+/**
+ * What you've started and not played, and the next Episode of each Show you're watching, most
+ * recent first. Nothing at all when there's none.
+ */
 function ContinueWatching() {
   const { data } = useSuspenseQuery(BrowseService.method.listContinueWatching, continueWatchingRow);
   if (data.entries.length === 0) return null;
