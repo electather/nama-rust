@@ -11709,6 +11709,13 @@ pub struct SearchLibrariesRequestView<'a> {
     ///
     /// Field 1: `query`
     pub query: &'a str,
+    /// The page of what it found to list. Movies, Shows and Episodes share one order, best fit
+    /// first, so a page holds `size` of them together.
+    ///
+    /// Field 2: `page`
+    pub page: ::buffa::MessageFieldView<
+        super::super::__buffa::view::PageRequestView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SearchLibrariesRequestView<'a> {
@@ -11748,6 +11755,27 @@ impl<'a> ::buffa::MessageView<'a> for SearchLibrariesRequestView<'a> {
                 )?;
                 view.query = ::buffa::types::borrow_str(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.page.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.page = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::PageRequestView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -11777,6 +11805,15 @@ impl<'a> ::buffa::MessageView<'a> for SearchLibrariesRequestView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::SearchLibrariesRequest {
             query: self.query.to_string(),
+            page: match self.page.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::PageRequest,
+                        ::buffa::Inline<super::super::PageRequest>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -11784,12 +11821,20 @@ impl<'a> ::buffa::MessageView<'a> for SearchLibrariesRequestView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for SearchLibrariesRequestView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
         if !self.query.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.query) as u64;
+        }
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -11797,13 +11842,21 @@ impl<'a> ::buffa::ViewEncode<'a> for SearchLibrariesRequestView<'a> {
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if !self.query.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.query, buf);
+        }
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -11828,6 +11881,11 @@ impl<'__a> ::serde::Serialize for SearchLibrariesRequestView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_empty_str(self.query) {
             __map.serialize_entry("query", self.query)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.page.as_option() {
+                __map.serialize_entry("page", __v)?;
+            }
         }
         __map.end()
     }
@@ -11931,6 +11989,16 @@ impl SearchLibrariesRequestOwnedView {
     pub fn query(&self) -> &'_ str {
         self.0.reborrow().query
     }
+    /// The page of what it found to list. Movies, Shows and Episodes share one order, best fit
+    /// first, so a page holds `size` of them together.
+    ///
+    /// Field 2: `page`
+    #[must_use]
+    pub fn page(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::PageRequestView<'_>> {
+        &self.0.reborrow().page
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<SearchLibrariesRequestView<'static>>>
 for SearchLibrariesRequestOwnedView {
@@ -11962,8 +12030,8 @@ impl ::serde::Serialize for SearchLibrariesRequestOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in two
-/// Libraries is found in each.
+/// A page of what `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in
+/// two Libraries is found in each.
 #[derive(Clone, Debug, Default)]
 pub struct SearchLibrariesResponseView<'a> {
     /// Field 1: `movies`
@@ -11980,6 +12048,13 @@ pub struct SearchLibrariesResponseView<'a> {
     pub episodes: ::buffa::RepeatedView<
         'a,
         super::super::__buffa::view::EpisodeInLibraryView<'a>,
+    >,
+    /// The rest of what it found: the next page's token, and on the first page how many Movies,
+    /// Shows and Episodes it found in all.
+    ///
+    /// Field 4: `page`
+    pub page: ::buffa::MessageFieldView<
+        super::super::__buffa::view::PageResponseView<'a>,
     >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
@@ -12013,6 +12088,27 @@ impl<'a> ::buffa::MessageView<'a> for SearchLibrariesResponseView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.page.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.page = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::PageResponseView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -12116,6 +12212,15 @@ impl<'a> ::buffa::MessageView<'a> for SearchLibrariesResponseView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            page: match self.page.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::PageResponse,
+                        ::buffa::Inline<super::super::PageResponse>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -12146,6 +12251,14 @@ impl<'a> ::buffa::ViewEncode<'a> for SearchLibrariesResponseView<'a> {
         for v in &self.episodes {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -12186,6 +12299,14 @@ impl<'a> ::buffa::ViewEncode<'a> for SearchLibrariesResponseView<'a> {
             );
             v.write_to(__cache, buf);
         }
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -12215,6 +12336,11 @@ impl<'__a> ::serde::Serialize for SearchLibrariesResponseView<'__a> {
         }
         if !self.episodes.is_empty() {
             __map.serialize_entry("episodes", &*self.episodes)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.page.as_option() {
+                __map.serialize_entry("page", __v)?;
+            }
         }
         __map.end()
     }
@@ -12337,6 +12463,16 @@ impl SearchLibrariesResponseOwnedView {
         super::super::__buffa::view::EpisodeInLibraryView<'_>,
     > {
         &self.0.reborrow().episodes
+    }
+    /// The rest of what it found: the next page's token, and on the first page how many Movies,
+    /// Shows and Episodes it found in all.
+    ///
+    /// Field 4: `page`
+    #[must_use]
+    pub fn page(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::PageResponseView<'_>> {
+        &self.0.reborrow().page
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<SearchLibrariesResponseView<'static>>>

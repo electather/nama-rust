@@ -101,7 +101,7 @@ pub fn serve(
     let events = EventBus::new(Arc::clone(&db), points.clone(), settings.server_url());
     let ffmpeg = Arc::new(ffmpeg);
     let subtitles = SubtitleCache::new(&config.data_dir);
-    let probing = Probing::new(Arc::clone(&db), Arc::clone(&ffmpeg), subtitles.clone());
+    let probing = Probing::new(Arc::clone(&db), Arc::clone(&ffmpeg), subtitles);
     let contents = Contents::new(Arc::clone(&db));
     let running = RunningPlans::new(
         settings.playback(),
@@ -147,7 +147,6 @@ pub fn serve(
         abilities.clone(),
         setup_code,
         ffmpeg,
-        subtitles,
     );
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));

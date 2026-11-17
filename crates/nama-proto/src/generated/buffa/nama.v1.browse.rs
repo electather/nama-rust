@@ -8437,13 +8437,25 @@ pub struct SearchLibrariesRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub query: ::buffa::alloc::string::String,
+    /// The page of what it found to list. Movies, Shows and Episodes share one order, best fit
+    /// first, so a page holds `size` of them together.
+    ///
+    /// Field 2: `page`
+    #[serde(
+        rename = "page",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub page: ::buffa::MessageField<PageRequest, ::buffa::Inline<PageRequest>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for SearchLibrariesRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SearchLibrariesRequest").field("query", &self.query).finish()
+        f.debug_struct("SearchLibrariesRequest")
+            .field("query", &self.query)
+            .field("page", &self.page)
+            .finish()
     }
 }
 impl SearchLibrariesRequest {
@@ -8469,25 +8481,41 @@ impl ::buffa::Message for SearchLibrariesRequest {
     /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
     /// points reject, never a silently wrapped size.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
         if !self.query.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.query) as u64;
         }
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         if !self.query.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.query, buf);
+        }
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8509,6 +8537,17 @@ impl ::buffa::Message for SearchLibrariesRequest {
                 )?;
                 ::buffa::types::merge_string(&mut self.query, buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.page.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -8518,6 +8557,7 @@ impl ::buffa::Message for SearchLibrariesRequest {
     }
     fn clear(&mut self) {
         self.query.clear();
+        self.page = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -8550,8 +8590,8 @@ pub const __SEARCH_LIBRARIES_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEn
     from_json: ::buffa::type_registry::any_from_json::<SearchLibrariesRequest>,
     is_wkt: false,
 };
-/// What `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in two
-/// Libraries is found in each.
+/// A page of what `SearchLibraries` found, each kind best fit first. A Movie, Show or Episode in
+/// two Libraries is found in each.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
@@ -8577,6 +8617,15 @@ pub struct SearchLibrariesResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub episodes: ::buffa::alloc::vec::Vec<EpisodeInLibrary>,
+    /// The rest of what it found: the next page's token, and on the first page how many Movies,
+    /// Shows and Episodes it found in all.
+    ///
+    /// Field 4: `page`
+    #[serde(
+        rename = "page",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub page: ::buffa::MessageField<PageResponse, ::buffa::Inline<PageResponse>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -8587,6 +8636,7 @@ impl ::core::fmt::Debug for SearchLibrariesResponse {
             .field("movies", &self.movies)
             .field("shows", &self.shows)
             .field("episodes", &self.episodes)
+            .field("page", &self.page)
             .finish()
     }
 }
@@ -8641,6 +8691,14 @@ impl ::buffa::Message for SearchLibrariesResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.page.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.page.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -8674,6 +8732,14 @@ impl ::buffa::Message for SearchLibrariesResponse {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.page.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.page.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8724,6 +8790,17 @@ impl ::buffa::Message for SearchLibrariesResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.episodes.push(elem);
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.page.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -8735,6 +8812,7 @@ impl ::buffa::Message for SearchLibrariesResponse {
         self.movies.clear();
         self.shows.clear();
         self.episodes.clear();
+        self.page = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }

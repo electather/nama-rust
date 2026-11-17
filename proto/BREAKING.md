@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-17, #881
+
+- None that `buf breaking` reports: in `nama/v1/browse.proto`, `SearchLibrariesRequest` gains `page` (2), a `PageRequest`, and `SearchLibrariesResponse` gains `page` (4), a `PageResponse`.
+- `SearchLibraries` lists a page of what it found (ADR 0055), its Movies, Shows and Episodes in one order, best fit first, where it listed all of it.
+- A client built before gets only the 50 best fits and finds no next token; it must regenerate and send `page`. The web app is the only client.
+
 ## 2026-11-17, #884
 
 - `FIELD_SAME_TYPE`, `nama/v1/browse.proto`: `ListMoviesResponse.movies` (1) and `ListShowsResponse.shows` (1).

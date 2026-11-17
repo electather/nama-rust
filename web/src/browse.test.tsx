@@ -67,11 +67,12 @@ test("an unknown Movie shows the not-found page, under the app chrome", async ()
   expect(screen.getByRole("link", { name: "Libraries" })).toBeDefined();
 });
 
-test("a Season the Show doesn't have falls back to its first, after the Specials", async () => {
-  const transport = serverToBrowse({
+/** A fake Server with a Show of `seasons`, each holding one Episode titled after its Season. */
+function serverWithSeasons(...seasons: number[]) {
+  return serverToBrowse({
     getShow: () => ({
       show: { title: "Severance" },
-      seasons: [{ number: 0 }, { number: 1 }, { number: 2 }],
+      seasons: seasons.map((number) => ({ number })),
     }),
     listEpisodes: ({ seasonNumber }) => ({
       episodes: [
@@ -84,10 +85,62 @@ test("a Season the Show doesn't have falls back to its first, after the Specials
       ],
     }),
   });
-  openApp("/libraries/2/shows/tmdb-95396?season=9", transport);
+}
+
+test("a Season the Show doesn't have falls back to its first, after the Specials", async () => {
+  openApp("/libraries/2/shows/tmdb-95396?season=9", serverWithSeasons(0, 1, 2));
 
   expect(await screen.findByText(/Opener of Season 1/u)).toBeDefined();
   expect(screen.queryByText(/Opener of Season (0|9)/u)).toBeNull();
+});
+
+test("a Show with one Season lists its Episodes without Season links", async () => {
+  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(1));
+
+  expect(await screen.findByText("Opener of Season 1")).toBeDefined();
+  expect(screen.queryByRole("navigation", { name: "Seasons" })).toBeNull();
+});
+
+test("a Show with one Season and Specials lists the Season's Episodes, then the Specials", async () => {
+  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(0, 1));
+
+  const specials = await screen.findByRole("region", { name: "Specials" });
+  expect(within(specials).getByText("Opener of Season 0")).toBeDefined();
+  const season = screen.getByText("Opener of Season 1");
+  expect(season.compareDocumentPosition(specials) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.queryByRole("navigation", { name: "Seasons" })).toBeNull();
+  expect(
+    within(specials).getByRole("link", { name: "Specials" }).getAttribute("href"),
+  ).toStrictEqual("/libraries/2/shows/tmdb-95396?season=0");
+});
+
+test("a one-Season Show's Specials keep their own page, with Season links", async () => {
+  openApp("/libraries/2/shows/tmdb-95396?season=0", serverWithSeasons(0, 1));
+
+  const seasons = await screen.findByRole("navigation", { name: "Seasons" });
+  expect(within(seasons).getByRole("link", { name: "Season 1" })).toBeDefined();
+  expect(await screen.findByText("Opener of Season 0")).toBeDefined();
+  expect(screen.queryByText("Opener of Season 1")).toBeNull();
+});
+
+test("a Show whose one Season isn't Season 1 lists it without Season links", async () => {
+  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(3));
+
+  expect(await screen.findByText("Opener of Season 3")).toBeDefined();
+  expect(screen.queryByRole("navigation", { name: "Seasons" })).toBeNull();
+});
+
+test("a Show with two Seasons links to each and lists one at a time", async () => {
+  openApp("/libraries/2/shows/tmdb-95396", serverWithSeasons(0, 1, 2));
+
+  const seasons = await screen.findByRole("navigation", { name: "Seasons" });
+  expect(
+    within(seasons)
+      .getAllByRole("link")
+      .map((link) => link.textContent),
+  ).toStrictEqual(["Specials", "Season 1", "Season 2"]);
+  expect(await screen.findByText("Opener of Season 1")).toBeDefined();
+  expect(screen.queryByRole("region", { name: "Specials" })).toBeNull();
 });
 
 test("a Library's page shows a Movie as soon as it's Matched", async () => {
