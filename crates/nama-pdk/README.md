@@ -112,7 +112,7 @@ A Notifier is handed each notification with its `Recipient`: `Channel`, the chan
 
 The Manifest's `settings` lists what an admin fills in, each a `SettingField` of a `SettingKind`. A Plugin reads a setting with `extism_pdk::config::get(key)`, as text; what it holds when is in [What the Kernel gives a Plugin](../nama-plugin-proto/README.md#what-the-kernel-gives-a-plugin). A Libraries setting holds Library ids an admin picked from the Server's list; read it with `nama_pdk::setting_library_ids(key)`, and skip an id the Kernel no longer lists, since a Library may be deleted after the setting is saved.
 
-A Plugin with a Choice setting, such as a quality profile, exports `check_settings()`, which the Server calls when an admin tests the settings. It checks them against the outside service and offers each Choice setting's values, built with `nama_pdk::checked_settings`:
+A Plugin with a Choice setting, such as a quality profile, exports `check_settings()`, which the Server calls when an admin tests the settings, saves them with a Choice setting they set, or replaces a Fulfiller's Qualities with a non-empty list; a failing check refuses that save or replace, and a slow one holds it up. It checks them against the outside service and offers each Choice setting's values, built with `nama_pdk::checked_settings`:
 
 ```rust
 use nama_pdk::{Buffa, CheckedSettings, FnResult, extism_pdk, plugin_fn};
@@ -278,7 +278,7 @@ Each call has a memory and a time limit, and three crashes in a row disable the 
 
 ## 11. Errors
 
-An export's error is its message to people. `manifest()`'s gets the Plugin refused and `check_settings()`'s is shown to the admin testing, and the trait docs' `# Errors` say where each point's goes, such as `fulfill`'s, which becomes the reason a Request shows as Failed. Write it as a sentence an admin can act on. A panic reaches the Server with its message, not as a bare trap.
+An export's error is its message to people. `manifest()`'s gets the Plugin refused and `check_settings()`'s is shown to the admin testing, saving settings or replacing Qualities, and the trait docs' `# Errors` say where each point's goes, such as `fulfill`'s, which becomes the reason a Request shows as Failed. Write it as a sentence an admin can act on. A panic reaches the Server with its message, not as a bare trap.
 
 ## 12. Building and installing
 

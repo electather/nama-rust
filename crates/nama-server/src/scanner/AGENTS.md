@@ -12,4 +12,4 @@ Walking each Library's folders, storing the video files in them and what their n
 ### Neighbours
 
 - Uses: `db`, `events`, `library` (`Contents`, `Libraries`, `ScanLocks`, `PARSER_VERSION`, `Artwork`, `CustomImages`), `matching` (`Matcher`, `count`), `playback` (`Probing`, `RunningPlans`, and `SubtitleCache` in tests), `requests`, `plugins`, `server_settings` (`ServerUrl`), and `images` and `ffmpeg` in tests.
-- Used by: `api` (libraries), `automation`, `browse` (`Doomed`, `read_only_folder`), startup in `lib.rs`, and Matching's and Requests' unit tests, which build the Scanner.
+- Used by: `api` (libraries), `automation`, `browse` (`Doomed`, `read_only_folder`), and startup in `lib.rs`.

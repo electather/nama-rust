@@ -2,7 +2,7 @@
 //! too many recent failures: Setup, signing in and Reauthenticate from one client IP or for one User
 //! name, and Sign-in Code lookups and approvals from one Device. Also refusing Sign-in Code starts
 //! from one client IP after too many recent ones, so one client can't fill the pool of waiting
-//! codes for everyone.
+//! codes for everyone. A client IP is counted by its /64 if it is IPv6.
 //!
 //! Counts live in memory only. They expire as the window slides past them and a restart forgets
 //! them, so nobody is ever locked out for good.
@@ -26,7 +26,7 @@ const WINDOW: Duration = Duration::from_mins(15);
 const FAILURES_PER_NAME: usize = 10;
 
 /// How many failures from one client IP, Setup, signing in and Reauthenticate together, the window
-/// may hold before its attempts are refused.
+/// may hold before its attempts are refused. An IPv6 client is counted by its /64.
 const FAILURES_PER_IP: usize = 50;
 
 /// How many failed Sign-in Code lookups and approvals from one Device the window may hold before
@@ -35,7 +35,7 @@ const FAILURES_PER_DEVICE: usize = 10;
 
 /// How many Sign-in Code starts from one client IP the window may hold before its starts are
 /// refused: far more than a household of Devices behind one NAT needs, each starting a fresh code
-/// when one expires.
+/// when one expires. An IPv6 client is counted by its /64.
 const STARTS_PER_IP: usize = 20;
 
 /// The recent failed Setup, signing in and Reauthenticate attempts, by client IP and by User name.
@@ -76,6 +76,7 @@ impl SignInLimits {
         name: Option<&str>,
         now: Instant,
     ) -> Result<Attempt, Blocked> {
+        let ip = counted_ip(ip);
         let name_key = name.map(counted_name_key);
         let mut failures = self.lock();
         let ip_wait = failures.by_ip.wait(&ip, FAILURES_PER_IP, now);
@@ -163,6 +164,7 @@ impl SignInCodeStartLimits {
     /// and counts it. A start is never un-counted: unlike a guess, it holds a waiting code whatever
     /// happens next.
     pub(super) fn admit(&self, ip: IpAddr, now: Instant) -> Result<(), Blocked> {
+        let ip = counted_ip(ip);
         // As for `SignInLimits`: every change leaves the counts consistent.
         let mut starts = self.starts.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some(retry_after) = starts.wait(&ip, STARTS_PER_IP, now) {
@@ -190,6 +192,16 @@ fn counted_name_key(name: &str) -> String {
         .take(NAME_LENGTH.end() + 1)
         .collect();
     name_key(&capped)
+}
+
+/// What failures and starts from `ip` are counted under: an IPv6 address by its /64, since one
+/// client normally holds a whole /64 and could use a new address for each attempt. `forwarded.rs`
+/// has already turned an IPv4-mapped address into its IPv4 one.
+fn counted_ip(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V4(_) => ip,
+        IpAddr::V6(v6) => IpAddr::V6((u128::from(v6) & !u128::from(u64::MAX)).into()),
+    }
 }
 
 /// When each key's counts still in the window happened, oldest first: failures, or Sign-in Code

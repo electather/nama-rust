@@ -22,7 +22,7 @@ use crate::{
     },
     matching::{
         Matcher, Miss, Summary, TitleKey, sources,
-        tests::{Fixture, Library, Outcome, matched},
+        testing::{Fixture, Library, Outcome, episode, matched, movie},
     },
     plugins::{ExtensionPoints, Registry},
     server_settings::ServerUrl,
@@ -336,8 +336,14 @@ async fn outcomes_after_scan(media: &Fixture, library: &Library) -> Vec<Outcome>
 #[tokio::test]
 async fn a_recogniser_failing_for_one_movie_leaves_the_next_movie_matched_in_the_same_pass() {
     let media = failing_for("Alien").await;
-    media.movies.write("Alien (1979)/Alien (1979).mkv");
-    media.movies.write("Dune (2021)/Dune (2021).mkv");
+    media
+        .movies
+        .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])
+        .await;
+    media
+        .movies
+        .write("Dune (2021)/Dune (2021).mkv", &[movie("Dune", 2021)])
+        .await;
 
     let outcomes = outcomes_after_scan(&media, &media.movies).await;
 
@@ -349,10 +355,18 @@ async fn a_recogniser_failing_for_one_show_leaves_another_shows_episodes_matched
     let media = failing_for("Dark").await;
     media
         .shows
-        .write("Dark (2017)/Season 01/Dark (2017) - S01E03.mkv");
+        .write(
+            "Dark (2017)/Season 01/Dark (2017) - S01E03.mkv",
+            &[episode("Dark", 2017, 1, 3)],
+        )
+        .await;
     media
         .shows
-        .write("Euphoria (US)/Season 01/Euphoria (US) - S01E01.mkv");
+        .write(
+            "Euphoria (US)/Season 01/Euphoria (US) - S01E01.mkv",
+            &[episode("Euphoria (US)", None, 1, 1)],
+        )
+        .await;
 
     let outcomes = outcomes_after_scan(&media, &media.shows).await;
 
@@ -362,13 +376,19 @@ async fn a_recogniser_failing_for_one_show_leaves_another_shows_episodes_matched
 #[tokio::test]
 async fn a_recogniser_failing_for_one_title_still_lets_the_scan_refresh_outdated_matches() {
     let media = failing_for("Alien").await;
-    media.movies.write("Dune (2021)/Dune (2021).mkv");
+    media
+        .movies
+        .write("Dune (2021)/Dune (2021).mkv", &[movie("Dune", 2021)])
+        .await;
     media.scan(&media.movies).await;
     media
         .contents
         .stored_by_older_metadata(media.movies.id)
         .await;
-    media.movies.write("Alien (1979)/Alien (1979).mkv");
+    media
+        .movies
+        .write("Alien (1979)/Alien (1979).mkv", &[movie("Alien", 1979)])
+        .await;
 
     media.scan(&media.movies).await;
 

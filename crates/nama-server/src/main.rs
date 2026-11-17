@@ -14,14 +14,27 @@ use nama_plugin_api::points::{ServerStarted, ServerStartedEvent};
 use nama_server::{
     config::{self, Config},
     db::{self, Database},
+    diagnostics,
     ffmpeg::Ffmpeg,
     plugin_settings::PluginSettings,
     plugins::Registry,
     users::{SetupCode, Users},
 };
+use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
+use opentelemetry_otlp::{ExporterBuildError, LogExporter, SpanExporter};
+use opentelemetry_sdk::{logs::SdkLoggerProvider, trace::SdkTracerProvider};
 use tokio::{net::TcpListener, task};
-use tracing::{error, info, warn};
-use tracing_subscriber::EnvFilter;
+use tracing::{Subscriber, error, info, warn};
+use tracing_subscriber::{
+    EnvFilter, Layer,
+    filter::{FilterExt as _, filter_fn},
+    layer::SubscriberExt as _,
+    registry::LookupSpan,
+    util::SubscriberInitExt as _,
+};
+
+/// The standard variable naming where Diagnostics are exported; unset, nothing is (ADR 0054).
+const OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
 #[derive(Debug, Parser)]
 #[command(version, about)]
@@ -34,8 +47,15 @@ struct Args {
 #[tokio::main]
 async fn main() -> ExitCode {
     let args = Args::parse();
-    init_tracing();
+    let exporting = init_tracing();
+    let exit = run(args).await;
+    if let Some(exporting) = exporting {
+        exporting.shutdown();
+    }
+    exit
+}
 
+async fn run(args: Args) -> ExitCode {
     let Some(config) = load_config(args.config.as_deref()) else {
         return ExitCode::FAILURE;
     };
@@ -213,16 +233,93 @@ async fn close(db: Arc<Database>) {
     }
 }
 
-/// Logs to stdout at `info`, or at whatever `RUST_LOG` asks for.
-fn init_tracing() {
+/// Logs to stdout at `info`, or at whatever `RUST_LOG` asks for, and, only if
+/// [`OTLP_ENDPOINT`] is set, exports traces and logs there too. Returns what exports, to flush at
+/// shutdown.
+fn init_tracing() -> Option<Exporting> {
     // Extism logs an Installed Plugin's error or panic as it is, which may quote a secret setting;
     // the Server logs it itself with secrets blanked.
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info,extism::plugin=off"));
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
+    // The Server's own spans are for exporting: on stdout they'd prefix each line logged in one.
+    let not_own_span = filter_fn(|metadata| {
+        !(metadata.is_span() && metadata.target().starts_with(env!("CARGO_CRATE_NAME")))
+    });
+    let stdout = tracing_subscriber::fmt::layer()
         .with_ansi(io::stdout().is_terminal())
+        .with_filter(filter.and(not_own_span));
+    // Empty counts as unset, as the OpenTelemetry spec says of every `OTEL_*` variable.
+    let endpoint = env::var_os(OTLP_ENDPOINT).filter(|endpoint| !endpoint.is_empty());
+    let exporting = endpoint.map(|_| Exporting::start());
+    let exported = match &exporting {
+        Some(Ok(exporting)) => Some(exporting.layer()),
+        Some(Err(_)) | None => None,
+    };
+    tracing_subscriber::registry()
+        .with(stdout)
+        .with(exported)
         .init();
+    match exporting? {
+        Ok(exporting) => {
+            warn_if_https();
+            Some(exporting)
+        }
+        Err(err) => {
+            error!("could not start exporting Diagnostics, so they stay on stdout: {err}");
+            None
+        }
+    }
+}
+
+/// The traces and logs exported over OTLP, each through a batch processor whose queue drops what
+/// doesn't fit rather than growing. Every `OTEL_*` variable configures them, such as the
+/// sampler, which keeps every trace unless `OTEL_TRACES_SAMPLER` says otherwise.
+struct Exporting {
+    traces: SdkTracerProvider,
+    logs: SdkLoggerProvider,
+}
+
+impl Exporting {
+    fn start() -> Result<Self, ExporterBuildError> {
+        let traces = SdkTracerProvider::builder()
+            .with_batch_exporter(SpanExporter::builder().with_http().build()?)
+            .build();
+        let logs = SdkLoggerProvider::builder()
+            .with_batch_exporter(LogExporter::builder().with_http().build()?)
+            .build();
+        Ok(Self { traces, logs })
+    }
+
+    fn layer<S>(&self) -> impl Layer<S> + use<S>
+    where
+        S: Subscriber + for<'span> LookupSpan<'span>,
+    {
+        let logs =
+            OpenTelemetryTracingBridge::new(&self.logs).with_filter(diagnostics::exported_filter());
+        diagnostics::layer(&self.traces).and_then(logs)
+    }
+
+    /// Exports what is still queued, then stops.
+    fn shutdown(self) {
+        if let Err(err) = self.traces.shutdown() {
+            error!("could not flush the last traces: {err}");
+        }
+        if let Err(err) = self.logs.shutdown() {
+            error!("could not flush the last logs: {err}");
+        }
+    }
+}
+
+/// Warns that an HTTPS [`OTLP_ENDPOINT`] gets nothing, since the exporter speaks only plain HTTP.
+fn warn_if_https() {
+    // ponytail: no TLS, which would add a C crypto build; turn on opentelemetry-otlp's
+    // `reqwest-rustls` once an admin needs to export straight to an HTTPS endpoint.
+    if env::var(OTLP_ENDPOINT).is_ok_and(|endpoint| endpoint.starts_with("https:")) {
+        warn!(
+            "{OTLP_ENDPOINT} is HTTPS, which this Server can't export to: point it at an \
+             OpenTelemetry Collector over plain HTTP"
+        );
+    }
 }
 
 /// Resolves on Ctrl-C (SIGINT), or SIGTERM on Unix.

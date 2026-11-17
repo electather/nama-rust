@@ -78,12 +78,13 @@ test("a required Personal setting is required", async () => {
   expect((await card()).getByLabelText<HTMLInputElement>("Topic").required).toBe(true);
 });
 
-test("a set secret is said to be set, never filled in", async () => {
+test("a set secret is said to be set, never filled in, and has no Forget of its own", async () => {
   openWithNtfy();
 
   const ntfyCard = await card();
   expect(ntfyCard.getByText("Set")).toBeDefined();
   expect(ntfyCard.queryByLabelText("Access token")).toBeNull();
+  expect(ntfyCard.queryByRole("button", { name: "Forget Access token" })).toBeNull();
   fireEvent.click(ntfyCard.getByRole("button", { name: "Replace Access token" }));
   const token = ntfyCard.getByLabelText<HTMLInputElement>("Access token");
   expect([token.type, token.value]).toEqual(["password", ""]);

@@ -33,6 +33,11 @@ impl PluginBlobs {
         Self { points, plugin }
     }
 
+    /// Whether the Plugin is now an enabled blob store, so its objects can be read.
+    pub(crate) fn is_served(&self) -> bool {
+        self.points.blob_stores().contains(&self.plugin)
+    }
+
     /// Asks the Plugin's [`BlobStore`] with `call`.
     ///
     /// # Errors

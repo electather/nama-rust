@@ -236,9 +236,16 @@ impl ImageStore {
     ///
     /// # Errors
     ///
-    /// If the file can't be written.
+    /// If `bytes` is over 20 MiB, the most one stored object may have (`FileTooLarge`), or the
+    /// file can't be written.
     pub async fn write(&self, key: &[&str], bytes: &[u8]) -> io::Result<()> {
         let key = row_key(key);
+        if bytes.len() > MAX_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::FileTooLarge,
+                format!("{key} is over the store's 20 MiB object size limit"),
+            ));
+        }
         let _writing = self.write_lock(&key).lock().await;
         let blobs = self.blobs();
         if blobs.exists(&key).await? {
@@ -291,6 +298,30 @@ impl ImageStore {
             version,
             content_type,
         })
+    }
+
+    /// Deletes the uploads a crashed run left, going on past one it can't delete. Only the caller
+    /// knows no upload is in flight: startup, before serving.
+    ///
+    /// # Errors
+    ///
+    /// If the uploads folder can't be read.
+    pub(crate) async fn sweep_uploads(&self) -> io::Result<()> {
+        let mut entries = match tokio::fs::read_dir(self.dir.join(UPLOADS_DIR)).await {
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+            entries => entries?,
+        };
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            let deleted = match entry.file_type().await {
+                Ok(kind) if kind.is_dir() => tokio::fs::remove_dir_all(&path).await,
+                _ => tokio::fs::remove_file(&path).await,
+            };
+            if let Err(err) = deleted {
+                tracing::warn!("could not delete {}: {err}", path.display());
+            }
+        }
+        Ok(())
     }
 
     /// Whether an image is stored at `key`.

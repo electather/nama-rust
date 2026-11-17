@@ -7,6 +7,7 @@ mod browse;
 pub mod config;
 mod connections;
 pub mod db;
+pub mod diagnostics;
 mod events;
 pub mod ffmpeg;
 mod forwarded;
@@ -143,7 +144,7 @@ pub fn serve(
     let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
         // Before anything can publish an event, so that no notification misses its link, and
-        // before serving, so the sweep deletes no plan's files but an earlier run's.
+        // before serving, so the sweeps delete no plan's files or upload but an earlier run's.
         load_settings.await;
         scanner.start_all().await;
         // Quiet long enough that a file being copied in is scanned once it's whole; every six hours
@@ -179,7 +180,8 @@ pub fn serve(
 }
 
 /// Reads the Server settings, logging a failure and going on with the defaults, has `images`
-/// keep its originals in the store they name, then sweeps the segment files an earlier run left.
+/// keep its originals in the store they name, then sweeps the segment files and uploads an earlier
+/// run left.
 async fn load_settings(settings: Settings, images: ImageStore, points: ExtensionPoints) {
     if let Err(err) = settings.load().await {
         tracing::error!(
@@ -188,7 +190,19 @@ async fn load_settings(settings: Settings, images: ImageStore, points: Extension
         );
     }
     if let Some(plugin) = settings.now().image_store {
-        images.keep_in(Arc::new(PluginBlobs::new(points, plugin)));
+        let blobs = PluginBlobs::new(points, plugin.clone());
+        // Kept anyway (ADR 0052): the images come back once the Plugin is enabled again.
+        if !blobs.is_served() {
+            tracing::warn!(
+                "the image store is the Plugin {plugin}, which isn't an enabled blob store, so \
+                 stored images can't be read until it is enabled again or another store is \
+                 picked under Settings"
+            );
+        }
+        images.keep_in(Arc::new(blobs));
     }
     playback::sweep_leftovers(&settings.playback()).await;
+    if let Err(err) = images.sweep_uploads().await {
+        tracing::warn!("could not delete the uploads an earlier run left: {err}");
+    }
 }

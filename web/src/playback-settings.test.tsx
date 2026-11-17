@@ -227,22 +227,25 @@ test("a saved hardware acceleration that didn't pass its test stays chosen", asy
   ]);
 });
 
-test("a segment folder that isn't an absolute path is refused under its field", async () => {
+test.each([
+  ["isn't an absolute path", RefusalReason.FOLDER_NOT_ABSOLUTE, "shm/nama"],
+  ["the Server can't write", RefusalReason.FOLDER_NOT_WRITABLE, "/proc/nama"],
+])("a segment folder that %s is refused under its field", async (_case, reason, folder) => {
   openPlayback({
     getPlaybackSettings: () => ({ settings: { maxTranscodes: 2 } }),
     updatePlaybackSettings: () => {
-      throw refused(Code.InvalidArgument, "the segment folder must be an absolute path", {
-        reason: RefusalReason.FOLDER_NOT_ABSOLUTE,
+      throw refused(Code.InvalidArgument, "the segment folder is no good", {
+        reason,
         field: "settings.segment_folder",
       });
     },
   });
 
   await screen.findByLabelText("Segment folder");
-  fill("Segment folder", "shm/nama");
+  fill("Segment folder", folder);
   fireEvent.click(screen.getByRole("button", { name: "Save playback settings" }));
 
-  await expectUnderField("Segment folder", "The segment folder must be an absolute path.");
+  await expectUnderField("Segment folder", "The segment folder is no good.");
 });
 
 test.each([

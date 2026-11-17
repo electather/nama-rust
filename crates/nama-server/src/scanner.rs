@@ -538,6 +538,7 @@ impl Scanner {
         clippy::too_many_lines,
         reason = "one scan's steps in the order they run; split, it would be read in pieces"
     )]
+    #[tracing::instrument(name = "scan", skip_all, fields(library.id = scan.library()))]
     async fn scan_locked(&self, scan: &ScanLock) -> Result<Summary, Error> {
         let id = scan.library();
         let cancel = self.inner.cancel.clone();

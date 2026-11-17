@@ -3,7 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { FormEnd } from "@/components/form-field";
 import { PluginLogo } from "@/components/plugin-at-a-glance";
-import { SettingInput, refusedSettings, settingsTyped } from "@/components/setting-fields";
+import { SettingInput, settingsTyped } from "@/components/setting-fields";
+import { refusedSettings } from "@/components/setting-refusals";
 import { Button } from "@/components/ui/button";
 import { type PersonalSettings as Personal, UserService } from "@/gen/nama/v1/user_pb";
 import { onSubmitted } from "@/lib/forms";

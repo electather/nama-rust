@@ -70,6 +70,10 @@ For NVIDIA (NVENC), install the [NVIDIA Container Toolkit](https://docs.nvidia.c
 
 An Admin sees which ffmpeg the Server found, and its version, on the Playback page.
 
+## Diagnostics
+
+A Server logs to stdout and sends nothing anywhere else (ADR 0054). To see where its time goes, set `OTEL_EXPORTER_OTLP_ENDPOINT` to an OpenTelemetry Collector's OTLP/HTTP address, such as `http://otel-collector:4318`. The Server then also exports its logs, and a trace for each API call, Scan, probe, image resize and ffmpeg launch, with a span for each SQL query and Plugin call in it. Spans carry ids, counts and durations, never titles, file paths or names; the logs are those on stdout. The standard `OTEL_*` variables configure the rest, such as `OTEL_SERVICE_NAME` and `OTEL_TRACES_SAMPLER`. The Server exports over plain HTTP only, so an HTTPS backend needs a Collector in front of it.
+
 ## Checks
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the following, and every warning fails it:

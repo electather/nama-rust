@@ -42,6 +42,12 @@ nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb" }
 nama-plugin-proto = { version = "0.2.0", path = "../nama-plugin-proto" }
 nama-proto = { version = "0.2.0", path = "../nama-proto" }
 notify = "8.2.2"
+# Diagnostics (ADR 0054): traces and logs exported over OTLP/HTTP only when an endpoint is set.
+opentelemetry = { version = "0.33.1", default-features = false, features = ["trace"] }
+opentelemetry-appender-tracing = "0.33.1"
+opentelemetry-http = { version = "0.33.1", default-features = false }
+opentelemetry-otlp = { version = "0.33.1", default-features = false, features = ["http-proto", "logs", "reqwest-blocking-client", "trace"] }
+opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["logs", "trace"] }
 regex = "1"
 schemars = "1"
 semver = "1"
@@ -58,6 +64,7 @@ tokio = { version = "1", features = ["fs", "macros", "net", "process", "rt-multi
 tokio-util = { version = "0.7", features = ["rt"] }
 tower-http = { version = "0.7.1", default-features = false, features = ["fs"] }
 tracing = "0.1"
+tracing-opentelemetry = { version = "0.34.0", default-features = false }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
 walkdir = "2"
@@ -79,6 +86,7 @@ hyper-util = { version = "0.1", features = ["tokio"] }
 jxl = "0.8"
 nama-server = { path = ".", features = ["testing"] }
 nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb", features = ["testing"] }
+opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["testing"] }
 tokio = { version = "1", features = ["test-util"] }
 
 [lints]

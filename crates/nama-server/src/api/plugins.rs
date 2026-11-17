@@ -109,7 +109,11 @@ impl PluginService for PluginServiceHandler {
         let id = PluginId::from(request.id);
         let stored = self
             .plugin_settings
-            .update(&id, settings_from_proto(&request.settings))
+            .update(
+                &id,
+                settings_from_proto(&request.settings),
+                request.forgotten_secrets,
+            )
             .await
             .map_err(change_refused)?;
         Response::ok(UpdatePluginSettingsResponse {
