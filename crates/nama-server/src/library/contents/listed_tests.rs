@@ -1,13 +1,16 @@
+use std::time::Duration;
+
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
     super::{
-        Decided, Item, ItemKind, Metadata,
+        Change, Decided, Item, ItemKind, Metadata,
         fixture::tmdb_movie,
-        testing::{Fixture, movie},
+        testing::{ALIEN, Fixture, movie},
     },
     Listed,
 };
+use crate::db;
 
 /// Stores a Movie file at `path` and Matches it to a Movie with `ids`, called `title`.
 async fn matched_movie(fx: &Fixture, path: &str, title: &str, ids: ExternalIds) {
@@ -123,27 +126,96 @@ async fn a_page_names_a_movie_with_no_id_from_its_librarys_title_sources_by_its_
 }
 
 #[tokio::test]
-async fn a_page_of_episodes_gives_their_show_and_numbers_and_leaves_out_one_without_a_show_id() {
+async fn a_page_of_episodes_gives_their_show_numbers_and_added_time_and_leaves_out_one_without_a_show_id()
+ {
     let fx = Fixture::new().await;
     let dark = ExternalIds::from_iter([ExternalId::tmdb(70_523)]);
-    matched_episode(&fx, "/media/Dark - S01E01.mkv", 1, "Secrets", dark).await;
     let showless = ExternalIds::default();
     matched_episode(&fx, "/media/Dark - S01E02.mkv", 2, "Lies", showless).await;
 
+    let before = db::now();
+    matched_episode(&fx, "/media/Dark - S01E01.mkv", 1, "Secrets", dark).await;
+    let after = db::now();
+
     let page = fx
         .contents
-        .titles_page(fx.library, ItemKind::Episode, None, None);
+        .titles_page(fx.library, ItemKind::Episode, None, None)
+        .await
+        .unwrap();
 
+    let [listed] = page.as_slice() else {
+        panic!("{page:?}");
+    };
     assert_eq!(
-        page.await.unwrap(),
-        [Listed {
+        listed,
+        &Listed {
             id: ExternalId::tmdb(1001),
             title: "Secrets".to_owned(),
             show_title: Some("Dark".to_owned()),
             season: Some(1),
             episode: Some(1),
-        }]
+            added_at: listed.added_at,
+        }
     );
+    assert!((before..=after).contains(&listed.added_at), "{listed:?}");
+}
+
+/// When the one Movie of `fx`'s Library was added, as a page lists it.
+async fn movie_added_at(fx: &Fixture) -> i64 {
+    let page = fx
+        .contents
+        .titles_page(fx.library, ItemKind::Movie, None, None);
+    let page = page.await.unwrap();
+    let [listed] = page.as_slice() else {
+        panic!("{page:?}");
+    };
+    listed.added_at
+}
+
+#[tokio::test]
+async fn a_movie_keeps_the_time_it_was_added_through_a_reparse_and_a_new_match() {
+    let fx = Fixture::new().await;
+    let ids = ExternalIds::from_iter([ExternalId::tmdb(348)]);
+    let before = db::now();
+    matched_movie(&fx, ALIEN, "Alien", ids.clone()).await;
+    let after = db::now();
+    let added = movie_added_at(&fx).await;
+
+    db::advance_clock(Duration::from_secs(2));
+    let file = fx.contents.stored(fx.library).await.unwrap()[ALIEN].id;
+    let reparse = Change::Reparse {
+        file,
+        path: ALIEN.to_owned(),
+        items: vec![movie("Alien", 2000)],
+    };
+    fx.contents.apply(fx.library, vec![reparse]).await.unwrap();
+    let rematched = Metadata {
+        ids,
+        ..tmdb_movie(0, "Alien: Director's Cut")
+    };
+    let item = fx.item(ALIEN).await;
+    fx.contents
+        .record(vec![(item, Decided::Matched(Box::new(rematched)))])
+        .await
+        .unwrap();
+
+    assert!((before..=after).contains(&added), "{added}");
+    assert_eq!(movie_added_at(&fx).await, added);
+}
+
+#[tokio::test]
+async fn a_movie_was_added_when_its_newest_version_was() {
+    let fx = Fixture::new().await;
+    let ids = ExternalIds::from_iter([ExternalId::tmdb(348)]);
+    matched_movie(&fx, "/media/Alien.mkv", "Alien", ids.clone()).await;
+
+    db::advance_clock(Duration::from_secs(2));
+    let before = db::now();
+    matched_movie(&fx, "/media/Alien - Cut.mkv", "Alien", ids).await;
+    let after = db::now();
+
+    let added = movie_added_at(&fx).await;
+    assert!((before..=after).contains(&added), "{added}");
 }
 
 #[tokio::test]

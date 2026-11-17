@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO library_items (file_id, kind, title, year, hint, season, episode)\n               VALUES (?, ?, ?, ?, ?, ?, ?)\n               RETURNING id AS \"id!\"",
+  "query": "INSERT INTO library_items (file_id, kind, title, year, hint, season, episode,\n                                          added_at)\n               VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n               RETURNING id AS \"id!\"",
   "describe": {
     "columns": [
       {
@@ -16,11 +16,11 @@
       }
     ],
     "parameters": {
-      "Right": 7
+      "Right": 8
     },
     "nullable": [
       null
     ]
   },
-  "hash": "93a56eefa8682429358f52dbdda2d26e7a1d3d4458d79addc30894ab7a4b059d"
+  "hash": "b1ebdfd8e9b98e3590f24f22f797709c5ff85efcfa203240f8a61970fadf041b"
 }

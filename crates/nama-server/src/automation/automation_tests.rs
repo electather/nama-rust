@@ -24,7 +24,7 @@ use nama_plugin_tmdb::{
 
 use super::Automation;
 use crate::{
-    db::Database,
+    db::{self, Database},
     events::EventBus,
     images::ImageStore,
     library::{
@@ -278,6 +278,31 @@ async fn list_titles_gives_each_movie_with_the_id_its_watch_state_uses() {
     assert_eq!(title.title, "Alien");
     assert_eq!(title.show_title, None);
     assert_eq!(*title.title_ref, movie_ref(alien.library, ALIEN_TMDB_ID));
+}
+
+#[tokio::test]
+async fn list_titles_gives_when_each_movie_and_episode_was_added() {
+    let data = tempfile::tempdir().unwrap();
+    let movies = tempfile::tempdir().unwrap();
+    let shows = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let before = db::now() * 1000;
+    let alien = MatchedMovie::new(&db, movies.path(), tmdb_movie(ALIEN_TMDB_ID, "Alien")).await;
+    let (dark, _path) = two_episodes_in_one_file(&db, shows.path()).await;
+    let after = db::now_ms();
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_LIBRARIES);
+
+    let mut added = Vec::new();
+    for library in [alien.library, dark] {
+        let listed = kernel.list_titles(&titles_asked(library, 0, "")).await;
+        added.extend(listed.unwrap().titles.iter().map(|title| title.added_at_ms));
+    }
+
+    assert_eq!(added.len(), 3, "{added:?}");
+    assert!(
+        added.iter().all(|at| (before..=after).contains(at)),
+        "{added:?} not in {before}..={after}"
+    );
 }
 
 #[tokio::test]
