@@ -11,6 +11,7 @@ use sqlx::SqliteConnection;
 
 use super::{
     Contents, Item, ItemKind, ItemRow, Pin, ids_from_json, ids_sql, parse_hint, primary_id_in,
+    sort_titles::sort_title,
 };
 use crate::{
     db::now,
@@ -378,8 +379,8 @@ pub(super) async fn insert_decisions(
                  overview, release_date, runtime_minutes, poster, poster_plugin, backdrop,
                  backdrop_plugin, logo, logo_plugin, still, genres, content_rating, show_poster,
                  show_poster_plugin, show_overview, show_first_air_date, unmatched_reason,
-                 tied_titles, metadata_version, decided_at)
-             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                 tied_titles, metadata_version, decided_at, sort_title)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
@@ -407,6 +408,7 @@ pub(super) async fn insert_decisions(
             row.tied_titles,
             METADATA_VERSION,
             now,
+            row.metadata.sort_title,
             item,
         )
         .execute(&mut *conn)
@@ -532,6 +534,8 @@ struct MetadataColumns<'a> {
     show_poster: Option<ImageColumns<'a>>,
     show_overview: Option<&'a str>,
     show_first_air_date: Option<&'a str>,
+    /// As [`sort_title`] makes it from the Show's title for an Episode, else from `title`.
+    sort_title: Option<String>,
 }
 
 /// An [`ImageRef`] as the columns of `item_matches` that store it.
@@ -591,6 +595,9 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     show_poster: metadata.show_poster.as_ref().map(ImageColumns::from),
                     show_overview: metadata.show_overview.as_deref(),
                     show_first_air_date: metadata.show_first_air_date.as_deref(),
+                    sort_title: Some(sort_title(
+                        metadata.show_title.as_deref().unwrap_or(&metadata.title),
+                    )),
                 },
                 unmatched_reason: None,
                 tied_titles: None,

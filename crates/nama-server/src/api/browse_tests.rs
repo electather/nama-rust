@@ -5,9 +5,18 @@ use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
 };
 
-use crate::library::{CustomImageUrls, LocalImageUrls};
+use connectrpc::ErrorCode;
+use nama_proto::nama::v1::{Refusal, RefusalReason};
 
-use super::{ImageRef, Movie, Show, ShownImages, artwork_url, movie_to_proto, show_to_proto};
+use crate::{
+    browse,
+    library::{CustomImageUrls, LocalImageUrls},
+    page::TokenInvalid,
+};
+
+use super::{
+    Fields, ImageRef, Movie, Show, ShownImages, artwork_url, movie_to_proto, refused, show_to_proto,
+};
 
 fn logo() -> ImageRef {
     let plugin = PluginId::from_static("fanart");
@@ -57,4 +66,18 @@ fn a_movie_and_a_show_carry_their_title_logo_url() {
 
     assert_eq!(movie_to_proto(movie, None, &images).title_logo_url, url);
     assert_eq!(show_to_proto(&show, &images).title_logo_url, url);
+}
+
+#[test]
+fn a_page_token_from_another_list_is_refused_naming_its_field() {
+    let err = refused(Fields::LIBRARY)(browse::Error::PageTokenInvalid(TokenInvalid));
+
+    let debug = err.details.first().and_then(|detail| detail.debug.clone());
+    let refusal: Refusal = serde_json::from_value(debug.unwrap()).unwrap();
+    assert_eq!(err.code, ErrorCode::InvalidArgument);
+    assert_eq!(
+        refusal.reason.as_known(),
+        Some(RefusalReason::REFUSAL_REASON_PAGE_TOKEN_INVALID)
+    );
+    assert_eq!(refusal.field, "page.token");
 }

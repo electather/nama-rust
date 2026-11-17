@@ -197,7 +197,7 @@ async fn a_movie_matched_only_to_a_made_up_id_is_listed_and_found_by_it() {
     fx.store(ALIEN, 10, movie("Alien", 1979)).await;
     match_movie(&fx, ALIEN, ExternalIds::from_iter([anidb.clone()])).await;
 
-    let movies = fx.contents.movies(fx.library).await.unwrap();
+    let movies = fx.contents.movies(fx.library, None).await.unwrap();
     assert_eq!(movies.len(), 1);
     assert_eq!(movies[0].id, anidb);
     assert_eq!(movies[0].ids.get("anidb"), Some(anidb.clone()));
@@ -214,7 +214,7 @@ async fn two_files_matched_to_one_made_up_id_are_one_movie_with_two_versions() {
         match_movie(&fx, path, ExternalIds::from_iter([anidb.clone()])).await;
     }
 
-    let movies = fx.contents.movies(fx.library).await.unwrap();
+    let movies = fx.contents.movies(fx.library, None).await.unwrap();
     assert_eq!(movies.len(), 1);
     assert_eq!(movies[0].id, anidb);
     assert_eq!(movies[0].versions.len(), 2);
@@ -232,7 +232,7 @@ async fn a_movie_with_a_made_up_and_a_tmdb_id_is_identified_by_tmdb_and_found_by
     )
     .await;
 
-    let movies = fx.contents.movies(fx.library).await.unwrap();
+    let movies = fx.contents.movies(fx.library, None).await.unwrap();
     assert_eq!(movies.len(), 1);
     assert_eq!(movies[0].id, ExternalId::tmdb(348));
     assert_eq!(library_of(&fx, &mal).await, Some(fx.library));
@@ -267,7 +267,7 @@ async fn an_episode_of_a_show_with_only_a_made_up_id_is_grouped_and_found_under_
         .await
         .unwrap();
 
-    let shows = fx.contents.shows(fx.library).await.unwrap();
+    let shows = fx.contents.shows(fx.library, None).await.unwrap();
     assert_eq!(shows.len(), 1);
     assert_eq!(shows[0].id, mal);
     let numbers: Vec<_> = shows[0].episodes().map(|found| found.number).collect();
@@ -345,8 +345,8 @@ async fn a_library_lists_its_titles_under_the_id_of_its_first_title_source() {
         .await
         .unwrap();
     let listed = async || {
-        let movies = fx.contents.movies(fx.library).await.unwrap();
-        let shows = fx.contents.shows(fx.library).await.unwrap();
+        let movies = fx.contents.movies(fx.library, None).await.unwrap();
+        let shows = fx.contents.shows(fx.library, None).await.unwrap();
         let episode_id = shows[0].seasons[&1].episodes[0].id.clone();
         (movies[0].id.clone(), shows[0].id.clone(), episode_id)
     };
@@ -390,7 +390,7 @@ async fn an_image_is_stored_and_served_under_its_own_plugin() {
         .await
         .unwrap();
 
-    let movies = fx.contents.movies(fx.library).await.unwrap();
+    let movies = fx.contents.movies(fx.library, None).await.unwrap();
     assert_eq!(movies[0].plugin, "tmdb");
     assert_eq!(movies[0].poster, Some(poster));
     let images = fx.contents.images(Some(fx.library)).await.unwrap();
@@ -427,7 +427,7 @@ async fn a_title_logo_is_stored_read_back_and_kept() {
         .await
         .unwrap();
 
-    let movies = fx.contents.movies(fx.library).await.unwrap();
+    let movies = fx.contents.movies(fx.library, None).await.unwrap();
     assert_eq!(movies[0].logo, Some(logo));
     let images = fx.contents.images(Some(fx.library)).await.unwrap();
     assert_eq!(images, [("fanart".to_owned(), "/logo.png".to_owned())]);
@@ -467,7 +467,7 @@ async fn a_seasons_poster_keeps_the_plugin_it_was_stored_under() {
         .await
         .unwrap();
 
-    let shows = fx.contents.shows(fx.library).await.unwrap();
+    let shows = fx.contents.shows(fx.library, None).await.unwrap();
     assert_eq!(shows[0].seasons[&1].episodes[0].plugin, "tmdb");
     assert_eq!(shows[0].seasons[&1].poster, Some(poster));
 }
@@ -612,10 +612,10 @@ async fn a_versions_titles_come_with_every_id_and_an_unmatched_episode_as_none()
         .record(vec![(second, Decided::Matched(Box::new(metadata)))])
         .await
         .unwrap();
-    let alien = fx.contents.movies(fx.library).await.unwrap()[0].versions[0]
+    let alien = fx.contents.movies(fx.library, None).await.unwrap()[0].versions[0]
         .file
         .id;
-    let shows = fx.contents.shows(fx.library).await.unwrap();
+    let shows = fx.contents.shows(fx.library, None).await.unwrap();
     let both = shows[0].seasons[&1].episodes[0].versions[0].file.id;
 
     let movie = fx.contents.titles_in(alien).await.unwrap();
@@ -640,7 +640,7 @@ async fn match_movies(fx: &Fixture, titles: &[(&str, i64)]) {
 }
 
 async fn movie_titles(fx: &Fixture) -> Vec<String> {
-    let movies = fx.contents.movies(fx.library).await.unwrap();
+    let movies = fx.contents.movies(fx.library, None).await.unwrap();
     movies.into_iter().map(|found| found.title).collect()
 }
 
@@ -695,7 +695,7 @@ async fn shows_come_in_title_order_ignoring_case() {
             .unwrap();
     }
 
-    let shows = fx.contents.shows(fx.library).await.unwrap();
+    let shows = fx.contents.shows(fx.library, None).await.unwrap();
     let titles: Vec<_> = shows.iter().map(|show| show.title.as_str()).collect();
     assert_eq!(titles, ["Band of Brothers", "BEEF"]);
 }

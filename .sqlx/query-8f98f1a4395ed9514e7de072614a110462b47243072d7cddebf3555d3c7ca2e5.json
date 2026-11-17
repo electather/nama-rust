@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE item_matches SET sort_title = ? WHERE item_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "8f98f1a4395ed9514e7de072614a110462b47243072d7cddebf3555d3c7ca2e5"
+}
