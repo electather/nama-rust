@@ -42,7 +42,7 @@ mod sent;
 mod stored;
 mod title_sources;
 
-use sent::with_stored_secrets;
+use sent::{check_fits, with_stored_secrets};
 pub use stored::{grants, stored};
 use stored::{import, save, set_enabled, set_enabled_granting};
 
@@ -424,8 +424,9 @@ impl PluginSettings {
     /// # Errors
     ///
     /// If no Plugin has the id or the Server refused it, the settings don't fit its schema (even
-    /// an integer's bounds) or name a Library that doesn't exist, its settings check fails or
-    /// doesn't offer a choice's value, or the database fails. A refused change saves nothing.
+    /// an integer's bounds, and a required setting only if it is stored as enabled) or name a
+    /// Library that doesn't exist, its settings check fails or doesn't offer a choice's value, or
+    /// the database fails. A refused change saves nothing.
     pub async fn update(
         &self,
         id: &PluginId,
@@ -444,8 +445,7 @@ impl PluginSettings {
             ) = this.listed(&id).await?;
             let mut settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
             library_ids::dedupe_library_ids(&manifest.settings, &mut settings);
-            Settings::new(settings.clone())
-                .resolve(&manifest.settings)
+            check_fits(&manifest.settings, &settings, stored.enabled)
                 .map_err(ChangeError::InvalidSettings)?;
             this.check_library_ids(&manifest.settings, &settings)
                 .await?;
