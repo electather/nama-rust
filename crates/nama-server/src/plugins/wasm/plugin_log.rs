@@ -15,11 +15,12 @@ use crate::db;
 /// The target every Installed Plugin's line is logged under.
 const TARGET: &str = "nama::plugin";
 
-/// The most of a line logged, in bytes, so a Plugin can't fill the log with one (ADR 0039).
+/// The most of a line logged, in bytes, so a Plugin can't fill the log with one (ADR 0061).
 const MAX_LINE_BYTES: usize = 2048;
 
-/// How many lines a Plugin may log at once, and how many more each second.
+/// How many lines a Plugin may log at once.
 const BURST: u64 = 50;
+/// How many more lines a Plugin may log each second, past its [`BURST`].
 const LINES_PER_SECOND: u64 = 10;
 
 /// How often the Server warns that a Plugin's lines were dropped over its rate.
