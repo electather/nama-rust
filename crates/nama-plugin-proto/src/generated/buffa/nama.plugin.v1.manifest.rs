@@ -216,13 +216,13 @@ impl ::buffa::Enumeration for SettingKind {
 /// occasions:
 ///
 /// - when an admin tests settings, with the settings tested, which may be unsaved;
-/// - when an admin saves settings in which a choice setting has a value, with the settings being
+/// - when an admin saves settings in which they set a choice setting, with the settings being
 ///   saved, refusing the save if the check fails or doesn't offer that value;
 /// - when an admin replaces a Fulfiller's Qualities with a non-empty list, with its stored
 ///   settings, refusing the replace if the check fails or doesn't offer a Quality's profile.
 ///
-/// A failing check refuses a save or a replace, and a slow one holds it up. The hosts of the URL
-/// settings it is given are allowed for that call alone.
+/// A slow check holds up the save or replace. The hosts of the URL settings it is given are allowed
+/// for that call alone.
 ///
 /// A Plugin with `personal_settings` may also export `check_personal_settings()`, which takes
 /// `PersonalSettingsCheck` and checks one User's Personal settings. It returns
