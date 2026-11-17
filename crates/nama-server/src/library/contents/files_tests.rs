@@ -1,3 +1,5 @@
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use tempfile::TempDir;
 
 use super::{
@@ -7,7 +9,10 @@ use super::{
     },
     Change,
 };
-use crate::library::{libraries::Kind, versions::PARSER_VERSION};
+use crate::{
+    db,
+    library::{libraries::Kind, versions::PARSER_VERSION},
+};
 
 #[tokio::test]
 async fn storing_a_changed_file_replaces_its_items_and_their_matches_go_with_them() {
@@ -29,6 +34,47 @@ async fn storing_a_changed_file_replaces_its_items_and_their_matches_go_with_the
             .collect::<Vec<_>>(),
         [(false, None)]
     );
+}
+
+#[tokio::test]
+async fn storing_a_changed_file_keeps_when_its_items_were_added() {
+    let fx = Fixture::new().await;
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    let added_at = || {
+        sqlx::query_scalar::<_, i64>("SELECT added_at FROM library_items")
+            .fetch_one(fx.contents.db.reader())
+    };
+    let first = added_at().await.unwrap();
+
+    db::advance_clock(Duration::from_secs(2));
+    fx.store(ALIEN, 20, movie("Alien", 1979)).await;
+
+    assert_eq!(added_at().await.unwrap(), first);
+}
+
+#[tokio::test]
+async fn an_item_a_reparse_newly_reads_was_added_with_its_file() {
+    let fx = Fixture::new().await;
+    fx.store(ALIEN, 10, movie("Alien", 1979)).await;
+    let first = sqlx::query_scalar::<_, i64>("SELECT added_at FROM library_items")
+        .fetch_one(fx.contents.db.reader())
+        .await
+        .unwrap();
+
+    db::advance_clock(Duration::from_secs(2));
+    let file = fx.contents.stored(fx.library).await.unwrap()[ALIEN].id;
+    let reparse = Change::Reparse {
+        file,
+        path: ALIEN.to_owned(),
+        items: vec![movie("Alien", 1979), movie("Aliens", 1986)],
+    };
+    fx.contents.apply(fx.library, vec![reparse]).await.unwrap();
+
+    let added = sqlx::query_scalar::<_, i64>("SELECT added_at FROM library_items")
+        .fetch_all(fx.contents.db.reader())
+        .await
+        .unwrap();
+    assert_eq!(added, [first, first]);
 }
 
 #[tokio::test]
@@ -162,4 +208,40 @@ async fn reading_unparsed_files_again_marks_only_that_librarys_unparsed_files() 
         ),
         (true, PARSER_VERSION, PARSER_VERSION)
     );
+}
+
+#[tokio::test]
+async fn items_stored_before_upgrading_were_added_when_the_server_upgraded_not_when_modified() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let options = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(data_dir.path().join(db::FILE_NAME))
+        .create_if_missing(true);
+    // A raw connection, not `Database::write`: `Database::open` would run every migration.
+    let mut before = sqlx::ConnectOptions::connect(&options).await.unwrap();
+    // The last migration before Items recorded when they were added.
+    sqlx::migrate!().run_to(78, &mut before).await.unwrap();
+    sqlx::query(
+        "INSERT INTO libraries (id, name, kind) VALUES (1, 'Movies', 'movies');
+         INSERT INTO library_files (id, library_id, path, size, modified_ns)
+         VALUES (1, 1, '/media/Alien.mkv', 10, 0);
+         INSERT INTO library_items (file_id, kind, title) VALUES (1, 'movie', 'Alien')",
+    )
+    .execute(&mut before)
+    .await
+    .unwrap();
+
+    // The migration reads SQLite's clock, which `db::advance_clock` doesn't move.
+    let unix_seconds = || {
+        let since = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        i64::try_from(since.as_secs()).unwrap()
+    };
+    let upgrading = unix_seconds();
+    sqlx::migrate!().run_to(79, &mut before).await.unwrap();
+    let upgraded = unix_seconds();
+    let added: i64 = sqlx::query_scalar("SELECT added_at FROM library_items")
+        .fetch_one(&mut before)
+        .await
+        .unwrap();
+
+    assert!((upgrading..=upgraded).contains(&added), "{added}");
 }
