@@ -50,3 +50,14 @@ fn a_transcode_lists_a_segment_for_each_six_seconds_of_its_length() {
         ]
     );
 }
+
+#[test]
+fn a_position_is_in_the_last_segment_starting_at_or_before_it() {
+    // Segments start at 0, 7500, 12 500, 20 000 and 25 000 ms.
+    let timeline = Timeline::new((0..12).map(|n| n * 2500).collect(), 30_020);
+
+    assert_eq!(timeline.segment_at(0), 0);
+    assert_eq!(timeline.segment_at(10_000), 1);
+    assert_eq!(timeline.segment_at(12_500), 2);
+    assert_eq!(timeline.segment_at(40_000), 4);
+}

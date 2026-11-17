@@ -1,10 +1,10 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, num::NonZeroU32};
 
 use nama_proto::nama::v1::{AudioCodec, Container, PlaybackReasonKind as Kind, VideoCodec};
 
 use super::{
     Candidates, DeviceDecoding, Facts, Fallback, Method, Network, Offers, PickedLimit, Plan,
-    Playing, Reason, build, narrowed, too_busy_to_play,
+    Playing, Reason, RunningTranscodes, build, narrowed, too_busy_to_play,
     tracks::{BaseLayer, Hdr, Probe, Track, TrackKind},
 };
 use crate::{
@@ -116,7 +116,8 @@ pub(super) fn in_container(container: &str, tracks: Option<Vec<Track>>) -> Facts
         },
         failed: BTreeSet::new(),
         audio: None,
-        transcodes_full: None,
+        running_transcodes: RunningTranscodes::default(),
+        max_transcodes: None,
         picked_limit: PickedLimit::Unpicked,
         network: Network::Local,
         subtitle: None,
@@ -152,6 +153,7 @@ pub(super) const fn remuxing(track: usize, aac_channels: Option<i64>) -> Playing
                 track,
                 aac_channels,
             }),
+            hevc: false,
         },
         duration_ms: LENGTH_MS,
     }
@@ -381,6 +383,7 @@ async fn a_version_without_tracks_is_probed_before_its_playback_plan_is_built() 
         audio: AskedAudio::Preferred(None),
         subtitle: AskedSubtitle::None,
         limit: PickedLimit::Unpicked,
+        start_ms: 0,
         client: std::net::Ipv4Addr::LOCALHOST.into(),
     };
     let planned = plan(
@@ -440,8 +443,13 @@ fn after_a_failed_transcode(facts: &mut Facts) {
     facts.failed = BTreeSet::from([Method::Transcode]);
 }
 
-fn while_busy(facts: &mut Facts) {
-    facts.transcodes_full = Some(2);
+/// The admin let the Server run 2 Transcodes at once, and other Devices run 2.
+pub(super) fn while_busy(facts: &mut Facts) {
+    facts.max_transcodes = NonZeroU32::new(2);
+    facts.running_transcodes = RunningTranscodes {
+        all: 2,
+        cpu_bound: 0,
+    };
 }
 
 /// What a test changes in the facts it plans for.
@@ -638,6 +646,60 @@ fn a_device_without_hls_that_decodes_everything_direct_plays_or_nothing_whatever
             let no_hls = reason_of(&plan, Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_PLAY_HLS);
             assert_eq!(no_hls.decided, plan.method().is_none(), "{chosen}");
         }
+    }
+}
+
+#[test]
+fn an_unplayable_plan_keeps_the_choices_asked_and_drops_none() {
+    let p720 = Some(PlaybackLimit::P720);
+    let choices: [(&str, Change, _); 3] = [
+        (
+            "the second audio Track",
+            choosing_the_second_audio_track,
+            (Some(2), None, None),
+        ),
+        ("720p", picking_720p, (Some(1), p720, None)),
+        ("PGS", burning_in_pgs, (Some(1), None, Some(3))),
+    ];
+    for (chosen, choose, asked) in choices {
+        let mut facts = direct_played();
+        choose(&mut facts);
+        without_ffmpeg(&mut facts);
+        facts.failed = BTreeSet::from([Method::DirectPlay]);
+
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), None, "{chosen}");
+        assert_eq!((plan.audio, plan.limit, plan.burn_in), asked, "{chosen}");
+        let dropped = [
+            Kind::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED,
+            Kind::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED,
+            Kind::PLAYBACK_REASON_KIND_CHOSEN_SUBTITLES_DROPPED,
+        ];
+        assert!(
+            !kinds(&plan).iter().any(|kind| dropped.contains(kind)),
+            "{chosen}"
+        );
+    }
+}
+
+#[test]
+fn a_busy_server_refuses_a_device_that_needs_a_transcode_whatever_is_chosen() {
+    let choices: [(&str, Change); 3] = [
+        ("the second audio Track", choosing_the_second_audio_track),
+        ("720p", picking_720p),
+        ("PGS", burning_in_pgs),
+    ];
+    for (chosen, choose) in choices {
+        let mut facts = direct_played();
+        if let Some(probe) = &mut facts.probe {
+            probe.tracks[0] = video("hevc");
+        }
+        choose(&mut facts);
+        while_busy(&mut facts);
+
+        assert_eq!(build(&mut facts).method(), None, "{chosen}");
+        assert_eq!(too_busy_to_play(facts), Some(2), "{chosen}");
     }
 }
 
