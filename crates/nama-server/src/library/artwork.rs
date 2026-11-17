@@ -177,28 +177,27 @@ impl Artwork {
         season: Option<u32>,
     ) -> Listed {
         let ids = ExternalIds::from_iter([id.clone()]);
-        // A Season's one image is its Poster.
-        let (lists, backdrops) = match (kind, season) {
-            (_, None) => (self.metadata.artwork_lists(kind, &ids).await, true),
-            (TitleKind::Show, Some(season)) => (
-                self.metadata.season_artwork_lists(&ids, season).await,
-                false,
-            ),
-            // A Movie has no Seasons.
-            (TitleKind::Movie, Some(_)) => (Vec::new(), false),
-        };
-        let offered = |of_kind| {
-            (ranked(&lists, of_kind, LANGUAGE).into_iter())
+        let offered = |lists: &[(Source, Vec<title_source::Artwork>)], of_kind| {
+            (ranked(lists, of_kind, LANGUAGE).into_iter())
                 .map(|(_, source, art)| self.offer(&source.plugin, &art.path))
                 .collect()
         };
+        let Some(season) = season else {
+            let lists = self.metadata.artwork_lists(kind, &ids).await;
+            return Listed {
+                posters: offered(&lists, ArtworkKind::Poster),
+                backdrops: offered(&lists, ArtworkKind::Backdrop),
+            };
+        };
+        let lists = match kind {
+            TitleKind::Show => self.metadata.season_artwork_lists(&ids, season).await,
+            // A Movie has no Seasons.
+            TitleKind::Movie => Vec::new(),
+        };
+        // A Season's one image is its Poster.
         Listed {
-            posters: offered(ArtworkKind::Poster),
-            backdrops: if backdrops {
-                offered(ArtworkKind::Backdrop)
-            } else {
-                Vec::new()
-            },
+            posters: offered(&lists, ArtworkKind::Poster),
+            backdrops: Vec::new(),
         }
     }
 

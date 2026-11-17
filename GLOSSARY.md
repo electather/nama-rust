@@ -215,7 +215,7 @@ The image of a Movie's or Show's title, lettered as its artwork letters it, show
 _Avoid_: logo, title treatment, clearlogo, wordmark
 
 **Artwork list**:
-What a title source has for one title, of every kind, from which Artwork picks a Poster, Backdrop and Title Logo.
+What a title source has for one title, of every kind, from which Artwork picks a Poster, Backdrop and Title Logo. A Season has its own, of Posters only, which an admin picks from in "Edit images".
 _Avoid_: image list, artwork set, gallery
 
 **Custom Image**:

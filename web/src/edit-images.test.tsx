@@ -191,9 +191,21 @@ test("a Show's page edits the Show's images and the Season shown's Poster", asyn
 /** Dark's page showing Season 2, whose title sources list `seasonPosters` for that Season. */
 async function openDarkSeason2(seasonPosters: string[]) {
   const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
+  let listedSeason: (() => void) | undefined;
+  const seasonListed = new Promise<void>((resolve) => {
+    listedSeason = resolve;
+  });
   const libraryService = {
-    listArtwork: ({ season }: { season?: number | undefined }) =>
-      season === 2 ? { posterUrls: seasonPosters } : { posterUrls: [OTHER], backdropUrls: [OTHER] },
+    // The Show's lists answer only after the Season's, so once the Show's picks show, the
+    // Season's list has arrived too, empty or not.
+    listArtwork: async ({ season }: { season?: number | undefined }) => {
+      if (season === 2) {
+        listedSeason?.();
+        return { posterUrls: seasonPosters };
+      }
+      await seasonListed;
+      return { posterUrls: [OTHER], backdropUrls: [OTHER] };
+    },
   };
   const transport = fakeServer(
     { signedIn: managesLibraries, libraries, libraryService },
@@ -232,7 +244,6 @@ test("a Season's Poster is picked from that Season's artwork", async () => {
 test("a Season no title source lists artwork for offers only the upload", async () => {
   const dialog = await openDarkSeason2([]);
 
-  // The Show's Poster's pick shows once the lists have arrived.
   await within(dialog).findByRole("button", { name: "Pick Poster 1 of 1" });
 
   expect(within(dialog).getByLabelText("Upload a Season 2 Poster")).toBeDefined();
